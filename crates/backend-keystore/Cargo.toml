@@ -12,17 +12,26 @@ publish.workspace = true
 pdfover-backend-api = { workspace = true }
 pdfover-cades = { workspace = true }
 p12-keystore = { workspace = true }
-pkcs8 = { workspace = true }
-rsa = { workspace = true }
-p256 = { workspace = true }
-p384 = { workspace = true }
-p521 = { workspace = true }
-ecdsa = { workspace = true }
-signature = { workspace = true }
+# Vorprüfung der PFX-Struktur ohne Passwort (gepinnte Generation 0.7, ADR 0001 §5.2)
+der = { workspace = true }
 async-trait = { workspace = true }
 zeroize = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+# spawn_blocking für die PBKDF-Arbeit beim Entsperren, select! für den Abbruch
+tokio = { workspace = true }
+# Paket B, neu: pkcs5 0.8.1 (Apache-2.0 OR MIT) wird nicht direkt benutzt. Die Abhängigkeit aktiviert
+# per Feature-Vereinigung in der von p12-keystore 0.4.1 genutzten pkcs5-Version die Lesepfade für
+# PBES2 mit PRF HMAC-SHA-1 (`sha1-insecure`, ältere OpenSSL-/Java-Exporte) und mit DES-EDE3-CBC
+# (`3des`). Nur Entschlüsseln; neue Keystores schreibt der Klon nicht. Version muss der von
+# p12-keystore entsprechen (bei einem Update von p12-keystore mitziehen).
+pkcs5 = { version = "=0.8.1", default-features = false, features = ["sha1-insecure", "3des"] }
+
+[dev-dependencies]
+pdfover-backend-api = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
+tempfile = { workspace = true }
+time = { workspace = true }
 
 [lints]
 workspace = true

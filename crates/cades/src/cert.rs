@@ -3,7 +3,7 @@
 use der::{Decode, Encode, Tag, Tagged};
 use time::OffsetDateTime;
 
-use crate::{CmsError, Digest, DigestAlg, Result};
+use crate::{CmsError, Digest, DigestAlg, Result, oids};
 
 /// Ein Attribut eines Distinguished Names (eine AVA), in Reihenfolge des DER (links = zuerst
 /// kodiert = Wurzel).
@@ -102,9 +102,46 @@ impl Certificate {
         Ok(Self { der: der.to_vec(), parsed: Box::new(parsed) })
     }
 
-    /// Aus PEM (`-----BEGIN CERTIFICATE-----`).
+    /// Aus PEM (`-----BEGIN CERTIFICATE-----`). Text vor dem ersten Block (z. B. Ausgabe von
+    /// `openssl x509 -text`) wird ignoriert; bei mehreren Blöcken zählt der erste. Akzeptiert auch
+    /// `X509 CERTIFICATE` und `TRUSTED CERTIFICATE` (OpenSSL-Zusatzdaten hinter dem DER werden über die
+    /// DER-Länge abgeschnitten).
     pub fn from_pem(pem: &str) -> Result<Self> {
-        todo!("Paket B")
+        Self::from_pem_all(pem)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| CmsError::Certificate("kein PEM-Block CERTIFICATE gefunden".into()))
+    }
+
+    /// Alle Zertifikate einer PEM-Datei in Reihenfolge (z. B. Kette `chain.pem`).
+    pub fn from_pem_all(pem: &str) -> Result<Vec<Self>> {
+        use base64::Engine as _;
+        const LABELS: [&str; 3] = ["CERTIFICATE", "X509 CERTIFICATE", "TRUSTED CERTIFICATE"];
+        let mut out = Vec::new();
+        let mut rest = pem;
+        while let Some(start) = rest.find("-----BEGIN ") {
+            let after = &rest[start + "-----BEGIN ".len()..];
+            let Some(label_end) = after.find("-----") else { break };
+            let label = after[..label_end].trim();
+            let body_start = &after[label_end + 5..];
+            let end_marker = format!("-----END {label}-----");
+            let Some(end) = body_start.find(&end_marker) else {
+                return Err(CmsError::Certificate(format!("PEM-Block {label} ohne Ende")));
+            };
+            let body = &body_start[..end];
+            rest = &body_start[end + end_marker.len()..];
+            if !LABELS.contains(&label) {
+                continue;
+            }
+            // Header-Zeilen (RFC 1421, `Proc-Type:` …) gibt es bei Zertifikaten nicht; Leerraum weg.
+            let b64: String = body.chars().filter(|c| !c.is_whitespace()).collect();
+            let der = base64::engine::general_purpose::STANDARD
+                .decode(b64.as_bytes())
+                .map_err(|e| CmsError::Certificate(format!("PEM/Base64: {e}")))?;
+            let tlv = crate::der_util::read_tlv(&der).map_err(|e| CmsError::Certificate(e.to_string()))?;
+            out.push(Self::from_der(tlv.raw)?);
+        }
+        Ok(out)
     }
 
     /// DER-Bytes.
@@ -174,8 +211,55 @@ impl Certificate {
     }
 
     /// Schlüsseltyp aus der SubjectPublicKeyInfo.
+    ///
+    /// RSA (`rsaEncryption`) mit Modullänge in Bit; EC (`id-ecPublicKey`) mit benannter Kurve
+    /// (P-256/384/521, brainpoolP256/384/512r1, sonst [`EcCurve::Other`] mit OID; explizite
+    /// Kurvenparameter → `Other("explicit")`); DSA; alles andere (RSASSA-PSS-Schlüssel, Ed25519,
+    /// Ed448 …) → [`KeyType::Other`] – PDF-AS lehnt diese mit `NoSuchAlgorithmException` ab.
     pub fn key_type(&self) -> Result<KeyType> {
-        todo!("Paket B: SPKI auswerten (RSA-Modullänge, EC-Kurven-OID, DSA)")
+        let spki = &self.parsed.tbs_certificate.subject_public_key_info;
+        let oid = spki.algorithm.oid.to_string();
+        Ok(match oid.as_str() {
+            oids::RSA_ENCRYPTION => KeyType::Rsa { bits: rsa_modulus_bits(self.public_key_bits()?)? },
+            oids::EC_PUBLIC_KEY => KeyType::Ec { curve: ec_curve_from_params(spki.algorithm.parameters.as_ref())? },
+            oids::DSA => KeyType::Dsa,
+            oids::RSASSA_PSS => KeyType::Other("RSASSA-PSS".into()),
+            oids::ED25519 => KeyType::Other("Ed25519".into()),
+            oids::ED448 => KeyType::Other("Ed448".into()),
+            _ => KeyType::Other(oid),
+        })
+    }
+
+    /// Inhalt des `subjectPublicKey`-BIT-STRINGs (ohne „unused bits“-Oktett).
+    pub(crate) fn public_key_bits(&self) -> Result<&[u8]> {
+        self.parsed
+            .tbs_certificate
+            .subject_public_key_info
+            .subject_public_key
+            .as_bytes()
+            .ok_or_else(|| CmsError::Certificate("subjectPublicKey mit ungenutzten Bits".into()))
+    }
+
+    /// Rohe DER-Kodierungen von `issuer` (Name) und `serialNumber` (INTEGER), unverändert aus dem
+    /// Zertifikat – für IssuerAndSerialNumber und ESS IssuerSerial.
+    pub(crate) fn issuer_and_serial_raw(&self) -> Result<(&[u8], &[u8])> {
+        use crate::der_util::{Reader, read_tlv, tag};
+        let cert = read_tlv(&self.der)?.expect(tag::SEQUENCE, "Certificate")?;
+        let tbs = cert.reader().read_expect(tag::SEQUENCE, "TBSCertificate")?;
+        let mut r: Reader<'_> = tbs.reader();
+        r.read_optional(0xA0)?; // version [0] EXPLICIT
+        let serial = r.read_expect(tag::INTEGER, "serialNumber")?;
+        r.read_expect(tag::SEQUENCE, "signature")?;
+        let issuer = r.read_expect(tag::SEQUENCE, "issuer")?;
+        Ok((issuer.raw, serial.raw))
+    }
+
+    /// Wert der Erweiterung SubjectKeyIdentifier (2.5.29.14), falls vorhanden.
+    pub(crate) fn subject_key_identifier(&self) -> Option<Vec<u8>> {
+        let exts = self.parsed.tbs_certificate.extensions.as_ref()?;
+        let ext = exts.iter().find(|e| e.extn_id.to_string() == "2.5.29.14")?;
+        let t = crate::der_util::read_tlv(ext.extn_value.as_bytes()).ok()?;
+        (t.tag == crate::der_util::tag::OCTET_STRING).then(|| t.content.to_vec())
     }
 
     /// DER der `SubjectPublicKeyInfo`.
@@ -203,6 +287,39 @@ impl CertChain {
     pub fn iter(&self) -> impl Iterator<Item = &Certificate> + '_ {
         std::iter::once(&self.signer).chain(self.intermediates.iter())
     }
+}
+
+/// Modullänge in Bit aus `RSAPublicKey ::= SEQUENCE { modulus INTEGER, publicExponent INTEGER }`.
+pub(crate) fn rsa_modulus_bits(rsa_public_key: &[u8]) -> Result<u32> {
+    use crate::der_util::{integer_magnitude, read_tlv, tag};
+    let seq = read_tlv(rsa_public_key)?.expect(tag::SEQUENCE, "RSAPublicKey")?;
+    let n = seq.reader().read_expect(tag::INTEGER, "modulus")?;
+    let m = integer_magnitude(n.content);
+    if m.is_empty() || m == [0] {
+        return Err(CmsError::Certificate("RSA-Modul ist 0".into()));
+    }
+    Ok((m.len() as u32 - 1) * 8 + (8 - m[0].leading_zeros()))
+}
+
+/// Kurve aus den Parametern von `id-ecPublicKey` (`namedCurve` OID).
+fn ec_curve_from_params(params: Option<&der::Any>) -> Result<EcCurve> {
+    let Some(params) = params else {
+        // implicitlyCA ohne Parameter (RFC 5480 verbietet das, kommt aber vor)
+        return Ok(EcCurve::Other("implicitlyCA".into()));
+    };
+    if params.tag() != Tag::ObjectIdentifier {
+        return Ok(EcCurve::Other("explicit".into()));
+    }
+    let oid = crate::der_util::oid_to_string(params.value())?;
+    Ok(match oid.as_str() {
+        oids::P256 => EcCurve::P256,
+        oids::P384 => EcCurve::P384,
+        oids::P521 => EcCurve::P521,
+        oids::BRAINPOOL_P256R1 => EcCurve::BrainpoolP256r1,
+        oids::BRAINPOOL_P384R1 => EcCurve::BrainpoolP384r1,
+        oids::BRAINPOOL_P512R1 => EcCurve::BrainpoolP512r1,
+        _ => EcCurve::Other(oid),
+    })
 }
 
 fn name_to_attrs(name: &x509_cert::name::Name) -> Vec<RdnAttr> {
