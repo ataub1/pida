@@ -21,13 +21,41 @@
 //! `pdfover_config::SignatureProfile::pdfas_profile_id`).
 //!
 //! Ownership: Paket **C**. Profile, Fonts (DejaVu, Bitstream-Vera-Lizenz) und Bildmarken werden aus
-//! `reference/pdfas-config` nach `crates/sigblock/assets/` übernommen (EUPL; `arial.ttf` nicht).
+//! `reference/pdfas-config` nach `crates/sigblock/assets/` übernommen (EUPL; `arial.ttf` nicht) und
+//! per `include_bytes!` eingebettet ([`BuiltinResources`], [`ProfileStore::builtin`]); die
+//! Standard-14-Breiten stammen aus den Adobe-Core14-AFM-Dateien (`src/afm_data.rs`, generiert mit
+//! `tools/gen_afm.py`).
+//!
+//! # Verifikation
+//!
+//! - Rechenbeispiele aus docs/analyse/04 §3.8 (`tests/layout.rs`, ±0,01 pt).
+//! - Golden-Vergleich gegen von PDF-AS signierte Referenz-PDFs (`tests/golden.rs`): Tokenstrom des
+//!   Inner-Forms gleich; mit `pdfas_quirks` für das aktuelle Format byte-gleich; Pixelvergleich per
+//!   PDFium (`tests/render.rs`, nur mit `PDFOVER_PDFIUM_DIR`). Ergebnisse:
+//!   `testdata/sigblock/RESULTS.md`.
+//!
+//! # Kompatibilitätsregister (Abweichungen nur ohne `SigBlockInput::pdfas_quirks`)
+//!
+//! | Thema | PDF-AS | hier |
+//! |---|---|---|
+//! | `/TU` (Q10) | nur Texte der äußersten Tabelle (SMALL ohne Hinweis: leer) | alle Texte in Leserichtung |
+//! | Nicht darstellbare Zeichen (Q11) | `URLEncoder.encode` des ganzen Werts | Zeichen → `?`, gemeldet in [`Layout::replaced_chars`] |
+//! | `\n` am Wortende | Messfehler, Signatur bricht ab | wird als Umbruch behandelt |
+//! | Titel-RDN | nur `title` → zusätzlich `T` | `title` **und** `T` (auch OID 2.5.4.12) |
+//! | Farben | `/DeviceRGB cs … sc` | Grautöne als DeviceGray (`g`), sonst `rg` (pixelgleich) |
+//! | PDF/A + Standard-14 | nicht eingebettete Helvetica | DejaVu-Ersatz ([`fonts::FontSpec::embeddable`]) |
+//! | PDF/A-1-Bilder | `removeAlphaChannel` (Ergebnis offen) | Komposition auf Weiß |
+//! | EXIF | nur JPEG (PDF-Over) | nur JPEG (wie PDF-Over) |
+//! | Logo-Größe > 120 mm | Klemmung nur in der Vorschau | Klemmung auch beim Signieren ([`ProfileOverrides::base_logo`]) |
 
+mod afm;
 pub mod appearance;
+pub mod assets;
 pub mod emblem;
 pub mod expr;
 pub mod fonts;
 pub mod input;
+mod java;
 pub mod layout;
 pub mod profile;
 
@@ -92,5 +120,54 @@ pub enum SigBlockError {
     Io(#[from] std::io::Error),
 }
 
+impl SigBlockError {
+    /// Stabiler Meldungscode (Fluent-ID, ADR 0001 Regel 11; Texte trägt die Integration ein).
+    pub fn code(&self) -> &'static str {
+        match self {
+            SigBlockError::UnknownProfile(_) => "sigblock-unknown-profile",
+            SigBlockError::Profile(_) => "sigblock-profile",
+            SigBlockError::UnsupportedExpression(_) => "sigblock-unsupported-expression",
+            SigBlockError::UnsupportedDatePattern(_) => "sigblock-unsupported-date-pattern",
+            SigBlockError::Font(_) => "sigblock-font",
+            SigBlockError::MissingGlyph(_) => "sigblock-missing-glyph",
+            SigBlockError::Image(_) => "sigblock-image",
+            SigBlockError::MissingResource(_) => "sigblock-missing-resource",
+            SigBlockError::Pdf(_) => "sigblock-pdf",
+            SigBlockError::Io(_) => "sigblock-io",
+        }
+    }
+}
+
+/// Meldungscode für den Hinweis „Zeichen ersetzt“ ([`Layout::replaced_chars`] nicht leer).
+pub const NOTICE_CHARS_REPLACED: &str = "sigblock-chars-replaced";
+
 /// Ergebnis-Alias.
 pub type Result<T, E = SigBlockError> = std::result::Result<T, E>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_codes_are_unique_and_prefixed() {
+        let errs = [
+            SigBlockError::UnknownProfile(String::new()),
+            SigBlockError::Profile(String::new()),
+            SigBlockError::UnsupportedExpression(String::new()),
+            SigBlockError::UnsupportedDatePattern(String::new()),
+            SigBlockError::Font(String::new()),
+            SigBlockError::MissingGlyph('x'),
+            SigBlockError::Image(String::new()),
+            SigBlockError::MissingResource(String::new()),
+            SigBlockError::Pdf(String::new()),
+            SigBlockError::Io(std::io::Error::other("x")),
+        ];
+        let mut codes: Vec<&str> = errs.iter().map(SigBlockError::code).collect();
+        assert!(codes.iter().all(|c| c.starts_with("sigblock-")));
+        codes.push(NOTICE_CHARS_REPLACED);
+        let n = codes.len();
+        codes.sort();
+        codes.dedup();
+        assert_eq!(codes.len(), n);
+    }
+}

@@ -42,7 +42,20 @@ impl CertFields {
     /// Beispielzertifikat für die Vorschau vor bekanntem Zertifikat (wie `example.cer` bei PDF-AS,
     /// Plan §6.6).
     pub fn example() -> CertFields {
-        todo!("Paket C")
+        // Fiktive Daten (kein echtes Zertifikat, keine Personendaten).
+        let subject = vec![("C".to_string(), "AT".to_string()), ("CN".to_string(), "Max Mustermann".to_string())];
+        let issuer = vec![
+            ("C".to_string(), "AT".to_string()),
+            ("O".to_string(), "PDF-Over NG".to_string()),
+            ("CN".to_string(), "Beispiel-Zertifikat (nur Vorschau)".to_string()),
+        ];
+        CertFields {
+            subject,
+            issuer,
+            serial_decimal: "1234567890".to_string(),
+            subject_dn: "CN=Max Mustermann,C=AT".to_string(),
+            issuer_dn: "CN=Beispiel-Zertifikat (nur Vorschau),O=PDF-Over NG,C=AT".to_string(),
+        }
     }
 }
 
@@ -61,8 +74,8 @@ pub enum PdfaMode {
     Part3,
 }
 
-/// Eingabe für Layout und Appearance.
-#[derive(Debug, Clone, PartialEq)]
+/// Eingabe für Layout und Appearance. `Debug` zeigt keinen Hinweistext und keine `sbp`-Werte.
+#[derive(Clone, PartialEq)]
 pub struct SigBlockInput {
     /// Zertifikatsfelder (bzw. [`CertFields::example`]).
     pub cert: CertFields,
@@ -80,4 +93,36 @@ pub struct SigBlockInput {
     pub sbp: BTreeMap<String, String>,
     /// PDF-AS-Quirks exakt nachbilden (nur Golden-Tests, `compat.pdfas_quirks`).
     pub pdfas_quirks: bool,
+}
+
+impl std::fmt::Debug for SigBlockInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SigBlockInput")
+            .field("cert", &self.cert)
+            .field("signing_time", &self.signing_time)
+            .field("note_len", &self.note.as_ref().map(|n| n.chars().count()))
+            .field("emblem", &self.emblem)
+            .field("pdfa", &self.pdfa)
+            .field("pdf_version", &self.pdf_version)
+            .field("sbp", &self.sbp.keys().collect::<Vec<_>>())
+            .field("pdfas_quirks", &self.pdfas_quirks)
+            .finish()
+    }
+}
+
+impl SigBlockInput {
+    /// Eingabe mit Defaults: kein Hinweis-Override, Profil-Logo, kein PDF/A, `iui.pdfVersion`
+    /// = `1.7`, keine `sbp`, ohne PDF-AS-Quirks.
+    pub fn new(cert: CertFields, signing_time: OffsetDateTime) -> SigBlockInput {
+        SigBlockInput {
+            cert,
+            signing_time,
+            note: None,
+            emblem: None,
+            pdfa: PdfaMode::None,
+            pdf_version: "1.7".to_string(),
+            sbp: BTreeMap::new(),
+            pdfas_quirks: false,
+        }
+    }
 }

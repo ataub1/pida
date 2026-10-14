@@ -21,6 +21,17 @@ zune-jpeg = { workspace = true }
 gif = { workspace = true }
 kamadak-exif = { workspace = true }
 flate2 = { workspace = true }
+# Java-TimeZone-IDs für `timezone` (ADR 0001 §8.7)
+jiff = { workspace = true }
+# SHA-256 der Bildmarke (Cache-Schlüssel `Emblem::source_sha256`)
+sha2 = { workspace = true }
+
+[dev-dependencies]
+time = { workspace = true }
+tempfile = { workspace = true }
+# Pixelvergleich (tests/render.rs, nur mit PDFOVER_PDFIUM_DIR)
+pdfium-render = { workspace = true }
+proptest = { workspace = true }
 
 [lints]
 workspace = true
