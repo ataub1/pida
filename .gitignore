@@ -1,0 +1,9 @@
+/target/
+**/target/
+/.venv/
+node_modules/
+/reference/
+dist/
+.DS_Store
+*.log
+/out/
