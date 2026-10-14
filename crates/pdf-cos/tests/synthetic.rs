@@ -401,6 +401,10 @@ fn signature_field_tree() {
     assert_eq!(uml.widgets[0].page_index, Some(1), "Seite über /Annots gefunden");
     let info = s.acroform_info().unwrap().unwrap();
     assert_eq!((info.id, info.field_count, info.sig_flags), (None, 3, 1));
+    // Debug ohne Feldnamen (Regel 9)
+    let dbg = format!("{f:?}");
+    assert!(!dbg.contains("sig1") && !dbg.contains("form") && !dbg.contains("über"), "{dbg}");
+    assert!(dbg.contains("qualified_name_len: 9"), "{dbg}");
 }
 
 #[test]

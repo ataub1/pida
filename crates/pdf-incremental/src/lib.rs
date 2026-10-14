@@ -46,6 +46,11 @@ pub const RESERVE_MODEL_B: usize = 16 * 1024;
 /// [`SignatureDictSpec`] und Mindestwert für Modell A.
 pub const RESERVE_MIN_MODEL_A: usize = 0x1000;
 
+/// Obergrenze der `/Contents`-Reserve (32 MiB CMS, 64 MiB Hex). Reale CMS liegen bei wenigen KB
+/// (auch mit Kette und Zeitstempel unter 100 KB); die Grenze verhindert, dass ein fehlerhafter
+/// Profilwert (`signatureSize`) oder eine Backend-Angabe eine riesige Allokation auslöst.
+pub const RESERVE_MAX: usize = 32 * 1024 * 1024;
+
 /// Fehler des Writers.
 #[derive(Debug, thiserror::Error)]
 pub enum IncError {
@@ -348,9 +353,18 @@ impl<'a> IncrementBuilder<'a> {
     }
 
     /// Legt das Signaturdictionary an (höchstens eines). Liefert seine ID für `/V` des Felds.
+    ///
+    /// Fehler: [`IncError::MultipleSignatureDictionaries`]; [`IncError::Serialize`], wenn
+    /// `contents_reserve` größer als [`RESERVE_MAX`] ist.
     pub fn add_signature_dictionary(&mut self, spec: SignatureDictSpec) -> Result<ObjectId> {
         if self.signature.is_some() {
             return Err(IncError::MultipleSignatureDictionaries);
+        }
+        if spec.contents_reserve > RESERVE_MAX {
+            return Err(IncError::Serialize(format!(
+                "/Contents-Reserve {} Bytes größer als {RESERVE_MAX}",
+                spec.contents_reserve
+            )));
         }
         let id = (self.next_number, 0);
         self.next_number = self.next_number.saturating_add(1);
@@ -375,6 +389,12 @@ impl<'a> IncrementBuilder<'a> {
         }
         if let Some(id) = self.allocated.iter().next() {
             return Err(IncError::Serialize(format!("reservierte ID {} {} nicht gesetzt", id.0, id.1)));
+        }
+        // Der Zähler sättigt bei u32::MAX (die ID-Vergabe ist unfehlbar); erreicht er die Grenze,
+        // wurden IDs womöglich doppelt vergeben und für den xref-Stream bleibt keine Nummer
+        // (feindliches `/Size`).
+        if self.next_number == u32::MAX {
+            return Err(IncError::Serialize("Objektnummern erschöpft (/Size zu groß)".into()));
         }
         let base = src.len();
         let offset_base = src.xref_offset_base();
@@ -595,11 +615,11 @@ fn trailer_entries(src: &SourcePdf, size: u32, id_pair: &Object, prev: Option<u6
 }
 
 /// Zusammenhängende Läufe `(Start, Anzahl)` über sortierten Objektnummern.
-fn runs(nums: impl Iterator<Item = u32>) -> Vec<(u32, u32)> {
-    let mut out: Vec<(u32, u32)> = Vec::new();
+fn runs(nums: impl Iterator<Item = u32>) -> Vec<(u32, u64)> {
+    let mut out: Vec<(u32, u64)> = Vec::new();
     for n in nums {
         match out.last_mut() {
-            Some((s, c)) if *s + *c == n => *c += 1,
+            Some((s, c)) if u64::from(*s) + *c == u64::from(n) => *c += 1,
             _ => out.push((n, 1)),
         }
     }
@@ -620,8 +640,8 @@ fn write_xref_table(
     all.entry(0).or_insert(None);
     for (start, count) in runs(all.keys().copied()) {
         let _ = writeln!(out, "{start} {count}");
-        for n in start..start + count {
-            match all[&n] {
+        for n in (u64::from(start)..u64::from(start) + count).filter_map(|n| u32::try_from(n).ok()) {
+            match all.get(&n).copied().flatten() {
                 Some((o, g)) => {
                     if o > 9_999_999_999 {
                         return Err(IncError::Serialize("Offset zu groß für xref-Tabelle".into()));
@@ -671,7 +691,7 @@ fn write_xref_stream(
     dict.set("Type", Object::Name(b"XRef".to_vec()));
     let index: Vec<Object> = runs(all.keys().copied())
         .into_iter()
-        .flat_map(|(s, c)| [Object::Integer(i64::from(s)), Object::Integer(i64::from(c))])
+        .flat_map(|(s, c)| [Object::Integer(i64::from(s)), Object::Integer(c as i64)])
         .collect();
     dict.set("Index", Object::Array(index));
     dict.set("W", Object::Array(vec![1.into(), Object::Integer(w2 as i64), Object::Integer(w3 as i64)]));
@@ -759,9 +779,20 @@ impl Increment {
         self.byte_range.excluded()
     }
 
-    /// Relativer Bereich im Increment zu einem absoluten Bereich.
+    /// Relativer Bereich im Increment zu einem absoluten Bereich (Bereiche vor dem Increment
+    /// werden auf 0 begrenzt).
     pub fn local(&self, abs: Range<u64>) -> Range<usize> {
-        (abs.start - self.base_len) as usize..(abs.end - self.base_len) as usize
+        let rel = |v: u64| usize::try_from(v.saturating_sub(self.base_len)).unwrap_or(usize::MAX);
+        rel(abs.start)..rel(abs.end)
+    }
+
+    /// Wie [`Self::local`], aber nur für Bereiche vollständig innerhalb des Increments.
+    fn checked_local(&self, abs: &Range<u64>) -> Option<Range<usize>> {
+        if abs.start < self.base_len || abs.end < abs.start {
+            return None;
+        }
+        let r = self.local(abs.clone());
+        (r.end <= self.bytes.len()).then_some(r)
     }
 
     /// Berechnet die ByteRange aus [`Self::contents_range`] und schreibt sie linksbündig,
@@ -770,10 +801,15 @@ impl Increment {
         if self.contents_range.is_empty() || self.byte_range_field.is_empty() {
             return Err(IncError::NoSignatureDictionary);
         }
+        if self.checked_local(&self.contents_range).is_none_or(|r| r.len() < 2) {
+            return Err(IncError::Serialize("/Contents-Bereich liegt nicht im Increment".into()));
+        }
         let br = ByteRange::for_contents(self.contents_range.clone(), self.total_len());
         let text = br.to_pdf_string();
-        let field = self.local(self.byte_range_field.clone());
-        if text.len() > field.len() || field.end > self.bytes.len() {
+        let Some(field) = self.checked_local(&self.byte_range_field) else {
+            return Err(IncError::ByteRangeOverflow);
+        };
+        if text.len() > field.len() {
             return Err(IncError::ByteRangeOverflow);
         }
         let slot = &mut self.bytes[field];
@@ -793,7 +829,9 @@ impl Increment {
         if cms_der.len() > available {
             return Err(IncError::ContentsTooLarge { needed: cms_der.len(), available });
         }
-        let r = self.local(self.contents_range.clone());
+        let Some(r) = self.checked_local(&self.contents_range).filter(|r| r.len() >= 2) else {
+            return Err(IncError::Serialize("/Contents-Bereich liegt nicht im Increment".into()));
+        };
         let hex = &mut self.bytes[r.start + 1..r.end - 1];
         hex.fill(b'0');
         const HEX: &[u8; 16] = b"0123456789ABCDEF";
@@ -809,11 +847,10 @@ impl Increment {
     /// `original` muss das Original (Länge [`Self::base_len`]) sein.
     pub fn byte_range_parts<'b>(&'b self, original: &'b [u8]) -> [&'b [u8]; 3] {
         debug_assert_eq!(original.len() as u64, self.base_len);
-        if self.contents_range.is_empty() {
-            return [original, &self.bytes, &[]];
+        match self.checked_local(&self.contents_range) {
+            Some(r) if !r.is_empty() => [original, &self.bytes[..r.start], &self.bytes[r.end..]],
+            _ => [original, &self.bytes, &[]],
         }
-        let r = self.local(self.contents_range.clone());
-        [original, &self.bytes[..r.start], &self.bytes[r.end..]]
     }
 
     /// Signierte Daten (ByteRange-Konkatenation) als zusammenhängender Puffer.
@@ -861,6 +898,8 @@ mod tests {
         assert_eq!(bytes_needed(u64::from(u32::MAX) + 1), 5);
         assert_eq!(runs([0u32, 1, 2, 5, 7, 8].into_iter()), vec![(0, 3), (5, 1), (7, 2)]);
         assert!(runs(std::iter::empty()).is_empty());
+        // kein Überlauf am Ende des Nummernraums
+        assert_eq!(runs([u32::MAX - 1, u32::MAX].into_iter()), vec![(u32::MAX - 1, 2)]);
     }
 
     #[test]

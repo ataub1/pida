@@ -12,6 +12,49 @@ use crate::{CosError, Limits, Result};
 /// komprimieren legitim um Faktor > 1000).
 pub(crate) const RATIO_FLOOR: u64 = 16 * 1024 * 1024;
 
+/// Höchste Zeilenlänge eines Predictors (TIFF 2, PNG 10–15) in Bytes.
+///
+/// lopdf reserviert je Zeile `ceil(Columns · Colors · BitsPerComponent / 8)` Bytes, ohne die Werte
+/// zu begrenzen (und multipliziert ungeprüft): `/Columns 4294967295 /Colors 255` lässt den Prozess
+/// mehrere Terabyte anfordern. Reale Bilder liegen weit darunter (100 000 Pixel × 4 × 16 Bit ≈ 800 KB).
+pub(crate) const MAX_PREDICTOR_ROW: u64 = 16 * 1024 * 1024;
+
+/// `true`, wenn die Predictor-Parameter eines `/DecodeParms`-Dictionarys gefahrlos an lopdf
+/// übergeben werden können (gleiche Auswertung wie lopdf: fehlende/negative Werte → Default bzw. 1).
+pub(crate) fn predictor_params_sane(params: &Dictionary) -> bool {
+    let get = |k: &[u8], default: i64| params.get(k).ok().and_then(|o| o.as_i64().ok()).unwrap_or(default);
+    let predictor = get(b"Predictor", 1);
+    if predictor != 2 && !(10..=15).contains(&predictor) {
+        return true; // lopdf wendet keinen Predictor an
+    }
+    let columns = get(b"Columns", 1).max(1) as u128;
+    let colors = get(b"Colors", 1).max(1) as u128;
+    let bits = get(b"BitsPerComponent", 8).max(1) as u128;
+    columns
+        .checked_mul(colors)
+        .and_then(|v| v.checked_mul(bits))
+        .is_some_and(|v| v.div_ceil(8) <= u128::from(MAX_PREDICTOR_ROW))
+}
+
+/// Prüft das direkte `/DecodeParms` eines Stream-Dictionarys (so liest es lopdf beim Laden für
+/// Object Streams und xref-Streams).
+pub(crate) fn stream_params_sane(dict: &Dictionary) -> bool {
+    let check = |o: &Object| match o {
+        Object::Dictionary(p) => predictor_params_sane(p),
+        _ => true,
+    };
+    match dict.get(b"DecodeParms") {
+        Ok(Object::Array(a)) => a.iter().all(check),
+        Ok(o) => check(o),
+        Err(_) => true,
+    }
+}
+
+/// Fehler für unzulässige Predictor-Parameter (siehe [`MAX_PREDICTOR_ROW`]).
+pub(crate) fn insane_predictor() -> CosError {
+    CosError::LimitExceeded { what: "Predictor-Zeilenlänge (/DecodeParms)", limit: MAX_PREDICTOR_ROW }
+}
+
 /// Bildfilter, der nach den allgemeinen Filtern übrig bleibt.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ImageFilter {
@@ -108,6 +151,9 @@ pub(crate) fn decode_stream(
         match name.as_slice() {
             b"FlateDecode" | b"LZWDecode" | b"ASCII85Decode" | b"ASCIIHexDecode" | b"RunLengthDecode" => {
                 let limit = layer_limit(limits, data.len());
+                if params.as_ref().is_some_and(|p| !predictor_params_sane(p)) {
+                    return Err(insane_predictor());
+                }
                 let mut d = Dictionary::new();
                 d.set("Filter", Object::Name(name.clone()));
                 if let Some(p) = params {
@@ -207,6 +253,34 @@ mod tests {
             Stream::new(dd, flate(&vec![0u8; 4 * 1024 * 1024]))
         };
         assert!(decode_stream(&doc, &small, &limits, false).is_ok());
+    }
+
+    #[test]
+    fn insane_predictor_parameters_are_rejected_before_lopdf() {
+        let doc = Document::new();
+        let params = |cols: i64, colors: i64, bits: i64, pred: i64| {
+            let mut p = Dictionary::new();
+            p.set("Predictor", Object::Integer(pred));
+            p.set("Columns", Object::Integer(cols));
+            p.set("Colors", Object::Integer(colors));
+            p.set("BitsPerComponent", Object::Integer(bits));
+            p
+        };
+        assert!(predictor_params_sane(&params(1000, 4, 8, 15)));
+        assert!(predictor_params_sane(&params(-5, -1, 0, 12)), "Defaults wie lopdf");
+        assert!(predictor_params_sane(&params(i64::MAX, i64::MAX, i64::MAX, 1)), "kein Predictor");
+        assert!(!predictor_params_sane(&params(4_294_967_295, 255, 8, 15)));
+        assert!(!predictor_params_sane(&params(i64::MAX, i64::MAX, i64::MAX, 2)), "Überlauf");
+        assert!(!predictor_params_sane(&params(MAX_PREDICTOR_ROW as i64 * 8 + 8, 1, 1, 10)));
+        let mut d = Dictionary::new();
+        d.set("Filter", Object::Name(b"FlateDecode".to_vec()));
+        d.set("DecodeParms", Object::Dictionary(params(4_294_967_295, 255, 8, 15)));
+        assert!(!stream_params_sane(&d));
+        let s = Stream::new(d, flate(&[2, 0, 0, 0]));
+        assert!(matches!(decode_stream(&doc, &s, &Limits::default(), false), Err(CosError::LimitExceeded { .. })));
+        let mut d = Dictionary::new();
+        d.set("DecodeParms", Object::Array(vec![Object::Null, Object::Dictionary(params(1 << 40, 1, 8, 12))]));
+        assert!(!stream_params_sane(&d));
     }
 
     #[test]

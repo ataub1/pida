@@ -392,3 +392,45 @@ fn source_without_id_gets_two_equal_new_ids() {
     }
     assert_eq!(b.len(), 32, "SHA-256 wie PDFBox 2.0.34");
 }
+
+/// Unplausible Reserve (z. B. fehlerhafter Profilwert `signatureSize`) → Fehler statt Allokation.
+#[test]
+fn contents_reserve_is_capped() {
+    use pdfover_pdf_incremental::RESERVE_MAX;
+    let src = open(TABLE);
+    let mut b = IncrementBuilder::new(&src, IncrementOptions::default());
+    for reserve in [RESERVE_MAX + 1, usize::MAX / 2 + 1, usize::MAX] {
+        let spec = SignatureDictSpec { contents_reserve: reserve, ..SignatureDictSpec::default() };
+        assert!(matches!(b.add_signature_dictionary(spec), Err(IncError::Serialize(_))), "{reserve}");
+    }
+    // Grenzwert selbst ist zulässig
+    let spec = SignatureDictSpec { contents_reserve: RESERVE_MAX, ..SignatureDictSpec::default() };
+    b.add_signature_dictionary(spec).unwrap();
+}
+
+/// Von Hand gebaute, inkonsistente `Increment`-Werte (öffentliche Felder) lösen keine Panics aus.
+#[test]
+fn inconsistent_increment_fields_do_not_panic() {
+    let base = Increment {
+        base_len: 100,
+        bytes: b"\r\n<0000>\n[0 1000000000 1000000000 1000000000]\n".to_vec(),
+        contents_range: 102..108,
+        byte_range_field: 109..145,
+        byte_range: ByteRange([0, 0, 0, 0]),
+        signature_dict_id: Some((1, 0)),
+        written: Vec::new(),
+    };
+    let mut ok = base.clone();
+    ok.patch_byte_range().unwrap();
+    ok.embed_contents(&[0xAB]).unwrap();
+    #[allow(clippy::reversed_empty_ranges)] // absichtlich verdrehter Bereich
+    let cases = [(50..60, 109..145), (102..9999, 109..145), (108..102, 109..145), (102..108, 140..9999)];
+    for (contents, field) in cases {
+        let mut inc = Increment { contents_range: contents.clone(), byte_range_field: field.clone(), ..base.clone() };
+        assert!(inc.patch_byte_range().is_err(), "{contents:?} {field:?}");
+        let _ = inc.embed_contents(&[0xAB]);
+        let parts = inc.byte_range_parts(&[0u8; 100]);
+        assert!(parts.iter().map(|p| p.len()).sum::<usize>() <= 100 + inc.bytes.len());
+        let _ = inc.local(contents);
+    }
+}

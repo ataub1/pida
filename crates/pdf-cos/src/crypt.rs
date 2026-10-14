@@ -115,6 +115,23 @@ pub(crate) fn info_from_state(state: &EncryptionState) -> EncryptionInfo {
     }
 }
 
+/// `true`, wenn das leere Passwort zugleich das **Owner**-Passwort ist (ISO 32000-2 Algorithmus 7
+/// bzw. 12). PDFBox prüft beim Laden zuerst das Owner-Passwort und gewährt dann Owner-Rechte
+/// (`AccessPermission.getOwnerAccessPermission()`), unabhängig von `/P` – PDF-AS
+/// `PdfBoxUtils.checkPDFPermissions` lässt das Signieren dann immer zu.
+///
+/// `encrypt` ist das rohe Encrypt-Dictionary, `trailer` der Rohtrailer (für `/ID[0]`, R2–R4).
+pub(crate) fn empty_password_is_owner(encrypt: &Dictionary, trailer: &Dictionary) -> bool {
+    let mut tmp = lopdf::Document::new();
+    let id = (1, 0);
+    tmp.objects.insert(id, Object::Dictionary(encrypt.clone()));
+    tmp.trailer.set("Encrypt", Object::Reference(id));
+    if let Ok(v) = trailer.get(b"ID") {
+        tmp.trailer.set("ID", v.clone());
+    }
+    tmp.authenticate_raw_owner_password(b"").is_ok()
+}
+
 /// `true`, wenn lopdf diese Kombination aus V/R entschlüsseln kann (ISO 32000-1/-2).
 pub(crate) fn standard_supported(info: &EncryptionInfo) -> bool {
     matches!((info.v, info.r), (1, 2) | (2, 3) | (3, 3) | (4, 4) | (5, 5) | (5, 6) | (1, 3) | (2, 2) | (4, 3))
@@ -166,10 +183,6 @@ impl EncryptorInner {
         let key =
             f.compute_key(self.state.file_encryption_key(), id).map_err(|e| CosError::Decryption(e.to_string()))?;
         f.decrypt(&key, data).map_err(|e| CosError::Decryption(e.to_string()))
-    }
-
-    pub(crate) fn state(&self) -> &EncryptionState {
-        &self.state
     }
 }
 

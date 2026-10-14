@@ -253,6 +253,14 @@ pub(crate) fn decode_image(doc: &Document, stream: &Stream, limits: &Limits, wit
         }
         None => decode_raw(doc, d, &decoded.data, image_mask, limits)?,
     };
+    // Länge passt zu den Maßen (Voraussetzung für die SMask-Verrechnung und für Aufrufer).
+    let bpp: u64 = match format {
+        PixelFormat::Luma8 => 1,
+        PixelFormat::Rgba8 => 4,
+    };
+    if u64::from(width).saturating_mul(u64::from(height)).saturating_mul(bpp) != data.len() as u64 {
+        return Err(unsupported("Pixelzahl passt nicht zu /Width und /Height"));
+    }
     let mut img = DecodedImage { width, height, format, data };
 
     if with_smask

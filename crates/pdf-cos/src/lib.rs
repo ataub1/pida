@@ -368,7 +368,9 @@ pub struct EncryptionInfo {
 pub struct Rights {
     /// Dokument ist verschlüsselt.
     pub encrypted: bool,
-    /// Rechte (bei unverschlüsselten Dokumenten [`Permissions::ALL`]).
+    /// Wirksame Rechte wie PDFBox `getCurrentAccessPermission()`: bei unverschlüsselten Dokumenten
+    /// und bei verschlüsselten, deren Owner-Passwort leer ist, [`Permissions::ALL`] (Owner-Rechte);
+    /// sonst `/P` ([`EncryptionInfo::permissions`] bleibt immer der Rohwert).
     pub permissions: Permissions,
 }
 
@@ -445,7 +447,10 @@ pub struct SigWidget {
 }
 
 /// Signaturfeld im AcroForm-Baum (docs/analyse/03 §4.4/§4.5, Plan §6.4).
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+///
+/// `Debug` zeigt die Feldnamen nur als Länge: Namen sind Dokumentinhalt und können Personendaten
+/// tragen (ADR 0001 Regel 9; `Debug` von `pades::Analysis` enthält die Felder).
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SigField {
     /// Voll qualifizierter Name (`a.b.c`), auch für hierarchische Felder (Abweichung zu PDF-AS, Register).
     pub qualified_name: String,
@@ -467,6 +472,23 @@ pub struct SigField {
     pub has_seed_value: bool,
     /// `/Ff`
     pub field_flags: u32,
+}
+
+impl std::fmt::Debug for SigField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SigField")
+            .field("qualified_name_len", &self.qualified_name.chars().count())
+            .field("partial_name_len", &self.partial_name.as_ref().map(|n| n.chars().count()))
+            .field("field_id", &self.field_id)
+            .field("depth", &self.depth)
+            .field("widgets", &self.widgets)
+            .field("signed", &self.signed)
+            .field("value_id", &self.value_id)
+            .field("has_lock", &self.has_lock)
+            .field("has_seed_value", &self.has_seed_value)
+            .field("field_flags", &self.field_flags)
+            .finish()
+    }
 }
 
 /// Aufruf eines Bild-XObjects per `Do` im Seiteninhalt (für QR-Platzhalter, docs/analyse/04 §5.1).
@@ -689,6 +711,43 @@ fn version_key(v: &str) -> (u32, u32) {
     (major, minor)
 }
 
+/// Filter für lopdfs Ladevorgang: Streams mit unzulässigen Predictor-Parametern werden verworfen,
+/// bevor lopdf sie (als Object Stream) ungeprüft dekodiert (`filters::MAX_PREDICTOR_ROW`).
+///
+/// lopdf 0.45 wertet den Rückgabewert nur bei Objekten **aus** Object Streams aus (dort nie
+/// Streams, ISO 32000-1 §7.5.7); bei Objekten an Offsets zählt nur `None` = verwerfen. Für Streams
+/// genügt deshalb ein Platzhalter, ohne den Inhalt zu kopieren.
+fn lopdf_load_filter(id: ObjectId, obj: &mut Object) -> Option<(ObjectId, Object)> {
+    match obj {
+        Object::Stream(s) if !filters::stream_params_sane(&s.dict) => None,
+        Object::Stream(_) => Some((id, Object::Null)),
+        other => Some((id, other.clone())),
+    }
+}
+
+/// Prüft vor dem Laden die Dictionaries aller Object-Stream-Container der Querverweistabelle
+/// (lopdf dekodiert sie bei verschlüsselten Dokumenten ohne Filteraufruf).
+fn check_container_params(data: &[u8], merged: &BTreeMap<u32, xref::Entry>, base: u64) -> Result<()> {
+    let containers: std::collections::BTreeSet<u32> = merged
+        .values()
+        .filter_map(|e| match e {
+            xref::Entry::Compressed { stream, .. } => Some(*stream),
+            _ => None,
+        })
+        .collect();
+    for c in containers {
+        let Some(xref::Entry::InUse { offset, .. }) = merged.get(&c) else { continue };
+        let Some(abs) = offset.checked_add(base).and_then(|a| usize::try_from(a).ok()) else { continue };
+        let Some((_, after)) = lexer::object_header_at(data, abs) else { continue };
+        if let Some(Object::Dictionary(d)) = lexer::Lexer::new(data, after).parse_object(true)
+            && !filters::stream_params_sane(&d)
+        {
+            return Err(filters::insane_predictor());
+        }
+    }
+    Ok(())
+}
+
 /// Lädt fehlende bzw. von lopdf falsch zugeordnete Objekte nach der eigenen Querverweistabelle nach.
 /// Liefert `true`, wenn Offsets nicht stimmten und Objekte per Suche gefunden werden mussten.
 fn fixup_objects(
@@ -698,6 +757,7 @@ fn fixup_objects(
     base: u64,
     encrypt_id: Option<ObjectId>,
     limits: &Limits,
+    index: &lexer::EndstreamIndex,
 ) -> bool {
     use lopdf::xref::XrefEntry;
     let mut repaired = false;
@@ -736,7 +796,7 @@ fn fixup_objects(
                 };
                 let Some(pos) = pos else { continue };
                 let resolve_len = |rid: ObjectId| doc.objects.get(&rid).and_then(|o| o.as_i64().ok());
-                let Some(io) = lexer::parse_indirect_object(data, pos, &resolve_len) else { continue };
+                let Some(io) = lexer::parse_indirect_object(data, pos, &resolve_len, index) else { continue };
                 let mut obj = io.object;
                 if let Some(st) = &state {
                     let _ = lopdf::encryption::decrypt_object(st, id, &mut obj);
@@ -756,6 +816,7 @@ fn fixup_objects(
                     doc.objects
                         .get(&(stream, 0))
                         .and_then(|o| o.as_stream().ok())
+                        .filter(|s| filters::stream_params_sane(&s.dict))
                         .and_then(|s| lopdf::ObjectStream::new_with_limit(s, Some(max_stream)).ok())
                 });
                 if let Some(os) = os
@@ -791,7 +852,13 @@ fn scan_object_headers(data: &[u8]) -> BTreeMap<ObjectId, usize> {
 
 /// Ersetzt in verschlüsselten Dokumenten `/Contents` von Signaturdictionaries durch den Rohwert
 /// (lopdf entschlüsselt ihn fälschlich mit) und entschlüsselt die übrigen Strings einzeln.
-fn fixup_signature_dicts(doc: &mut Document, data: &[u8], merged: &BTreeMap<u32, xref::Entry>, base: u64) {
+fn fixup_signature_dicts(
+    doc: &mut Document,
+    data: &[u8],
+    merged: &BTreeMap<u32, xref::Entry>,
+    base: u64,
+    index: &lexer::EndstreamIndex,
+) {
     let Some(state) = doc.encryption_state.clone() else { return };
     let candidates: Vec<ObjectId> = doc
         .objects
@@ -805,7 +872,7 @@ fn fixup_signature_dicts(doc: &mut Document, data: &[u8], merged: &BTreeMap<u32,
             continue;
         }
         let Some(abs) = offset.checked_add(base).and_then(|a| usize::try_from(a).ok()) else { continue };
-        let Some(io) = lexer::parse_indirect_object(data, abs, &|_| None) else { continue };
+        let Some(io) = lexer::parse_indirect_object(data, abs, &|_| None, index) else { continue };
         if io.id != id {
             continue;
         }
@@ -831,13 +898,14 @@ impl SourcePdf {
         let header_offset = lexer::find(head, b"%PDF-", 0).ok_or(CosError::NotAPdf)?;
         let mut version = header_version(data, header_offset);
 
-        let structure = xref::analyze(data, header_offset, limits)?;
+        let index = lexer::EndstreamIndex::new();
+        let structure = xref::analyze(data, header_offset, limits, &index)?;
         let merged = structure.chain.merged();
         let base = structure.base;
 
         // Verschlüsselung vorab prüfen (Handler aus den Rohbytes; lopdf entfernt /Encrypt).
         let raw_trailer = structure.chain.effective_trailer();
-        let mut pre_encryption: Option<EncryptionInfo> = None;
+        let mut pre_encryption: Option<(EncryptionInfo, bool)> = None;
         if let Some(t) = &raw_trailer
             && let Ok(enc) = t.get(b"Encrypt")
         {
@@ -847,7 +915,7 @@ impl SourcePdf {
                     let dict = match merged.get(&id.0) {
                         Some(xref::Entry::InUse { offset, .. }) => usize::try_from(offset + base)
                             .ok()
-                            .and_then(|abs| lexer::parse_indirect_object(data, abs, &|_| None))
+                            .and_then(|abs| lexer::parse_indirect_object(data, abs, &|_| None, &index))
                             .and_then(|io| match io.object {
                                 Object::Dictionary(d) => Some(d),
                                 _ => None,
@@ -865,21 +933,26 @@ impl SourcePdf {
                 SecurityHandler::PublicKey => return Err(CosError::UnsupportedSecurityHandler("Adobe.PubSec".into())),
                 SecurityHandler::Other(n) => return Err(CosError::UnsupportedSecurityHandler(n.clone())),
             }
-            pre_encryption = Some(info);
+            let owner = crypt::empty_password_is_owner(&dict, t);
+            pre_encryption = Some((info, owner));
         }
 
+        if !structure.reconstructed {
+            check_container_params(data, &merged, base)?;
+        }
         let load = &data[..structure.load_end.min(data.len())];
         let options = lopdf::LoadOptions {
             password: None,
-            filter: None,
+            filter: Some(lopdf_load_filter),
             strict: false,
             max_decompressed_size: Some(usize::try_from(limits.max_decoded_stream).unwrap_or(usize::MAX)),
         };
         let mut document = Document::load_mem_with_options(load, options).map_err(map_lopdf)?;
         let lopdf_reconstructed = document.xref_start == 0 && !structure.reconstructed;
 
+        let mut owner_rights = false;
         let (encryption, encryptor) = match pre_encryption {
-            Some(info) => {
+            Some((info, owner)) => {
                 let Some(state) = document.encryption_state.clone() else {
                     return Err(if crypt::standard_supported(&info) {
                         CosError::PasswordRequired
@@ -888,6 +961,7 @@ impl SourcePdf {
                     });
                 };
                 let enc = Encryptor { inner: crypt::EncryptorInner::new(state, info.algorithm.clone()) };
+                owner_rights = owner;
                 (Some(info), Some(enc))
             }
             None => match document.encryption_state.clone() {
@@ -905,8 +979,8 @@ impl SourcePdf {
         let mut repaired = structure.chain.repaired || lopdf_reconstructed;
         if !structure.reconstructed {
             let encrypt_id = encryption.as_ref().and_then(|e| e.encrypt_dict_id);
-            repaired |= fixup_objects(&mut document, data, &merged, base, encrypt_id, limits);
-            fixup_signature_dicts(&mut document, data, &merged, base);
+            repaired |= fixup_objects(&mut document, data, &merged, base, encrypt_id, limits, &index);
+            fixup_signature_dicts(&mut document, data, &merged, base, &index);
         }
         if document.objects.len() > limits.max_objects {
             return Err(CosError::LimitExceeded { what: "Objektanzahl", limit: limits.max_objects as u64 });
@@ -954,9 +1028,13 @@ impl SourcePdf {
             return Err(CosError::NoPages);
         }
 
+        // Wie PDFBox: Ist das leere Passwort auch das Owner-Passwort, gelten Owner-Rechte statt /P.
         let rights = Rights {
             encrypted: encryption.is_some(),
-            permissions: encryption.as_ref().map(|e| e.permissions).unwrap_or(Permissions::ALL),
+            permissions: match &encryption {
+                Some(e) if !owner_rights => e.permissions,
+                _ => Permissions::ALL,
+            },
         };
         let size =
             trailer.get(b"Size").ok().and_then(|o| o.as_i64().ok()).unwrap_or(0).clamp(0, i64::from(u32::MAX)) as u32;
@@ -1166,30 +1244,28 @@ impl SourcePdf {
         };
         let content = self.page_content(page.object_id)?;
         let decode = |s: &Stream| filters::decode_stream(doc, s, &self.limits, false).map(|d| d.data);
-        let mut it = content::Interpreter {
-            doc,
-            limits: &self.limits,
-            page_index,
-            descend_forms,
-            out: Vec::new(),
-            form_stack: Default::default(),
-            decode: &decode,
-        };
+        let mut it = content::Interpreter::new(doc, &self.limits, page_index, descend_forms, &decode);
         it.run(&content, resources, IDENTITY, false, 0)?;
         Ok(it.out)
     }
 
     /// Dekodierter, zusammengefügter Seiteninhalt (`/Contents` als Stream oder Array).
-    /// Nicht dekodierbare Teilstreams werden ausgelassen; Grenzverletzungen sind Fehler.
+    /// Nicht dekodierbare Teilstreams werden ausgelassen; Grenzverletzungen sind Fehler. Die
+    /// Gesamtlänge ist durch [`Limits::max_decoded_stream`] begrenzt (ein Array kann denselben
+    /// großen Stream beliebig oft referenzieren).
     pub fn page_content(&self, page_id: ObjectId) -> Result<Vec<u8>> {
         let page = self
             .get_object(page_id)?
             .as_dict()
             .map_err(|_| CosError::InvalidStructure("Seite ist kein Dictionary".into()))?;
+        let max = self.limits.max_decoded_stream;
         let mut out = Vec::new();
         let mut push = |s: &Stream| -> Result<()> {
             match filters::decode_stream(&self.document, s, &self.limits, false) {
                 Ok(d) => {
+                    if (out.len() as u64).saturating_add(d.data.len() as u64 + 1) > max {
+                        return Err(CosError::LimitExceeded { what: "Länge des Seiteninhalts", limit: max });
+                    }
                     out.extend_from_slice(&d.data);
                     out.push(b'\n');
                     Ok(())

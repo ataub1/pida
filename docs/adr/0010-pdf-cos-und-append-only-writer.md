@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | angenommen (14.10.2026) |
 | **Kontext** | Paket A: `crates/pdf-cos`, `crates/pdf-incremental` (ADR 0001 §4, §8; Plan §6.1–§6.4; analyse/03) |
-| **Ergebnis** | alle 61 öffnbaren Korpus-PDFs: Increment strukturell korrekt, `qpdf --check` ohne neue Befunde, openssl-signiert und von pyHanko als intakt/gültig validiert, Vorsignaturen höchstens `FORM_FILLING` (`testdata/pdf-incremental/RESULTS.md`) |
+| **Ergebnis** | alle 65 öffnbaren Korpus-PDFs: Increment strukturell korrekt, `qpdf --check` ohne neue Befunde, openssl-signiert und von pyHanko (API **und** CLI `sign validate --pretty-print --no-strict-syntax`) als intakt/gültig validiert, Vorsignaturen höchstens `FORM_FILLING` (`testdata/pdf-incremental/RESULTS.md`) |
 
 ## Entscheidungen
 
@@ -48,6 +48,32 @@
    Matrizen ≤ 0,01, ADR 0001 §8.2). `decode_image` dekodiert Flate/LZW/A85/AHx/RL/DCT,
    Gray/RGB/CMYK/ICC/Indexed/Lab/Separation/DeviceN, 1–16 Bit, `/Decode`, `/ImageMask`, `/SMask`.
 
+9. **Rechte wie PDFBox.** PDFBox prüft beim Laden zuerst, ob das leere Passwort das **Owner**-Passwort
+   ist, und gewährt dann Owner-Rechte unabhängig von `/P`; PDF-AS `checkPDFPermissions` lässt das
+   Signieren dann zu. `pdf-cos` prüft das ebenso (lopdf `authenticate_raw_owner_password` auf einem
+   Hilfsdokument mit dem rohen Encrypt-Dictionary): `Rights::permissions` ist dann
+   `Permissions::ALL`, `EncryptionInfo::permissions` bleibt der Rohwert `/P`. Gegengeprüft mit
+   PDFBox 2.0.34 an `testdata/pdf-cos/empty-owner-*.pdf` (RC4, AES-128, AES-256).
+10. **Härtung gegen feindliche Eingaben** (Review, Mutations-Fuzzing über den Korpus,
+    `crates/pdf-cos/tests/robustness.rs`):
+    - Predictor-Parameter: lopdf reserviert die Zeile `Columns · Colors · Bits / 8` ungeprüft (und
+      multipliziert ohne Überlaufprüfung) – `/Columns 4294967295 /Colors 255` ließ den Prozess
+      Terabytes anfordern und vom System beenden. Zeilen über 16 MiB (`filters::MAX_PREDICTOR_ROW`)
+      werden abgelehnt, bevor lopdf dekodiert: in `decode_stream`, bei xref-Streams (Ablehnung der
+      Datei), bei Object-Stream-Containern der Querverweistabelle (Ablehnung, auch für
+      verschlüsselte Dateien) und über den Ladefilter von lopdf (Streams werden verworfen).
+    - Querverweis: Abschnitte werden je Position nur einmal gelesen (viele `%%EOF`-Marken auf
+      dieselbe große Tabelle waren quadratisch), Zyklen über verschiedene deklarierte Offsets
+      werden erkannt; die Suche nach `endstream` nutzt einen einmal aufgebauten Index; die Prüfung
+      auf Objektköpfe liest keine Strings/Kommentare über Zeilen hinweg.
+    - Seiteninhalt: Gesamtlänge ≤ `max_decoded_stream` (ein Array kann denselben Stream beliebig oft
+      referenzieren); `image_invocations` begrenzt Bild-Aufrufe (100 000), Form-Aufrufe (100 000,
+      Auffächerung „billion laughs“) und die Summe dekodierter Form-Inhalte.
+    - Bilder: Pixelzahl muss zu `/Width`·`/Height` passen (sonst Fehler statt Indexfehler bei `/SMask`).
+    - Writer: Objektnummern am Ende des `u32`-Raums (`/Size 4294967295`) → `IncError::Serialize`
+      statt Überlauf; `/Contents`-Reserve ≤ `RESERVE_MAX` (32 MiB); von Hand gesetzte, inkonsistente
+      `Increment`-Bereiche führen zu Fehlern statt Panics.
+
 ## Additive API (Bericht an die Integration)
 
 `pdf-cos`: `XrefHealth`, `SourcePdf::{xref_health, xref_offset_base, prev_offset, catalog, page_content,
@@ -55,11 +81,14 @@ pdfa_identification, doc_mdp, has_usage_rights, needs_rendering, is_tagged, acro
 decode_image_stream, real_literals, limits}`, `DocMdp`, `AcroFormInfo`, `PdfAIdentification`,
 `parse_pdfa_identification`, `DecodedImage`, `PixelFormat`, `RealLiterals`, `PathSegment`,
 `decode_text_string`, `encode_text_string`, `IDENTITY`, `matrix_multiply`, `Encryptor::{decrypt, algorithm}`.
-`pdf-incremental`: `Increment::{byte_range_parts, byte_range_data, to_vec}`. Geänderte Semantik ohne
+`pdf-incremental`: `Increment::{byte_range_parts, byte_range_data, to_vec}`, `RESERVE_MAX`. Geänderte Semantik ohne
 Signaturänderung: `SourcePdf::trailer()` liefert den Rohtrailer der letzten Revision (inkl. `/Encrypt`,
 ergänzt um `/Root /Info /ID` älterer Trailer) statt lopdfs Trailer ohne `/Encrypt`;
 `SignatureDictSpec` hat statt `#[derive(Debug)]` eine redigierende `Debug`-Implementierung (`/Name`
 enthält Zertifikats-Personendaten, Regel 9); `Encryptor` und `DecodedImage` ebenso.
+`Rights::permissions` sind die **wirksamen** Rechte (Owner-Rechte bei leerem Owner-Passwort, siehe 9);
+`image_invocations`/`page_content` liefern bei den neuen Grenzen `CosError::LimitExceeded`;
+`IncrementBuilder::add_signature_dictionary` lehnt Reserven über `RESERVE_MAX` ab.
 
 ## Offene Punkte
 
@@ -69,3 +98,9 @@ enthält Zertifikats-Personendaten, Regel 9); `Encryptor` und `DecodedImage` ebe
 - Speicher: Original und Increment liegen vollständig im RAM (kein Memory-Map wegen `unsafe`-Verbot);
   `byte_range_parts` erlaubt gestreamtes Hashen.
 - `/DocChecksum` linearisierter Dateien wird wie bei PDFBox in den Increment-Trailer übernommen.
+- Bei rekonstruiertem Querverweis (K2, ohne eigenes Encrypt-Dictionary) gelten weiter die Rechte aus
+  `/P`; die Owner-Prüfung (Entscheidung 9) setzt das rohe Encrypt-Dictionary voraus.
+- Bilddekodierung: Speicherbedarf bis etwa 3 × `Breite·Höhe·4` Byte innerhalb von
+  `max_decoded_stream`; mobile Aufrufer sollten kleinere `Limits` übergeben.
+- Mutations-Fuzzing läuft in der CI nur kurz (6 Mutationen je Datei); längere Läufe mit
+  `PDFOVER_FUZZ_ITERS=<n>` (Review: 455 000 Mutationen in zwei Läufen ohne Panic/Abbruch, Release-Build).

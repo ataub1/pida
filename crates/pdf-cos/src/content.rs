@@ -10,7 +10,7 @@ use lopdf::{Dictionary, Document, Object, ObjectId};
 
 use crate::lexer::{self, Lexer, Token};
 use crate::pages::{number, resolve};
-use crate::{ImageInvocation, Limits, Matrix, Result};
+use crate::{CosError, ImageInvocation, Limits, Matrix, Result};
 
 /// Einheitsmatrix.
 pub const IDENTITY: Matrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
@@ -31,6 +31,13 @@ pub fn multiply(m1: &Matrix, m2: &Matrix) -> Matrix {
 /// Obergrenze für den `q`-Stapel (weitere `q` werden gezählt, aber nicht gespeichert).
 const MAX_GSTATE_STACK: usize = 4096;
 
+/// Höchstzahl gemeldeter Bild-`Do`-Aufrufe je Seite (Speicher; reale Seiten liegen weit darunter).
+pub(crate) const MAX_IMAGE_INVOCATIONS: usize = 100_000;
+
+/// Höchstzahl betretener Form-XObjects je Seite: Formen, die andere Formen mehrfach aufrufen,
+/// fächern sonst exponentiell in der Tiefe auf („billion laughs“).
+pub(crate) const MAX_FORM_INVOCATIONS: usize = 100_000;
+
 pub(crate) struct Interpreter<'a> {
     pub doc: &'a Document,
     pub limits: &'a Limits,
@@ -39,6 +46,10 @@ pub(crate) struct Interpreter<'a> {
     pub out: Vec<ImageInvocation>,
     pub form_stack: HashSet<ObjectId>,
     pub decode: &'a dyn Fn(&lopdf::Stream) -> Result<Vec<u8>>,
+    /// betretene Form-XObjects (alle Ebenen)
+    forms_entered: usize,
+    /// noch zulässige Bytes dekodierter Form-Inhalte (Summe über alle Aufrufe)
+    form_bytes_left: u64,
 }
 
 fn matrix_from(doc: &Document, obj: Option<&Object>) -> Option<Matrix> {
@@ -57,7 +68,27 @@ fn dims(doc: &Document, d: &Dictionary, key: &[u8]) -> u32 {
     d.get(key).ok().and_then(|o| number(doc, o)).map(|v| v.max(0.0) as u32).unwrap_or(0)
 }
 
-impl Interpreter<'_> {
+impl<'a> Interpreter<'a> {
+    pub(crate) fn new(
+        doc: &'a Document,
+        limits: &'a Limits,
+        page_index: usize,
+        descend_forms: bool,
+        decode: &'a dyn Fn(&lopdf::Stream) -> Result<Vec<u8>>,
+    ) -> Self {
+        Self {
+            doc,
+            limits,
+            page_index,
+            descend_forms,
+            out: Vec::new(),
+            form_stack: HashSet::new(),
+            decode,
+            forms_entered: 0,
+            form_bytes_left: limits.max_decoded_stream,
+        }
+    }
+
     /// Interpretiert einen (bereits dekodierten) Content-Stream.
     pub(crate) fn run(
         &mut self,
@@ -154,6 +185,12 @@ impl Interpreter<'_> {
         let subtype = stream.dict.get(b"Subtype").ok().and_then(|o| o.as_name().ok());
         match subtype {
             Some(b"Image") => {
+                if self.out.len() >= MAX_IMAGE_INVOCATIONS {
+                    return Err(CosError::LimitExceeded {
+                        what: "Bild-Aufrufe je Seite",
+                        limit: MAX_IMAGE_INVOCATIONS as u64,
+                    });
+                }
                 let order = self.out.len();
                 self.out.push(ImageInvocation {
                     page_index: self.page_index,
@@ -171,9 +208,19 @@ impl Interpreter<'_> {
                     return Ok(()); // tiefe Verschachtelung: nicht weiter absteigen
                 }
                 if let Some(id) = xobject_id
-                    && !self.form_stack.insert(id)
+                    && self.form_stack.contains(&id)
                 {
                     return Ok(()); // Zyklus
+                }
+                self.forms_entered += 1;
+                if self.forms_entered > MAX_FORM_INVOCATIONS {
+                    return Err(CosError::LimitExceeded {
+                        what: "Form-XObject-Aufrufe je Seite",
+                        limit: MAX_FORM_INVOCATIONS as u64,
+                    });
+                }
+                if let Some(id) = xobject_id {
+                    self.form_stack.insert(id);
                 }
                 let fm = matrix_from(doc, stream.dict.get(b"Matrix").ok()).unwrap_or(IDENTITY);
                 let form_ctm = multiply(&fm, &ctm);
@@ -181,9 +228,22 @@ impl Interpreter<'_> {
                     Some(Object::Dictionary(d)) => Some(d),
                     _ => resources,
                 };
-                let content = (self.decode)(stream);
-                let result = match content {
-                    Ok(c) => self.run(&c, form_res, form_ctm, true, depth + 1),
+                let result = match (self.decode)(stream) {
+                    Ok(c) => {
+                        // Summe aller dekodierten Form-Inhalte begrenzen (dieselbe große Form kann
+                        // beliebig oft aufgerufen werden).
+                        let len = c.len() as u64;
+                        if len > self.form_bytes_left {
+                            Err(CosError::LimitExceeded {
+                                what: "dekodierte Form-Inhalte je Seite",
+                                limit: self.limits.max_decoded_stream,
+                            })
+                        } else {
+                            self.form_bytes_left -= len;
+                            self.run(&c, form_res, form_ctm, true, depth + 1)
+                        }
+                    }
+                    Err(e @ CosError::LimitExceeded { .. }) => Err(e),
                     Err(_) => Ok(()), // nicht dekodierbare Form überspringen
                 };
                 if let Some(id) = xobject_id {

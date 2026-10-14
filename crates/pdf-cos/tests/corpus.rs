@@ -151,6 +151,49 @@ fn encryption_detection_and_rights() {
     assert!(matches!(err, CosError::PasswordRequired), "{err:?}");
 }
 
+/// Leeres Owner-Passwort: PDFBox prüft zuerst das Owner-Passwort und gewährt dann Owner-Rechte
+/// unabhängig von `/P`, PDF-AS lässt das Signieren zu (gegengeprüft mit PDFBox 2.0.34:
+/// `isOwnerPermission() == true`, `checkPDFPermissions` ohne Fehler). `/P` verbietet in diesen
+/// Dateien Ändern, Annotationen und Formulare (`qpdf --show-encryption`: P = -1340).
+#[test]
+fn empty_owner_password_grants_owner_rights_like_pdfbox() {
+    let dir = common::testdata().join("pdf-cos");
+    for (file, alg) in [
+        ("empty-owner-rc4.pdf", CryptAlgorithm::Rc4_128),
+        ("empty-owner-aes128.pdf", CryptAlgorithm::Aes128),
+        ("empty-owner-aes256.pdf", CryptAlgorithm::Aes256),
+    ] {
+        let s = SourcePdf::open_file(&dir.join(file), &Limits::default()).unwrap_or_else(|e| panic!("{file}: {e}"));
+        let e = s.encryption().unwrap();
+        assert_eq!(e.algorithm, alg, "{file}");
+        // Rohwert /P: keine Änderungs-, Annotations- oder Formularrechte
+        assert!(!e.permissions.can_modify() && !e.permissions.can_modify_annotations(), "{file}");
+        assert!(!e.permissions.can_fill_in_form(), "{file}");
+        // wirksam: Owner-Rechte
+        assert!(s.rights().encrypted, "{file}");
+        assert_eq!(s.rights().permissions, pdfover_pdf_cos::Permissions::ALL, "{file}");
+        assert!(s.rights().may_sign(), "{file}");
+    }
+    // R2 (RC4-40, V1): Erkennung, Entschlüsselung und Encryptor-Roundtrip
+    let s = SourcePdf::open_file(&dir.join("simple-rc4-40-owner.pdf"), &Limits::default()).unwrap();
+    let e = s.encryption().unwrap();
+    assert_eq!((e.algorithm.clone(), e.v, e.r, e.length_bits), (CryptAlgorithm::Rc4_40, 1, 2, 40));
+    let plain = open("generated/simple-xref-table.pdf");
+    assert_eq!(
+        s.page_content(s.pages()[0].object_id).unwrap(),
+        plain.page_content(plain.pages()[0].object_id).unwrap()
+    );
+    let enc = s.encryptor().unwrap();
+    let c = enc.encrypt((7, 0), b"NUR TEST", CryptTarget::String).unwrap();
+    assert_ne!(c, b"NUR TEST");
+    assert_eq!(enc.decrypt((7, 0), &c, CryptTarget::String).unwrap(), b"NUR TEST");
+    // Owner-Passwort gesetzt (nicht leer): /P gilt weiter.
+    for rel in ["generated/simple-aes256-nosign.pdf", "pdfas/pdf-as-web/data/enc_own.pdf"] {
+        let s = open(rel);
+        assert_eq!(s.rights().permissions, s.encryption().unwrap().permissions, "{rel}");
+    }
+}
+
 #[test]
 fn decryption_matches_plaintext_source() {
     let plain = open("pdfas/pdf-as-legacy/simple.pdf");

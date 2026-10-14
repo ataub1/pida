@@ -4,7 +4,8 @@
 //! Erwartung je Datei: neue Signatur intakt und kryptografisch gültig, deckt die ganze Datei ab;
 //! jede Vorsignatur behält Integrität/Gültigkeit; die bisher letzte Vorsignatur (deckte die ganze
 //! Datei ab) erreicht höchstens `FORM_FILLING`, ältere werden nicht schlechter als vorher.
-//! Zusätzlich `openssl cms -verify` über die ByteRange-Daten und `qpdf --check`.
+//! Zusätzlich `openssl cms -verify` über die ByteRange-Daten, `qpdf --check` und die pyHanko-CLI
+//! (`pyhanko sign validate --pretty-print --no-strict-syntax`, ohne Netz) als zweites Orakel.
 //!
 //! Fehlen openssl oder pyHanko, wird der Test übersprungen (Meldung auf stderr). Das Ergebnis je
 //! Datei steht in `$CARGO_TARGET_TMPDIR/pdf-incremental-RESULTS.md`; mit
@@ -107,6 +108,7 @@ struct Row {
     openssl: bool,
     new_sig: String,
     prior_after: String,
+    cli: String,
     ok: bool,
     problems: Vec<String>,
 }
@@ -119,7 +121,14 @@ fn xref_name(k: XrefKind) -> &'static str {
     }
 }
 
-fn run_one(path: &Path, signer: &Signer, python: &Path, qpdf: Option<&Path>, work: &Path) -> Option<Row> {
+fn run_one(
+    path: &Path,
+    signer: &Signer,
+    python: &Path,
+    qpdf: Option<&Path>,
+    pyhanko: Option<&Path>,
+    work: &Path,
+) -> Option<Row> {
     let name = common::rel(path);
     let src = match SourcePdf::open_file(path, &Limits::default()) {
         Ok(s) => s,
@@ -220,6 +229,47 @@ fn run_one(path: &Path, signer: &Signer, python: &Path, qpdf: Option<&Path>, wor
         ));
     }
 
+    // Zweites Orakel: die pyHanko-CLI wie im Auftrag (`sign validate --pretty-print
+    // --no-strict-syntax`), Textausgabe je Feld.
+    let cli = match pyhanko {
+        Some(ph) => match common::pyhanko_cli(ph, &signed, &signer.cert) {
+            Ok(sigs) => {
+                match sigs.iter().find(|s| s.field == new_name) {
+                    Some(s) if s.sound && s.entire_file && s.judged_valid && !s.illegitimate_changes => {}
+                    other => problems.push(format!("pyHanko-CLI: neue Signatur {other:?}")),
+                }
+                for b in &before {
+                    let Some(c) = sigs.iter().find(|s| s.field == b.field) else {
+                        problems.push(format!("pyHanko-CLI: Vorsignatur {} fehlt", b.field));
+                        continue;
+                    };
+                    if c.sound != (b.intact && b.valid) {
+                        problems.push(format!("pyHanko-CLI: Vorsignatur {}: {c:?}", b.field));
+                    }
+                    // die zuvor vollständig abdeckende Vorsignatur: nur Formularänderungen
+                    if b.modification_level.as_deref() == Some("NONE") && c.illegitimate_changes {
+                        problems.push(format!("pyHanko-CLI: Vorsignatur {}: unzulässige Änderungen", b.field));
+                    }
+                }
+                let new = if sigs.iter().any(|s| s.field == new_name && s.judged_valid) { "VALID" } else { "FEHLER" };
+                let prior: Vec<_> = sigs.iter().filter(|s| s.field != new_name).collect();
+                let sound = prior.iter().filter(|s| s.sound).count();
+                let clean = prior.iter().filter(|s| !s.illegitimate_changes).count();
+                let n = prior.len();
+                if n == 0 {
+                    new.to_string()
+                } else {
+                    format!("{new}; Vorsig. sound {sound}/{n}, ohne „illegitimate“ {clean}/{n}")
+                }
+            }
+            Err(e) => {
+                problems.push(format!("pyHanko-CLI: {e}"));
+                "Fehler".into()
+            }
+        },
+        None => "nicht installiert".into(),
+    };
+
     let encryption = match src.encryption() {
         Some(e) => format!("{:?} (V{} R{})", e.algorithm, e.v, e.r),
         None => "–".into(),
@@ -233,6 +283,7 @@ fn run_one(path: &Path, signer: &Signer, python: &Path, qpdf: Option<&Path>, wor
         openssl,
         new_sig: new_desc,
         prior_after: if prior_desc.is_empty() { "–".into() } else { prior_desc.join("; ") },
+        cli,
         ok: problems.is_empty(),
         problems,
     })
@@ -270,7 +321,17 @@ bleibt, Signatur intakt und gültig.\n\
 - `tests/builder.rs`: Fehlerfälle, Längenprüfung (N passt, N+1 und 2N abgewiesen), Platzhalter-Layout, \
 Verschlüsselung neuer Objekte (RC4-128, AES-128, AES-256, xref-Stream), unverschlüsselte und ungefilterte \
 XMP-Metadaten bei `EncryptMetadata false`, Originalschreibweise unveränderter Reals, Vorspann vor dem Header, \
-korrigierter `startxref` (K2), rekonstruierter Querverweis wird abgelehnt.\n";
+korrigierter `startxref` (K2), rekonstruierter Querverweis wird abgelehnt, `/Contents`-Reserve über \
+`RESERVE_MAX`, inkonsistente `Increment`-Bereiche.\n\
+- `edge_case_inputs_validate`: Leerraum bzw. Fremdinhalt nach `%%EOF`, fehlendes EOL, falscher `startxref` – \
+neue Signatur für pyHanko intakt/gültig über die ganze Datei, `qpdf --check` ohne neue Befunde.\n\
+- `tests/robustness.rs` (beide Crates): Mutations-Fuzzing über den Korpus (öffnen, alle Auswertungen, \
+Increment bauen, erneut öffnen – keine Panics, I1/I2 gelten), `/Size` am Ende des Objektnummernraums, \
+Laufzeit-/Speicherfallen (viele `%%EOF`, Streams ohne `endstream`, Form-Auffächerung, viele Bild-Aufrufe, \
+wiederholte Inhalts-Streams, unzulässige Predictor-Parameter).\n\n\
+Einmalig von Hand gegengeprüft (Review 14.10.2026): PDFBox 2.0.34 – der Leser von PDF-AS – lädt alle 65 \
+signierten Ausgaben und findet jede neue Signatur mit konsistenter ByteRange (`[0 a b c]`, `b + c` = \
+Dateilänge, `<`/`>` an den Grenzen).\n";
 
 fn render(rows: &[Row], versions: &str) -> String {
     let mut s = String::new();
@@ -287,8 +348,12 @@ fn render(rows: &[Row], versions: &str) -> String {
     s.push_str("Spalten: *Neue Signatur* = Integrität / kryptografische Gültigkeit / Abdeckung (Vertrauen ");
     s.push_str("bewusst ohne Bedeutung, selbstsigniertes Testzertifikat); *Vorsignaturen* = pyHanko-Änderungsstufe ");
     s.push_str("vorher → nachher (Ziel: höchstens `FORM_FILLING` für die zuvor vollständige Signatur; ");
+    s.push_str("`OTHER` bei älteren PDF-AS-Signaturen stammt aus den PDF-AS-Increments selbst und ist unverändert); ");
+    s.push_str("*pyHanko-CLI* = zweites Orakel `pyhanko sign validate --pretty-print --no-strict-syntax ");
+    s.push_str("--no-revocation-check --trust <Testzertifikat> --trust-replace` (ohne Netz): neue Signatur ");
+    s.push_str("„cryptographically sound“, „covers the entire file“, „judged VALID“; Vorsignaturen weiterhin ");
     s.push_str(
-        "`OTHER` bei älteren PDF-AS-Signaturen stammt aus den PDF-AS-Increments selbst und ist unverändert).\n\n",
+        "„cryptographically sound“ und – falls sie vorher die ganze Datei abdeckten – ohne „may be illegitimate“.\n\n",
     );
     s.push_str(versions);
     let ok = rows.iter().filter(|r| r.ok).count();
@@ -297,11 +362,11 @@ fn render(rows: &[Row], versions: &str) -> String {
         rows.len()
     ));
     s.push_str("wird erwartungsgemäß mit `CosError::PasswordRequired` abgelehnt und ist nicht aufgeführt.\n\n");
-    s.push_str("| Datei | xref (letzte Rev.) | Verschlüsselung | Vorsig. | qpdf | openssl | Neue Signatur | Vorsignaturen (pyHanko) | Ergebnis |\n");
-    s.push_str("|---|---|---|---|---|---|---|---|---|\n");
+    s.push_str("| Datei | xref (letzte Rev.) | Verschlüsselung | Vorsig. | qpdf | openssl | Neue Signatur | Vorsignaturen (pyHanko) | pyHanko-CLI | Ergebnis |\n");
+    s.push_str("|---|---|---|---|---|---|---|---|---|---|\n");
     for r in rows {
         s.push_str(&format!(
-            "| `{}` | {} | {} | {} | {} | {} | {} | {} | {} |\n",
+            "| `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
             r.file,
             r.xref,
             r.encryption,
@@ -310,6 +375,7 @@ fn render(rows: &[Row], versions: &str) -> String {
             if r.openssl { "ok" } else { "FEHLER" },
             r.new_sig,
             r.prior_after,
+            r.cli,
             if r.ok { "ok".to_string() } else { format!("FEHLER: {}", r.problems.join("; ")) }
         ));
     }
@@ -347,6 +413,10 @@ fn sign_with_openssl_and_validate_with_pyhanko() {
         return;
     };
     let qpdf = common::which("qpdf");
+    let pyhanko = common::which("pyhanko");
+    if pyhanko.is_none() {
+        eprintln!("HINWEIS: pyhanko-CLI fehlt – nur API-Prüfung");
+    }
     let files = common::corpus();
     let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(8);
     let chunks: Vec<Vec<PathBuf>> =
@@ -355,9 +425,10 @@ fn sign_with_openssl_and_validate_with_pyhanko() {
         let handles: Vec<_> = chunks
             .iter()
             .map(|chunk| {
-                let (signer, python, qpdf, work) = (&signer, &python, qpdf.as_deref(), work.path());
+                let (signer, python, qpdf, pyhanko, work) =
+                    (&signer, &python, qpdf.as_deref(), pyhanko.as_deref(), work.path());
                 scope.spawn(move || {
-                    chunk.iter().filter_map(|p| run_one(p, signer, python, qpdf, work)).collect::<Vec<_>>()
+                    chunk.iter().filter_map(|p| run_one(p, signer, python, qpdf, pyhanko, work)).collect::<Vec<_>>()
                 })
             })
             .collect();
@@ -435,5 +506,62 @@ fn fill_existing_empty_field_validates() {
         let rep = common::pyhanko_report(&python, &out_path, &[]).unwrap();
         let s = rep.iter().find(|s| s.field == empty.qualified_name).unwrap_or_else(|| panic!("{rel}: {rep:?}"));
         assert!(s.intact && s.valid && s.coverage.as_deref() == Some("ENTIRE_FILE"), "{rel}: {s:?}");
+    }
+}
+
+/// Randfälle der Annahmepolitik (Plan §6.1 K1/K2): Leerraum bzw. Fremdinhalt nach `%%EOF`,
+/// Vorspann vor dem Header, falscher `startxref` – das Increment wird angehängt, die neue Signatur
+/// ist für pyHanko intakt und deckt die ganze Datei ab, `qpdf --check` meldet nichts Neues.
+#[test]
+fn edge_case_inputs_validate() {
+    let work = tempfile::tempdir().unwrap();
+    let (Some(signer), Some(python)) = (prepare_signer(work.path()), common::pyhanko_python()) else {
+        eprintln!("HINWEIS: openssl/pyHanko fehlt – übersprungen");
+        return;
+    };
+    let qpdf = common::which("qpdf");
+    let base = std::fs::read(common::testdata().join("pdf/generated/simple-xref-table.pdf")).unwrap();
+    let sx_pos = base.windows(10).rposition(|w| w == b"startxref\n").unwrap() + 10;
+    let sx_end = sx_pos + base[sx_pos..].iter().position(|&b| b == b'\n').unwrap();
+    let sx: u64 = std::str::from_utf8(&base[sx_pos..sx_end]).unwrap().parse().unwrap();
+    let shifted = {
+        let mut v = base[..sx_pos].to_vec();
+        v.extend_from_slice((sx + 3).to_string().as_bytes());
+        v.extend_from_slice(&base[sx_end..]);
+        v
+    };
+    let cases: Vec<(&str, Vec<u8>)> = vec![
+        ("Leerraum nach %%EOF", [base.clone(), b"\r\n\n \0\0\t".to_vec()].concat()),
+        ("Fremdinhalt nach %%EOF", [base.clone(), b"NUR TEST: angehaengter Fremdinhalt\n".to_vec()].concat()),
+        ("ohne EOL nach %%EOF", base[..base.len() - 1].to_vec()),
+        ("falscher startxref (K2)", shifted),
+    ];
+    for (i, (what, input)) in cases.into_iter().enumerate() {
+        let src = SourcePdf::open(input.clone(), &Limits::default()).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let mut inc = common::add_dummy_signature(&src, IncrementOptions::default(), 8192).unwrap();
+        let data = inc.byte_range_data(src.bytes());
+        let cms = signer.sign(work.path(), &data).unwrap();
+        inc.embed_contents(&cms).unwrap();
+        let out = inc.to_vec(src.bytes());
+        assert!(out.starts_with(&input), "{what}: Präfix");
+        let path = work.path().join(format!("edge{i}.pdf"));
+        std::fs::write(&path, &out).unwrap();
+        let rep = common::pyhanko_report(&python, &path, &[&signer.cert]).unwrap();
+        let s = rep.iter().find(|s| s.field == "PDF-AS Signatur1").unwrap_or_else(|| panic!("{what}: {rep:?}"));
+        assert!(s.intact && s.valid, "{what}: {s:?}");
+        assert_eq!(s.coverage.as_deref(), Some("ENTIRE_FILE"), "{what}: {s:?}");
+        let re = SourcePdf::open(out, &Limits::default()).unwrap();
+        assert_eq!(re.tail().kind, pdfover_pdf_cos::TailKind::Clean, "{what}");
+        if let Some(q) = &qpdf {
+            let before = common::qpdf_check(q, &{
+                let p = work.path().join(format!("edge{i}-in.pdf"));
+                std::fs::write(&p, &input).unwrap();
+                p
+            });
+            let after = common::qpdf_check(q, &path);
+            let new: Vec<_> = after.messages.iter().filter(|m| !before.messages.contains(m)).collect();
+            assert!(after.code == 0 || after.code == 3, "{what}: qpdf {}: {:?}", after.code, after.messages);
+            assert!(new.is_empty(), "{what}: neue qpdf-Befunde {new:?}");
+        }
     }
 }

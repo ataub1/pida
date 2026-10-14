@@ -9,11 +9,14 @@
 //!   ergänzt der xref-Stream die Tabelle). lopdf 0.45 wertet `/XRefStm` älterer Revisionen nicht aus
 //!   und mischt in der falschen Reihenfolge; `SourcePdf::open` korrigiert das Objektmodell damit.
 
-use std::collections::{BTreeMap, HashSet};
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::rc::Rc;
 
 use lopdf::{Dictionary, Object, ObjectId};
 
-use crate::lexer::{self, Lexer, Token};
+use crate::filters;
+use crate::lexer::{self, EndstreamIndex, Lexer, Token};
 use crate::{CosError, Limits, Result, Revision, TailInfo, TailKind, XrefKind};
 
 /// Eintrag einer Querverweistabelle.
@@ -138,12 +141,95 @@ const MAX_SECTIONS: usize = 4096;
 /// Fenster für die Offset-Korrektur (wie lopdf/qpdf).
 const RECOVERY_WINDOW: usize = 64;
 
-/// Liest einen Abschnitt exakt an `abs` (nach optionalem Leerraum).
-fn parse_section_exact(data: &[u8], abs: usize, limits: &Limits) -> Option<Section> {
-    let mut p = abs;
-    while p < data.len() && lexer::is_whitespace(data[p]) {
-        p += 1;
+/// Gefundener Abschnitt und ob der Offset korrigiert werden musste.
+type Located = Option<(Rc<Section>, bool)>;
+
+/// Liest Querverweisabschnitte mit Zwischenspeicher: Jede (um Leerraum bereinigte) Position wird
+/// höchstens einmal eingelesen. Ohne Speicher würde eine Datei mit vielen `%%EOF`-Marken, die alle
+/// auf dieselbe große Tabelle zeigen, diese für jede Marke neu einlesen (quadratische Laufzeit).
+pub(crate) struct SectionReader<'a> {
+    data: &'a [u8],
+    limits: &'a Limits,
+    index: &'a EndstreamIndex,
+    exact: RefCell<HashMap<usize, Option<Rc<Section>>>>,
+    located: RefCell<HashMap<(u64, u64), Located>>,
+    /// ein xref-Stream mit unzulässigen Predictor-Parametern wurde gefunden (lopdf würde ihn beim
+    /// Laden ungeprüft dekodieren, siehe `filters::MAX_PREDICTOR_ROW`)
+    insane_params: Cell<bool>,
+}
+
+impl<'a> SectionReader<'a> {
+    pub(crate) fn new(data: &'a [u8], limits: &'a Limits, index: &'a EndstreamIndex) -> Self {
+        Self {
+            data,
+            limits,
+            index,
+            exact: RefCell::default(),
+            located: RefCell::default(),
+            insane_params: Cell::new(false),
+        }
     }
+
+    /// Liest einen Abschnitt exakt an `abs` (nach optionalem Leerraum).
+    fn exact(&self, abs: usize) -> Option<Rc<Section>> {
+        let data = self.data;
+        let mut p = abs;
+        while p < data.len() && lexer::is_whitespace(data[p]) {
+            p += 1;
+        }
+        if let Some(hit) = self.exact.borrow().get(&p) {
+            return hit.clone();
+        }
+        let parsed = parse_section_exact(data, p, self.limits, self.index, &self.insane_params).map(Rc::new);
+        self.exact.borrow_mut().insert(p, parsed.clone());
+        parsed
+    }
+
+    /// Sucht einen Abschnitt an `declared + base`, notfalls im Fenster ±64 Bytes.
+    /// Liefert den Abschnitt und ob korrigiert werden musste.
+    pub(crate) fn locate(&self, declared: u64, base: u64) -> Located {
+        if let Some(hit) = self.located.borrow().get(&(declared, base)) {
+            return hit.clone();
+        }
+        let found = self.locate_uncached(declared, base);
+        self.located.borrow_mut().insert((declared, base), found.clone());
+        found
+    }
+
+    fn locate_uncached(&self, declared: u64, base: u64) -> Located {
+        let data = self.data;
+        let abs = usize::try_from(declared.checked_add(base)?).ok()?;
+        if abs >= data.len() {
+            return None;
+        }
+        if let Some(s) = self.exact(abs) {
+            return Some((s, false));
+        }
+        let lo = abs.saturating_sub(RECOVERY_WINDOW);
+        let hi = (abs + RECOVERY_WINDOW).min(data.len());
+        let mut best: Option<usize> = None;
+        for pos in lo..hi {
+            let is_xref = data[pos..].starts_with(b"xref") && !(pos >= 5 && &data[pos - 5..pos] == b"start");
+            let is_obj = (pos == 0 || !data[pos - 1].is_ascii_digit())
+                && data[pos].is_ascii_digit()
+                && lexer::object_header_at(data, pos).is_some();
+            if (is_xref || is_obj) && best.is_none_or(|b| pos.abs_diff(abs) < b.abs_diff(abs)) {
+                best = Some(pos);
+            }
+        }
+        let pos = best?;
+        self.exact(pos).map(|s| (s, true))
+    }
+}
+
+/// Liest einen Abschnitt an `p` (Tabelle mit Trailer oder xref-Stream).
+fn parse_section_exact(
+    data: &[u8],
+    p: usize,
+    limits: &Limits,
+    index: &EndstreamIndex,
+    insane: &Cell<bool>,
+) -> Option<Section> {
     if data.get(p..)?.starts_with(b"xref") {
         let (entries, trailer) = parse_table(data, p, limits)?;
         return Some(Section {
@@ -156,7 +242,7 @@ fn parse_section_exact(data: &[u8], abs: usize, limits: &Limits) -> Option<Secti
             hybrid_stream_id: None,
         });
     }
-    let (entries, trailer, id) = parse_stream_section(data, p, limits)?;
+    let (entries, trailer, id) = parse_stream_section(data, p, limits, index, insane)?;
     Some(Section {
         offset: p as u64,
         kind: SectionKind::Stream,
@@ -166,32 +252,6 @@ fn parse_section_exact(data: &[u8], abs: usize, limits: &Limits) -> Option<Secti
         stream_id: Some(id),
         hybrid_stream_id: None,
     })
-}
-
-/// Sucht einen Abschnitt an `declared + base`, notfalls im Fenster ±64 Bytes.
-/// Liefert den Abschnitt und ob korrigiert werden musste.
-pub(crate) fn locate_section(data: &[u8], declared: u64, base: u64, limits: &Limits) -> Option<(Section, bool)> {
-    let abs = usize::try_from(declared.checked_add(base)?).ok()?;
-    if abs >= data.len() {
-        return None;
-    }
-    if let Some(s) = parse_section_exact(data, abs, limits) {
-        return Some((s, false));
-    }
-    let lo = abs.saturating_sub(RECOVERY_WINDOW);
-    let hi = (abs + RECOVERY_WINDOW).min(data.len());
-    let mut best: Option<usize> = None;
-    for pos in lo..hi {
-        let is_xref = data[pos..].starts_with(b"xref") && !(pos >= 5 && &data[pos - 5..pos] == b"start");
-        let is_obj = (pos == 0 || !data[pos - 1].is_ascii_digit())
-            && data[pos].is_ascii_digit()
-            && lexer::object_header_at(data, pos).is_some();
-        if (is_xref || is_obj) && best.is_none_or(|b| pos.abs_diff(abs) < b.abs_diff(abs)) {
-            best = Some(pos);
-        }
-    }
-    let pos = best?;
-    parse_section_exact(data, pos, limits).map(|s| (s, true))
 }
 
 fn parse_table(data: &[u8], pos: usize, limits: &Limits) -> Option<(Vec<(u32, Entry)>, Dictionary)> {
@@ -265,10 +325,20 @@ fn parse_table(data: &[u8], pos: usize, limits: &Limits) -> Option<(Vec<(u32, En
 /// Einträge, Dictionary und Objekt-ID eines xref-Streams.
 type StreamSection = (Vec<(u32, Entry)>, Dictionary, ObjectId);
 
-fn parse_stream_section(data: &[u8], pos: usize, limits: &Limits) -> Option<StreamSection> {
-    let io = lexer::parse_indirect_object(data, pos, &|_| None)?;
+fn parse_stream_section(
+    data: &[u8],
+    pos: usize,
+    limits: &Limits,
+    index: &EndstreamIndex,
+    insane: &Cell<bool>,
+) -> Option<StreamSection> {
+    let io = lexer::parse_indirect_object(data, pos, &|_| None, index)?;
     let Object::Stream(stream) = io.object else { return None };
     if !stream.dict.has_type(b"XRef") {
+        return None;
+    }
+    if !filters::stream_params_sane(&stream.dict) {
+        insane.set(true);
         return None;
     }
     let decoded = if stream.dict.has(b"Filter") {
@@ -403,27 +473,36 @@ pub(crate) fn strip_stream_keys(d: &Dictionary) -> Dictionary {
 }
 
 /// Folgt der Kette ab `startxref`.
-pub(crate) fn walk_chain(data: &[u8], startxref: u64, base: u64, limits: &Limits) -> Chain {
+pub(crate) fn walk_chain(reader: &SectionReader<'_>, startxref: u64, base: u64) -> Chain {
+    let limits = reader.limits;
     let mut chain = Chain::default();
     let mut visited: HashSet<u64> = HashSet::new();
+    // tatsächliche Offsets: verschiedene deklarierte Werte können (über die Fensterkorrektur) auf
+    // denselben Abschnitt führen – das ist ebenfalls ein Zyklus.
+    let mut visited_actual: HashSet<u64> = HashSet::new();
     let mut next = Some(startxref);
     let mut total_entries = 0usize;
     while let Some(declared) = next.take() {
         if !visited.insert(declared) || chain.sections.len() >= MAX_SECTIONS {
             break;
         }
-        let Some((mut section, corrected)) = locate_section(data, declared, base, limits) else {
+        let Some((found, corrected)) = reader.locate(declared, base) else {
             chain.repaired = true;
             break;
         };
+        if !visited_actual.insert(found.offset) {
+            chain.repaired = true;
+            break;
+        }
         if corrected {
             chain.repaired = true;
         }
+        let mut section = (*found).clone();
         if let Some(stm) = section.xref_stm() {
-            match locate_section(data, stm, base, limits) {
+            match reader.locate(stm, base) {
                 Some((hs, c)) if hs.kind == SectionKind::Stream => {
                     chain.repaired |= c;
-                    section.hybrid_entries = hs.entries;
+                    section.hybrid_entries.clone_from(&hs.entries);
                     section.hybrid_stream_id = hs.stream_id;
                 }
                 _ => chain.repaired = true,
@@ -455,7 +534,8 @@ pub(crate) struct Structure {
 }
 
 /// Analysiert Revisionen, Kette und Dateiende.
-pub(crate) fn analyze(data: &[u8], header_offset: usize, limits: &Limits) -> Result<Structure> {
+pub(crate) fn analyze(data: &[u8], header_offset: usize, limits: &Limits, index: &EndstreamIndex) -> Result<Structure> {
+    let reader = SectionReader::new(data, limits, index);
     let markers = find_eof_markers(data);
     let bases: Vec<u64> = if header_offset > 0 { vec![0, header_offset as u64] } else { vec![0] };
 
@@ -464,7 +544,7 @@ pub(crate) fn analyze(data: &[u8], header_offset: usize, limits: &Limits) -> Res
     if let Some(m) = markers.iter().rev().find(|m| m.startxref.is_some_and(|s| s > 0)) {
         let sx = m.startxref.unwrap_or(0);
         for &b in &bases {
-            if locate_section(data, sx, b, limits).is_some_and(|(_, corrected)| !corrected) {
+            if reader.locate(sx, b).is_some_and(|(_, corrected)| !corrected) {
                 base = b;
                 break;
             }
@@ -478,7 +558,7 @@ pub(crate) fn analyze(data: &[u8], header_offset: usize, limits: &Limits) -> Res
         if sx == 0 || sx.saturating_add(base) >= m.pos as u64 {
             continue; // Dummy-Marke der Linearisierung bzw. unplausibel
         }
-        let Some((section, _)) = locate_section(data, sx, base, limits) else { continue };
+        let Some((section, _)) = reader.locate(sx, base) else { continue };
         revisions.push(Revision {
             index: revisions.len(),
             startxref: sx,
@@ -501,7 +581,7 @@ pub(crate) fn analyze(data: &[u8], header_offset: usize, limits: &Limits) -> Res
             } else {
                 TailKind::Garbage
             };
-            let chain = walk_chain(data, last.startxref, base, limits);
+            let chain = walk_chain(&reader, last.startxref, base);
             let reconstructed = chain.sections.is_empty();
             (TailInfo { kind, eof_offset: end as u64, len: (total - end) as u64 }, chain, reconstructed, end)
         }
@@ -524,6 +604,11 @@ pub(crate) fn analyze(data: &[u8], header_offset: usize, limits: &Limits) -> Res
         });
     }
 
+    if reader.insane_params.get() {
+        // lopdf dekodiert xref-Streams beim Laden selbst; mit solchen Parametern liefe das in eine
+        // unbegrenzte Speicheranforderung (K5 statt Absturz).
+        return Err(filters::insane_predictor());
+    }
     let merged_len = chain.merged().len();
     if merged_len > limits.max_objects {
         return Err(CosError::LimitExceeded { what: "Objektanzahl", limit: limits.max_objects as u64 });

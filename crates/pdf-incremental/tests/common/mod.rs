@@ -149,6 +149,59 @@ pub fn pyhanko_report(python: &Path, file: &Path, trust: &[&Path]) -> std::resul
     serde_json::from_str(line).map_err(|e| e.to_string())
 }
 
+/// Ergebnis je Feld aus `pyhanko sign validate --pretty-print` (Textausgabe der CLI).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PyhankoCliSig {
+    pub field: String,
+    /// „The signature is cryptographically sound.“
+    pub sound: bool,
+    /// „The signature covers the entire file.“
+    pub entire_file: bool,
+    /// „The signature is judged VALID.“ (Vertrauen eingeschlossen)
+    pub judged_valid: bool,
+    /// Änderungen außerhalb der erlaubten Formularänderungen („… may be illegitimate …“)
+    pub illegitimate_changes: bool,
+}
+
+/// `pyhanko sign validate --pretty-print --no-strict-syntax` ohne Netz: `--no-revocation-check`
+/// schaltet in pyHanko auch das Nachladen von Zertifikaten ab, `--trust … --trust-replace` ersetzt
+/// den Vertrauensspeicher des Systems.
+pub fn pyhanko_cli(pyhanko: &Path, file: &Path, trust: &Path) -> std::result::Result<Vec<PyhankoCliSig>, String> {
+    let out = Command::new(pyhanko)
+        .args(["sign", "validate", "--pretty-print", "--no-strict-syntax", "--no-revocation-check", "--trust"])
+        .arg(trust)
+        .arg("--trust-replace")
+        .arg(file)
+        .output()
+        .map_err(|e| e.to_string())?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut sigs: Vec<PyhankoCliSig> = Vec::new();
+    for line in text.lines() {
+        let l = line.trim();
+        if let Some(rest) = l.strip_prefix("Field ")
+            && let Some((_, name)) = rest.split_once(": ")
+        {
+            sigs.push(PyhankoCliSig {
+                field: name.trim().to_string(),
+                sound: false,
+                entire_file: false,
+                judged_valid: false,
+                illegitimate_changes: false,
+            });
+            continue;
+        }
+        let Some(cur) = sigs.last_mut() else { continue };
+        cur.sound |= l == "The signature is cryptographically sound.";
+        cur.entire_file |= l == "The signature covers the entire file.";
+        cur.judged_valid |= l == "The signature is judged VALID.";
+        cur.illegitimate_changes |= l.contains("may be illegitimate");
+    }
+    if sigs.is_empty() {
+        return Err(format!("keine Signaturen in der CLI-Ausgabe (Code {:?})", out.status.code()));
+    }
+    Ok(sigs)
+}
+
 /// Rangfolge der pyHanko-Änderungsstufen (`ModificationLevel`).
 pub fn modification_rank(level: Option<&str>) -> u8 {
     match level {

@@ -65,10 +65,6 @@ impl<'a> Lexer<'a> {
         self.data
     }
 
-    pub(crate) fn at_end(&self) -> bool {
-        self.pos >= self.data.len()
-    }
-
     /// Überspringt Leerraum und Kommentare.
     pub(crate) fn skip_ws(&mut self) {
         while self.pos < self.data.len() {
@@ -463,26 +459,100 @@ pub(crate) struct IndirectObject {
     pub end: usize,
 }
 
-/// Prüft, ob bei `pos` (nach optionalem Leerraum) ein Objektkopf `n g obj` steht; liefert die ID.
+/// Liest eine vorzeichenlose Dezimalzahl mit höchstens `max_digits` Stellen ab `p`.
+fn header_number(data: &[u8], p: &mut usize, max_digits: usize) -> Option<u64> {
+    let start = *p;
+    while *p < data.len() && data[*p].is_ascii_digit() {
+        if *p - start >= max_digits {
+            return None;
+        }
+        *p += 1;
+    }
+    if *p == start {
+        return None;
+    }
+    data[start..*p].iter().try_fold(0u64, |acc, &d| acc.checked_mul(10)?.checked_add(u64::from(d - b'0')))
+}
+
+/// Überspringt Leerraum und Kommentare; `true`, wenn mindestens ein Zeichen übersprungen wurde.
+fn header_space(data: &[u8], p: &mut usize) -> bool {
+    let start = *p;
+    let mut lx = Lexer::new(data, *p);
+    lx.skip_ws();
+    *p = lx.pos;
+    *p > start
+}
+
+/// Prüft, ob bei `pos` (nach optionalem Leerraum) ein Objektkopf `n g obj` steht; liefert die ID
+/// und den Offset nach `obj`.
+///
+/// Bewusst ohne allgemeinen Tokenizer: Die Prüfung wird bei der Reparatur an sehr vielen Stellen
+/// aufgerufen und darf nicht über lange Strings oder Kommentare hinweglesen (sonst quadratische
+/// Laufzeit bei feindlichen Eingaben).
 pub(crate) fn object_header_at(data: &[u8], pos: usize) -> Option<(ObjectId, usize)> {
-    let mut lx = Lexer::new(data, pos);
-    let Some(Token::Int(n)) = lx.next_token() else { return None };
-    let Some(Token::Int(g)) = lx.next_token() else { return None };
-    if !lx.expect_keyword(b"obj") {
+    let mut p = pos.min(data.len());
+    header_space(data, &mut p);
+    let n = header_number(data, &mut p, 10)?;
+    if !header_space(data, &mut p) {
         return None;
     }
-    if !(0..=i64::from(u32::MAX)).contains(&n) || !(0..=i64::from(u16::MAX)).contains(&g) {
+    let g = header_number(data, &mut p, 5)?;
+    if !header_space(data, &mut p) || !data[p..].starts_with(b"obj") {
         return None;
     }
-    Some(((n as u32, g as u16), lx.pos))
+    let after = p + 3;
+    if data.get(after).is_some_and(|&b| is_regular(b)) {
+        return None; // z. B. `objx`
+    }
+    let n = u32::try_from(n).ok()?;
+    let g = u16::try_from(g).ok()?;
+    Some(((n, g), after))
+}
+
+/// Positionen aller `endstream` einer Datei, einmal linear ermittelt.
+///
+/// Stimmt `/Length` nicht, sucht der Parser das nächste `endstream`. Ohne Index wäre das bei
+/// vielen defekten Streams (bzw. fehlendem `endstream`) je Objekt ein Lauf bis zum Dateiende –
+/// quadratische Laufzeit bei feindlichen Eingaben.
+#[derive(Debug, Default)]
+pub(crate) struct EndstreamIndex {
+    positions: std::cell::OnceCell<Vec<usize>>,
+}
+
+impl EndstreamIndex {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// Erstes `endstream` ab `from` in `data` (dieselben Bytes bei jedem Aufruf).
+    fn next_after(&self, data: &[u8], from: usize) -> Option<usize> {
+        let positions = self.positions.get_or_init(|| {
+            let mut v = Vec::new();
+            let mut i = 0;
+            while let Some(at) = find(data, b"endstream", i) {
+                v.push(at);
+                i = at + 9;
+            }
+            v
+        });
+        let i = positions.partition_point(|&p| p < from);
+        match positions.get(i).copied() {
+            Some(at) if data.get(at..).is_some_and(|r| r.starts_with(b"endstream")) => Some(at),
+            // Index gehört nicht zu `data` (Programmierfehler): ohne Index suchen statt paniken.
+            Some(_) => find(data, b"endstream", from),
+            None => None,
+        }
+    }
 }
 
 /// Liest ein indirektes Objekt an `offset`. `/Length` als Referenz wird über `resolve_len`
-/// aufgelöst; passt die Länge nicht, wird `endstream` gesucht (lenient wie PDFBox).
+/// aufgelöst; passt die Länge nicht, wird `endstream` gesucht (lenient wie PDFBox). `index` muss
+/// zu `data` gehören.
 pub(crate) fn parse_indirect_object(
     data: &[u8],
     offset: usize,
     resolve_len: &dyn Fn(ObjectId) -> Option<i64>,
+    index: &EndstreamIndex,
 ) -> Option<IndirectObject> {
     let (id, after_header) = object_header_at(data, offset)?;
     let mut lx = Lexer::new(data, after_header);
@@ -534,7 +604,7 @@ pub(crate) fn parse_indirect_object(
             Some(e) => e,
             None => {
                 // `endstream` suchen und ein abschließendes EOL abschneiden.
-                let found = find(data, b"endstream", p)?;
+                let found = index.next_after(data, p)?;
                 let mut e = found;
                 if e > p && data[e - 1] == b'\n' {
                     e -= 1;
@@ -678,6 +748,7 @@ pub(crate) fn find(hay: &[u8], needle: &[u8], from: usize) -> Option<usize> {
 }
 
 /// Letztes Vorkommen von `needle` vor `before` (exklusiv).
+#[cfg(test)]
 pub(crate) fn rfind(hay: &[u8], needle: &[u8], before: usize) -> Option<usize> {
     let end = before.min(hay.len());
     if needle.is_empty() || end < needle.len() {
@@ -756,19 +827,48 @@ mod tests {
     #[test]
     fn indirect_with_stream() {
         let data = b"xx 7 0 obj\n<< /Length 5 >>\nstream\r\nHELLO\r\nendstream\nendobj\n";
-        let io = parse_indirect_object(data, 3, &|_| None).unwrap();
+        let io = parse_indirect_object(data, 3, &|_| None, &EndstreamIndex::new()).unwrap();
         assert_eq!(io.id, (7, 0));
         let s = io.object.as_stream().unwrap();
         assert_eq!(s.content, b"HELLO");
         assert_eq!(&data[io.end - 6..io.end], b"endobj");
         // falsche Länge → endstream-Suche
         let data = b"7 0 obj << /Length 99 >> stream\nHELLO\nendstream endobj";
-        let io = parse_indirect_object(data, 0, &|_| None).unwrap();
+        let io = parse_indirect_object(data, 0, &|_| None, &EndstreamIndex::new()).unwrap();
         assert_eq!(io.object.as_stream().unwrap().content, b"HELLO");
         // indirekte Länge
         let data = b"7 0 obj << /Length 8 0 R >> stream\nHELLO\nendstream endobj";
-        let io = parse_indirect_object(data, 0, &|id| (id == (8, 0)).then_some(5)).unwrap();
+        let io = parse_indirect_object(data, 0, &|id| (id == (8, 0)).then_some(5), &EndstreamIndex::new()).unwrap();
         assert_eq!(io.object.as_stream().unwrap().content, b"HELLO");
+        // Index über mehrere Objekte: jeweils das nächste endstream
+        let data = b"1 0 obj << /Length 99 >> stream\nAA\nendstream endobj 2 0 obj << >> stream\nBBB\nendstream endobj";
+        let idx = EndstreamIndex::new();
+        let a = parse_indirect_object(data, 0, &|_| None, &idx).unwrap();
+        let b = parse_indirect_object(data, a.end + 1, &|_| None, &idx).unwrap();
+        assert_eq!(a.object.as_stream().unwrap().content, b"AA");
+        assert_eq!((b.id, b.object.as_stream().unwrap().content.as_slice()), ((2, 0), &b"BBB"[..]));
+        // kein endstream → kein Stream-Objekt
+        assert!(
+            parse_indirect_object(b"3 0 obj << /Length 9 >> stream\nX", 0, &|_| None, &EndstreamIndex::new()).is_none()
+        );
+        // falsch zugeordneter Index: kein Panic
+        let other = b"9 0 obj << /Length 99 >> stream\nZ\nendstream endobj";
+        assert_eq!(parse_indirect_object(other, 0, &|_| None, &idx).unwrap().object.as_stream().unwrap().content, b"Z");
+    }
+
+    #[test]
+    fn object_headers() {
+        assert_eq!(object_header_at(b"12 0 obj<<", 0), Some(((12, 0), 8)));
+        assert_eq!(object_header_at(b"  \r\n12 3 obj\n", 0), Some(((12, 3), 12)));
+        assert_eq!(object_header_at(b"12 0 % Kommentar\nobj", 0), Some(((12, 0), 20)));
+        assert_eq!(object_header_at(b"12 0 objx", 0), None);
+        assert_eq!(object_header_at(b"12 0 R", 0), None);
+        assert_eq!(object_header_at(b"120 obj", 0), None);
+        assert_eq!(object_header_at(b"4294967296 0 obj", 0), None, "Objektnummer > u32");
+        assert_eq!(object_header_at(b"1 65536 obj", 0), None, "Generation > u16");
+        assert_eq!(object_header_at(b"99999999999999999999 0 obj", 0), None);
+        assert_eq!(object_header_at(b"1 (", 0), None);
+        assert_eq!(object_header_at(b"7 0 obj", 99), None, "Offset hinter dem Ende");
     }
 
     #[test]
