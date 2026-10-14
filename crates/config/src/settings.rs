@@ -1,11 +1,40 @@
 //! Neues Settings-Schema (TOML, versioniert; Plan §7.1).
+//!
+//! ```toml
+//! # PDF-Over NG – Einstellungen
+//! schema_version = 1
+//!
+//! [general]
+//! ui_language = "de"          # fehlt = Systemsprache (Fallback DE)
+//! update_check = true
+//!
+//! [signature]
+//! profile = "SIGNATURBLOCK_SMALL"
+//! block_language = "en"       # fehlt = Systemsprache
+//! note = { mode = "custom", text = "Eigener Hinweis" }   # bzw. { mode = "default" } / { mode = "none" }
+//! logo_only_size_mm = 23.0
+//!
+//! [id_austria]
+//! username = "+43664123456789"
+//! ```
+//!
+//! - **Versionierung:** `schema_version` (fehlt = 1). Ältere Stände werden beim Lesen schrittweise
+//!   angehoben ([`Settings::from_toml`]), neuere ergeben [`crate::ConfigError::UnsupportedSchema`].
+//! - **Unbekannte Keys** bleiben beim Speichern erhalten – auf oberster Ebene **und** in den
+//!   bekannten Tabellen. Sie stehen in [`Settings::unknown`]; der Schlüssel ist der TOML-Pfad in
+//!   Punktschreibweise (`signature.future_key`, Segmente ggf. in Anführungszeichen). So übersteht die
+//!   Map auch den JSON-Rundlauf über die Tauri-Bridge.
+//! - **Speichern** atomar (Temp-Datei, `fsync`, Umbenennen); Rechte 0600 unter Unix.
+//! - Das ID-Austria-Passwort und andere Secrets stehen **nie** in dieser Datei ([`crate::secrets`]).
 
 use std::collections::BTreeMap;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 
-use pdfover_i18n::Lang;
+use pdfover_i18n::{Catalog, Lang};
 
-use crate::Result;
+use crate::{ConfigError, Result};
 
 /// Aktuelle Schema-Version.
 pub const SCHEMA_VERSION: u32 = 1;
@@ -26,6 +55,14 @@ pub enum SignatureProfile {
 }
 
 impl SignatureProfile {
+    /// Alle Profile.
+    pub const ALL: [SignatureProfile; 4] = [
+        SignatureProfile::SignaturblockSmall,
+        SignatureProfile::Amtssignaturblock,
+        SignatureProfile::BaseLogo,
+        SignatureProfile::Invisible,
+    ];
+
     /// Name wie in `PDF-Over.config` (`SIGNATURE_PROFILE`).
     pub fn legacy_name(self) -> &'static str {
         match self {
@@ -45,6 +82,33 @@ impl SignatureProfile {
             "INVISIBLE" => SignatureProfile::Invisible,
             _ => return None,
         })
+    }
+
+    /// Fluent-ID des Standard-Hinweistexts (`Profile.getDefaultSignatureBlockNote`): nur
+    /// `SIGNATURBLOCK_SMALL` und `AMTSSIGNATURBLOCK` haben einen; sonst `None` (= `""`, kein Hinweis).
+    pub fn default_note_id(self) -> Option<&'static str> {
+        match self {
+            SignatureProfile::SignaturblockSmall => Some("simple_config-Note_Default_Standard"),
+            SignatureProfile::Amtssignaturblock => Some("simple_config-Note_Default_OfficialSignature"),
+            SignatureProfile::BaseLogo | SignatureProfile::Invisible => None,
+        }
+    }
+
+    /// Standard-Hinweistext in der Sprache des Signaturblocks (`None` = kein Hinweis).
+    pub fn default_note(self, block_language: Lang) -> Option<String> {
+        let id = self.default_note_id()?;
+        let catalog = Catalog::global();
+        catalog.has(block_language, id).then(|| catalog.format(block_language, id, &[]).into_owned())
+    }
+
+    /// Fluent-ID des Anzeigenamens (`simple_config.<Profil>`).
+    pub fn label_id(self) -> &'static str {
+        match self {
+            SignatureProfile::SignaturblockSmall => "simple_config-SIGNATURBLOCK_SMALL",
+            SignatureProfile::Amtssignaturblock => "simple_config-AMTSSIGNATURBLOCK",
+            SignatureProfile::BaseLogo => "simple_config-BASE_LOGO",
+            SignatureProfile::Invisible => "simple_config-INVISIBLE",
+        }
     }
 
     /// PDF-AS-Profil-ID wie `PdfAs4SignatureParameter.getPdfAsSignatureProfileId()`
@@ -208,6 +272,15 @@ impl BackendChoice {
             _ => None,
         }
     }
+
+    /// Name in PDF-Over (`BKU`, `-b`).
+    pub fn legacy_name(self) -> &'static str {
+        match self {
+            BackendChoice::IdAustria => "MOBILE",
+            BackendChoice::LocalBku => "LOCAL",
+            BackendChoice::Keystore => "KS",
+        }
+    }
 }
 
 /// Backend-Auswahl.
@@ -310,7 +383,7 @@ pub struct PrivacySettings {
     pub acknowledged: BTreeMap<String, u32>,
 }
 
-/// Zertifikats-Cache (Opt-in, nur öffentliches Zertifikat).
+/// Zertifikats-Cache (Opt-in, nur öffentliches Zertifikat, [`crate::CertificateCache`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct CertificateCacheSettings {
@@ -344,7 +417,8 @@ pub struct Settings {
     pub privacy: PrivacySettings,
     /// Zertifikats-Cache.
     pub certificate_cache: CertificateCacheSettings,
-    /// Unbekannte Tabellen/Keys (bleiben beim Speichern erhalten).
+    /// Unbekannte Tabellen/Keys (bleiben beim Speichern erhalten). Schlüssel = TOML-Pfad in
+    /// Punktschreibweise (`future`, `signature.future_key`, `general."a b"`).
     #[serde(flatten)]
     pub unknown: BTreeMap<String, toml::Value>,
 }
@@ -379,25 +453,83 @@ pub enum LoadOutcome {
     Unreadable(crate::ConfigError),
 }
 
+static TMP_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+/// Kopfzeile der geschriebenen Datei.
+const FILE_HEADER: &str = "# PDF-Over NG – Einstellungen. Unbekannte Einträge bleiben beim Speichern erhalten.\n\n";
+
 impl Settings {
     /// Liest die TOML-Datei.
     pub fn load(path: &Path) -> LoadOutcome {
-        todo!("Paket E")
+        let bytes = match std::fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return LoadOutcome::Missing,
+            Err(e) => return LoadOutcome::Unreadable(ConfigError::Io(e)),
+        };
+        let Ok(text) = String::from_utf8(bytes) else {
+            return LoadOutcome::Unreadable(ConfigError::Parse("keine gültige UTF-8-Datei".into()));
+        };
+        match Settings::from_toml(&text) {
+            Ok(s) => LoadOutcome::Loaded(Box::new(s)),
+            Err(e) => LoadOutcome::Unreadable(e),
+        }
     }
 
     /// Parst TOML-Text (inkl. Schema-Migration älterer Versionen).
     pub fn from_toml(text: &str) -> Result<Settings> {
-        todo!("Paket E")
+        let mut table: toml::Table = toml::from_str(text).map_err(|e| ConfigError::Parse(e.message().to_owned()))?;
+        let version = match table.get("schema_version") {
+            None => 1,
+            Some(toml::Value::Integer(v)) if *v >= 1 => u32::try_from(*v).unwrap_or(u32::MAX),
+            Some(other) => return Err(ConfigError::Parse(format!("ungültige schema_version: {other}"))),
+        };
+        if version > SCHEMA_VERSION {
+            return Err(ConfigError::UnsupportedSchema { found: version, supported: SCHEMA_VERSION });
+        }
+        upgrade(&mut table, version)?;
+        table.insert("schema_version".into(), toml::Value::Integer(i64::from(SCHEMA_VERSION)));
+
+        // Bekannte Teile deserialisieren (unbekannte Top-Level-Keys nicht durch `flatten` schicken).
+        let known_top = known_top_level_keys();
+        let known_only: toml::Table = table
+            .iter()
+            .filter(|(k, _)| known_top.iter().any(|t| t == *k))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let mut settings: Settings =
+            known_only.try_into().map_err(|e: toml::de::Error| ConfigError::Parse(e.message().to_owned()))?;
+        settings.unknown.clear();
+
+        // Alles, was die Serialisierung der bekannten Werte nicht reproduziert, ist unbekannt.
+        let known = settings.known_table()?;
+        let mut unknown = BTreeMap::new();
+        collect_unknown(&table, &known, &mut Vec::new(), &mut unknown);
+        settings.unknown = unknown;
+        Ok(settings)
     }
 
-    /// Serialisiert als TOML.
+    /// Bekannte Werte als TOML-Tabelle (ohne [`Settings::unknown`]).
+    fn known_table(&self) -> Result<toml::Table> {
+        let mut copy = self.clone();
+        copy.unknown.clear();
+        copy.schema_version = SCHEMA_VERSION;
+        toml::Table::try_from(&copy).map_err(|e| ConfigError::Serialize(e.to_string()))
+    }
+
+    /// Serialisiert als TOML (inklusive der unbekannten Keys an ihrem Ursprungsort).
     pub fn to_toml(&self) -> Result<String> {
-        todo!("Paket E")
+        let mut table = self.known_table()?;
+        for (path, value) in &self.unknown {
+            insert_unknown(&mut table, &decode_key_path(path), value.clone());
+        }
+        let body = toml::to_string(&table).map_err(|e| ConfigError::Serialize(e.to_string()))?;
+        Ok(format!("{FILE_HEADER}{body}"))
     }
 
     /// Schreibt atomar (Temp-Datei, fsync, Umbenennen).
     pub fn save_atomic(&self, path: &Path) -> Result<()> {
-        todo!("Paket E")
+        let text = self.to_toml()?;
+        write_atomic(path, text.as_bytes())
     }
 
     /// Effektive Sprache des Signaturblocks.
@@ -405,11 +537,171 @@ impl Settings {
         self.signature.block_language.unwrap_or(system)
     }
 
+    /// Effektive UI-Sprache (Einstellung, sonst System, Fallback DE).
+    pub fn effective_ui_language(&self) -> Lang {
+        Lang::effective(self.general.ui_language)
+    }
+
     /// Hinweistext für das Profil: `None` = kein Hinweis; Default-Text aus dem i18n-Katalog
     /// (`simple_config-Note_Default_Standard` bzw. `…_OfficialSignature`).
+    ///
+    /// Wie PDF-Over (`setSignatureNotePersistent`): ein Text, der nach `trim()` leer ist, gilt als
+    /// „kein Hinweis“; das Profil erhält dann kein `_NOTE` ([`SignatureProfile::pdfas_profile_id`]).
     pub fn note_text(&self, block_language: Lang) -> Option<String> {
-        todo!("Paket E")
+        match &self.signature.note {
+            NoteSetting::None => None,
+            NoteSetting::Custom(t) if crate::java::trim(t).is_empty() => None,
+            NoteSetting::Custom(t) => Some(t.clone()),
+            NoteSetting::Default => self.signature.profile.default_note(block_language),
+        }
     }
+
+    /// PDF-AS-Profil-ID für diese Einstellungen (`pdfa_detected` = erkannte PDF/A-Kennung des
+    /// Dokuments; wirksam ist Schalter **oder** Kennung, Plan §6.9).
+    pub fn pdfas_profile_id(&self, system: Lang, pdfa_detected: bool) -> String {
+        let lang = self.effective_block_language(system);
+        self.signature.profile.pdfas_profile_id(
+            lang,
+            self.note_text(lang).is_some(),
+            self.signature.pdfa_force || pdfa_detected,
+        )
+    }
+}
+
+/// Hebt ältere Schema-Versionen schrittweise auf [`SCHEMA_VERSION`] an (derzeit gibt es nur 1).
+fn upgrade(_table: &mut toml::Table, from: u32) -> Result<()> {
+    let mut v = from;
+    while v < SCHEMA_VERSION {
+        // Hier folgen künftige Schritte `v → v + 1`.
+        v += 1;
+    }
+    Ok(())
+}
+
+fn known_top_level_keys() -> &'static [String] {
+    static KEYS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    KEYS.get_or_init(|| {
+        toml::Table::try_from(Settings::default()).map(|t| t.keys().cloned().collect()).unwrap_or_default()
+    })
+}
+
+/// Sammelt Keys aus `orig`, die in `known` fehlen (rekursiv nur durch bekannte Tabellen).
+fn collect_unknown(
+    orig: &toml::Table,
+    known: &toml::Table,
+    path: &mut Vec<String>,
+    out: &mut BTreeMap<String, toml::Value>,
+) {
+    for (k, v) in orig {
+        path.push(k.clone());
+        match (known.get(k), v) {
+            (None, _) => {
+                out.insert(encode_key_path(path), v.clone());
+            }
+            (Some(toml::Value::Table(kt)), toml::Value::Table(ot)) => collect_unknown(ot, kt, path, out),
+            _ => {}
+        }
+        path.pop();
+    }
+}
+
+/// Fügt einen unbekannten Wert wieder ein. Alle Segmente außer dem letzten müssen vorhandene Tabellen
+/// sein (sonst wurde der bekannte Elternwert entfernt, und der Wert wird verworfen); bekannte Werte
+/// werden nie überschrieben.
+fn insert_unknown(table: &mut toml::Table, path: &[String], value: toml::Value) {
+    let Some((last, parents)) = path.split_last() else { return };
+    let mut current = table;
+    for p in parents {
+        match current.get_mut(p) {
+            Some(toml::Value::Table(t)) => current = t,
+            _ => return,
+        }
+    }
+    current.entry(last.clone()).or_insert(value);
+}
+
+fn is_bare_key(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// TOML-Punktpfad: Segmente als „bare key“ oder als Basic String in Anführungszeichen.
+pub(crate) fn encode_key_path(path: &[String]) -> String {
+    let mut out = String::new();
+    for (i, seg) in path.iter().enumerate() {
+        if i > 0 {
+            out.push('.');
+        }
+        if is_bare_key(seg) {
+            out.push_str(seg);
+            continue;
+        }
+        out.push('"');
+        for c in seg.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                c if c.is_control() => out.push_str(&format!("\\u{:04X}", u32::from(c))),
+                c => out.push(c),
+            }
+        }
+        out.push('"');
+    }
+    out
+}
+
+/// Umkehrung von [`encode_key_path`] mit dem TOML-Parser selbst; nicht parsebare Schlüssel (z. B. aus
+/// JSON) gelten als ein einzelnes Segment.
+pub(crate) fn decode_key_path(key: &str) -> Vec<String> {
+    let parsed: Option<toml::Table> = toml::from_str(&format!("{key} = 0")).ok();
+    let mut out = Vec::new();
+    let mut current = parsed.as_ref();
+    while let Some(t) = current {
+        let mut it = t.iter();
+        let (Some((k, v)), None) = (it.next(), it.next()) else {
+            return vec![key.to_owned()];
+        };
+        out.push(k.clone());
+        current = match v {
+            toml::Value::Table(inner) => Some(inner),
+            _ => None,
+        };
+    }
+    if out.is_empty() { vec![key.to_owned()] } else { out }
+}
+
+/// Schreibt atomar: Temp-Datei im Zielordner (`create_new`, 0600 unter Unix), `fsync`, Umbenennen,
+/// Ordner-`fsync` (Unix).
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    let dir = match path.parent() {
+        Some(d) if !d.as_os_str().is_empty() => d.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
+    std::fs::create_dir_all(&dir)?;
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "settings".into());
+    let tmp = dir.join(format!(".{name}.tmp-{}-{}", std::process::id(), TMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let result = (|| -> std::io::Result<()> {
+        let mut f = opts.open(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        std::fs::rename(&tmp, path)?;
+        #[cfg(unix)]
+        if let Ok(d) = std::fs::File::open(&dir) {
+            let _ = d.sync_all();
+        }
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result.map_err(ConfigError::Io)
 }
 
 #[cfg(test)]
@@ -425,5 +717,49 @@ mod tests {
         assert_eq!(Amtssignaturblock.pdfas_profile_id(Lang::En, true, true), "AMTSSIGNATURBLOCK_EN_RECOMMENDED");
         assert_eq!(BaseLogo.pdfas_profile_id(Lang::En, true, true), "BASE_LOGO");
         assert_eq!(Invisible.pdfas_profile_id(Lang::De, false, false), "INVISIBLE");
+    }
+
+    #[test]
+    fn key_paths_roundtrip() {
+        for path in [
+            vec!["future".to_owned()],
+            vec!["signature".to_owned(), "x-y_1".to_owned()],
+            vec!["general".to_owned(), "a b".to_owned()],
+            vec!["general".to_owned(), "dotted.key".to_owned()],
+            vec!["q".to_owned(), "\"quoted\\".to_owned()],
+            vec!["ä".to_owned()],
+        ] {
+            let enc = encode_key_path(&path);
+            assert_eq!(decode_key_path(&enc), path, "{enc}");
+        }
+        assert_eq!(decode_key_path("not valid toml ["), vec!["not valid toml [".to_owned()]);
+    }
+
+    #[test]
+    fn note_text_rules() {
+        let mut s = Settings::default();
+        assert!(s.note_text(Lang::De).unwrap().contains("eIDAS-VO"));
+        assert!(s.note_text(Lang::En).unwrap().contains("eIDAS-Regulation"));
+        s.signature.profile = SignatureProfile::Amtssignaturblock;
+        assert!(s.note_text(Lang::De).unwrap().contains("amtssigniert"));
+        s.signature.profile = SignatureProfile::BaseLogo;
+        assert_eq!(s.note_text(Lang::De), None);
+        s.signature.note = NoteSetting::Custom("  \t".into());
+        assert_eq!(s.note_text(Lang::De), None);
+        s.signature.note = NoteSetting::Custom(" Mein Hinweis ".into());
+        assert_eq!(s.note_text(Lang::De).as_deref(), Some(" Mein Hinweis "));
+        s.signature.note = NoteSetting::None;
+        assert_eq!(s.note_text(Lang::De), None);
+    }
+
+    #[test]
+    fn profile_id_from_settings() {
+        let mut s = Settings::default();
+        assert_eq!(s.pdfas_profile_id(Lang::De, false), "SIGNATURBLOCK_SMALL_DE_NOTE");
+        s.signature.block_language = Some(Lang::En);
+        assert_eq!(s.pdfas_profile_id(Lang::De, true), "SIGNATURBLOCK_SMALL_EN_NOTE_PDFA");
+        s.signature.note = NoteSetting::None;
+        s.signature.pdfa_force = true;
+        assert_eq!(s.pdfas_profile_id(Lang::De, false), "SIGNATURBLOCK_SMALL_EN_PDFA");
     }
 }
