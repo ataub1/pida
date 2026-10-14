@@ -1,0 +1,34 @@
+[package]
+name = "pdfover-core-api"
+description = "Stabile Fassade für Tauri-Shell, CLI und Plan-B-Shell: dispatch(UiEvent), subscribe(ViewState) (Integration)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+pdfover-workflow = { workspace = true }
+pdfover-config = { workspace = true }
+pdfover-i18n = { workspace = true }
+pdfover-render = { workspace = true }
+pdfover-pades = { workspace = true }
+pdfover-placement = { workspace = true }
+pdfover-sigblock = { workspace = true }
+pdfover-cades = { workspace = true }
+pdfover-pdf-cos = { workspace = true }
+pdfover-backend-api = { workspace = true }
+pdfover-backend-atrust = { workspace = true }
+pdfover-backend-localbku = { workspace = true }
+pdfover-backend-keystore = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+zeroize = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

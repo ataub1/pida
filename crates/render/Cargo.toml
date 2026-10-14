@@ -1,0 +1,18 @@
+[package]
+name = "pdfover-render"
+description = "Renderer-Fassade (Trait Renderer) mit PDFium-Implementierung: Seiten, Forced-Color-Raster, Bildobjekte (Paket F)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+pdfium-render = { workspace = true }
+png = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

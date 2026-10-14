@@ -1,0 +1,22 @@
+[package]
+name = "pdfover-backend-localbku"
+description = "Lokale BKU (127.0.0.1:3495, SL 1.2 über HTTP): Erkennung, NullOperation, Upload/Base64 (Paket D)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+pdfover-backend-api = { workspace = true }
+pdfover-cades = { workspace = true }
+pdfover-sl12 = { workspace = true }
+pdfover-net = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

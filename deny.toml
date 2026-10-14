@@ -1,0 +1,39 @@
+# cargo-deny: Lizenz-Gate und Lieferkette (Plan §2.5). Allowlist laut Plan, ergänzt um
+# CDLA-Permissive-2.0 (webpki-root-certs über rustls-platform-verifier, Plan §16).
+[graph]
+all-features = false
+
+[licenses]
+confidence-threshold = 0.9
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "BSL-1.0",
+    "OFL-1.1",
+    "CDLA-Permissive-2.0",
+]
+
+[licenses.private]
+# Eigene Crates (EUPL-1.2, publish = false) nicht gegen die Allowlist prüfen.
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[advisories]
+ignore = [
+    # Marvin (Timing-Seitenkanal beim RSA-Entschlüsseln). Betrifft lokales Signieren nicht (Plan §2.1).
+    { id = "RUSTSEC-2023-0071", reason = "nur lokales Signieren, kein Entschlüsseln (Plan §2.1)" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

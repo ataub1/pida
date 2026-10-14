@@ -1,0 +1,5 @@
+# Formatierung für den ganzen Workspace (cargo fmt --all). Bewusst minimal.
+edition = "2024"
+max_width = 120
+use_small_heuristics = "Max"
+newline_style = "Unix"

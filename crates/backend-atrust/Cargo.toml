@@ -1,0 +1,36 @@
+[package]
+name = "pdfover-backend-atrust"
+description = "ID Austria über A-Trust, Szenario A: nativer SL-1.2-HTTPS-Ablauf, Seitenklassifikation, Long-Poll, FIDO2 (Paket D)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Native FIDO2-Authenticatoren (nur Desktop): Windows webauthn.dll bzw. CTAP-HID (macOS/Linux).
+# Die Implementierungen ergänzt Paket D in diesem Crate (Abhängigkeiten nur hier, ADR 0001 §4).
+fido2-windows = []
+fido2-hid = []
+
+[dependencies]
+pdfover-backend-api = { workspace = true }
+pdfover-cades = { workspace = true }
+pdfover-sl12 = { workspace = true }
+pdfover-net = { workspace = true }
+scraper = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+base64 = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+zeroize = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+time = { workspace = true }
+
+[lints]
+workspace = true

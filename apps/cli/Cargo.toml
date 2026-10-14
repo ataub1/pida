@@ -1,0 +1,28 @@
+[package]
+name = "pdfover-cli"
+description = "PDF-Over NG Kommandozeile: kompatibel zu PDF-Over (-i -o -b -n -p -ks … -c -v), headless für Keystore/lokale BKU"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "pdfover-cli"
+path = "src/main.rs"
+
+[dependencies]
+pdfover-core-api = { workspace = true }
+pdfover-config = { workspace = true }
+pdfover-i18n = { workspace = true }
+pdfover-workflow = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+zeroize = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

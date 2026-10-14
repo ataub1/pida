@@ -1,0 +1,31 @@
+[package]
+name = "pdfover-cades"
+description = "CMS/CAdES: SignedAttributes (pdfas-compat, pades-b-b), SignedData-Montage, Verifier, Zertifikate (Paket B)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+cms = { workspace = true }
+der = { workspace = true }
+x509-cert = { workspace = true }
+spki = { workspace = true }
+const-oid = { workspace = true }
+sha1 = { workspace = true }
+sha2 = { workspace = true }
+rsa = { workspace = true }
+p256 = { workspace = true }
+p384 = { workspace = true }
+p521 = { workspace = true }
+ecdsa = { workspace = true }
+signature = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

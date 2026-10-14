@@ -1,0 +1,4 @@
+# Minimale Clippy-Konfiguration. Die Lint-Stufen stehen in [workspace.lints] der Root-Cargo.toml,
+# die MSRV liest Clippy aus `rust-version`. Die CI läuft vorerst ohne `-D warnings`, solange Stubs
+# (`todo!()`) existieren (ADR 0001 §4 Regel 7).
+too-many-arguments-threshold = 10

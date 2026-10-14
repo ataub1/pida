@@ -1,0 +1,159 @@
+# PDF-Over NG – Cargo-Workspace
+#
+# Verbindliche Grundlage: docs/00-architektur-und-umsetzungsplan.md (§2 Stack/Pinning, §3 Architektur)
+# und docs/adr/0001-workspace-und-schnittstellen.md (Crate-Graph, Ownership, Regeln für die parallele Arbeit).
+#
+# WICHTIG für die Paket-Agenten A–F: Diese Datei wird NICHT geändert. Neue Abhängigkeiten kommen
+# ausschließlich in das eigene Crate-Cargo.toml (mit `workspace = true`, wenn hier vorhanden,
+# sonst mit expliziter Version). Siehe ADR 0001 §4.
+
+[workspace]
+resolver = "3"
+members = [
+    # Basis
+    "crates/java-properties",
+    "crates/i18n",
+    "crates/pdf-cos",
+    "crates/cades",
+    "crates/render",
+    "crates/net",
+    "crates/sl12",
+    # Ebene 1
+    "crates/pdf-incremental",
+    "crates/sigblock",
+    "crates/placement",
+    "crates/backend-api",
+    "crates/config",
+    # Ebene 2
+    "crates/backend-keystore",
+    "crates/backend-localbku",
+    "crates/backend-atrust",
+    "crates/pades",
+    # Ebene 3–4 (Integration)
+    "crates/workflow",
+    "crates/core-api",
+    # Anwendungen
+    "apps/cli",
+    # "apps/app/src-tauri",   # Tauri-2-Shell (Desktop + Mobile); wird erst in der Integration angelegt (ADR 0001 §3)
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# MSRV = die verifizierte Toolchain (Rust 1.99 stable). Die Abhängigkeiten selbst verlangen mindestens 1.88
+# (lopdf 0.45, image 0.25, time 0.3.55, keyring 4); eine niedrigere MSRV wird erst nach CI-Nachweis gesenkt.
+rust-version = "1.99"
+license = "EUPL-1.2"
+authors = ["PDF-Over NG contributors"]
+repository = "https://example.invalid/pdf-over-ng"
+publish = false
+
+[workspace.dependencies]
+# --- interne Crates -------------------------------------------------------------------------------
+pdfover-java-properties = { path = "crates/java-properties" }
+pdfover-i18n = { path = "crates/i18n" }
+pdfover-pdf-cos = { path = "crates/pdf-cos" }
+pdfover-pdf-incremental = { path = "crates/pdf-incremental" }
+pdfover-cades = { path = "crates/cades" }
+pdfover-sigblock = { path = "crates/sigblock" }
+pdfover-pades = { path = "crates/pades" }
+pdfover-placement = { path = "crates/placement" }
+pdfover-render = { path = "crates/render" }
+pdfover-backend-api = { path = "crates/backend-api" }
+pdfover-sl12 = { path = "crates/sl12" }
+pdfover-backend-atrust = { path = "crates/backend-atrust" }
+pdfover-backend-localbku = { path = "crates/backend-localbku" }
+pdfover-backend-keystore = { path = "crates/backend-keystore" }
+pdfover-net = { path = "crates/net" }
+pdfover-workflow = { path = "crates/workflow" }
+pdfover-config = { path = "crates/config" }
+pdfover-core-api = { path = "crates/core-api" }
+
+# --- PDF ------------------------------------------------------------------------------------------
+# Plan §2.1/§2.5: lopdf 0.45.x nur als Parser/Objektmodell (gekapselt in pdf-cos); kein rayon/chrono-clock,
+# damit Mobile/WASM schlank bleiben.
+lopdf = { version = "~0.45.0", default-features = false }
+# Plan §2.1: PDFium über pdfium-render, auf den PDFium-Build gepinnt (pdfium_latest = 7881, Binaries chromium/8100).
+pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_latest", "thread_safe"] }
+
+# --- RustCrypto: EINE Generation (cms 0.2 / der 0.7 / x509-cert 0.2 / spki 0.7), Plan §2.5 ----------
+# Achtung: p12-keystore 0.4.1 zieht intern die Folgegeneration (der 0.8, cms 0.3-pre, sha2 0.11) – die
+# Grenze ist DER-Bytes (`as_der()`), siehe ADR 0001 §5.2. Keine Typen dieser Generation in öffentlichen APIs.
+cms = { version = "=0.2.3", features = ["std"] }
+der = { version = "~0.7.10", features = ["std", "derive", "oid", "alloc"] }
+x509-cert = { version = "~0.2.5", features = ["std"] }
+spki = { version = "~0.7.3", features = ["std", "alloc"] }
+const-oid = { version = "~0.9.6", features = ["db"] }
+pkcs8 = { version = "~0.10.2", features = ["std"] }
+sha1 = { version = "~0.10.6", features = ["oid"] }
+sha2 = { version = "~0.10.9", features = ["oid"] }
+rsa = { version = "~0.9.10", features = ["sha2", "std"] }
+p256 = { version = "~0.13.2", features = ["ecdsa", "pkcs8", "std"] }
+p384 = { version = "~0.13.1", features = ["ecdsa", "pkcs8", "std"] }
+p521 = { version = "~0.13.3", features = ["ecdsa", "pkcs8", "std"] }
+ecdsa = { version = "~0.16.9", features = ["der", "verifying", "signing", "std"] }
+signature = { version = "~2.2.0", features = ["std"] }
+p12-keystore = { version = "=0.4.1" }
+
+# --- Fonts, Bilder, QR ----------------------------------------------------------------------------
+skrifa = "0.48.0"
+read-fonts = "0.45.0"
+subsetter = { version = "0.2.6", default-features = false }  # ohne variable-fonts: vermeidet zweite skrifa-Generation (0.42)
+png = "0.18.1"
+zune-jpeg = "0.5.15"
+gif = "0.14.2"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif"] }
+kamadak-exif = "0.6.1"
+flate2 = "1.1.10"
+rxing = { version = "0.9.3", default-features = false, features = ["qrcode", "decoders", "encoding_rs"] }
+
+# --- Netz, HTML, XML ------------------------------------------------------------------------------
+# Plan §2.1: reqwest 0.13 mit rustls (Provider ring statt aws-lc-rs) und rustls-platform-verifier.
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "charset", "http2", "system-proxy", "cookies", "multipart", "form"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+url = "2.5.8"
+scraper = { version = "0.27.0", default-features = false, features = ["errors"] }
+quick-xml = "0.42.0"
+
+# --- Allgemein ------------------------------------------------------------------------------------
+thiserror = "2.0.21"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+async-trait = "0.1.92"
+tokio = { version = "1.53.3", features = ["sync", "time", "rt", "macros"] }
+futures = "0.3.34"
+zeroize = { version = "1.9.1", features = ["zeroize_derive", "std"] }
+time = { version = "0.3.55", features = ["formatting", "parsing", "macros", "local-offset", "serde"] }
+base64 = "0.23.1"
+hex = "0.4.3"
+toml = "1.1.8"
+directories = "6.0.0"
+keyring = "4.2.0"
+clap = { version = "4.6.7", features = ["derive", "wrap_help"] }
+fluent-bundle = "0.16.0"
+fluent-syntax = "0.12.0"
+unic-langid = { version = "0.9.6", features = ["macros"] }
+
+# --- nur Tests ------------------------------------------------------------------------------------
+tempfile = "3.27.0"
+proptest = "1.12.0"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+# Stubs (todo!()) erzeugen erwartbar unbenutzte Parameter; das ist bis zur Implementierung gewollt.
+unused_variables = "allow"
+dead_code = "allow"
+
+[workspace.lints.clippy]
+todo = "allow"
+unimplemented = "allow"
+too_many_arguments = "allow"
+module_name_repetitions = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

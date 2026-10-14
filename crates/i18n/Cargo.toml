@@ -1,0 +1,20 @@
+[package]
+name = "pdfover-i18n"
+description = "Fluent-Kataloge (de, en) für Kern, CLI und UI; Konverter für messages*.properties (Paket E)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+pdfover-java-properties = { workspace = true }
+fluent-bundle = { workspace = true }
+fluent-syntax = { workspace = true }
+unic-langid = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

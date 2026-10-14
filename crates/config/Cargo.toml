@@ -1,0 +1,26 @@
+[package]
+name = "pdfover-config"
+description = "Versioniertes Settings-Schema (TOML), Legacy-Import PDF-Over.config, CLI-Overlay, Richtlinien, Pfade, Secrets (Paket E)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+pdfover-java-properties = { workspace = true }
+pdfover-i18n = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+directories = { workspace = true }
+keyring = { workspace = true }
+zeroize = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

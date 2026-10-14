@@ -1,0 +1,15 @@
+[package]
+name = "pdfover-java-properties"
+description = "Bit-kompatibler Leser/Schreiber für java.util.Properties (ISO-8859-1, \\u-Escapes, Fortsetzungszeilen)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
