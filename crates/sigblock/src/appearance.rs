@@ -13,6 +13,9 @@
 //!   `COSWriter.writeString` (Literal bei ASCII ohne CR/LF, sonst Hex).
 //! - Farben: im Standard DeviceGray für Grautöne (`g`, Plan §6.5), mit `pdfas_quirks` exakt wie
 //!   PDF-AS (`/DeviceRGB cs … sc`).
+//! - Bildmarken und farbige Hintergründe: DeviceRGB wie PDF-AS; bei PDF/A (ohne `pdfas_quirks`)
+//!   `ICCBased` mit eingebettetem sRGB-Profil (Plan §6.5), damit der Block unabhängig vom
+//!   OutputIntent des Dokuments (z. B. CMYK) konform bleibt.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::Write as _;
@@ -41,7 +44,10 @@ pub struct BuildOptions {
     pub width: f32,
     /// Rotation des Inhalts: Blockrotation + Seitenrotation (Grad, Vielfaches von 90) → `/Matrix`.
     pub rotation: i32,
-    /// PDF/A-Behandlung.
+    /// PDF/A-Behandlung (`None` ⇒ [`SigBlockInput::pdfa`]). Achtung: Wer die Blockhöhe für die
+    /// Positionierung mit [`crate::layout::layout`] misst, muss dort denselben Modus über
+    /// `SigBlockInput::pdfa` setzen – bei PDF/A ersetzt DejaVu die Standard-14-Captions und kann den
+    /// Umbruch ändern. Einfacher: die Maße aus [`Appearance::layout`] verwenden.
     pub pdfa: PdfaMode,
     /// Nur Vorschau: Holder ohne `Do` (wie `buildPreviewOnly`), Tabelle als Seiteninhalt im Mini-PDF.
     pub preview_only: bool,
@@ -142,14 +148,40 @@ fn flate_stream(mut dict: Dictionary, data: &[u8]) -> Result<Object> {
 // Content-Stream wie PDPageContentStream
 // ------------------------------------------------------------------------------------------------
 
+/// Ressourcenname des sRGB-`ICCBased`-Farbraums (PDF/A).
+const ICC_NAME: &str = "CS1";
+
 struct Content {
     out: Vec<u8>,
     quirks: bool,
     fill_rgb_space: bool,
+    /// Nicht-graue Füllfarben über den sRGB-`ICCBased`-Farbraum (PDF/A ohne Quirks).
+    icc: bool,
+    /// Der `ICCBased`-Farbraum ist gerade als Füllfarbraum gesetzt.
+    icc_active: bool,
+    /// Der `ICCBased`-Farbraum wurde verwendet (Ressource nötig).
+    icc_used: bool,
+    /// Eine Zahl war NaN/unendlich (PDFBox: `IllegalArgumentException`); Ergebnis wird verworfen.
+    non_finite: bool,
 }
 
 impl Content {
+    fn new(quirks: bool) -> Content {
+        Content {
+            out: Vec::new(),
+            quirks,
+            fill_rgb_space: false,
+            icc: false,
+            icc_active: false,
+            icc_used: false,
+            non_finite: false,
+        }
+    }
+
     fn num(&mut self, v: f32) {
+        if !v.is_finite() {
+            self.non_finite = true;
+        }
         self.out.extend_from_slice(pdf_number(v).as_bytes());
         self.out.push(b' ');
     }
@@ -171,6 +203,20 @@ impl Content {
         if !self.quirks && rgb[0] == rgb[1] && rgb[1] == rgb[2] {
             self.num(comps[0]);
             self.op("g");
+            self.icc_active = false;
+            return;
+        }
+        if self.icc && !self.quirks {
+            if !self.icc_active {
+                self.name(ICC_NAME);
+                self.op("cs");
+                self.icc_active = true;
+                self.icc_used = true;
+            }
+            for c in comps {
+                self.num(c);
+            }
+            self.op("sc");
             return;
         }
         if self.quirks {
@@ -602,14 +648,14 @@ fn predictor_encode(data: &[u8], width: usize, bpp: usize) -> Vec<u8> {
     out
 }
 
-fn image_dict(e: &Emblem, colors: i64, space: &str) -> Dictionary {
+fn image_dict(e: &Emblem, colors: i64, space: Object) -> Dictionary {
     let mut d = Dictionary::new();
     d.set("Type", name("XObject"));
     d.set("Subtype", name("Image"));
     d.set("Width", Object::Integer(i64::from(e.width)));
     d.set("Height", Object::Integer(i64::from(e.height)));
     d.set("BitsPerComponent", Object::Integer(8));
-    d.set("ColorSpace", name(space));
+    d.set("ColorSpace", space);
     let mut parms = Dictionary::new();
     parms.set("Predictor", Object::Integer(15));
     parms.set("Colors", Object::Integer(colors));
@@ -619,7 +665,25 @@ fn image_dict(e: &Emblem, colors: i64, space: &str) -> Dictionary {
     d
 }
 
-fn push_image(objects: &mut Vec<Object>, emblem: &Emblem, pdfa: PdfaMode) -> Result<usize> {
+/// `[/ICCBased <sRGB>]` bzw. `/DeviceRGB`.
+fn rgb_space(icc: Option<usize>) -> Object {
+    match icc {
+        Some(i) => Object::Array(vec![name("ICCBased"), local(i)]),
+        None => name("DeviceRGB"),
+    }
+}
+
+/// sRGB-Profilstream (`/N 3`, Alternate DeviceRGB).
+fn push_icc(objects: &mut Vec<Object>) -> Result<usize> {
+    let mut d = Dictionary::new();
+    d.set("N", Object::Integer(3));
+    d.set("Alternate", name("DeviceRGB"));
+    objects.push(flate_stream(d, crate::icc::srgb_profile())?);
+    Ok(objects.len() - 1)
+}
+
+fn push_image(objects: &mut Vec<Object>, emblem: &Emblem, pdfa: PdfaMode, icc: Option<usize>) -> Result<usize> {
+    emblem.check()?;
     let flattened;
     let e = if emblem.has_alpha && pdfa == PdfaMode::Part1 {
         flattened = emblem.flattened_on_white();
@@ -628,13 +692,14 @@ fn push_image(objects: &mut Vec<Object>, emblem: &Emblem, pdfa: PdfaMode) -> Res
         emblem
     };
     let idx = objects.len();
-    let mut d = image_dict(e, 3, "DeviceRGB");
+    let mut d = image_dict(e, 3, rgb_space(icc));
     let rgb = predictor_encode(&e.rgb(), e.width as usize, 3);
     if e.has_alpha {
         d.set("SMask", local(idx + 1));
         objects.push(flate_stream(d, &rgb)?);
         let a = predictor_encode(&e.alpha(), e.width as usize, 1);
-        objects.push(flate_stream(image_dict(e, 1, "DeviceGray"), &a)?);
+        // SMask: immer DeviceGray (ISO 32000-1 §11.6.5.3)
+        objects.push(flate_stream(image_dict(e, 1, name("DeviceGray")), &a)?);
     } else {
         objects.push(flate_stream(d, &rgb)?);
     }
@@ -671,20 +736,29 @@ impl Appearance {
         }
         let pdfa = if opts.pdfa != PdfaMode::None { opts.pdfa } else { input.pdfa };
         let prepared = layout::prepare(profile, input, opts.width, pdfa, fonts, resources)?;
-        let mut sink = ContentSink {
-            cs: Content { out: Vec::new(), quirks: prepared.quirks, fill_rgb_space: false },
-            fonts: FontUse::default(),
-        };
+        // PDF/A: sRGB als ICCBased statt DeviceRGB (Plan §6.5); mit Quirks wie PDF-AS
+        let icc_mode = pdfa != PdfaMode::None && !prepared.quirks;
+        let mut cs = Content::new(prepared.quirks);
+        cs.icc = icc_mode;
+        let mut sink = ContentSink { cs, fonts: FontUse::default() };
         prepared.draw(&mut sink)?;
+        if sink.cs.non_finite {
+            return Err(SigBlockError::Pdf("Content-Stream enthielte eine nicht endliche Zahl".into()));
+        }
         let lay = &prepared.layout;
         let content = std::mem::take(&mut sink.cs.out);
 
         let bbox = [lay.width + 1.0, lay.height + 1.0, 0.0, 0.0];
         let mut objects: Vec<Object> = vec![Object::Null, Object::Null];
+        let icc = if icc_mode && (sink.cs.icc_used || !prepared.images.is_empty()) {
+            Some(push_icc(&mut objects)?)
+        } else {
+            None
+        };
         // Bilder (readTableResources-Reihenfolge: Im1, Im2 …)
         let mut xobjects = Dictionary::new();
         for (i, img) in prepared.images.iter().enumerate() {
-            let idx = push_image(&mut objects, &img.emblem, pdfa)?;
+            let idx = push_image(&mut objects, &img.emblem, pdfa, icc)?;
             xobjects.set(format!("Im{}", i + 1), local(idx));
         }
         // Fonts (Reihenfolge der ersten Verwendung: F1, F2 …)
@@ -701,6 +775,11 @@ impl Appearance {
         }
         if !xobjects.is_empty() {
             inner_res.set("XObject", Object::Dictionary(xobjects));
+        }
+        if sink.cs.icc_used {
+            let mut spaces = Dictionary::new();
+            spaces.set(ICC_NAME, rgb_space(icc));
+            inner_res.set("ColorSpace", Object::Dictionary(spaces));
         }
         inner_res.set("ProcSet", proc_set());
         let mut inner = Dictionary::new();
@@ -890,7 +969,7 @@ mod tests {
 
     #[test]
     fn string_encoding_like_cos_writer() {
-        let mut c = Content { out: Vec::new(), quirks: true, fill_rgb_space: false };
+        let mut c = Content::new(true);
         c.string(b"a(b)\\");
         c.string(&[0, 0x36]);
         c.string(&[0xfc]);
@@ -900,15 +979,24 @@ mod tests {
 
     #[test]
     fn colors() {
-        let mut q = Content { out: Vec::new(), quirks: true, fill_rgb_space: false };
+        let mut q = Content::new(true);
         q.fill_color([255, 255, 255]);
         q.fill_color([0, 0, 0]);
         assert_eq!(String::from_utf8(q.out).unwrap(), "/DeviceRGB cs\n1 1 1 sc\n0 0 0 sc\n");
-        let mut n = Content { out: Vec::new(), quirks: false, fill_rgb_space: false };
+        let mut n = Content::new(false);
         n.fill_color([255, 255, 255]);
         n.fill_color([255, 0, 0]);
         n.fill_color([0, 0, 0]);
         assert_eq!(String::from_utf8(n.out).unwrap(), "1 g\n1 0 0 rg\n0 g\n");
+        // PDF/A: farbige Füllungen im sRGB-ICCBased-Raum, nach `g` erneut `cs`
+        let mut p = Content::new(false);
+        p.icc = true;
+        p.fill_color([255, 0, 0]);
+        p.fill_color([0, 0, 255]);
+        p.fill_color([0, 0, 0]);
+        p.fill_color([0, 255, 0]);
+        assert!(p.icc_used);
+        assert_eq!(String::from_utf8(p.out).unwrap(), "/CS1 cs\n1 0 0 sc\n0 0 1 sc\n0 g\n/CS1 cs\n0 1 0 sc\n");
     }
 
     #[test]

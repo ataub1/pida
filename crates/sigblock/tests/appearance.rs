@@ -269,6 +269,113 @@ fn alpha_emblem_smask_and_pdfa1_flattening() {
     assert_eq!(&rgb[0..6], &[255, 255, 255, 200, 30, 30]);
 }
 
+fn icc_of<'a>(a: &'a Appearance, space: &Object) -> &'a Object {
+    let arr = space.as_array().expect("[/ICCBased …]");
+    assert_eq!(arr[0].as_name().unwrap(), b"ICCBased");
+    &a.objects[local_index(&arr[1])]
+}
+
+/// PDF/A: Bildmarke und farbige Füllungen im eingebetteten sRGB-Profil (Plan §6.5), damit der Block
+/// auch bei CMYK-OutputIntent konform ist; ohne PDF/A und mit Quirks DeviceRGB wie PDF-AS.
+#[test]
+fn pdfa_uses_icc_based_srgb() {
+    let mut inp = input();
+    inp.emblem = Some(alpha_emblem());
+    for pdfa in [PdfaMode::Part1, PdfaMode::Part2, PdfaMode::Part3] {
+        let a = build("SIGNATURBLOCK_SMALL_DE_PDFA", 230.0, 0, pdfa, &inp);
+        let mut icc_objects = Vec::new();
+        for d in images(&a) {
+            let cs = d.get(b"ColorSpace").unwrap();
+            if cs.as_name().ok() == Some(b"DeviceGray") {
+                assert_ne!(pdfa, PdfaMode::Part1, "PDF/A-1 ohne SMask");
+                continue;
+            }
+            let icc = icc_of(&a, cs);
+            let id = dict(icc);
+            assert_eq!(id.get(b"N").unwrap().as_i64().unwrap(), 3);
+            assert_eq!(id.get(b"Alternate").unwrap().as_name().unwrap(), b"DeviceRGB");
+            let data = stream_data(icc);
+            assert_eq!(&data[36..40], b"acsp");
+            assert_eq!(&data[12..20], b"mntrRGB ");
+            assert_eq!(data[8], 2, "ICC v2 (PDF/A-1-tauglich)");
+            icc_objects.push(std::ptr::from_ref(icc));
+        }
+        assert_eq!(icc_objects.len(), 1, "{pdfa:?}");
+    }
+    // ohne PDF/A und mit Quirks: DeviceRGB
+    let none = build("SIGNATURBLOCK_SMALL_DE_PDFA", 230.0, 0, PdfaMode::None, &inp);
+    assert!(images(&none).iter().all(|d| d.get(b"ColorSpace").unwrap().as_name().is_ok()));
+    inp.pdfas_quirks = true;
+    let q = build("SIGNATURBLOCK_SMALL_DE_PDFA", 230.0, 0, PdfaMode::Part2, &inp);
+    assert!(images(&q).iter().any(|d| d.get(b"ColorSpace").unwrap().as_name().ok() == Some(b"DeviceRGB")));
+}
+
+#[test]
+fn pdfa_colored_background_uses_icc_color_space() {
+    use pdfover_java_properties::Properties;
+    let mut props = Properties::new();
+    for (k, v) in [
+        ("sig_obj.types.T", "on"),
+        ("sig_obj.T.table.main.1", "SIG_NOTE-v"),
+        ("sig_obj.T.table.main.Style.bgcolor", "255 0 0"),
+        ("sig_obj.T.table.main.Style.font", "TTF:DejaVuSansCondensed-Bold.ttf,6"),
+        ("sig_obj.T.table.main.Style.valuefont", "TTF:DejaVuSansMono.ttf,6"),
+        ("sig_obj.T.value.SIG_NOTE", "Hinweis"),
+    ] {
+        props.insert(k, v);
+    }
+    let s = ProfileStore::from_properties(&props, Arc::new(pdfover_sigblock::BuiltinResources::default())).unwrap();
+    let opts = BuildOptions { width: 100.0, rotation: 0, pdfa: PdfaMode::Part1, preview_only: false };
+    let a =
+        Appearance::build(s.get("T").unwrap(), &input(), &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
+    let content = String::from_utf8(stream_data(&a.objects[a.inner])).unwrap();
+    assert!(content.starts_with("/CS1 cs\n1 0 0 sc\n0 1 100 8 re\nf\n0 g\n"), "{content}");
+    let res = dict(&a.objects[a.inner]).get(b"Resources").unwrap().as_dict().unwrap();
+    let cs = res.get(b"ColorSpace").unwrap().as_dict().unwrap().get(b"CS1").unwrap();
+    assert_eq!(&stream_data(icc_of(&a, cs))[36..40], b"acsp");
+    // ohne PDF/A: rg wie bisher, kein Farbraum-Eintrag
+    let opts = BuildOptions { pdfa: PdfaMode::None, ..opts };
+    let n =
+        Appearance::build(s.get("T").unwrap(), &input(), &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
+    assert!(String::from_utf8(stream_data(&n.objects[n.inner])).unwrap().starts_with("1 0 0 rg\n"));
+    assert!(dict(&n.objects[n.inner]).get(b"Resources").unwrap().as_dict().unwrap().get(b"ColorSpace").is_err());
+}
+
+/// Externes Orakel LittleCMS (Pillow `ImageCms`): Das eingebettete Profil ist gültig und bildet
+/// sRGB-Werte auf sich selbst ab. Ohne `python3` mit Pillow übersprungen.
+#[test]
+fn icc_profile_is_srgb_according_to_littlecms() {
+    let probe = Command::new("python3").args(["-I", "-c", "import PIL.ImageCms"]).output();
+    if !probe.is_ok_and(|o| o.status.success()) {
+        eprintln!("python3 mit Pillow fehlt – ICC-Orakel übersprungen");
+        return;
+    }
+    let mut inp = input();
+    inp.emblem = Some(alpha_emblem());
+    let a = build("SIGNATURBLOCK_SMALL_DE_PDFA", 230.0, 0, PdfaMode::Part2, &inp);
+    let img = images(&a).into_iter().find(|d| d.get(b"ColorSpace").unwrap().as_array().is_ok()).unwrap();
+    let data = stream_data(icc_of(&a, img.get(b"ColorSpace").unwrap()));
+    let tmp = tempfile::tempdir().unwrap();
+    let path = tmp.path().join("srgb.icc");
+    std::fs::write(&path, &data).unwrap();
+    let script = r#"
+import sys
+from PIL import Image, ImageCms
+p = ImageCms.getOpenProfile(sys.argv[1])
+t = ImageCms.buildTransform(p, ImageCms.createProfile("sRGB"), "RGB", "RGB")
+cols = [(0, 0, 0), (255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255), (128, 128, 128), (200, 30, 30)]
+img = Image.new("RGB", (len(cols), 1))
+for i, c in enumerate(cols):
+    img.putpixel((i, 0), c)
+out = ImageCms.applyTransform(img, t)
+print(max(abs(a - b) for i, c in enumerate(cols) for a, b in zip(c, out.getpixel((i, 0)))))
+"#;
+    let out = Command::new("python3").arg("-I").arg("-c").arg(script).arg(&path).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let max: u32 = String::from_utf8_lossy(&out.stdout).trim().parse().unwrap();
+    assert!(max <= 2, "sRGB-Abweichung {max}");
+}
+
 #[test]
 fn rotation_and_preview_only() {
     let inp = input();

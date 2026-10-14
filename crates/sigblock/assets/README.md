@@ -22,3 +22,9 @@ Tabellen sind aus den Adobe Core 14 AFM Files abgeleitet (Generator `tools/gen_a
 Änderung (Extraktion, keine AFM-Dateien im Repository) ist im Kopf der Datei vermerkt, der
 Lizenzhinweis liegt unter `licenses/`. Kontrolle: rechtsbündige Captions der PDF-AS-Referenz-PDFs
 ergeben exakt diese Breiten (`afm::tests::helvetica_bold_widths_match_pdfas_output`).
+
+## sRGB-ICC-Profil
+
+Für PDF/A schreibt der Block Bildmarken und farbige Füllungen als `ICCBased` (Plan §6.5). Das
+Profil (ICC v2.1, Monitor, Matrix/TRC) liegt **nicht** als Datei vor, sondern wird in
+`src/icc.rs` aus den Normwerten von IEC 61966-2-1 berechnet; es gibt daher keine Lizenzauflage.

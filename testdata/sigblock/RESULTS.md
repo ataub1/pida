@@ -66,7 +66,23 @@ mit Amts-Demo-Logo 65,167×64,891 (65×64). Hinweis: Die Blockbreite ist wie bei
    byte-gleich.
 6. **Bilder:** Die Referenzen von 2021 enthalten das Logo unkomprimiert; hier wie im aktuellen
    `LosslessFactory` Flate mit PNG-Predictor 15 (Filterwahl je Zeile), Alpha als `/SMask`, PDF/A-1
-   auf Weiß komponiert. Gleiche Pixel.
+   auf Weiß komponiert. Gleiche Pixel. Bei PDF/A (ohne `pdfas_quirks`) liegen Bildmarke und farbige
+   Füllungen im Farbraum `[/ICCBased <sRGB>]` (Plan §6.5) statt DeviceRGB, damit der Block auch in
+   PDF/A-Dokumenten mit CMYK-OutputIntent (z. B. FOGRA39) konform ist; das ICC-v2.1-Profil berechnet
+   `src/icc.rs` aus IEC 61966-2-1 (kein fremdes Profil im Repository).
 7. **Nicht nachgestellt:** `pdf/pdfas/pdf-as-web/data/dummy-pdf-signed.pdf` (eigenes dreispaltiges
    Profil mit LiberationMono, Font nicht im Lieferumfang) und die übrigen Formulare in
    `manySignFields_signed4.pdf` (Fremd-Widgets ohne PDF-AS-Tabelle).
+
+## Review (adversarial, Paket C)
+
+| Prüfung | Ergebnis |
+|---|---|
+| sRGB-ICC-Profil gegen LittleCMS (Pillow `ImageCms`, `tests/appearance.rs`) | gültig, sRGB → sRGB mit max. 1/255 Abweichung (Test-Grenze 2) |
+| PDFium: Block mit `ICCBased`-Logo (PDF/A-2) gegen DeviceRGB (`tests/render.rs`) | **0 Pixel abweichend**, max. Kanalabweichung 0 |
+| `qpdf --check` auf dem Mini-PDF eines PDF/A-Blocks mit ICC-Profil | ohne Befund |
+| Tief geschachtelte Ausdrücke im Hinweistext (`${((((…`, 50 000 Ebenen) | `UnsupportedExpression` (vorher Stapelüberlauf, Prozessabbruch) |
+| NaN/∞ in `imagescaletofit`, `border`, `padding`, Fontgröße, `ColsWidth` | `SigBlockError::Profile` (vorher `NaN` im Content-Stream) |
+| Include-Zyklen (`include = *.properties` in mehreren Dateien) | terminiert sofort, Problem in `ProfileStore::problems` (vorher exponentiell viele Ladevorgänge) |
+| Windows-Zeilenenden im Hinweistext | `\r\n`/`\r` wie `\n` (vorher `?` und Hinweis „Zeichen ersetzt“) |
+| Eigenschaftstests (proptest) für Ausdrücke, Datumsmuster, Fontbeschreibungen, beliebige Profile | keine Panic, keine nicht endlichen Zahlen im Content-Stream |

@@ -352,6 +352,7 @@ impl Env<'_> {
                     }
                     CellSpec::Image(key) => {
                         if let Some(emblem) = self.label_override(key) {
+                            emblem.check()?;
                             let id = format!("emblem:{}", hex_id(&emblem.source_sha256));
                             entries.push(Entry {
                                 kind: Kind::Image(ImageRef { key: key.clone(), id, emblem }),
@@ -360,6 +361,7 @@ impl Env<'_> {
                             });
                         } else if let Some(v) = self.raw_value(key) {
                             let emblem = self.resources.image(&v)?;
+                            emblem.check()?;
                             entries.push(Entry {
                                 kind: Kind::Image(ImageRef { key: key.clone(), id: v, emblem }),
                                 colspan: 1,
@@ -567,8 +569,15 @@ impl Env<'_> {
         }
         let replacement = if own_font.can_encode_char('?') { Some('?') } else { None };
         let mut out = String::with_capacity(text.len());
-        for c in text.chars() {
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
             match c {
+                // Zeilenenden aus Windows-Eingaben (`\r\n`, `\r`) wie `\n` (Register; PDF-AS bricht ab)
+                '\r' => {
+                    if chars.peek() != Some(&'\n') {
+                        out.push('\n');
+                    }
+                }
                 '\n' => out.push('\n'),
                 '\t' => out.push(' '),
                 NBSP => out.push(NBSP),
@@ -1042,6 +1051,21 @@ fn draw_table(
     })
 }
 
+/// Alle Maße einer Tabelle (rekursiv) sind endlich.
+fn node_is_finite(node: &Node) -> bool {
+    let style = &node.style;
+    [node.padding, style.border_or_default(), node.width, node.height, node.font_spec.size(), node.value_spec.size()]
+        .iter()
+        .chain(&node.col_widths)
+        .chain(&node.row_heights)
+        .chain(&node.draw_cols())
+        .all(|v| v.is_finite())
+        && node.rows.iter().flatten().all(|e| match &e.kind {
+            Kind::Node(sub) => node_is_finite(sub),
+            _ => true,
+        })
+}
+
 impl Prepared {
     /// Zeichnet die Haupttabelle bei (0, 1) (`drawTable(page, cs, 0, 1, W, H, …)`).
     pub(crate) fn draw(&self, sink: &mut dyn Sink) -> Result<()> {
@@ -1084,6 +1108,14 @@ pub(crate) fn prepare(
     let tu_text = if env.quirks { g.outer_tu } else { g.all_tu };
     if !(root.width.is_finite() && root.height.is_finite()) {
         return Err(missing(format!("Profil {}: Blockmaße nicht endlich (ColsWidth?)", profile.id)));
+    }
+    // PDFBox lehnt NaN/Infinity beim Schreiben ab (`writeOperand`); hier schon beim Layout, damit
+    // `layout` und `Appearance::build` dieselben Profile akzeptieren.
+    if !node_is_finite(&root) || images.iter().any(|i| !(i.width.is_finite() && i.height.is_finite())) {
+        return Err(missing(format!(
+            "Profil {}: Rahmen, Padding, Spalten oder Bildgröße nicht endlich (Style prüfen)",
+            profile.id
+        )));
     }
     let layout = Layout { width: root.width, height: root.height, table, tu_text, replaced_chars: env.replaced };
     Ok(Prepared { layout, root, images, quirks: env.quirks })

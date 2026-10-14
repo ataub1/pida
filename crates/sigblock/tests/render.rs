@@ -326,3 +326,31 @@ fn pixels_match_pdfas_references() {
     // Rahmenlinie links (x = 0) über die ganze Höhe sichtbar
     assert!((10..180).all(|y| at(0, y).iter().any(|&c| c < 250)), "linker Rahmen fehlt");
 }
+
+/// PDF/A: Bildmarke als `ICCBased` (eingebettetes sRGB-Profil) statt DeviceRGB – PDFium muss
+/// dieselben Farben zeigen (das Profil ist sRGB, also bis auf Rundung neutral).
+#[test]
+fn pdfa_icc_logo_renders_like_device_rgb() {
+    let Some(pdfium) = pdfium() else {
+        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – Pixelvergleich übersprungen");
+        return;
+    };
+    let s = ProfileStore::builtin().unwrap();
+    let p = s.get("SIGNATURBLOCK_SMALL_DE_PDFA").unwrap();
+    let mut cert = CertFields::example();
+    cert.subject = vec![("CN".into(), "Max Mustermann".into())];
+    let input = SigBlockInput::new(cert, OffsetDateTime::parse("2026-10-14T12:34:56+02:00", &Rfc3339).unwrap());
+    let render_mode = |pdfa| {
+        let opts = BuildOptions { width: 230.0, rotation: 0, pdfa, preview_only: false };
+        let app = Appearance::build(p, &input, &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
+        render(&pdfium, &app.to_standalone_pdf().unwrap(), 4.0)
+    };
+    let rgb = render_mode(PdfaMode::None);
+    let icc = render_mode(PdfaMode::Part2);
+    let (bad, mean, ink) = diff(&rgb, &icc);
+    let max = rgb.2.iter().zip(&icc.2).map(|(a, b)| a.abs_diff(*b)).max().unwrap();
+    eprintln!("ICCBased vs. DeviceRGB: abweichend {:.4} %, mittel {mean:.4}, max {max}", bad * 100.0);
+    assert!(ink > 0.02, "Block leer?");
+    assert_eq!(bad, 0.0);
+    assert!(max <= 4 && mean < 0.1, "max {max}, mittel {mean}");
+}

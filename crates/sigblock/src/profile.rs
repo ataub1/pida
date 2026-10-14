@@ -293,7 +293,10 @@ pub struct ProfileFlags {
 /// (`getValue` → `default.<key>`, z. B. `default.timezone`) und die eingebauten Caption-Defaults von PDF-AS
 /// (`DefaultSignatureProfileSettings`). [`crate::layout::layout`] und [`crate::Appearance::build`]
 /// brauchen deshalb nur das Profil, nicht den Store.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+///
+/// `Debug` zeigt von Captions, Werten und Rohschlüsseln nur die Schlüssel: Nach
+/// [`Profile::with_overrides`] steht dort der Hinweistext der Nutzerin (ADR 0001 Regel 9).
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Profile {
     /// Profil-ID.
     pub id: String,
@@ -329,6 +332,29 @@ pub struct Profile {
     /// [`crate::SigBlockInput::emblem`] hat Vorrang).
     #[serde(skip)]
     pub label_emblem: Option<Arc<Emblem>>,
+}
+
+impl std::fmt::Debug for Profile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Profile")
+            .field("id", &self.id)
+            .field("visible", &self.visible)
+            .field("pos", &self.pos)
+            .field("tables", &self.tables)
+            .field("captions", &self.captions.keys().collect::<Vec<_>>())
+            .field("values", &self.values.keys().collect::<Vec<_>>())
+            .field("flags", &self.flags)
+            .field("reason", &self.reason)
+            .field("timezone", &self.timezone)
+            .field("signature_size", &self.signature_size)
+            .field("signed_newpage_force", &self.signed_newpage_force)
+            .field("min_width", &self.min_width)
+            .field("placeholder_search", &self.placeholder_search)
+            .field("placeholder_id", &self.placeholder_id)
+            .field("raw_keys", &self.raw.len())
+            .field("label_emblem", &self.label_emblem)
+            .finish()
+    }
 }
 
 impl Profile {
@@ -510,14 +536,20 @@ fn lenient_base64(s: &str) -> Vec<u8> {
     out
 }
 
+/// Bildreferenz für Fehlermeldungen (Base64-Werte können Megabytes groß sein).
+fn reference_for_message(reference: &str) -> String {
+    crate::shorten(reference, 80)
+}
+
 fn image_from_base64(reference: &str) -> Result<Arc<Emblem>> {
     let bytes = lenient_base64(reference);
+    let shown = || reference_for_message(reference);
     if bytes.is_empty() {
-        return Err(SigBlockError::MissingResource(format!("Bild {reference:?}")));
+        return Err(SigBlockError::MissingResource(format!("Bild {:?}", shown())));
     }
     Emblem::decode_original(&bytes)
         .map(Arc::new)
-        .map_err(|_| SigBlockError::MissingResource(format!("Bild {reference:?} (weder Datei noch Base64-Bild)")))
+        .map_err(|_| SigBlockError::MissingResource(format!("Bild {:?} (weder Datei noch Base64-Bild)", shown())))
 }
 
 /// Eingebettete Ressourcen (`crates/sigblock/assets/`: Logos, DejaVu-Fonts; EUPL bzw. Bitstream Vera).
@@ -532,7 +564,7 @@ impl Resources for BuiltinResources {
             return match builtin_images().get(name) {
                 Some(Ok(e)) => Ok(e.clone()),
                 Some(Err(e)) => Err(SigBlockError::Image(e.clone())),
-                None => Err(SigBlockError::MissingResource(format!("Bild {reference:?}"))),
+                None => Err(SigBlockError::MissingResource(format!("Bild {:?}", reference_for_message(reference)))),
             };
         }
         image_from_base64(reference)
@@ -582,6 +614,19 @@ impl Resources for DirResources {
 
 /// Obergrenze der Include-Tiefe (PDF-AS hat keine; dort endet eine Schleife im StackOverflow).
 const MAX_INCLUDE_DEPTH: usize = 16;
+/// Obergrenze geladener Dateien insgesamt (mehrere Dateien mit `include = *.properties` würden
+/// sonst exponentiell oft geladen).
+const MAX_INCLUDE_FILES: usize = 512;
+
+/// Zustand beim rekursiven Laden.
+#[derive(Default)]
+struct LoadState {
+    /// Dateien auf dem aktuellen Include-Pfad (Zykluserkennung)
+    stack: Vec<String>,
+    /// bisher geladene Dateien
+    loads: usize,
+    problems: Vec<String>,
+}
 
 /// Lesezugriff auf einen `cfg/`-Ordner (eingebettet oder Dateisystem).
 trait CfgSource {
@@ -669,20 +714,33 @@ fn normalize_rel(path: &str) -> String {
     parts.join("/")
 }
 
-fn load_recursive(
-    src: &dyn CfgSource,
-    rel: &str,
-    merged: &mut Properties,
-    depth: usize,
-    problems: &mut Vec<String>,
-) -> Result<()> {
-    if depth > MAX_INCLUDE_DEPTH {
-        problems.push(format!("Include-Tiefe überschritten bei {rel}"));
+/// Lädt `rel` und rekursiv alle `include*`-Dateien. PDF-AS bricht bei Include-Zyklen mit einem
+/// StackOverflow ab; hier wird eine Datei, die schon auf dem aktuellen Include-Pfad liegt, nicht
+/// erneut geladen und als Problem gemeldet.
+fn load_recursive(src: &dyn CfgSource, rel: &str, merged: &mut Properties, st: &mut LoadState) -> Result<()> {
+    if st.stack.len() > MAX_INCLUDE_DEPTH {
+        st.problems.push(format!("Include-Tiefe überschritten bei {rel}"));
         return Ok(());
     }
+    if st.stack.iter().any(|f| f == rel) {
+        st.problems.push(format!("Include-Zyklus bei {rel} (übersprungen)"));
+        return Ok(());
+    }
+    if st.loads >= MAX_INCLUDE_FILES {
+        st.problems.push(format!("zu viele Include-Dateien, {rel} übersprungen"));
+        return Ok(());
+    }
+    st.loads += 1;
     let bytes = src.read(rel).map_err(SigBlockError::MissingResource)?;
     let props = Properties::load_latin1(&bytes).map_err(|e| SigBlockError::Profile(format!("{rel}: {e}")))?;
     merged.extend_from(&props);
+    st.stack.push(rel.to_string());
+    let r = load_includes(src, &props, merged, st);
+    st.stack.pop();
+    r
+}
+
+fn load_includes(src: &dyn CfgSource, props: &Properties, merged: &mut Properties, st: &mut LoadState) -> Result<()> {
     // `getValuesPrefix(INCLUDE, tmpProps)`: Reihenfolge in Java unbestimmt (HashMap) – hier sortiert.
     let mut includes: Vec<(String, String)> =
         props.with_prefix("include").map(|(k, v)| (k.to_string(), v.to_string())).collect();
@@ -694,7 +752,7 @@ fn load_recursive(
         files.sort();
         for f in files {
             let child = if dir.is_empty() { f } else { format!("{dir}/{f}") };
-            load_recursive(src, &child, merged, depth + 1, problems)?;
+            load_recursive(src, &child, merged, st)?;
         }
     }
     Ok(())
@@ -1019,13 +1077,24 @@ fn build_profile(props: &Properties, id: &str, problems: &mut Vec<String>) -> Pr
     }
 }
 
-/// Store aller aktiven Profile.
-#[derive(Debug, Clone)]
+/// Store aller aktiven Profile. `Debug` zeigt nur IDs und Anzahlen.
+#[derive(Clone)]
 pub struct ProfileStore {
     profiles: BTreeMap<String, Profile>,
     globals: Properties,
     resources: Arc<dyn Resources>,
     problems: Vec<String>,
+}
+
+impl std::fmt::Debug for ProfileStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProfileStore")
+            .field("profiles", &self.profiles.keys().collect::<Vec<_>>())
+            .field("globals", &self.globals.len())
+            .field("resources", &self.resources)
+            .field("problems", &self.problems.len())
+            .finish()
+    }
 }
 
 impl ProfileStore {
@@ -1034,13 +1103,12 @@ impl ProfileStore {
         static BUILTIN: OnceLock<std::result::Result<ProfileStore, String>> = OnceLock::new();
         BUILTIN
             .get_or_init(|| {
-                let mut problems = Vec::new();
+                let mut st = LoadState::default();
                 let mut merged = Properties::new();
-                load_recursive(&BuiltinCfg, "config.properties", &mut merged, 0, &mut problems)
-                    .map_err(|e| e.to_string())?;
+                load_recursive(&BuiltinCfg, "config.properties", &mut merged, &mut st).map_err(|e| e.to_string())?;
                 let mut store = ProfileStore::from_properties(&merged, Arc::new(BuiltinResources::default()))
                     .map_err(|e| e.to_string())?;
-                store.problems.splice(0..0, problems);
+                store.problems.splice(0..0, st.problems);
                 Ok(store)
             })
             .clone()
@@ -1051,12 +1119,12 @@ impl ProfileStore {
     /// Profile aus `~/.pdf-over/cfg` (Erkennung per Prüfsumme in `pdfover-config`). Ressourcen kommen
     /// aus dem Elternordner von `cfg_dir` ([`DirResources`]).
     pub fn load_dir(cfg_dir: &Path) -> Result<ProfileStore> {
-        let mut problems = Vec::new();
+        let mut st = LoadState::default();
         let mut merged = Properties::new();
-        load_recursive(&DirCfg(cfg_dir.to_path_buf()), "config.properties", &mut merged, 0, &mut problems)?;
+        load_recursive(&DirCfg(cfg_dir.to_path_buf()), "config.properties", &mut merged, &mut st)?;
         let workdir = cfg_dir.parent().map(Path::to_path_buf).unwrap_or_else(|| cfg_dir.to_path_buf());
         let mut store = ProfileStore::from_properties(&merged, Arc::new(DirResources { workdir }))?;
-        store.problems.splice(0..0, problems);
+        store.problems.splice(0..0, st.problems);
         Ok(store)
     }
 

@@ -156,10 +156,19 @@ struct Parser<'a> {
     toks: Vec<Tok>,
     pos: usize,
     ctx: &'a ExprContext,
+    /// aktuelle Schachtelungstiefe (Klammern, Listen, Ternary)
+    depth: usize,
 }
 
+/// Obergrenze der Schachtelung in einem Ausdruck. Die Profile nutzen Tiefe ≤ 3; die Grenze schützt
+/// vor einem Stapelüberlauf (Prozessabbruch) bei Werten wie `${((((…` im Hinweistext.
+const MAX_EXPR_DEPTH: usize = 32;
+
+/// Höchstlänge eines Ausdrucks in Fehlermeldungen (Hinweistexte können lang sein, Regel 9).
+const MAX_EXPR_IN_MESSAGE: usize = 120;
+
 fn unsupported(src: &str) -> SigBlockError {
-    SigBlockError::UnsupportedExpression(src.to_string())
+    SigBlockError::UnsupportedExpression(crate::shorten(src, MAX_EXPR_IN_MESSAGE))
 }
 
 fn tokenize(src: &str) -> Result<Vec<Tok>> {
@@ -283,6 +292,16 @@ impl Parser<'_> {
     }
 
     fn ternary(&mut self) -> Result<Value> {
+        if self.depth >= MAX_EXPR_DEPTH {
+            return Err(unsupported(self.src));
+        }
+        self.depth += 1;
+        let v = self.ternary_inner();
+        self.depth -= 1;
+        v
+    }
+
+    fn ternary_inner(&mut self) -> Result<Value> {
         let cond = self.or()?;
         if self.eat("?") {
             let a = self.ternary()?;
@@ -351,11 +370,16 @@ impl Parser<'_> {
     }
 
     fn unary(&mut self) -> Result<Value> {
-        if self.eat("!") || self.eat_word("not") {
-            let v = self.unary()?;
-            return Ok(Value::Bool(!v.truthy()));
+        // iterativ statt rekursiv (`!!!…` darf den Stapel nicht erschöpfen)
+        let mut negations = 0usize;
+        while self.eat("!") || self.eat_word("not") {
+            negations += 1;
         }
-        self.postfix()
+        let v = self.postfix()?;
+        if negations == 0 {
+            return Ok(v);
+        }
+        Ok(Value::Bool(if negations % 2 == 1 { !v.truthy() } else { v.truthy() }))
     }
 
     fn postfix(&mut self) -> Result<Value> {
@@ -437,7 +461,7 @@ impl Parser<'_> {
 /// `OgnlUtils.resolvsOgnlExpression` (führendes `[` und schließendes `]` abschneiden).
 fn eval_group(group: &str, ctx: &ExprContext) -> Result<String> {
     let toks = tokenize(group)?;
-    let mut p = Parser { src: group, toks, pos: 0, ctx };
+    let mut p = Parser { src: group, toks, pos: 0, ctx, depth: 0 };
     let v = p.sequence()?;
     if p.pos != p.toks.len() {
         return Err(unsupported(group));
@@ -620,8 +644,11 @@ pub fn format_sig_date(pattern: Option<&str>, time: OffsetDateTime, timezone: Op
         Some(id) => java_zone_offset(id, time),
         None => time.offset(),
     };
-    let t = time.to_offset(offset);
     let bad = || SigBlockError::UnsupportedDatePattern(pattern.to_string());
+    // `to_offset` panikt außerhalb des darstellbaren Bereichs (Jahr ±9999)
+    let t = time
+        .checked_to_offset(offset)
+        .ok_or_else(|| SigBlockError::Profile("SIG_DATE: Zeitpunkt in der Zeitzone nicht darstellbar".to_string()))?;
     let chars: Vec<char> = pattern.chars().collect();
     let mut out = String::new();
     let mut i = 0;
@@ -758,6 +785,48 @@ mod tests {
         {
             assert!(matches!(resolve(e, &c), Err(SigBlockError::UnsupportedExpression(_))), "{e}");
         }
+    }
+
+    #[test]
+    fn deep_nesting_is_rejected_without_stack_overflow() {
+        let c = ctx();
+        // Hinweistexte sind Nutzereingaben: tiefe Klammerung darf den Prozess nicht abbrechen
+        let deep = format!("${{{}'a'{}}}", "(".repeat(100_000), ")".repeat(100_000));
+        let r = std::thread::Builder::new()
+            .stack_size(1024 * 1024)
+            .spawn(move || resolve(&deep, &c).map_err(|e| e.to_string()))
+            .unwrap()
+            .join()
+            .unwrap();
+        let msg = r.unwrap_err();
+        assert!(msg.len() < 300, "Fehlermeldung gekürzt: {}", msg.len());
+        let c = ctx();
+        for nested in [
+            "{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{[{['x'",
+            "a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a ? a",
+        ] {
+            let src = format!("${{{}}}", nested.repeat(4));
+            assert!(matches!(resolve(&src, &c), Err(SigBlockError::UnsupportedExpression(_))), "{src}");
+        }
+        // Negationsketten werden iterativ ausgewertet
+        let nots = format!("${{{}true}}", "!".repeat(100_001));
+        assert_eq!(resolve(&nots, &c).unwrap(), "false");
+        assert_eq!(resolve("${!!sn}", &c).unwrap(), "true");
+        assert_eq!(resolve("${not not null}", &c).unwrap(), "false");
+        // Tiefe knapp unter der Grenze funktioniert
+        let ok = format!("${{{}sn{}}}", "(".repeat(MAX_EXPR_DEPTH - 2), ")".repeat(MAX_EXPR_DEPTH - 2));
+        assert_eq!(resolve(&ok, &c).unwrap(), "1234567890");
+    }
+
+    #[test]
+    fn sig_date_out_of_range_is_an_error() {
+        let t = time::PrimitiveDateTime::new(
+            time::Date::from_calendar_date(9999, time::Month::December, 31).unwrap(),
+            time::Time::from_hms(23, 0, 0).unwrap(),
+        )
+        .assume_utc();
+        assert!(format_sig_date(None, t, Some("GMT+05:00")).is_err());
+        assert_eq!(format_sig_date(None, t, None).unwrap(), "9999-12-31T23:00:00Z");
     }
 
     #[test]

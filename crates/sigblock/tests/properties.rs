@@ -70,3 +70,81 @@ proptest! {
         prop_assert_eq!(s.len(), if off.is_utc() { 20 } else { 25 }, "{}", s);
     }
 }
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(400))]
+
+    /// Beliebige Ausdrücke (Hinweistexte sind Nutzereingaben) führen nie zu einer Panic.
+    #[test]
+    fn expressions_never_panic(body in r#"[a-zA-Z0-9 ${}()\[\]'"!?:,.+=&|\\_-]{0,80}"#) {
+        let input = SigBlockInput::new(CertFields::example(), time::OffsetDateTime::UNIX_EPOCH);
+        let ctx = expr::ExprContext::from_input(&input);
+        let _ = expr::resolve(&body, &ctx);
+        let _ = expr::resolve(&format!("${{{body}}}"), &ctx);
+    }
+
+    /// Beliebige `SimpleDateFormat`-Muster und Zeitzonen-IDs führen nie zu einer Panic.
+    #[test]
+    fn date_patterns_never_panic(
+        pattern in "[a-zA-Z' :.,/+-]{0,40}",
+        tz in prop::option::of("[A-Za-z/+:0-9_-]{0,20}"),
+        secs in -62_000_000_000i64..253_000_000_000,
+    ) {
+        let t = time::OffsetDateTime::from_unix_timestamp(secs).unwrap();
+        let _ = expr::format_sig_date(Some(&pattern), t, tz.as_deref());
+    }
+
+    /// Fontbeschreibungen: `parse` fällt immer auf einen gültigen Font zurück.
+    #[test]
+    fn font_specs_never_panic(desc in "[A-Za-z_:.,0-9 -]{0,40}") {
+        let spec = FontSpec::parse(&desc);
+        prop_assert!(spec.size().is_finite() || FontSpec::try_parse(&desc).is_ok());
+    }
+
+    /// Tabellenzeilen und Stile aus beliebigen Profilwerten: Laden und Layout ohne Panic.
+    #[test]
+    fn arbitrary_profiles_never_panic(
+        row1 in r"[A-Z_]{1,8}-(i|v|c|cv|vc|req|x)(\|(TABLE-sub|[A-Z_]{1,8}-(v|c|cv)))?",
+        row2 in r"(TABLE-sub|SIG_NOTE-cv|[A-Z_]{1,6}-[a-z]{1,3})",
+        cols in r"(-?[0-9]{1,2}(\.[0-9])?)( -?[0-9]{1,2}(\.[0-9])?){0,3}",
+        padding in r"-?[0-9]{1,3}(\.[0-9]{1,2})?",
+        border in r"-?[0-9]{1,2}(\.[0-9])?",
+        scale in prop::option::of(r"[0-9]{1,3};[0-9]{1,3}"),
+        size in r"-?[0-9]{1,2}",
+        width in -10.0f32..800.0,
+    ) {
+        use pdfover_java_properties::Properties;
+        use pdfover_sigblock::{Appearance, BuildOptions, BuiltinResources, PdfaMode, ProfileStore};
+        let mut props = Properties::new();
+        let font = format!("HELVETICA,{size},BOLD");
+        let mut entries = vec![
+            ("sig_obj.types.T", "on".to_string()),
+            ("sig_obj.T.table.main.1", row1.clone()),
+            ("sig_obj.T.table.main.2", row2.clone()),
+            ("sig_obj.T.table.main.ColsWidth", cols.clone()),
+            ("sig_obj.T.table.main.Style.padding", padding.clone()),
+            ("sig_obj.T.table.main.Style.border", border.clone()),
+            ("sig_obj.T.table.main.Style.font", font),
+            ("sig_obj.T.table.main.Style.valuefont", "TTF:DejaVuSansMono.ttf,5".to_string()),
+            ("sig_obj.T.table.sub.1", "SIG_DATE-cv".to_string()),
+            ("sig_obj.T.value.SIG_LABEL", "./images/signatur-logo_de.png".to_string()),
+            ("sig_obj.T.value.SIG_NOTE", "Hinweis ${subject.CN}".to_string()),
+        ];
+        if let Some(s) = &scale {
+            entries.push(("sig_obj.T.table.main.Style.imagescaletofit", s.clone()));
+        }
+        for (k, v) in &entries {
+            props.insert(*k, v.as_str());
+        }
+        let store = ProfileStore::from_properties(&props, Arc::new(BuiltinResources::default())).unwrap();
+        let input = SigBlockInput::new(CertFields::example(), time::OffsetDateTime::UNIX_EPOCH);
+        let opts = BuildOptions { width, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
+        let p = store.get("T").unwrap();
+        if let Ok(a) = Appearance::build(p, &input, &opts, &FontProvider::builtin(), &**store.resources()) {
+            let pdfover_pdf_cos::Object::Stream(inner) = &a.objects[a.inner] else { panic!() };
+            let text = String::from_utf8_lossy(&inner.content);
+            prop_assert!(!text.contains("NaN") && !text.contains("inf"), "{}", text);
+            prop_assert!(a.width.is_finite() && a.height.is_finite());
+        }
+    }
+}

@@ -287,6 +287,16 @@ impl Emblem {
         Ok(Emblem::from_raw(raw, sha256(bytes)))
     }
 
+    /// Konsistenz der (öffentlichen) Felder: Maße > 0 und innerhalb der Pixelgrenze, RGBA-Puffer
+    /// passend. Layout und Appearance prüfen das, bevor sie ein Emblem verwenden.
+    pub(crate) fn check(&self) -> Result<()> {
+        check_size(self.width, self.height)?;
+        if self.rgba.len() as u64 != u64::from(self.width) * u64::from(self.height) * 4 {
+            return Err(img_err(format!("RGBA-Puffer passt nicht zu {}×{}", self.width, self.height)));
+        }
+        Ok(())
+    }
+
     fn from_raw(raw: Raw, source_sha256: [u8; 32]) -> Emblem {
         let has_alpha = raw.has_alpha && raw.rgba.as_chunks::<4>().0.iter().any(|p| p[3] != 255);
         Emblem { width: raw.width, height: raw.height, rgba: raw.rgba, has_alpha, source_sha256 }
@@ -443,6 +453,16 @@ mod tests {
         assert!(Emblem::from_rgba(0, 2, vec![], [0; 32]).is_err());
         let e = Emblem::from_rgba(1, 1, vec![9, 9, 9, 255], [7; 32]).unwrap();
         assert!(!e.has_alpha);
+    }
+
+    #[test]
+    fn check_rejects_inconsistent_fields() {
+        let ok = Emblem::from_rgba(2, 1, vec![0; 8], [0; 32]).unwrap();
+        assert!(ok.check().is_ok());
+        let short = Emblem { rgba: vec![0; 7], ..ok.clone() };
+        assert!(short.check().is_err());
+        let empty = Emblem { width: 0, rgba: Vec::new(), ..ok };
+        assert!(empty.check().is_err());
     }
 
     #[test]
