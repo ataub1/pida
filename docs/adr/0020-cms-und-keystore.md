@@ -57,13 +57,34 @@ nur v1). Politik: neue Signaturen nur SHA-256/384/512 mit PKCS#1 v1.5 bzw. ECDSA
 Alias exakt, sonst ohne Groß-/Kleinschreibung (Java speichert klein); ohne Alias der einzige Schlüssel. Selbstsignierte
 Wurzeln kommen nicht in `CertChain::intermediates`. Schlüssel und Zertifikat müssen zusammenpassen.
 
+**Verknüpfung (Review):** Schlüssel und Zertifikate verknüpft der Klon selbst über `p12_keystore::Pkcs12Archive` (eine
+Entschlüsselung), nicht über `KeyStore::from_pkcs12(…, Strict)`: Dieses verwirft Schlüssel ohne `localKeyId` still,
+Java `PKCS12KeyStore` (also PDF-Over) lädt sie über den friendlyName bzw. die Ein-Schlüssel-Regel. Reihenfolge:
+`localKeyId` (bei mehreren Treffern bevorzugt mit gleichem friendlyName) → Zertifikat mit passendem öffentlichen
+Schlüssel → gleicher friendlyName (ohne Groß-/Kleinschreibung). Kette über Aussteller = Subject (DER-Vergleich der
+Namen); Java-Vertrauensanker gehören nicht dazu, sind aber eigene Einträge. Alias: friendlyName des Schlüssels, sonst
+Subject-Text; Kollisionen `#2`, `#3` wie `p12-keystore`. Weil der Alias damit Personendaten tragen kann, zeigen `Debug`
+und Logs nur seine Länge.
+
 ## 6. Backend-Dialoge
 
 Fehlende Datei und fehlender Alias → Meldung mit Wiederholen/Abbrechen (wie PDF-Over `KSState`), Abbrechen =
 `BackendError::Cancelled`. Endgültige Fehler (JKS/JCEKS, PBE, Schlüsseltyp, getrennte Passwörter) gehen ohne eigenen Dialog an
 den Workflow (keine Doppelmeldung); der Konvertierungsassistent hängt an `backend-keystore-format` und nutzt
 `conversion_hint`. Passwörter aus dem CLI-Overlay werden nie abgelegt; abgelegt wird nur ein abgefragtes Passwort bei
-Speicherart `memory`/`disk`. Die PBKDF-Arbeit läuft unter Tokio in `spawn_blocking`.
+Speicherart `memory`/`disk`. Die PBKDF-Arbeit läuft unter Tokio in `spawn_blocking` und ist über das `CancelToken`
+abbrechbar (das Ergebnis wird verworfen, der Schlüssel beim Drop genullt). Keystore-Dateien über 16 MiB werden nicht
+gelesen (`Malformed`).
+
+## 6a. Ergänzungen aus dem Review
+
+- `verify_detached`: signing-time wird byteweise mit ASCII-Ziffern geparst (vorher Panic bei Nicht-ASCII im Offset,
+  z. B. `+1é1`, durch `str`-Slicing an einer Nicht-Zeichengrenze – auslösbar durch jedes fremde CMS).
+- RSA-Schlüssel bis 16384 Bit: `rsa` begrenzt öffentliche Schlüssel aus DER auf 4096 Bit; PDF-AS/Java kennt diese Grenze
+  nicht (RSA-4608/8192-Keystores, Vorsignaturen). Der Exponent bleibt durch `rsa` auf ≤ 2³³ begrenzt.
+- `LocalSigner::from_pkcs8_der`: PKCS#8-Algorithmus (und EC-Kurve) muss zur SPKI des Zertifikats passen, sonst
+  `CmsError::KeyMismatch` (vorher ein irreführender Lesefehler).
+- `RdnAttr` hat einen redigierenden `Debug` (Wert nur als Länge).
 
 ## 7. Offene Punkte
 

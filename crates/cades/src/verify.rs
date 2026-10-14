@@ -338,7 +338,11 @@ fn parse_signed_data(cms: &[u8]) -> Result<ParsedSignedData<'_>> {
     if !r.is_empty() {
         return Err(CmsError::Der("Restdaten in ContentInfo".into()));
     }
-    let sd = explicit.reader().read_expect(tag::SEQUENCE, "SignedData")?;
+    let mut er0 = explicit.reader();
+    let sd = er0.read_expect(tag::SEQUENCE, "SignedData")?;
+    if !er0.is_empty() {
+        return Err(CmsError::Der("Restdaten hinter SignedData".into()));
+    }
     let mut s = sd.reader();
     let version = small_uint(&s.read_expect(tag::INTEGER, "SignedData.version")?)?;
     if version > 5 {
@@ -365,6 +369,9 @@ fn parse_signed_data(cms: &[u8]) -> Result<ParsedSignedData<'_>> {
     }
     s.read_optional(0xA1)?; // crls
     let sis = s.read_expect(tag::SET, "signerInfos")?;
+    if !s.is_empty() {
+        return Err(CmsError::Der("Restdaten in SignedData".into()));
+    }
     let mut signer_infos = Vec::new();
     for si in sis.reader().read_all()? {
         signer_infos.push(parse_signer_info(&si)?);
@@ -598,39 +605,53 @@ fn check_signing_certificate(value: &Tlv<'_>, signer: &Certificate, v2: bool) ->
 }
 
 /// UTCTime/GeneralizedTime (DER und gängige BER-Formen: ohne Sekunden, mit Offset, Bruchteile).
+///
+/// Arbeitet auf Bytes und verlangt ASCII-Ziffern an allen Zahlenpositionen: Eingaben aus fremden
+/// CMS sind nicht vertrauenswürdig (kein Slicing von `str` an Nicht-Zeichengrenzen, kein `+5` als
+/// Zahl).
 fn parse_time(t: &Tlv<'_>) -> Result<OffsetDateTime> {
-    let s = std::str::from_utf8(t.content).map_err(|_| CmsError::Der("Zeit nicht ASCII".into()))?;
-    let bad = || CmsError::Der(format!("Zeitangabe nicht lesbar: {s}"));
-    let (year, rest) = match t.tag {
+    let b = t.content;
+    let bad = || CmsError::Der(format!("Zeitangabe nicht lesbar: \"{}\"", b.escape_ascii()));
+    // `n` ASCII-Ziffern ab `pos` als Zahl
+    let num = |pos: usize, n: usize| -> Option<u16> {
+        let d = b.get(pos..pos.checked_add(n)?)?;
+        d.iter().all(u8::is_ascii_digit).then(|| d.iter().fold(0u16, |a, &c| a * 10 + u16::from(c - b'0')))
+    };
+    let (year, mut pos) = match t.tag {
         tag::UTC_TIME => {
-            let yy: i32 = s.get(0..2).and_then(|v| v.parse().ok()).ok_or_else(bad)?;
-            (if yy >= 50 { 1900 + yy } else { 2000 + yy }, &s[2..])
+            let yy = i32::from(num(0, 2).ok_or_else(bad)?);
+            (if yy >= 50 { 1900 + yy } else { 2000 + yy }, 2)
         }
-        tag::GENERALIZED_TIME => (s.get(0..4).and_then(|v| v.parse().ok()).ok_or_else(bad)?, &s[4..]),
+        tag::GENERALIZED_TIME => (i32::from(num(0, 4).ok_or_else(bad)?), 4),
         _ => return Err(CmsError::Der("signing-time ist keine Zeitangabe".into())),
     };
-    let num = |i: usize| -> Result<u8> { rest.get(i..i + 2).and_then(|v| v.parse().ok()).ok_or_else(bad) };
-    let (month, day, hour, minute) = (num(0)?, num(2)?, num(4)?, num(6)?);
-    let mut pos = 8;
-    let second = if rest.get(pos..pos + 1).is_some_and(|c| c.as_bytes()[0].is_ascii_digit()) {
+    let field = |p: usize| -> Result<u8> { num(p, 2).and_then(|v| u8::try_from(v).ok()).ok_or_else(bad) };
+    let (month, day, hour, minute) = (field(pos)?, field(pos + 2)?, field(pos + 4)?, field(pos + 6)?);
+    pos += 8;
+    let second = if b.get(pos).is_some_and(u8::is_ascii_digit) {
+        let s = field(pos)?;
         pos += 2;
-        num(8)?
+        s
     } else {
         0
     };
     // Sekundenbruchteile (GeneralizedTime) ignorieren
-    if rest.get(pos..pos + 1).is_some_and(|c| c == "." || c == ",") {
+    if matches!(b.get(pos), Some(b'.' | b',')) {
         pos += 1;
-        while rest.get(pos..pos + 1).is_some_and(|c| c.as_bytes()[0].is_ascii_digit()) {
+        let start = pos;
+        while b.get(pos).is_some_and(u8::is_ascii_digit) {
             pos += 1;
         }
+        if pos == start {
+            return Err(bad());
+        }
     }
-    let offset = match rest.get(pos..) {
-        Some("Z") => time::UtcOffset::UTC,
-        Some(o) if o.len() == 5 && (o.starts_with('+') || o.starts_with('-')) => {
-            let h: i8 = o[1..3].parse().map_err(|_| bad())?;
-            let m: i8 = o[3..5].parse().map_err(|_| bad())?;
-            let sign = if o.starts_with('-') { -1 } else { 1 };
+    let offset = match b.get(pos..).ok_or_else(bad)? {
+        b"Z" => time::UtcOffset::UTC,
+        [sign @ (b'+' | b'-'), rest @ ..] if rest.len() == 4 => {
+            let (h, m) = (field(pos + 1)?, field(pos + 3)?);
+            let (h, m) = (i8::try_from(h).map_err(|_| bad())?, i8::try_from(m).map_err(|_| bad())?);
+            let sign = if *sign == b'-' { -1 } else { 1 };
             time::UtcOffset::from_hms(sign * h, sign * m, 0).map_err(|_| bad())?
         }
         _ => return Err(bad()),
@@ -663,6 +684,50 @@ mod tests {
         assert!(utc("241315183333Z").is_err());
         assert!(utc("2403151833").is_err());
         assert!(gtime("2024031518333Z").is_err());
+        // negativer Offset
+        assert_eq!(utc("240315173333-0100").unwrap().unix_timestamp(), 1_710_527_613);
+    }
+
+    #[test]
+    fn time_parsing_rejects_hostile_input_without_panic() {
+        // Review: Nicht-ASCII im Offset führte zu einem Panic beim Slicing (`o[1..3]`).
+        let utc = |s: &[u8]| parse_time(&read_tlv(&crate::der_util::tlv(tag::UTC_TIME, s)).unwrap());
+        let gtime = |s: &[u8]| parse_time(&read_tlv(&crate::der_util::tlv(tag::GENERALIZED_TIME, s)).unwrap());
+        for s in [
+            "2610141200+1\u{e9}1",
+            "261014120000+0\u{20ac}",
+            "2610141200\u{e9}",
+            "\u{e9}10141200Z",
+            "2610141200+1",
+            "2610141200+01000",
+            "2610141200+-500",
+            "+61014120000Z",
+            "26+1141200Z",
+            "26101412+0Z",
+            "261014120000",
+            "",
+            "2",
+        ] {
+            assert!(utc(s.as_bytes()).is_err(), "{s:?}");
+        }
+        assert!(utc(&[0xFF; 13]).is_err());
+        assert!(gtime(b"20261014120000.Z").is_err());
+        assert!(gtime("20261014120000.1\u{e9}".as_bytes()).is_err());
+        assert!(gtime(b"20261014120000+2600").is_err());
+        assert!(gtime(b"20261014120000+0160").is_err());
+        // jedes Präfix und jede Ein-Byte-Ersetzung einer gültigen Zeit: Fehler oder Wert, nie Panic
+        let good = b"20261014120000.123+0130";
+        for i in 0..=good.len() {
+            let _ = gtime(&good[..i]);
+            for v in [0x00u8, b'+', b'-', b'.', b'Z', 0xC3, 0xE2, 0x80] {
+                let mut m = good.to_vec();
+                if let Some(c) = m.get_mut(i) {
+                    *c = v;
+                }
+                let _ = gtime(&m);
+                let _ = utc(&m[2..]);
+            }
+        }
     }
 
     #[test]

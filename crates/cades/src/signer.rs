@@ -6,7 +6,6 @@
 //! Kombination aus Kurve und SHA-2 (z. B. P-521 mit SHA-256; `ecdsa` 0.16 lehnt Hashes unter der
 //! halben Feldgröße sonst ab). Längere Hashes kürzt `ecdsa` selbst auf die Feldgröße.
 
-use rsa::pkcs1::DecodeRsaPublicKey as _;
 use rsa::pkcs8::DecodePrivateKey as _;
 use rsa::traits::PublicKeyParts as _;
 use rsa::{Pkcs1v15Sign, Pss, RsaPrivateKey, RsaPublicKey};
@@ -61,6 +60,7 @@ impl LocalSigner {
     /// Zertifikat → [`CmsError::KeyMismatch`].
     pub fn from_pkcs8_der(pkcs8: &[u8], chain: CertChain) -> Result<Self> {
         let key_type = chain.signer.key_type()?;
+        check_pkcs8_matches_certificate(pkcs8, &key_type)?;
         let algorithm = select_algorithm(&key_type)?;
         let key = match &key_type {
             KeyType::Rsa { .. } => {
@@ -249,8 +249,15 @@ pub(crate) fn verify_with_cert(cert: &Certificate, alg: SignatureAlg, digest: &[
     }
 }
 
+/// Größte unterstützte RSA-Modullänge. `rsa` begrenzt öffentliche Schlüssel aus DER auf 4096 Bit
+/// (`RsaPublicKey::MAX_SIZE`); PDF-AS/Java kennt keine solche Grenze (RSA-8192-Keystores und
+/// Vorsignaturen kommen vor). 16384 Bit hält den Prüfaufwand bösartiger CMS in Grenzen (der
+/// Exponent ist von `rsa` ohnehin auf ≤ 2³³ begrenzt).
+const MAX_RSA_BITS: usize = 16384;
+
 /// Öffentlicher RSA-Schlüssel (SPKI `rsaEncryption` oder `RSASSA-PSS`).
 fn rsa_public_key(cert: &Certificate) -> Result<RsaPublicKey> {
+    use der::Decode as _;
     match cert.key_type()? {
         KeyType::Rsa { .. } => {}
         KeyType::Other(s) if s == "RSASSA-PSS" => {}
@@ -261,8 +268,51 @@ fn rsa_public_key(cert: &Certificate) -> Result<RsaPublicKey> {
             )));
         }
     }
-    RsaPublicKey::from_pkcs1_der(cert.public_key_bits()?)
-        .map_err(|e| CmsError::Certificate(format!("öffentlicher RSA-Schlüssel unlesbar: {e}")))
+    let unreadable =
+        |e: &dyn std::fmt::Display| CmsError::Certificate(format!("öffentlicher RSA-Schlüssel unlesbar: {e}"));
+    let pk = rsa::pkcs1::RsaPublicKey::from_der(cert.public_key_bits()?).map_err(|e| unreadable(&e))?;
+    let n = rsa::BigUint::from_bytes_be(pk.modulus.as_bytes());
+    let e = rsa::BigUint::from_bytes_be(pk.public_exponent.as_bytes());
+    RsaPublicKey::new_with_max_size(n, e, MAX_RSA_BITS).map_err(|e| unreadable(&e))
+}
+
+/// Algorithmus des PKCS#8-`PrivateKeyInfo` muss zur SPKI des Zertifikats passen (RSA ↔ RSA, EC mit
+/// derselben Kurve). Sonst [`CmsError::KeyMismatch`] statt eines irreführenden Lesefehlers.
+fn check_pkcs8_matches_certificate(pkcs8: &[u8], key_type: &KeyType) -> Result<()> {
+    use crate::der_util::Reader;
+    use crate::oids;
+    // PrivateKeyInfo ::= SEQUENCE { version, privateKeyAlgorithm AlgorithmIdentifier, privateKey, … }
+    let info = (|| {
+        let seq = read_tlv(pkcs8)?.expect(tag::SEQUENCE, "PrivateKeyInfo")?;
+        let mut r: Reader<'_> = seq.reader();
+        r.read_expect(tag::INTEGER, "version")?;
+        let alg = r.read_expect(tag::SEQUENCE, "privateKeyAlgorithm")?;
+        let mut ar = alg.reader();
+        let oid = ar.read()?.oid_string()?;
+        let param = match ar.read_optional(tag::OID)? {
+            Some(p) => Some(p.oid_string()?),
+            None => None,
+        };
+        Ok::<_, CmsError>((oid, param))
+    })();
+    let Ok((oid, curve)) = info else {
+        return Err(key_err("PKCS#8-Struktur unlesbar"));
+    };
+    let ok = match key_type {
+        KeyType::Rsa { .. } => oid == oids::RSA_ENCRYPTION,
+        KeyType::Ec { curve: c } => {
+            let want = match c {
+                EcCurve::P256 => Some(oids::P256),
+                EcCurve::P384 => Some(oids::P384),
+                EcCurve::P521 => Some(oids::P521),
+                _ => None,
+            };
+            // Kurve fehlt im AlgorithmIdentifier (steht dann in ECPrivateKey) → beim Parsen geprüft
+            oid == oids::EC_PUBLIC_KEY && (curve.is_none() || want.is_none() || curve.as_deref() == want)
+        }
+        _ => true,
+    };
+    if ok { Ok(()) } else { Err(key_mismatch()) }
 }
 
 /// RSA-Signaturwerte mit fehlenden führenden Nullen auf die Modullänge auffüllen (I2OSP).

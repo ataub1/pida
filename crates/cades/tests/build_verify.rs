@@ -287,21 +287,37 @@ fn negative_signing_certificate_points_to_other_certificate() {
 
 #[test]
 fn negative_signer_certificate_not_in_cms() {
-    // Zertifikat A im CMS, aber SignerInfo/ESS/Signatur von B: Signer nicht auffindbar
+    // Zertifikatsmenge über den strikten `cms`-Crate austauschen: SignerInfo (IssuerAndSerialNumber,
+    // ESS, Signatur) bleibt unverändert, das Signerzertifikat fehlt danach im CMS.
+    use cms::cert::CertificateChoices;
+    use cms::signed_data::CertificateSet;
     let s = ecp256();
     let content = content();
     let cms = sign_detached(&s, &DigestAlg::Sha256.digest(&content), CmsProfile::PadesBB, golden_time()).unwrap();
-    let own = s.chain().signer.as_der();
+    let with_certs = |certs: Vec<Vec<u8>>| -> Vec<u8> {
+        let mut ci = ContentInfo::from_der(&cms).unwrap();
+        let mut sd: SignedData = ci.content.decode_as().unwrap();
+        let choices: Vec<CertificateChoices> = certs
+            .iter()
+            .map(|d| CertificateChoices::Certificate(x509_cert::Certificate::from_der(d).unwrap()))
+            .collect();
+        sd.certificates = Some(CertificateSet(der::asn1::SetOfVec::try_from(choices).unwrap()));
+        ci.content = der::Any::encode_from(&sd).unwrap();
+        ci.to_der().unwrap()
+    };
+    let own = s.chain().signer.as_der().to_vec();
     let other = read("keystores/test-ecp384-title.crt.der");
-    let pos = cms.windows(own.len()).position(|w| w == own).unwrap();
-    // Zertifikat ersetzen und alle umgebenden Längen anpassen ist aufwendig; stattdessen das
-    // openssl-CMS ohne Zertifikate verwenden (siehe openssl_oracle.rs) und hier eine Kopie mit
-    // gleich langem, fremdem Zertifikat prüfen, wenn die Längen zufällig passen.
-    if other.len() == own.len() {
-        let mut swapped = cms.clone();
-        swapped[pos..pos + own.len()].copy_from_slice(&other);
-        assert!(matches!(verify(&swapped, &content, &Expect::default()), Err(CmsError::SignerCertificateMissing)));
-    }
+    // Neukodierung ändert nichts an SignerInfo: mit dem eigenen Zertifikat weiterhin gültig
+    assert_eq!(with_certs(vec![own.clone()]), cms);
+    // fremdes Zertifikat statt des eigenen → Signer nicht auffindbar
+    let swapped = with_certs(vec![other.clone()]);
+    assert!(matches!(verify(&swapped, &content, &Expect::default()), Err(CmsError::SignerCertificateMissing)));
+    // fremdes zusätzlich → Signer wird unter mehreren Zertifikaten gefunden
+    let both = with_certs(vec![other, own]);
+    let r = verify(&both, &content, &expect_signer(&s.chain().signer)).unwrap();
+    assert_eq!(r.certificates.len(), 2);
+    assert_eq!(&r.signer, &s.chain().signer);
+    // OpenSSL-CMS ohne Zertifikate
     let nocerts = read("cades/openssl-rsa2048-sha256-nocerts.cms.der");
     assert!(matches!(verify(&nocerts, &content, &Expect::default()), Err(CmsError::SignerCertificateMissing)));
 }

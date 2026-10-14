@@ -17,6 +17,8 @@ nutzt die Java-KeyStore-API, weil `keytool` Passwörter unter 6 Zeichen ablehnt)
 | `openssl-umlaut-password.p12` | Passwort `Pässwörd €!` (UTF-8) |
 | `openssl-no-name.p12` | ohne friendlyName |
 | `openssl-p521-chain.p12` | P-521 mit Zwischen-CA und Root (Alias `p521`) |
+| `openssl-no-localkeyid.p12` | RSA-2048 ohne localKeyID, friendlyName `test-rsa2048`, unverschlüsselt, MAC SHA-256 (Review; [`strip_localkeyid.py`](strip_localkeyid.py)) |
+| `openssl-no-localkeyid-chain.p12` | P-521 + Root + Zwischen-CA ohne jedes Bag-Attribut (Alias = Subject-Text, Kette über Aussteller) |
 | `openssl-{brainpoolP256r1,ed25519,dsa,secp224r1}.p12` (+ `.crt.der`) | nicht unterstützte Schlüssel → `UnsupportedKey` |
 | `java-modern.p12`, `java-legacy.p12`, `java-sha1-prf.p12` | JDK 21: PBES2/AES-256; Legacy RC2-40/3DES; PBES2 mit PRF HMAC-SHA-1 |
 | `java-mixed-case-alias.p12` | Alias `Mein Signaturschluessel` (Java speichert klein) |

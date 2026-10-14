@@ -15,10 +15,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KS="$HERE/../keystores"
 FORCE=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
-if [[ $FORCE -eq 0 && -f "$HERE/openssl-rsa2048-sha256-cades.cms.der" ]]; then
-  echo "testdata/cades vorhanden (mit --force neu erzeugen)."
-  exit 0
-fi
 command -v openssl >/dev/null || { echo "openssl fehlt" >&2; exit 1; }
 PY="${PYTHON:-python3}"
 "$PY" -c 'import asn1crypto' 2>/dev/null || { echo "python3 mit asn1crypto fehlt (source tools/env.sh)" >&2; exit 1; }
@@ -26,6 +22,27 @@ PY="${PYTHON:-python3}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cd "$HERE"
+
+# ------------------------------------------------------------------------------------------------
+# 0. Zusatz aus dem Review (unabhängig von den übrigen Dateien, wird nur bei Fehlen erzeugt):
+#    selbstsigniertes RSA-4608 (> 4096 Bit, Grenze von `rsa` beim DER-Import) + OpenSSL-CMS
+# ------------------------------------------------------------------------------------------------
+if [[ $FORCE -eq 1 || ! -f selfsigned-rsa4608.crt.der ]]; then
+  [[ -f content.bin ]] || { echo "content.bin fehlt (zuerst mit --force erzeugen)" >&2; exit 1; }
+  openssl req -x509 -new -newkey rsa:4608 -nodes -sha256 -days 3650 -set_serial 0x0B0010 \
+    -subj "/C=AT/O=PDF-Over NG Test (NUR TEST)/CN=PDF-Over NG Test RSA-4608 (NUR TEST)" \
+    -addext "keyUsage=critical,digitalSignature,nonRepudiation" -addext "subjectKeyIdentifier=hash" \
+    -keyout "$TMP/rsa4608.key" -out "$TMP/rsa4608.crt" 2>/dev/null
+  openssl x509 -in "$TMP/rsa4608.crt" -outform DER -out selfsigned-rsa4608.crt.der
+  openssl pkcs8 -topk8 -nocrypt -in "$TMP/rsa4608.key" -outform DER -out selfsigned-rsa4608.key.p8.der
+  openssl cms -sign -binary -in content.bin -signer "$TMP/rsa4608.crt" -inkey "$TMP/rsa4608.key" -outform DER \
+    -out openssl-rsa4608-sha256-cades.cms.der -md sha256 -cades -nosmimecap
+fi
+
+if [[ $FORCE -eq 0 && -f "$HERE/openssl-rsa2048-sha256-cades.cms.der" ]]; then
+  echo "testdata/cades vorhanden (mit --force neu erzeugen)."
+  exit 0
+fi
 
 # ------------------------------------------------------------------------------------------------
 # 1. Inhalt (deterministisch, ~5 KiB, inkl. aller Bytewerte)

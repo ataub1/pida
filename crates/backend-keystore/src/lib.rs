@@ -21,8 +21,15 @@
 //!   Vorprüfung **ohne Passwort** → [`KeystoreError::UnsupportedPbe`] mit dem Verfahrensnamen.
 //! - JKS (`0xFEEDFEED`) / JCEKS (`0xCECECECE`): nur Erkennung + Konvertierungshinweis
 //!   ([`conversion_hint`], `keytool -importkeystore … -deststoretype PKCS12`), kein eigener Reader.
+//! - Verknüpfung Schlüssel ↔ Zertifikat selbst über `p12_keystore::Pkcs12Archive` wie Java
+//!   `PKCS12KeyStore` (PDF-Over): `localKeyId`, sonst öffentlicher Schlüssel, sonst friendlyName
+//!   (`link`). `p12-keystore` `KeyStore` (`Strict`) verwirft Schlüssel ohne `localKeyId`, die
+//!   PDF-Over aber lädt.
 //! - Alias: exakt, sonst ohne Groß-/Kleinschreibung (Java speichert PKCS#12-Aliasse klein); ohne
-//!   Alias der einzige Schlüsseleintrag.
+//!   Alias der einzige Schlüsseleintrag. Ohne friendlyName ist der Alias der Subject-Text – deshalb
+//!   erscheint er weder in Logs noch in `Debug` (Regel 9).
+//! - Entsperren ist über das `CancelToken` abbrechbar, auch während der PBKDF-Arbeit; Dateien über
+//!   16 MiB werden nicht gelesen.
 //! - Passwort-Speicherarten `none` / `memory` / `disk` → Schlüsselbund über [`PasswordCache`]
 //!   (Implementierung für den Schlüsselbund liefert die Integration aus `pdfover-config`).
 //!   Passwörter aus dem CLI-Overlay werden nie abgelegt (wie PDF-Over `KSState:119-129`).
@@ -42,7 +49,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use p12_keystore::{KeyStore, KeyStoreEntry, Pkcs12ImportPolicy};
+use p12_keystore::Pkcs12Archive;
 use pdfover_backend_api::{
     BackendError, BackendId, BackendSession, CancelToken, Capabilities, CertChain, CertNeed, Environment, FactorSet,
     Interaction, InteractionBroker, InteractionError, Notice, NoticeAnswer, NoticeButtons, NoticeCode, NoticeKind,
@@ -317,10 +324,11 @@ impl KeystoreConfig {
 
 impl std::fmt::Debug for KeystoreConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // nur Dateiname (Nutzerpfade enthalten oft den Namen) und Länge des Alias (Regel 9)
         f.debug_struct("KeystoreConfig")
-            .field("path", &self.path)
+            .field("file", &display_name(&self.path))
             .field("declared_type", &self.declared_type)
-            .field("alias", &self.alias)
+            .field("alias_len", &self.alias.as_ref().map(|a| a.chars().count()))
             .field("store_password", &self.store_password.as_ref().map(|_| "***"))
             .field("key_password", &self.key_password.as_ref().map(|_| "***"))
             .field("storage", &self.storage)
@@ -341,10 +349,11 @@ pub struct AliasInfo {
 }
 
 impl std::fmt::Debug for AliasInfo {
-    /// Subject ist Personendatum (Regel 9) – nur „vorhanden“.
+    /// Subject ist Personendatum (Regel 9) – nur „vorhanden“; ebenso der Alias, der ohne
+    /// friendlyName der Subject-Text ist (nur Länge).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AliasInfo")
-            .field("alias", &self.alias)
+            .field("alias_len", &self.alias.chars().count())
             .field("is_key_entry", &self.is_key_entry)
             .field("subject", &self.subject.as_ref().map(|_| "<redigiert>"))
             .finish()
@@ -353,18 +362,20 @@ impl std::fmt::Debug for AliasInfo {
 
 /// Listet die Einträge (Passwortprüfung inklusive), sortiert nach Alias.
 pub fn list_aliases(bytes: &[u8], password: &str) -> Result<Vec<AliasInfo>, KeystoreError> {
-    let (ks, _) = open_store(bytes, &[password])?;
-    let mut out = Vec::new();
-    for (alias, entry) in ks.entries() {
-        let (is_key_entry, cert) = match entry {
-            KeyStoreEntry::PrivateKeyChain(c) => (true, c.certs().first()),
-            KeyStoreEntry::Certificate(c) => (false, Some(c)),
-            KeyStoreEntry::Secret(_) => (false, None),
-        };
-        let subject = cert.and_then(|c| Certificate::from_der(c.as_der()).ok()).map(|c| c.subject_string());
-        out.push(AliasInfo { alias: alias.clone(), is_key_entry, subject });
-    }
-    Ok(out)
+    let (archive, _) = open_store(bytes, &[password])?;
+    let store = link(archive)?;
+    Ok(store
+        .entries
+        .iter()
+        .map(|(alias, entry)| {
+            let (is_key_entry, cert) = match entry {
+                Entry::Key { chain, .. } => (true, chain.first()),
+                Entry::Cert(c) => (false, Some(c)),
+                Entry::Secret => (false, None),
+            };
+            AliasInfo { alias: alias.clone(), is_key_entry, subject: cert.map(Certificate::subject_string) }
+        })
+        .collect())
 }
 
 /// Format prüfen und Vorprüfung ohne Passwort.
@@ -382,7 +393,7 @@ fn precheck(bytes: &[u8]) -> Result<inspect::Pkcs12Info, KeystoreError> {
 }
 
 enum Attempt {
-    Opened(KeyStore),
+    Opened(Pkcs12Archive),
     /// MAC passt nicht → Passwort falsch.
     MacFailed,
     /// Entschlüsselung nach (bzw. ohne) MAC fehlgeschlagen.
@@ -393,8 +404,8 @@ enum Attempt {
 
 fn try_open(bytes: &[u8], password: &str) -> Attempt {
     use p12_keystore::error::Error as E;
-    match KeyStore::from_pkcs12(bytes, password, Pkcs12ImportPolicy::Strict) {
-        Ok(ks) => Attempt::Opened(ks),
+    match Pkcs12Archive::from_pkcs12(bytes, password) {
+        Ok(archive) => Attempt::Opened(archive),
         Err(E::MacError(_)) => Attempt::MacFailed,
         Err(E::Pkcs5Error(_) | E::UnpadError | E::InvalidPrivateKey | E::DerError(_) | E::InvalidLength) => {
             Attempt::DecryptFailed
@@ -418,12 +429,12 @@ fn try_open(bytes: &[u8], password: &str) -> Attempt {
 
 /// Öffnet den Speicher mit den Kandidaten in Reihenfolge (Ein-Passwort-Abbildung, siehe Crate-Doku).
 /// Liefert den Index des erfolgreichen Kandidaten.
-fn open_store(bytes: &[u8], candidates: &[&str]) -> Result<(KeyStore, usize), KeystoreError> {
+fn open_store(bytes: &[u8], candidates: &[&str]) -> Result<(Pkcs12Archive, usize), KeystoreError> {
     let info = precheck(bytes)?;
     let mut mac_ok_decrypt_failed = false;
     for (i, pw) in candidates.iter().enumerate() {
         match try_open(bytes, pw) {
-            Attempt::Opened(ks) => return Ok((ks, i)),
+            Attempt::Opened(archive) => return Ok((archive, i)),
             Attempt::MacFailed => {}
             Attempt::DecryptFailed => mac_ok_decrypt_failed |= info.has_mac,
             Attempt::Fatal(e) => return Err(e),
@@ -440,6 +451,126 @@ fn candidates<'a>(store: &'a str, key: Option<&'a str>) -> Vec<&'a str> {
     }
 }
 
+/// Eintrag nach der Verknüpfung der PKCS#12-Bags (siehe [`link`]).
+enum Entry {
+    /// Privater Schlüssel (PKCS#8-DER) mit Kette, Endzertifikat zuerst.
+    Key { pkcs8: Zeroizing<Vec<u8>>, chain: Vec<Certificate> },
+    /// Vertrauenswürdiges Zertifikat (Java `trustedCertEntry`).
+    Cert(Certificate),
+    /// Geheimer Schlüssel (für Signaturen nicht nutzbar).
+    Secret,
+}
+
+/// Verknüpfte Einträge, nach Alias sortiert.
+struct LinkedStore {
+    entries: std::collections::BTreeMap<String, Entry>,
+}
+
+impl LinkedStore {
+    /// Fügt ein; Kollisionen bekommen wie bei `p12-keystore` die Endung `#2`, `#3` ….
+    fn insert(&mut self, alias: String, entry: Entry) {
+        let mut candidate = alias.clone();
+        let mut n = 2;
+        while self.entries.contains_key(&candidate) {
+            candidate = format!("{alias}#{n}");
+            n += 1;
+        }
+        self.entries.insert(candidate, entry);
+    }
+}
+
+/// Verknüpft Schlüssel und Zertifikate eines entschlüsselten PKCS#12 wie Java `PKCS12KeyStore`
+/// (PDF-Over/PDF-AS laden Keystores über Java), aber ohne dessen Behelfe:
+///
+/// 1. Zertifikat mit gleicher `localKeyId` (bei mehreren bevorzugt das mit gleichem friendlyName) –
+///    der Normalfall (OpenSSL, Java, Windows, NSS). Ein so verknüpftes, aber nicht passendes
+///    Zertifikat bleibt verknüpft und führt zu [`KeystoreError::KeyCertificateMismatch`].
+/// 2. sonst das Zertifikat mit passendem öffentlichen Schlüssel (Java: Ein-Schlüssel-Regel
+///    „localKeyId fehlt → 01“, die hier robuster über den Schlüssel selbst erfolgt);
+/// 3. sonst das Zertifikat mit gleichem friendlyName (Java `aliasMatch`, ohne Groß-/Kleinschreibung).
+///
+/// `p12-keystore` (`KeyStore`, Modus `Strict`) verwirft Schlüssel ohne `localKeyId` stillschweigend;
+/// solche Dateien öffnet PDF-Over aber. Schlüssel ohne Zertifikat werden wie dort übergangen.
+/// Kette: vom Endzertifikat über Aussteller = Subject (DER-Vergleich der Namen) bis zur
+/// selbstsignierten Wurzel; Java-Vertrauensanker (`trusted`) zählen nicht dazu. Alias: friendlyName
+/// des Schlüssels, sonst Subject des Zertifikats (wie `p12-keystore`).
+fn link(archive: Pkcs12Archive) -> Result<LinkedStore, KeystoreError> {
+    struct CertInfo {
+        friendly_name: Option<String>,
+        local_key_id: Option<Vec<u8>>,
+        trusted: bool,
+        cert: Option<Certificate>,
+    }
+    let certs: Vec<CertInfo> = archive
+        .certs
+        .into_iter()
+        .map(|b| CertInfo {
+            cert: Certificate::from_der(b.cert.as_der()).ok(),
+            friendly_name: b.friendly_name,
+            local_key_id: b.local_key_id,
+            trusted: b.trusted,
+        })
+        .collect();
+    let name_eq = |a: &Option<String>, b: &str| a.as_deref().is_some_and(|a| a.to_lowercase() == b.to_lowercase());
+    let mut store = LinkedStore { entries: Default::default() };
+
+    for key in archive.keys {
+        let pkcs8 = Zeroizing::new(key.key.as_der().to_vec());
+        let by_id = key.local_key_id.as_ref().and_then(|id| {
+            let matches = |c: &&CertInfo| c.local_key_id.as_deref() == Some(id.as_ref());
+            let mut with_id = certs.iter().filter(matches);
+            let first = with_id.next()?;
+            Some(
+                key.friendly_name
+                    .as_deref()
+                    .and_then(|n| std::iter::once(first).chain(with_id).find(|c| name_eq(&c.friendly_name, n)))
+                    .unwrap_or(first),
+            )
+        });
+        let candidates = || certs.iter().filter(|c| !c.trusted);
+        let leaf_info = by_id
+            .or_else(|| {
+                candidates().find(|c| {
+                    c.cert.as_ref().is_some_and(|cert| {
+                        LocalSigner::from_pkcs8_der(&pkcs8, pdfover_cades::CertChain::new(cert.clone())).is_ok()
+                    })
+                })
+            })
+            .or_else(|| key.friendly_name.as_deref().and_then(|n| candidates().find(|c| name_eq(&c.friendly_name, n))));
+        let Some(leaf_info) = leaf_info else { continue };
+        let leaf =
+            leaf_info.cert.clone().ok_or_else(|| KeystoreError::Malformed("Zertifikat im Keystore unlesbar".into()))?;
+        let mut chain = vec![leaf];
+        loop {
+            let current = chain.last().expect("Kette nicht leer").x509().tbs_certificate.clone();
+            if current.issuer == current.subject {
+                break;
+            }
+            let issuer = candidates()
+                .filter_map(|c| c.cert.as_ref())
+                .find(|c| c.x509().tbs_certificate.subject == current.issuer && !chain.contains(c));
+            match issuer {
+                Some(c) => chain.push(c.clone()),
+                None => break,
+            }
+        }
+        let alias = key.friendly_name.clone().unwrap_or_else(|| chain[0].subject_string());
+        store.insert(alias, Entry::Key { pkcs8, chain });
+    }
+    for c in certs.iter().filter(|c| c.local_key_id.is_none() && c.trusted) {
+        if let Some(cert) = &c.cert {
+            store.insert(c.friendly_name.clone().unwrap_or_else(|| cert.subject_string()), Entry::Cert(cert.clone()));
+        }
+    }
+    for s in archive.secrets {
+        let alias = s
+            .friendly_name
+            .unwrap_or_else(|| s.key.local_key_id().as_ref().iter().map(|b| format!("{b:02x}")).collect::<String>());
+        store.insert(alias, Entry::Secret);
+    }
+    Ok(store)
+}
+
 /// Geladener Schlüssel; signiert lokal.
 pub struct LoadedKey {
     chain: CertChain,
@@ -449,10 +580,13 @@ pub struct LoadedKey {
 }
 
 impl std::fmt::Debug for LoadedKey {
+    /// Ohne Alias: Fehlt der friendlyName, ist der Alias der Subject-Text des Zertifikats
+    /// (Personendaten, Regel 9).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LoadedKey")
-            .field("alias", &self.alias)
+            .field("alias_len", &self.alias.chars().count())
             .field("algorithm", &self.algorithm)
+            .field("signer", &self.chain.signer)
             .finish_non_exhaustive()
     }
 }
@@ -471,7 +605,7 @@ impl LoadedKey {
         key_password: Option<&str>,
         alias: Option<&str>,
     ) -> Result<LoadedKey, KeystoreError> {
-        let (ks, used) = open_store(bytes, &candidates(store_password, key_password))?;
+        let (archive, used) = open_store(bytes, &candidates(store_password, key_password))?;
         if used > 0 {
             tracing::warn!(
                 "Keystore mit dem Schlüsselpasswort als einzigem Passwort geöffnet (Store-Passwort passte nicht)"
@@ -481,26 +615,23 @@ impl LoadedKey {
                 "abweichendes Schlüsselpasswort nicht benötigt: PKCS#12 verwendet ein einheitliches Passwort"
             );
         }
-        let (alias, chain) = select_entry(&ks, alias)?;
-        let certs = chain.certs();
-        let leaf = certs.first().ok_or(KeystoreError::NoKeyEntry)?;
-        let signer_cert = Certificate::from_der(leaf.as_der())?;
+        let store = link(archive)?;
+        let (alias, pkcs8, chain) = select_entry(&store, alias)?;
+        let signer_cert = chain.first().cloned().ok_or(KeystoreError::NoKeyEntry)?;
         let mut intermediates = Vec::new();
-        for c in certs.iter().skip(1) {
-            let c = Certificate::from_der(c.as_der())?;
+        for c in chain.iter().skip(1) {
             // selbstsignierte Wurzeln gehören nicht in die Kette des CMS
-            if c.subject_string() != c.issuer_string() && c != signer_cert {
-                intermediates.push(c);
+            if c.subject_string() != c.issuer_string() && *c != signer_cert {
+                intermediates.push(c.clone());
             }
         }
         let cert_chain = CertChain { signer: signer_cert, intermediates };
-        let pkcs8 = Zeroizing::new(chain.key().as_der().to_vec());
-        drop(ks);
-        let signer = LocalSigner::from_pkcs8_der(&pkcs8, cert_chain.clone()).map_err(|e| match e {
+        let signer = LocalSigner::from_pkcs8_der(pkcs8, cert_chain.clone()).map_err(|e| match e {
             CmsError::KeyMismatch => KeystoreError::KeyCertificateMismatch,
             CmsError::UnsupportedAlgorithm(m) => KeystoreError::UnsupportedKey(m),
             other => KeystoreError::Cms(other),
         })?;
+        drop(store);
         let algorithm = signer.algorithm();
         Ok(LoadedKey { chain: cert_chain, alias, algorithm, signer })
     }
@@ -517,34 +648,32 @@ impl LoadedKey {
 }
 
 /// Alias-Auswahl: exakt, sonst ohne Groß-/Kleinschreibung; ohne Alias der einzige Schlüssel.
-fn select_entry<'k>(
-    ks: &'k KeyStore,
+fn select_entry<'s>(
+    store: &'s LinkedStore,
     alias: Option<&str>,
-) -> Result<(String, &'k p12_keystore::PrivateKeyChain), KeystoreError> {
+) -> Result<(String, &'s [u8], &'s [Certificate]), KeystoreError> {
+    let as_key = |a: &String, e: &'s Entry| match e {
+        Entry::Key { pkcs8, chain } => Ok((a.clone(), pkcs8.as_slice(), chain.as_slice())),
+        _ => Err(KeystoreError::NotAKeyEntry(a.clone())),
+    };
     match alias {
         Some(wanted) => {
-            let found = ks.entry(wanted).map(|e| (wanted.to_owned(), e)).or_else(|| {
-                let lower = wanted.to_lowercase();
-                ks.entries().find(|(a, _)| a.to_lowercase() == lower).map(|(a, e)| (a.clone(), e))
-            });
+            let lower = wanted.to_lowercase();
+            let found = store
+                .entries
+                .get_key_value(wanted)
+                .or_else(|| store.entries.iter().find(|(a, _)| a.to_lowercase() == lower));
             match found {
                 None => Err(KeystoreError::AliasNotFound(wanted.to_owned())),
-                Some((a, KeyStoreEntry::PrivateKeyChain(c))) => Ok((a, c)),
-                Some((a, _)) => Err(KeystoreError::NotAKeyEntry(a)),
+                Some((a, e)) => as_key(a, e),
             }
         }
         None => {
-            let keys: Vec<_> = ks
-                .entries()
-                .filter_map(|(a, e)| match e {
-                    KeyStoreEntry::PrivateKeyChain(c) => Some((a.clone(), c)),
-                    _ => None,
-                })
-                .collect();
-            match keys.len() {
-                0 => Err(KeystoreError::NoKeyEntry),
-                1 => Ok(keys.into_iter().next().expect("ein Eintrag")),
-                n => Err(KeystoreError::AliasRequired(n)),
+            let mut keys = store.entries.iter().filter(|(_, e)| matches!(e, Entry::Key { .. }));
+            match (keys.next(), keys.count()) {
+                (None, _) => Err(KeystoreError::NoKeyEntry),
+                (Some((a, e)), 0) => as_key(a, e),
+                (Some(_), more) => Err(KeystoreError::AliasRequired(more + 1)),
             }
         }
     }
@@ -619,7 +748,8 @@ impl SignatureBackend for KeystoreBackend {
         ui: Arc<dyn InteractionBroker>,
     ) -> Result<Box<dyn BackendSession>, BackendError> {
         let key = unlock(&self.config, &ctx, ui.as_ref()).await?;
-        tracing::debug!(alias = key.alias(), algorithm = ?key.algorithm(), "Keystore entsperrt");
+        // ohne Alias: kann der Subject-Text des Zertifikats sein (Regel 9)
+        tracing::debug!(algorithm = ?key.algorithm(), "Keystore entsperrt");
         Ok(Box::new(KeystoreSession { key: Some(Arc::new(key)), cancel: ctx.cancel.clone(), ui }))
     }
 }
@@ -664,7 +794,7 @@ async fn unlock(
     'file: loop {
         check_cancel(ctx)?;
         // 1. Datei (fehlt → Wiederholen/Abbrechen)
-        let bytes = match std::fs::read(&cfg.path) {
+        let bytes = match read_keystore_file(&cfg.path) {
             Ok(b) => Arc::new(Zeroizing::new(b)),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 let err = KeystoreError::FileNotFound(cfg.path.clone());
@@ -682,6 +812,13 @@ async fn unlock(
                     Ok(_) | Err(InteractionError::Cancelled) => return Err(BackendError::Cancelled),
                     Err(InteractionError::Unsupported) => return Err(err.into()),
                 }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::FileTooLarge => {
+                return Err(KeystoreError::Malformed(format!(
+                    "Datei größer als {} MiB – kein PKCS#12-Keystore",
+                    MAX_KEYSTORE_FILE >> 20
+                ))
+                .into());
             }
             Err(e) => return Err(KeystoreError::Io(e).into()),
         };
@@ -719,7 +856,11 @@ async fn unlock(
                     }
                 }
             };
-            let result = load_blocking(bytes.clone(), password.clone(), key_password.clone(), cfg.alias.clone()).await;
+            // Abbruch auch während der PBKDF-Arbeit (bis 10⁶ Iterationen je Bag): Das Ergebnis des
+            // Blocking-Tasks wird dann verworfen, der Schlüssel beim Drop genullt.
+            let result =
+                or_cancel(ctx, load_blocking(bytes.clone(), password.clone(), key_password.clone(), cfg.alias.clone()))
+                    .await?;
             match result {
                 Ok(key) => {
                     if use_cache && source == Source::Prompt {
@@ -762,6 +903,22 @@ async fn unlock(
             }
         }
     }
+}
+
+/// Obergrenze für Keystore-Dateien: PKCS#12 mit Schlüssel und Kette sind wenige KiB groß; eine
+/// versehentlich gewählte große Datei soll nicht vollständig in den Speicher gelesen werden.
+const MAX_KEYSTORE_FILE: u64 = 16 << 20;
+
+/// Liest die Keystore-Datei mit Größengrenze ([`std::io::ErrorKind::FileTooLarge`] bei Überschreitung).
+fn read_keystore_file(path: &Path) -> std::io::Result<Vec<u8>> {
+    use std::io::Read as _;
+    let file = std::fs::File::open(path)?;
+    let mut out = Vec::new();
+    file.take(MAX_KEYSTORE_FILE + 1).read_to_end(&mut out)?;
+    if out.len() as u64 > MAX_KEYSTORE_FILE {
+        return Err(std::io::Error::from(std::io::ErrorKind::FileTooLarge));
+    }
+    Ok(out)
 }
 
 /// Lädt den Schlüssel; die PBKDF-Arbeit (bis 10⁶ Iterationen) läuft unter Tokio im Blocking-Pool.

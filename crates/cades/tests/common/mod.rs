@@ -39,6 +39,10 @@ pub fn p521() -> LocalSigner {
 pub fn rsa3072() -> LocalSigner {
     signer("leaf-rsa3072", "cades/leaf-rsa3072.crt.der")
 }
+/// RSA-4608, selbstsigniert: über der 4096-Bit-Grenze, die `rsa` beim DER-Import setzt (Review).
+pub fn rsa4608() -> LocalSigner {
+    signer("selfsigned-rsa4608", "cades/selfsigned-rsa4608.crt.der")
+}
 
 pub fn content() -> Vec<u8> {
     read("cades/content.bin")

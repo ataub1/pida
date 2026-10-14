@@ -18,17 +18,43 @@ KS="$TD/keystores"
 CA="$TD/cades"
 FORCE=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
-if [[ $FORCE -eq 0 && -f "$HERE/openssl-legacy-rc2.p12" ]]; then
-  echo "testdata/backend-keystore vorhanden (mit --force neu erzeugen)."
-  exit 0
-fi
 command -v openssl >/dev/null || { echo "openssl fehlt" >&2; exit 1; }
-command -v java >/dev/null || { echo "java (JDK) fehlt" >&2; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cd "$HERE"
 O="/C=AT/O=PDF-Over NG Test (NUR TEST)"
+
+# --- Review-Zusatz: PKCS#12 ohne localKeyID (wird nur bei Fehlen erzeugt) ------------------------
+# Java (PKCS12KeyStore, also PDF-Over) verknüpft Schlüssel und Zertifikat dann über den friendlyName
+# bzw. die Ein-Schlüssel-Regel; der Klon über den öffentlichen Schlüssel. Unverschlüsselt erzeugt,
+# localKeyID entfernt, MAC (HMAC-SHA-256) mit Passwort "test" neu berechnet (strip_localkeyid.py,
+# braucht python3 mit asn1crypto, z. B. aus der .venv mit pyHanko).
+if [[ $FORCE -eq 1 || ! -f openssl-no-localkeyid-chain.p12 ]]; then
+  PY="${PYTHON:-python3}"
+  "$PY" -c 'import asn1crypto' 2>/dev/null || { echo "python3 mit asn1crypto fehlt (source tools/env.sh)" >&2; exit 1; }
+  openssl pkcs12 -in "$KS/test-rsa2048.p12" -passin pass:test -nocerts -nodes -out "$TMP/nl-rsa.key" 2>/dev/null
+  openssl pkcs12 -export -inkey "$TMP/nl-rsa.key" -in "$KS/test-rsa2048.crt.pem" -name test-rsa2048 \
+    -passout pass:test -keypbe NONE -certpbe NONE -nomac -out "$TMP/nl-rsa.p12"
+  "$PY" "$HERE/strip_localkeyid.py" "$TMP/nl-rsa.p12" openssl-no-localkeyid.p12 test
+  openssl pkey -inform DER -in "$CA/leaf-p521.key.p8.der" -out "$TMP/nl-p521.key"
+  openssl x509 -inform DER -in "$CA/leaf-p521.crt.der" -out "$TMP/nl-p521.crt"
+  openssl x509 -inform DER -in "$CA/ca-intermediate.crt.der" -out "$TMP/nl-inter.crt"
+  openssl x509 -inform DER -in "$CA/ca-root.crt.der" -out "$TMP/nl-root.crt"
+  cat "$TMP/nl-root.crt" "$TMP/nl-inter.crt" > "$TMP/nl-chain.crt"
+  openssl pkcs12 -export -inkey "$TMP/nl-p521.key" -in "$TMP/nl-p521.crt" -certfile "$TMP/nl-chain.crt" \
+    -passout pass:test -keypbe NONE -certpbe NONE -nomac -out "$TMP/nl-p521.p12"
+  "$PY" "$HERE/strip_localkeyid.py" "$TMP/nl-p521.p12" openssl-no-localkeyid-chain.p12 test
+  # Gegenprobe: OpenSSL prüft den neu berechneten MAC
+  openssl pkcs12 -in openssl-no-localkeyid.p12 -passin pass:test -noout
+  openssl pkcs12 -in openssl-no-localkeyid-chain.p12 -passin pass:test -noout
+fi
+
+if [[ $FORCE -eq 0 && -f "$HERE/openssl-legacy-rc2.p12" ]]; then
+  echo "testdata/backend-keystore vorhanden (mit --force neu erzeugen)."
+  exit 0
+fi
+command -v java >/dev/null || { echo "java (JDK) fehlt" >&2; exit 1; }
 
 openssl pkcs12 -in "$KS/test-rsa2048.p12" -passin pass:test -nocerts -nodes -out "$TMP/rsa.key" 2>/dev/null
 RSA_CRT="$KS/test-rsa2048.crt.pem"

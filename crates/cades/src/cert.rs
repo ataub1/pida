@@ -6,8 +6,9 @@ use time::OffsetDateTime;
 use crate::{CmsError, Digest, DigestAlg, Result, oids};
 
 /// Ein Attribut eines Distinguished Names (eine AVA), in Reihenfolge des DER (links = zuerst
-/// kodiert = Wurzel).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+/// kodiert = Wurzel). `Debug` zeigt OID, Kurzname und nur die Länge des Werts (Personendaten,
+/// ADR 0001 Regel 9).
+#[derive(Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct RdnAttr {
     /// OID in Punktnotation, z. B. `2.5.4.3`.
     pub oid: String,
@@ -17,6 +18,16 @@ pub struct RdnAttr {
     pub short_name: Option<String>,
     /// Wert als Text (UTF8String, PrintableString, IA5String, TeletexString, BMPString).
     pub value: String,
+}
+
+impl std::fmt::Debug for RdnAttr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RdnAttr")
+            .field("oid", &self.oid)
+            .field("short_name", &self.short_name)
+            .field("value_len", &self.value.chars().count())
+            .finish()
+    }
 }
 
 /// Schlüsseltyp des öffentlichen Schlüssels.
