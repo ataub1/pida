@@ -10,16 +10,39 @@
 //!   können (ADR 0001 §5.3),
 //! - Grenzen gegen Dekompressionsbomben und Rekursion ([`Limits`]).
 //!
+//! Umsetzung (docs/adr/0010): eigener lenienter COS-Lexer für Querverweisketten, Objekte an Offsets
+//! und Content-Streams; das lopdf-Objektmodell wird nach der eigenen Querverweistabelle korrigiert
+//! (Hybrid-Abschnitte, falsche Offsets → [`XrefHealth`]). Zusätzlich: PDF/A-Kennung, DocMDP,
+//! AcroForm-Kennzahlen, Bilddekodierung für die QR-Erkennung ([`SourcePdf::decode_image`]) und die
+//! Originalschreibweise von Reals für den Writer ([`SourcePdf::real_literals`]).
+//!
 //! Andere Crates verwenden lopdf ausschließlich über den Re-Export [`lopdf`] dieses Crates, damit die
 //! gepinnte Version (0.45.x) an genau einer Stelle festgelegt ist.
 //!
 //! Ownership: Paket **A** (zusammen mit `pdfover-pdf-incremental`).
 
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 
 pub use lopdf;
 pub use lopdf::{Dictionary, Document, Object, ObjectId, Stream, StringFormat};
+
+mod content;
+mod crypt;
+mod fields;
+mod filters;
+mod image;
+mod lexer;
+mod pages;
+mod text;
+mod xmp;
+mod xref;
+
+pub use content::{IDENTITY, multiply as matrix_multiply};
+pub use image::{DecodedImage, PixelFormat};
+pub use text::{decode_text_string, encode_text_string};
+pub use xmp::{PdfAIdentification, parse_pdfa_identification};
 
 /// Fehler beim Lesen/Analysieren eines PDFs.
 #[derive(Debug, thiserror::Error)]
@@ -372,15 +395,35 @@ pub enum CryptTarget {
 ///
 /// Wird von `pdfover-pdf-incremental` benutzt (Plan §6.3): neue Strings und Streams werden
 /// verschlüsselt, `/Contents` des Signaturdictionarys **nie**. Innerer Aufbau ist Sache von Paket A.
-#[derive(Debug)]
+///
+/// `Debug` zeigt nur das Verfahren, nie den Dateischlüssel (ADR 0001 Regel 9).
 pub struct Encryptor {
-    _private: (),
+    inner: crypt::EncryptorInner,
+}
+
+impl std::fmt::Debug for Encryptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Encryptor").field("algorithm", &self.inner.algorithm).finish_non_exhaustive()
+    }
 }
 
 impl Encryptor {
     /// Verschlüsselt `data` für Objekt `id`.
+    ///
+    /// Bei AES wird ein zufälliger IV vorangestellt (ISO 32000-1 §7.6.2); bei `/Identity`
+    /// bleiben die Daten unverändert.
     pub fn encrypt(&self, id: ObjectId, data: &[u8], target: CryptTarget) -> Result<Vec<u8>> {
-        todo!("Paket A: RC4/AES mit objektspezifischem Schlüssel (ISO 32000-1 §7.6.2, Algorithmus 1/1.A)")
+        self.inner.encrypt(id, data, target)
+    }
+
+    /// Entschlüsselt `data` für Objekt `id` (Gegenstück zu [`Self::encrypt`], z. B. für Prüfungen).
+    pub fn decrypt(&self, id: ObjectId, data: &[u8], target: CryptTarget) -> Result<Vec<u8>> {
+        self.inner.decrypt(id, data, target)
+    }
+
+    /// Verfahren für Streams (`/StmF` bzw. V/R).
+    pub fn algorithm(&self) -> &CryptAlgorithm {
+        &self.inner.algorithm
     }
 }
 
@@ -486,13 +529,103 @@ impl Default for Limits {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Zusätzliche Befunde (additiv zur Fundament-API)
+// ------------------------------------------------------------------------------------------------
+
+/// Zustand des Querverweises (Grundlage für K1/K2, Plan §6.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum XrefHealth {
+    /// Kette vollständig lesbar, alle Offsets stimmen.
+    Intact,
+    /// Kette lesbar, aber Offsets/`/Prev` mussten korrigiert oder Objekte per Suche gefunden werden
+    /// (K2). Ein normales Increment ist möglich; die Vorrevision bleibt so defekt wie zuvor.
+    Repaired,
+    /// Kein verwertbares `startxref`: das Objektverzeichnis wurde durch Suche rekonstruiert (K2).
+    /// Ein Increment mit `/Prev` ist nicht möglich.
+    Reconstructed,
+}
+
+/// DocMDP-Zertifizierung (`/Perms /DocMDP`, ISO 32000-1 §12.8.2.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct DocMdp {
+    /// `/TransformParams /P` (1, 2, 3; Default 2)
+    pub permission: u8,
+    /// Objekt-ID des zertifizierenden Signaturdictionarys, falls indirekt
+    pub signature_id: Option<ObjectId>,
+}
+
+/// Kennzahlen des AcroForm-Dictionarys.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AcroFormInfo {
+    /// Objekt-ID, falls indirekt (sonst direkt im Katalog eingebettet)
+    pub id: Option<ObjectId>,
+    /// Anzahl der Einträge in `/Fields`
+    pub field_count: usize,
+    /// `/SigFlags`
+    pub sig_flags: u32,
+    /// `/NeedAppearances true`
+    pub need_appearances: bool,
+    /// `/XFA` vorhanden
+    pub has_xfa: bool,
+    /// `/DR` vorhanden
+    pub has_dr: bool,
+    /// `/DA` vorhanden
+    pub has_da: bool,
+}
+
+/// Element eines Pfads innerhalb eines Objekts (Dictionary-Schlüssel bzw. Array-Index).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PathSegment {
+    /// Wert unter einem Dictionary-Schlüssel (bei Streams: im Stream-Dictionary)
+    Key(Vec<u8>),
+    /// Element eines Arrays
+    Index(usize),
+}
+
+/// Originalschreibweise der Gleitkommazahlen eines Objekts.
+///
+/// lopdf hält Reals nur als `f32`; `595.303937007874` würde beim Fortschreiben eines Objekts zu
+/// `595.303955`. Prüfer wie pyHanko vergleichen Werte exakt und werten das als Änderung. Der Writer
+/// verwendet deshalb für unveränderte Werte (gleicher Pfad, gleicher `f32`) den Originaltext –
+/// wie PDFBox, das `COSFloat`-Text beibehält. `Debug` zeigt nur die Anzahl.
+#[derive(Clone, Default, PartialEq)]
+pub struct RealLiterals {
+    map: std::collections::HashMap<Vec<PathSegment>, (f32, String)>,
+}
+
+impl std::fmt::Debug for RealLiterals {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RealLiterals").field("len", &self.map.len()).finish()
+    }
+}
+
+impl RealLiterals {
+    /// Originaltext für den Wert `value` an `path`, falls er dort unverändert steht.
+    pub fn get(&self, path: &[PathSegment], value: f32) -> Option<&str> {
+        let (v, text) = self.map.get(path)?;
+        (v.to_bits() == value.to_bits()).then_some(text.as_str())
+    }
+
+    /// Anzahl der erfassten Reals.
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    /// Keine Reals erfasst.
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
 // SourcePdf
 // ------------------------------------------------------------------------------------------------
 
 /// Unveränderliches Eingabe-PDF: Original-Bytes plus geparstes Objektmodell.
 ///
 /// Die Original-Bytes bleiben unverändert und sind der Präfix jeder Ausgabe (Invariante I1,
-/// Plan §3.6). Das `lopdf::Document` ist bei verschlüsselten Dateien bereits entschlüsselt.
+/// Plan §3.6). Das `lopdf::Document` ist bei verschlüsselten Dateien bereits entschlüsselt
+/// (`/Contents` von Signaturdictionaries bleibt roh, ISO 32000-2 §7.6.1).
 ///
 /// `Debug` zeigt nur Kennzahlen, nie Dokumentinhalt (ADR 0001 §4 Regel 9).
 pub struct SourcePdf {
@@ -504,6 +637,15 @@ pub struct SourcePdf {
     encryptor: Option<Encryptor>,
     rights: Rights,
     pages: Vec<PageInfo>,
+    version: String,
+    trailer: Dictionary,
+    health: XrefHealth,
+    offset_base: u64,
+    next_number: u32,
+    limits: Limits,
+    xref: BTreeMap<u32, xref::Entry>,
+    /// tatsächlicher Offset (relativ zur Basis) des neuesten Querverweisabschnitts
+    prev_offset: u64,
 }
 
 impl std::fmt::Debug for SourcePdf {
@@ -515,7 +657,162 @@ impl std::fmt::Debug for SourcePdf {
             .field("encryption", &self.encryption)
             .field("rights", &self.rights)
             .field("pages", &self.pages.len())
+            .field("health", &self.health)
             .finish_non_exhaustive()
+    }
+}
+
+fn map_lopdf(e: lopdf::Error) -> CosError {
+    match e {
+        lopdf::Error::Decryption(d) => CosError::Decryption(d.to_string()),
+        lopdf::Error::InvalidPassword => CosError::PasswordRequired,
+        lopdf::Error::UnsupportedSecurityHandler(h) => {
+            CosError::UnsupportedSecurityHandler(String::from_utf8_lossy(&h).into_owned())
+        }
+        lopdf::Error::Decompress(lopdf::DecompressError::MemoryLimitExceeded { limit }) => {
+            CosError::LimitExceeded { what: "dekomprimierte Stream-Größe", limit: limit as u64 }
+        }
+        other => CosError::Parse(other.to_string()),
+    }
+}
+
+fn header_version(data: &[u8], header_offset: usize) -> String {
+    let rest = &data[header_offset + 5..data.len().min(header_offset + 16)];
+    let v: String = rest.iter().take_while(|b| b.is_ascii_digit() || **b == b'.').map(|&b| char::from(b)).collect();
+    if v.is_empty() { "1.0".into() } else { v }
+}
+
+fn version_key(v: &str) -> (u32, u32) {
+    let mut it = v.split('.');
+    let major = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let minor = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    (major, minor)
+}
+
+/// Lädt fehlende bzw. von lopdf falsch zugeordnete Objekte nach der eigenen Querverweistabelle nach.
+/// Liefert `true`, wenn Offsets nicht stimmten und Objekte per Suche gefunden werden mussten.
+fn fixup_objects(
+    doc: &mut Document,
+    data: &[u8],
+    merged: &BTreeMap<u32, xref::Entry>,
+    base: u64,
+    encrypt_id: Option<ObjectId>,
+    limits: &Limits,
+) -> bool {
+    use lopdf::xref::XrefEntry;
+    let mut repaired = false;
+    let mut scan: Option<BTreeMap<ObjectId, usize>> = None;
+    let mut objstm_cache: BTreeMap<u32, Option<lopdf::ObjectStream>> = BTreeMap::new();
+    let state = doc.encryption_state.clone();
+    let max_stream = usize::try_from(limits.max_decoded_stream).unwrap_or(usize::MAX);
+
+    // Zwei Durchläufe: erst Objekte an Offsets (darunter Object-Stream-Container), dann komprimierte.
+    for (&num, entry) in merged
+        .iter()
+        .filter(|(_, e)| matches!(e, xref::Entry::InUse { .. }))
+        .chain(merged.iter().filter(|(_, e)| matches!(e, xref::Entry::Compressed { .. })))
+    {
+        match *entry {
+            xref::Entry::InUse { offset, generation } => {
+                let id = (num, generation);
+                if Some(id) == encrypt_id {
+                    continue; // lopdf hält das Encrypt-Dictionary bewusst nicht im Objektmodell
+                }
+                let lopdf_ok = matches!(
+                    doc.reference_table.get(num),
+                    Some(XrefEntry::Normal { offset: o, generation: g }) if u64::from(*o) == offset && *g == generation
+                );
+                if lopdf_ok && doc.objects.contains_key(&id) {
+                    continue;
+                }
+                let Some(abs) = offset.checked_add(base).and_then(|a| usize::try_from(a).ok()) else { continue };
+                let header_ok = lexer::object_header_at(data, abs).is_some_and(|(hid, _)| hid == id);
+                let pos = if header_ok {
+                    Some(abs)
+                } else {
+                    repaired = true;
+                    let map = scan.get_or_insert_with(|| scan_object_headers(data));
+                    map.get(&id).copied()
+                };
+                let Some(pos) = pos else { continue };
+                let resolve_len = |rid: ObjectId| doc.objects.get(&rid).and_then(|o| o.as_i64().ok());
+                let Some(io) = lexer::parse_indirect_object(data, pos, &resolve_len) else { continue };
+                let mut obj = io.object;
+                if let Some(st) = &state {
+                    let _ = lopdf::encryption::decrypt_object(st, id, &mut obj);
+                }
+                doc.objects.insert(id, obj);
+            }
+            xref::Entry::Compressed { stream, .. } => {
+                let id = (num, 0);
+                let lopdf_ok = matches!(
+                    doc.reference_table.get(num),
+                    Some(XrefEntry::Compressed { container, .. }) if *container == stream
+                );
+                if lopdf_ok && doc.objects.contains_key(&id) {
+                    continue;
+                }
+                let os = objstm_cache.entry(stream).or_insert_with(|| {
+                    doc.objects
+                        .get(&(stream, 0))
+                        .and_then(|o| o.as_stream().ok())
+                        .and_then(|s| lopdf::ObjectStream::new_with_limit(s, Some(max_stream)).ok())
+                });
+                if let Some(os) = os
+                    && let Some(obj) = os.objects.get(&id)
+                {
+                    doc.objects.insert(id, obj.clone());
+                }
+            }
+            xref::Entry::Free => {}
+        }
+    }
+    repaired
+}
+
+/// Alle Objektköpfe `n g obj` am Zeilenanfang (spätere Vorkommen gewinnen).
+fn scan_object_headers(data: &[u8]) -> BTreeMap<ObjectId, usize> {
+    let mut map = BTreeMap::new();
+    let mut i = 0;
+    while i < data.len() {
+        let line_start = i == 0 || matches!(data[i - 1], b'\n' | b'\r');
+        if line_start
+            && data[i].is_ascii_digit()
+            && let Some((id, after)) = lexer::object_header_at(data, i)
+        {
+            map.insert(id, i);
+            i = after;
+            continue;
+        }
+        i += 1;
+    }
+    map
+}
+
+/// Ersetzt in verschlüsselten Dokumenten `/Contents` von Signaturdictionaries durch den Rohwert
+/// (lopdf entschlüsselt ihn fälschlich mit) und entschlüsselt die übrigen Strings einzeln.
+fn fixup_signature_dicts(doc: &mut Document, data: &[u8], merged: &BTreeMap<u32, xref::Entry>, base: u64) {
+    let Some(state) = doc.encryption_state.clone() else { return };
+    let candidates: Vec<ObjectId> = doc
+        .objects
+        .iter()
+        .filter(|(_, o)| matches!(o, Object::Dictionary(d) if crypt::is_signature_dict(d)))
+        .map(|(id, _)| *id)
+        .collect();
+    for id in candidates {
+        let Some(xref::Entry::InUse { offset, generation }) = merged.get(&id.0) else { continue };
+        if *generation != id.1 {
+            continue;
+        }
+        let Some(abs) = offset.checked_add(base).and_then(|a| usize::try_from(a).ok()) else { continue };
+        let Some(io) = lexer::parse_indirect_object(data, abs, &|_| None) else { continue };
+        if io.id != id {
+            continue;
+        }
+        if let Object::Dictionary(raw) = io.object {
+            let fixed = crypt::decrypt_signature_dict(&state, id, &raw);
+            doc.objects.insert(id, Object::Dictionary(fixed));
+        }
     }
 }
 
@@ -525,12 +822,176 @@ impl SourcePdf {
     /// Fehler: [`CosError::PasswordRequired`], [`CosError::UnsupportedSecurityHandler`],
     /// [`CosError::NoPages`] usw. – `pdfover-pades::analyze` bildet sie auf K5 ab.
     pub fn open(bytes: impl Into<Arc<[u8]>>, limits: &Limits) -> Result<SourcePdf> {
-        todo!("Paket A: lopdf laden, Revisionen/xref-Kette, Tail, Verschlüsselung, Seiten (docs/analyse/03 §10)")
+        let bytes: Arc<[u8]> = bytes.into();
+        if bytes.len() as u64 > limits.max_file_size {
+            return Err(CosError::LimitExceeded { what: "Dateigröße", limit: limits.max_file_size });
+        }
+        let data: &[u8] = &bytes;
+        let head = &data[..data.len().min(1024)];
+        let header_offset = lexer::find(head, b"%PDF-", 0).ok_or(CosError::NotAPdf)?;
+        let mut version = header_version(data, header_offset);
+
+        let structure = xref::analyze(data, header_offset, limits)?;
+        let merged = structure.chain.merged();
+        let base = structure.base;
+
+        // Verschlüsselung vorab prüfen (Handler aus den Rohbytes; lopdf entfernt /Encrypt).
+        let raw_trailer = structure.chain.effective_trailer();
+        let mut pre_encryption: Option<EncryptionInfo> = None;
+        if let Some(t) = &raw_trailer
+            && let Ok(enc) = t.get(b"Encrypt")
+        {
+            let (dict, enc_id) = match enc {
+                Object::Dictionary(d) => (Some(d.clone()), None),
+                Object::Reference(id) => {
+                    let dict = match merged.get(&id.0) {
+                        Some(xref::Entry::InUse { offset, .. }) => usize::try_from(offset + base)
+                            .ok()
+                            .and_then(|abs| lexer::parse_indirect_object(data, abs, &|_| None))
+                            .and_then(|io| match io.object {
+                                Object::Dictionary(d) => Some(d),
+                                _ => None,
+                            }),
+                        _ => None,
+                    };
+                    (dict, Some(*id))
+                }
+                _ => (None, None),
+            };
+            let dict = dict.ok_or_else(|| CosError::Decryption("Encrypt-Dictionary nicht lesbar".into()))?;
+            let info = crypt::encryption_info(&dict, enc_id);
+            match &info.handler {
+                SecurityHandler::Standard => {}
+                SecurityHandler::PublicKey => return Err(CosError::UnsupportedSecurityHandler("Adobe.PubSec".into())),
+                SecurityHandler::Other(n) => return Err(CosError::UnsupportedSecurityHandler(n.clone())),
+            }
+            pre_encryption = Some(info);
+        }
+
+        let load = &data[..structure.load_end.min(data.len())];
+        let options = lopdf::LoadOptions {
+            password: None,
+            filter: None,
+            strict: false,
+            max_decompressed_size: Some(usize::try_from(limits.max_decoded_stream).unwrap_or(usize::MAX)),
+        };
+        let mut document = Document::load_mem_with_options(load, options).map_err(map_lopdf)?;
+        let lopdf_reconstructed = document.xref_start == 0 && !structure.reconstructed;
+
+        let (encryption, encryptor) = match pre_encryption {
+            Some(info) => {
+                let Some(state) = document.encryption_state.clone() else {
+                    return Err(if crypt::standard_supported(&info) {
+                        CosError::PasswordRequired
+                    } else {
+                        CosError::UnsupportedSecurityHandler(format!("Standard V{} R{}", info.v, info.r))
+                    });
+                };
+                let enc = Encryptor { inner: crypt::EncryptorInner::new(state, info.algorithm.clone()) };
+                (Some(info), Some(enc))
+            }
+            None => match document.encryption_state.clone() {
+                // Rekonstruierter Querverweis: Befund aus lopdfs Zustand.
+                Some(state) => {
+                    let info = crypt::info_from_state(&state);
+                    let enc = Encryptor { inner: crypt::EncryptorInner::new(state, info.algorithm.clone()) };
+                    (Some(info), Some(enc))
+                }
+                None if document.trailer.has(b"Encrypt") => return Err(CosError::PasswordRequired),
+                None => (None, None),
+            },
+        };
+
+        let mut repaired = structure.chain.repaired || lopdf_reconstructed;
+        if !structure.reconstructed {
+            let encrypt_id = encryption.as_ref().and_then(|e| e.encrypt_dict_id);
+            repaired |= fixup_objects(&mut document, data, &merged, base, encrypt_id, limits);
+            fixup_signature_dicts(&mut document, data, &merged, base);
+        }
+        if document.objects.len() > limits.max_objects {
+            return Err(CosError::LimitExceeded { what: "Objektanzahl", limit: limits.max_objects as u64 });
+        }
+        // Der Dateischlüssel lebt nur im `Encryptor` (eigene Debug-Implementierung); lopdfs
+        // `EncryptionState` leitet `Debug` ab und darf über `document()` nicht sichtbar sein (Regel 9).
+        document.encryption_state = None;
+        let health = if structure.reconstructed {
+            XrefHealth::Reconstructed
+        } else if repaired {
+            XrefHealth::Repaired
+        } else {
+            XrefHealth::Intact
+        };
+
+        // /Prev eines neuen Increments: korrigierter Offset des neuesten Abschnitts (bei K2 kann der
+        // deklarierte startxref-Wert um einige Bytes daneben liegen).
+        let prev_offset = structure
+            .chain
+            .sections
+            .first()
+            .map(|s| s.offset.saturating_sub(base))
+            .unwrap_or_else(|| structure.revisions.last().map_or(0, |r| r.startxref));
+
+        let trailer = match raw_trailer {
+            Some(t) => t,
+            None => document.trailer.clone(),
+        };
+        let catalog_id = match trailer.get(b"Root") {
+            Ok(Object::Reference(id)) => *id,
+            _ => return Err(CosError::InvalidStructure("Trailer ohne /Root".into())),
+        };
+        let catalog = match document.get_object(catalog_id) {
+            Ok(Object::Dictionary(d)) => d,
+            _ => return Err(CosError::MissingObject(catalog_id)),
+        };
+        if let Ok(Object::Name(v)) = catalog.get(b"Version")
+            && let Ok(v) = std::str::from_utf8(v)
+            && version_key(v) > version_key(&version)
+        {
+            version = v.to_string();
+        }
+        let pages = pages::collect_pages(&document, catalog, limits)?;
+        if pages.is_empty() {
+            return Err(CosError::NoPages);
+        }
+
+        let rights = Rights {
+            encrypted: encryption.is_some(),
+            permissions: encryption.as_ref().map(|e| e.permissions).unwrap_or(Permissions::ALL),
+        };
+        let size =
+            trailer.get(b"Size").ok().and_then(|o| o.as_i64().ok()).unwrap_or(0).clamp(0, i64::from(u32::MAX)) as u32;
+        let max_merged = merged.keys().next_back().map_or(0, |n| n.saturating_add(1));
+        let max_loaded = document.objects.keys().next_back().map_or(0, |id| id.0.saturating_add(1));
+        let next_number = size.max(max_merged).max(max_loaded).max(document.max_id.saturating_add(1)).max(1);
+
+        Ok(SourcePdf {
+            bytes: Arc::clone(&bytes),
+            document,
+            revisions: structure.revisions,
+            tail: structure.tail,
+            encryption,
+            encryptor,
+            rights,
+            pages,
+            version,
+            trailer,
+            health,
+            offset_base: base,
+            next_number,
+            limits: limits.clone(),
+            xref: merged,
+            prev_offset,
+        })
     }
 
     /// Liest eine Datei (Bytes vollständig oder per Memory-Map, Plan §6.2 „Speicher“).
     pub fn open_file(path: &Path, limits: &Limits) -> Result<SourcePdf> {
-        todo!("Paket A")
+        let len = std::fs::metadata(path)?.len();
+        if len > limits.max_file_size {
+            return Err(CosError::LimitExceeded { what: "Dateigröße", limit: limits.max_file_size });
+        }
+        let bytes = std::fs::read(path)?;
+        SourcePdf::open(bytes, limits)
     }
 
     /// Original-Bytes.
@@ -605,32 +1066,46 @@ impl SourcePdf {
 
     /// PDF-Version aus dem Header (bzw. `/Version` im Katalog, falls höher) – `iui.pdfVersion`.
     pub fn pdf_version(&self) -> &str {
-        todo!("Paket A")
+        &self.version
     }
 
     /// Trailer der letzten Revision.
+    ///
+    /// Roh aus der Datei (nicht entschlüsselt), inklusive `/Encrypt`, `/Prev` und `/XRefStm`;
+    /// bei xref-Streams ohne Strukturschlüssel (`/Type`, `/W`, `/Index`, `/Filter` …). Fehlende
+    /// `/Root`, `/Info`, `/ID`, `/Encrypt` werden aus älteren Trailern ergänzt.
     pub fn trailer(&self) -> &Dictionary {
-        &self.document.trailer
+        &self.trailer
     }
 
     /// Objekt-ID des Katalogs (`/Root`).
     pub fn catalog_id(&self) -> Result<ObjectId> {
-        todo!("Paket A")
+        match self.trailer.get(b"Root") {
+            Ok(Object::Reference(id)) => Ok(*id),
+            _ => Err(CosError::InvalidStructure("Trailer ohne /Root".into())),
+        }
     }
 
     /// Objekt-ID von `/Info`, falls vorhanden.
     pub fn info_id(&self) -> Option<ObjectId> {
-        todo!("Paket A")
+        match self.trailer.get(b"Info") {
+            Ok(Object::Reference(id)) => Some(*id),
+            _ => None,
+        }
     }
 
     /// `/ID` des Trailers (`[ID0, ID1]`), falls vorhanden.
     pub fn trailer_id(&self) -> Option<[Vec<u8>; 2]> {
-        todo!("Paket A")
+        let arr = self.trailer.get(b"ID").ok()?.as_array().ok()?;
+        match arr.as_slice() {
+            [Object::String(a, _), Object::String(b, _), ..] => Some([a.clone(), b.clone()]),
+            _ => None,
+        }
     }
 
     /// Nächste freie Objektnummer (`/Size` der letzten Revision bzw. höchste Nummer + 1).
     pub fn next_object_number(&self) -> u32 {
-        todo!("Paket A")
+        self.next_number
     }
 
     /// Objekt holen.
@@ -640,27 +1115,308 @@ impl SourcePdf {
 
     /// Referenzen bis zum Zielobjekt auflösen (Tiefe begrenzt durch [`Limits::max_depth`]).
     pub fn resolve<'a>(&'a self, obj: &'a Object) -> Result<&'a Object> {
-        todo!("Paket A")
+        let mut o = obj;
+        for _ in 0..=self.limits.max_depth {
+            match o {
+                Object::Reference(id) => o = self.get_object(*id)?,
+                _ => return Ok(o),
+            }
+        }
+        Err(CosError::LimitExceeded { what: "Referenzkette", limit: u64::from(self.limits.max_depth) })
     }
 
     /// Dekodierter Stream-Inhalt mit Grenzen.
     pub fn decoded_stream(&self, id: ObjectId) -> Result<Vec<u8>> {
-        todo!("Paket A")
+        let stream = self
+            .get_object(id)?
+            .as_stream()
+            .map_err(|_| CosError::InvalidStructure(format!("Objekt {} {} ist kein Stream", id.0, id.1)))?;
+        Ok(filters::decode_stream(&self.document, stream, &self.limits, false)?.data)
     }
 
     /// XMP-Metadaten des Katalogs (`/Metadata`), dekodiert – für PDF/A-Erkennung (Plan §6.9).
     pub fn xmp_metadata(&self) -> Result<Option<Vec<u8>>> {
-        todo!("Paket A")
+        let catalog = self.catalog()?;
+        match catalog.get(b"Metadata") {
+            Ok(Object::Reference(id)) => match self.get_object(*id) {
+                Ok(Object::Stream(_)) => Ok(Some(self.decoded_stream(*id)?)),
+                _ => Ok(None),
+            },
+            Ok(Object::Stream(s)) => Ok(Some(filters::decode_stream(&self.document, s, &self.limits, false)?.data)),
+            _ => Ok(None),
+        }
     }
 
     /// Alle Signaturfelder (signiert und leer), inklusive `/Kids`-Widgets und hierarchischer Namen.
     pub fn signature_fields(&self) -> Result<Vec<SigField>> {
-        todo!("Paket A: AcroForm-Baum durchlaufen (docs/analyse/03 §4.5, Plan §6.4)")
+        fields::signature_fields(&self.document, self.catalog()?, &self.pages, &self.limits)
     }
 
     /// Alle `Do`-Aufrufe von Bild-XObjects auf einer Seite mit CTM (docs/analyse/04 §5.1).
     /// Form-XObjects werden nur mit `descend_forms = true` betreten.
     pub fn image_invocations(&self, page_index: usize, descend_forms: bool) -> Result<Vec<ImageInvocation>> {
-        todo!("Paket A: Content-Stream mit q/Q/cm-Stack auswerten")
+        let page = self
+            .pages
+            .get(page_index)
+            .ok_or_else(|| CosError::InvalidStructure(format!("Seite {page_index} existiert nicht")))?;
+        let doc = &self.document;
+        let resources = match pages::inherited_attr(doc, page.object_id, b"Resources", &self.limits) {
+            Some(Object::Dictionary(d)) => Some(d),
+            _ => None,
+        };
+        let content = self.page_content(page.object_id)?;
+        let decode = |s: &Stream| filters::decode_stream(doc, s, &self.limits, false).map(|d| d.data);
+        let mut it = content::Interpreter {
+            doc,
+            limits: &self.limits,
+            page_index,
+            descend_forms,
+            out: Vec::new(),
+            form_stack: Default::default(),
+            decode: &decode,
+        };
+        it.run(&content, resources, IDENTITY, false, 0)?;
+        Ok(it.out)
+    }
+
+    /// Dekodierter, zusammengefügter Seiteninhalt (`/Contents` als Stream oder Array).
+    /// Nicht dekodierbare Teilstreams werden ausgelassen; Grenzverletzungen sind Fehler.
+    pub fn page_content(&self, page_id: ObjectId) -> Result<Vec<u8>> {
+        let page = self
+            .get_object(page_id)?
+            .as_dict()
+            .map_err(|_| CosError::InvalidStructure("Seite ist kein Dictionary".into()))?;
+        let mut out = Vec::new();
+        let mut push = |s: &Stream| -> Result<()> {
+            match filters::decode_stream(&self.document, s, &self.limits, false) {
+                Ok(d) => {
+                    out.extend_from_slice(&d.data);
+                    out.push(b'\n');
+                    Ok(())
+                }
+                Err(e @ CosError::LimitExceeded { .. }) => Err(e),
+                Err(_) => Ok(()),
+            }
+        };
+        match page.get(b"Contents").ok().map(|o| self.resolve(o)).transpose()? {
+            Some(Object::Stream(s)) => push(s)?,
+            Some(Object::Array(a)) => {
+                for o in a {
+                    if let Ok(Object::Stream(s)) = self.resolve(o) {
+                        push(s)?;
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(out)
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Additive Erweiterungen (Paket A)
+    // --------------------------------------------------------------------------------------------
+
+    /// Zustand des Querverweises (K1/K2).
+    pub fn xref_health(&self) -> XrefHealth {
+        self.health
+    }
+
+    /// Basis der xref-Offsets: 0 (Normalfall) oder Offset des `%PDF-`-Headers, wenn der Datei
+    /// Fremdinhalt vorangestellt ist und die Offsets relativ zum Header stehen. Der Writer
+    /// schreibt neue Offsets in derselben Konvention.
+    pub fn xref_offset_base(&self) -> u64 {
+        self.offset_base
+    }
+
+    /// Wert für `/Prev` eines neuen Increments: Offset des neuesten Querverweisabschnitts in der
+    /// Konvention von [`Self::xref_offset_base`]. Gleich `last_revision().startxref`, außer wenn
+    /// `startxref` korrigiert werden musste ([`XrefHealth::Repaired`]).
+    pub fn prev_offset(&self) -> u64 {
+        self.prev_offset
+    }
+
+    /// Katalog-Dictionary.
+    pub fn catalog(&self) -> Result<&Dictionary> {
+        let id = self.catalog_id()?;
+        self.get_object(id)?.as_dict().map_err(|_| CosError::InvalidStructure("Katalog ist kein Dictionary".into()))
+    }
+
+    /// PDF/A-Kennung aus den XMP-Metadaten des Katalogs.
+    pub fn pdfa_identification(&self) -> Result<Option<PdfAIdentification>> {
+        Ok(self.xmp_metadata()?.as_deref().and_then(parse_pdfa_identification))
+    }
+
+    /// DocMDP-Zertifizierung (`/Perms /DocMDP` → `/Reference` mit `/TransformMethod /DocMDP`).
+    pub fn doc_mdp(&self) -> Result<Option<DocMdp>> {
+        let catalog = self.catalog()?;
+        let Some(Object::Dictionary(perms)) = catalog.get(b"Perms").ok().map(|o| self.resolve(o)).transpose()? else {
+            return Ok(None);
+        };
+        let Ok(sig_ref) = perms.get(b"DocMDP") else { return Ok(None) };
+        let signature_id = match sig_ref {
+            Object::Reference(id) => Some(*id),
+            _ => None,
+        };
+        let Ok(Object::Dictionary(sig)) = self.resolve(sig_ref) else { return Ok(None) };
+        let mut permission = 2u8;
+        if let Some(Object::Array(refs)) = sig.get(b"Reference").ok().map(|o| self.resolve(o)).transpose()? {
+            for r in refs {
+                let Ok(Object::Dictionary(sr)) = self.resolve(r) else { continue };
+                if sr.get(b"TransformMethod").ok().and_then(|o| o.as_name().ok()) != Some(b"DocMDP") {
+                    continue;
+                }
+                if let Some(Object::Dictionary(tp)) =
+                    sr.get(b"TransformParams").ok().map(|o| self.resolve(o)).transpose()?
+                    && let Ok(p) = tp.get(b"P").map(|o| self.resolve(o))
+                    && let Ok(Object::Integer(p)) = p
+                {
+                    permission = (*p).clamp(1, 3) as u8;
+                }
+            }
+        }
+        Ok(Some(DocMdp { permission, signature_id }))
+    }
+
+    /// `/Perms /UR3` bzw. `/UR` (Usage Rights) vorhanden.
+    pub fn has_usage_rights(&self) -> bool {
+        let Ok(catalog) = self.catalog() else { return false };
+        match catalog.get(b"Perms").ok().map(|o| self.resolve(o)) {
+            Some(Ok(Object::Dictionary(p))) => p.has(b"UR3") || p.has(b"UR"),
+            _ => false,
+        }
+    }
+
+    /// Katalog `/NeedsRendering true` (dynamisches XFA).
+    pub fn needs_rendering(&self) -> bool {
+        self.catalog().ok().and_then(|c| c.get(b"NeedsRendering").ok()).and_then(|o| o.as_bool().ok()).unwrap_or(false)
+    }
+
+    /// `/StructTreeRoot` mit Kindern (`/K`) vorhanden (PDF/UA-Ergänzung, docs/analyse/03 §4.9).
+    pub fn is_tagged(&self) -> bool {
+        let Ok(catalog) = self.catalog() else { return false };
+        match catalog.get(b"StructTreeRoot").ok().map(|o| self.resolve(o)) {
+            Some(Ok(Object::Dictionary(st))) => match st.get(b"K").ok().map(|o| self.resolve(o)) {
+                Some(Ok(Object::Array(a))) => !a.is_empty(),
+                Some(Ok(Object::Null)) | None => false,
+                Some(Ok(_)) => true,
+                Some(Err(_)) => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// Kennzahlen des AcroForm-Dictionarys, falls vorhanden.
+    pub fn acroform_info(&self) -> Result<Option<AcroFormInfo>> {
+        let catalog = self.catalog()?;
+        let Ok(acro_obj) = catalog.get(b"AcroForm") else { return Ok(None) };
+        let id = match acro_obj {
+            Object::Reference(id) => Some(*id),
+            _ => None,
+        };
+        let Ok(Object::Dictionary(acro)) = self.resolve(acro_obj) else { return Ok(None) };
+        let field_count = match acro.get(b"Fields").ok().map(|o| self.resolve(o)) {
+            Some(Ok(Object::Array(a))) => a.len(),
+            _ => 0,
+        };
+        let int = |k: &[u8]| match acro.get(k).ok().map(|o| self.resolve(o)) {
+            Some(Ok(Object::Integer(i))) => Some(*i),
+            _ => None,
+        };
+        let need_appearances =
+            matches!(acro.get(b"NeedAppearances").ok().map(|o| self.resolve(o)), Some(Ok(Object::Boolean(true))));
+        Ok(Some(AcroFormInfo {
+            id,
+            field_count,
+            sig_flags: int(b"SigFlags").map(|v| (v & 0xFFFF_FFFF) as u32).unwrap_or(0),
+            need_appearances,
+            has_xfa: acro.has(b"XFA"),
+            has_dr: acro.has(b"DR"),
+            has_da: acro.has(b"DA"),
+        }))
+    }
+
+    /// Dekodiert ein Bild-XObject (für die QR-Erkennung; inkl. `/SMask` als Alpha).
+    pub fn decode_image(&self, id: ObjectId) -> Result<DecodedImage> {
+        let stream = self
+            .get_object(id)?
+            .as_stream()
+            .map_err(|_| CosError::InvalidStructure(format!("Objekt {} {} ist kein Stream", id.0, id.1)))?;
+        self.decode_image_stream(stream)
+    }
+
+    /// Dekodiert ein Bild aus einem (z. B. direkt eingebetteten) Bild-Stream.
+    pub fn decode_image_stream(&self, stream: &Stream) -> Result<DecodedImage> {
+        image::decode_image(&self.document, stream, &self.limits, true)
+    }
+
+    /// Grenzen, mit denen das Dokument geöffnet wurde.
+    pub fn limits(&self) -> &Limits {
+        &self.limits
+    }
+
+    /// Originalschreibweise der Reals eines Objekts (siehe [`RealLiterals`]); leer, wenn das
+    /// Objekt nicht über den Querverweis auffindbar ist.
+    pub fn real_literals(&self, id: ObjectId) -> RealLiterals {
+        let mut lits = RealLiterals::default();
+        match self.xref.get(&id.0) {
+            Some(xref::Entry::InUse { offset, generation }) if *generation == id.1 => {
+                let Some(abs) = offset.checked_add(self.offset_base).and_then(|a| usize::try_from(a).ok()) else {
+                    return lits;
+                };
+                if let Some((hid, after)) = lexer::object_header_at(&self.bytes, abs)
+                    && hid == id
+                {
+                    lexer::collect_real_literals(&self.bytes, after, &mut lits.map);
+                }
+            }
+            Some(xref::Entry::Compressed { stream, .. }) if id.1 == 0 => {
+                let Ok(Object::Stream(container)) = self.get_object((*stream, 0)) else { return lits };
+                let Ok(decoded) = filters::decode_stream(&self.document, container, &self.limits, false) else {
+                    return lits;
+                };
+                let n = container.dict.get(b"N").ok().and_then(|o| o.as_i64().ok()).unwrap_or(0).max(0) as usize;
+                let first =
+                    container.dict.get(b"First").ok().and_then(|o| o.as_i64().ok()).unwrap_or(0).max(0) as usize;
+                let mut lx = lexer::Lexer::new(&decoded.data, 0);
+                for _ in 0..n.min(1_000_000) {
+                    let (Some(lexer::Token::Int(num)), Some(lexer::Token::Int(off))) =
+                        (lx.next_token(), lx.next_token())
+                    else {
+                        break;
+                    };
+                    if num == i64::from(id.0) && off >= 0 {
+                        lexer::collect_real_literals(&decoded.data, first + off as usize, &mut lits.map);
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+        lits
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rights_like_pdfbox_utils() {
+        assert!(Rights { encrypted: false, permissions: Permissions(0) }.may_sign());
+        // nur Formulare ausfüllen
+        assert!(Rights { encrypted: true, permissions: Permissions(1 << 8) }.may_sign());
+        // Ändern + Annotationen
+        assert!(Rights { encrypted: true, permissions: Permissions((1 << 3) | (1 << 5)) }.may_sign());
+        // nur Ändern
+        assert!(!Rights { encrypted: true, permissions: Permissions(1 << 3) }.may_sign());
+        // nichts
+        assert!(!Rights { encrypted: true, permissions: Permissions(0xFFFF_F0C0) }.may_sign());
+    }
+
+    #[test]
+    fn version_compare() {
+        assert!(version_key("1.7") > version_key("1.4"));
+        assert!(version_key("2.0") > version_key("1.7"));
+        assert_eq!(header_version(b"%PDF-1.5\n", 0), "1.5");
     }
 }

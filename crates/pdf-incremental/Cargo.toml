@@ -13,6 +13,14 @@ pdfover-pdf-cos = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 serde = { workspace = true }
+# xref-Streams und optional neue Streams (Flate)
+flate2 = { workspace = true }
+# neues /ID[1] wie PDFBox 2.0.34 (SHA-256)
+sha2 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true
