@@ -85,14 +85,21 @@ impl Lang {
     }
 
     /// Systemsprache aus Umgebungsvariablen (testbar): erster nicht leerer Wert von `LC_ALL`,
-    /// `LC_MESSAGES`, `LANG`; `C`/`POSIX` und unbekannte Sprachen ergeben DE.
+    /// `LC_MESSAGES`, `LANG`. `C`/`POSIX` (auch `C.UTF-8`) ergeben EN – die JVM unter Linux bildet sie
+    /// auf `en_US` ab, PDF-Over zeigt dort also Englisch; unbekannte Sprachen und keine Variable ergeben
+    /// DE (`Messages.getDefaultLocale`).
     pub fn system_from_env<F: Fn(&str) -> Option<String>>(get: F) -> Lang {
-        ["LC_ALL", "LC_MESSAGES", "LANG"]
-            .iter()
-            .filter_map(|name| get(name))
-            .find(|v| !v.trim().is_empty())
-            .and_then(|v| Lang::from_tag(v.trim()))
-            .unwrap_or(Lang::De)
+        let Some(value) =
+            ["LC_ALL", "LC_MESSAGES", "LANG"].iter().filter_map(|name| get(name)).find(|v| !v.trim().is_empty())
+        else {
+            return Lang::De;
+        };
+        let value = value.trim();
+        let base = value.split(['.', '@']).next().unwrap_or("");
+        if base == "C" || base == "POSIX" {
+            return Lang::En;
+        }
+        Lang::from_tag(value).unwrap_or(Lang::De)
     }
 
     /// Effektive UI-Sprache: Einstellung, sonst System (Fallback DE).
@@ -380,7 +387,10 @@ mod tests {
         assert_eq!(Lang::system_from_env(env(&[("LANG", "en_US.UTF-8"), ("LC_ALL", "de_AT.UTF-8")])), Lang::De);
         assert_eq!(Lang::system_from_env(env(&[("LC_MESSAGES", "en_GB"), ("LANG", "de_DE")])), Lang::En);
         assert_eq!(Lang::system_from_env(env(&[("LANG", "fr_FR.UTF-8")])), Lang::De);
-        assert_eq!(Lang::system_from_env(env(&[("LANG", "C")])), Lang::De);
+        assert_eq!(Lang::system_from_env(env(&[("LANG", "C")])), Lang::En);
+        assert_eq!(Lang::system_from_env(env(&[("LANG", "POSIX")])), Lang::En);
+        assert_eq!(Lang::system_from_env(env(&[("LC_ALL", "C.UTF-8"), ("LANG", "de_AT.UTF-8")])), Lang::En);
+        assert_eq!(Lang::system_from_env(env(&[("LANG", "Cy_GB")])), Lang::De);
         assert_eq!(Lang::system_from_env(env(&[("LC_ALL", ""), ("LANG", "en")])), Lang::En);
         assert_eq!(Lang::system_from_env(env(&[])), Lang::De);
     }

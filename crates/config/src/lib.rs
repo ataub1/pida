@@ -34,7 +34,7 @@ pub use certcache::{CertCacheKey, CertificateCache};
 pub use legacy::{LegacyConfig, LegacyKey, LegacyNote, LegacyValues, LegacyWarning, normalize_mobile_number};
 pub use migrate::{
     AppliedMigration, ApplyOptions, MigrationContext, MigrationReport, MigrationResult, ReportMessage, apply_migration,
-    migrate, undo_migration,
+    import_offer, migrate, undo_migration,
 };
 pub use overlay::{Effective, Overlay};
 pub use paths::Paths;
@@ -46,7 +46,9 @@ pub use settings::{
     PrivacySettings, ProxyMode, ProxySettings, SCHEMA_VERSION, Settings, SignatureProfile, SignatureSettings,
     WindowSize,
 };
-pub use source::{ConfigSource, load_config_source, resolve_config_file};
+pub use source::{
+    ConfigSource, SessionSecrets, load_config_source, load_config_source_with_secrets, resolve_config_file,
+};
 
 use pdfover_i18n::{ArgValue, Catalog, Lang};
 
@@ -81,12 +83,38 @@ pub enum ConfigError {
     Secret(String),
 }
 
+/// Nutzlast von [`ConfigError::missing_file`]: eine ausdrücklich angegebene Konfigurationsdatei fehlt.
+#[derive(Debug)]
+struct MissingFile(std::path::PathBuf);
+
+impl std::fmt::Display for MissingFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} nicht gefunden", self.0.display())
+    }
+}
+
+impl std::error::Error for MissingFile {}
+
 impl ConfigError {
-    /// Stabile Meldungs-ID im i18n-Katalog (`ng-config-error-*`, fehlende Datei:
-    /// `ng-config-file-missing`).
+    /// Fehler „Konfigurationsdatei fehlt“ (CLI `-c`, Meldung `ng-config-file-missing` statt des
+    /// Werksreset-Dialogs von PDF-Over); [`std::io::ErrorKind::NotFound`] mit dem Pfad als Nutzlast.
+    pub fn missing_file(path: &std::path::Path) -> ConfigError {
+        ConfigError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, MissingFile(path.to_path_buf())))
+    }
+
+    /// Pfad, wenn der Fehler aus [`ConfigError::missing_file`] stammt.
+    pub fn missing_path(&self) -> Option<&std::path::Path> {
+        match self {
+            ConfigError::Io(e) => e.get_ref()?.downcast_ref::<MissingFile>().map(|m| m.0.as_path()),
+            _ => None,
+        }
+    }
+
+    /// Stabile Meldungs-ID im i18n-Katalog (`ng-config-error-*`, fehlende Konfigurationsdatei:
+    /// `ng-config-file-missing`; andere E/A-Fehler, auch ein fehlender Ordner: `ng-config-error-io`).
     pub fn message_id(&self) -> &'static str {
         match self {
-            ConfigError::Io(e) if e.kind() == std::io::ErrorKind::NotFound => "ng-config-file-missing",
+            ConfigError::Io(_) if self.missing_path().is_some() => "ng-config-file-missing",
             ConfigError::Io(_) => "ng-config-error-io",
             ConfigError::Parse(_) => "ng-config-error-parse",
             ConfigError::Serialize(_) => "ng-config-error-serialize",
@@ -99,12 +127,10 @@ impl ConfigError {
 
     /// Argumente zur Meldungs-ID.
     pub fn message_args(&self) -> Vec<(&'static str, ArgValue)> {
+        if let Some(path) = self.missing_path() {
+            return vec![("path", ArgValue::Str(path.display().to_string()))];
+        }
         match self {
-            ConfigError::Io(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                let detail = e.to_string();
-                let path = detail.strip_suffix(" nicht gefunden").unwrap_or(&detail).to_owned();
-                vec![("path", ArgValue::Str(path))]
-            }
             ConfigError::Io(e) => vec![("detail", ArgValue::Str(e.to_string()))],
             ConfigError::Parse(d) | ConfigError::Serialize(d) | ConfigError::Legacy(d) | ConfigError::Secret(d) => {
                 vec![("detail", ArgValue::Str(d.clone()))]
@@ -133,7 +159,7 @@ mod tests {
     fn error_messages_are_translated() {
         let errors = [
             ConfigError::Io(std::io::Error::other("kaputt")),
-            ConfigError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "/a/b nicht gefunden")),
+            ConfigError::missing_file(std::path::Path::new("/a/b")),
             ConfigError::Parse("x".into()),
             ConfigError::Serialize("x".into()),
             ConfigError::UnsupportedSchema { found: 7, supported: 1 },
@@ -153,5 +179,18 @@ mod tests {
             "Die Einstellungen stammen von einer neueren Version (Schema 7, unterstützt bis 1)."
         );
         assert_eq!(errors[1].localized(Lang::En), "The configuration file “/a/b” was not found.");
+        assert_eq!(errors[1].missing_path(), Some(std::path::Path::new("/a/b")));
+        assert_eq!(errors[1].to_string(), "E/A-Fehler: /a/b nicht gefunden");
+    }
+
+    #[test]
+    fn os_not_found_is_not_a_missing_config_file() {
+        // z. B. LegacyConfig::load auf einen gelöschten Pfad: kein „Konfigurationsdatei … fehlt“ mit
+        // dem OS-Fehlertext als Pfad, sondern ein E/A-Fehler mit Details.
+        let err = ConfigError::Io(std::fs::read("/nicht/vorhanden/pdfover-test").unwrap_err());
+        assert_eq!(err.message_id(), "ng-config-error-io");
+        assert_eq!(err.missing_path(), None);
+        assert!(!err.localized(Lang::De).contains("Konfigurationsdatei"));
+        assert_eq!(ConfigError::Parse("x".into()).missing_path(), None);
     }
 }

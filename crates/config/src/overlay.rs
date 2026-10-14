@@ -11,18 +11,22 @@
 //! | Keystore aktiv | Einstellung **oder** `-ks` |
 //! | Keystore-Passwörter | Overlay; sonst Schlüsselbund nur bei Speicherart „Permanent“ |
 //! | ID-Austria-Passwort | **nur** Overlay (`-p`, RAM) |
-//! | Unsichtbar | `-v` mit nicht verneinendem Wert (B-07) |
+//! | Unsichtbar | `-v` mit nicht verneinendem Wert (B-07); ein von der Richtlinie vorgegebenes Profil gewinnt |
+//! | PDF-AS-Profil-ID | [`Effective::pdfas_profile_id`] mit dem effektiven Profil (nicht [`Settings::pdfas_profile_id`]) |
 //!
 //! Die Einstellungen werden nur aus [`Settings`] gespeichert; das [`Overlay`] erreicht nie die Datei.
 
 use std::path::{Path, PathBuf};
 
+use pdfover_i18n::Lang;
 use zeroize::Zeroizing;
 
 use crate::Result;
 use crate::policy::Policy;
 use crate::secrets::{SecretId, SecretStore};
-use crate::settings::{BackendChoice, PasswordStorage, ProxyMode, ProxySettings, Settings, SignatureProfile};
+use crate::settings::{
+    BackendChoice, PasswordStorage, ProxyMode, ProxySettings, Settings, SignatureProfile, note_text_for,
+};
 
 /// Werte aus der Kommandozeile bzw. „Öffnen mit“.
 #[derive(Clone, Default, PartialEq, Eq)]
@@ -179,17 +183,37 @@ impl<'a> Effective<'a> {
         self.overlay.invisible.unwrap_or(false)
     }
 
-    /// Effektives Profil: `-v` → `INVISIBLE`; sonst Richtlinie, sonst Einstellung (ein von der
-    /// Richtlinie ausgeblendetes Amtssignatur-Profil wird zum Standard-Signaturblock).
+    /// Effektives Profil: ein von der Richtlinie vorgegebenes Profil gewinnt immer (auch gegen `-v`);
+    /// sonst `-v` → `INVISIBLE`, sonst die Einstellung. Ein von der Richtlinie ausgeblendetes
+    /// Amtssignatur-Profil wird zum Standard-Signaturblock.
     pub fn profile(&self) -> SignatureProfile {
-        if self.force_invisible() {
-            return SignatureProfile::Invisible;
-        }
         if let Some(p) = self.policy.and_then(|p| p.profile) {
             return p;
         }
-        let p = self.settings.signature.profile;
+        let p = if self.force_invisible() { SignatureProfile::Invisible } else { self.settings.signature.profile };
         if self.policy.is_some_and(|pol| !pol.allows_profile(p)) { SignatureProfile::SignaturblockSmall } else { p }
+    }
+
+    /// Effektive Sprache des Signaturblocks (`SIGNLOCALE`, sonst Systemsprache).
+    pub fn block_language(&self, system: Lang) -> Lang {
+        self.settings.effective_block_language(system)
+    }
+
+    /// Hinweistext für das **effektive** Profil ([`Effective::profile`], Regeln wie
+    /// [`Settings::note_text`]): `None` = kein Hinweis.
+    pub fn note_text(&self, block_language: Lang) -> Option<String> {
+        note_text_for(&self.settings.signature.note, self.profile(), block_language)
+    }
+
+    /// PDF-AS-Profil-ID beim Signieren: effektives Profil (Richtlinie, `-v`), Sprache, Hinweis und
+    /// PDF/A (Schalter **oder** erkannte Kennung `pdfa_detected`, Plan §6.9).
+    pub fn pdfas_profile_id(&self, system: Lang, pdfa_detected: bool) -> String {
+        let lang = self.block_language(system);
+        self.profile().pdfas_profile_id(
+            lang,
+            self.note_text(lang).is_some(),
+            self.settings.signature.pdfa_force || pdfa_detected,
+        )
     }
 
     /// Keystore aktiv (Einstellung oder `-ks`).
@@ -393,6 +417,43 @@ mod tests {
         assert_eq!(Effective::new(&s, &o, None).profile(), SignatureProfile::Amtssignaturblock);
         let fixed = Policy { profile: Some(SignatureProfile::BaseLogo), ..Default::default() };
         assert_eq!(Effective::new(&s, &o, Some(&fixed)).profile(), SignatureProfile::BaseLogo);
+    }
+
+    #[test]
+    fn policy_profile_beats_cli_invisible() {
+        let s = Settings::default();
+        let o = Overlay { invisible: Some(true), ..Default::default() };
+        let fixed = Policy { profile: Some(SignatureProfile::Amtssignaturblock), ..Default::default() };
+        let e = Effective::new(&s, &o, Some(&fixed));
+        assert_eq!(e.profile(), SignatureProfile::Amtssignaturblock);
+        assert_eq!(e.pdfas_profile_id(Lang::De, false), "AMTSSIGNATURBLOCK_DE_RECOMMENDED");
+        // Ausgeblendete Amtssignatur verhindert `-v` nicht.
+        let hide = Policy { hide_amtssignatur: true, ..Default::default() };
+        assert_eq!(Effective::new(&s, &o, Some(&hide)).profile(), SignatureProfile::Invisible);
+    }
+
+    #[test]
+    fn effective_profile_id_and_note() {
+        let mut s = Settings::default();
+        s.signature.block_language = Some(Lang::En);
+        let o = Overlay::default();
+        let e = Effective::new(&s, &o, None);
+        assert_eq!(e.pdfas_profile_id(Lang::De, false), s.pdfas_profile_id(Lang::De, false));
+        assert_eq!(e.pdfas_profile_id(Lang::De, true), "SIGNATURBLOCK_SMALL_EN_NOTE_PDFA");
+        assert_eq!(e.block_language(Lang::De), Lang::En);
+        // `-v`: kein Hinweis, Profil INVISIBLE (die Einstellung selbst bleibt unverändert).
+        let o = Overlay { invisible: Some(true), ..Default::default() };
+        let e = Effective::new(&s, &o, None);
+        assert_eq!(e.pdfas_profile_id(Lang::De, true), "INVISIBLE");
+        assert_eq!(e.note_text(Lang::En), None);
+        assert_eq!(s.pdfas_profile_id(Lang::De, false), "SIGNATURBLOCK_SMALL_EN_NOTE");
+        // Richtlinie BASE_LOGO bei Standard-Hinweis: kein Hinweistext.
+        let pol = Policy { profile: Some(SignatureProfile::BaseLogo), ..Default::default() };
+        let o = Overlay::default();
+        assert_eq!(Effective::new(&s, &o, Some(&pol)).note_text(Lang::De), None);
+        // Amtssignatur per Richtlinie: deren Standardtext.
+        let pol = Policy { profile: Some(SignatureProfile::Amtssignaturblock), ..Default::default() };
+        assert!(Effective::new(&s, &o, Some(&pol)).note_text(Lang::De).unwrap().contains("amtssigniert"));
     }
 
     #[test]

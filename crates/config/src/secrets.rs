@@ -68,14 +68,36 @@ impl SecretId {
         SecretId::ProxyPassword { host: host.trim().to_ascii_lowercase(), user: user.to_owned() }
     }
 
-    /// Schlüssel im Schlüsselbund (Dienst „PDF-Over NG“, Konto = diese Kennung).
+    /// Schlüssel im Schlüsselbund (Dienst „PDF-Over NG“, Konto = diese Kennung). Eindeutig: im Alias
+    /// sind `%` und `:`, in Benutzer und Host `%` und `@` prozentkodiert, damit z. B. Pfad `/a:b` +
+    /// Alias `c` nicht mit Pfad `/a` + Alias `b:c` zusammenfällt.
     pub fn account(&self) -> String {
         match self {
             SecretId::KeystoreStorePassword { keystore } => format!("keystore-store:{}", keystore.display()),
-            SecretId::KeystoreKeyPassword { keystore, alias } => format!("keystore-key:{}:{alias}", keystore.display()),
-            SecretId::ProxyPassword { host, user } => format!("proxy:{user}@{host}"),
+            SecretId::KeystoreKeyPassword { keystore, alias } => {
+                format!("keystore-key:{}:{}", keystore.display(), escape_component(alias, ':'))
+            }
+            SecretId::ProxyPassword { host, user } => {
+                format!("proxy:{}@{}", escape_component(user, '@'), escape_component(host, '@'))
+            }
         }
     }
+}
+
+/// Prozentkodiert `%` und das Trennzeichen `sep`.
+fn escape_component(s: &str, sep: char) -> std::borrow::Cow<'_, str> {
+    if !s.contains(['%', sep]) {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    let mut out = String::with_capacity(s.len() + 4);
+    for c in s.chars() {
+        if c == '%' || c == sep {
+            out.push_str(&format!("%{:02X}", u32::from(c)));
+        } else {
+            out.push(c);
+        }
+    }
+    std::borrow::Cow::Owned(out)
 }
 
 /// Speicher für Secrets.
@@ -154,15 +176,20 @@ pub struct MemorySecretStore {
 
 impl std::fmt::Debug for MemorySecretStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let n = self.map.lock().map(|m| m.len()).unwrap_or(0);
-        f.debug_struct("MemorySecretStore").field("entries", &n).finish()
+        f.debug_struct("MemorySecretStore").field("entries", &self.len()).finish()
     }
 }
 
 impl MemorySecretStore {
+    /// Map; ein vergifteter Mutex (Panik in einem anderen Thread) wird weiterverwendet, statt erneut
+    /// zu paniken – die Map selbst bleibt konsistent (jede Operation ist ein einzelner Aufruf).
+    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<SecretId, Zeroizing<String>>> {
+        self.map.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// Anzahl gespeicherter Secrets.
     pub fn len(&self) -> usize {
-        self.map.lock().map(|m| m.len()).unwrap_or(0)
+        self.map().len()
     }
 
     /// `true`, wenn leer.
@@ -172,22 +199,20 @@ impl MemorySecretStore {
 
     /// Löscht alles (z. B. beim Beenden oder beim Wechsel der Speicherart).
     pub fn clear(&self) {
-        if let Ok(mut m) = self.map.lock() {
-            m.clear();
-        }
+        self.map().clear();
     }
 }
 
 impl SecretStore for MemorySecretStore {
     fn get(&self, id: &SecretId) -> Result<Option<Zeroizing<String>>> {
-        Ok(self.map.lock().expect("poisoned").get(id).cloned())
+        Ok(self.map().get(id).cloned())
     }
     fn set(&self, id: &SecretId, value: &str) -> Result<()> {
-        self.map.lock().expect("poisoned").insert(id.clone(), Zeroizing::new(value.to_owned()));
+        self.map().insert(id.clone(), Zeroizing::new(value.to_owned()));
         Ok(())
     }
     fn delete(&self, id: &SecretId) -> Result<()> {
-        self.map.lock().expect("poisoned").remove(id);
+        self.map().remove(id);
         Ok(())
     }
     fn is_persistent(&self) -> bool {
@@ -250,6 +275,39 @@ mod tests {
         assert_eq!(a.account(), "keystore-store:/nicht/vorhanden.p12");
         assert_eq!(b.account(), "keystore-key:/nicht/vorhanden.p12:alias");
         assert_eq!(c.account(), "proxy:u@h");
+    }
+
+    #[test]
+    fn accounts_are_unambiguous() {
+        let p = |s: &str| Path::new(s).to_path_buf();
+        let a = SecretId::KeystoreKeyPassword { keystore: p("/a:b"), alias: "c".into() };
+        let b = SecretId::KeystoreKeyPassword { keystore: p("/a"), alias: "b:c".into() };
+        assert_ne!(a.account(), b.account());
+        assert_eq!(b.account(), "keystore-key:/a:b%3Ac");
+        let c = SecretId::proxy("c", "a@b");
+        let d = SecretId::proxy("b@c", "a");
+        assert_ne!(c.account(), d.account());
+        assert_eq!(c.account(), "proxy:a%40b@c");
+        assert_eq!(SecretId::proxy("h", "100%").account(), "proxy:100%25@h");
+        // Windows-Pfade bleiben lesbar.
+        assert_eq!(SecretId::KeystoreStorePassword { keystore: p(r"C:\k.p12") }.account(), r"keystore-store:C:\k.p12");
+    }
+
+    #[test]
+    fn memory_store_survives_poisoned_mutex() {
+        let s = std::sync::Arc::new(MemorySecretStore::default());
+        s.set(&SecretId::proxy("h", "u"), "x").unwrap();
+        let s2 = std::sync::Arc::clone(&s);
+        let _ = std::thread::spawn(move || {
+            let _guard = s2.map.lock().unwrap();
+            panic!("absichtlich (Test)");
+        })
+        .join();
+        assert!(s.map.is_poisoned());
+        assert_eq!(s.len(), 1);
+        assert!(s.get(&SecretId::proxy("h", "u")).unwrap().is_some());
+        s.clear();
+        assert!(s.is_empty());
     }
 
     #[test]

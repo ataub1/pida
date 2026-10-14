@@ -13,6 +13,7 @@
 | `latin1-raw.config` | rohe ISO-8859-1-Bytes (ungültiges UTF-8 → Latin-1) |
 | `handedited-utf8.config` | von Hand als UTF-8 gespeichert: rohe Umlaute, `:`/Leerraum als Trenner, nicht escapte Windows-Pfade, Fortsetzungszeile, `8080\u0020` |
 | `handedited-utf8-bom-crlf.config` | UTF-8 mit BOM und CRLF |
+| `edge-values.config` | Grenzwerte der Java-Parser: Hex-Gleitkomma, `800,600,700`, `+8080`, Leerraum-Werte (`\u0020`), `fal\u017Fe`, `NONE`, `AUTO`, `yes` |
 | `legacy-home/.pdf-over/` | Altordner: `cfg/config.properties` und `cfg/profiles/INVISIBLE.properties` unverändert (PDF-AS 4.4.x), `SIGNATURBLOCK_SMALL_DE.properties` geändert, `MEIN_PROFIL.properties` eigenes Profil, `advancedconfig.properties` mit `signature_field_name` (B-05), `.emblem.png` (1×1 PNG); `PDF-Over.config` und `.emblem.properties` erzeugt der Test (absolute Pfade) |
 | `oracle/LegacyOracle.java` | Java-Orakel: Nachbau von `ConfigurationManager.loadFromDisk` mit den echten JDK-Funktionen; `--locales` liefert `Locale.getAvailableLocales()` (Quelle von `crates/config/assets/java21-available-locales.txt`) |
 

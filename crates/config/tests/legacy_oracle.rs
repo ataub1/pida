@@ -22,6 +22,7 @@ const FIXTURES: &[(&str, bool)] = &[
     ("latin1-raw.config", false),
     ("handedited-utf8.config", true),
     ("handedited-utf8-bom-crlf.config", true),
+    ("edge-values.config", false),
 ];
 
 fn fixture(name: &str) -> PathBuf {

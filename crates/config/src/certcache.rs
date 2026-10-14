@@ -86,7 +86,15 @@ impl CertificateCache {
         if !self.enabled {
             return Ok(None);
         }
-        match std::fs::read(self.file(key)) {
+        let file = self.file(key);
+        // Übergroße Dateien gar nicht erst lesen (Cache-Ordner ist Nutzerdaten, kein vertrauenswürdiger Ort).
+        match std::fs::metadata(&file) {
+            Ok(m) if !m.is_file() || m.len() > MAX_CERTIFICATE_BYTES as u64 => return Ok(None),
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(ConfigError::Io(e)),
+        }
+        match std::fs::read(&file) {
             Ok(der) if plausible_der(&der) => Ok(Some(der)),
             Ok(_) => Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -127,8 +135,9 @@ impl CertificateCache {
         };
         let mut n = 0;
         for entry in entries {
-            let path = entry?.path();
-            if path.extension().is_some_and(|e| e == "der") {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "der") && !entry.file_type()?.is_dir() {
                 std::fs::remove_file(&path)?;
                 n += 1;
             }
@@ -189,6 +198,13 @@ mod tests {
         std::fs::create_dir_all(c.dir()).unwrap();
         std::fs::write(c.dir().join(format!("{}.der", key.digest())), b"garbage").unwrap();
         assert_eq!(c.get(&key).unwrap(), None);
+        // zu groß (auch wenn es mit SEQUENCE beginnt) bzw. ein Ordner statt einer Datei
+        std::fs::write(c.dir().join(format!("{}.der", key.digest())), vec![0x30; MAX_CERTIFICATE_BYTES + 1]).unwrap();
+        assert_eq!(c.get(&key).unwrap(), None);
+        let other = CertCacheKey::new("keystore", "ordner");
+        std::fs::create_dir_all(c.dir().join(format!("{}.der", other.digest()))).unwrap();
+        assert_eq!(c.get(&other).unwrap(), None);
+        assert_eq!(c.clear().unwrap(), 1, "Ordner werden übersprungen");
     }
 
     #[test]

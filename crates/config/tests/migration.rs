@@ -399,6 +399,7 @@ fn every_fixture_roundtrips_through_toml_and_json() {
         "latin1-raw.config",
         "handedited-utf8.config",
         "handedited-utf8-bom-crlf.config",
+        "edge-values.config",
     ] {
         let s = migrate_fixture(name).settings;
         let toml = s.to_toml().unwrap();
@@ -433,4 +434,107 @@ fn secrets_store_failure_leaves_nothing_behind() {
     let err = apply_migration(&res, &paths, &Broken, &ApplyOptions { store_secrets: true, ..Default::default() });
     assert!(err.is_err());
     assert!(!paths.settings_file().exists());
+}
+
+/// Wiederholter Import mit `overwrite`: jede Sicherung bekommt einen freien Namen, „Rückgängig“ in
+/// umgekehrter Reihenfolge stellt die ursprünglichen Einstellungen wieder her; eine vorhandene Bildmarke
+/// im Datenordner wird nie überschrieben.
+#[test]
+fn repeated_import_never_overwrites_existing_files() {
+    let home = legacy_home();
+    let legacy = LegacyConfig::load(&home.dir.join("PDF-Over.config")).unwrap();
+    let res = migrate(&legacy, &ctx(&home.dir, true));
+    assert!(res.settings.signature.emblem.is_some());
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    std::fs::create_dir_all(&paths.config_dir).unwrap();
+    std::fs::create_dir_all(paths.emblem_dir()).unwrap();
+    let original = "# eigene Einstellungen\nschema_version = 1\n[output]\npostfix = \"_eigen\"\n";
+    std::fs::write(paths.settings_file(), original).unwrap();
+    let own_emblem = paths.emblem_dir().join("emblem.png");
+    std::fs::write(&own_emblem, b"eigene Bildmarke").unwrap();
+    let store = MemorySecretStore::default();
+    let opts = ApplyOptions { overwrite: true, ..Default::default() };
+
+    let first = apply_migration(&res, &paths, &store, &opts).unwrap();
+    let second = apply_migration(&res, &paths, &store, &opts).unwrap();
+    let (b1, b2) = (first.backup.clone().unwrap(), second.backup.clone().unwrap());
+    assert_ne!(b1, b2, "zweite Sicherung überschreibt die erste nicht");
+    assert_eq!(std::fs::read_to_string(&b1).unwrap(), original);
+    assert_eq!(std::fs::read(&own_emblem).unwrap(), b"eigene Bildmarke", "Bildmarke nicht überschrieben");
+    let LoadOutcome::Loaded(s) = Settings::load(&paths.settings_file()) else { panic!() };
+    let used = s.signature.emblem.clone().unwrap();
+    assert_ne!(used, own_emblem);
+    let emblems = |a: &pdfover_config::AppliedMigration| -> Vec<PathBuf> {
+        a.created.iter().filter(|p| p.starts_with(paths.emblem_dir())).cloned().collect()
+    };
+    assert_eq!(emblems(&second), vec![used.clone()]);
+    assert_eq!(emblems(&first).len(), 1);
+    assert_ne!(emblems(&first), emblems(&second), "jede Kopie unter eigenem Namen");
+
+    undo_migration(&second, &store).unwrap();
+    undo_migration(&first, &store).unwrap();
+    assert_eq!(std::fs::read_to_string(paths.settings_file()).unwrap(), original, "Original wiederhergestellt");
+    assert!(!b1.exists() && !b2.exists());
+    assert_eq!(std::fs::read(&own_emblem).unwrap(), b"eigene Bildmarke");
+    let left: Vec<_> = std::fs::read_dir(paths.emblem_dir()).unwrap().map(|e| e.unwrap().file_name()).collect();
+    assert_eq!(left, vec![std::ffi::OsString::from("emblem.png")]);
+}
+
+/// Scheitert der letzte Schritt (Protokoll), wird alles zurückgenommen: Einstellungen, kopierte
+/// Bildmarke, Secrets im Schlüsselbund und die Sicherung.
+#[test]
+fn failure_after_saving_rolls_back_everything() {
+    let home = legacy_home();
+    let legacy = LegacyConfig::load(&home.dir.join("PDF-Over.config")).unwrap();
+    let mut res = migrate(&legacy, &ctx(&home.dir, true));
+    res.secrets.push((SecretId::proxy("proxy.example.test", "u"), zeroize::Zeroizing::new("test-only".into())));
+    let root = tempfile::tempdir().unwrap();
+    let paths = Paths::under(root.path());
+    // Ein Ordner an der Stelle des Protokolls lässt das Schreiben scheitern.
+    std::fs::create_dir_all(paths.config_dir.join("import-pdf-over.log")).unwrap();
+    let store = MemorySecretStore::default();
+    let opts = ApplyOptions { store_secrets: true, ..Default::default() };
+    assert!(apply_migration(&res, &paths, &store, &opts).is_err());
+    assert!(!paths.settings_file().exists());
+    assert!(store.is_empty(), "Secrets zurückgenommen");
+    assert_eq!(std::fs::read_dir(paths.emblem_dir()).unwrap().count(), 0, "Bildmarke entfernt");
+
+    // Mit vorhandenen Einstellungen: Original zurück, keine Sicherung übrig.
+    std::fs::write(paths.settings_file(), "schema_version = 1\n").unwrap();
+    let opts = ApplyOptions { overwrite: true, ..opts };
+    assert!(apply_migration(&res, &paths, &store, &opts).is_err());
+    assert_eq!(std::fs::read_to_string(paths.settings_file()).unwrap(), "schema_version = 1\n");
+    let names: Vec<String> = std::fs::read_dir(&paths.config_dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert!(names.iter().all(|n| !n.contains("before-import")), "{names:?}");
+    assert!(store.is_empty());
+}
+
+#[test]
+fn edge_values() {
+    let res = migrate_fixture("edge-values.config");
+    let s = &res.settings;
+    assert_eq!(s.signature.logo_only_size_mm, 24.0, "0x1.8p4");
+    assert_eq!(s.general.window_size, Some(WindowSize { width: 800, height: 780 }), "Höhe 600,700 ungültig");
+    assert_eq!(s.id_austria.username.as_deref(), Some("+436641234567"));
+    assert_eq!((s.proxy.host.as_deref(), s.proxy.port), (Some(" proxy.example.test"), Some(8080)));
+    assert_eq!(s.proxy.user.as_deref(), Some("test user"));
+    assert!(!s.general.update_check, "langes s wird in Java zu S");
+    assert_eq!(s.keystore.password_storage, PasswordStorage::Memory, "Passwort nur Leerraum");
+    assert_eq!(s.keystore.file, None);
+    assert!(s.placeholder.search);
+    assert_eq!(s.placeholder.kind, PlaceholderKind::Marker);
+    assert_eq!((s.signature.block_language, s.general.ui_language), (Some(Lang::En), Some(Lang::De)));
+    assert_eq!(s.general.last_source_directory, None);
+    assert_eq!(s.signature.emblem, None);
+    assert_eq!(s.backend.default, None);
+    assert!(!skipped(&res, LegacyKey::Bku), "NONE ist gültig");
+    assert_eq!(s.signature.note, NoteSetting::Custom(" Mit führendem Leerzeichen ".into()));
+    assert!(!s.signature.auto_position, "AUTO ist nicht auto");
+    assert!(!s.id_austria.fido2_default);
+    assert!(s.id_austria.remember);
+    assert_eq!(s.output.postfix, " _s");
 }

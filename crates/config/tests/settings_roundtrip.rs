@@ -232,3 +232,73 @@ fn no_secrets_in_schema() {
     assert!(keys.keys().all(|k| !k.contains("pass") || k == ".keystore.password_storage"), "{keys:?}");
     assert!(!text.contains("secret") && !text.contains("token"));
 }
+
+#[test]
+fn invalid_logo_size_is_sanitized() {
+    for raw in ["nan", "+inf", "-inf", "-5.0", "0", "0.0"] {
+        let s = Settings::from_toml(&format!("[signature]\nlogo_only_size_mm = {raw}\n")).unwrap();
+        assert_eq!(s.signature.logo_only_size_mm, 23.0, "{raw}");
+        assert_eq!(Settings::from_toml(&s.to_toml().unwrap()).unwrap(), s, "{raw}: Rundlauf");
+    }
+    assert_eq!(Settings::from_toml("[signature]\nlogo_only_size_mm = 0.5\n").unwrap().signature.logo_only_size_mm, 0.5);
+    // Programmatisch gesetzte ungültige Werte werden nie geschrieben; nach dem JSON-Rundlauf bereinigt
+    // `sanitize`.
+    let mut s = Settings::default();
+    s.signature.logo_only_size_mm = f64::NAN;
+    let text = s.to_toml().unwrap();
+    assert!(text.contains("logo_only_size_mm = 23.0"), "{text}");
+    let mut from_json: Settings =
+        serde_json::from_value(serde_json::json!({ "signature": { "logo_only_size_mm": -1.0 } })).unwrap();
+    from_json.sanitize();
+    assert_eq!(from_json.signature.logo_only_size_mm, 23.0);
+}
+
+/// Unbekannte Einträge (z. B. aus einem JSON-Schlüssel der Bridge), die beim Wiedereinsetzen die Datei
+/// unlesbar machen oder einen bekannten Wert verändern würden, werden verworfen – die geschriebene Datei
+/// ist immer wieder lesbar und liefert dieselben bekannten Werte.
+#[test]
+fn unknown_entries_never_break_or_change_known_values() {
+    let mut s = Settings::default();
+    // würde `note = { mode = "default", text = … }` ergeben → beim nächsten Start unlesbar
+    s.unknown.insert("signature.note.text".into(), toml::Value::String("x".into()));
+    // würde die bekannte, aber ungesetzte UI-Sprache (System) auf Englisch umstellen
+    s.unknown.insert("general.ui_language".into(), toml::Value::String("en".into()));
+    // ungültiger Typ für einen bekannten, ungesetzten Wert
+    s.unknown.insert("proxy.port".into(), toml::Value::String("viele".into()));
+    // harmlose unbekannte Einträge bleiben
+    s.unknown.insert("signature.future_key".into(), toml::Value::Integer(7));
+    s.unknown.insert("signature.note.extra".into(), toml::Value::Boolean(true));
+    s.unknown.insert("future".into(), toml::Value::String("bleibt".into()));
+    let text = s.to_toml().unwrap();
+    let back = Settings::from_toml(&text).expect("geschriebene Datei ist lesbar");
+    assert_eq!(back.signature.note, NoteSetting::Default);
+    assert_eq!(back.general.ui_language, None);
+    assert_eq!(back.proxy.port, None);
+    let keys: Vec<&str> = back.unknown.keys().map(String::as_str).collect();
+    assert_eq!(keys, vec!["future", "signature.future_key", "signature.note.extra"]);
+    let mut expected = s.clone();
+    expected.unknown = back.unknown.clone();
+    assert_eq!(back, expected);
+}
+
+#[test]
+fn hostile_toml_is_rejected_without_crash() {
+    let n = 100_000;
+    for text in [
+        format!("a = {}{}\n", "[".repeat(n), "]".repeat(n)),
+        format!("a = {}1{}\n", "{b=".repeat(n), "}".repeat(n)),
+        format!("{} = 1\n", vec!["k"; n].join(".")),
+        format!("[{}]\n", vec!["t"; n].join(".")),
+    ] {
+        assert!(matches!(Settings::from_toml(&text), Err(ConfigError::Parse(_))));
+        assert!(pdfover_config::Policy::from_toml(&text).is_err());
+    }
+    // Viele unbekannte Einträge bleiben handhabbar.
+    let mut big = String::from("[future]\n");
+    for i in 0..20_000 {
+        big.push_str(&format!("k{i} = {i}\n"));
+    }
+    let s = Settings::from_toml(&big).unwrap();
+    assert_eq!(s.unknown.len(), 1);
+    assert_eq!(Settings::from_toml(&s.to_toml().unwrap()).unwrap(), s);
+}

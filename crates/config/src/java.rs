@@ -161,6 +161,10 @@ fn parse_hex_float(hex: &str) -> Option<f64> {
         value += f64::from(c.to_digit(16)?) * scale;
         scale /= 16.0;
     }
+    if value == 0.0 {
+        // Java: 0x0p99999 = 0.0 (hier sonst 0 · ∞ = NaN).
+        return Some(0.0);
+    }
     Some(value * 2f64.powi(exp))
 }
 
@@ -245,6 +249,9 @@ mod tests {
         assert_eq!(parse_double("1e"), None);
         assert_eq!(parse_double(""), None);
         assert_eq!(parse_double("0x10"), None);
+        assert_eq!(parse_double("0x0p99999"), Some(0.0));
+        assert_eq!(parse_double("0x1p99999"), Some(f64::INFINITY));
+        assert_eq!(parse_double("-0x1.0p-1d"), Some(-0.5));
     }
 
     #[test]

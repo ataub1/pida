@@ -384,6 +384,17 @@ pub fn find_legacy_config(legacy_dir: &Path) -> Option<PathBuf> {
     f.is_file().then_some(f)
 }
 
+/// Einmaliger Import (Plan §7.2): der Assistent wird nur angeboten, solange es noch **keine**
+/// `settings.toml` gibt und eine `PDF-Over.config` existiert; liefert dann deren Pfad. Lehnt die
+/// Nutzerin ab, speichert die Shell die Standardeinstellungen – danach wird nie wieder gefragt (bis zu
+/// „Einstellungen zurücksetzen“, [`Paths::reset`]).
+pub fn import_offer(paths: &Paths, legacy_dir: Option<&Path>) -> Option<PathBuf> {
+    if paths.settings_file().exists() {
+        return None;
+    }
+    find_legacy_config(legacy_dir?)
+}
+
 /// Liest `signature_field_name` aus `cfg/advancedconfig.properties` (wird verworfen und protokolliert).
 pub fn read_signature_field_name(legacy_dir: &Path) -> Option<String> {
     let bytes = std::fs::read(legacy_dir.join("cfg").join("advancedconfig.properties")).ok()?;
@@ -444,9 +455,12 @@ pub const SHIPPED_PDFAS_FILES: &[(&str, &str)] = &[
     ),
 ];
 
+/// SHA-256 einer Datei, gestreamt (eine riesige Datei in `cfg/` wird nicht in den Speicher geladen).
 fn sha256_hex(path: &Path) -> Option<String> {
-    let bytes = std::fs::read(path).ok()?;
-    Some(hex::encode(Sha256::digest(&bytes)))
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut file, &mut hasher).ok()?;
+    Some(hex::encode(hasher.finalize()))
 }
 
 /// Eigene bzw. veränderte PDF-AS-Profile in `<legacy_dir>/cfg` (sortiert): `config.properties` und
@@ -514,7 +528,10 @@ pub struct AppliedMigration {
 pub const MIGRATION_LOG_FILE: &str = "import-pdf-over.log";
 
 /// Führt den Import aus (einmalig, idempotent wiederholbar mit `overwrite`). Die Altdateien bleiben
-/// unverändert.
+/// unverändert; es entstehen nur **neue** Dateien (eine vorhandene `settings.toml` wird vorher nach
+/// `settings.toml.before-import` gesichert, eine vorhandene Sicherung bzw. Bildmarke nie überschrieben,
+/// sondern ein freier Name `…-2`, `…-3` gewählt). Schlägt ein Schritt fehl, wird alles zurückgenommen
+/// (Dateien, Secrets, Sicherung); nur das Protokoll `import-pdf-over.log` ersetzt ein früheres.
 pub fn apply_migration(
     result: &MigrationResult,
     paths: &Paths,
@@ -523,7 +540,6 @@ pub fn apply_migration(
 ) -> Result<AppliedMigration> {
     std::fs::create_dir_all(&paths.config_dir)?;
     let settings_file = paths.settings_file();
-    let mut created = Vec::new();
     let mut backup = None;
     if settings_file.exists() {
         if !opts.overwrite {
@@ -532,55 +548,109 @@ pub fn apply_migration(
                 format!("{} existiert bereits", settings_file.display()),
             )));
         }
-        let b = settings_file.with_file_name("settings.toml.before-import");
+        let b = free_path(&paths.config_dir, "settings.toml.before-import", None);
         std::fs::copy(&settings_file, &b)?;
         backup = Some(b);
     }
+    let mut tx = Rollback { secrets, created: Vec::new(), stored: Vec::new(), backup, settings_written: false };
+    match apply_steps(result, paths, opts, &settings_file, &mut tx) {
+        Ok(log_file) => {
+            tracing::info!(
+                imported = result.report.imported.len(),
+                skipped = result.report.skipped.len(),
+                secrets = tx.stored.len(),
+                "PDF-Over-Einstellungen importiert"
+            );
+            Ok(AppliedMigration {
+                settings_file,
+                created: std::mem::take(&mut tx.created),
+                backup: tx.backup.take(),
+                stored_secrets: std::mem::take(&mut tx.stored),
+                log_file,
+            })
+        }
+        Err(e) => {
+            tx.undo(&settings_file);
+            Err(e)
+        }
+    }
+}
 
+/// Die eigentlichen Schritte; alles Angelegte steht in `tx`.
+fn apply_steps(
+    result: &MigrationResult,
+    paths: &Paths,
+    opts: &ApplyOptions,
+    settings_file: &Path,
+    tx: &mut Rollback<'_>,
+) -> Result<PathBuf> {
     let mut settings = result.settings.clone();
     if opts.copy_emblem
         && let Some(src) = settings.signature.emblem.clone()
         && src.is_file()
     {
         let ext = src.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_else(|| "png".into());
-        let target = paths.emblem_dir().join(format!("emblem.{ext}"));
         std::fs::create_dir_all(paths.emblem_dir())?;
+        let target = free_path(&paths.emblem_dir(), "emblem", Some(&ext));
         std::fs::copy(&src, &target)?;
-        created.push(target.clone());
+        tx.created.push(target.clone());
         settings.signature.emblem = Some(target);
     }
 
-    let stored_secrets = if opts.store_secrets && !result.secrets.is_empty() {
-        match store_all(secrets, &result.secrets) {
-            Ok(ids) => ids,
-            Err(e) => {
-                cleanup(&created);
-                return Err(e);
-            }
-        }
-    } else {
-        Vec::new()
-    };
-
-    if let Err(e) = settings.save_atomic(&settings_file) {
-        cleanup(&created);
-        for id in &stored_secrets {
-            let _ = secrets.delete(id);
-        }
-        return Err(e);
+    if opts.store_secrets && !result.secrets.is_empty() {
+        tx.stored = store_all(tx.secrets, &result.secrets)?;
     }
-    created.push(settings_file.clone());
+
+    settings.save_atomic(settings_file)?;
+    tx.settings_written = true;
+    tx.created.push(settings_file.to_path_buf());
 
     let log_file = paths.config_dir.join(MIGRATION_LOG_FILE);
-    write_atomic(&log_file, protocol(result, &stored_secrets, opts).as_bytes())?;
-    created.push(log_file.clone());
-    tracing::info!(
-        imported = result.report.imported.len(),
-        skipped = result.report.skipped.len(),
-        secrets = stored_secrets.len(),
-        "PDF-Over-Einstellungen importiert"
-    );
-    Ok(AppliedMigration { settings_file, created, backup, stored_secrets, log_file })
+    write_atomic(&log_file, protocol(result, &tx.stored, opts).as_bytes())?;
+    tx.created.push(log_file.clone());
+    Ok(log_file)
+}
+
+/// Angelegtes für die Rücknahme bei einem Fehler in [`apply_migration`].
+struct Rollback<'a> {
+    secrets: &'a dyn SecretStore,
+    created: Vec<PathBuf>,
+    stored: Vec<SecretId>,
+    backup: Option<PathBuf>,
+    settings_written: bool,
+}
+
+impl Rollback<'_> {
+    fn undo(&mut self, settings_file: &Path) {
+        cleanup(&self.created);
+        for id in &self.stored {
+            let _ = self.secrets.delete(id);
+        }
+        if let Some(b) = self.backup.take() {
+            if self.settings_written {
+                // Die Sicherung ist der Stand vor dem Import.
+                let _ = std::fs::rename(&b, settings_file);
+            } else {
+                let _ = std::fs::remove_file(&b);
+            }
+        }
+    }
+}
+
+/// Freier Name `<stem>[.<ext>]`, sonst `<stem>-2[.<ext>]`, `<stem>-3[.<ext>]` … im Ordner `dir`.
+fn free_path(dir: &Path, stem: &str, ext: Option<&str>) -> PathBuf {
+    let name = |suffix: String| match ext {
+        Some(e) => format!("{stem}{suffix}.{e}"),
+        None => format!("{stem}{suffix}"),
+    };
+    let first = dir.join(name(String::new()));
+    if !first.exists() {
+        return first;
+    }
+    (2u32..100_000)
+        .map(|i| dir.join(name(format!("-{i}"))))
+        .find(|p| !p.exists())
+        .unwrap_or_else(|| dir.join(name(format!("-{}", std::process::id()))))
 }
 
 fn cleanup(files: &[PathBuf]) {
@@ -691,6 +761,23 @@ mod tests {
         let res = migrate(&memory, &MigrationContext { check_paths: false, ..ctx(dir.path()) });
         assert!(res.secrets.is_empty());
         assert_eq!(res.report.skipped[0].0, LegacyKey::KeystoreStorepass);
+    }
+
+    #[test]
+    fn import_is_offered_only_once() {
+        let legacy_dir = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        assert_eq!(import_offer(&paths, Some(legacy_dir.path())), None, "keine Altdatei");
+        assert_eq!(import_offer(&paths, None), None);
+        std::fs::write(legacy_dir.path().join(LEGACY_CONFIG_FILE), "BKU=LOCAL\n").unwrap();
+        assert_eq!(import_offer(&paths, Some(legacy_dir.path())), Some(legacy_dir.path().join(LEGACY_CONFIG_FILE)));
+        // Abgelehnt oder importiert: es gibt settings.toml → nie wieder.
+        Settings::default().save_atomic(&paths.settings_file()).unwrap();
+        assert_eq!(import_offer(&paths, Some(legacy_dir.path())), None);
+        // Nach „Einstellungen zurücksetzen“ wieder.
+        paths.reset().unwrap();
+        assert!(import_offer(&paths, Some(legacy_dir.path())).is_some());
     }
 
     #[test]

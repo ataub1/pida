@@ -11,8 +11,11 @@
 //! - iOS/Android: keine Datei (Managed App Configuration über die Shell).
 //!
 //! Die Richtlinie gewinnt immer ([`crate::Effective`]); unbekannte Keys werden ignoriert. Bewusst gibt
-//! es **keine** Umgebungsvariable zum Umleiten des Pfads (sonst könnte jede Nutzerin die Richtlinie
-//! aushebeln).
+//! es **keine eigene** Umgebungsvariable zum Umleiten des Pfads (sonst könnte jede Nutzerin die
+//! Richtlinie aushebeln). Einschränkung unter Windows: der Ordner `%ProgramData%` stammt aus der
+//! Prozessumgebung, die die Nutzerin für ihre eigenen Prozesse setzen kann; manipulationsfest ist dort
+//! nur der Registry-Zweig `HKLM\Software\Policies\…`, den die Shell liest und per
+//! [`Policy::from_toml`]/[`Policy::from_json`] übergibt (die Shell gibt ihm Vorrang vor der Datei).
 
 use std::path::{Path, PathBuf};
 
@@ -40,7 +43,8 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// Pfad der dateibasierten Systemrichtlinie dieser Plattform (`None` auf Mobile).
+    /// Pfad der dateibasierten Systemrichtlinie dieser Plattform (`None` auf Mobile; Windows:
+    /// `%ProgramData%`, sonst `C:\ProgramData`, siehe Einschränkung oben).
     pub fn system_path() -> Option<PathBuf> {
         if cfg!(any(target_os = "ios", target_os = "android")) {
             None

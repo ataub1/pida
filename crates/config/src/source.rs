@@ -11,10 +11,12 @@
 use std::path::{Path, PathBuf};
 
 use pdfover_i18n::Lang;
+use zeroize::Zeroizing;
 
 use crate::legacy::LegacyConfig;
 use crate::migrate::{MigrationContext, MigrationReport, migrate};
 use crate::paths::Paths;
+use crate::secrets::SecretId;
 use crate::settings::{LoadOutcome, Settings};
 use crate::{ConfigError, Result};
 
@@ -71,15 +73,35 @@ pub fn resolve_config_file(paths: &Paths, legacy_dir: Option<&Path>, name: &Path
 }
 
 fn missing(path: &Path) -> ConfigError {
-    ConfigError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, format!("{} nicht gefunden", path.display())))
+    ConfigError::missing_file(path)
 }
 
 /// Lädt eine Quelle: TOML direkt, Altdateien über [`migrate`] (im Speicher, ohne Pfadprüfung des
 /// Bildmarken-Caches außerhalb von `legacy_dir`). Liefert bei Altdateien zusätzlich den Bericht.
+/// Klartext-Passwörter einer Altdatei werden – wie beim Import ohne Zustimmung – nicht verwendet.
 pub fn load_config_source(source: &ConfigSource, system_language: Lang) -> Result<(Settings, Option<MigrationReport>)> {
+    let (settings, report, _secrets) = load_config_source_with_secrets(source, system_language)?;
+    Ok((settings, report))
+}
+
+/// Klartext-Passwörter einer Altdatei für **diese Sitzung**.
+pub type SessionSecrets = Vec<(SecretId, Zeroizing<String>)>;
+
+/// Wie [`load_config_source`], liefert bei Altdateien zusätzlich die Klartext-Passwörter, die PDF-Over
+/// aus dieser Datei verwendet hätte (Keystore-Passwörter nur bei `KEYSTORE_PASS_STORE_TYPE=disk` und
+/// mit Keystore-Datei, Proxy-Passwort nur mit Host und Benutzer). Damit laufen Skripte mit eigenen
+/// Konfigurationsdateien (`-c`) auch ohne Rückfrage weiter.
+///
+/// Die Passwörter sind **nur für den RAM** bestimmt (z. B. ein [`crate::MemorySecretStore`] der Sitzung,
+/// den [`crate::Effective`] wie den Schlüsselbund abfragt); sie werden nie gespeichert. Ob die Shell sie
+/// verwendet, ist eine Entscheidung der Integration (Hinweis an die Nutzerin empfohlen).
+pub fn load_config_source_with_secrets(
+    source: &ConfigSource,
+    system_language: Lang,
+) -> Result<(Settings, Option<MigrationReport>, SessionSecrets)> {
     match source {
         ConfigSource::Settings(p) => match Settings::load(p) {
-            LoadOutcome::Loaded(s) => Ok((*s, None)),
+            LoadOutcome::Loaded(s) => Ok((*s, None, Vec::new())),
             LoadOutcome::Missing => Err(missing(p)),
             LoadOutcome::Unreadable(e) => Err(e),
         },
@@ -88,7 +110,7 @@ pub fn load_config_source(source: &ConfigSource, system_language: Lang) -> Resul
             let legacy_dir = p.parent().map(Path::to_path_buf).unwrap_or_default();
             let ctx = MigrationContext { legacy_dir, system_language, check_paths: true };
             let result = migrate(&legacy, &ctx);
-            Ok((result.settings, Some(result.report)))
+            Ok((result.settings, Some(result.report), result.secrets))
         }
     }
 }
@@ -109,6 +131,8 @@ mod tests {
 
         let err = resolve_config_file(&paths, Some(&legacy_dir), Path::new("other.config")).unwrap_err();
         assert!(matches!(err, ConfigError::Io(ref e) if e.kind() == std::io::ErrorKind::NotFound));
+        assert_eq!(err.message_id(), "ng-config-file-missing");
+        assert_eq!(err.missing_path(), Some(paths.config_dir.join("other.config").as_path()));
 
         std::fs::write(legacy_dir.join("other.config"), "BKU=LOCAL\n").unwrap();
         let src = resolve_config_file(&paths, Some(&legacy_dir), Path::new("other.config")).unwrap();
@@ -126,6 +150,39 @@ mod tests {
         let src = resolve_config_file(&paths, Some(&legacy_dir), Path::new("other.config")).unwrap();
         assert_eq!(src, ConfigSource::Settings(paths.config_dir.join("other.config")));
         assert_eq!(load_config_source(&src, Lang::De).unwrap().0.backend.default, Some(BackendChoice::Keystore));
+    }
+
+    #[test]
+    fn legacy_source_secrets_for_the_session_only() {
+        use crate::{Effective, MemorySecretStore, Overlay, SecretStore};
+        let home = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths::under(root.path());
+        let file = home.path().join("skript.config");
+        std::fs::write(
+            &file,
+            "BKU=KS\nKEYSTORE_FILE=/x/k.p12\nKEYSTORE_PASS_STORE_TYPE=disk\nKEYSTORE_STOREPASS=test-only-pw\n",
+        )
+        .unwrap();
+        let src = resolve_config_file(&paths, Some(home.path()), Path::new("skript.config")).unwrap();
+        let (settings, report, secrets) = load_config_source_with_secrets(&src, Lang::De).unwrap();
+        assert!(report.is_some());
+        assert_eq!(secrets.len(), 1);
+        // Nur im RAM: über einen Sitzungsspeicher findet Effective das Passwort wie im Schlüsselbund.
+        let session = MemorySecretStore::default();
+        for (id, value) in &secrets {
+            session.set(id, value).unwrap();
+        }
+        let overlay = Overlay::default();
+        let pw = Effective::new(&settings, &overlay, None).keystore_store_password(&session).unwrap();
+        assert_eq!(pw.as_deref().map(String::as_str), Some("test-only-pw"));
+        assert!(!settings.to_toml().unwrap().contains("test-only-pw"));
+        // Ohne die Variante „with_secrets“ bleiben sie unberücksichtigt.
+        assert_eq!(load_config_source(&src, Lang::De).unwrap().0, settings);
+        // TOML-Quellen haben keine Klartext-Passwörter.
+        Settings::default().save_atomic(&paths.config_dir.join("neu.toml")).unwrap();
+        let toml_src = resolve_config_file(&paths, None, Path::new("neu.toml")).unwrap();
+        assert!(load_config_source_with_secrets(&toml_src, Lang::De).unwrap().2.is_empty());
     }
 
     #[test]

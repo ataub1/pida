@@ -20,10 +20,16 @@
 //!
 //! - **Versionierung:** `schema_version` (fehlt = 1). Ältere Stände werden beim Lesen schrittweise
 //!   angehoben ([`Settings::from_toml`]), neuere ergeben [`crate::ConfigError::UnsupportedSchema`].
+//!   Jede Änderung am **Wertebereich** (z. B. eine neue Enum-Variante) braucht eine neue
+//!   `schema_version`, sonst können ältere Versionen die Datei nicht mehr lesen.
 //! - **Unbekannte Keys** bleiben beim Speichern erhalten – auf oberster Ebene **und** in den
 //!   bekannten Tabellen. Sie stehen in [`Settings::unknown`]; der Schlüssel ist der TOML-Pfad in
 //!   Punktschreibweise (`signature.future_key`, Segmente ggf. in Anführungszeichen). So übersteht die
-//!   Map auch den JSON-Rundlauf über die Tauri-Bridge.
+//!   Map auch den JSON-Rundlauf über die Tauri-Bridge. Ein unbekannter Eintrag, der beim Wiedereinsetzen
+//!   einen bekannten Wert verändern oder die Datei unlesbar machen würde (z. B. `signature.note.text`
+//!   bei `mode = "default"`), wird verworfen ([`Settings::to_toml`]).
+//! - **Ungültige Werte** werden beim Lesen und Schreiben bereinigt ([`Settings::sanitize`]):
+//!   `logo_only_size_mm` muss endlich und > 0 sein, sonst gilt der Standard 23 mm.
 //! - **Speichern** atomar (Temp-Datei, `fsync`, Umbenennen); Rechte 0600 unter Unix.
 //! - Das ID-Austria-Passwort und andere Secrets stehen **nie** in dieser Datei ([`crate::secrets`]).
 
@@ -489,16 +495,8 @@ impl Settings {
         upgrade(&mut table, version)?;
         table.insert("schema_version".into(), toml::Value::Integer(i64::from(SCHEMA_VERSION)));
 
-        // Bekannte Teile deserialisieren (unbekannte Top-Level-Keys nicht durch `flatten` schicken).
-        let known_top = known_top_level_keys();
-        let known_only: toml::Table = table
-            .iter()
-            .filter(|(k, _)| known_top.iter().any(|t| t == *k))
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-        let mut settings: Settings =
-            known_only.try_into().map_err(|e: toml::de::Error| ConfigError::Parse(e.message().to_owned()))?;
-        settings.unknown.clear();
+        let mut settings = known_part(&table)?;
+        settings.sanitize();
 
         // Alles, was die Serialisierung der bekannten Werte nicht reproduziert, ist unbekannt.
         let known = settings.known_table()?;
@@ -508,19 +506,50 @@ impl Settings {
         Ok(settings)
     }
 
-    /// Bekannte Werte als TOML-Tabelle (ohne [`Settings::unknown`]).
-    fn known_table(&self) -> Result<toml::Table> {
+    /// Bereinigt ungültige Werte (auch nach dem JSON-Rundlauf über die Bridge aufzurufen):
+    /// `logo_only_size_mm` NaN, ±∞ oder ≤ 0 → Standard 23 mm (wie das Lesen von `LOGO_ONLY_SIZE`).
+    pub fn sanitize(&mut self) {
+        let size = self.signature.logo_only_size_mm;
+        if !(size.is_finite() && size > 0.0) {
+            tracing::warn!("signature.logo_only_size_mm ungültig, Standardwert 23 mm");
+            self.signature.logo_only_size_mm = crate::legacy::DEFAULT_LOGO_ONLY_SIZE_MM;
+        }
+    }
+
+    /// Bekannte Werte (bereinigt, ohne [`Settings::unknown`], aktuelle Schema-Version).
+    fn known_only(&self) -> Settings {
         let mut copy = self.clone();
         copy.unknown.clear();
         copy.schema_version = SCHEMA_VERSION;
-        toml::Table::try_from(&copy).map_err(|e| ConfigError::Serialize(e.to_string()))
+        copy.sanitize();
+        copy
+    }
+
+    /// Bekannte Werte als TOML-Tabelle (ohne [`Settings::unknown`]).
+    fn known_table(&self) -> Result<toml::Table> {
+        toml::Table::try_from(self.known_only()).map_err(|e| ConfigError::Serialize(e.to_string()))
     }
 
     /// Serialisiert als TOML (inklusive der unbekannten Keys an ihrem Ursprungsort).
+    ///
+    /// Ein unbekannter Eintrag unterhalb einer bekannten Tabelle wird nur übernommen, wenn die bekannten
+    /// Werte danach unverändert gelesen werden (sonst wäre die Datei beim nächsten Start unlesbar oder
+    /// ein bekannter Wert verändert, z. B. `general.ui_language` aus einem fremden JSON-Schlüssel); andere
+    /// werden verworfen und nur mit ihrem Schlüssel protokolliert.
     pub fn to_toml(&self) -> Result<String> {
+        let expected = self.known_only();
         let mut table = self.known_table()?;
+        let known_top = known_top_level_keys();
         for (path, value) in &self.unknown {
-            insert_unknown(&mut table, &decode_key_path(path), value.clone());
+            let segments = decode_key_path(path);
+            if !insert_unknown(&mut table, &segments, value.clone()) {
+                continue;
+            }
+            let below_known = segments.len() > 1 && known_top.iter().any(|k| *k == segments[0]);
+            if below_known && known_part(&table).ok().as_ref() != Some(&expected) {
+                remove_unknown(&mut table, &segments);
+                tracing::warn!(key = %path, "unbekannter Eintrag widerspricht dem Schema und wird verworfen");
+            }
         }
         let body = toml::to_string(&table).map_err(|e| ConfigError::Serialize(e.to_string()))?;
         Ok(format!("{FILE_HEADER}{body}"))
@@ -547,17 +576,16 @@ impl Settings {
     ///
     /// Wie PDF-Over (`setSignatureNotePersistent`): ein Text, der nach `trim()` leer ist, gilt als
     /// „kein Hinweis“; das Profil erhält dann kein `_NOTE` ([`SignatureProfile::pdfas_profile_id`]).
+    ///
+    /// Für CLI `-v` und Richtlinien gilt das effektive Profil: [`crate::Effective::note_text`].
     pub fn note_text(&self, block_language: Lang) -> Option<String> {
-        match &self.signature.note {
-            NoteSetting::None => None,
-            NoteSetting::Custom(t) if crate::java::trim(t).is_empty() => None,
-            NoteSetting::Custom(t) => Some(t.clone()),
-            NoteSetting::Default => self.signature.profile.default_note(block_language),
-        }
+        note_text_for(&self.signature.note, self.signature.profile, block_language)
     }
 
     /// PDF-AS-Profil-ID für diese Einstellungen (`pdfa_detected` = erkannte PDF/A-Kennung des
     /// Dokuments; wirksam ist Schalter **oder** Kennung, Plan §6.9).
+    ///
+    /// Ohne CLI-Overlay und Richtlinie; beim Signieren gilt [`crate::Effective::pdfas_profile_id`].
     pub fn pdfas_profile_id(&self, system: Lang, pdfa_detected: bool) -> String {
         let lang = self.effective_block_language(system);
         self.signature.profile.pdfas_profile_id(
@@ -566,6 +594,27 @@ impl Settings {
             self.signature.pdfa_force || pdfa_detected,
         )
     }
+}
+
+/// Hinweistext für Profil und Sprache (Regeln von [`Settings::note_text`]).
+pub(crate) fn note_text_for(note: &NoteSetting, profile: SignatureProfile, block_language: Lang) -> Option<String> {
+    match note {
+        NoteSetting::None => None,
+        NoteSetting::Custom(t) if crate::java::trim(t).is_empty() => None,
+        NoteSetting::Custom(t) => Some(t.clone()),
+        NoteSetting::Default => profile.default_note(block_language),
+    }
+}
+
+/// Deserialisiert nur die bekannten Top-Level-Einträge (unbekannte nicht durch `flatten` schicken).
+fn known_part(table: &toml::Table) -> Result<Settings> {
+    let known_top = known_top_level_keys();
+    let known_only: toml::Table =
+        table.iter().filter(|(k, _)| known_top.iter().any(|t| t == *k)).map(|(k, v)| (k.clone(), v.clone())).collect();
+    let mut settings: Settings =
+        known_only.try_into().map_err(|e: toml::de::Error| ConfigError::Parse(e.message().to_owned()))?;
+    settings.unknown.clear();
+    Ok(settings)
 }
 
 /// Hebt ältere Schema-Versionen schrittweise auf [`SCHEMA_VERSION`] an (derzeit gibt es nur 1).
@@ -607,8 +656,27 @@ fn collect_unknown(
 
 /// Fügt einen unbekannten Wert wieder ein. Alle Segmente außer dem letzten müssen vorhandene Tabellen
 /// sein (sonst wurde der bekannte Elternwert entfernt, und der Wert wird verworfen); bekannte Werte
-/// werden nie überschrieben.
-fn insert_unknown(table: &mut toml::Table, path: &[String], value: toml::Value) {
+/// werden nie überschrieben. Liefert `true`, wenn eingefügt wurde.
+fn insert_unknown(table: &mut toml::Table, path: &[String], value: toml::Value) -> bool {
+    let Some((last, parents)) = path.split_last() else { return false };
+    let mut current = table;
+    for p in parents {
+        match current.get_mut(p) {
+            Some(toml::Value::Table(t)) => current = t,
+            _ => return false,
+        }
+    }
+    match current.entry(last.clone()) {
+        toml::map::Entry::Vacant(v) => {
+            v.insert(value);
+            true
+        }
+        toml::map::Entry::Occupied(_) => false,
+    }
+}
+
+/// Entfernt einen mit [`insert_unknown`] eingefügten Wert wieder.
+fn remove_unknown(table: &mut toml::Table, path: &[String]) {
     let Some((last, parents)) = path.split_last() else { return };
     let mut current = table;
     for p in parents {
@@ -617,7 +685,7 @@ fn insert_unknown(table: &mut toml::Table, path: &[String], value: toml::Value) 
             _ => return,
         }
     }
-    current.entry(last.clone()).or_insert(value);
+    current.remove(last);
 }
 
 fn is_bare_key(s: &str) -> bool {

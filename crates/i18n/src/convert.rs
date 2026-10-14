@@ -16,7 +16,9 @@
 //! 5. Mehrzeilige Werte (`\n`) als Fluent-Mehrzeiler (Blockform, 4 Leerzeichen Einzug). Führende bzw.
 //!    nachgestellte Leerzeichen einer Zeile, leere erste/letzte Zeilen, `{`/`}`, Steuerzeichen und die
 //!    in Blockzeilen reservierten Anfangszeichen `[`, `*`, `.` werden als String-Literal `{"…"}`
-//!    geschrieben; ein leerer Wert wird zu `{ "" }`.
+//!    geschrieben (benachbarte Zeichen in **einem** Literal); ein leerer Wert wird zu `{ "" }`.
+//!    `fluent-bundle` löst je Nachricht höchstens [`FLUENT_MAX_PLACEABLES`] Placeables auf; braucht ein
+//!    Wert mehr, meldet der Konverter eine Warnung (der Katalog-Test verlangt null Warnungen).
 //! 6. B-09: das DE-Duplikat `error.Initialization` wird zu `error.ConfigInitialization` korrigiert;
 //!    fehlende Keys werden ergänzt, ungenutzte markiert ([`convert_pdfover_messages`]).
 //!
@@ -253,24 +255,55 @@ fn convert_value_detailed(java_value: &str) -> ConvertedValue {
     let block = lines.len() > 1;
     let last = lines.len() - 1;
     let mut rendered = Vec::with_capacity(lines.len());
+    let mut placeables = 0usize;
     for (idx, line) in lines.iter().enumerate() {
         if line.is_empty() {
             // Leere erste/letzte Zeilen würde Fluent abschneiden; mittlere bleiben erhalten.
-            rendered.push(if idx == 0 || idx == last { "{ \"\" }".to_owned() } else { String::new() });
+            if idx == 0 || idx == last {
+                rendered.push("{ \"\" }".to_owned());
+                placeables += 1;
+            } else {
+                rendered.push(String::new());
+            }
             continue;
         }
-        rendered.push(render_line(line, block));
+        let (text, n) = render_line(line, block);
+        rendered.push(text);
+        placeables += n;
+    }
+    let mut warnings = warnings;
+    if placeables > FLUENT_MAX_PLACEABLES {
+        warnings.push(format!(
+            "{placeables} Placeables (Variablen, maskierte Zeichen) – Fluent gibt nur die ersten {FLUENT_MAX_PLACEABLES} aus"
+        ));
     }
     ConvertedValue { pattern: rendered.join("\n"), access_key, warnings }
 }
 
-fn render_line(line: &[Piece], block: bool) -> String {
+/// Höchstzahl der Placeables, die `fluent-bundle` je Nachricht auflöst (`MAX_PLACEABLES`); darüber wird
+/// der Text abgeschnitten.
+pub const FLUENT_MAX_PLACEABLES: usize = 100;
+
+/// Rendert eine Zeile; liefert den Quelltext und die Anzahl der Placeables (Variablen und
+/// String-Literale). Aufeinanderfolgende Zeichen, die ein Literal brauchen, teilen sich eines.
+fn render_line(line: &[Piece], block: bool) -> (String, usize) {
     let mut out = String::new();
+    let mut placeables = 0usize;
+    let mut literal = String::new();
+    let flush = |literal: &mut String, out: &mut String, placeables: &mut usize| {
+        if !literal.is_empty() {
+            out.push_str(&string_literal(literal));
+            literal.clear();
+            *placeables += 1;
+        }
+    };
     let n = line.len();
     for (idx, piece) in line.iter().enumerate() {
         match piece {
             Piece::Var(v) => {
+                flush(&mut literal, &mut out, &mut placeables);
                 let _ = write!(out, "{{ $arg{v} }}");
+                placeables += 1;
             }
             Piece::Text(t) => {
                 let mut t: &str = t;
@@ -278,11 +311,10 @@ fn render_line(line: &[Piece], block: bool) -> String {
                 if idx == 0 {
                     let trimmed = t.trim_start_matches(' ');
                     if trimmed.len() != t.len() {
-                        out.push_str(&string_literal(&t[..t.len() - trimmed.len()]));
+                        literal.push_str(&t[..t.len() - trimmed.len()]);
                         t = trimmed;
                     } else if block && t.starts_with(['[', '*', '.']) {
-                        let first = &t[..1];
-                        out.push_str(&string_literal(first));
+                        literal.push_str(&t[..1]);
                         t = &t[1..];
                     }
                 }
@@ -295,19 +327,24 @@ fn render_line(line: &[Piece], block: bool) -> String {
                 }
                 for c in t.chars() {
                     match c {
-                        '{' | '}' => out.push_str(&string_literal(&c.to_string())),
-                        '\t' => out.push('\t'),
-                        c if c.is_control() => out.push_str(&string_literal(&c.to_string())),
-                        c => out.push(c),
+                        '{' | '}' => literal.push(c),
+                        '\t' => {
+                            flush(&mut literal, &mut out, &mut placeables);
+                            out.push('\t');
+                        }
+                        c if c.is_control() => literal.push(c),
+                        c => {
+                            flush(&mut literal, &mut out, &mut placeables);
+                            out.push(c);
+                        }
                     }
                 }
-                if !trailing.is_empty() {
-                    out.push_str(&string_literal(trailing));
-                }
+                literal.push_str(trailing);
             }
         }
     }
-    out
+    flush(&mut literal, &mut out, &mut placeables);
+    (out, placeables)
 }
 
 /// Fluent-String-Literal als Placeable (`{"…"}`).
@@ -559,13 +596,36 @@ pub fn decode_resource_bundle(bytes: &[u8]) -> String {
     }
 }
 
+/// Physische Zeilen samt Zeilenende; Zeilenenden wie `Properties.LineReader`: `\n`, `\r\n` **und**
+/// ein einzelnes `\r`.
+fn physical_lines(text: &str) -> impl Iterator<Item = &str> {
+    let bytes = text.as_bytes();
+    let mut start = 0usize;
+    std::iter::from_fn(move || {
+        if start >= bytes.len() {
+            return None;
+        }
+        let mut i = start;
+        while i < bytes.len() && bytes[i] != b'\n' && bytes[i] != b'\r' {
+            i += 1;
+        }
+        if i < bytes.len() {
+            i += if bytes[i] == b'\r' && bytes.get(i + 1) == Some(&b'\n') { 2 } else { 1 };
+        }
+        // Grenzen liegen auf ASCII-Bytes (`\r`/`\n`) bzw. am Ende, also auf Zeichengrenzen.
+        let line = &text[start..i];
+        start = i;
+        Some(line)
+    })
+}
+
 /// Alle Einträge in Dateireihenfolge **einschließlich Duplikaten** (Java selbst behält nur den
 /// letzten Wert). Jede logische Zeile wird mit dem Java-kompatiblen Parser gelesen.
 pub fn raw_entries(text: &str) -> Result<Vec<(String, String)>, ConvertError> {
     let mut out = Vec::new();
     let mut logical = String::new();
     let mut continuing = false;
-    for line in text.split_inclusive('\n') {
+    for line in physical_lines(text) {
         let content = line.trim_end_matches(['\n', '\r']);
         if !continuing {
             let start = content.trim_start_matches([' ', '\t', '\u{0C}']);
@@ -745,6 +805,22 @@ mod tests {
     fn raw_entries_keep_duplicates() {
         let e = raw_entries("# c\na=1\nb=x\\\n  y\na=2\n").unwrap();
         assert_eq!(e, vec![("a".into(), "1".into()), ("b".into(), "xy".into()), ("a".into(), "2".into())]);
+    }
+
+    #[test]
+    fn raw_entries_accept_all_java_line_endings() {
+        // Nur `\r` (alte Mac-Dateien): ein Kommentar am Anfang darf nicht die ganze Datei schlucken.
+        let expected: Vec<(String, String)> =
+            vec![("a".into(), "1".into()), ("b".into(), "xy".into()), ("a".into(), "2".into())];
+        for text in ["# c\ra=1\rb=x\\\r  y\ra=2\r", "# c\r\na=1\r\nb=x\\\r\n  y\r\na=2", "# c\n\ra=1\rb=x\\\n  y\na=2"]
+        {
+            assert_eq!(raw_entries(text).unwrap(), expected, "{text:?}");
+            let java = Properties::load_str(text).unwrap();
+            assert_eq!(java.get("a"), Some("2"));
+            assert_eq!(java.get("b"), Some("xy"));
+        }
+        assert_eq!(raw_entries("").unwrap(), vec![]);
+        assert_eq!(raw_entries("ä=ö\rü=ß").unwrap(), vec![("ä".into(), "ö".into()), ("ü".into(), "ß".into())]);
     }
 
     #[test]
