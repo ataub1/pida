@@ -14,7 +14,8 @@
 //! 5. [`widget_rect`] und [`appearance_rotation`] für das Widget.
 //!
 //! QR-Platzhalter: [`find_qr_placeholders`] (Bilder aus dem Renderer, Namen/CTM aus `pdf-cos`)
-//! und [`select_placeholder`]; leere Signaturfelder: [`find_empty_sig_fields`].
+//! und [`select_placeholder`]; leere Signaturfelder: [`find_empty_sig_fields`]. Startzustand der
+//! UI-Positionierung: [`default_start_placement`] (letzte Seite, 50 %/25 %).
 //!
 //! # Kompatibilitätsregister (Paket F, Plan §6.5)
 //!
@@ -31,6 +32,7 @@
 //! | KR-F09 | `x:NaN`, `w:Infinity` usw. werden akzeptiert | abgelehnt ([`PlacementError::InvalidPosition`]) | `parse_rejects_non_finite_numbers` |
 //! | KR-F10 | Rasterscan mit Java2D (exakter Pixelvergleich) | PDFium mit Kantenglättungs-Toleranz [`SCAN_TOLERANCE`]; Glyphenrasterung weicht um höchstens eine Pixelzeile ab (Golden: 8 von 24 Fällen exakt, 16 Fälle mit eingebetteter LiberationSerif 1 pt tiefer) | `pdfas_positions_match_golden`, `tolerance_ignores_faint_antialiasing` |
 //! | KR-F11 | UI-Klemmung bei Block größer als Seite liefert `x < 0` bzw. `y < h` | Block liegt links bzw. oben an | `clamp_block_like_f35` |
+//! | KR-F12 | QR-Suche dekodiert jedes Bild (`getImage()`) ohne Obergrenze | der Renderer dekodiert je Seite höchstens [`pdfover_render::MAX_IMAGE_PIXELS_PER_PAGE`] Pixel (kleinste Bilder zuerst, jedes ≤ [`pdfover_render::MAX_PIXELS`]); größere Bilder werden nicht auf QR-Codes geprüft (Schutz gegen Dekompressionsbomben) | `image_objects_stay_within_the_pixel_budget` (render) |
 //!
 //! Ownership: Paket **F** (zusammen mit `pdfover-render`).
 
@@ -47,9 +49,9 @@ pub use placeholder::{
 pub use position::{
     BlockGeometry, Coord, FreeSpaceScanner, PageSelector, Placement, PlacementNotice, PositionContext, RasterScanner,
     ResolvedPosition, SCAN_TOLERANCE, SignaturePosition, TablePos, WidthDecision, appearance_rotation, auto_place,
-    default_start_position, detect_background, lowest_content_row, lowest_content_row_with_tolerance,
-    new_page_geometry, resolve_position, resolve_width, visible_block_rect, widget_overlaps, widget_rect,
-    widget_rect_with,
+    default_start_placement, default_start_position, detect_background, lowest_content_row,
+    lowest_content_row_with_tolerance, new_page_geometry, resolve_position, resolve_width, visible_block_rect,
+    widget_overlaps, widget_rect, widget_rect_with,
 };
 
 /// Tastatur-Schrittweiten (Plan §6.7): Pfeile 15 pt (Original), Shift 1 pt, Strg/⌘ 50 pt.

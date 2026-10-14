@@ -95,6 +95,44 @@ fn clamp_block_like_f35() {
 }
 
 #[test]
+fn clamp_never_panics_on_nan_or_infinite_geometry() {
+    // f32::clamp bricht bei NaN-Grenzen ab; eine feindliche CropBox [inf 0 inf 842] ergibt NaN-Breite.
+    let hostile = page(Rotation::R0, Some(Rect::new(f32::INFINITY, 0.0, f32::INFINITY, 842.0)));
+    let t = PageTransform::new(&hostile, ScreenGeometry::identity());
+    assert!(t.page_width.is_nan());
+    let p = t.clamp_block(Point { x: 10.0, y: 500.0 }, 230.0, 49.0);
+    assert_eq!(p, Point { x: 0.0, y: 500.0 });
+    let t = transform();
+    let nan = f32::NAN;
+    assert_eq!(t.clamp_block(Point { x: 10.0, y: 500.0 }, nan, 49.0), Point { x: 0.0, y: 500.0 });
+    assert_eq!(t.clamp_block(Point { x: 10.0, y: 500.0 }, 230.0, nan), Point { x: 10.0, y: 842.0 });
+    assert_eq!(t.clamp_block(Point { x: nan, y: nan }, 230.0, 49.0), Point { x: 0.0, y: 49.0 });
+    assert_eq!(t.clamp_block(Point { x: 10.0, y: 500.0 }, f32::INFINITY, f32::INFINITY), Point { x: 0.0, y: 842.0 });
+    assert_eq!(t.nudge(Point { x: 10.0, y: 500.0 }, nan, f32::INFINITY, 230.0, 49.0), Point { x: 0.0, y: 842.0 });
+}
+
+proptest! {
+    #[test]
+    fn clamp_is_total_and_inside_the_page(
+        x in prop_oneof![Just(f32::NAN), Just(f32::INFINITY), Just(f32::NEG_INFINITY), -2000.0f32..3000.0],
+        y in prop_oneof![Just(f32::NAN), Just(f32::INFINITY), -2000.0f32..3000.0],
+        w in prop_oneof![Just(f32::NAN), 0.0f32..1000.0],
+        h in prop_oneof![Just(f32::NAN), 0.0f32..1000.0],
+    ) {
+        let t = transform();
+        let p = t.clamp_block(Point { x, y }, w, h);
+        prop_assert!((0.0..=595.0).contains(&p.x), "{p:?}");
+        prop_assert!((0.0..=842.0).contains(&p.y), "{p:?}");
+        if w <= 595.0 {
+            prop_assert!(p.x + w <= 595.0 + 1e-3);
+        }
+        if h <= 842.0 {
+            prop_assert!(p.y - h >= -1e-3);
+        }
+    }
+}
+
+#[test]
 fn keyboard_steps_and_nudge() {
     assert_eq!(KeyStep::Normal.pt(), KEYBOARD_STEP_PT);
     assert_eq!(KeyStep::Fine.pt(), KEYBOARD_FINE_STEP_PT);

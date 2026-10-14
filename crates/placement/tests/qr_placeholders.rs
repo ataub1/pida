@@ -8,7 +8,7 @@ use pdfover_placement::{
     Coord, PageSelector, PlaceholderMode, PlaceholderQuery, QrPlaceholder, decode_qr, find_qr_placeholders,
     select_placeholder,
 };
-use pdfover_render::RgbaImage;
+use pdfover_render::{ForcedColorOptions, ImageObject, PageSize, RenderError, Renderer, RgbaImage};
 
 #[test]
 fn decode_generated_qr_codes() {
@@ -173,6 +173,29 @@ fn same_image_twice_at_same_matrix_is_assigned_once_each() {
 }
 
 #[test]
+fn inline_image_with_the_same_matrix_does_not_steal_the_xobject_name() {
+    // PDFium zählt das Inline-Bild mit (order 0), pdf-cos nicht: ohne Größenabgleich bekäme das
+    // Inline-Bild den Namen `Qr` (gleiche Matrix, gleiche order), und der echte Platzhalter fiele aus.
+    let backend = require_pdfium!();
+    let mut b = PdfBuilder::new();
+    let qr = qr_image("PDF-AS-POS;id=4", 3);
+    let im = b.add_gray_image(&qr);
+    let mut content = b"q 100 0 0 100 50 600 cm ".to_vec();
+    content.extend_from_slice(&gray_inline(&GrayImage { width: 12, height: 12, data: vec![0; 144] }));
+    content.extend_from_slice(b" Q q 100 0 0 100 50 600 cm /Qr Do Q");
+    let page = PageSpec { content, resources: format!("/XObject << /Qr {im} 0 R >>"), ..PageSpec::a4("") };
+    let bytes = build_doc(b, vec![page], "");
+    let doc = common::load(&bytes);
+    let renderer = common::open(&backend, &bytes);
+    let invocations = common::all_invocations(&doc, false);
+    assert_eq!(invocations.len(), 1);
+    assert_eq!((invocations[0].pixel_width, invocations[0].pixel_height), (qr.width, qr.height));
+    let found = find_qr_placeholders(renderer.as_ref(), &common::pages(&doc), &invocations).unwrap();
+    let got: Vec<_> = found.iter().map(summary).collect();
+    assert_eq!(got, [(0, "Qr".to_owned(), Some("4".to_owned()), "p:1;x:50;y:700;w:100".to_owned())]);
+}
+
+#[test]
 fn pages_without_invocations_are_not_rendered_and_errors_propagate() {
     let backend = require_pdfium!();
     let bytes = build_doc(PdfBuilder::new(), vec![PageSpec::a4("0 g 0 0 10 10 re f")], "");
@@ -193,4 +216,80 @@ fn pages_without_invocations_are_not_rendered_and_errors_propagate() {
     let mut pages = common::pages(&doc);
     pages.push(pdfover_pdf_cos::PageInfo { index: 7, ..pages[0].clone() });
     assert!(find_qr_placeholders(renderer.as_ref(), &pages, &[bogus]).is_err());
+}
+
+/// Renderer ohne PDFium, der feste Bildobjekte liefert.
+struct FixedImages(Vec<ImageObject>);
+
+impl Renderer for FixedImages {
+    fn page_count(&self) -> usize {
+        1
+    }
+    fn page_size(&self, _page: usize) -> pdfover_render::Result<PageSize> {
+        Ok(PageSize { width: 595.0, height: 842.0 })
+    }
+    fn render_page(&self, _page: usize, _scale: f32) -> pdfover_render::Result<RgbaImage> {
+        Err(RenderError::Render("nicht benötigt".into()))
+    }
+    fn render_forced_color(&self, _page: usize, _opts: &ForcedColorOptions) -> pdfover_render::Result<RgbaImage> {
+        Err(RenderError::Render("nicht benötigt".into()))
+    }
+    fn image_objects(&self, _page: usize) -> pdfover_render::Result<Vec<ImageObject>> {
+        Ok(self.0.clone())
+    }
+}
+
+fn invocation(order: usize, name: &str, ctm: [f32; 6], size: (u32, u32)) -> pdfover_pdf_cos::ImageInvocation {
+    pdfover_pdf_cos::ImageInvocation {
+        page_index: 0,
+        order,
+        resource_name: name.to_owned(),
+        xobject_id: None,
+        ctm,
+        pixel_width: size.0,
+        pixel_height: size.1,
+        inside_form_xobject: false,
+    }
+}
+
+#[test]
+fn matching_scales_to_many_images_and_keeps_the_tie_breaker() {
+    // 20 000 Bildobjekte (feindliche Seite) – die Zuordnung darf nicht quadratisch wachsen.
+    let n = 20_000usize;
+    let qr = to_rgba(&qr_image("PDF-AS-POS;id=77", 3));
+    let qr_size = (qr.width, qr.height);
+    let mut objects = Vec::new();
+    let mut invs = Vec::new();
+    for i in 0..n {
+        let m = [10.0, 0.0, 0.0, 10.0, (i % 400) as f32, (i / 400) as f32 * 10.0];
+        objects.push(ImageObject { order: i, matrix: m, bitmap: RgbaImage::empty() });
+        invs.push(invocation(i, &format!("Im{i}"), m, (0, 0)));
+    }
+    // zwei Platzhalter mit identischer Matrix: Zuordnung über order (A vor B), dazu ein Aufruf mit
+    // NaN-Matrix und einer knapp innerhalb der Toleranz
+    let m = [100.0, 0.0, 0.0, 100.0, 50.0, 600.0];
+    objects.push(ImageObject { order: n, matrix: m, bitmap: qr.clone() });
+    objects.push(ImageObject { order: n + 1, matrix: m, bitmap: qr.clone() });
+    let near = [100.0, 0.0, 0.0, 100.0, 300.009, 600.0];
+    objects.push(ImageObject { order: n + 2, matrix: [100.0, 0.0, 0.0, 100.0, 300.0, 600.0], bitmap: qr.clone() });
+    invs.push(invocation(n + 1, "B", m, qr_size));
+    invs.push(invocation(n, "A", m, qr_size));
+    invs.push(invocation(n + 2, "NaN", [f32::NAN, 0.0, 0.0, 100.0, 50.0, 600.0], qr_size));
+    invs.push(invocation(n + 3, "Near", near, qr_size));
+    let page = pdfover_pdf_cos::PageInfo {
+        index: 0,
+        object_id: (1, 0),
+        media_box: pdfover_pdf_cos::Rect::new(0.0, 0.0, 595.0, 842.0),
+        crop_box: pdfover_pdf_cos::Rect::new(0.0, 0.0, 595.0, 842.0),
+        rotation: pdfover_pdf_cos::Rotation::R0,
+        user_unit: 1.0,
+        annots_indirect: None,
+    };
+    let start = std::time::Instant::now();
+    let found = find_qr_placeholders(&FixedImages(objects), &[page], &invs).unwrap();
+    let names: Vec<&str> = found.iter().map(|p| p.resource_name.as_str()).collect();
+    assert_eq!(names, ["A", "B", "Near"]);
+    assert!(found.iter().all(|p| p.payload.id.as_deref() == Some("77")));
+    assert_eq!(found[2].pos.to_string(), "p:1;x:300;y:700;w:100");
+    eprintln!("Zuordnung von {} Bildobjekten: {:?}", n + 3, start.elapsed());
 }

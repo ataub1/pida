@@ -22,8 +22,12 @@
 //! 1. Verzeichnis aus der Umgebungsvariable [`ENV_PDFIUM_DIR`] (`PDFOVER_PDFIUM_DIR`), z. B.
 //!    `tools/pdfium/mac-arm64/lib` im Hauptcheckout,
 //! 2. neben der laufenden Binary (bei macOS-Bundles zusätzlich `../Frameworks` und
-//!    `../Resources`),
-//! 3. Systempfad (`dlopen("libpdfium…")`).
+//!    `../Resources`, unter iOS `Frameworks`),
+//! 3. Systempfad: unter Linux/Android `dlopen("libpdfium.so")` (`ld.so` sucht nie im
+//!    Arbeitsverzeichnis); unter macOS und Windows nur **absolute** Verzeichnisse
+//!    (macOS: absolute Einträge von `DYLD_LIBRARY_PATH`/`DYLD_FALLBACK_LIBRARY_PATH`,
+//!    `/opt/homebrew/lib`, `/usr/local/lib`, `/usr/lib`; Windows: absolute `PATH`-Einträge), weil
+//!    die Suche nach dem bloßen Dateinamen dort auch das Arbeitsverzeichnis einschließt (CWE-427).
 //!
 //! Mit `bind(Some(dir))` wird ausschließlich `dir` verwendet. Findet sich nichts, liefert
 //! `bind` [`RenderError::LibraryNotFound`] mit allen durchsuchten Orten. Die Bibliothek wird
@@ -57,6 +61,13 @@ pub const ENV_PDFIUM_DIR: &str = "PDFOVER_PDFIUM_DIR";
 /// Obergrenze für die Pixelzahl eines Rasters bzw. dekodierten Bildes (Schutz gegen
 /// Speicherüberlauf bei feindlichen Seitengrößen, Plan §7.7).
 pub const MAX_PIXELS: u64 = 100_000_000;
+
+/// Budget für die **Summe** der dekodierten Bildpixel eines `image_objects`-Aufrufs (≈ 256 MiB
+/// RGBA). Schutz gegen Dekompressionsbomben, die ein kleines Bild viele Male zeichnen: ohne Budget
+/// hielte das Ergebnis jede Kopie dekodiert im Speicher (ein 80-KB-PDF mit einem 9000 × 9000-Bild,
+/// sechsmal gezeichnet, belegte 2 GB). Kleinere Bilder werden zuerst dekodiert (QR-Platzhalter
+/// sind klein), Bilder jenseits des Budgets bleiben leer.
+pub const MAX_IMAGE_PIXELS_PER_PAGE: u64 = 64_000_000;
 
 /// Fehler des Renderers.
 #[derive(Debug, thiserror::Error)]
@@ -241,7 +252,9 @@ pub struct ImageObject {
     pub matrix: [f32; 6],
     /// Dekodiertes Bild (alle Filter, `FPDFImageObj_GetBitmap`). Masken (`/SMask`, `/Mask`)
     /// sind **nicht** angewandt; nicht dekodierbare oder zu große Bilder (> [`MAX_PIXELS`])
-    /// sind leer (0 × 0).
+    /// sind leer (0 × 0), ebenso Bilder, die das Budget [`MAX_IMAGE_PIXELS_PER_PAGE`] der Seite
+    /// sprengen würden (dekodiert wird vom kleinsten zum größten Bild; die Größe kommt vor dem
+    /// Dekodieren aus `/Width` × `/Height`).
     pub bitmap: RgbaImage,
 }
 
@@ -274,7 +287,8 @@ pub trait Renderer: Send {
     /// Rendert eine Seite mit ersetzten Farben (`FPDF_RenderPageBitmapWithColorScheme_Start`).
     fn render_forced_color(&self, page: usize, opts: &ForcedColorOptions) -> Result<RgbaImage>;
 
-    /// Alle Bildobjekte der Seite mit Matrix und dekodiertem Bild.
+    /// Alle Bildobjekte der Seite mit Matrix und dekodiertem Bild (Speicherbudget siehe
+    /// [`ImageObject::bitmap`]).
     fn image_objects(&self, page: usize) -> Result<Vec<ImageObject>>;
 }
 

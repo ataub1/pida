@@ -199,23 +199,22 @@ pub fn decode_qr(image: &RgbaImage) -> Vec<String> {
     }
     let luma = image.to_luma8();
     let (w, h) = (image.width, image.height);
+    if u64::from(w) * u64::from(h) > QR_UPSCALE_MAX_PIXELS {
+        // große Bilder (bis zum Seitenbudget des Renderers): ein Versuch, ohne Kopie
+        return decode_luma(luma, w, h).into_iter().collect();
+    }
     if let Some(text) = decode_luma(luma.clone(), w, h) {
         return vec![text];
     }
-    if u64::from(w) * u64::from(h) <= QR_UPSCALE_MAX_PIXELS {
-        let (w2, h2) = (w * 2, h * 2);
-        let mut up = Vec::with_capacity(w2 as usize * h2 as usize);
-        for y in 0..h2 {
-            let row = &luma[(y / 2 * w) as usize..((y / 2 + 1) * w) as usize];
-            for x in 0..w2 {
-                up.push(row[(x / 2) as usize]);
-            }
-        }
-        if let Some(text) = decode_luma(up, w2, h2) {
-            return vec![text];
+    let (w2, h2) = (w * 2, h * 2);
+    let mut up = Vec::with_capacity(w2 as usize * h2 as usize);
+    for y in 0..h2 {
+        let row = &luma[(y / 2 * w) as usize..((y / 2 + 1) * w) as usize];
+        for x in 0..w2 {
+            up.push(row[(x / 2) as usize]);
         }
     }
-    Vec::new()
+    decode_luma(up, w2, h2).into_iter().collect()
 }
 
 /// Rohposition eines Platzhalters (`x`, Oberkante `y`, Breite `w`) in sichtbaren
@@ -252,10 +251,55 @@ fn matrix_close(a: &[f32; 6], b: &[f32; 6]) -> bool {
     a.iter().zip(b.iter()).all(|(x, y)| (x - y).abs() <= MATRIX_TOLERANCE)
 }
 
+/// Aufrufe einer Seite, sortiert nach der Matrixkomponente `e`, für die Zuordnung in
+/// `O(n log n)` statt `O(n²)` (feindliche Seiten mit sehr vielen Bildern). Aufrufe mit nicht
+/// endlicher Matrix können nie zugeordnet werden und fehlen im Index.
+struct MatrixIndex {
+    /// (e, Index in der nach `order` sortierten Liste)
+    by_e: Vec<(f32, usize)>,
+}
+
+impl MatrixIndex {
+    fn new(invs: &[&ImageInvocation]) -> Self {
+        let mut by_e: Vec<(f32, usize)> = invs
+            .iter()
+            .enumerate()
+            .filter(|(_, inv)| inv.ctm.iter().all(|v| v.is_finite()))
+            .map(|(k, inv)| (inv.ctm[4], k))
+            .collect();
+        by_e.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        Self { by_e }
+    }
+
+    /// Kandidaten mit `|e − inv.e|` höchstens doppelte Toleranz (die genaue Prüfung macht
+    /// `matrix_close`; der breitere Rahmen fängt Rundung von `e ± tol` ab).
+    fn near(&self, e: f32) -> impl Iterator<Item = usize> + '_ {
+        let (lo, hi) = if e.is_finite() {
+            let margin = 2.0 * MATRIX_TOLERANCE;
+            (self.by_e.partition_point(|(v, _)| *v < e - margin), self.by_e.partition_point(|(v, _)| *v <= e + margin))
+        } else {
+            (0, 0)
+        };
+        self.by_e[lo..hi.max(lo)].iter().map(|(_, k)| *k)
+    }
+}
+
+/// Passen die Pixelmaße? Nur wenn beide bekannt sind (dekodiertes Bild nicht leer, `/Width` und
+/// `/Height` des Aufrufs > 0) – sonst entscheidet allein die Matrix. Verhindert, dass ein
+/// Inline-Bild mit derselben Matrix (PDFium zählt es mit, `pdf-cos` nicht) den Namen eines
+/// Bild-XObjects bekommt.
+fn size_compatible(bitmap: &RgbaImage, inv: &ImageInvocation) -> bool {
+    bitmap.is_empty()
+        || inv.pixel_width == 0
+        || inv.pixel_height == 0
+        || (bitmap.width == inv.pixel_width && bitmap.height == inv.pixel_height)
+}
+
 /// Alle QR-Platzhalter der Seiten in Seitenreihenfolge. Bitmaps kommen aus dem Renderer
 /// (`image_objects`), Namen und CTM aus `invocations`. Zuordnung je Seite **primär über die
-/// Matrix** (`ImageObject::matrix` ≈ `ImageInvocation::ctm`, Abweichung ≤ 0,01), `order` nur als
-/// Tie-Breaker – PDFium zählt Inline-Bilder mit, `pdf-cos` nicht (ADR 0001 §8).
+/// Matrix** (`ImageObject::matrix` ≈ `ImageInvocation::ctm`, Abweichung ≤ 0,01), dazu passende
+/// Pixelmaße (wenn beide bekannt), `order` nur als Tie-Breaker – PDFium zählt Inline-Bilder mit,
+/// `pdf-cos` nicht (ADR 0001 §8).
 ///
 /// Nur Bilder mit passendem `Do`-Aufruf werden dekodiert (Inline-Bilder und – ohne
 /// `descend_forms` in `pdf-cos` – Bilder in Form-XObjects bleiben wie bei PDF-AS außen vor).
@@ -280,16 +324,19 @@ pub fn find_qr_placeholders(
         }
         invs.sort_by_key(|i| i.order);
         let objects = renderer.image_objects(page_index)?;
+        let index = MatrixIndex::new(&invs);
         let mut used = vec![false; invs.len()];
         let mut found: Vec<(usize, QrPlaceholder)> = Vec::new();
         for obj in &objects {
-            let candidate = invs
-                .iter()
-                .enumerate()
-                .filter(|(k, inv)| !used[*k] && matrix_close(&obj.matrix, &inv.ctm))
-                .min_by_key(|(_, inv)| inv.order.abs_diff(obj.order));
-            let Some((k, inv)) = candidate else { continue };
+            let candidate = index
+                .near(obj.matrix[4])
+                .filter(|&k| {
+                    !used[k] && matrix_close(&obj.matrix, &invs[k].ctm) && size_compatible(&obj.bitmap, invs[k])
+                })
+                .min_by_key(|&k| (invs[k].order.abs_diff(obj.order), k));
+            let Some(k) = candidate else { continue };
             used[k] = true;
+            let inv = invs[k];
             let Some(payload) = decode_qr(&obj.bitmap).iter().find_map(|t| parse_qr_payload(t)) else {
                 continue;
             };

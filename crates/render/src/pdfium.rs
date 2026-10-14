@@ -9,15 +9,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use pdfium_render::prelude::{
-    PdfBitmap, PdfBitmapFormat, PdfColor, PdfDocument, PdfPageObject, PdfPageObjectsCommon, PdfPoints, PdfRenderConfig,
-    Pdfium, PdfiumError, PdfiumInternalError, PdfiumLibraryBindings,
+    PdfBitmap, PdfBitmapFormat, PdfColor, PdfDocument, PdfPage, PdfPageImageObject, PdfPageObject, PdfPageObjectCommon,
+    PdfPageObjectsCommon, PdfPoints, PdfRenderConfig, Pdfium, PdfiumError, PdfiumInternalError, PdfiumLibraryBindings,
 };
 use zeroize::Zeroizing;
 
 use crate::ffi::RawDocument;
 use crate::{
-    ENV_PDFIUM_DIR, ForcedColorOptions, ImageObject, MAX_PIXELS, PageSize, RenderBackend, RenderError, Renderer,
-    Result, RgbaImage, concat_matrix,
+    ENV_PDFIUM_DIR, ForcedColorOptions, ImageObject, MAX_IMAGE_PIXELS_PER_PAGE, MAX_PIXELS, PageSize, RenderBackend,
+    RenderError, Renderer, Result, RgbaImage, concat_matrix,
 };
 
 /// Gebundene PDFium-Bibliothek (einmal je Prozess).
@@ -79,7 +79,13 @@ impl PdfiumBackend {
     }
 
     /// Öffnet ein Dokument und liefert den konkreten Renderer (wie [`RenderBackend::open`]).
+    ///
+    /// Ein Passwort mit NUL-Zeichen kann kein gültiges PDF-Passwort sein (PDFium erwartet einen
+    /// C-String) und liefert [`RenderError::PasswordRequired`] – `pdfium-render` würde sonst mit
+    /// dem Passwort im Klartext in der Panic-Meldung abbrechen und dabei seine globale Sperre
+    /// vergiften (jeder weitere PDFium-Aufruf im Prozess bräche ab).
     pub fn open_document(&self, data: Arc<[u8]>, password: Option<&str>) -> Result<PdfiumRenderer> {
+        check_password(password)?;
         let _guard = op_lock();
         let reader = Cursor::new(Arc::clone(&data));
         let doc = self.lib.pdfium.load_pdf_from_reader(reader, password).map_err(map_load_error)?;
@@ -110,6 +116,15 @@ impl RenderBackend for PdfiumBackend {
     }
 }
 
+/// Passwörter mit NUL-Zeichen sind für PDFium nicht darstellbar (siehe
+/// [`PdfiumBackend::open_document`]).
+pub(crate) fn check_password(password: Option<&str>) -> Result<()> {
+    if password.is_some_and(|p| p.contains('\0')) {
+        return Err(RenderError::PasswordRequired);
+    }
+    Ok(())
+}
+
 /// Kandidaten für das Bibliotheksverzeichnis ohne explizite Angabe.
 fn default_candidates() -> Vec<(String, PathBuf)> {
     let mut out = Vec::new();
@@ -122,9 +137,54 @@ fn default_candidates() -> Vec<(String, PathBuf)> {
             out.push(("App-Bundle Frameworks".into(), exe_dir.join("../Frameworks")));
             out.push(("App-Bundle Resources".into(), exe_dir.join("../Resources")));
         }
+        if cfg!(target_os = "ios") {
+            out.push(("App-Bundle Frameworks".into(), exe_dir.join("Frameworks")));
+        }
+    }
+    out.extend(system_candidates());
+    out
+}
+
+/// Absolute Einträge einer Pfadliste (`PATH`, `DYLD_LIBRARY_PATH` …); leere und relative
+/// Einträge (sie bezeichnen das Arbeitsverzeichnis) entfallen.
+pub(crate) fn absolute_path_entries(value: &std::ffi::OsStr) -> Vec<PathBuf> {
+    std::env::split_paths(value).filter(|p| p.is_absolute()).collect()
+}
+
+/// Systemverzeichnisse mit **absolutem** Pfad für Plattformen, deren Suche nach dem bloßen
+/// Dateinamen auch das Arbeitsverzeichnis durchsucht (macOS-`dlopen` für nicht eingeschränkte
+/// Prozesse, Windows-`LoadLibrary`): Eine `libpdfium.dylib`/`pdfium.dll` im Arbeitsverzeichnis
+/// (z. B. ein entpacktes Archiv in „Downloads“) würde sonst fremden Code laden (CWE-427).
+fn system_candidates() -> Vec<(String, PathBuf)> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if cfg!(target_os = "macos") {
+        for var in ["DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH"] {
+            if let Some(v) = std::env::var_os(var) {
+                dirs.extend(absolute_path_entries(&v));
+            }
+        }
+        dirs.extend(["/opt/homebrew/lib", "/usr/local/lib", "/usr/lib"].map(PathBuf::from));
+    } else if cfg!(windows)
+        && let Some(v) = std::env::var_os("PATH")
+    {
+        dirs.extend(absolute_path_entries(&v));
+    }
+    let mut out: Vec<(String, PathBuf)> = Vec::new();
+    for dir in dirs {
+        if !out.iter().any(|(_, d)| *d == dir) {
+            out.push(("Systempfad".into(), dir));
+        }
     }
     out
 }
+
+/// Darf die Bibliothek über ihren bloßen Dateinamen gesucht werden? Unter Linux/Android sucht
+/// `ld.so` nur in `LD_LIBRARY_PATH`, `RUNPATH`, `ld.so.cache` und den Standardverzeichnissen
+/// (nie im Arbeitsverzeichnis); macOS und Windows nutzen stattdessen [`system_candidates`].
+const LEAF_NAME_SEARCH: bool = !cfg!(any(target_os = "macos", windows));
+// Regression (CWE-427): auf macOS/Windows nie nach dem bloßen Dateinamen suchen.
+#[cfg(any(target_os = "macos", windows))]
+const _: () = assert!(!LEAF_NAME_SEARCH);
 
 fn bind_library(library_dir: Option<&Path>) -> Result<Library> {
     let file_name = Pdfium::pdfium_platform_library_name();
@@ -147,7 +207,7 @@ fn bind_library(library_dir: Option<&Path>) -> Result<Library> {
             Err(e) => tried.push(format!("{label}: {} ({e})", path.display())),
         }
     }
-    if library_dir.is_none() {
+    if library_dir.is_none() && LEAF_NAME_SEARCH {
         match bind_pair(Pdfium::bind_to_system_library) {
             Ok((main, raw)) => return Ok(Library { pdfium: Pdfium::new(main), raw, path: None, build: None }),
             Err(e) => tried.push(format!("Systempfad: {} ({e})", file_name.to_string_lossy())),
@@ -248,8 +308,10 @@ impl std::fmt::Debug for PdfiumRenderer {
 impl Drop for PdfiumRenderer {
     fn drop(&mut self) {
         let _guard = op_lock();
-        if let Ok(mut raw) = self.raw.lock() {
-            raw.take();
+        // auch nach einer Panik in einem anderen Thread (vergiftete Sperre) unter `op_lock` schließen
+        match self.raw.get_mut() {
+            Ok(raw) => drop(raw.take()),
+            Err(poisoned) => drop(poisoned.into_inner().take()),
         }
         self.doc.take();
     }
@@ -273,6 +335,43 @@ impl PdfiumRenderer {
         Ok(PageSize { width: rect.width().value, height: rect.height().value })
     }
 
+    /// Gegenprobe zur Freiraumsuche (Plan §6.7): unterste Kante der Hüllrechtecke aller
+    /// Seitenobjekte (`FPDFPageObj_GetBounds`, auf die sichtbare Seite beschnitten) oberhalb der
+    /// Fußzeile `footer` als Abstand von der Oberkante der sichtbaren Seite in pt (1 pt-Raster
+    /// wie die Freiraumsuche); `None`, wenn kein Objekt oberhalb der Fußzeile liegt.
+    ///
+    /// Hüllrechtecke enthalten alle gezeichneten Pixel eines Objekts, sind aber oft größer
+    /// (Glyphenhüllen, Beschneidungspfade, unsichtbarer Text); die unterste belegte Rasterzeile
+    /// liegt deshalb nie tiefer als diese Kante. Annotationen und Widgets zählen nicht.
+    pub fn lowest_object_edge(&self, page: usize, footer: f32) -> Result<Option<f32>> {
+        let _guard = op_lock();
+        let size = self.page_size_locked(page)?;
+        let index = self.check_page(page)?;
+        let pdf_page = self.doc().pages().get(index).map_err(|e| render_err("Seite laden", e))?;
+        let (w, h) = (size.width.round().max(1.0), size.height.round().max(1.0));
+        if w > i32::MAX as f32 || h > i32::MAX as f32 {
+            return Err(RenderError::Render("Seite zu groß".into()));
+        }
+        let config = PdfRenderConfig::new().set_fixed_size(w as i32, h as i32);
+        let limit = h - 1.0 - footer.max(0.0);
+        let mut lowest: Option<f32> = None;
+        for object in pdf_page.objects().iter() {
+            let Ok(b) = object.bounds() else { continue };
+            let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+            for (x, y) in [(b.left(), b.bottom()), (b.left(), b.top()), (b.right(), b.bottom()), (b.right(), b.top())] {
+                let (px, py) = pdf_page.points_to_pixels(x, y, &config).map_err(|e| render_err("Koordinaten", e))?;
+                let (px, py) = (px as f32, py as f32);
+                (x0, y0, x1, y1) = (x0.min(px), y0.min(py), x1.max(px), y1.max(py));
+            }
+            if x1 < 0.0 || x0 > w || y1 < 0.0 || y0 > limit {
+                continue;
+            }
+            let edge = y1.min(limit);
+            lowest = Some(lowest.map_or(edge, |l| l.max(edge)));
+        }
+        Ok(lowest)
+    }
+
     /// Färbt die Bildobjekte der Seite (achsenparallele Hülle im Raster) wie eine Fläche in der
     /// Ersatzfarbe ein (Vordergrund über Hintergrund) – nur für `keep_images = false`.
     fn paint_images(
@@ -286,9 +385,7 @@ impl PdfiumRenderer {
         let index = self.check_page(page)?;
         let pdf_page = self.doc().pages().get(index).map_err(|e| render_err("Seite laden", e))?;
         let mut matrices = Vec::new();
-        for object in pdf_page.objects().iter() {
-            collect_image_matrices(&object, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &mut matrices, 0);
-        }
+        visit_page_images(&pdf_page, &mut |_, m| matrices.push(m));
         let config = PdfRenderConfig::new().set_fixed_size(size.0, size.1);
         for m in matrices {
             let corners = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)];
@@ -325,26 +422,82 @@ fn blend(src: [u8; 4], dst: [u8; 4]) -> [u8; 4] {
 }
 
 const MAX_FORM_DEPTH: usize = 32;
+const IDENTITY: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
 
-fn collect_image_matrices(object: &PdfPageObject<'_>, parent: [f32; 6], out: &mut Vec<[f32; 6]>, depth: usize) {
+/// Besucht alle Bildobjekte unter `object` (Form-XObjects in Tiefensuche bis
+/// [`MAX_FORM_DEPTH`]) mit ihrer Matrix im Seitenraum, in PDFium-Reihenfolge.
+fn visit_images(
+    object: &PdfPageObject<'_>,
+    parent: [f32; 6],
+    depth: usize,
+    f: &mut dyn FnMut(&PdfPageImageObject<'_>, [f32; 6]),
+) {
     let Ok(m) = object.matrix() else { return };
     let m = concat_matrix([m.a(), m.b(), m.c(), m.d(), m.e(), m.f()], parent);
-    if object.as_image_object().is_some() {
-        out.push(m);
+    if let Some(image) = object.as_image_object() {
+        f(image, m);
     } else if let Some(form) = object.as_x_object_form_object()
         && depth < MAX_FORM_DEPTH
     {
         for child in form.iter() {
-            collect_image_matrices(&child, m, out, depth + 1);
+            visit_images(&child, m, depth + 1, f);
         }
     }
 }
 
-/// Wandelt ein PDFium-Bitmap (Gray/BGR/BGRx/BGRA, Zeilen mit Stride) in RGBA.
-fn bitmap_to_rgba(bitmap: &PdfBitmap<'_>, bytes_are_rgb_order: bool) -> Option<RgbaImage> {
+/// Alle Bildobjekte einer Seite (deterministische Reihenfolge, siehe [`ImageObject::order`]).
+fn visit_page_images(page: &PdfPage<'_>, f: &mut dyn FnMut(&PdfPageImageObject<'_>, [f32; 6])) {
+    for object in page.objects().iter() {
+        visit_images(&object, IDENTITY, 0, f);
+    }
+}
+
+/// Pixelzahl laut `/Width` × `/Height` (ohne zu dekodieren); `None`, wenn unbekannt.
+fn declared_pixels(image: &PdfPageImageObject<'_>) -> Option<u64> {
+    let w = u64::try_from(image.width().ok()?).ok()?;
+    let h = u64::try_from(image.height().ok()?).ok()?;
+    Some(w * h)
+}
+
+/// Wählt die Bilder, die dekodiert werden: jedes höchstens [`MAX_PIXELS`], vom kleinsten zum
+/// größten (bei Gleichstand in Seitenreihenfolge), solange die Summe `budget` nicht übersteigt.
+/// Bilder unbekannter Größe werden nicht dekodiert.
+pub(crate) fn select_within_budget(pixels: &[Option<u64>], budget: u64) -> Vec<bool> {
+    let mut candidates: Vec<(u64, usize)> = pixels
+        .iter()
+        .enumerate()
+        .filter_map(|(i, p)| p.filter(|&p| p > 0 && p <= MAX_PIXELS).map(|p| (p, i)))
+        .collect();
+    candidates.sort_unstable();
+    let mut left = budget;
+    let mut selected = vec![false; pixels.len()];
+    for (p, i) in candidates {
+        if p > left {
+            break;
+        }
+        left -= p;
+        selected[i] = true;
+    }
+    selected
+}
+
+/// Dekodiert ein Bildobjekt; das tatsächliche Ergebnis zählt gegen `left` (`/Width`/`/Height`
+/// können bei JPEG von den dekodierten Maßen abweichen).
+fn decode_image(image: &PdfPageImageObject<'_>, left: &mut u64) -> RgbaImage {
+    let limit = (*left).min(MAX_PIXELS);
+    let Some(img) = image.get_raw_bitmap().ok().and_then(|b| bitmap_to_rgba(&b, false, limit)) else {
+        return RgbaImage::empty();
+    };
+    *left -= u64::from(img.width) * u64::from(img.height);
+    img
+}
+
+/// Wandelt ein PDFium-Bitmap (Gray/BGR/BGRx/BGRA, Zeilen mit Stride) in RGBA; `None` bei mehr als
+/// `max_pixels` Pixeln oder unlesbarem Format.
+fn bitmap_to_rgba(bitmap: &PdfBitmap<'_>, bytes_are_rgb_order: bool, max_pixels: u64) -> Option<RgbaImage> {
     let w = u32::try_from(bitmap.width()).ok()?;
     let h = u32::try_from(bitmap.height()).ok()?;
-    if w == 0 || h == 0 || u64::from(w) * u64::from(h) > MAX_PIXELS {
+    if w == 0 || h == 0 || u64::from(w) * u64::from(h) > max_pixels {
         return None;
     }
     let format = bitmap.format().ok()?;
@@ -384,23 +537,6 @@ fn bitmap_to_rgba(bitmap: &PdfBitmap<'_>, bytes_are_rgb_order: bool) -> Option<R
     RgbaImage::from_raw(w, h, data)
 }
 
-fn collect_images(object: &PdfPageObject<'_>, parent: [f32; 6], out: &mut Vec<ImageObject>, depth: usize) {
-    let Ok(m) = object.matrix() else { return };
-    let m = concat_matrix([m.a(), m.b(), m.c(), m.d(), m.e(), m.f()], parent);
-    if let Some(image) = object.as_image_object() {
-        let bitmap =
-            image.get_raw_bitmap().ok().and_then(|b| bitmap_to_rgba(&b, false)).unwrap_or_else(RgbaImage::empty);
-        let order = out.len();
-        out.push(ImageObject { order, matrix: m, bitmap });
-    } else if let Some(form) = object.as_x_object_form_object()
-        && depth < MAX_FORM_DEPTH
-    {
-        for child in form.iter() {
-            collect_images(&child, m, out, depth + 1);
-        }
-    }
-}
-
 impl Renderer for PdfiumRenderer {
     fn page_count(&self) -> usize {
         self.page_count
@@ -435,7 +571,7 @@ impl Renderer for PdfiumRenderer {
             .render_annotations(true)
             .render_form_data(true);
         let bitmap = pdf_page.render_with_config(&config).map_err(|e| render_err("Rendern", e))?;
-        bitmap_to_rgba(&bitmap, true).ok_or_else(|| RenderError::Render("Bitmap nicht lesbar".into()))
+        bitmap_to_rgba(&bitmap, true, MAX_PIXELS).ok_or_else(|| RenderError::Render("Bitmap nicht lesbar".into()))
     }
 
     fn render_forced_color(&self, page: usize, opts: &ForcedColorOptions) -> Result<RgbaImage> {
@@ -461,10 +597,22 @@ impl Renderer for PdfiumRenderer {
         let _guard = op_lock();
         let index = self.check_page(page)?;
         let pdf_page = self.doc().pages().get(index).map_err(|e| render_err("Seite laden", e))?;
-        let mut out = Vec::new();
-        for object in pdf_page.objects().iter() {
-            collect_images(&object, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0], &mut out, 0);
-        }
+        // 1. Durchgang: Matrizen und deklarierte Größen (nichts dekodiert), Auswahl im Budget.
+        let mut declared = Vec::new();
+        visit_page_images(&pdf_page, &mut |image, _| declared.push(declared_pixels(image)));
+        let selected = select_within_budget(&declared, MAX_IMAGE_PIXELS_PER_PAGE);
+        // 2. Durchgang in derselben Reihenfolge: nur ausgewählte Bilder dekodieren.
+        let mut left = MAX_IMAGE_PIXELS_PER_PAGE;
+        let mut out = Vec::with_capacity(declared.len());
+        visit_page_images(&pdf_page, &mut |image, matrix| {
+            let order = out.len();
+            let bitmap = if selected.get(order).copied().unwrap_or(false) {
+                decode_image(image, &mut left)
+            } else {
+                RgbaImage::empty()
+            };
+            out.push(ImageObject { order, matrix, bitmap });
+        });
         Ok(out)
     }
 }
@@ -485,6 +633,36 @@ mod tests {
     fn pixel_guard() {
         assert!(check_pixels(10_000, 10_000).is_ok());
         assert!(check_pixels(100_000, 100_000).is_err());
+    }
+
+    #[test]
+    fn budget_prefers_small_images() {
+        // kleinste zuerst, Summe ≤ Budget, zu große und unbekannte nie
+        let px = [Some(60), Some(10), None, Some(30), Some(0), Some(MAX_PIXELS + 1), Some(10)];
+        assert_eq!(select_within_budget(&px, 50), [false, true, false, true, false, false, true]);
+        assert_eq!(select_within_budget(&px, 0), [false; 7]);
+        assert_eq!(select_within_budget(&px, u64::MAX), [true, true, false, true, false, false, true]);
+        assert!(select_within_budget(&[], 10).is_empty());
+    }
+
+    #[test]
+    fn nul_in_password_is_rejected_before_pdfium() {
+        assert!(matches!(check_password(Some("a\0b")), Err(RenderError::PasswordRequired)));
+        assert!(check_password(Some("äöü")).is_ok());
+        assert!(check_password(None).is_ok());
+    }
+
+    #[test]
+    fn library_search_never_uses_the_working_directory() {
+        // relative und leere Einträge bezeichnen das Arbeitsverzeichnis und entfallen
+        let abs = std::env::temp_dir();
+        let rel = std::ffi::OsStr::new("rel");
+        let joined = std::env::join_paths([abs.as_os_str(), rel, std::ffi::OsStr::new(""), abs.as_os_str()]).unwrap();
+        assert!(abs.is_absolute());
+        assert_eq!(absolute_path_entries(&joined), [abs.clone(), abs]);
+        for (label, dir) in system_candidates() {
+            assert!(dir.is_absolute(), "{label}: {}", dir.display());
+        }
     }
 
     #[test]

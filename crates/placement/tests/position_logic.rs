@@ -136,6 +136,20 @@ proptest! {
     }
 
     #[test]
+    fn parse_is_total_on_arbitrary_input(s in "\\PC{0,80}") {
+        let _ = TablePos::parse(&s);
+        let _ = parse_qr_payload(&s);
+        let _ = parse_qr_payload(&format!("PDF-AS-POS;{s}"));
+    }
+
+    #[test]
+    fn parsed_positions_roundtrip_through_display(s in "([pxywfr]:([-+0-9.eE]{1,8}|auto|new|last|AUTO);?){1,6}") {
+        if let Ok(t) = TablePos::parse(&s) {
+            prop_assert_eq!(TablePos::parse(&t.to_string()).unwrap(), t);
+        }
+    }
+
+    #[test]
     fn merge_with_empty_request_is_identity(t in arb_table_pos()) {
         let merged = TablePos::merge(&TablePos::default(), &t);
         prop_assert_eq!(merged.page, t.page);
@@ -589,6 +603,22 @@ fn start_position_is_clamped() {
     let rot = page(0, [0.0, 0.0, 595.0, 842.0], None, Rotation::R90);
     let s = default_start_position(&rot, BlockGeometry { width: 100.0, height: 50.0 });
     assert_eq!((s.x, s.y), (421.0, 148.75));
+    // NaN-Blockmaße (fehlerhaftes Layout) führen nicht zur Panik
+    let s = default_start_position(&pg, BlockGeometry { width: f32::NAN, height: f32::NAN });
+    assert!(s.x.is_finite() && s.y.is_finite(), "{s:?}");
+}
+
+#[test]
+fn start_placement_uses_last_page() {
+    let block = BlockGeometry { width: 230.0, height: 49.0 };
+    assert_eq!(default_start_placement(&[], block), None);
+    let pages = [a4(0), page(1, [0.0, 0.0, 595.0, 842.0], None, Rotation::R90)];
+    let p = default_start_placement(&pages, block).unwrap();
+    assert_eq!((p.page_index, p.x, p.y, p.width, p.height), (1, 421.0, 148.75, 230.0, 49.0));
+    assert_eq!(p.to_table_pos().to_string(), "p:2;x:421;y:148.75");
+    // Seitenindex am Rand des Wertebereichs: kein Überlauf
+    let far = Placement { page_index: usize::MAX, ..p };
+    assert_eq!(far.to_table_pos().page, Some(PageSelector::Exact(u32::MAX)));
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -615,6 +645,10 @@ fn lowest_row_like_pdfutilities() {
     assert_eq!(lowest_content_row(&top, 0, MAGIC), 0);
     // Fußzeile höher als das Bild: negativer Startwert wie PDF-AS
     assert_eq!(lowest_content_row(&img, 150, MAGIC), -51);
+    // extreme Fußzeilen ohne Überlauf (negative Fußzeile = ganze Seite)
+    assert_eq!(lowest_content_row(&img, i64::MIN, MAGIC), 90);
+    assert_eq!(lowest_content_row(&img, i64::MAX, MAGIC), -i64::MAX + 99);
+    assert_eq!(lowest_content_row(&RgbaImage::empty(), 0, MAGIC), -1);
     // Alpha zählt mit (exakter ARGB-Vergleich)
     let mut alpha = RgbaImage::filled(4, 10, MAGIC);
     alpha.set_pixel(1, 5, [152, 254, 52, 254]);

@@ -2711,6 +2711,7 @@ dependencies = [
 name = "pdfover-render"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "pdfium-render",
  "png",
  "serde",

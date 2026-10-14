@@ -25,6 +25,10 @@ serde = { workspace = true }
 # Passwort für die zweite (Forced-Color-)Dokumentinstanz nur im Speicher, beim Drop überschrieben.
 zeroize = { workspace = true, optional = true }
 
+[dev-dependencies]
+# Testdokumente mit FlateDecode-Bildern (Dekompressionsbomben, Speicherbudget).
+flate2 = { workspace = true }
+
 # PDFium-Integrationstests brauchen das Feature `pdfium` (ohne werden sie nicht gebaut).
 [[test]]
 name = "pdfium"

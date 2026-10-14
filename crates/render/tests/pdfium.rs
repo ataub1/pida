@@ -5,7 +5,10 @@ mod common;
 use std::sync::Arc;
 
 use common::{PageSpec, PdfBuilder, build_doc, count, read, single_page};
-use pdfover_render::{ForcedColorOptions, RenderBackend, RenderError, Renderer, RgbaImage, encode_png};
+use pdfover_render::{
+    ForcedColorOptions, MAX_IMAGE_PIXELS_PER_PAGE, MAX_PIXELS, RenderBackend, RenderError, Renderer, RgbaImage,
+    encode_png,
+};
 
 const MAGIC: [u8; 4] = [152, 254, 52, 255];
 
@@ -255,6 +258,52 @@ fn password_protected_documents() {
     // nur Owner-Passwort: ohne Passwort lesbar
     let owner = backend.open(read("pdf/generated/simple-aes256-owner.pdf"), None).unwrap();
     assert_eq!(owner.page_count(), 1);
+}
+
+#[test]
+fn nul_in_password_neither_panics_nor_poisons_pdfium() {
+    let backend = require_pdfium!();
+    let data = read("pdf/generated/simple-aes256-userpw.pdf");
+    // pdfium-render bräche hier mit dem Passwort in der Panic-Meldung ab und vergiftete seine
+    // globale Sperre (jeder weitere PDFium-Aufruf im Prozess bräche danach ab).
+    assert!(matches!(backend.open(Arc::clone(&data), Some("te\0st")), Err(RenderError::PasswordRequired)));
+    assert!(matches!(backend.open(Arc::clone(&data), Some("\0")), Err(RenderError::PasswordRequired)));
+    let r = backend.open(Arc::clone(&data), Some("test")).expect("PDFium nach NUL-Passwort weiter benutzbar");
+    assert!(
+        count(&r.render_forced_color(0, &ForcedColorOptions::default()).unwrap(), 0, 0, 595, 842, |p| p != MAGIC) > 0
+    );
+}
+
+#[test]
+fn image_objects_stay_within_the_pixel_budget() {
+    let backend = require_pdfium!();
+    let mut b = PdfBuilder::new();
+    // 32 MP, dreimal gezeichnet (96 MP > Budget), ein deklariert zu großes Bild (> MAX_PIXELS)
+    // und zuletzt ein kleines Bild – das kleine wird trotz seiner Position zuerst dekodiert.
+    let big = b.add_flate_gray_image(8000, 4000, 0x40);
+    let huge = b.add_flate_gray_image(10_001, 10_000, 0);
+    let small = b.add_flate_gray_image(20, 20, 0x80);
+    let content = "q 100 0 0 50 50 700 cm /Big Do Q q 100 0 0 50 50 600 cm /Big Do Q \
+                   q 100 0 0 50 50 500 cm /Big Do Q q 100 0 0 100 300 300 cm /Huge Do Q \
+                   q 20 0 0 20 400 100 cm /Small Do Q";
+    let page = PageSpec {
+        resources: format!("/XObject << /Big {big} 0 R /Huge {huge} 0 R /Small {small} 0 R >>"),
+        ..PageSpec::a4(content)
+    };
+    let data: Arc<[u8]> = build_doc(b, vec![page], "").into();
+    assert!(data.len() < 200_000, "Testdokument klein: {} Bytes", data.len());
+    let r = backend.open(data, None).unwrap();
+    let objs = r.image_objects(0).unwrap();
+    assert_eq!(objs.len(), 5);
+    let sizes: Vec<(u32, u32)> = objs.iter().map(|o| (o.bitmap.width, o.bitmap.height)).collect();
+    assert_eq!(sizes, [(8000, 4000), (0, 0), (0, 0), (0, 0), (20, 20)], "Budget {MAX_IMAGE_PIXELS_PER_PAGE}");
+    assert_eq!(objs[0].bitmap.pixel(7999, 3999), [0x40, 0x40, 0x40, 255]);
+    assert_eq!(objs[4].bitmap.pixel(0, 0), [0x80, 0x80, 0x80, 255]);
+    // Matrizen und Reihenfolge bleiben für alle Bildobjekte erhalten
+    assert_eq!(objs[3].matrix, [100.0, 0.0, 0.0, 100.0, 300.0, 300.0]);
+    assert!(objs.iter().enumerate().all(|(i, o)| o.order == i));
+    let decoded: u64 = objs.iter().map(|o| u64::from(o.bitmap.width) * u64::from(o.bitmap.height)).sum();
+    assert!(decoded <= MAX_IMAGE_PIXELS_PER_PAGE && MAX_IMAGE_PIXELS_PER_PAGE <= MAX_PIXELS);
 }
 
 #[test]

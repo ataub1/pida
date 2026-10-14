@@ -73,6 +73,27 @@ impl PdfBuilder {
         self.add(body)
     }
 
+    /// Graustufenbild `w × h` (8 Bit) mit konstantem Wert, FlateDecode-komprimiert – klein in der
+    /// Datei, groß dekodiert (Dekompressionsbomben-Tests).
+    pub fn add_flate_gray_image(&mut self, w: u32, h: u32, value: u8) -> u32 {
+        use std::io::Write;
+        let mut enc = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        let row = vec![value; w as usize];
+        for _ in 0..h {
+            enc.write_all(&row).expect("zlib");
+        }
+        let z = enc.finish().expect("zlib");
+        let mut body = format!(
+            "<< /Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceGray \
+             /BitsPerComponent 8 /Filter /FlateDecode /Length {} >>\nstream\n",
+            z.len()
+        )
+        .into_bytes();
+        body.extend_from_slice(&z);
+        body.extend_from_slice(b"\nendstream");
+        self.add(body)
+    }
+
     pub fn finish(self, root: u32) -> Vec<u8> {
         let mut out = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
         let mut offsets = Vec::new();

@@ -283,7 +283,7 @@ pub struct Placement {
 impl Placement {
     /// Als `TablePos` (`p:<page+1>;x;y`).
     pub fn to_table_pos(&self) -> TablePos {
-        TablePos::manual(self.page_index as u32 + 1, self.x, self.y)
+        TablePos::manual(u32::try_from(self.page_index).unwrap_or(u32::MAX).saturating_add(1), self.x, self.y)
     }
 }
 
@@ -442,7 +442,7 @@ pub fn lowest_content_row_with_tolerance(
     background: [u8; 4],
     tolerance: u32,
 ) -> i64 {
-    let start = i64::from(image.height) - 1 - footer_px;
+    let start = (i64::from(image.height) - 1).saturating_sub(footer_px);
     if start < 0 {
         return start;
     }
@@ -853,4 +853,13 @@ pub fn widget_overlaps(pos: &ResolvedPosition, page: &PageInfo, fields: &[SigFie
 pub fn default_start_position(page: &PageInfo, block: BlockGeometry) -> Point {
     let (w, h) = page.visible_size();
     clamp_top_left(Point { x: 0.5 * w, y: 0.25 * h }, w, h, block.width, block.height)
+}
+
+/// Startzustand der Positionierung ohne gespeicherte Position: **letzte Seite**
+/// (`PositioningComposite`: Startseite = letzte Seite) mit [`default_start_position`];
+/// `None` ohne Seiten.
+pub fn default_start_placement(pages: &[PageInfo], block: BlockGeometry) -> Option<Placement> {
+    let page = pages.last()?;
+    let p = default_start_position(page, block);
+    Some(Placement { page_index: pages.len() - 1, x: p.x, y: p.y, width: block.width, height: block.height })
 }

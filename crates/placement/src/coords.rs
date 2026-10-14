@@ -77,9 +77,13 @@ pub struct PageTransform {
 /// Klemmt eine linke obere Ecke (PAGE_ABS) eines Blocks `w × h` auf eine Seite `pw × ph`:
 /// `x ∈ [0, pw − w]`, `y ∈ [h, ph]`. Ist der Block breiter bzw. höher als die Seite, liegt er
 /// links bzw. oben an (PDF-Over `clamp` lieferte hier `pw − w` < 0 bzw. `h` > `ph`).
+///
+/// Panikfrei auch bei `NaN` (z. B. aus einer feindlichen CropBox `[inf 0 inf 842]`): `f32::clamp`
+/// bricht bei `NaN`-Grenzen ab, `max`/`min` ignorieren `NaN`. Eine `NaN`-Koordinate landet am
+/// linken bzw. unteren Rand des zulässigen Bereichs.
 pub(crate) fn clamp_top_left(p: Point, pw: f32, ph: f32, w: f32, h: f32) -> Point {
-    let x = if pw - w < 0.0 { 0.0 } else { p.x.clamp(0.0, pw - w) };
-    let y = if h > ph { ph } else { p.y.clamp(h, ph) };
+    let x = p.x.max(0.0).min((pw - w).max(0.0));
+    let y = p.y.max(h.min(ph)).min(ph);
     Point { x, y }
 }
 

@@ -24,7 +24,7 @@ use pdfium_render::prelude::{
     IFSDK_PAUSE, PdfiumLibraryBindings,
 };
 
-use crate::pdfium::check_pixels;
+use crate::pdfium::{check_password, check_pixels};
 use crate::{ForcedColorOptions, PageSize, RenderError, Result, RgbaImage};
 
 /// `FPDF_ANNOT` aus `fpdfview.h`: Annotationen (ohne Widgets) mitrendern.
@@ -78,6 +78,8 @@ impl RawDocument {
         data: Arc<[u8]>,
         password: Option<&str>,
     ) -> Result<Self> {
+        // `pdfium-render` bricht bei NUL im Passwort ab (Panik mit dem Passwort in der Meldung).
+        check_password(password)?;
         // SAFETY: `data` lebt im zurückgegebenen Objekt weiter (Invariante oben).
         let doc = unsafe { bindings.FPDF_LoadMemDocument64(&data[..], password) };
         if doc.is_null() {
