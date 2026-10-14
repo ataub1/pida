@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sl:ErrorResponse xmlns:sl="http://www.buergerkarte.at/namespaces/securitylayer/1.2#">
+  <sl:ErrorCode>6001</sl:ErrorCode>
+  <sl:Info>Vorgang durch den Benutzer abgebrochen.</sl:Info>
+</sl:ErrorResponse>

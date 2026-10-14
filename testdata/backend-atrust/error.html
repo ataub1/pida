@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<!-- Synthetische Testseite (NUR TEST): Fehlerseite (error*.aspx) mit Wiederholen (Button_Back) und Abbrechen (Button_Cancel). -->
+<html lang="de">
+<head><meta charset="utf-8"><title>Fehler (Testfixture)</title></head>
+<body>
+  <form method="post" action="{{ACTION}}" id="form1">
+    <input type="hidden" name="__VIEWSTATE" value="ZXJy" />
+    <span id="Label1">
+      Die Anmeldung ist fehlgeschlagen.
+    </span>
+    <span id="LabelDetail">  Bitte prüfen Sie Ihre Eingaben. </span>
+    {{BUTTONS}}
+  </form>
+</body>
+</html>

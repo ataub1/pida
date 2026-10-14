@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<InfoboxReadRequest xmlns="http://www.buergerkarte.at/namespaces/securitylayer/1.2#" xmlns:ns2="http://www.w3.org/2000/09/xmldsig#">
+    <InfoboxIdentifier>Certificates</InfoboxIdentifier>
+    <AssocArrayParameters>
+        <ReadValue Key="SecureSignatureKeypair"/>
+    </AssocArrayParameters>
+</InfoboxReadRequest>

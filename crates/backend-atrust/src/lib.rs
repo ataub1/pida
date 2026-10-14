@@ -5,31 +5,46 @@
 //! - nur 301/302 werden verfolgt, immer als GET; `Refresh`-Header und `<meta http-equiv=refresh>`,
 //! - genau ein Formular, genau ein Block ([`page::PageBlock`]) in der Dispatcher-Reihenfolge
 //!   FIDO2-Default → AutoSkip → Interstitial → Error → Login → SMS-TAN → QR → App-2FA → FIDO2,
-//! - Long-Poll `qrpoll` mit Bearer-Token, 300 s, Backoff 10 s ([`poll`]),
+//! - Formular-Submit immer `multipart/form-data`: alle Felder plus genau ein „geklickter“ Button,
+//! - Long-Poll `qrpoll` mit Bearer-Token, 300 s, Backoff 10 s ([`poll`]); Poll und QR-Bild ohne
+//!   Cookies,
 //! - Loop-Guard 50 Requests / 2 s ([`LoopGuard`]),
 //! - Selektoren/URL-Muster als **versionierte Datendatei** ([`selectors::SelectorSet`]),
 //! - unbekannte Seite → Abbruch mit Diagnosecode, nie raten,
-//! - **kein automatisches Neusenden von Zugangsdaten** bei erneuter Login-Seite (Plan §4.4),
+//! - **kein automatisches Neusenden von Zugangsdaten** bei erneuter Login-Seite bzw. Fehlermeldung
+//!   auf der Login-Seite (Plan §4.4, Schutz vor Kontosperre),
 //! - Batch mit **einer** Anmeldung (Credentials nur als `Zeroizing` im RAM der Sitzung; das
-//!   Passwort wird nie persistiert),
+//!   Passwort wird nie persistiert); im zweiten SL-Request wird automatisch angemeldet,
 //! - FIDO2 nativ nur auf dem Desktop über [`fido2::Fido2Provider`] (Origin
 //!   `https://service.a-trust.at`, Ergebnis-JSON exakt nach docs/analyse/02 §3.8).
 //!
+//! **Fehler und Meldungen:** HTTP 407/413/sonstige zeigt das Backend selbst als
+//! [`pdfover_backend_api::Notice`] (OK) und liefert danach [`BackendError::Cancelled`] – wie
+//! PDF-Over, das nach dem Dialog kommentarlos zur Auswahl zurückkehrt. Kann der Broker keine
+//! Meldung zeigen (`InteractionError::Unsupported`), kommt der spezifische Fehler
+//! ([`BackendError::ProxyAuthRequired`], [`BackendError::DocumentTooLarge`],
+//! [`BackendError::Http`]). Verbindungsfehler ergeben [`BackendError::Network`] bzw.
+//! [`BackendError::Timeout`] ohne eigene Meldung (der Workflow bietet „Wiederholen“ an wie
+//! PDF-Over `SigningState`). SL-`ErrorResponse` 6000/6001 → `Cancelled`, sonst
+//! [`BackendError::SecurityLayer`].
+//!
 //! Ownership: Paket **D**.
 
+mod dialog;
 pub mod fido2;
 pub mod page;
 pub mod poll;
 pub mod selectors;
 pub mod validate;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use pdfover_backend_api::{
-    BackendError, BackendId, BackendSession, Capabilities, CertChain, Environment, InteractionBroker, SessionContext,
-    SignJob, SignResult, SignatureBackend,
+    BackendError, BackendId, BackendSession, Capabilities, CertChain, CertNeed, Environment, FactorSet, Interaction,
+    InteractionBroker, Qualification, ServerNeed, SessionContext, SignInput, SignJob, SignOutput, SignResult,
+    SignatureBackend,
 };
 use pdfover_net::{NetConfig, Url};
 use zeroize::Zeroizing;
@@ -42,6 +57,24 @@ pub const PROD_ENDPOINT: &str = "https://service.a-trust.at/mobile/https-securit
 pub const TEST_ENDPOINT: &str = "https://hs-abnahme.a-trust.at/mobile/https-security-layer-request/default.aspx";
 /// WebAuthn-Origin.
 pub const WEBAUTHN_ORIGIN: &str = "https://service.a-trust.at";
+/// Empfohlene `/Contents`-Reserve für Modell B (Plan §6.2, 16 KiB).
+pub const CMS_RESERVE: usize = 16 * 1024;
+
+/// „Signaturdaten anzeigen“ (F-68, R10): öffnet `url` aus [`pdfover_backend_api::FormContext::signature_data_url`]
+/// im Systembrowser über [`InteractionBroker::open_external`] – nur `https://` zu A-Trust bzw. zum
+/// konfigurierten Endpunkt (ADR 0001 §8.6). Der Browser hat keine Sitzungs-Cookies (wie PDF-Over).
+pub fn open_signature_data(ui: &dyn InteractionBroker, url: &str, endpoint: &Url) -> Result<(), BackendError> {
+    let parsed = Url::parse(url).map_err(|_| BackendError::Protocol("Link „Signaturdaten“ ist keine URL".into()))?;
+    if !dialog::allowed_external(&parsed, endpoint) {
+        return Err(BackendError::Protocol("Link „Signaturdaten“ führt nicht zu A-Trust".into()));
+    }
+    ui.open_external(parsed.as_str()).map_err(|e| match e {
+        pdfover_backend_api::InteractionError::Cancelled => BackendError::Cancelled,
+        pdfover_backend_api::InteractionError::Unsupported => {
+            BackendError::Unavailable("Systembrowser nicht verfügbar".into())
+        }
+    })
+}
 
 /// Endlosschleifen-Schutz (docs/analyse/02 §3.4 Schritt 1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +92,10 @@ impl Default for LoopGuardConfig {
 }
 
 /// Zustand des Loop-Guards (gilt über beide SL-Requests einer Sitzung).
+///
+/// Semantik wie `MobileBKUConnector.sendHTTPRequest`: Ein Request innerhalb von `window` nach dem
+/// Fensterbeginn erhöht den Zähler, sonst beginnt ein neues Fenster (Zähler 0). Ist der Zähler bei
+/// `max_requests` angekommen, wird kein weiterer Request mehr gesendet.
 #[derive(Debug, Clone)]
 pub struct LoopGuard {
     config: LoopGuardConfig,
@@ -74,7 +111,17 @@ impl LoopGuard {
 
     /// Vor jedem Request aufrufen; `Err(LoopDetected)` ab der Grenze.
     pub fn check(&mut self, now: std::time::Instant) -> Result<(), BackendError> {
-        todo!("Paket D")
+        if self.count >= self.config.max_requests {
+            return Err(BackendError::LoopDetected);
+        }
+        match self.window_start {
+            Some(start) if now.saturating_duration_since(start) < self.config.window => self.count += 1,
+            _ => {
+                self.count = 0;
+                self.window_start = Some(now);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -101,6 +148,30 @@ pub struct AtrustConfig {
     pub loop_guard: LoopGuardConfig,
     /// Long-Poll.
     pub poll: poll::PollConfig,
+}
+
+impl AtrustConfig {
+    /// Standardkonfiguration für einen Endpunkt (eingebettete Selektoren, ohne FIDO2). Das
+    /// Request-Timeout ist mit 300 s großzügig, weil der CMS-Request das ganze PDF hochlädt.
+    pub fn new(endpoint: Url) -> Self {
+        Self {
+            endpoint,
+            net: NetConfig { request_timeout: Some(Duration::from_secs(300)), ..NetConfig::default() },
+            prefill_username: None,
+            prefill_password: None,
+            remember: false,
+            fido2_default: false,
+            fido2: None,
+            selectors: selectors::SelectorSet::builtin(),
+            loop_guard: LoopGuardConfig::default(),
+            poll: poll::PollConfig::default(),
+        }
+    }
+
+    /// Produktiv-Endpunkt [`PROD_ENDPOINT`].
+    pub fn production() -> Self {
+        Self::new(Url::parse(PROD_ENDPOINT).expect("konstante URL"))
+    }
 }
 
 impl std::fmt::Debug for AtrustConfig {
@@ -143,18 +214,27 @@ impl std::fmt::Debug for Credentials {
 pub struct AtrustNativeBackend {
     config: AtrustConfig,
     /// Bei „Merken“: Passwort bis Programmende im RAM (wie PDF-Over-Overlay), nie auf Platte.
-    remembered: std::sync::Mutex<Credentials>,
+    remembered: Arc<Mutex<Credentials>>,
 }
 
 impl AtrustNativeBackend {
     /// Neues Backend.
     pub fn new(config: AtrustConfig) -> Self {
-        Self { config, remembered: std::sync::Mutex::new(Credentials::default()) }
+        Self { config, remembered: Arc::new(Mutex::new(Credentials::default())) }
     }
 
     /// Vergisst gemerkte Credentials (Abwählen von „Merken“, Fehlerseite, Nutzerabbruch).
     pub fn forget_credentials(&self) {
         *self.remembered.lock().expect("poisoned") = Credentials::default();
+    }
+
+    /// Konfiguration.
+    pub fn config(&self) -> &AtrustConfig {
+        &self.config
+    }
+
+    fn fido2_available(&self) -> bool {
+        self.config.fido2.as_ref().is_some_and(|p| p.is_available())
     }
 }
 
@@ -165,9 +245,23 @@ impl SignatureBackend for AtrustNativeBackend {
     }
 
     fn capabilities(&self, env: &Environment) -> Option<Capabilities> {
-        todo!(
-            "Paket D: Document → Cms, OnlyForVisibleBlock, NativeForms, max_batch 1, login_once_per_batch, document_leaves_device, Qes, Faktoren (FIDO2 nur Desktop+Provider), Reserve 16 KiB"
-        )
+        if env.headless || !env.allows(BackendId::AtrustNative) {
+            return None;
+        }
+        let fido2 = env.platform.is_desktop() && self.fido2_available();
+        Some(Capabilities {
+            input: SignInput::Document,
+            output: SignOutput::Cms,
+            certificate: CertNeed::OnlyForVisibleBlock,
+            interaction: Interaction::NativeForms,
+            server: ServerNeed::None,
+            max_batch: 1,
+            login_once_per_batch: true,
+            document_leaves_device: true,
+            qualification: Qualification::Qes,
+            factors: FactorSet { app: true, sms: true, qr: true, fido2, card: false },
+            cms_reserve: Some(CMS_RESERVE),
+        })
     }
 
     async fn open(
@@ -175,28 +269,121 @@ impl SignatureBackend for AtrustNativeBackend {
         ctx: SessionContext,
         ui: Arc<dyn InteractionBroker>,
     ) -> Result<Box<dyn BackendSession>, BackendError> {
-        todo!("Paket D")
+        if ctx.headless {
+            return Err(BackendError::Unavailable("ID Austria braucht Eingaben der Nutzerin (nicht headless)".into()));
+        }
+        let remembered = self.remembered.lock().expect("poisoned").clone();
+        let credentials = Credentials {
+            username: remembered.username.or_else(|| self.config.prefill_username.clone()),
+            password: remembered.password.or_else(|| self.config.prefill_password.clone()),
+        };
+        let fido2_available = self.fido2_available();
+        Ok(Box::new(AtrustSession {
+            credentials,
+            loop_guard: LoopGuard::new(self.config.loop_guard),
+            inner: dialog::Dialog::new(self.config.clone(), Arc::clone(&self.remembered), ui, ctx, fido2_available),
+        }))
     }
 }
 
 /// Offene Sitzung (InfoboxRead → CreateCMS, je Request neuer Client).
-#[derive(Debug)]
 pub struct AtrustSession {
     credentials: Credentials,
     loop_guard: LoopGuard,
+    inner: dialog::Dialog,
+}
+
+impl std::fmt::Debug for AtrustSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AtrustSession")
+            .field("credentials", &self.credentials)
+            .field("loop_guard", &self.loop_guard)
+            .field("dialog", &self.inner)
+            .finish()
+    }
+}
+
+impl AtrustSession {
+    /// Ein Nutzerabbruch löscht das Passwort (Sitzung und „Merken“-Speicher; F-72: Benutzername
+    /// bleibt), wie PDF-Over `SigningState`.
+    fn after<T>(&mut self, result: Result<T, BackendError>) -> Result<T, BackendError> {
+        if matches!(result, Err(BackendError::Cancelled)) {
+            self.inner.clear_password(&mut self.credentials);
+        }
+        result
+    }
 }
 
 #[async_trait]
 impl BackendSession for AtrustSession {
     async fn certificate(&mut self) -> Result<CertChain, BackendError> {
-        todo!("Paket D: SL InfoboxReadRequest über den Dialog-Ablauf")
+        let result = self.inner.certificate(&mut self.credentials, &mut self.loop_guard).await;
+        self.after(result)
     }
 
     async fn sign(&mut self, jobs: Vec<SignJob>) -> Result<Vec<SignResult>, BackendError> {
-        todo!("Paket D: je Job CreateCMSSignatureRequest (Upload, multipart fileupload zuerst)")
+        let result = self.inner.sign(&mut self.credentials, &mut self.loop_guard, jobs).await;
+        self.after(result)
     }
 
     async fn cancel(&mut self) {
-        todo!("Paket D: laufenden Poll abbrechen, Passwort löschen")
+        self.inner.clear_password(&mut self.credentials);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Instant;
+
+    use super::*;
+
+    #[test]
+    fn loop_guard_like_pdf_over() {
+        let mut g = LoopGuard::new(LoopGuardConfig::default());
+        let t0 = Instant::now();
+        // 1 Request eröffnet das Fenster, 50 weitere zählen, der 52. wird verweigert
+        for i in 0..51 {
+            assert!(g.check(t0 + Duration::from_millis(i)).is_ok(), "{i}");
+        }
+        assert_eq!(g.check(t0 + Duration::from_millis(60)), Err(BackendError::LoopDetected));
+        // einmal ausgelöst bleibt er ausgelöst (Java prüft vor dem Zurücksetzen)
+        assert_eq!(g.check(t0 + Duration::from_secs(10)), Err(BackendError::LoopDetected));
+
+        let mut g = LoopGuard::new(LoopGuardConfig::default());
+        for i in 0..200u64 {
+            // alle 50 ms ein Request: nach jeweils 2 s beginnt ein neues Fenster
+            assert!(g.check(t0 + Duration::from_millis(i * 50)).is_ok(), "{i}");
+        }
+    }
+
+    #[test]
+    fn config_debug_hides_password() {
+        let mut c = AtrustConfig::production();
+        c.prefill_password = Some(Zeroizing::new("geheim".into()));
+        c.prefill_username = Some("+436641234567".into());
+        let dbg = format!("{c:?}");
+        assert!(!dbg.contains("geheim"));
+        assert_eq!(c.endpoint.as_str(), PROD_ENDPOINT);
+        let creds = Credentials { username: Some("u".into()), password: Some(Zeroizing::new("geheim".into())) };
+        assert!(!format!("{creds:?}").contains("geheim"));
+    }
+
+    #[test]
+    fn capabilities() {
+        let backend = AtrustNativeBackend::new(AtrustConfig::production());
+        let env = Environment::current();
+        let caps = backend.capabilities(&env).unwrap();
+        assert_eq!(caps.input, SignInput::Document);
+        assert_eq!(caps.output, SignOutput::Cms);
+        assert_eq!(caps.certificate, CertNeed::OnlyForVisibleBlock);
+        assert_eq!(caps.interaction, Interaction::NativeForms);
+        assert!(caps.document_leaves_device && caps.login_once_per_batch);
+        assert_eq!(caps.max_batch, 1);
+        assert_eq!(caps.cms_reserve, Some(16 * 1024));
+        assert!(!caps.factors.fido2, "ohne Provider kein FIDO2");
+        assert!(backend.capabilities(&Environment { headless: true, ..env.clone() }).is_none());
+        assert!(
+            backend.capabilities(&Environment { allowed_by_policy: Some(vec![BackendId::Keystore]), ..env }).is_none()
+        );
     }
 }

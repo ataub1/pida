@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<!-- Synthetische Testseite (NUR TEST), aus den Selektoren in docs/analyse/02 §3.5 konstruiert; kein Original-Markup von A-Trust. -->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>ID Austria – Anmeldung (Testfixture)</title>
+</head>
+<body>
+  <div id="LinkList"><a href="ShowSigobj.aspx?sid={{SID}}">Signaturdaten anzeigen</a></div>
+  <form method="post" action="./Login.aspx?sid={{SID}}" id="form1">
+    <input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="dGVzdC12aWV3c3RhdGU=" />
+    <input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="ZXZlbnQ=" />
+    <label for="handynummer">Benutzername oder Telefonnummer</label>
+    <input type="text" name="ctl00$Main$handynummer" id="handynummer" value="" autocomplete="username" />
+    <label for="signaturpasswort">Signatur-Passwort</label>
+    <input type="password" name="ctl00$Main$signaturpasswort" id="signaturpasswort" value="" />
+    <input type="checkbox" name="ctl00$Main$merken" value="on" />
+    <select name="ctl00$Main$sprache"><option value="de" selected>Deutsch</option></select>
+    <textarea name="ctl00$Main$notiz">wird nicht gesendet</textarea>
+    <input type="text" value="Feld ohne Namen" />
+    <input type="submit" name="ctl00$Main$Button_Identification" id="Button_Identification" value="Identifizieren" />
+    <input type="submit" name="ctl00$Main$Button_Cancel" id="Button_Cancel" value="Abbrechen" />
+    <input type="SUBMIT" name="ctl00$Main$Hilfe" value="Hilfe" />
+  </form>
+</body>
+</html>

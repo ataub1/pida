@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<!-- Synthetische Testseite (NUR TEST): App-Bestätigung erkannt über ".ida-signtype #SignType". -->
+<html lang="de">
+<head><meta charset="utf-8"><title>Signaturart (Testfixture)</title></head>
+<body>
+  <form method="post" action="signtype.aspx" id="form1">
+    <div class="ida-signtype"><span id="SignType">ID Austria App</span></div>
+    <span id="vergleichswert"> K9  x2 </span>
+  </form>
+  <div id="jsLongPoll"><script>qrpoll("poll.ashx", "T-1");</script></div>
+  <!-- #SignType außerhalb von .ida-signtype allein reicht nicht -->
+</body>
+</html>

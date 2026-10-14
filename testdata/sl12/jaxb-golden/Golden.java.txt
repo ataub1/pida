@@ -1,0 +1,73 @@
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.StringWriter;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Marshaller;
+
+import at.gv.egiz.sl.schema.*;
+import at.gv.egiz.sl.schema.InfoboxReadParamsAssocArrayType.ReadValue;
+
+/** Bildet BaseSLConnector + SLMarschaller (PDF-AS 4.4.2, jaxb-runtime 2.3.3) nach und schreibt Golden-Dateien. */
+public class Golden {
+    static JAXBContext ctx;
+
+    static String marshal(Object o) throws Exception {
+        Marshaller m = ctx.createMarshaller();
+        m.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+        m.setProperty(Marshaller.JAXB_ENCODING, "UTF-8");
+        StringWriter sw = new StringWriter();
+        m.marshal(o, sw);
+        return sw.toString();
+    }
+
+    static void write(File dir, String name, String content) throws Exception {
+        try (FileOutputStream fos = new FileOutputStream(new File(dir, name))) {
+            fos.write(content.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    static CreateCMSSignatureRequestType cms(boolean base64, byte[] data, long from, long to, Boolean pades) {
+        MetaInfoType meta = new MetaInfoType();
+        meta.setMimeType("application/pdf");
+        Base64OptRefContentType content = new Base64OptRefContentType();
+        if (base64) content.setBase64Content(data); else content.setReference("formdata:fileupload");
+        CMSDataObjectRequiredMetaType dobj = new CMSDataObjectRequiredMetaType();
+        dobj.setMetaInfo(meta);
+        dobj.setContent(content);
+        ExcludedByteRangeType ex = new ExcludedByteRangeType();
+        ex.setFrom(BigInteger.valueOf(from));
+        ex.setTo(BigInteger.valueOf(to));
+        dobj.setExcludedByteRange(ex);
+        CreateCMSSignatureRequestType req = new CreateCMSSignatureRequestType();
+        req.setKeyboxIdentifier("SecureSignatureKeypair");
+        req.setDataObject(dobj);
+        req.setStructure("detached");
+        if (pades != null) req.setPAdESFlag(pades);
+        return req;
+    }
+
+    public static void main(String[] args) throws Exception {
+        File dir = new File(args[0]);
+        dir.mkdirs();
+        ctx = JAXBContext.newInstance("at.gv.egiz.sl.schema");
+        ObjectFactory of = new ObjectFactory();
+
+        InfoboxReadRequestType ir = new InfoboxReadRequestType();
+        ir.setInfoboxIdentifier("Certificates");
+        InfoboxReadParamsAssocArrayType rd = new InfoboxReadParamsAssocArrayType();
+        ReadValue rv = new ReadValue();
+        rv.setKey("SecureSignatureKeypair");
+        rd.setReadValue(rv);
+        ir.setAssocArrayParameters(rd);
+        write(dir, "infobox-read-request.xml", marshal(of.createInfoboxReadRequest(ir)));
+
+        write(dir, "create-cms-upload.xml", marshal(of.createCreateCMSSignatureRequest(cms(false, null, 1234L, 5678L, null))));
+        byte[] data = "%PDF-1.7\n\u0000\u0000\u0000 ende\n".getBytes(StandardCharsets.ISO_8859_1);
+        write(dir, "create-cms-base64.xml", marshal(of.createCreateCMSSignatureRequest(cms(true, data, 10L, 12L, null))));
+        write(dir, "create-cms-upload-pades.xml", marshal(of.createCreateCMSSignatureRequest(cms(false, null, 4294967296L, 4294975487L, Boolean.TRUE))));
+        write(dir, "null-operation-request-jaxb.xml", marshal(of.createNullOperationRequest(new NullOperationRequestType())));
+    }
+}

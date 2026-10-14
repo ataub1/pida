@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sl:InfoboxReadResponse xmlns:sl="http://www.buergerkarte.at/namespaces/securitylayer/1.2#">
+  <sl:AssocArrayData>
+    <sl:Pair Key="AndererSchluessel">
+      <sl:Base64Content>AAEC</sl:Base64Content>
+    </sl:Pair>
+    <sl:Pair Key="SecureSignatureKeypair">
+      <sl:Base64Content>
+MIIDeDCCAmCgAwIBAgIFCgsMDQEwDQYJKoZIhvcNAQELBQAwXTELMAkGA1UEBhMCQVQxJDAiBgNV
+BAoMG1BERi1PdmVyIE5HIFRlc3QgKE5VUiBURVNUKTEoMCYGA1UEAwwfUERGLU92ZXIgTkcgVGVz
+dCBSU0EgKE5VUiBURVNUKTAeFw0yNjEwMTQxNDMxMDNaFw0zNjEwMTExNDMxMDNaMF0xCzAJBgNV
+BAYTAkFUMSQwIgYDVQQKDBtQREYtT3ZlciBORyBUZXN0IChOVVIgVEVTVCkxKDAmBgNVBAMMH1BE
+Ri1PdmVyIE5HIFRlc3QgUlNBIChOVVIgVEVTVCkwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQComuYMLHv0RbnSnTabRU3TWQcPI6WgMqI+wAU+2dsqzc7hJwwsxDNnx2TKo30tfq4q7Ce8
+/eVxfWshHVgXmJE7VlzEFAvaYwrd4FfKUG+Ns6UNHhPvvnrrpfFip7OC6ipqc+B+W4XwK1ZPNirC
+jMu7UgOIIqHL61w+o1J1crTiT9F1+kTNCz7BZxf6iA6bEfXnJq45yshJiZmRidVPhgDnP1dSvpOs
+MRAAnEQ5X65K6DrzRJrFP+HzLbGEy8WP7ozdT+o+Ao9TCnApc0Ml9qDpK1/KpAIx/n7voh5MpT+r
+kqjoxjHPfvy2Q5ENMBzs0Rmpb93pYH9lI3wRjQYBBxoXAgMBAAGjPzA9MB0GA1UdDgQWBBQykgOJ
+uPMwSfdoZ0NI6Jtc21u0XjAOBgNVHQ8BAf8EBAMCBsAwDAYDVR0TAQH/BAIwADANBgkqhkiG9w0B
+AQsFAAOCAQEAGKDL3UpheOF1deqDOfMYq0bpdmTx/u1REGNKj8kBrD1cWuzYs9JI07MjT3DmCwom
+7tfV7EDzoAuqcxjsrpjW5/4+l1BrnwhV01YQKKCcQAvr1YGUcPXNHJCkgn5/PbeALSAc5KAiF+y0
+IwmfJvFCZ+UsqXlaa8/Tw5jXKHP3odHiz0+Q61o39OxkxFaTvcdb7Kp6MT/EK9YrHQMXBye4I++S
+Q32pfLx59sudUuzy/2gQj7rCIBwYen0lhj9sNx/XVYkVjixfHZJ4NYZE68PUGzmEUrdnabdmxfTk
+LOpi9QedAdChp/IfIQlwhELBte/t3lKgd3VKCVbDOxtqw4ePbg==
+      </sl:Base64Content>
+    </sl:Pair>
+  </sl:AssocArrayData>
+</sl:InfoboxReadResponse>

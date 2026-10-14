@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<!-- Synthetische Testseite (NUR TEST): SMS-TAN mit Vergleichswert, Wechsel auf FIDO2, Signaturdaten-Link. -->
+<html lang="de">
+<head><meta charset="utf-8"><title>SMS-TAN (Testfixture)</title></head>
+<body>
+  <div id="LinkList">
+    <a href="Hilfe.aspx">Hilfe</a>
+    <a href="ShowSigobj.aspx?sid={{SID}}&amp;doc=1">Signaturdaten anzeigen</a>
+  </div>
+  <form method="post" action="sms.aspx?sid={{SID}}" id="form1">
+    <input type="hidden" name="__VIEWSTATE" value="c21z" />
+    <p>Vergleichswert: <span id="vergleichswert">{{REF}}</span></p>
+    <input type="text" name="ctl00$Main$input_tan" id="input_tan" value="" maxlength="6" />
+    <input type="submit" name="ctl00$Main$SignButton" id="SignButton" value="Signieren" />
+    <a id="FidoButton" href="fido.aspx?sid={{SID}}">FIDO2-Sicherheitsschlüssel verwenden</a>
+  </form>
+</body>
+</html>

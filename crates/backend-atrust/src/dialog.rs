@@ -1,0 +1,817 @@
+//! A-Trust-Dialog je SL-Request (docs/analyse/02 §3.3–§3.12, `MobileBKUConnector`).
+//!
+//! `handle_sl_request` sendet den Initial-Request (R1a urlencoded / R1b multipart) mit einem neuen
+//! Client und leerem Cookie-Jar, folgt 301/302 (R2), `Refresh` (R3) und `<meta refresh>` (R4),
+//! klassifiziert jede HTML-Seite und bestimmt mit `present` den nächsten Request (R5–R7), bis eine
+//! Antwort mit MIME `…/xml` kommt (die SL-Antwort).
+
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+use pdfover_backend_api::{
+    BackendError, BackendEvent, CertChain, Certificate, FormAnswer, FormContext, FormProblem, InteractionBroker,
+    InteractionError, NativeForm, Notice, NoticeAnswer, NoticeButtons, NoticeCode, NoticeKind, Progress, QrImage,
+    SessionContext, SignJob, SignResult,
+};
+use pdfover_net::{Body, FormPart, HttpClient, NetError, Purpose, Request, Response, Url};
+use pdfover_sl12::{CreateCmsRequest, DocumentContent, HttpBody, PartOrder, SlRequest, SlResponse};
+use zeroize::Zeroizing;
+
+use crate::page::{self, PageBlock, ParsedPage, SubmitButton};
+use crate::poll::{self, PollInfo, PollOutcome};
+use crate::{AtrustConfig, Credentials, Fido2Error, Fido2Request, LoopGuard, WEBAUTHN_ORIGIN, fido2, validate};
+
+/// Antwort von `send`: SL-Antwort oder klassifizierte Seite.
+enum Reply {
+    Xml(Response),
+    Page(Box<ParsedPage>),
+}
+
+/// Login-Zustand innerhalb eines SL-Requests (eine A-Trust-Sitzung).
+#[derive(Debug, Default, Clone, Copy)]
+struct LoginState {
+    /// Zugangsdaten wurden in dieser A-Trust-Sitzung gesendet.
+    submitted: bool,
+    /// Danach kam eine Seite ohne Login- und Fehlerblock (Anmeldung erfolgreich).
+    confirmed: bool,
+}
+
+/// Zustand eines Signaturvorgangs über beide SL-Requests.
+pub(crate) struct Dialog {
+    config: AtrustConfig,
+    remembered: Arc<Mutex<Credentials>>,
+    ui: Arc<dyn InteractionBroker>,
+    ctx: SessionContext,
+    fido2_available: bool,
+    remember: bool,
+    fido2_default_pending: bool,
+    announced_login: Option<String>,
+}
+
+impl std::fmt::Debug for Dialog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dialog")
+            .field("endpoint", &pdfover_net::redact_url(&self.config.endpoint))
+            .field("fido2_available", &self.fido2_available)
+            .field("remember", &self.remember)
+            .field("fido2_default_pending", &self.fido2_default_pending)
+            .finish_non_exhaustive()
+    }
+}
+
+fn to_net_body(body: HttpBody) -> Body {
+    match body {
+        HttpBody::UrlEncoded(fields) => Body::Form(fields),
+        HttpBody::Multipart(parts) => Body::Multipart(
+            parts
+                .into_iter()
+                .map(|p| FormPart { name: p.name, filename: p.filename, content_type: p.content_type, data: p.data })
+                .collect(),
+        ),
+    }
+}
+
+/// R5: alle Formularfelder als Textteile plus genau ein „geklickter“ Button (immer multipart).
+fn form_submit(page: &ParsedPage, button: Option<&SubmitButton>) -> Request {
+    let mut parts: Vec<FormPart> =
+        page.form_fields.iter().map(|(k, v)| FormPart::text(k.as_str(), v.as_str())).collect();
+    if let Some(b) = button {
+        parts.push(FormPart::text(b.name.as_str(), b.value.as_str()));
+    }
+    Request::post(page.form_action.clone(), Body::Multipart(parts))
+}
+
+fn net_to_backend(error: NetError) -> BackendError {
+    match error {
+        NetError::Connect(m) => BackendError::Network(m),
+        NetError::Timeout => BackendError::Timeout,
+        NetError::Tls(m) => BackendError::Network(format!("TLS: {m}")),
+        NetError::Proxy(m) => BackendError::Network(format!("Proxy: {m}")),
+        NetError::InvalidUrl(m) => BackendError::Protocol(format!("ungültige URL: {m}")),
+        NetError::Body(m) => BackendError::Protocol(m),
+        NetError::Config(m) => BackendError::Internal(m),
+        NetError::NoResponse => BackendError::Network("keine Antwort des Signaturdienstes".into()),
+    }
+}
+
+fn resolve(base: &Url, href: &str) -> Result<Url, BackendError> {
+    pdfover_net::resolve(base, href).map_err(net_to_backend)
+}
+
+/// Erster `<meta http-equiv="refresh">` (Attributwert ohne Groß-/Kleinschreibung) → `content`.
+fn meta_refresh_content(html: &str) -> Option<String> {
+    let doc = scraper::Html::parse_document(html);
+    let sel = scraper::Selector::parse("meta[http-equiv]").ok()?;
+    doc.select(&sel)
+        .find(|m| m.attr("http-equiv").is_some_and(|v| v.eq_ignore_ascii_case("refresh")))
+        .map(|m| m.attr("content").unwrap_or_default().to_owned())
+}
+
+/// Link „Signaturdaten anzeigen“ nur über `https://` zu A-Trust bzw. zum konfigurierten Endpunkt
+/// (ADR 0001 §8.6).
+pub(crate) fn allowed_external(url: &Url, endpoint: &Url) -> bool {
+    let same_origin = url.scheme() == endpoint.scheme()
+        && url.host_str() == endpoint.host_str()
+        && url.port_or_known_default() == endpoint.port_or_known_default();
+    let atrust = url.scheme() == "https"
+        && url
+            .host_str()
+            .is_some_and(|h| h.eq_ignore_ascii_case("a-trust.at") || h.to_ascii_lowercase().ends_with(".a-trust.at"));
+    same_origin || atrust
+}
+
+/// Bricht einen laufenden FIDO2-Vorgang ab, wenn das Future gedroppt wird.
+struct CancelFido2OnDrop {
+    provider: Option<Arc<dyn fido2::Fido2Provider>>,
+}
+
+impl CancelFido2OnDrop {
+    fn disarm(&mut self) {
+        self.provider = None;
+    }
+}
+
+impl Drop for CancelFido2OnDrop {
+    fn drop(&mut self) {
+        if let Some(p) = self.provider.take() {
+            p.cancel();
+        }
+    }
+}
+
+impl Dialog {
+    pub(crate) fn new(
+        config: AtrustConfig,
+        remembered: Arc<Mutex<Credentials>>,
+        ui: Arc<dyn InteractionBroker>,
+        ctx: SessionContext,
+        fido2_available: bool,
+    ) -> Self {
+        let remember = config.remember;
+        let fido2_default_pending = config.fido2_default && fido2_available;
+        Self { config, remembered, ui, ctx, fido2_available, remember, fido2_default_pending, announced_login: None }
+    }
+
+    /// Löscht das Passwort der Sitzung und des „Merken“-Speichers (Benutzername bleibt).
+    pub(crate) fn clear_password(&self, credentials: &mut Credentials) {
+        credentials.password = None;
+        self.remembered.lock().expect("poisoned").password = None;
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Öffentliche Abläufe
+
+    pub(crate) async fn certificate(
+        &mut self,
+        credentials: &mut Credentials,
+        guard: &mut LoopGuard,
+    ) -> Result<CertChain, BackendError> {
+        self.ui.progress(Progress::ReadingCertificate);
+        match self.handle_sl_request(credentials, guard, &SlRequest::InfoboxReadCertificates, None).await? {
+            SlResponse::InfoboxRead(response) => {
+                let der = response
+                    .signature_certificate()
+                    .ok_or_else(|| BackendError::Protocol("InfoboxReadResponse ohne SecureSignatureKeypair".into()))?;
+                let certificate = Certificate::from_der(der)
+                    .map_err(|e| BackendError::Protocol(format!("Signaturzertifikat nicht lesbar: {e}")))?;
+                Ok(CertChain::new(certificate))
+            }
+            SlResponse::Error(e) => Err(sl_error(e)),
+            other => Err(BackendError::Protocol(format!("unerwartete SL-Antwort auf InfoboxRead: {}", kind(&other)))),
+        }
+    }
+
+    pub(crate) async fn sign(
+        &mut self,
+        credentials: &mut Credentials,
+        guard: &mut LoopGuard,
+        jobs: Vec<SignJob>,
+    ) -> Result<Vec<SignResult>, BackendError> {
+        let total = jobs.len();
+        let mut results = Vec::with_capacity(total);
+        for (index, job) in jobs.into_iter().enumerate() {
+            if total > 1 {
+                self.ui.progress(Progress::Document { index: index + 1, total });
+            }
+            let SignJob::Document(job) = job else {
+                return Err(BackendError::Internal("ID Austria (Szenario A) signiert nur Dokumente (Modell B)".into()));
+            };
+            let data = job
+                .source
+                .blacked_out_bytes()
+                .map_err(|e| BackendError::Internal(format!("vorbereitetes Dokument nicht lesbar: {e}")))?;
+            let range = job.source.excluded_range();
+            drop(job); // `DocumentJob::source` nicht über den Request hinaus halten (ADR 0001 §8.5)
+            let request = SlRequest::CreateCmsSignature(CreateCmsRequest::new(
+                DocumentContent::Upload,
+                pdfover_sl12::ExcludedByteRange { from: range.from, to: range.to },
+            ));
+            self.ui.progress(Progress::Signing);
+            match self.handle_sl_request(credentials, guard, &request, Some(data)).await? {
+                SlResponse::CreateCmsSignature(r) => results.push(SignResult::Cms(r.cms)),
+                SlResponse::Error(e) => return Err(sl_error(e)),
+                other => {
+                    return Err(BackendError::Protocol(format!(
+                        "unerwartete SL-Antwort auf CreateCMSSignature: {}",
+                        kind(&other)
+                    )));
+                }
+            }
+        }
+        self.ui.progress(Progress::Done);
+        Ok(results)
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Transport
+
+    async fn cancellable<F: std::future::Future>(&self, future: F) -> Result<F::Output, BackendError> {
+        let cancel = self.ctx.cancel.clone();
+        tokio::select! {
+            biased;
+            _ = cancel.cancelled() => Err(BackendError::Cancelled),
+            out = future => Ok(out),
+        }
+    }
+
+    async fn handle_sl_request(
+        &mut self,
+        credentials: &mut Credentials,
+        guard: &mut LoopGuard,
+        request: &SlRequest,
+        upload: Option<Vec<u8>>,
+    ) -> Result<SlResponse, BackendError> {
+        self.ui.progress(Progress::Connecting);
+        let client = HttpClient::new(&self.config.net, Purpose::AtrustSession).map_err(net_to_backend)?;
+        let body = pdfover_sl12::http_body(request, upload.as_deref(), PartOrder::FileFirst);
+        drop(upload);
+        let mut next = Request::post(self.config.endpoint.clone(), to_net_body(body));
+        let mut login = LoginState::default();
+        loop {
+            match self.send(&client, guard, next).await? {
+                Reply::Xml(response) => {
+                    if let Some(date) = response.date() {
+                        self.ui.event(BackendEvent::ServerTime(date));
+                    }
+                    let text = response.text();
+                    return pdfover_sl12::parse_response(text.as_bytes())
+                        .map_err(|e| BackendError::Protocol(format!("SL-Antwort nicht lesbar: {e}")));
+                }
+                Reply::Page(page) => {
+                    next = self.present(credentials, *page, &mut login).await?;
+                    self.ui.progress(Progress::WaitingForServer);
+                }
+            }
+        }
+    }
+
+    /// `sendHTTPRequest`: Loop-Guard, 301/302, Status, `Refresh`, MIME, `<meta refresh>`, Parser.
+    async fn send(
+        &mut self,
+        client: &HttpClient,
+        guard: &mut LoopGuard,
+        mut request: Request,
+    ) -> Result<Reply, BackendError> {
+        loop {
+            guard.check(Instant::now())?;
+            tracing::debug!(method = request.method.as_str(), url = %pdfover_net::redact_url(&request.url), "A-Trust-Request");
+            // Basis für relative Ziele ist die URI des auslösenden Requests (Körper nicht kopieren)
+            let url = request.url.clone();
+            let response = match self.cancellable(client.execute(request)).await? {
+                Ok(r) => r,
+                Err(e) if e.is_proxy_auth_required() => {
+                    return Err(self.fatal(NoticeCode::ProxyAuthRequired, None, BackendError::ProxyAuthRequired).await);
+                }
+                Err(e) => return Err(net_to_backend(e)),
+            };
+            match response.status {
+                301 | 302 => {
+                    let location = response
+                        .header("location")
+                        .ok_or_else(|| BackendError::Protocol("HTTP-Weiterleitung ohne Location-Header".into()))?;
+                    request = Request::get(resolve(&url, location)?);
+                    continue;
+                }
+                200 => {}
+                407 => {
+                    return Err(self.fatal(NoticeCode::ProxyAuthRequired, None, BackendError::ProxyAuthRequired).await);
+                }
+                413 => {
+                    return Err(self.fatal(NoticeCode::DocumentTooLarge, None, BackendError::DocumentTooLarge).await);
+                }
+                status => {
+                    let reason = if response.reason.is_empty() { "(null)".to_owned() } else { response.reason.clone() };
+                    let error = BackendError::Http { status, reason: reason.clone() };
+                    return Err(self
+                        .fatal(NoticeCode::Http { status }, Some(format!("{status} {reason}")), error)
+                        .await);
+                }
+            }
+            if let Some(refresh) = response.header("refresh") {
+                let target = pdfover_net::parse_refresh(refresh)
+                    .ok_or_else(|| BackendError::Protocol("ungültiger Refresh-Header".into()))?;
+                request = Request::get(resolve(&url, &target)?);
+                continue;
+            }
+            let Some(mime) = response.mime() else {
+                return Err(BackendError::UnknownPage {
+                    diagnostic: format!("path={} content-type fehlt", url.path()),
+                });
+            };
+            if mime == "text/html" {
+                let html = response.text();
+                if let Some(content) = meta_refresh_content(&html)
+                    && !content.is_empty()
+                {
+                    let target = pdfover_net::parse_refresh(&content)
+                        .ok_or_else(|| BackendError::Protocol("ungültiges meta refresh".into()))?;
+                    request = Request::get(resolve(&url, &target)?);
+                    continue;
+                }
+                return match page::classify(&url, &html, &self.config.selectors) {
+                    Ok(page) => {
+                        tracing::debug!(block = page.block.kind(), path = page.base_url.path(), "A-Trust-Seite");
+                        Ok(Reply::Page(Box::new(page)))
+                    }
+                    Err(e) => {
+                        Err(BackendError::UnknownPage { diagnostic: format!("{e}; {}", page::diagnostic(&url, &html)) })
+                    }
+                };
+            }
+            if mime.ends_with("/xml") {
+                return Ok(Reply::Xml(response));
+            }
+            return Err(BackendError::UnknownPage { diagnostic: format!("path={} content-type={mime}", url.path()) });
+        }
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Meldungen
+
+    /// Fehlermeldung mit OK; danach wie PDF-Over Abbruch (siehe Crate-Doku).
+    async fn fatal(&self, code: NoticeCode, text: Option<String>, error: BackendError) -> BackendError {
+        if self.ctx.headless {
+            return error;
+        }
+        let notice = Notice { kind: NoticeKind::Error, code, text, buttons: NoticeButtons::Ok };
+        match self.cancellable(self.ui.notice(notice)).await {
+            Ok(Ok(_)) | Ok(Err(InteractionError::Cancelled)) | Err(_) => BackendError::Cancelled,
+            Ok(Err(InteractionError::Unsupported)) => error,
+        }
+    }
+
+    /// Meldung mit Antwort; `Cancelled`/`Unsupported` zählen als Abbrechen.
+    async fn ask(&self, notice: Notice) -> Result<NoticeAnswer, BackendError> {
+        match self.cancellable(self.ui.notice(notice)).await? {
+            Ok(answer) => Ok(answer),
+            Err(InteractionError::Cancelled) => Ok(NoticeAnswer::Cancel),
+            Err(InteractionError::Unsupported) => {
+                tracing::warn!("Broker kann keine Meldung zeigen – wird als Abbrechen gewertet");
+                Ok(NoticeAnswer::Cancel)
+            }
+        }
+    }
+
+    async fn form(&self, form: NativeForm) -> Result<FormAnswer, BackendError> {
+        match self.cancellable(self.ui.native_form(form)).await? {
+            Ok(answer) => Ok(answer),
+            Err(InteractionError::Cancelled) => Err(BackendError::Cancelled),
+            Err(InteractionError::Unsupported) => {
+                Err(BackendError::Unavailable("Eingabemaske in dieser Oberfläche nicht verfügbar".into()))
+            }
+        }
+    }
+
+    fn context(&self, page: &ParsedPage, problem: Option<FormProblem>) -> FormContext {
+        FormContext {
+            signature_data_url: page
+                .signature_data_link
+                .as_ref()
+                .filter(|u| allowed_external(u, &self.config.endpoint))
+                .map(|u| u.as_str().to_owned()),
+            can_switch_to_sms: page.sms_link.is_some(),
+            can_switch_to_fido2: page.fido2_link.is_some(),
+            fido2_visible: self.fido2_available,
+            problem,
+        }
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // presentResponseToUserAndReturnNextRequest
+
+    async fn present(
+        &mut self,
+        credentials: &mut Credentials,
+        mut page: ParsedPage,
+        login: &mut LoginState,
+    ) -> Result<Request, BackendError> {
+        // 1. weder Fehler- noch Login-Block bei gesetzten Credentials = Anmeldung erfolgreich
+        if !matches!(page.block, PageBlock::Error { .. } | PageBlock::UsernamePassword { .. }) {
+            if login.submitted {
+                login.confirmed = true;
+            }
+            if let (Some(user), Some(password)) = (&credentials.username, &credentials.password) {
+                self.login_succeeded(user.clone(), password.clone());
+            }
+        }
+        // 2. FIDO2 standardmäßig (einmalig je Sitzung)
+        if self.fido2_default_pending
+            && let Some(link) = &page.fido2_link
+        {
+            self.fido2_default_pending = false;
+            return Ok(Request::get(link.clone()));
+        }
+        // 3. Blöcke
+        match page.block.clone() {
+            PageBlock::AutoSkip { submit } => Ok(form_submit(&page, submit.as_ref())),
+            PageBlock::Interstitial { message, next } => {
+                let notice = Notice {
+                    kind: NoticeKind::Info,
+                    code: NoticeCode::AtrustInterstitial,
+                    text: Some(message),
+                    buttons: NoticeButtons::Ok,
+                };
+                // Schließen des Hinweises (SWT.CANCEL) = Nutzerabbruch, wie `MobileBKUState.showInformationMessage`
+                match self.cancellable(self.ui.notice(notice)).await? {
+                    Ok(NoticeAnswer::Cancel) | Err(InteractionError::Cancelled) => Err(BackendError::Cancelled),
+                    Ok(_) | Err(InteractionError::Unsupported) => Ok(form_submit(&page, next.as_ref())),
+                }
+            }
+            PageBlock::Error { message, back, cancel, recoverable, requires_response } => {
+                self.clear_password(credentials);
+                let buttons = if recoverable { NoticeButtons::RetryCancel } else { NoticeButtons::Ok };
+                let notice =
+                    Notice { kind: NoticeKind::Error, code: NoticeCode::AtrustError, text: Some(message), buttons };
+                let answer = self.ask(notice).await?;
+                if recoverable && matches!(answer, NoticeAnswer::Retry | NoticeAnswer::Ok) {
+                    return Ok(form_submit(&page, back.as_ref()));
+                }
+                if requires_response { Ok(form_submit(&page, cancel.as_ref())) } else { Err(BackendError::Cancelled) }
+            }
+            PageBlock::UsernamePassword { username_field, password_field, submit, cancel, error_message } => {
+                self.login(
+                    credentials,
+                    &mut page,
+                    login,
+                    (&username_field, &password_field),
+                    (submit, cancel),
+                    error_message,
+                )
+                .await
+            }
+            PageBlock::SmsTan { tan_field, reference_value, submit } => {
+                self.sms_tan(&mut page, &tan_field, &reference_value, submit.as_ref()).await
+            }
+            PageBlock::QrCode { reference_value, image_url, poll } => {
+                let (image, problem) = match self.load_qr_image(&image_url).await? {
+                    Some(img) => (Some(img), None),
+                    None => (None, Some(FormProblem::QrImageFailed)),
+                };
+                let form = NativeForm::QrCode {
+                    reference_value,
+                    image,
+                    timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
+                    ctx: self.context(&page, problem),
+                };
+                self.wait_with_poll(credentials, &page, form, poll).await
+            }
+            PageBlock::WaitingForApp2Fa { reference_value, poll } => {
+                let form = NativeForm::WaitForApp {
+                    reference_value,
+                    timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
+                    ctx: self.context(&page, None),
+                };
+                self.wait_with_poll(credentials, &page, form, poll).await
+            }
+            PageBlock::Fido2 { options_json, result_field, submit } => {
+                self.fido2(&mut page, &options_json, &result_field, submit.as_ref()).await
+            }
+        }
+    }
+
+    fn login_succeeded(&mut self, username: String, password: Zeroizing<String>) {
+        if self.remember {
+            *self.remembered.lock().expect("poisoned") =
+                Credentials { username: Some(username.clone()), password: Some(password) };
+        }
+        if self.announced_login.as_deref() != Some(username.as_str()) {
+            self.ui.event(BackendEvent::LoginSucceeded { username: username.clone(), remember: self.remember });
+            self.announced_login = Some(username);
+        }
+    }
+
+    fn update_remember(&mut self, remember: bool) {
+        if remember == self.remember {
+            return;
+        }
+        self.remember = remember;
+        if !remember {
+            *self.remembered.lock().expect("poisoned") = Credentials::default();
+            self.ui.event(BackendEvent::ForgetCredentials);
+        }
+    }
+
+    async fn login(
+        &mut self,
+        credentials: &mut Credentials,
+        page: &mut ParsedPage,
+        login: &mut LoginState,
+        (username_field, password_field): (&str, &str),
+        (submit, cancel): (Option<SubmitButton>, Option<SubmitButton>),
+        error_message: Option<String>,
+    ) -> Result<Request, BackendError> {
+        // Erneute Login-Seite nach dem Senden (ohne zwischenzeitlich erfolgreiche Anmeldung) oder
+        // Fehlermeldung auf der Login-Seite: nie automatisch erneut senden (Kontosperre).
+        let rejected = login.submitted && !login.confirmed;
+        if rejected || error_message.is_some() {
+            self.clear_password(credentials);
+        }
+        if credentials.username.is_none() || credentials.password.is_none() {
+            let mut problem = error_message.map(FormProblem::Atrust).or(rejected.then_some(FormProblem::LoginRejected));
+            loop {
+                let form = NativeForm::Login {
+                    prefill_username: credentials.username.clone(),
+                    remember: self.remember,
+                    ctx: FormContext { problem: problem.clone(), ..self.context(page, None) },
+                };
+                match self.form(form).await {
+                    Ok(FormAnswer::Login { username, password, remember }) => {
+                        if let Err(p) = validate::validate_password(&password) {
+                            problem = Some(p);
+                            continue;
+                        }
+                        self.update_remember(remember);
+                        credentials.username = Some(username);
+                        credentials.password = Some(password);
+                        break;
+                    }
+                    Ok(other) => {
+                        tracing::warn!(answer = ?other, "unerwartete Antwort auf die Anmeldemaske");
+                        problem = None;
+                    }
+                    // Abbruch: A-Trust bekommt `Button_Cancel` (die Schleife läuft weiter, A-Trust
+                    // antwortet dann mit einer SL-`ErrorResponse`)
+                    Err(BackendError::Cancelled) if !self.ctx.cancel.is_cancelled() => {
+                        return Ok(form_submit(page, cancel.as_ref()));
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        let (Some(user), Some(password)) = (&credentials.username, &credentials.password) else {
+            return Err(BackendError::Internal("Zugangsdaten fehlen".into()));
+        };
+        page.set_field(username_field, user.as_str());
+        page.set_field(password_field, password.as_str());
+        login.submitted = true;
+        login.confirmed = false;
+        Ok(form_submit(page, submit.as_ref()))
+    }
+
+    async fn sms_tan(
+        &mut self,
+        page: &mut ParsedPage,
+        tan_field: &str,
+        reference_value: &str,
+        submit: Option<&SubmitButton>,
+    ) -> Result<Request, BackendError> {
+        let mut problem = None;
+        loop {
+            let mut ctx = self.context(page, problem.take());
+            ctx.can_switch_to_sms = false; // bereits SMS
+            let form = NativeForm::SmsTan { reference_value: reference_value.to_owned(), ctx };
+            match self.form(form).await? {
+                FormAnswer::Tan(tan) => match validate::validate_tan(&tan, reference_value) {
+                    Ok(()) => {
+                        page.set_field(tan_field, page::java_trim(&tan));
+                        return Ok(form_submit(page, submit));
+                    }
+                    Err(p) => problem = Some(p),
+                },
+                // Ohne FIDO2-Link sendete PDF-Over per switch-Fallthrough eine leere TAN; hier wird
+                // die Maske erneut gezeigt.
+                FormAnswer::SwitchToFido2 => match &page.fido2_link {
+                    Some(link) => return Ok(Request::get(link.clone())),
+                    None => problem = None,
+                },
+                other => tracing::warn!(answer = ?other, "unerwartete Antwort auf die TAN-Maske"),
+            }
+        }
+    }
+
+    /// R8: QR-Bild mit eigenem Client ohne Cookies; Fehler → `None` (Maske zeigt `QrImageFailed`).
+    async fn load_qr_image(&self, url: &Url) -> Result<Option<QrImage>, BackendError> {
+        let Ok(client) = HttpClient::new(&self.config.net, Purpose::AtrustImage) else { return Ok(None) };
+        match self.cancellable(client.get(url, &[])).await? {
+            Ok(r) if (200..300).contains(&r.status) && !r.body.is_empty() => {
+                Ok(Some(QrImage { mime: r.mime(), bytes: r.body }))
+            }
+            Ok(r) => {
+                tracing::warn!(status = r.status, "QR-Bild nicht geladen");
+                Ok(None)
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "QR-Bild nicht geladen");
+                Ok(None)
+            }
+        }
+    }
+
+    /// QR/App: Maske und Long-Poll nebenläufig. Poll „fertig“ → Maske droppen (schließt sie) und
+    /// Seite neu laden (R7); Wechsel per Link (R6); Abbruch löscht das Passwort.
+    async fn wait_with_poll(
+        &mut self,
+        credentials: &mut Credentials,
+        page: &ParsedPage,
+        form: NativeForm,
+        poll_info: Option<PollInfo>,
+    ) -> Result<Request, BackendError> {
+        let reload = Request::get(page.base_url.clone());
+        let poll_client = match &poll_info {
+            Some(_) => Some(HttpClient::new(&self.config.net, Purpose::AtrustPoll).map_err(net_to_backend)?),
+            None => None,
+        };
+        let poll_config = self.config.poll;
+        let cancel = self.ctx.cancel.clone();
+        let ui = Arc::clone(&self.ui);
+        let answer = {
+            let form_future = ui.native_form(form);
+            let poll_future = async {
+                match (&poll_client, &poll_info) {
+                    (Some(client), Some(info)) => poll::run(client, info, poll_config, &cancel).await,
+                    _ => std::future::pending().await,
+                }
+            };
+            tokio::pin!(form_future, poll_future);
+            let mut poll_active = poll_info.is_some();
+            loop {
+                tokio::select! {
+                    outcome = &mut poll_future, if poll_active => match outcome {
+                        PollOutcome::Reload => return Ok(reload),
+                        PollOutcome::Stopped => poll_active = false,
+                        PollOutcome::Cancelled => return Err(BackendError::Cancelled),
+                    },
+                    answer = &mut form_future => break answer,
+                    _ = cancel.cancelled() => return Err(BackendError::Cancelled),
+                }
+            }
+        };
+        match answer {
+            Ok(FormAnswer::SwitchToSms) => Ok(page.sms_link.clone().map(Request::get).unwrap_or(reload)),
+            Ok(FormAnswer::SwitchToFido2) => Ok(page.fido2_link.clone().map(Request::get).unwrap_or(reload)),
+            Ok(_) => Ok(reload),
+            Err(InteractionError::Cancelled) => {
+                self.clear_password(credentials);
+                Err(BackendError::Cancelled)
+            }
+            Err(InteractionError::Unsupported) => {
+                Err(BackendError::Unavailable("Eingabemaske in dieser Oberfläche nicht verfügbar".into()))
+            }
+        }
+    }
+
+    /// FIDO2: Assertion startet automatisch; Fehler → Maske mit Hinweis, „erneut“/SMS/Abbruch.
+    async fn fido2(
+        &mut self,
+        page: &mut ParsedPage,
+        options_json: &str,
+        result_field: &str,
+        submit: Option<&SubmitButton>,
+    ) -> Result<Request, BackendError> {
+        let provider = self.config.fido2.clone().filter(|_| self.fido2_available);
+        let mut problem = if provider.is_some() {
+            None
+        } else {
+            Some(FormProblem::Fido2Failed("FIDO2 ist auf diesem Gerät nicht verfügbar".into()))
+        };
+        let mut start = provider.is_some();
+        loop {
+            if start && let Some(provider) = &provider {
+                start = false;
+                let form = NativeForm::Fido2 { in_progress: true, ctx: self.context(page, None) };
+                let request =
+                    Fido2Request { options_json: options_json.to_owned(), origin: WEBAUTHN_ORIGIN.to_owned() };
+                let parent = self.ui.parent_window();
+                let worker = Arc::clone(provider);
+                let mut guard = CancelFido2OnDrop { provider: Some(Arc::clone(provider)) };
+                let task = tokio::task::spawn_blocking(move || worker.get_assertion(&request, parent));
+                let ui = Arc::clone(&self.ui);
+                let cancel = self.ctx.cancel.clone();
+                let form_future = ui.native_form(form);
+                tokio::pin!(task, form_future);
+                tokio::select! {
+                    result = &mut task => {
+                        guard.disarm();
+                        match result {
+                            Ok(Ok(assertion)) => {
+                                page.set_field(result_field, fido2::result_json(&assertion));
+                                return Ok(form_submit(page, submit));
+                            }
+                            Ok(Err(Fido2Error::Cancelled)) => problem = None,
+                            Ok(Err(e)) => problem = Some(FormProblem::Fido2Failed(e.to_string())),
+                            Err(e) => problem = Some(FormProblem::Fido2Failed(format!("interner Fehler: {e}"))),
+                        }
+                    }
+                    answer = &mut form_future => {
+                        drop(guard); // laufende Anfrage abbrechen
+                        match answer {
+                            Ok(FormAnswer::SwitchToSms) if page.sms_link.is_some() => {
+                                return Ok(Request::get(page.sms_link.clone().expect("geprüft")));
+                            }
+                            Ok(FormAnswer::StartFido2) => {
+                                // abgebrochene Anfrage erst auslaufen lassen (kein paralleler Aufruf)
+                                let _ = tokio::time::timeout(std::time::Duration::from_secs(2), &mut task).await;
+                                start = true;
+                            }
+                            Ok(_) => {}
+                            Err(InteractionError::Cancelled) => return Err(BackendError::Cancelled),
+                            Err(InteractionError::Unsupported) => {
+                                return Err(BackendError::Unavailable("FIDO2-Maske nicht verfügbar".into()));
+                            }
+                        }
+                    }
+                    _ = cancel.cancelled() => return Err(BackendError::Cancelled),
+                }
+                continue;
+            }
+            let form = NativeForm::Fido2 { in_progress: false, ctx: self.context(page, problem.clone()) };
+            match self.form(form).await? {
+                FormAnswer::StartFido2 if provider.is_some() => {
+                    problem = None;
+                    start = true;
+                }
+                FormAnswer::SwitchToSms => match &page.sms_link {
+                    Some(link) => return Ok(Request::get(link.clone())),
+                    None => tracing::warn!("SMS gewählt, aber kein SMS-Link auf der FIDO2-Seite"),
+                },
+                other => tracing::debug!(answer = ?other, "Antwort auf die FIDO2-Maske ohne Wirkung"),
+            }
+        }
+    }
+}
+
+fn kind(response: &SlResponse) -> &'static str {
+    match response {
+        SlResponse::InfoboxRead(_) => "InfoboxReadResponse",
+        SlResponse::CreateCmsSignature(_) => "CreateCMSSignatureResponse",
+        SlResponse::NullOperation => "NullOperationResponse",
+        SlResponse::Error(_) => "ErrorResponse",
+    }
+}
+
+/// SL-`ErrorResponse` → Fehler (6000/6001 = Nutzerabbruch, docs/analyse/02 §2.6).
+pub(crate) fn sl_error(e: pdfover_sl12::ErrorResponse) -> BackendError {
+    if e.is_user_cancel() {
+        BackendError::Cancelled
+    } else {
+        BackendError::SecurityLayer { code: e.code, info: e.info }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn meta_refresh_detection() {
+        assert_eq!(
+            meta_refresh_content("<html><head><meta http-equiv=\"REFRESH\" content=\"0; url=/x\"></head></html>")
+                .as_deref(),
+            Some("0; url=/x")
+        );
+        assert_eq!(meta_refresh_content("<meta http-equiv=refresh>").as_deref(), Some(""));
+        assert_eq!(meta_refresh_content("<meta http-equiv=\"content-type\" content=\"text/html\">"), None);
+        // nur der erste Treffer zählt
+        assert_eq!(
+            meta_refresh_content(
+                "<meta http-equiv=refresh content=\"\"><meta http-equiv=refresh content=\"0;url=/y\">"
+            )
+            .as_deref(),
+            Some("")
+        );
+    }
+
+    #[test]
+    fn external_link_policy() {
+        let endpoint = Url::parse(crate::PROD_ENDPOINT).unwrap();
+        let ok = |s: &str| allowed_external(&Url::parse(s).unwrap(), &endpoint);
+        assert!(ok("https://service.a-trust.at/mobile/ShowSigobj.aspx?x=1"));
+        assert!(ok("https://www.a-trust.at/x"));
+        assert!(!ok("http://service.a-trust.at/x"));
+        assert!(!ok("https://evil-a-trust.at/x"));
+        assert!(!ok("https://a-trust.at.evil.example/x"));
+        let local = Url::parse("http://127.0.0.1:8080/mobile/default.aspx").unwrap();
+        assert!(allowed_external(&Url::parse("http://127.0.0.1:8080/ShowSigobj.aspx").unwrap(), &local));
+        assert!(!allowed_external(&Url::parse("http://127.0.0.1:9090/ShowSigobj.aspx").unwrap(), &local));
+    }
+
+    #[test]
+    fn sl_errors() {
+        assert_eq!(sl_error(pdfover_sl12::ErrorResponse { code: 6001, info: "x".into() }), BackendError::Cancelled);
+        assert_eq!(sl_error(pdfover_sl12::ErrorResponse { code: 6000, info: "x".into() }), BackendError::Cancelled);
+        assert_eq!(
+            sl_error(pdfover_sl12::ErrorResponse { code: 1501, info: "y".into() }),
+            BackendError::SecurityLayer { code: 1501, info: "y".into() }
+        );
+    }
+}

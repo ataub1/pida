@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<!-- Synthetische Testseite (NUR TEST): Bestätigung in der App (smartphoneAnimation), Long-Poll, Wechsel auf SMS/FIDO2. -->
+<html lang="de">
+<head><meta charset="utf-8"><title>App-Bestätigung (Testfixture)</title></head>
+<body>
+  <form method="post" action="app.aspx?sid={{SID}}" id="form1">
+    <input type="hidden" name="__VIEWSTATE" value="YXBw" />
+    <div id="smartphoneAnimation"></div>
+    <p>Vergleichswert: <span id="vergleichswert">{{REF}}</span></p>
+    <a id="SmsButton" href="sms.aspx?sid={{SID}}">SMS anfordern</a>
+    <a id="FidoButton" href="fido.aspx?sid={{SID}}">FIDO2</a>
+  </form>
+  <div id="jsLongPoll"><script>qrpoll("/mobile/poll/LongPoll.ashx?id={{POLLID}}", "{{TOKEN}}");</script></div>
+</body>
+</html>
