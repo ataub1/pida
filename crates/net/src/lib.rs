@@ -124,8 +124,9 @@ impl Default for NetConfig {
     }
 }
 
-/// Teil eines `multipart/form-data`-Bodys.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Teil eines `multipart/form-data`-Bodys. `Debug` zeigt nur Name, Typ und Länge – A-Trust-Formulare
+/// tragen hier Passwort und TAN (ADR 0001 §4 Regel 9).
+#[derive(Clone, PartialEq, Eq)]
 pub struct FormPart {
     /// Feldname (`fileupload`, `XMLRequest` …).
     pub name: String,
@@ -137,8 +138,8 @@ pub struct FormPart {
     pub data: Vec<u8>,
 }
 
-/// Request-Körper.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+/// Request-Körper. `Debug` ohne Werte (Regel 9).
+#[derive(Clone, PartialEq, Eq, Default)]
 pub enum Body {
     /// leer
     #[default]
@@ -165,8 +166,8 @@ pub enum Method {
     Post,
 }
 
-/// Request.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Request. `Debug` schwärzt `Authorization`/`Cookie`-Header und Körperwerte (Regel 9).
+#[derive(Clone, PartialEq, Eq)]
 pub struct Request {
     /// Methode
     pub method: Method,
@@ -190,8 +191,9 @@ impl Request {
     }
 }
 
-/// Antwort (Körper vollständig gelesen).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Antwort (Körper vollständig gelesen). `Debug` zeigt nur die Körperlänge und schwärzt
+/// `Set-Cookie` (Regel 9).
+#[derive(Clone, PartialEq, Eq)]
 pub struct Response {
     /// Statuscode.
     pub status: u16,
@@ -203,6 +205,70 @@ pub struct Response {
     pub headers: Vec<(String, String)>,
     /// Körper.
     pub body: Vec<u8>,
+}
+
+/// Header-Werte, die nie in Logs erscheinen dürfen.
+fn is_sensitive_header(name: &str) -> bool {
+    ["authorization", "proxy-authorization", "cookie", "set-cookie"].iter().any(|h| name.eq_ignore_ascii_case(h))
+}
+
+struct RedactedHeaders<'a>(&'a [(String, String)]);
+
+impl std::fmt::Debug for RedactedHeaders<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.0.iter().map(|(k, v)| (k.as_str(), if is_sensitive_header(k) { "***" } else { v.as_str() })))
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for FormPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FormPart")
+            .field("name", &self.name)
+            .field("filename", &self.filename)
+            .field("content_type", &self.content_type)
+            .field("len", &self.data.len())
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for Body {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Body::Empty => f.write_str("Empty"),
+            Body::Form(fields) => {
+                f.debug_tuple("Form").field(&fields.iter().map(|(k, _)| k).collect::<Vec<_>>()).finish()
+            }
+            Body::Multipart(parts) => f.debug_tuple("Multipart").field(parts).finish(),
+            Body::Bytes { content_type, data } => {
+                f.debug_struct("Bytes").field("content_type", content_type).field("len", &data.len()).finish()
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Request")
+            .field("method", &self.method)
+            .field("url", &self.url.as_str())
+            .field("headers", &RedactedHeaders(&self.headers))
+            .field("body", &self.body)
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for Response {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Response")
+            .field("status", &self.status)
+            .field("reason", &self.reason)
+            .field("url", &self.url.as_str())
+            .field("headers", &RedactedHeaders(&self.headers))
+            .field("body_len", &self.body.len())
+            .finish()
+    }
 }
 
 impl Response {
@@ -293,4 +359,28 @@ pub fn parse_refresh(value: &str) -> Option<String> {
 /// TCP-Probe (lokale BKU, `127.0.0.1:3495`, docs/analyse/02 §4.1).
 pub async fn tcp_probe(addr: SocketAddr, timeout: Duration) -> bool {
     todo!("Paket D")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_never_shows_form_values_or_tokens() {
+        let part = FormPart {
+            name: "signaturpasswort".into(),
+            filename: None,
+            content_type: Some("text/plain; charset=UTF-8".into()),
+            data: b"geheim-123".to_vec(),
+        };
+        let mut req = Request::post(Url::parse("https://service.a-trust.at/x").unwrap(), Body::Multipart(vec![part]));
+        req.headers.push(("Authorization".into(), "Bearer TOKEN-XYZ".into()));
+        let dbg = format!("{req:?}");
+        assert!(dbg.contains("signaturpasswort"));
+        assert!(!dbg.contains("geheim-123"), "{dbg}");
+        assert!(!dbg.contains("TOKEN-XYZ"), "{dbg}");
+
+        let form = Body::Form(vec![("XMLRequest".into(), "<sl:Base64Content>JVBERi0=".into())]);
+        assert!(!format!("{form:?}").contains("JVBERi0"));
+    }
 }

@@ -91,6 +91,9 @@ pub enum NativeForm {
         reference_value: String,
         /// Bild (fehlt, wenn das Laden scheiterte)
         image: Option<QrImage>,
+        /// Restzeit des Long-Polls in Sekunden beim Anzeigen (Countdown, Plan §4.4; Default 300 s
+        /// aus `PollConfig`); `None` = unbekannt. Die UI zählt selbst herunter.
+        timeout_secs: Option<u32>,
         /// Kontext
         ctx: FormContext,
     },
@@ -98,6 +101,8 @@ pub enum NativeForm {
     WaitForApp {
         /// Vergleichswert
         reference_value: Option<String>,
+        /// Restzeit des Long-Polls in Sekunden (Countdown, Plan §4.4); `None` = unbekannt.
+        timeout_secs: Option<u32>,
         /// Kontext
         ctx: FormContext,
     },

@@ -8,8 +8,17 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[features]
+# PDFium-Implementierung (`PdfiumBackend`, `PdfiumRenderer`). Standard für `cargo test -p pdfover-render`.
+# Abhängige Crates binden `pdfover-render` ohne Default-Features ein (Workspace-Dependency mit
+# `default-features = false`) und brauchen nur die Traits; `pdfium` aktiviert nur, wer `PdfiumBackend`
+# konstruiert (`pdfover-core-api`, Tauri-Shell). Rückfall-Renderer (z. B. hayro, Plan §2.4) kämen als
+# weiteres Feature hinzu.
+default = ["pdfium"]
+pdfium = ["dep:pdfium-render"]
+
 [dependencies]
-pdfium-render = { workspace = true }
+pdfium-render = { workspace = true, optional = true }
 png = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }

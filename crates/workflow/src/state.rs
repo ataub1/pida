@@ -91,10 +91,15 @@ pub enum SigningPhase {
 pub enum RetryTarget {
     /// neu vorbereiten (F-71: Retry → PrepareSigning)
     Prepare,
+    /// neu vorbereiten mit mindestens dieser `/Contents`-Reserve in Bytes – nach
+    /// [`WorkflowError::CmsTooLarge`]; „Wiederholen“ ist die zweite Bestätigung (Plan §6.2, R9)
+    PrepareWithReserve(usize),
     /// erneut speichern (F-85)
     Save,
     /// Dokument erneut laden (F-15)
     Load,
+    /// Einstellungen zurücksetzen (nach `.old` verschieben) und neu starten (F-05, Plan §7.1)
+    ResetSettings,
 }
 
 /// Fehler im Workflow (Fehlercode + Parameter für i18n).
@@ -119,6 +124,17 @@ pub enum WorkflowError {
     /// Invariante verletzt – nichts gespeichert
     #[error("Selbstprüfung fehlgeschlagen: {0}")]
     Invariant(InvariantViolation),
+    /// CMS größer als die Reserve – nichts gespeichert (`pdfover_pades::FinishError::CmsTooLarge`)
+    #[error("Signatur zu groß: {needed} Bytes, Reserve {reserve}")]
+    CmsTooLarge {
+        /// benötigt
+        needed: usize,
+        /// vorhanden
+        reserve: usize,
+    },
+    /// Einstellungen nicht lesbar (`LoadOutcome::Unreadable`, F-05)
+    #[error("Einstellungen nicht lesbar: {0}")]
+    Config(String),
     /// Schreibfehler
     #[error("Speichern fehlgeschlagen: {0}")]
     Save(String),
@@ -153,6 +169,9 @@ pub struct Context {
     pub skip_finish: bool,
     /// headless (CLI)
     pub headless: bool,
+    /// Backends, deren Datenschutzhinweis in der aktuellen Textversion bereits bestätigt ist
+    /// (`Settings::privacy`, Richtlinie) – dann entfällt [`State::PrivacyNotice`]
+    pub privacy_acknowledged: Vec<BackendId>,
 }
 
 /// Zustand.
@@ -243,7 +262,9 @@ pub enum State {
 }
 
 impl State {
-    /// Einstellungen sind ein Overlay; der Zustand selbst bleibt (F-101 ohne Re-Entry).
+    /// Einstellungen sind ein Overlay ohne eigenen Zustand (F-101 ohne Re-Entry): ob sie offen sind,
+    /// hält `pdfover-core-api` (`ViewState::settings`); der Reducer sieht nur
+    /// [`Event::SettingsChanged`]. Liefert deshalb immer `false`.
     pub fn settings_open(&self) -> bool {
         false
     }
@@ -282,6 +303,13 @@ pub enum Event {
         /// Fehler
         error: WorkflowError,
     },
+    /// Vorschau/Positionierung nicht möglich (Renderer fehlt oder scheitert) → Hinweis
+    /// `error.PositioningNotPossible` und automatische Positionierung (docs/analyse/01 §3.4,
+    /// `PositioningState.java:171-179`)
+    PreviewUnavailable {
+        /// Dokument
+        doc: DocId,
+    },
     /// Antwort auf die Platzhalterfrage; bei Feldern mit gewähltem Index
     PlaceholderAnswered {
         /// Antwort
@@ -307,8 +335,15 @@ pub enum Event {
     PhaseCompleted(SigningPhase),
     /// Backend-Fehler
     BackendFailed(BackendError),
-    /// Invariante verletzt
+    /// Invariante verletzt (auch I3-Fehler aus `finish_cms`/`finish_raw`)
     SelfCheckFailed(InvariantViolation),
+    /// CMS passt nicht in die Reserve → Fehler mit [`RetryTarget::PrepareWithReserve`]
+    CmsTooLarge {
+        /// benötigt
+        needed: usize,
+        /// vorhanden
+        reserve: usize,
+    },
     /// Ausgabeziel entschieden bzw. Dialog beantwortet (`None` = abgebrochen)
     OutputChosen(Option<PathBuf>),
     /// Überschreib-Rückfrage
@@ -325,6 +360,8 @@ pub enum Event {
     Navigate(Step),
     /// Einstellungen geändert (Blockvorschau neu, Sprache neu)
     SettingsChanged,
+    /// Einstellungen beim Start nicht lesbar (F-05) → Fehler mit [`RetryTarget::ResetSettings`]
+    SettingsUnreadable(String),
     /// App in den Hintergrund (kein Abbruch!)
     Backgrounded,
     /// App wieder im Vordergrund (ggf. „Signatur fortsetzen“)
@@ -359,6 +396,9 @@ pub enum Effect {
         doc: DocId,
         /// Position
         position: PositionChoice,
+        /// Mindestreserve für `/Contents` in Bytes (`None` = nach Backend-Modell,
+        /// `Capabilities::cms_reserve`); gesetzt nach [`Event::CmsTooLarge`]
+        min_reserve: Option<usize>,
     },
     /// Backend `sign`
     Sign,
@@ -376,6 +416,10 @@ pub enum Effect {
     OpenResult(PathBuf),
     /// Sitzung abbrechen (Passwort löschen, Benutzername bleibt)
     CancelSession,
+    /// Hinweis ohne Rückfrage anzeigen (i18n-ID, z. B. `error-PositioningNotPossible`)
+    Notify(String),
+    /// Einstellungen zurücksetzen (`Paths::reset`) und Kern neu initialisieren
+    ResetSettings,
     /// persistierten Zustand löschen
     DeletePersisted,
     /// letzten Ordner merken

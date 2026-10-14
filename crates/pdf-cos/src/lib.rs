@@ -427,17 +427,24 @@ pub struct SigField {
 }
 
 /// Aufruf eines Bild-XObjects per `Do` im Seiteninhalt (für QR-Platzhalter, docs/analyse/04 §5.1).
+///
+/// Nur `Do` auf `/Subtype /Image` zählt; Inline-Bilder (`BI … EI`) werden wie bei PDF-AS ignoriert.
+/// `pdfover-placement` ordnet die Einträge den PDFium-Bildobjekten (`pdfover_render::ImageObject`)
+/// **primär über [`ImageInvocation::ctm`]** zu, `order` ist nur Tie-Breaker (ADR 0001 §8).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImageInvocation {
     /// 0-basierter Seitenindex.
     pub page_index: usize,
-    /// Laufende Nummer des Bildobjekts auf der Seite (Reihenfolge im Content-Stream).
+    /// 0-basierte laufende Nummer unter den Bild-`Do`-Aufrufen der Seite in Content-Stream-Reihenfolge
+    /// (Tiefensuche: Aufrufe in Form-XObjects – nur mit `descend_forms` – an der Stelle des
+    /// Form-`Do`; mehrfach aufgerufene XObjects zählen je Aufruf).
     pub order: usize,
     /// Ressourcenname (z. B. `Im3`) – wird als `/Location` der Signatur gesetzt.
     pub resource_name: String,
     /// Objekt-ID des XObjects, falls indirekt.
     pub xobject_id: Option<ObjectId>,
-    /// CTM beim `Do` (Bild = Einheitsquadrat).
+    /// CTM beim `Do` im Seitenraum (Bild = Einheitsquadrat; bei Form-XObjects mit deren `/Matrix`
+    /// und dem CTM des Form-`Do` verkettet).
     pub ctm: Matrix,
     /// `/Width`
     pub pixel_width: u32,
@@ -486,7 +493,8 @@ impl Default for Limits {
 ///
 /// Die Original-Bytes bleiben unverändert und sind der Präfix jeder Ausgabe (Invariante I1,
 /// Plan §3.6). Das `lopdf::Document` ist bei verschlüsselten Dateien bereits entschlüsselt.
-#[derive(Debug)]
+///
+/// `Debug` zeigt nur Kennzahlen, nie Dokumentinhalt (ADR 0001 §4 Regel 9).
 pub struct SourcePdf {
     bytes: Arc<[u8]>,
     document: Document,
@@ -496,6 +504,19 @@ pub struct SourcePdf {
     encryptor: Option<Encryptor>,
     rights: Rights,
     pages: Vec<PageInfo>,
+}
+
+impl std::fmt::Debug for SourcePdf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SourcePdf")
+            .field("len", &self.bytes.len())
+            .field("revisions", &self.revisions.len())
+            .field("tail", &self.tail)
+            .field("encryption", &self.encryption)
+            .field("rights", &self.rights)
+            .field("pages", &self.pages.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl SourcePdf {

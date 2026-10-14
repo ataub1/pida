@@ -43,6 +43,10 @@ pub trait DocumentSource: Send + Sync + std::fmt::Debug {
 }
 
 /// Modell-B-Auftrag.
+///
+/// Backends dürfen [`DocumentJob::source`] nicht über das Ende von `BackendSession::sign` hinaus
+/// halten: Der Kern übernimmt danach das zugrunde liegende `pdfover_pades::Prepared` wieder
+/// exklusiv (`finish_cms(self, …)`).
 #[derive(Debug, Clone)]
 pub struct DocumentJob {
     /// Vorbereitetes Dokument.
@@ -53,13 +57,20 @@ pub struct DocumentJob {
 }
 
 /// Modell-A-Auftrag (Hash über die SignedAttributes).
+///
+/// Vertrag (ADR 0001 §8, wie `pdfover_cades::RawSigner`): Der Kern wählt `alg` mit
+/// `pdfover_cades::select_algorithm(&chain.signer.key_type()?)` aus dem Zertifikat von
+/// `BackendSession::certificate` und hasht damit ByteRange-Daten und SignedAttributes. Das Backend
+/// signiert **genau mit `alg`**; das Ergebnis [`SignResult::Raw`] trägt `signature.alg` mit
+/// `signature.alg.digest() == alg` und die Kette, deren Signer gleich dem vorab gelieferten
+/// Zertifikat ist. Ein nicht unterstütztes `alg` ergibt `BackendError::Internal`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DigestJob {
     /// Anzeigename.
     pub display_name: String,
-    /// Hashverfahren.
+    /// Hashverfahren (der SignedAttributes und der Signatur).
     pub alg: DigestAlg,
-    /// Hashwert.
+    /// Hashwert über das DER der SignedAttributes (`SignedAttrs::digest`).
     pub digest: Vec<u8>,
 }
 

@@ -13,7 +13,7 @@ und [ADR 0001](docs/adr/0001-workspace-und-schnittstellen.md).
 
 Fundament: Workspace, verbindliche Schnittstellen aller Crates (Stubs mit `todo!()`), Testdaten, CI.
 Die Umsetzung erfolgt in sechs parallelen Paketen (A–F) und der anschließenden Integration
-(Ownership und Regeln: ADR 0001 §4).
+(Ownership und Regeln: ADR 0001 §4, verbindliche Präzisierungen aus dem Schnittstellen-Review: §8).
 
 ## Struktur
 
@@ -26,7 +26,7 @@ crates/
   cades             CMS/CAdES, Zertifikate, Verifier
   sigblock          PDF-AS-Profile, Layout, Fonts, Emblem, Appearance
   placement         Positionierung, Auto-Position, QR-Platzhalter, Signaturfelder
-  render            Renderer-Trait (PDFium)
+  render            Renderer-Trait, PDFium-Implementierung hinter Feature `pdfium`
   backend-api       Backend-Traits, Capabilities, InteractionBroker
   sl12              Security Layer 1.2 (XML)
   net               HTTP-Client (Cookies, Redirects, Proxy, OS-Truststore)
@@ -42,18 +42,18 @@ apps/
   app               Tauri-2-Shell (folgt in der Integration)
 docs/               Plan, Analysen, Recherchen, ADRs
 testdata/           gemeinsame Testdaten (Test-Keystores NUR TEST, PDF-AS-PDFs, qpdf-Varianten)
-tools/              env.sh, make-testdata.sh
+tools/              env.sh, make-testdata.sh, make-hybrid-xref.py
 reference/          Originalquellen (nur lesen, nicht im Git)
 ```
 
 ## Bauen
 
 ```sh
-source tools/env.sh            # rustup (keg-only) und .venv in den PATH
+source tools/env.sh            # rustup (keg-only), .venv und PDFOVER_REFERENCE (auch in git worktrees)
 cargo check --workspace --all-targets
 cargo test --workspace
 cargo run -p pdfover-cli -- --help
-tools/make-testdata.sh         # Testdaten erzeugen/aktualisieren (openssl, qpdf)
+tools/make-testdata.sh         # Testdaten erzeugen/aktualisieren (openssl, qpdf, python3)
 ```
 
 Toolchain: Rust 1.99 stable, Edition 2024. Abhängigkeiten sind in `[workspace.dependencies]` gepinnt

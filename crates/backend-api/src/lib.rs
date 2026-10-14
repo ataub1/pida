@@ -61,7 +61,8 @@ pub struct SessionContext {
     pub language: pdfover_i18n::Lang,
     /// Anzahl der Dokumente im Batch (Szenario A: eine Anmeldung je Batch, Plan §4.4).
     pub batch_size: usize,
-    /// Abbruch von außen (Nutzerin, Fenster geschlossen, App beendet).
+    /// Abbruch von außen (Nutzerin, Fenster geschlossen, App beendet) – der einzige Weg, ein
+    /// laufendes `certificate`/`sign` abzubrechen (siehe [`BackendSession`]).
     pub cancel: CancelToken,
     /// Ohne UI (CLI `--headless`): Backends, die Interaktion brauchen, liefern
     /// [`BackendError::Unavailable`] statt zu fragen.
@@ -90,6 +91,12 @@ pub trait SignatureBackend: Send + Sync + std::fmt::Debug {
 /// Reihenfolge (Plan §3.6/§3.8): optional [`BackendSession::certificate`] (InfoboxRead bzw.
 /// Keystore), dann `prepare()` im Kern, dann [`BackendSession::sign`]. Zwischen den beiden
 /// SL-Requests ändert sich das PDF nicht mehr.
+///
+/// **Abbruch** (ADR 0001 §8): Solange `certificate`/`sign` laufen, ist die Sitzung `&mut` geliehen –
+/// der Kern bricht dann über [`SessionContext::cancel`] ab (Backends `select!`en darauf und liefern
+/// [`BackendError::Cancelled`]) oder droppt das Future. Beide Futures müssen deshalb **drop-sicher**
+/// sein (laufende Polls/FIDO2-Anfragen beenden, keine halben Zustände). [`BackendSession::cancel`]
+/// räumt danach auf.
 #[async_trait]
 pub trait BackendSession: Send {
     /// Signaturzertifikat (für den sichtbaren Block und die Prüfung I3).
@@ -99,7 +106,8 @@ pub trait BackendSession: Send {
     /// Modell A (`SignInput::Digest`) [`SignResult::Raw`]. Ergebnisreihenfolge = Jobreihenfolge.
     async fn sign(&mut self, jobs: Vec<SignJob>) -> Result<Vec<SignResult>, BackendError>;
 
-    /// Bricht laufende Interaktion/Netzverkehr ab (idempotent). Gemerkte Passwörter werden gelöscht
-    /// (F-72: Benutzername bleibt).
+    /// Räumt nach einem Abbruch auf (idempotent, auch ohne laufenden Vorgang): gemerkte Passwörter
+    /// werden gelöscht (F-72: Benutzername bleibt), offene Verbindungen geschlossen. Laufende
+    /// Vorgänge bricht der Kern vorher über [`SessionContext::cancel`] ab (siehe oben).
     async fn cancel(&mut self);
 }

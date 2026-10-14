@@ -8,7 +8,8 @@
 //! - **unbekanntes Token = Eingabedatei** (davon leben „Öffnen mit“ und „Senden an“), auch `-x`,
 //! - Werte werden nicht auf führendes `-` geprüft.
 //!
-//! Korrekturen: `-v` wertet `true`/`false` aus (B-07), Hilfetexte von `-kspass`/`-kskeypass`
+//! Korrekturen: `-v` wertet `false`/`0`/`no`/`nein` als sichtbar aus, jeder andere Wert bleibt wie bei
+//! PDF-Over „unsichtbar“ (B-07, kompatibel zu Skripten mit `-v x`), Hilfetexte von `-kspass`/`-kskeypass`
 //! richtig (B-08), fehlende `-c`-Datei ist ein Fehler statt Werksreset, abweichendes `-kskeypass`
 //! ergibt einen klaren Fehler. Neu: Subcommands, `--headless`, `--json`, `--kspass-stdin`,
 //! `--kspass-env`. Die Ausführungslogik ist Teil der Integration (`run`, `todo!()`).
@@ -120,8 +121,8 @@ pub struct LegacyArgs {
     /// alternative Konfigurationsdatei (relativ zum Konfigurationsordner; zweiphasig)
     #[arg(short = 'c', long = "config", value_name = "DATEI", global = true)]
     pub config: Option<PathBuf>,
-    /// unsichtbare Signatur (`true`/`false`; B-07 korrigiert)
-    #[arg(short = 'v', long = "invisible", value_name = "true|false", global = true, value_parser = parse_bool)]
+    /// unsichtbare Signatur (`false`/`0`/`no`/`nein` = sichtbar, jeder andere Wert = unsichtbar; B-07)
+    #[arg(short = 'v', long = "invisible", value_name = "true|false", global = true, value_parser = parse_invisible)]
     pub invisible: Option<bool>,
 }
 
@@ -234,12 +235,11 @@ pub enum CliError {
     Clap(#[from] clap::Error),
 }
 
-fn parse_bool(s: &str) -> Result<bool, String> {
-    match s.to_ascii_lowercase().as_str() {
-        "true" | "1" | "yes" | "ja" => Ok(true),
-        "false" | "0" | "no" | "nein" => Ok(false),
-        other => Err(format!("erwartet true oder false, erhalten: {other}")),
-    }
+/// `-v <wert>`: PDF-Over ignoriert den Wert und signiert immer unsichtbar (B-07). Korrigiert werden nur
+/// die eindeutig verneinenden Werte; alles andere bleibt „unsichtbar“, damit vorhandene Skripte
+/// (`-v x`, `-v 1`) unverändert funktionieren.
+fn parse_invisible(s: &str) -> Result<bool, String> {
+    Ok(!matches!(s.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "nein" | "off"))
 }
 
 /// Übersetzt PDF-Over-Argumente in eine clap-verständliche Form (Werte immer als `--opt=WERT`,
@@ -395,6 +395,9 @@ mod tests {
     fn invisible_value_is_evaluated() {
         assert_eq!(p(&["-v", "false"]).legacy.invisible, Some(false));
         assert_eq!(p(&["-v", "true"]).legacy.invisible, Some(true));
+        // PDF-Over-kompatibel: beliebiger Wert bleibt „unsichtbar“.
+        assert_eq!(p(&["-v", "x"]).legacy.invisible, Some(true));
+        assert!(p(&[]).legacy.invisible.is_none());
     }
 
     #[test]

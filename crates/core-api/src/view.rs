@@ -357,6 +357,12 @@ pub enum UiEvent {
         /// Antwort
         answer: NoticeAnswer,
     },
+    /// „Signaturdaten anzeigen“ (F-68): der Kern öffnet `FormContext::signature_data_url` der offenen
+    /// Maske im Systembrowser (nur `https://`, A-Trust-Host); die Maske bleibt offen.
+    OpenSignatureData {
+        /// Anfrage-ID der offenen Maske
+        request: u64,
+    },
     /// Abbrechen (aktuelle Interaktion bzw. Schritt)
     Cancel,
     /// Wiederholen

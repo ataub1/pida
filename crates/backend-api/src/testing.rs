@@ -24,6 +24,9 @@ pub enum ScriptedReply {
     Notice(NoticeAnswer),
     /// Abbruch durch die Nutzerin
     Cancel,
+    /// Maske bleibt offen, bis das Backend das Future droppt (Long-Poll meldet „fertig“, R7);
+    /// beim Drop wird [`BrokerCall::FormClosed`] protokolliert. Nur für `native_form`.
+    Pending,
 }
 
 /// Protokollierter Aufruf.
@@ -41,6 +44,21 @@ pub enum BrokerCall {
     Event(BackendEvent),
     /// `open_external`
     OpenExternal(String),
+    /// Eine mit [`ScriptedReply::Pending`] offene Maske wurde vom Backend gedroppt (Dialog geschlossen).
+    FormClosed,
+}
+
+/// Protokolliert beim Drop, dass eine offene Maske geschlossen wurde.
+struct CloseGuard<'a> {
+    calls: &'a Mutex<Vec<BrokerCall>>,
+}
+
+impl Drop for CloseGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut c) = self.calls.lock() {
+            c.push(BrokerCall::FormClosed);
+        }
+    }
 }
 
 /// Broker, der Antworten aus einer Warteschlange liefert und alle Aufrufe protokolliert.
@@ -84,6 +102,11 @@ impl InteractionBroker for ScriptedBroker {
         match self.next() {
             Some(ScriptedReply::Form(a)) => Ok(a),
             Some(ScriptedReply::Cancel) => Err(InteractionError::Cancelled),
+            Some(ScriptedReply::Pending) => {
+                let _guard = CloseGuard { calls: &self.calls };
+                std::future::pending::<()>().await;
+                unreachable!("pending() endet nie")
+            }
             _ => Err(InteractionError::Unsupported),
         }
     }
@@ -120,8 +143,8 @@ impl InteractionBroker for ScriptedBroker {
     }
 }
 
-/// Vorbereitetes Dokument im Speicher (Bytes sind bereits geschwärzt).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Vorbereitetes Dokument im Speicher (Bytes sind bereits geschwärzt). `Debug` ohne Inhalt.
+#[derive(Clone, PartialEq, Eq)]
 pub struct MemoryDocument {
     /// Anzeigename
     pub name: String,
@@ -129,6 +152,16 @@ pub struct MemoryDocument {
     pub blacked_out: Vec<u8>,
     /// ausgeschlossener Bereich
     pub excluded: ExcludedByteRange,
+}
+
+impl std::fmt::Debug for MemoryDocument {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemoryDocument")
+            .field("name", &self.name)
+            .field("len", &self.blacked_out.len())
+            .field("excluded", &self.excluded)
+            .finish()
+    }
 }
 
 impl DocumentSource for MemoryDocument {
@@ -161,13 +194,32 @@ mod tests {
             ScriptedReply::Secret("test".into()),
             ScriptedReply::Cancel,
         ]);
-        let form = NativeForm::WaitForApp { reference_value: Some("AB12".into()), ctx: FormContext::default() };
+        let form = NativeForm::WaitForApp {
+            reference_value: Some("AB12".into()),
+            timeout_secs: Some(300),
+            ctx: FormContext::default(),
+        };
         assert_eq!(b.native_form(form.clone()).await, Ok(FormAnswer::Continue));
         let prompt = SecretPrompt { kind: crate::SecretKind::KeystorePassword, subject: "k.p12".into(), retry: false };
         assert_eq!(b.secret(prompt).await.unwrap().as_str(), "test");
         assert_eq!(b.native_form(form.clone()).await, Err(InteractionError::Cancelled));
         assert_eq!(b.remaining(), 0);
         assert_eq!(b.calls().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn pending_form_records_close_on_drop() {
+        let b = ScriptedBroker::new([ScriptedReply::Pending]);
+        let form = NativeForm::QrCode {
+            reference_value: "AB12".into(),
+            image: None,
+            timeout_secs: None,
+            ctx: FormContext::default(),
+        };
+        // Long-Poll „fertig“: das Backend wartet nicht länger auf die Maske und droppt das Future.
+        let res = tokio::time::timeout(std::time::Duration::from_millis(20), b.native_form(form)).await;
+        assert!(res.is_err(), "Pending darf nicht von selbst enden");
+        assert_eq!(b.calls().last(), Some(&BrokerCall::FormClosed));
     }
 
     #[test]

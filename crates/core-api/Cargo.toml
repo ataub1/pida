@@ -12,7 +12,7 @@ publish.workspace = true
 pdfover-workflow = { workspace = true }
 pdfover-config = { workspace = true }
 pdfover-i18n = { workspace = true }
-pdfover-render = { workspace = true }
+pdfover-render = { workspace = true, features = ["pdfium"] }
 pdfover-pades = { workspace = true }
 pdfover-placement = { workspace = true }
 pdfover-sigblock = { workspace = true }

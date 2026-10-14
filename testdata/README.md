@@ -1,7 +1,7 @@
 # Testdaten
 
 Gemeinsame, kleine Testdaten für alle Pakete (Ziel < 15 MB, aktuell ≈ 8 MB). Erzeugt bzw. aktualisiert
-mit [`tools/make-testdata.sh`](../tools/make-testdata.sh) (benötigt `openssl` ≥ 3 und `qpdf` ≥ 11.7, kein Netz).
+mit [`tools/make-testdata.sh`](../tools/make-testdata.sh) (benötigt `openssl` ≥ 3, `qpdf` ≥ 11.7 und `python3`, kein Netz).
 Der Korpus nach Plan §8.1 (≥ 450 Dateien, Klassen C1–C9) entsteht später unter `tools/corpus/` und liegt
 nicht im Repository.
 
@@ -28,6 +28,7 @@ nicht im Repository.
 | `pdf/generated/simple-aes256-owner-xref-stream.pdf` | AES-256 + xref-Stream | qpdf |
 | `pdf/generated/simple-aes256-nosign.pdf` | AES-256, Rechte ohne Ändern/Annotationen/Formulare → `Rights::may_sign() == false` | qpdf |
 | `pdf/generated/simple-aes256-userpw.pdf` | AES-256 mit User-Passwort `test` (K5) | qpdf |
+| `pdf/generated/simple-xref-hybrid.pdf` | Hybrid-Querverweis: xref-Tabelle + `/XRefStm`; Font-Objekt 5 liegt in einem Object Stream und steht **nur** im xref-Stream (Leser ohne `/XRefStm` finden es nicht) – `XrefKind::Hybrid` | `tools/make-hybrid-xref.py` |
 
 Lizenz: Die PDF-AS-Dateien stehen unter der EUPL (PDF-AS 4, `reference/pdf-as-4/license`), wie dieses
 Projekt (EUPL-1.2). Die erzeugten Dateien sind gemeinfreie Testartefakte.

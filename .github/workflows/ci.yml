@@ -37,6 +37,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: cargo check
         run: cargo check --workspace --all-targets --locked
+      - name: cargo check ohne PDFium (Traits genügen, ADR 0001 §8)
+        run: cargo check -p pdfover-render -p pdfover-placement -p pdfover-pades --no-default-features --all-targets --locked
       - name: cargo clippy
         # Bewusst ohne `-D warnings`, solange Stubs existieren (ADR 0001 §4 Regel 7).
         run: cargo clippy --workspace --all-targets --locked

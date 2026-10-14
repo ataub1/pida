@@ -44,7 +44,7 @@ pub struct Overlay {
     pub auto_position: bool,
     /// `-s`
     pub skip_finish: bool,
-    /// `-v <true|false>` (B-07 korrigiert: Wert wird ausgewertet).
+    /// `-v <wert>` (B-07: `false`/`0`/`no`/`nein` = sichtbar, sonst wie PDF-Over unsichtbar).
     pub invisible: Option<bool>,
     /// `-c` (relativ zum Konfigurationsordner; Altdateien unter `~/.pdf-over/<name>`).
     pub config_file: Option<PathBuf>,
@@ -104,7 +104,7 @@ impl<'a> Effective<'a> {
         self.overlay.auto_position || self.settings.signature.auto_position
     }
 
-    /// Unsichtbare Signatur erzwungen (`-v true`).
+    /// Unsichtbare Signatur erzwungen (`-v` mit nicht verneinendem Wert).
     pub fn force_invisible(&self) -> bool {
         self.overlay.invisible.unwrap_or(false)
     }

@@ -87,8 +87,9 @@ pub struct SubmitButton {
     pub value: String,
 }
 
-/// Ausgewertete Seite.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Ausgewertete Seite. `Debug` zeigt von `form_fields` nur die Namen (Werte können Benutzername,
+/// `__VIEWSTATE` u. Ä. enthalten; ADR 0001 §4 Regel 9).
+#[derive(Clone, PartialEq, Eq)]
 pub struct ParsedPage {
     /// Basis-URL (Request-URI)
     pub base_url: Url,
@@ -105,6 +106,20 @@ pub struct ParsedPage {
     pub fido2_link: Option<Url>,
     /// Block
     pub block: PageBlock,
+}
+
+impl std::fmt::Debug for ParsedPage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ParsedPage")
+            .field("base_url", &self.base_url.path())
+            .field("form_action", &self.form_action.path())
+            .field("form_fields", &self.form_fields.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>())
+            .field("signature_data_link", &self.signature_data_link.is_some())
+            .field("sms_link", &self.sms_link.is_some())
+            .field("fido2_link", &self.fido2_link.is_some())
+            .field("block", &self.block)
+            .finish()
+    }
 }
 
 /// Fehler der Seitenauswertung (→ `BackendError::UnknownPage` mit Diagnose).

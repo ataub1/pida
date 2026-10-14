@@ -25,10 +25,12 @@ use pdfover_pdf_cos::{CosError, Object, ObjectId, SourcePdf};
 /// Platzhalter der ByteRange (36 Zeichen, docs/analyse/03 §4.2).
 pub const BYTE_RANGE_PLACEHOLDER: &str = "[0 1000000000 1000000000 1000000000]";
 
-/// Standard-Reserve für Modell B (SL, A-Trust, BKU): 16 KiB (Plan §6.2).
+/// Standard-Reserve für Modell B (SL, A-Trust, BKU): 16 KiB (Plan §6.2). `pdfover-pades` wählt sie
+/// über `Reserve::ModelB` bzw. `Capabilities::cms_reserve`.
 pub const RESERVE_MODEL_B: usize = 16 * 1024;
 
-/// Mindestreserve für Modell A wie PDF-AS (`0x1000`, docs/analyse/03 §4.2).
+/// Reserve wie PDF-AS (`signatureSize`-Default `0x1000`, docs/analyse/03 §4.2) – Default von
+/// [`SignatureDictSpec`] und Mindestwert für Modell A.
 pub const RESERVE_MIN_MODEL_A: usize = 0x1000;
 
 /// Fehler des Writers.
@@ -127,7 +129,9 @@ pub struct SignatureDictSpec {
     pub name: Option<String>,
     /// `/Reason` (`adobeSignReasonValue` oder „PAdES Signature“).
     pub reason: Option<String>,
-    /// Reservierte CMS-Bytes (Hex-Länge = 2 × reserve).
+    /// Reservierte CMS-Bytes (Hex-Länge = 2 × reserve). Default [`RESERVE_MIN_MODEL_A`] (4096 wie
+    /// PDF-AS); der Aufrufer (`pdfover-pades`) setzt sie immer explizit (Modell A: berechnet,
+    /// ≥ 4096; Modell B: [`RESERVE_MODEL_B`] bzw. `Capabilities::cms_reserve`).
     pub contents_reserve: usize,
 }
 
@@ -140,7 +144,7 @@ impl Default for SignatureDictSpec {
             location: None,
             name: None,
             reason: None,
-            contents_reserve: RESERVE_MODEL_B,
+            contents_reserve: RESERVE_MIN_MODEL_A,
         }
     }
 }
@@ -211,14 +215,24 @@ pub enum WrittenKind {
     XrefStream,
 }
 
-/// Baut ein Increment über einem [`SourcePdf`].
-#[derive(Debug)]
+/// Baut ein Increment über einem [`SourcePdf`]. `Debug` ohne Objektinhalte (Regel 9).
 pub struct IncrementBuilder<'a> {
     src: &'a SourcePdf,
     opts: IncrementOptions,
     next_number: u32,
     objects: Vec<(ObjectId, Object, WrittenKind)>,
     signature: Option<(ObjectId, SignatureDictSpec)>,
+}
+
+impl std::fmt::Debug for IncrementBuilder<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IncrementBuilder")
+            .field("opts", &self.opts)
+            .field("next_number", &self.next_number)
+            .field("objects", &self.objects.len())
+            .field("signature_dict", &self.signature.as_ref().map(|(id, _)| *id))
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'a> IncrementBuilder<'a> {
@@ -272,8 +286,8 @@ impl<'a> IncrementBuilder<'a> {
     }
 }
 
-/// Fertig serialisiertes Increment (nur die angehängten Bytes).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Fertig serialisiertes Increment (nur die angehängten Bytes). `Debug` ohne Inhalt (Regel 9).
+#[derive(Clone, PartialEq, Eq)]
 pub struct Increment {
     /// Länge des Originals = Offset, an dem das Increment beginnt.
     pub base_len: u64,
@@ -290,6 +304,20 @@ pub struct Increment {
     pub signature_dict_id: Option<ObjectId>,
     /// Alle geschriebenen Objekte mit Rolle (für I6).
     pub written: Vec<(ObjectId, WrittenKind)>,
+}
+
+impl std::fmt::Debug for Increment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Increment")
+            .field("base_len", &self.base_len)
+            .field("len", &self.bytes.len())
+            .field("contents_range", &self.contents_range)
+            .field("byte_range_field", &self.byte_range_field)
+            .field("byte_range", &self.byte_range)
+            .field("signature_dict_id", &self.signature_dict_id)
+            .field("written", &self.written.len())
+            .finish()
+    }
 }
 
 impl Increment {

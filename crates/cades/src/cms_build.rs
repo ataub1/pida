@@ -89,13 +89,34 @@ impl RawSignature {
 }
 
 /// Lokaler Signierer über einen Hash (Keystore; später CSC über einen Adapter).
+///
+/// Vertrag (ADR 0001 §8, gilt auch für `pdfover_backend_api::DigestJob`): Der Kern wählt das
+/// Hashverfahren mit [`select_algorithm`] aus dem Zertifikat, hasht damit die ByteRange-Daten
+/// (message-digest) **und** die SignedAttributes. [`RawSigner::sign_digest`] signiert mit genau dem
+/// Verfahren von `digest.alg` (RSA: DigestInfo dieses Verfahrens; ECDSA: Hash direkt) und liefert
+/// `RawSignature::alg` mit `alg.digest() == digest.alg`.
 pub trait RawSigner: Send + Sync {
     /// Zertifikatskette des Schlüssels.
     fn chain(&self) -> &CertChain;
-    /// Algorithmus nach PDF-AS-Regeln ([`select_algorithm`]).
+    /// Algorithmus nach PDF-AS-Regeln ([`select_algorithm`]) – Vorgabe für den Kern.
     fn algorithm(&self) -> SignatureAlg;
-    /// Signiert den Hash der SignedAttributes.
+    /// Signiert den Hash der SignedAttributes (Verfahren = `digest.alg`, siehe Vertrag oben).
     fn sign_digest(&self, digest: &Digest) -> Result<RawSignature>;
+}
+
+/// Obere Schranke der DER-Länge eines CMS, wie es [`assemble`] bzw. ein Modell-B-Dienst für diese
+/// Kette liefert – Grundlage der `/Contents`-Reserve (Plan §6.2): Modell A „berechnet + 1 KiB,
+/// mindestens 4 KiB“; Modell B Plausibilitätsprüfung vor dem Upload (Reserve vergrößern, wenn die
+/// Schätzung 50 % übersteigt). Berücksichtigt Zertifikate (`include_intermediates`), die signierten
+/// Attribute des Profils und die Höchstlänge des Signaturwerts (RSA = Modullänge, ECDSA =
+/// DER `SEQUENCE { r, s }` mit maximaler Integer-Länge).
+pub fn estimate_cms_len(
+    chain: &CertChain,
+    profile: CmsProfile,
+    alg: SignatureAlg,
+    include_intermediates: bool,
+) -> Result<usize> {
+    todo!("Paket B")
 }
 
 /// Optionen für [`assemble`].

@@ -82,6 +82,10 @@ pub struct SignPlan {
     pub reserve: Reserve,
     /// CMS-Profil (Modell A)
     pub cms_profile: CmsProfile,
+    /// Zwischenzertifikate ins CMS einbetten (Modell A; PDF-AS: nein, Entscheidung S3, Plan §6.10) –
+    /// wirkt auf `Reserve::ModelA` (`cades::estimate_cms_len`) und `Prepared::finish_raw`
+    /// (`AssembleOptions::include_intermediates`).
+    pub include_intermediates: bool,
     /// sRGB-OutputIntent ergänzen, falls keiner vorhanden (PDF/A, Plan §6.9)
     pub add_output_intent_if_missing: bool,
     /// PDF/UA-Strukturelemente fortschreiben (StructTreeRoot vorhanden)

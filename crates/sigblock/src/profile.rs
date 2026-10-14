@@ -122,6 +122,11 @@ pub struct ProfileFlags {
 }
 
 /// Aufgelöstes Profil (nach Vererbung).
+///
+/// [`ProfileStore`] legt hier bereits **alle Fallbacks** ab (ADR 0001 §8): globale `default.*`-Werte
+/// (`getValue` → `default.<key>`, z. B. `default.timezone`) und die eingebauten Caption-Defaults von PDF-AS
+/// (`DefaultSignatureProfileSettings`). [`crate::layout::layout`] und [`crate::Appearance::build`]
+/// brauchen deshalb nur das Profil, nicht den Store.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Profile {
     /// Profil-ID.

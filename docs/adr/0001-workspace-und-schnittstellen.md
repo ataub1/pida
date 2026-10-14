@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | angenommen (14.10.2026) |
+| **Status** | angenommen (14.10.2026); präzisiert durch den Schnittstellen-Review vor der parallelen Umsetzung (§8) |
 | **Kontext** | Fundament für die parallele Umsetzung durch sechs Pakete (A–F) und die anschließende Integration |
 | **Grundlage** | [Plan](../00-architektur-und-umsetzungsplan.md) §2 (Stack/Pinning), §3 (Architektur, Schnittstellen), §4 (Backends), §6 (PDF-Engine), §7 (Config/CLI/i18n), §8 (QA); Analysen [01–05](../analyse/), Recherchen [01–03](../recherche/) |
 
@@ -16,7 +16,9 @@
   kompilieren (`cargo check --workspace --all-targets`). Bodies sind `todo!()`, außer den in §5.1 genannten
   Querschnittsteilen, die bereits implementiert und getestet sind.
 - Fremdbibliotheken stehen hinter eigenen Grenzen (Plan §2.5): lopdf hinter `pdf-cos`, RustCrypto hinter
-  `cades`, PDFium hinter `render::Renderer`, der Writer hinter `pdf-incremental`.
+  `cades`, PDFium hinter `render::Renderer` (Feature `pdfium`), der Writer hinter `pdf-incremental`.
+- Die verbindlichen Präzisierungen aus dem Schnittstellen-Review (Verträge, die zwei Pakete gleich
+  auslegen müssen) stehen in §8; sie gehen den Doc-Kommentaren im Zweifel vor.
 
 ## 2. Entscheidung des Auftraggebers: Szenario A ist Standard
 
@@ -133,7 +135,7 @@ die konkrete Backends kennt; `workflow` arbeitet nur gegen `backend-api`.
 | `pdfover-cades` | `Certificate`, `CertChain`, `DigestAlg`, `SignatureAlg`, `SignedAttrsBuilder` (`PdfasCompat`/`PadesBB`), `assemble`, `verify_detached`, `RawSigner` (Plan §6.10, analyse/03 §5) |
 | `pdfover-sigblock` | Profil-IR, `ProfileStore`, Ausdrücke, Fonts, Emblem, `layout`, `Appearance::build` (Plan §6.5, analyse/04 §2–§3, §7) |
 | `pdfover-placement` | `TablePos`, `Placement`, `resolve_width`/`resolve_position`/`auto_place`, `widget_rect`, QR-Platzhalter, leere Felder, Koordinatenräume (Plan §6.7–§6.8, analyse/04 §4–§5) |
-| `pdfover-render` | `Renderer`/`RenderBackend`, `PdfiumBackend`, `RgbaImage`, Forced-Color-Raster, Bildobjekte (Plan §6.6–§6.8) |
+| `pdfover-render` | `Renderer`/`RenderBackend`, `PdfiumBackend` (Feature `pdfium`, Default; Abhängige binden ohne Default-Features, §8.1), `RgbaImage`, Forced-Color-Raster, Bildobjekte (Plan §6.6–§6.8) |
 | `pdfover-backend-api` | `SignatureBackend`, `BackendSession`, `Capabilities`, `SignJob`/`SignResult`, `DocumentSource`, `InteractionBroker` mit allen Dialogtypen, `BackendError`, `CancelToken` (Plan §3.3–§3.4, analyse/01 §4.6, analyse/02 §3) |
 | `pdfover-sl12` | SL-1.2-XML (InfoboxRead, CreateCMSSignature detached mit ExcludedByteRange, NullOperation), Antworten, HTTP-Bindings (analyse/02 §2) |
 | `pdfover-net` | `HttpClient` je Sitzung (Cookies, keine Auto-Redirects), Proxy, rustls+ring, `parse_refresh`, `tcp_probe` (analyse/02 §3.2–§3.4, §6) |
@@ -180,14 +182,33 @@ die konkrete Backends kennt; `workflow` arbeitet nur gegen `backend-api`.
    Zugangsdaten; A-Trust nur gegen aufgezeichnete, anonymisierte HTML-Fixtures. Tests, die PDFium
    brauchen, prüfen die Umgebungsvariable `PDFOVER_PDFIUM_DIR` und werden sonst übersprungen
    (CI hat vorerst keine PDFium-Binaries).
-7. **Qualität je Paket:** `cargo fmt --all`, `cargo check --workspace --all-targets`,
-   `cargo test -p <eigene Crates>`, `cargo clippy -p <eigene Crates>` ohne neue Warnungen in eigenen
-   Crates; keine `todo!()` mehr in den eigenen öffentlichen Funktionen (oder begründet im Bericht).
+7. **Qualität je Paket:** `cargo fmt -p <eigene Crates>` (nicht `--all`, damit keine fremden Dateien
+   angefasst werden), `cargo check --workspace --all-targets` (ergänzt `Cargo.lock` bei neuen
+   Abhängigkeiten minimal; die Datei wird mit committet, danach muss `--locked` wie in der CI grün sein),
+   `cargo test -p <eigene Crates>`,
+   `cargo clippy -p <eigene Crates>` ohne neue Warnungen in eigenen Crates; keine `todo!()` mehr in den
+   eigenen öffentlichen Funktionen (oder begründet im Bericht).
 8. **unsafe:** workspaceweit `deny`. FFI (z. B. `webauthn.dll` in `backend-atrust`) nur in einem eigenen
    Modul mit lokalem `#[allow(unsafe_code)]` und Begründung.
-9. **Logs** enthalten nie Passwörter, TANs, Dokumentinhalte oder Zertifikats-Personendaten im Klartext.
+9. **Logs** enthalten nie Passwörter, TANs, Tokens, Dokumentinhalte oder Zertifikats-Personendaten im
+   Klartext. Das gilt auch für `Debug`: Typen, die solche Daten tragen, haben eine **eigene**
+   `Debug`-Implementierung (Längen, Namen, gekürzter Fingerprint) statt `#[derive(Debug)]` – im
+   Fundament bereits umgesetzt für `SourcePdf`, `Increment`, `IncrementBuilder`, `Prepared`,
+   `SignedPdf`, `Certificate`, `CertFields`, `net::{Request, Response, Body, FormPart}`,
+   `sl12::{Part, HttpBody, DocumentContent, InfoboxReadResponse, CreateCmsSignatureResponse}`,
+   `PollInfo`, `ParsedPage`, `MemoryDocument` (Regressionstests in `net` und `cades`). Neue Typen
+   folgen dem Muster.
 10. **Abschlussbericht** je Paket: umgesetzte API, Abweichungen, neue Abhängigkeiten (Name, Version,
-    Lizenz), Änderungsbedarf an fremden Schnittstellen, offene Punkte.
+    Lizenz), Änderungsbedarf an fremden Schnittstellen, **neue Meldungs-/Fehler-IDs** (Regel 11),
+    offene Punkte.
+11. **i18n-IDs:** Die Kataloge `crates/i18n/locales/` ändert nur Paket E (Konvertierung der PDF-Over-Keys).
+    Andere Pakete führen ihre neuen stabilen Codes (z. B. `BackendError::code`, `Finding::code`,
+    `NoticeCode`, `FormProblem`, `PlacementError`) samt deutschem und englischem Text im
+    Abschlussbericht auf; die Integration trägt sie ein. Bis dahin liefert `Catalog::format` `!id!`.
+12. **Worktrees:** Jedes Paket arbeitet in einem eigenen `git worktree`/Branch. `reference/` und `.venv/`
+    sind nicht versioniert und fehlen dort; `source tools/env.sh` setzt `PDFOVER_MAIN`,
+    `PDFOVER_REFERENCE` (Referenzquellen, nur lesen) und nimmt die `.venv` (pyHanko) des Hauptcheckouts in
+    den `PATH`. Tests lesen nie aus `reference/`, sondern nur aus `testdata/` bzw. Crate-Assets.
 
 ## 5. Schnittstellenprinzipien
 
@@ -201,7 +222,9 @@ Damit kein Paket auf die Implementierung eines anderen warten muss:
 | `DigestAlg`/`Hasher` (SHA-1/256/384/512), `Certificate::from_der`, Getter (Subject/Issuer-AVAs, Seriennummer dezimal, Gültigkeit, Fingerprint) | `cades` | B, D, Integration |
 | `ByteRange::for_contents`/`excluded`/`is_consistent_with`, `format_pdf_date` | `pdf-incremental` | A, Integration |
 | `CancelToken`, `BackendError::code`, `Environment`, `BackendId::from_legacy_bku` | `backend-api` | B, D |
-| Test-Hilfen `testing::ScriptedBroker` (skriptgesteuerte Masken/Passwörter/Meldungen, Aufrufprotokoll) und `testing::MemoryDocument` – Feature `testing` als dev-dependency | `backend-api` | B, D |
+| Test-Hilfen `testing::ScriptedBroker` (skriptgesteuerte Masken/Passwörter/Meldungen, Aufrufprotokoll; `ScriptedReply::Pending` hält eine Maske offen, bis das Backend sie droppt → `BrokerCall::FormClosed`, für den Long-Poll-Pfad R7) und `testing::MemoryDocument` – Feature `testing` als dev-dependency | `backend-api` | B, D |
+| Redigierende `Debug`-Implementierungen (Regel 9) | mehrere | alle |
+| Hybrid-xref-Testdokument `testdata/pdf/generated/simple-xref-hybrid.pdf` (`tools/make-hybrid-xref.py`) | `testdata/` | A |
 | `SignatureProfile::pdfas_profile_id` (die 12 PDF-Over-Profil-IDs) | `config` | Integration |
 | `mode_from_server_header` | `backend-localbku` | D |
 | CLI-Normalisierung und Parser (7 Tests) | `apps/cli` | Integration |
@@ -261,7 +284,7 @@ Plan §7.4 (`workflow::ExitCode`).
 | Krypto | siehe §5.2; `p12-keystore =0.4.1` |
 | Fonts/Bilder/QR | `skrifa 0.48.0`, `read-fonts 0.45.0`, `subsetter 0.2.6` (ohne `variable-fonts`, sonst zweite skrifa-Generation), `png 0.18.1`, `zune-jpeg 0.5.15`, `gif 0.14.2`, `image 0.25.10` (png/jpeg/gif), `kamadak-exif 0.6.1`, `flate2 1.1.10`, `rxing 0.9.3` (qrcode, decoders, encoding_rs) |
 | Netz/HTML/XML | `reqwest 0.13.5` (`rustls-no-provider`, cookies, multipart, form, system-proxy), `rustls 0.23.46` (ring), `url 2.5.8`, `scraper 0.27.0`, `quick-xml 0.42.0` |
-| Allgemein | `tokio 1.53.3`, `async-trait 0.1.92`, `futures 0.3.34`, `thiserror 2.0.21`, `serde 1.0.229`, `serde_json 1.0.154`, `tracing 0.1.44`, `zeroize 1.9.1`, `time 0.3.55`, `base64 0.23.1`, `hex 0.4.3`, `toml 1.1.8`, `directories 6.0.0`, `keyring 4.2.0`, `clap 4.6.7`, `fluent-bundle 0.16.0`, `fluent-syntax 0.12.0`, `unic-langid 0.9.6` |
+| Allgemein | `tokio 1.53.3`, `async-trait 0.1.92`, `futures 0.3.34`, `thiserror 2.0.21`, `serde 1.0.229`, `serde_json 1.0.154`, `tracing 0.1.44`, `zeroize 1.9.1`, `time 0.3.55`, `jiff 0.2.38` (Zeitzonen, §8.7; Unlicense/MIT), `base64 0.23.1`, `hex 0.4.3`, `toml 1.1.8`, `directories 6.0.0`, `keyring 4.2.0`, `clap 4.6.7`, `fluent-bundle 0.16.0`, `fluent-syntax 0.12.0`, `unic-langid 0.9.6` |
 | Tests | `tempfile 3.27.0`, `proptest 1.12.0` |
 
 ## 7. Konsequenzen und offene Punkte
@@ -275,3 +298,112 @@ Plan §7.4 (`workflow::ExitCode`).
 - **MSRV:** Die Abhängigkeiten verlangen ≥ 1.88; eine Absenkung erfolgt erst nach CI-Nachweis.
 - **PDFium-Binaries** (chromium/8100) sind noch nicht im Build; Paket F legt fest, wie sie in Tests und CI
   bereitgestellt werden.
+- **Mobile-Integration** (nicht Teil der Pakete A–F): `rustls-platform-verifier` braucht unter Android eine
+  JNI-Initialisierung durch die Shell; `keyring` 4 hat ohne Feature `android-native-keyring-store` unter
+  Android keinen Standardspeicher (Mobile nutzt ohnehin das `secure-store`-Plugin, Plan §3.1).
+- **Advisory RUSTSEC-2023-0071** (`rsa`, Marvin) ist in `deny.toml` begründet ignoriert (nur lokales
+  Signieren); bei einer `rsa`-Version mit Fix wird gehoben.
+- `lopdf` 0.45 bringt intern ebenfalls `sha2` 0.11 mit (wie `p12-keystore`); gekapselt in `pdf-cos`.
+
+## 8. Präzisierungen aus dem Schnittstellen-Review (14.10.2026, vor der parallelen Umsetzung)
+
+Adversarialer Review aller `lib.rs`/`Cargo.toml` gegen Plan §3 und analyse/01–05. Ergebnis: Die Pakete
+A–F lassen sich unabhängig umsetzen; die folgenden Verträge sind **verbindlich**, weil sonst zwei Pakete
+dieselbe Stelle unterschiedlich auslegen würden. Alle Punkte sind im Code (Stubs/Doc-Kommentare)
+umgesetzt; `cargo check --workspace --all-targets --locked` und alle Tests sind grün.
+
+### 8.1 PDFium als Feature
+
+`pdfover-render` hat das Feature `pdfium` (Default, `dep:pdfium-render`) für `PdfiumBackend`/
+`PdfiumRenderer`. Die Workspace-Dependency `pdfover-render` ist `default-features = false`; nur
+`pdfover-core-api` (und später die Tauri-Shell) aktiviert `features = ["pdfium"]`. `placement` und
+`pades` brauchen nur die Traits und lassen sich ohne `pdfium-render` bauen und mit eigenen
+Test-Renderern prüfen (CI-Schritt „cargo check ohne PDFium“). Ein Rückfall-Renderer (hayro, Plan §2.4)
+kommt als weiteres Feature dazu.
+
+### 8.2 Zuordnung `ImageInvocation` ↔ `ImageObject` (A ↔ F)
+
+`pdf-cos` zählt nur `Do`-Aufrufe von Bild-XObjects (`order` in Content-Stream-Reihenfolge, Tiefensuche
+in Form-XObjects nur mit `descend_forms`, `ctm` im Seitenraum). PDFium zählt auch Inline-Bilder. Die
+Zuordnung in `find_qr_placeholders` erfolgt daher **primär über die Matrix** (komponentenweise
+Abweichung ≤ 0,01), `order` ist nur Tie-Breaker.
+
+### 8.3 Modell A: Hashverfahren (B ↔ Integration)
+
+Der Kern wählt das Hashverfahren mit `cades::select_algorithm(&chain.signer.key_type()?)`, hasht damit
+ByteRange-Daten (message-digest) **und** SignedAttributes und schickt `DigestJob { alg, digest }`. Das
+Backend bzw. `RawSigner::sign_digest` signiert genau mit `digest.alg` und liefert `RawSignature::alg`
+mit `alg.digest() == job.alg`. Ablauf: `certificate()` → `prepare(Reserve::ModelA)` →
+`Prepared::digest(alg)` → `SignedAttrsBuilder::new(profile, &digest, &chain.signer,
+SigningTime(prepared.signing_time())).build()` → `attrs.digest(alg)` → `sign` → `finish_raw`.
+
+### 8.4 `/Contents`-Reserve
+
+| Fall | Reserve | Quelle |
+|---|---|---|
+| Writer-Default (`SignatureDictSpec::default`) | 4096 Bytes wie PDF-AS (`RESERVE_MIN_MODEL_A`) | `pdf-incremental` |
+| Modell A (`Reserve::ModelA`) | `cades::estimate_cms_len(…)` + 1 KiB, mindestens 4096, Profil-Key `signatureSize` respektiert | `pades` |
+| Modell B (`Reserve::ModelB`) | `Capabilities::cms_reserve` bzw. `RESERVE_MODEL_B` = 16 KiB; vor `prepare` vergrößert, wenn `estimate_cms_len` > 50 % | `pades` |
+| nach `FinishError::CmsTooLarge` | `Reserve::Bytes(n)` über `RetryTarget::PrepareWithReserve(n)` (zweite Bestätigung) | `workflow` |
+
+`cades::estimate_cms_len(chain, profile, alg, include_intermediates)` ist neu (Stub, Paket B);
+`include_intermediates` kommt aus dem neuen Feld `SignPlan::include_intermediates` (PDF-AS: `false`,
+Entscheidung S3), das auch `finish_raw` für `AssembleOptions` verwendet.
+
+### 8.5 Abbruch, Drop-Sicherheit, Lebensdauer
+
+- Während `certificate`/`sign` ist die Sitzung `&mut` geliehen; abgebrochen wird über
+  `SessionContext::cancel` (`CancelToken`) oder durch Droppen des Futures. Beide Futures müssen
+  drop-sicher sein; `BackendSession::cancel` räumt danach auf.
+- Broker-Futures dürfen gedroppt werden (Long-Poll „fertig“ → Maske schließen); testbar mit
+  `ScriptedReply::Pending`.
+- Backends halten `DocumentJob::source` nicht über `sign` hinaus (der Kern braucht `Prepared` danach
+  exklusiv für `finish_cms(self, …)`).
+
+### 8.6 Masken und Bridge
+
+- `NativeForm::QrCode`/`WaitForApp` tragen `timeout_secs` (Countdown „App-Warten“, Plan §4.4; Default
+  300 s aus `PollConfig`).
+- „Signaturdaten anzeigen“ (F-68): `UiEvent::OpenSignatureData { request }`; der Kern öffnet
+  `FormContext::signature_data_url` (nur `https://`, A-Trust-Host), die Maske bleibt offen.
+- `FormContext`, `NoticeCode`, `FormProblem` decken alle Dialoge aus analyse/01 §4.6/§4.10 und analyse/02
+  §3.5–§3.11 ab: Login (inkl. erneuter Login-Seite → `FormProblem::LoginRejected`, kein automatisches
+  Neusenden), SMS-TAN, QR, App, FIDO2, Methodenwechsel SMS/FIDO2, Interstitial, Fehlerseite mit
+  Retry/Cancel, HTTP 407/413/sonstige, Verbindungsfehler; „Merken“ nur RAM (`AtrustNativeBackend`),
+  Benutzername über `BackendEvent::LoginSucceeded`; Wiederverwendung der Credentials im zweiten
+  SL-Request über `AtrustSession`.
+
+### 8.7 Signaturblock: `/Name`, Fallbacks, Zeitzonen (C ↔ Integration)
+
+- `sigblock::expr::signer_name(profile, input)` liefert `/Name` (aufgelöstes `SIG_SUBJECT`),
+  `ExprContext::from_input` baut den Kontext mit den Alias-Regeln (`title`/`T`, linkester Eintrag) –
+  die Integration baut nichts davon nach.
+- `Profile` enthält bereits alle Fallbacks (`default.*`, eingebaute Caption-Defaults);
+  `layout`/`Appearance::build` brauchen den `ProfileStore` nicht.
+- Zeitzonen: `time::OffsetDateTime` bleibt der Schnittstellentyp. `time` ermittelt unter Unix in
+  Mehrthread-Prozessen keinen lokalen Offset und kennt keine IANA-Namen; deshalb `jiff`
+  (Workspace-Dependency): Die Integration bildet `/M`/`signing_time` als lokale Zeit mit Offset über
+  `jiff`, `format_sig_date(…, timezone: None)` nutzt den Offset des übergebenen Werts,
+  `Some("Europe/Vienna")` löst Paket C über `jiff` auf (unbekannt → `GMT` wie Java).
+
+### 8.8 Workflow (Integration)
+
+Ergänzt, damit die Übergangstabelle aus analyse/01 §3.4 und Plan §6.2/§7.1 vollständig abbildbar ist:
+`Event::PreviewUnavailable` (→ Hinweis `error.PositioningNotPossible`, automatische Positionierung),
+`Event::CmsTooLarge` + `WorkflowError::CmsTooLarge` + `RetryTarget::PrepareWithReserve`,
+`Event::SettingsUnreadable` + `WorkflowError::Config` + `RetryTarget::ResetSettings` + `Effect::ResetSettings`
+(F-05), `Effect::Notify`, `Effect::Prepare::min_reserve`, `Context::privacy_acknowledged`
+(Datenschutzhinweis nur bis zur Bestätigung). Einstellungen bleiben ein Overlay in `core-api`.
+
+### 8.9 CLI `-v`
+
+`-v <wert>`: `false`/`0`/`no`/`nein`/`off` → sichtbar (Korrektur B-07), **jeder andere Wert** →
+unsichtbar wie bei PDF-Over (Skripte mit `-v x` laufen weiter).
+
+### 8.10 Lizenzen und Versionen
+
+Geprüft über `cargo metadata` (alle 475 externen Crates im Graph, alle Ziele): keine Abhängigkeit ohne
+zulässige Alternative der Allowlist; Copyleft nur als Option (`self_cell` Apache-2.0 OR GPL-2.0,
+`r-efi` … OR LGPL-2.1) bzw. MPL-2.0 (`cssparser`, `selectors`, `dtoa-short`, `option-ext`, zulässig).
+TLS über `rustls` + `ring` + `rustls-platform-verifier`, kein `aws-lc-rs`. Doppelte Generationen nur
+wie in §5.2/§7 beschrieben.

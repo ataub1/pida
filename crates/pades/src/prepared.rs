@@ -12,13 +12,23 @@ use crate::plan::SignPlan;
 use crate::signed::SignedPdf;
 use crate::{FinishError, PadesError};
 
-/// Vorbereitetes, nach `prepare()` unveränderliches Dokument.
-#[derive(Debug)]
+/// Vorbereitetes, nach `prepare()` unveränderliches Dokument. `Debug` ohne Inhalt (Regel 9).
 pub struct Prepared {
     original: std::sync::Arc<[u8]>,
     increment: Increment,
     signing_time: OffsetDateTime,
     plan_profile_id: String,
+}
+
+impl std::fmt::Debug for Prepared {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Prepared")
+            .field("original_len", &self.original.len())
+            .field("increment", &self.increment)
+            .field("signing_time", &self.signing_time)
+            .field("profile_id", &self.plan_profile_id)
+            .finish()
+    }
 }
 
 /// Persistierter Zustand (Mobile-Lebenszyklus: App-Wechsel ist kein Abbruch, Plan §3.5).

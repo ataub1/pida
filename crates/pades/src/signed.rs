@@ -97,11 +97,19 @@ pub struct OutputInfo {
     pub sha256: String,
 }
 
-/// Signiertes PDF (Original + Increment mit eingesetztem CMS).
-#[derive(Debug)]
+/// Signiertes PDF (Original + Increment mit eingesetztem CMS). `Debug` ohne Inhalt (Regel 9).
 pub struct SignedPdf {
     original: std::sync::Arc<[u8]>,
     increment: Vec<u8>,
+}
+
+impl std::fmt::Debug for SignedPdf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SignedPdf")
+            .field("original_len", &self.original.len())
+            .field("increment_len", &self.increment.len())
+            .finish()
+    }
 }
 
 impl SignedPdf {

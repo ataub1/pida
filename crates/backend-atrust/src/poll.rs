@@ -6,12 +6,19 @@ use pdfover_backend_api::CancelToken;
 use pdfover_net::{HttpClient, Url};
 
 /// Poll-Info aus `qrpoll("URL", "TOKEN");` im ersten `<script>` in `#jsLongPoll`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `Debug` schwärzt das Token (ADR 0001 §4 Regel 9).
+#[derive(Clone, PartialEq, Eq)]
 pub struct PollInfo {
     /// Poll-URL (relativ zur Dokument-Basis aufgelöst)
     pub url: Url,
     /// Bearer-Token
     pub token: String,
+}
+
+impl std::fmt::Debug for PollInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PollInfo").field("url", &self.url.as_str()).field("token", &"***").finish()
+    }
 }
 
 /// Extrahiert die Poll-Info aus dem Skripttext.

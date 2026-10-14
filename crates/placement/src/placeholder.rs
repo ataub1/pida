@@ -91,7 +91,9 @@ pub fn decode_qr(image: &RgbaImage) -> Vec<String> {
 }
 
 /// Alle QR-Platzhalter der Seiten in Seitenreihenfolge. Bitmaps kommen aus dem Renderer
-/// (`image_objects`, Zuordnung über `order`/Matrix), Namen und CTM aus `invocations`.
+/// (`image_objects`), Namen und CTM aus `invocations`. Zuordnung je Seite **primär über die
+/// Matrix** (`ImageObject::matrix` ≈ `ImageInvocation::ctm`, Abweichung ≤ 0,01), `order` nur als
+/// Tie-Breaker – PDFium zählt Inline-Bilder mit, `pdf-cos` nicht (ADR 0001 §8).
 pub fn find_qr_placeholders(
     renderer: &dyn Renderer,
     pages: &[PageInfo],

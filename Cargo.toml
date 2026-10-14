@@ -58,7 +58,9 @@ pdfover-cades = { path = "crates/cades" }
 pdfover-sigblock = { path = "crates/sigblock" }
 pdfover-pades = { path = "crates/pades" }
 pdfover-placement = { path = "crates/placement" }
-pdfover-render = { path = "crates/render" }
+# Ohne Default-Features: Abhängige nutzen nur die Traits; `features = ["pdfium"]` nur dort, wo
+# `PdfiumBackend` konstruiert wird (core-api, Tauri-Shell). ADR 0001 §8.
+pdfover-render = { path = "crates/render", default-features = false }
 pdfover-backend-api = { path = "crates/backend-api" }
 pdfover-sl12 = { path = "crates/sl12" }
 pdfover-backend-atrust = { path = "crates/backend-atrust" }
@@ -126,6 +128,10 @@ tokio = { version = "1.53.3", features = ["sync", "time", "rt", "macros"] }
 futures = "0.3.34"
 zeroize = { version = "1.9.1", features = ["zeroize_derive", "std"] }
 time = { version = "0.3.55", features = ["formatting", "parsing", "macros", "local-offset", "serde"] }
+# Zeitzonen (ADR 0001 §8): `time` bleibt Datentyp aller Schnittstellen (`OffsetDateTime`), ermittelt
+# den lokalen Offset unter Unix in Mehrthread-Prozessen aber nicht und kennt keine IANA-Namen.
+# `jiff` liefert lokale Zeitzone (inkl. Sommerzeit) und `timezone`-Profilwerte (`Europe/Vienna`).
+jiff = "0.2.38"
 base64 = "0.23.1"
 hex = "0.4.3"
 toml = "1.1.8"

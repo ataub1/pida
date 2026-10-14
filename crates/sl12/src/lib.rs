@@ -54,8 +54,9 @@ pub struct ExcludedByteRange {
     pub to: u64,
 }
 
-/// Wie das Dokument im `CreateCMSSignatureRequest` steht (docs/analyse/02 §2.5).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Wie das Dokument im `CreateCMSSignatureRequest` steht (docs/analyse/02 §2.5). `Debug` ohne
+/// Dokumentinhalt (ADR 0001 §4 Regel 9).
+#[derive(Clone, PartialEq, Eq)]
 pub enum DocumentContent {
     /// `<sl:Content Reference="formdata:fileupload"/>` – Datei als Multipart-Teil (A-Trust immer).
     Upload,
@@ -110,8 +111,8 @@ impl SlRequest {
     }
 }
 
-/// Teil eines Multipart-Bodys (übernimmt `pdfover-net::FormPart`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Teil eines Multipart-Bodys (übernimmt `pdfover-net::FormPart`). `Debug` nur mit Länge.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Part {
     /// Feldname
     pub name: String,
@@ -123,8 +124,9 @@ pub struct Part {
     pub data: Vec<u8>,
 }
 
-/// HTTP-Körper eines SL-Requests (SL-HTTPS-Binding, docs/analyse/02 §2.7).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// HTTP-Körper eines SL-Requests (SL-HTTPS-Binding, docs/analyse/02 §2.7). `Debug` ohne Werte
+/// (`XMLRequest` kann `Base64Content` mit dem Dokument enthalten).
+#[derive(Clone, PartialEq, Eq)]
 pub enum HttpBody {
     /// urlencoded, ein Feld `XMLRequest`.
     UrlEncoded(Vec<(String, String)>),
@@ -146,8 +148,8 @@ pub fn http_body(request: &SlRequest, upload: Option<&[u8]>, order: PartOrder) -
     todo!("Paket D")
 }
 
-/// `InfoboxReadResponse`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `InfoboxReadResponse`. `Debug` ohne Zertifikatsinhalt (Personendaten).
+#[derive(Clone, PartialEq, Eq)]
 pub struct InfoboxReadResponse {
     /// Paare `Key` → dekodierter `Base64Content`.
     pub pairs: Vec<(String, Vec<u8>)>,
@@ -160,11 +162,56 @@ impl InfoboxReadResponse {
     }
 }
 
-/// `CreateCMSSignatureResponse`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// `CreateCMSSignatureResponse`. `Debug` nur mit Länge.
+#[derive(Clone, PartialEq, Eq)]
 pub struct CreateCmsSignatureResponse {
     /// DER von `CMSSignature` (ContentInfo/SignedData).
     pub cms: Vec<u8>,
+}
+
+impl std::fmt::Debug for DocumentContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DocumentContent::Upload => f.write_str("Upload"),
+            DocumentContent::Base64(doc) => f.debug_struct("Base64").field("len", &doc.len()).finish(),
+        }
+    }
+}
+
+impl std::fmt::Debug for Part {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Part")
+            .field("name", &self.name)
+            .field("filename", &self.filename)
+            .field("content_type", &self.content_type)
+            .field("len", &self.data.len())
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for HttpBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HttpBody::UrlEncoded(fields) => {
+                let shown: Vec<(&str, usize)> = fields.iter().map(|(k, v)| (k.as_str(), v.len())).collect();
+                f.debug_tuple("UrlEncoded").field(&shown).finish()
+            }
+            HttpBody::Multipart(parts) => f.debug_tuple("Multipart").field(parts).finish(),
+        }
+    }
+}
+
+impl std::fmt::Debug for InfoboxReadResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let shown: Vec<(&str, usize)> = self.pairs.iter().map(|(k, v)| (k.as_str(), v.len())).collect();
+        f.debug_struct("InfoboxReadResponse").field("pairs", &shown).finish()
+    }
+}
+
+impl std::fmt::Debug for CreateCmsSignatureResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreateCmsSignatureResponse").field("cms_len", &self.cms.len()).finish()
+    }
 }
 
 /// `ErrorResponse`.

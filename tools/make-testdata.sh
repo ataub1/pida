@@ -4,7 +4,7 @@
 #   tools/make-testdata.sh            # fehlende Keystores erzeugen, PDFs kopieren/erzeugen
 #   tools/make-testdata.sh --force    # Keystores neu erzeugen (neue Schlüssel!)
 #
-# Voraussetzungen: openssl (>= 3), qpdf (>= 11.7). Keine Netzwerkzugriffe.
+# Voraussetzungen: openssl (>= 3), qpdf (>= 11.7), python3 (nur Standardbibliothek). Keine Netzwerkzugriffe.
 #
 # ALLE SCHLÜSSEL UND ZERTIFIKATE SIND NUR FÜR TESTS. Sie sind selbstsigniert, haben das bekannte
 # Passwort "test" und tragen "NUR TEST" im Subject. Niemals für echte Signaturen verwenden.
@@ -12,7 +12,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TD="$ROOT/testdata"
-REF="$ROOT/reference/pdf-as-4"
+REF="${PDFOVER_REFERENCE:-$ROOT/reference}/pdf-as-4"  # in Worktrees: source tools/env.sh
 FORCE=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
 
@@ -138,6 +138,16 @@ if [[ -f "$SIMPLE" ]]; then
   gen "$GEN/simple-aes256-userpw.pdf" "$SIMPLE" --static-aes-iv --encrypt --user-password=test --owner-password=test-owner --bits=256 --
   # verschlüsselt + xref-Stream
   gen "$GEN/simple-aes256-owner-xref-stream.pdf" "$SIMPLE" --static-aes-iv --object-streams=generate --encrypt --user-password= --owner-password=test-owner --bits=256 --
+fi
+
+# Hybrid-Querverweis (Tabelle + /XRefStm): qpdf schreibt so etwas nicht, daher ein eigenes,
+# deterministisches Skript (nur Python-Standardbibliothek).
+if command -v python3 >/dev/null; then
+  if [[ $FORCE -eq 1 || ! -f "$GEN/simple-xref-hybrid.pdf" ]]; then
+    python3 -I "$ROOT/tools/make-hybrid-xref.py" "$GEN/simple-xref-hybrid.pdf"
+  fi
+else
+  echo "WARNUNG: python3 fehlt – simple-xref-hybrid.pdf übersprungen." >&2
 fi
 
 echo "Größe testdata/: $(du -sh "$TD" | cut -f1)"

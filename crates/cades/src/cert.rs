@@ -79,11 +79,11 @@ pub struct Certificate {
 }
 
 impl std::fmt::Debug for Certificate {
+    /// Nur der SHA-256-Fingerprint (gekürzt) – Subject/Seriennummer sind Personendaten und gehören
+    /// nicht in Logs (ADR 0001 §4 Regel 9).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Certificate")
-            .field("subject", &self.subject_string())
-            .field("serial", &self.serial_decimal())
-            .finish()
+        let fp = self.fingerprint(DigestAlg::Sha256).to_hex();
+        f.debug_struct("Certificate").field("sha256", &&fp[..16]).finish_non_exhaustive()
     }
 }
 
@@ -309,6 +309,17 @@ fn twos_complement_to_decimal(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::twos_complement_to_decimal as dec;
+
+    #[test]
+    fn debug_hides_personal_data() {
+        let der = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/keystores/test-rsa2048.crt.der"))
+            .expect("Testzertifikat");
+        let cert = super::Certificate::from_der(&der).unwrap();
+        assert!(cert.subject_string().contains("NUR TEST"));
+        let dbg = format!("{cert:?}");
+        assert!(!dbg.contains("NUR TEST"), "{dbg}");
+        assert!(!dbg.contains(&cert.serial_decimal()), "{dbg}");
+    }
 
     #[test]
     fn serial_to_decimal() {

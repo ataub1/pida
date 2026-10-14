@@ -26,7 +26,7 @@ mod verify;
 pub use cert::{CertChain, Certificate, EcCurve, KeyType, RdnAttr};
 pub use cms_build::{
     AssembleOptions, CmsProfile, RawSignature, RawSigner, SignedAttrs, SignedAttrsBuilder, SigningTime, assemble,
-    select_algorithm, sign_detached,
+    estimate_cms_len, select_algorithm, sign_detached,
 };
 pub use digest::{Digest, DigestAlg, Hasher, SignatureAlg};
 pub use verify::{

@@ -9,9 +9,13 @@
 //! eingebettet (Faktencheck 5). Auf dem Desktop kann der Renderer in einem Hilfsprozess laufen
 //! (Plan §6.6) – deshalb ist [`Renderer`] `Send` und objektsicher.
 //!
+//! Feature `pdfium` (Default): `PdfiumBackend`/`PdfiumRenderer`. Andere Crates hängen ohne
+//! Default-Features von diesem Crate ab und nutzen nur die Traits (ADR 0001 §8); so lassen sich
+//! `pdfover-placement` und `pdfover-pades` ohne `pdfium-render` bauen und mit eigenen
+//! Test-Renderern prüfen.
+//!
 //! Ownership: Paket **F** (zusammen mit `pdfover-placement`).
 
-use std::path::Path;
 use std::sync::Arc;
 
 /// Fehler des Renderers.
@@ -115,11 +119,20 @@ impl Default for ForcedColorOptions {
 }
 
 /// Bildobjekt einer Seite (für QR-Platzhalter, Plan §6.8).
+///
+/// **Zuordnung zu `pdfover_pdf_cos::ImageInvocation`** (ADR 0001 §8, verbindlich für Paket A und F):
+/// PDFium zählt auch Inline-Bilder (`BI … EI`) als Bildobjekte, `pdf-cos` nur `Do`-Aufrufe von
+/// Bild-XObjects. Die Zuordnung erfolgt deshalb **primär über die Matrix** (gleiche Seite,
+/// komponentenweise Abweichung ≤ 0,01), `order` dient nur als Tie-Breaker bei gleicher Matrix.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageObject {
-    /// Reihenfolge im Content-Stream (entspricht `pdfover_pdf_cos::ImageInvocation::order`).
+    /// 0-basierter Index unter den Bildobjekten der Seite in PDFium-Reihenfolge (Seitenobjekte in
+    /// Content-Stream-Reihenfolge, Form-Objekte in Tiefensuche an ihrer Stelle; inklusive
+    /// Inline-Bilder) – nicht zwingend gleich `ImageInvocation::order`, siehe oben.
     pub order: usize,
-    /// Matrix des Bildobjekts (Bild = Einheitsquadrat), PDF-Konvention `[a b c d e f]`.
+    /// Matrix des Bildobjekts (Bild = Einheitsquadrat) im Seitenraum (bei Form-Objekten bereits mit
+    /// der Form-Matrix verkettet), PDF-Konvention `[a b c d e f]` – vergleichbar mit
+    /// `ImageInvocation::ctm`.
     pub matrix: [f32; 6],
     /// Dekodiertes Bild (alle Filter, `FPDFImageObj_GetBitmap`).
     pub bitmap: RgbaImage,
@@ -152,19 +165,22 @@ pub trait RenderBackend: Send + Sync {
     fn describe(&self) -> String;
 }
 
-/// PDFium-Backend.
+/// PDFium-Backend (Feature `pdfium`).
+#[cfg(feature = "pdfium")]
 #[derive(Debug)]
 pub struct PdfiumBackend {
     _private: (),
 }
 
+#[cfg(feature = "pdfium")]
 impl PdfiumBackend {
     /// Bindet PDFium aus `library_dir` bzw. dem Systempfad (Desktop: neben der Binary).
-    pub fn bind(library_dir: Option<&Path>) -> Result<Self> {
+    pub fn bind(library_dir: Option<&std::path::Path>) -> Result<Self> {
         todo!("Paket F: pdfium_render::Pdfium::bind_to_library / bind_to_system_library")
     }
 }
 
+#[cfg(feature = "pdfium")]
 impl RenderBackend for PdfiumBackend {
     fn open(&self, data: Arc<[u8]>, password: Option<&str>) -> Result<Box<dyn Renderer>> {
         todo!("Paket F")
@@ -175,12 +191,14 @@ impl RenderBackend for PdfiumBackend {
     }
 }
 
-/// PDFium-Renderer für ein Dokument.
+/// PDFium-Renderer für ein Dokument (Feature `pdfium`).
+#[cfg(feature = "pdfium")]
 #[derive(Debug)]
 pub struct PdfiumRenderer {
     _private: (),
 }
 
+#[cfg(feature = "pdfium")]
 impl Renderer for PdfiumRenderer {
     fn page_count(&self) -> usize {
         todo!("Paket F")

@@ -13,7 +13,8 @@ use crate::emblem::Emblem;
 /// wie `CN`, `O`, `C`, `title` bzw. OID). `pdfover-sigblock` wendet die Alias-Regeln an:
 /// Titel-RDN (2.5.4.12) unter `title` **und** `T`; bei Mehrfachvorkommen gewinnt der linkeste
 /// Eintrag (Plan §6.5 Kompatibilitätsregister).
-#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+/// `Debug` zeigt nur die Attributnamen (Personendaten, ADR 0001 §4 Regel 9).
+#[derive(Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct CertFields {
     /// Subject-AVAs in DER-Reihenfolge.
     pub subject: Vec<(String, String)>,
@@ -25,6 +26,16 @@ pub struct CertFields {
     pub subject_dn: String,
     /// Issuer-DN als Text (`issuer.DN`).
     pub issuer_dn: String,
+}
+
+impl std::fmt::Debug for CertFields {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names = |v: &[(String, String)]| v.iter().map(|(k, _)| k.clone()).collect::<Vec<_>>();
+        f.debug_struct("CertFields")
+            .field("subject", &names(&self.subject))
+            .field("issuer", &names(&self.issuer))
+            .finish_non_exhaustive()
+    }
 }
 
 impl CertFields {
