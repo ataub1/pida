@@ -71,20 +71,23 @@ pub enum PageBlock {
         /// `#SignButton`
         submit: Option<SubmitButton>,
     },
-    /// `#qrimage` (+ `#jsLongPoll script`).
+    /// `#qrimage` + `#vergleichswert` + `#jsLongPoll script` mit `qrpoll("URL", "TOKEN");` (alle
+    /// Pflicht wie `ATrustParser.QRCodeBlock`).
     QrCode {
         /// Vergleichswert
         reference_value: String,
         /// QR-Bild-URL (absolut)
         image_url: Url,
-        /// Poll-Info (fehlt sie, bleibt nur „fertig“ in der Maske – PDF-Over bricht dann ab)
+        /// Poll-Info; [`classify`] erkennt den Block nur mit gültigem Poll-Skript, der Wert ist
+        /// daher immer `Some` (Option nur aus Gründen der API-Stabilität).
         poll: Option<PollInfo>,
     },
-    /// `#smartphoneAnimation` | `#biometricimage` | `.ida-signtype #SignType`.
+    /// `#smartphoneAnimation` | `#biometricimage` | `.ida-signtype #SignType`, dazu Pflicht
+    /// `#vergleichswert` und Poll-Skript (wie `ATrustParser.WaitingForApp2FABlock`).
     WaitingForApp2Fa {
-        /// Vergleichswert
+        /// Vergleichswert ([`classify`]: immer `Some`)
         reference_value: Option<String>,
-        /// Poll-Info
+        /// Poll-Info ([`classify`]: immer `Some`)
         poll: Option<PollInfo>,
     },
     /// `#fidoBlock`.
@@ -352,8 +355,14 @@ impl<'a> Ctx<'a> {
         Ok(self.first(css)?.is_some())
     }
 
+    /// `absUrl("href")`; nur `http(s)` – `javascript:`/`data:` u. Ä. gelten als fehlender Link (PDF-Over
+    /// hätte daraus einen nicht ausführbaren Request gebaut).
     fn href(&self, css: &str) -> Result<Option<Url>, PageError> {
-        Ok(self.first(css)?.and_then(|e| e.attr("href")).and_then(|h| pdfover_net::resolve(&self.base, h).ok()))
+        Ok(self
+            .first(css)?
+            .and_then(|e| e.attr("href"))
+            .and_then(|h| pdfover_net::resolve(&self.base, h).ok())
+            .filter(|u| matches!(u.scheme(), "http" | "https")))
     }
 
     /// `buildFormSubmit`: nur `<input type=submit>` mit nichtleerem `name`, sonst ohne Button.
@@ -472,7 +481,11 @@ impl<'a> Ctx<'a> {
         else {
             return Ok(None);
         };
-        Ok(Some(PageBlock::QrCode { reference_value: own_text(reference), image_url, poll: self.poll_info()? }))
+        // Ohne gültiges Poll-Skript kein QR-Block (PDF-Over `getLongPollInfo` → ComponentParseFailed):
+        // eine tolerantere Erkennung könnte auf echten Seiten zusätzliche Blöcke finden und so aus
+        // einer eindeutigen Seite eine „unbekannte“ machen.
+        let Some(poll) = self.poll_info()? else { return Ok(None) };
+        Ok(Some(PageBlock::QrCode { reference_value: own_text(reference), image_url, poll: Some(poll) }))
     }
 
     fn waiting_for_app(&self) -> Result<Option<PageBlock>, PageError> {
@@ -481,10 +494,10 @@ impl<'a> Ctx<'a> {
         if !self.exists(&any)? {
             return Ok(None);
         }
-        Ok(Some(PageBlock::WaitingForApp2Fa {
-            reference_value: self.first(&ids.reference_value)?.map(own_text),
-            poll: self.poll_info()?,
-        }))
+        // Vergleichswert und Poll-Skript sind Pflicht wie in PDF-Over.
+        let Some(reference) = self.first(&ids.reference_value)? else { return Ok(None) };
+        let Some(poll) = self.poll_info()? else { return Ok(None) };
+        Ok(Some(PageBlock::WaitingForApp2Fa { reference_value: Some(own_text(reference)), poll: Some(poll) }))
     }
 
     fn fido2(&self) -> Result<Option<PageBlock>, PageError> {

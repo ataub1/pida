@@ -245,3 +245,113 @@ fn xmllint_accepts_all_requests() {
         assert!(!is_sl_response(request.to_xml().as_bytes()));
     }
 }
+
+/// Robustheit: zufällige und verstümmelte Antworten führen nie zu einem Panic.
+#[test]
+fn parser_survives_random_and_mutated_input() {
+    let mut state = 0x2545_f491_4f6c_dd1du64;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    const PARTS: &[&str] = &[
+        "<",
+        ">",
+        "/",
+        "=",
+        "\"",
+        " ",
+        "sl:",
+        "xmlns",
+        ":sl",
+        "xmlns:sl=\"http://www.buergerkarte.at/namespaces/securitylayer/1.2#\"",
+        "ErrorResponse",
+        "ErrorCode",
+        "Info",
+        "CreateCMSSignatureResponse",
+        "CMSSignature",
+        "InfoboxReadResponse",
+        "AssocArrayData",
+        "Pair",
+        "Key",
+        "Base64Content",
+        "&amp;",
+        "&#x0;",
+        "&#xD800;",
+        "&#99999999;",
+        "&x;",
+        "<![CDATA[",
+        "]]>",
+        "<!DOCTYPE",
+        "<?xml",
+        "?>",
+        "<!--",
+        "-->",
+        "AAEC",
+        "ä",
+        "\u{0}",
+        "\u{feff}",
+    ];
+    for _ in 0..20_000 {
+        let n = next() % 24;
+        let doc: String = (0..n).map(|_| PARTS[(next() % PARTS.len() as u64) as usize]).collect();
+        let _ = parse_response(doc.as_bytes());
+        let _ = is_sl_response(doc.as_bytes());
+    }
+    for name in ["infobox-read-response-sl-prefix.xml", "create-cms-response.xml", "error-response-6001.xml"] {
+        let data = testdata(&format!("responses/{name}"));
+        for _ in 0..500 {
+            let mut d = data.clone();
+            let i = (next() as usize) % d.len();
+            d[i] = next() as u8;
+            let _ = parse_response(&d[..(next() as usize) % (d.len() + 1)]);
+            let _ = parse_response(&d);
+        }
+    }
+}
+
+#[test]
+fn large_cms_response_and_many_pairs() {
+    let ns = SL_NAMESPACE;
+    let cms = vec![0x5au8; 3 * 1024 * 1024];
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&cms);
+    // mit Zeilenumbrüchen alle 76 Zeichen (MIME-Stil)
+    let wrapped: String =
+        b64.as_bytes().chunks(76).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join("\r\n");
+    let xml = format!(
+        "<CreateCMSSignatureResponse xmlns=\"{ns}\"><CMSSignature>{wrapped}</CMSSignature></CreateCMSSignatureResponse>"
+    );
+    match parse_response(xml.as_bytes()).unwrap() {
+        SlResponse::CreateCmsSignature(r) => assert_eq!(r.cms, cms),
+        other => panic!("{other:?}"),
+    }
+    let pairs: String =
+        (0..5_000).map(|i| format!("<Pair Key=\"k{i}\"><Base64Content>AQ==</Base64Content></Pair>")).collect();
+    let xml = format!(
+        "<InfoboxReadResponse xmlns=\"{ns}\"><AssocArrayData>{pairs}<Pair Key=\"SecureSignatureKeypair\"><Base64Content>AgM=</Base64Content></Pair></AssocArrayData></InfoboxReadResponse>"
+    );
+    match parse_response(xml.as_bytes()).unwrap() {
+        SlResponse::InfoboxRead(r) => assert_eq!(r.signature_certificate(), Some(&[2u8, 3][..])),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn unreadable_foreign_pair_does_not_break_the_certificate() {
+    let ns = SL_NAMESPACE;
+    let xml = |other: &str, cert: &str| {
+        format!(
+            "<sl:InfoboxReadResponse xmlns:sl=\"{ns}\"><sl:AssocArrayData><sl:Pair Key=\"Anderes\"><sl:Base64Content>{other}</sl:Base64Content></sl:Pair><sl:Pair Key=\"SecureSignatureKeypair\"><sl:Base64Content>{cert}</sl:Base64Content></sl:Pair></sl:AssocArrayData></sl:InfoboxReadResponse>"
+        )
+    };
+    match parse_response(xml("@@kein base64@@", "AgM=").as_bytes()).unwrap() {
+        SlResponse::InfoboxRead(r) => {
+            assert_eq!(r.signature_certificate(), Some(&[2u8, 3][..]));
+            assert_eq!(r.pairs.len(), 1);
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(parse_response(xml("AQ==", "@@").as_bytes()), Err(SlError::Base64(_))));
+}

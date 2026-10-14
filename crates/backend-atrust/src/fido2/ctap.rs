@@ -906,4 +906,86 @@ mod tests {
         assert_eq!(e, Fido2Error::Cancelled);
         assert!(dev.conn.cancel_received);
     }
+
+    /// Gerät, das vorgegebene (auch bösartige) Reports liefert.
+    struct ScriptedReports(std::collections::VecDeque<[u8; REPORT_LEN]>);
+
+    impl HidConnection for ScriptedReports {
+        fn write_report(&mut self, _report: &[u8; REPORT_LEN]) -> std::io::Result<()> {
+            Ok(())
+        }
+        fn read_report(&mut self, _timeout: Duration) -> std::io::Result<Option<[u8; REPORT_LEN]>> {
+            Ok(self.0.pop_front())
+        }
+    }
+
+    fn device_with(reports: Vec<[u8; REPORT_LEN]>) -> CtapHidDevice<ScriptedReports> {
+        CtapHidDevice { conn: ScriptedReports(reports.into()), cid: 7, capabilities: 0x04 }
+    }
+
+    fn init_report(cid: u32, cmd: u8, total: u16, data: &[u8]) -> [u8; REPORT_LEN] {
+        let mut r = [0u8; REPORT_LEN];
+        r[..4].copy_from_slice(&cid.to_be_bytes());
+        r[4] = TYPE_INIT | cmd;
+        r[5..7].copy_from_slice(&total.to_be_bytes());
+        r[7..7 + data.len()].copy_from_slice(data);
+        r
+    }
+
+    fn cont_report(cid: u32, seq: u8) -> [u8; REPORT_LEN] {
+        let mut r = [0xabu8; REPORT_LEN];
+        r[..4].copy_from_slice(&cid.to_be_bytes());
+        r[4] = seq;
+        r
+    }
+
+    #[test]
+    fn malicious_reports_never_panic() {
+        let deadline = || Instant::now() + Duration::from_millis(300);
+        // angekündigte Länge 65535: die Fortsetzungen laufen nach 128 Paketen in das Init-Bit
+        // (Sequenz 0x80) und werden als Protokollfehler erkannt
+        let mut reports = vec![init_report(7, CMD_CBOR, u16::MAX, &[0; 57])];
+        reports.extend((0..=128u8).map(|seq| cont_report(7, seq)));
+        assert!(device_with(reports).receive(deadline(), None).is_err());
+        // falsche Sequenznummer
+        let reports = vec![init_report(7, CMD_CBOR, 100, &[0; 57]), cont_report(7, 1)];
+        assert!(device_with(reports).receive(deadline(), None).is_err());
+        // fremde Kanäle und verwaiste Fortsetzungen werden übersprungen, dann Zeitüberschreitung
+        let reports = vec![init_report(8, CMD_CBOR, 1, &[0]), cont_report(7, 0)];
+        assert!(device_with(reports).receive(deadline(), None).is_err());
+        // leere CBOR-Antwort und CTAPHID_ERROR
+        let mut dev = device_with(vec![init_report(7, CMD_CBOR, 0, &[])]);
+        assert!(dev.cbor(CTAP2_GET_INFO, None, Duration::from_millis(300), None).is_err());
+        let mut dev = device_with(vec![init_report(7, CMD_ERROR, 1, &[0x7f])]);
+        assert!(matches!(dev.receive(deadline(), None), Err(Fido2Error::Device(m)) if m.contains("0x7f")));
+        // GetInfo mit Müll statt CBOR
+        let mut dev = device_with(vec![init_report(7, CMD_CBOR, 4, &[0, 0xff, 0xff, 0xff])]);
+        assert!(dev.get_info().is_err());
+        // INIT-Antwort mit Broadcast-Kanal wird abgelehnt
+        let mut payload = [0u8; 17];
+        payload[..8].copy_from_slice(&[5; 8]);
+        payload[8..12].copy_from_slice(&BROADCAST_CID.to_be_bytes());
+        let conn = ScriptedReports(vec![init_report(BROADCAST_CID, CMD_INIT, 17, &payload)].into());
+        assert!(CtapHidDevice::init(conn, [5; 8]).is_err());
+    }
+
+    #[test]
+    fn cbor_decoder_survives_random_input() {
+        let mut state = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for _ in 0..20_000 {
+            let len = (next() % 48) as usize;
+            let bytes: Vec<u8> = (0..len).map(|_| next() as u8).collect();
+            let _ = cbor_decode(&bytes);
+        }
+        // riesige angekündigte Längen ohne Daten
+        assert!(cbor_decode(&[0x5b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]).is_err());
+        assert!(cbor_decode(&[0x9b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]).is_err());
+        assert!(cbor_decode(&[0xbb, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0x01]).is_err());
+    }
 }

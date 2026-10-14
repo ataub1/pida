@@ -21,7 +21,7 @@ Platzhalter `{{NAME}}` ersetzt der Mock-Server der Tests (`crates/backend-atrust
 | `sms.html` | SMS-TAN | `SID`, `REF` | `#FidoButton`, `#LinkList` mit zwei Links |
 | `qr.html` | QR-Code | `SID`, `REF`, `POLLID`, `TOKEN` | relativer Poll-Pfad `../poll/…`, `#SmsButton`, `#FidoButton` |
 | `app.html` | App-Warten | `SID`, `REF`, `POLLID`, `TOKEN` | absoluter Poll-Pfad |
-| `app-biometric.html` | App-Warten (`#biometricimage`) | – | ohne Vergleichswert und ohne Poll |
+| `app-biometric.html` | App-Warten (`#biometricimage`) | – | Vergleichswert und Poll-Skript (beide Pflicht wie in PDF-Over; ohne sie ist die Seite unbekannt) |
 | `app-signtype.html` | App-Warten (`.ida-signtype #SignType`) | – | – |
 | `fido2.html` | FIDO2 | `SID`, `OPTIONS` (HTML-escaped JSON) | `#SmsButton` |
 | `error.html` | Error (`/error*.aspx`, `/SessionClosed.aspx`) | `ACTION`, `BUTTONS` | `#Label1` + `#LabelDetail`; Buttons je Test |

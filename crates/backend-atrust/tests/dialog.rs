@@ -132,8 +132,8 @@ async fn login_then_sms_tan_and_second_request_logs_in_automatically() {
             assert!(ctx.can_switch_to_fido2, "FidoButton vorhanden");
             assert!(!ctx.fido2_visible, "kein Provider");
             assert!(!ctx.can_switch_to_sms);
-            let link = ctx.signature_data_url.as_deref().unwrap();
-            assert!(link.contains("/ShowSigobj.aspx?sid=S1&doc=1"), "{link}");
+            // „Signaturdaten anzeigen“ nur über https (ADR 0001 §8.6) – der Mock-Endpunkt ist http
+            assert_eq!(ctx.signature_data_url, None);
         }
         other => panic!("{other:?}"),
     }
@@ -842,7 +842,8 @@ async fn http_errors_show_notice_then_cancel() {
         assert_eq!(n.len(), 1);
         assert_eq!((n[0].kind, n[0].code.clone(), n[0].buttons), (NoticeKind::Error, code, NoticeButtons::Ok));
         if status == 500 {
-            assert_eq!(n[0].text.as_deref(), Some("500 Internal Server Error"));
+            // `atrusterror.http_generic` „HTTP %d %s“: Status im Code, Text = Reason-Phrase
+            assert_eq!(n[0].text.as_deref(), Some("Internal Server Error"));
         }
         assert_eq!(server.requests().len(), 1, "keine Redirect-Verfolgung bei {status}");
     }
@@ -1187,4 +1188,393 @@ async fn modell_a_jobs_are_rejected() {
     });
     assert!(matches!(session.sign(vec![job]).await.unwrap_err(), BackendError::Internal(_)));
     assert!(server.requests().is_empty());
+}
+
+/// Zweiter Mock-Server (andere Origin = „fremder Host“), der Login-, SMS- und FIDO2-Seiten liefert.
+async fn foreign_host() -> MockServer {
+    MockServer::start(|req| {
+        if req.path().ends_with("Login.aspx") {
+            return page("login.html", &[("SID", "F")]);
+        }
+        if req.path().ends_with("sms.aspx") {
+            return page("sms.html", &[("SID", "F"), ("REF", "AB12")]);
+        }
+        if req.path().ends_with("fido.aspx") {
+            return page("fido2.html", &[("SID", "F"), ("OPTIONS", "{&quot;challenge&quot;:&quot;AQ&quot;}")]);
+        }
+        MockResponse::status(404)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn credentials_tan_and_fido2_never_go_to_foreign_hosts() {
+    let foreign = foreign_host().await;
+    for target in ["Login.aspx", "sms.aspx", "fido.aspx"] {
+        let location = foreign.url(&p(&format!("{target}?sid=F"))).to_string();
+        let server = MockServer::start(move |req| {
+            if is(req, "POST", "default.aspx") {
+                return MockResponse::redirect(302, &location);
+            }
+            MockResponse::status(404)
+        })
+        .await;
+        let provider = FakeFido2::new(vec![Ok(FakeFido2::assertion())]);
+        let backend = backend(&server, |c| {
+            c.prefill_username = Some(USER.into());
+            c.prefill_password = Some(Zeroizing::new(PASSWORD.into()));
+            c.fido2 = Some(provider.clone());
+        });
+        let broker = Arc::new(ScriptedBroker::new([tan("123456"), ScriptedReply::Pending]));
+        let mut session = open(&backend, &broker).await;
+        let err = session.certificate().await.unwrap_err();
+        assert!(
+            matches!(&err, BackendError::Protocol(m) if m.contains("gehört nicht zu A-Trust")),
+            "{target}: {err:?}"
+        );
+        assert!(forms(&broker).is_empty(), "{target}: keine Maske für eine fremde Seite");
+        assert!(provider.requests.lock().unwrap().is_empty(), "{target}: keine FIDO2-Assertion");
+    }
+    // der fremde Host hat nur GETs gesehen – weder Passwort noch TAN noch Assertion
+    assert!(foreign.requests().iter().all(|r| r.method == "GET" && r.body.is_empty()));
+    assert_eq!(foreign.requests().len(), 3);
+}
+
+#[tokio::test]
+async fn form_action_to_foreign_host_is_refused() {
+    let foreign = foreign_host().await;
+    let action = foreign.url(&p("Login.aspx?sid=F")).to_string();
+    let server = MockServer::start(move |req| {
+        if is(req, "POST", "default.aspx") {
+            return start_session(0);
+        }
+        if is(req, "GET", "Login.aspx") {
+            return MockResponse::html(fixture("login.html", &[("SID", "S0")]).replace("./Login.aspx?sid=S0", &action));
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    let backend = backend(&server, |c| {
+        c.prefill_username = Some(USER.into());
+        c.prefill_password = Some(Zeroizing::new(PASSWORD.into()));
+    });
+    let broker = Arc::new(ScriptedBroker::new([]));
+    let mut session = open(&backend, &broker).await;
+    assert!(matches!(session.certificate().await.unwrap_err(), BackendError::Protocol(_)));
+    assert!(foreign.requests().is_empty(), "Zugangsdaten nicht an das fremde Formularziel");
+}
+
+#[tokio::test]
+async fn base_href_cannot_fake_the_page_origin() {
+    // Die fremde Seite gibt sich per <base href> als Endpunkt-Origin aus; maßgeblich ist die URL,
+    // von der sie geladen wurde.
+    let server_url = Arc::new(Mutex::new(String::new()));
+    let foreign = MockServer::start({
+        let server_url = server_url.clone();
+        move |_| {
+            let base = format!("<head><base href=\"{}\"></head>", server_url.lock().unwrap());
+            MockResponse::html(
+                fixture("fido2.html", &[("SID", "F"), ("OPTIONS", "{&quot;challenge&quot;:&quot;AQ&quot;}")])
+                    .replace("<head>", &base),
+            )
+        }
+    })
+    .await;
+    let location = foreign.url(&p("fido.aspx?sid=F")).to_string();
+    let server = MockServer::start(move |req| {
+        if is(req, "POST", "default.aspx") {
+            return MockResponse::redirect(302, &location);
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    *server_url.lock().unwrap() = server.url(&p("fido.aspx")).to_string();
+    let provider = FakeFido2::new(vec![Ok(FakeFido2::assertion())]);
+    let backend = backend(&server, |c| c.fido2 = Some(provider.clone()));
+    let mut session = open(&backend, &Arc::new(ScriptedBroker::new([ScriptedReply::Pending]))).await;
+    assert!(matches!(session.certificate().await.unwrap_err(), BackendError::Protocol(_)));
+    assert!(provider.requests.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn login_cancel_without_cancel_button_ends_immediately() {
+    let server = MockServer::start(|req| {
+        if is(req, "POST", "default.aspx") {
+            return start_session(0);
+        }
+        if is(req, "GET", "Login.aspx") {
+            return MockResponse::html(
+                fixture("login.html", &[("SID", "S0")]).replace("id=\"Button_Cancel\"", "id=\"Button_Abbruch\""),
+            );
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([ScriptedReply::Cancel]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    assert_eq!(forms(&broker).len(), 1, "keine Schleife aus Abbruch und erneuter Maske");
+    assert!(!server.requests().iter().any(|r| is(r, "POST", "Login.aspx")));
+}
+
+#[tokio::test]
+async fn error_page_cancel_without_submittable_cancel_button_ends_immediately() {
+    let server = MockServer::start(|req| {
+        if is(req, "POST", "default.aspx") {
+            return MockResponse::redirect(302, "error.aspx?sid=S0");
+        }
+        if is(req, "GET", "error.aspx") {
+            // #Button_Cancel existiert (requiresResponse), ist aber kein <input type=submit>
+            let buttons = "<button id=\"Button_Cancel\" name=\"c\">Abbrechen</button>";
+            return page("error.html", &[("ACTION", "error.aspx?sid=S0"), ("BUTTONS", buttons)]);
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([ScriptedReply::Notice(NoticeAnswer::Ok)]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    assert!(!server.requests().iter().any(|r| r.method == "POST" && r.path() == p("error.aspx")));
+}
+
+#[tokio::test]
+async fn app_page_without_poll_script_is_unknown_like_pdf_over() {
+    let server = MockServer::start(|req| {
+        if is(req, "POST", "default.aspx") {
+            return MockResponse::redirect(302, "app.aspx?sid=S0");
+        }
+        page("app.html", &[("SID", "S0"), ("REF", "R"), ("POLLID", "1"), ("TOKEN", "t")])
+            .with_body(fixture("app.html", &[("SID", "S0"), ("REF", "R")]).replace("qrpoll(", "x("))
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([]));
+    let mut session = open(&backend, &broker).await;
+    assert!(matches!(session.certificate().await.unwrap_err(), BackendError::UnknownPage { .. }));
+    assert!(forms(&broker).is_empty());
+}
+
+#[tokio::test]
+async fn rejected_cli_password_is_not_resent_in_the_next_session() {
+    let server = MockServer::start(|req| {
+        if is(req, "POST", "default.aspx") {
+            return start_session(0);
+        }
+        if is(req, "GET", "Login.aspx") {
+            return page("login.html", &[("SID", "S0")]);
+        }
+        if is(req, "POST", "Login.aspx") {
+            if req.part("ctl00$Main$Button_Cancel").is_some() {
+                return sl_error_xml(6001);
+            }
+            return page("login.html", &[("SID", "S0")]); // Passwort abgelehnt
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    let backend = backend(&server, |c| {
+        c.prefill_username = Some(USER.into());
+        c.prefill_password = Some(Zeroizing::new("falsch-cli".into()));
+    });
+    // 1. Sitzung: -p wird einmal gesendet, abgelehnt, die Nutzerin bricht ab
+    let broker = Arc::new(ScriptedBroker::new([ScriptedReply::Cancel]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    // 2. Sitzung: das abgelehnte Passwort wird nicht erneut automatisch gesendet
+    let broker = Arc::new(ScriptedBroker::new([ScriptedReply::Cancel]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    match &forms(&broker)[..] {
+        [NativeForm::Login { prefill_username, ctx, .. }] => {
+            assert_eq!(prefill_username.as_deref(), Some(USER), "Benutzername bleibt");
+            assert_eq!(ctx.problem, None);
+        }
+        other => panic!("{other:?}"),
+    }
+    let logins: Vec<_> = server
+        .requests()
+        .into_iter()
+        .filter(|r| is(r, "POST", "Login.aspx") && r.part("ctl00$Main$Button_Identification").is_some())
+        .collect();
+    assert_eq!(logins.len(), 1, "das -p-Passwort wurde genau einmal gesendet");
+}
+
+#[tokio::test]
+async fn signature_data_link_is_offered_only_for_https_atrust_urls() {
+    let server = MockServer::start(|req| {
+        if is(req, "POST", "default.aspx") {
+            return MockResponse::redirect(302, "sms.aspx?sid=S0");
+        }
+        if is(req, "GET", "sms.aspx") {
+            return MockResponse::html(fixture("sms.html", &[("SID", "S0"), ("REF", "AB12")]).replace(
+                "href=\"ShowSigobj.aspx?sid=S0&amp;doc=1\"",
+                "href=\"https://service.a-trust.at/mobile/ShowSigobj.aspx?sid=S0&amp;doc=1\"",
+            ));
+        }
+        if is(req, "POST", "sms.aspx") {
+            return infobox_xml();
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([tan("123456")]));
+    let mut session = open(&backend, &broker).await;
+    session.certificate().await.unwrap();
+    match &forms(&broker)[0] {
+        NativeForm::SmsTan { ctx, .. } => assert_eq!(
+            ctx.signature_data_url.as_deref(),
+            Some("https://service.a-trust.at/mobile/ShowSigobj.aspx?sid=S0&doc=1")
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn redirect_and_autoskip_loops_end_even_when_the_server_is_slow() {
+    // Ein langsamer Server (> 40 ms je Antwort) löst den PDF-Over-Loop-Guard (50 in 2 s) nie aus;
+    // hier wird er abgeschaltet, damit der Test schnell bleibt – es greifen die zusätzlichen Grenzen.
+    let relaxed = |c: &mut pdfover_backend_atrust::AtrustConfig| {
+        c.loop_guard =
+            pdfover_backend_atrust::LoopGuardConfig { window: Duration::from_secs(2), max_requests: 100_000 };
+    };
+    let server = MockServer::start(|_| MockResponse::redirect(302, "loop.aspx")).await;
+    let first = backend(&server, relaxed);
+    let mut session = open(&first, &Arc::new(ScriptedBroker::new([]))).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::LoopDetected);
+    assert_eq!(server.requests().len(), 101, "Initial-Request + 100 Weiterleitungen");
+
+    // AutoSkip-Seite, die sich nach dem Absenden selbst wieder liefert
+    let server = MockServer::start(|req| {
+        if is(req, "POST", "default.aspx") {
+            return MockResponse::redirect(302, "UsernameInfo.aspx?sid=S0");
+        }
+        page("usernameinfo.html", &[("ACTION", "UsernameInfo.aspx?sid=S0")])
+    })
+    .await;
+    let second = backend(&server, relaxed);
+    let mut session = open(&second, &Arc::new(ScriptedBroker::new([]))).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::LoopDetected);
+    let posts = server.requests().iter().filter(|r| is(r, "POST", "UsernameInfo.aspx")).count();
+    assert_eq!(posts, 20);
+}
+
+#[tokio::test]
+async fn poll_reporting_finished_forever_does_not_loop_endlessly() {
+    let server = MockServer::start(|req| {
+        if is(req, "POST", "default.aspx") {
+            return MockResponse::redirect(302, "app.aspx?sid=S0");
+        }
+        if is(req, "GET", "app.aspx") {
+            return page("app.html", &[("SID", "S0"), ("REF", "R"), ("POLLID", "1"), ("TOKEN", "t")]);
+        }
+        if req.path() == "/mobile/poll/LongPoll.ashx" {
+            return MockResponse::json(r#"{"Fin":true,"Wait":false,"Error":false}"#);
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    let backend = backend(&server, |c| {
+        c.loop_guard =
+            pdfover_backend_atrust::LoopGuardConfig { window: Duration::from_secs(2), max_requests: 100_000 };
+    });
+    let replies: Vec<ScriptedReply> = (0..40).map(|_| ScriptedReply::Pending).collect();
+    let broker = Arc::new(ScriptedBroker::new(replies));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::LoopDetected);
+    let reloads = server.requests().iter().filter(|r| is(r, "GET", "app.aspx")).count();
+    assert_eq!(reloads, 31, "erste Anzeige + 30 Neuladungen");
+}
+
+/// Provider, dessen Schlüssel erst später „eingesteckt“ wird.
+#[derive(Debug)]
+struct LatePlugged {
+    plugged: std::sync::atomic::AtomicBool,
+    inner: Arc<FakeFido2>,
+}
+
+impl pdfover_backend_atrust::Fido2Provider for LatePlugged {
+    fn is_available(&self) -> bool {
+        self.plugged.load(std::sync::atomic::Ordering::SeqCst)
+    }
+    fn get_assertion(
+        &self,
+        request: &pdfover_backend_atrust::Fido2Request,
+        parent: Option<pdfover_backend_api::WindowHandle>,
+    ) -> Result<pdfover_backend_atrust::Fido2Assertion, Fido2Error> {
+        self.inner.get_assertion(request, parent)
+    }
+    fn cancel(&self) {
+        self.inner.cancel()
+    }
+}
+
+/// Broker, der beim ersten FIDO2-Hinweis den Schlüssel „einsteckt“ und „erneut versuchen“ wählt.
+struct PlugInBroker {
+    inner: ScriptedBroker,
+    provider: Arc<LatePlugged>,
+}
+
+#[async_trait::async_trait]
+impl pdfover_backend_api::InteractionBroker for PlugInBroker {
+    async fn native_form(&self, form: NativeForm) -> Result<FormAnswer, pdfover_backend_api::InteractionError> {
+        if matches!(&form, NativeForm::Fido2 { in_progress: false, .. }) {
+            self.provider.plugged.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        self.inner.native_form(form).await
+    }
+    async fn secret(
+        &self,
+        prompt: pdfover_backend_api::SecretPrompt,
+    ) -> Result<Zeroizing<String>, pdfover_backend_api::InteractionError> {
+        self.inner.secret(prompt).await
+    }
+    async fn notice(
+        &self,
+        notice: pdfover_backend_api::Notice,
+    ) -> Result<NoticeAnswer, pdfover_backend_api::InteractionError> {
+        self.inner.notice(notice).await
+    }
+    fn progress(&self, progress: Progress) {
+        self.inner.progress(progress)
+    }
+    fn event(&self, event: BackendEvent) {
+        self.inner.event(event)
+    }
+    fn open_external(&self, url: &str) -> Result<(), pdfover_backend_api::InteractionError> {
+        self.inner.open_external(url)
+    }
+}
+
+#[tokio::test]
+async fn security_key_plugged_in_later_can_be_used_after_retry() {
+    let server = MockServer::start(fido_server(false)).await;
+    let provider = Arc::new(LatePlugged {
+        plugged: std::sync::atomic::AtomicBool::new(false),
+        inner: FakeFido2::new(vec![Ok(FakeFido2::assertion())]),
+    });
+    let backend = backend(&server, |c| c.fido2 = Some(provider.clone()));
+    let broker = Arc::new(PlugInBroker {
+        inner: ScriptedBroker::new([
+            login_reply(PASSWORD, false),
+            ScriptedReply::Form(FormAnswer::StartFido2),
+            ScriptedReply::Pending,
+        ]),
+        provider: provider.clone(),
+    });
+    let mut session = backend.open(ctx(), broker.clone()).await.unwrap();
+    session.certificate().await.unwrap();
+    let f = forms(&broker.inner);
+    match &f[1] {
+        NativeForm::Fido2 { in_progress: false, ctx } => {
+            assert!(ctx.fido2_visible, "Plattform kann FIDO2, der Knopf bleibt sichtbar");
+            assert!(matches!(ctx.problem, Some(FormProblem::Fido2Failed(_))));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(&f[2], NativeForm::Fido2 { in_progress: true, .. }));
+    assert_eq!(provider.inner.requests.lock().unwrap().len(), 1);
+    assert!(server.requests().iter().any(|r| is(r, "POST", "fido.aspx")));
 }

@@ -167,10 +167,51 @@ fn qr_page_with_poll() {
     // ohne src kein QR-Block
     let no_src = html.replace("src=\"qrimage.ashx?sid=Q\"", "");
     assert!(classify(&url("qr.aspx"), &no_src, &s).is_err());
-    // ohne Poll-Skript: Block bleibt erkannt (Abweichung: PDF-Over bricht ab), poll = None
+    // ohne gültiges Poll-Skript bzw. ohne Vergleichswert kein QR-Block (wie PDF-Over)
+    for broken in [
+        html.replace("qrpoll(", "andere("),
+        html.replace("\", \"tok-1", "\",\"tok-1"),
+        html.replace("id=\"jsLongPoll\"", "id=\"anderes\""),
+        html.replace("id=\"vergleichswert\"", "id=\"x\""),
+    ] {
+        assert_eq!(classify(&url("qr.aspx"), &broken, &s).unwrap_err(), PageError::BlockCount(0));
+    }
     let no_poll = html.replace("qrpoll(", "andere(");
-    let p = classify(&url("qr.aspx"), &no_poll, &s).unwrap();
-    assert!(matches!(p.block, PageBlock::QrCode { poll: None, .. }));
+    assert_eq!(classify(&url("qr.aspx"), &no_poll, &s).unwrap_err(), PageError::BlockCount(0));
+}
+
+#[test]
+fn incomplete_app_and_qr_markers_do_not_create_extra_blocks() {
+    // Eine SMS-Seite mit (verstecktem) App-Element ohne Poll-Skript bleibt eindeutig eine SMS-Seite
+    // (PDF-Over: App-Block scheitert an `getLongPollInfo`). Eine tolerante Erkennung fände zwei Blöcke.
+    let s = SelectorSet::builtin();
+    let sms = fixture("sms.html", &[("SID", "7"), ("REF", "AB12")]);
+    for extra in [
+        "<div id=\"smartphoneAnimation\" style=\"display:none\"></div>",
+        "<img id=\"biometricimage\" src=\"b.png\">",
+        "<div class=\"ida-signtype\"><span id=\"SignType\">App</span></div>",
+        "<img id=\"qrimage\" src=\"qr.png\">",
+    ] {
+        let html = sms.replace("</form>", &format!("{extra}</form>"));
+        let p = classify(&url("sms.aspx?sid=7"), &html, &s).unwrap();
+        assert!(matches!(p.block, PageBlock::SmsTan { .. }), "{extra}");
+    }
+    // mit Poll-Skript sind es dagegen wirklich zwei Blöcke (auch PDF-Over bricht dann ab)
+    let html = sms.replace(
+        "</form>",
+        "<div id=\"smartphoneAnimation\"></div></form><div id=\"jsLongPoll\"><script>qrpoll(\"p\", \"t\");</script></div>",
+    );
+    assert_eq!(classify(&url("sms.aspx"), &html, &s).unwrap_err(), PageError::BlockCount(2));
+}
+
+#[test]
+fn links_must_be_http() {
+    let s = SelectorSet::builtin();
+    let html = fixture("sms.html", &[("SID", "7"), ("REF", "AB12")])
+        .replace("href=\"fido.aspx?sid=7\"", "href=\"javascript:__doPostBack('fido','')\"");
+    let p = classify(&url("sms.aspx?sid=7"), &html, &s).unwrap();
+    assert!(p.fido2_link.is_none(), "javascript:-Link gilt als fehlend");
+    assert!(p.signature_data_link.is_some());
 }
 
 #[test]
@@ -187,7 +228,16 @@ fn app_pages() {
     assert_eq!(poll.as_ref().unwrap().url.as_str(), "https://service.a-trust.at/mobile/poll/LongPoll.ashx?id=9");
 
     let p = classify(&url("bio.aspx"), &fixture("app-biometric.html", &[]), &s).unwrap();
-    assert_eq!(p.block, PageBlock::WaitingForApp2Fa { reference_value: None, poll: None });
+    let PageBlock::WaitingForApp2Fa { reference_value, poll } = &p.block else { panic!("{:?}", p.block) };
+    assert_eq!(reference_value.as_deref(), Some("B1o"));
+    assert_eq!(poll.as_ref().unwrap().token, "T-bio");
+    // ohne Vergleichswert oder ohne Poll-Skript: kein App-Block (wie PDF-Over)
+    for broken in [
+        fixture("app-biometric.html", &[]).replace("id=\"vergleichswert\"", "id=\"x\""),
+        fixture("app-biometric.html", &[]).replace("qrpoll(", "poll("),
+    ] {
+        assert_eq!(classify(&url("bio.aspx"), &broken, &s).unwrap_err(), PageError::BlockCount(0));
+    }
 
     let p = classify(&url("signtype.aspx"), &fixture("app-signtype.html", &[]), &s).unwrap();
     let PageBlock::WaitingForApp2Fa { reference_value, poll } = &p.block else { panic!() };

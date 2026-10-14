@@ -21,10 +21,11 @@ use crate::page::{self, PageBlock, ParsedPage, SubmitButton};
 use crate::poll::{self, PollInfo, PollOutcome};
 use crate::{AtrustConfig, Credentials, Fido2Error, Fido2Request, LoopGuard, WEBAUTHN_ORIGIN, fido2, validate};
 
-/// Antwort von `send`: SL-Antwort oder klassifizierte Seite.
+/// Antwort von `send`: SL-Antwort oder klassifizierte Seite (mit der URL, von der sie geladen wurde –
+/// anders als [`ParsedPage::base_url`] nicht durch `<base href>` beeinflussbar).
 enum Reply {
     Xml(Response),
-    Page(Box<ParsedPage>),
+    Page(Box<ParsedPage>, Url),
 }
 
 /// Login-Zustand innerhalb eines SL-Requests (eine A-Trust-Sitzung).
@@ -34,7 +35,25 @@ struct LoginState {
     submitted: bool,
     /// Danach kam eine Seite ohne Login- und Fehlerblock (Anmeldung erfolgreich).
     confirmed: bool,
+    /// Automatisch übersprungene Seiten (AutoSkip) in dieser A-Trust-Sitzung.
+    auto_skips: u32,
+    /// Vom Long-Poll ausgelöste Neuladungen (R7) in dieser A-Trust-Sitzung.
+    poll_reloads: u32,
 }
+
+/// Höchstzahl automatisch verfolgter Weiterleitungen (301/302, `Refresh`, `<meta refresh>`) für
+/// eine Seite. Ergänzt den Loop-Guard aus PDF-Over (50 Requests in 2 s), der bei einer langsamen
+/// Gegenstelle (> 40 ms je Antwort) nie auslöst; Browser begrenzen ähnlich (≈ 20).
+const MAX_FOLLOWS_PER_PAGE: u32 = 100;
+
+/// Höchstzahl AutoSkip-Seiten je SL-Request (regulär 1–2): verhindert, dass eine Seite, die sich
+/// nach dem Absenden selbst wieder liefert, A-Trust ohne Nutzeraktion dauerhaft belastet.
+const MAX_AUTO_SKIPS: u32 = 20;
+
+/// Höchstzahl vom Long-Poll ausgelöster Neuladungen je SL-Request (regulär 1; jede weitere folgt
+/// frühestens nach „fertig“, Fehler-Backoff oder der 300-s-Frist). Meldet der Poll dauerhaft „fertig“,
+/// ohne dass sich die Seite ändert, entstünde sonst eine Schleife ohne Nutzeraktion.
+const MAX_POLL_RELOADS: u32 = 30;
 
 /// Zustand eines Signaturvorgangs über beide SL-Requests.
 pub(crate) struct Dialog {
@@ -107,17 +126,36 @@ fn meta_refresh_content(html: &str) -> Option<String> {
         .map(|m| m.attr("content").unwrap_or_default().to_owned())
 }
 
-/// Link „Signaturdaten anzeigen“ nur über `https://` zu A-Trust bzw. zum konfigurierten Endpunkt
-/// (ADR 0001 §8.6).
+/// `https://` zu `a-trust.at` bzw. einer Subdomain davon.
+fn is_atrust_https(url: &Url) -> bool {
+    url.scheme() == "https"
+        && url
+            .host_str()
+            .is_some_and(|h| h.eq_ignore_ascii_case("a-trust.at") || h.to_ascii_lowercase().ends_with(".a-trust.at"))
+}
+
+/// Link „Signaturdaten anzeigen“ für den Systembrowser: **nur `https://`** (ADR 0001 §8.6) zu A-Trust
+/// bzw. zum Host des konfigurierten Endpunkts.
 pub(crate) fn allowed_external(url: &Url, endpoint: &Url) -> bool {
+    is_atrust_https(url) || (url.scheme() == "https" && url.host_str() == endpoint.host_str())
+}
+
+/// Ziel für Zugangsdaten, TAN und FIDO2-Assertion: `https://` zu einer der vertrauten Domains der
+/// Selektor-Datei (`a-trust.at`, `handy-signatur.at` samt Subdomains) oder exakt die Origin des
+/// konfigurierten Endpunkts (Schema, Host, Port – erlaubt den lokalen Mock-Endpunkt der Tests).
+pub(crate) fn trusted_target(url: &Url, endpoint: &Url, selectors: &crate::selectors::SelectorSet) -> bool {
     let same_origin = url.scheme() == endpoint.scheme()
         && url.host_str() == endpoint.host_str()
         && url.port_or_known_default() == endpoint.port_or_known_default();
-    let atrust = url.scheme() == "https"
-        && url
-            .host_str()
-            .is_some_and(|h| h.eq_ignore_ascii_case("a-trust.at") || h.to_ascii_lowercase().ends_with(".a-trust.at"));
-    same_origin || atrust
+    same_origin || (url.scheme() == "https" && url.host_str().is_some_and(|h| selectors.is_trusted_host(h)))
+}
+
+/// `scheme://host[:port]` ohne Pfad und Abfrage (Diagnose).
+fn origin_of(url: &Url) -> String {
+    match url.port() {
+        Some(port) => format!("{}://{}:{port}", url.scheme(), url.host_str().unwrap_or("")),
+        None => format!("{}://{}", url.scheme(), url.host_str().unwrap_or("")),
+    }
 }
 
 /// Bricht einen laufenden FIDO2-Vorgang ab, wenn das Future gedroppt wird.
@@ -257,8 +295,8 @@ impl Dialog {
                     return pdfover_sl12::parse_response(text.as_bytes())
                         .map_err(|e| BackendError::Protocol(format!("SL-Antwort nicht lesbar: {e}")));
                 }
-                Reply::Page(page) => {
-                    next = self.present(credentials, *page, &mut login).await?;
+                Reply::Page(page, page_url) => {
+                    next = self.present(credentials, *page, &page_url, &mut login).await?;
                     self.ui.progress(Progress::WaitingForServer);
                 }
             }
@@ -272,8 +310,14 @@ impl Dialog {
         guard: &mut LoopGuard,
         mut request: Request,
     ) -> Result<Reply, BackendError> {
+        let mut follows = 0u32;
         loop {
             guard.check(Instant::now())?;
+            follows += 1;
+            if follows > MAX_FOLLOWS_PER_PAGE + 1 {
+                tracing::warn!("zu viele Weiterleitungen – Abbruch");
+                return Err(BackendError::LoopDetected);
+            }
             tracing::debug!(method = request.method.as_str(), url = %pdfover_net::redact_url(&request.url), "A-Trust-Request");
             // Basis für relative Ziele ist die URI des auslösenden Requests (Körper nicht kopieren)
             let url = request.url.clone();
@@ -300,11 +344,11 @@ impl Dialog {
                     return Err(self.fatal(NoticeCode::DocumentTooLarge, None, BackendError::DocumentTooLarge).await);
                 }
                 status => {
+                    // `atrusterror.http_generic` = „… HTTP %d %s“: der Status steht im Code, der Text ist
+                    // nur die Reason-Phrase (`Notice::text`), fehlend wie Java „(null)“.
                     let reason = if response.reason.is_empty() { "(null)".to_owned() } else { response.reason.clone() };
                     let error = BackendError::Http { status, reason: reason.clone() };
-                    return Err(self
-                        .fatal(NoticeCode::Http { status }, Some(format!("{status} {reason}")), error)
-                        .await);
+                    return Err(self.fatal(NoticeCode::Http { status }, Some(reason), error).await);
                 }
             }
             if let Some(refresh) = response.header("refresh") {
@@ -331,7 +375,7 @@ impl Dialog {
                 return match page::classify(&url, &html, &self.config.selectors) {
                     Ok(page) => {
                         tracing::debug!(block = page.block.kind(), path = page.base_url.path(), "A-Trust-Seite");
-                        Ok(Reply::Page(Box::new(page)))
+                        Ok(Reply::Page(Box::new(page), url))
                     }
                     Err(e) => {
                         Err(BackendError::UnknownPage { diagnostic: format!("{e}; {}", page::diagnostic(&url, &html)) })
@@ -382,6 +426,25 @@ impl Dialog {
         }
     }
 
+    /// Zugangsdaten, TAN und FIDO2-Assertion gehen nur an die vertrauten A-Trust-Domains der
+    /// Selektor-Datei (nur `https://`) bzw. an die Origin des konfigurierten Endpunkts ([`trusted_target`])
+    /// – geprüft werden die Seite selbst (die URL, von der sie geladen wurde) und das Formularziel.
+    /// Eine Weiterleitung oder ein Formular zu einem fremden Host (PDF-Over prüft das nicht) bricht
+    /// ab, bevor eine Maske erscheint oder Daten gesendet werden. Für FIDO2 ist das zwingend: der
+    /// Klon setzt die Origin `https://service.a-trust.at` selbst.
+    fn ensure_trusted(&self, page_url: &Url, page: &ParsedPage, what: &str) -> Result<(), BackendError> {
+        for url in [page_url, &page.form_action] {
+            if !trusted_target(url, &self.config.endpoint, &self.config.selectors) {
+                tracing::warn!(target_origin = %origin_of(url), what, "Ziel gehört nicht zu A-Trust");
+                return Err(BackendError::Protocol(format!(
+                    "{what}: {} gehört nicht zu A-Trust – Vorgang abgebrochen",
+                    origin_of(url)
+                )));
+            }
+        }
+        Ok(())
+    }
+
     fn context(&self, page: &ParsedPage, problem: Option<FormProblem>) -> FormContext {
         FormContext {
             signature_data_url: page
@@ -391,7 +454,8 @@ impl Dialog {
                 .map(|u| u.as_str().to_owned()),
             can_switch_to_sms: page.sms_link.is_some(),
             can_switch_to_fido2: page.fido2_link.is_some(),
-            fido2_visible: self.fido2_available,
+            // Plattform kann FIDO2 (Provider vorhanden); ob gerade ein Schlüssel steckt, prüft der Start
+            fido2_visible: self.config.fido2.is_some(),
             problem,
         }
     }
@@ -403,6 +467,7 @@ impl Dialog {
         &mut self,
         credentials: &mut Credentials,
         mut page: ParsedPage,
+        page_url: &Url,
         login: &mut LoginState,
     ) -> Result<Request, BackendError> {
         // 1. weder Fehler- noch Login-Block bei gesetzten Credentials = Anmeldung erfolgreich
@@ -423,7 +488,14 @@ impl Dialog {
         }
         // 3. Blöcke
         match page.block.clone() {
-            PageBlock::AutoSkip { submit } => Ok(form_submit(&page, submit.as_ref())),
+            PageBlock::AutoSkip { submit } => {
+                login.auto_skips += 1;
+                if login.auto_skips > MAX_AUTO_SKIPS {
+                    tracing::warn!(path = page.base_url.path(), "AutoSkip-Seite wiederholt sich – Abbruch");
+                    return Err(BackendError::LoopDetected);
+                }
+                Ok(form_submit(&page, submit.as_ref()))
+            }
             PageBlock::Interstitial { message, next } => {
                 let notice = Notice {
                     kind: NoticeKind::Info,
@@ -446,9 +518,16 @@ impl Dialog {
                 if recoverable && matches!(answer, NoticeAnswer::Retry | NoticeAnswer::Ok) {
                     return Ok(form_submit(&page, back.as_ref()));
                 }
-                if requires_response { Ok(form_submit(&page, cancel.as_ref())) } else { Err(BackendError::Cancelled) }
+                // Abbruch an A-Trust melden (A-Trust antwortet mit SL-`ErrorResponse`). Ist
+                // `#Button_Cancel` kein absendbarer Button, liefe ein Senden ohne Button nur zur selben
+                // Seite zurück – dann direkt abbrechen.
+                match cancel {
+                    Some(cancel) if requires_response => Ok(form_submit(&page, Some(&cancel))),
+                    _ => Err(BackendError::Cancelled),
+                }
             }
             PageBlock::UsernamePassword { username_field, password_field, submit, cancel, error_message } => {
+                self.ensure_trusted(page_url, &page, "Anmeldung")?;
                 self.login(
                     credentials,
                     &mut page,
@@ -460,6 +539,7 @@ impl Dialog {
                 .await
             }
             PageBlock::SmsTan { tan_field, reference_value, submit } => {
+                self.ensure_trusted(page_url, &page, "SMS-TAN")?;
                 self.sms_tan(&mut page, &tan_field, &reference_value, submit.as_ref()).await
             }
             PageBlock::QrCode { reference_value, image_url, poll } => {
@@ -473,7 +553,7 @@ impl Dialog {
                     timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
                     ctx: self.context(&page, problem),
                 };
-                self.wait_with_poll(credentials, &page, form, poll).await
+                self.wait_with_poll(credentials, &page, form, poll, login).await
             }
             PageBlock::WaitingForApp2Fa { reference_value, poll } => {
                 let form = NativeForm::WaitForApp {
@@ -481,9 +561,10 @@ impl Dialog {
                     timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
                     ctx: self.context(&page, None),
                 };
-                self.wait_with_poll(credentials, &page, form, poll).await
+                self.wait_with_poll(credentials, &page, form, poll, login).await
             }
             PageBlock::Fido2 { options_json, result_field, submit } => {
+                self.ensure_trusted(page_url, &page, "FIDO2")?;
                 self.fido2(&mut page, &options_json, &result_field, submit.as_ref()).await
             }
         }
@@ -546,13 +627,18 @@ impl Dialog {
                         break;
                     }
                     Ok(other) => {
-                        tracing::warn!(answer = ?other, "unerwartete Antwort auf die Anmeldemaske");
+                        tracing::warn!(answer = answer_kind(&other), "unerwartete Antwort auf die Anmeldemaske");
                         problem = None;
                     }
                     // Abbruch: A-Trust bekommt `Button_Cancel` (die Schleife läuft weiter, A-Trust
-                    // antwortet dann mit einer SL-`ErrorResponse`)
+                    // antwortet dann mit einer SL-`ErrorResponse`). Ohne absendbaren Abbruch-Button
+                    // käme nur wieder die Login-Seite (PDF-Over: Endlosschleife aus Abbruch und Maske)
+                    // – dann direkt abbrechen.
                     Err(BackendError::Cancelled) if !self.ctx.cancel.is_cancelled() => {
-                        return Ok(form_submit(page, cancel.as_ref()));
+                        return match cancel.as_ref() {
+                            Some(button) => Ok(form_submit(page, Some(button))),
+                            None => Err(BackendError::Cancelled),
+                        };
                     }
                     Err(e) => return Err(e),
                 }
@@ -594,7 +680,7 @@ impl Dialog {
                     Some(link) => return Ok(Request::get(link.clone())),
                     None => problem = None,
                 },
-                other => tracing::warn!(answer = ?other, "unerwartete Antwort auf die TAN-Maske"),
+                other => tracing::warn!(answer = answer_kind(&other), "unerwartete Antwort auf die TAN-Maske"),
             }
         }
     }
@@ -625,6 +711,7 @@ impl Dialog {
         page: &ParsedPage,
         form: NativeForm,
         poll_info: Option<PollInfo>,
+        login: &mut LoginState,
     ) -> Result<Request, BackendError> {
         let reload = Request::get(page.base_url.clone());
         let poll_client = match &poll_info {
@@ -647,7 +734,14 @@ impl Dialog {
             loop {
                 tokio::select! {
                     outcome = &mut poll_future, if poll_active => match outcome {
-                        PollOutcome::Reload => return Ok(reload),
+                        PollOutcome::Reload => {
+                            login.poll_reloads += 1;
+                            if login.poll_reloads > MAX_POLL_RELOADS {
+                                tracing::warn!("Long-Poll meldet wiederholt „fertig“ ohne Seitenwechsel – Abbruch");
+                                return Err(BackendError::LoopDetected);
+                            }
+                            return Ok(reload);
+                        }
                         PollOutcome::Stopped => poll_active = false,
                         PollOutcome::Cancelled => return Err(BackendError::Cancelled),
                     },
@@ -678,15 +772,18 @@ impl Dialog {
         result_field: &str,
         submit: Option<&SubmitButton>,
     ) -> Result<Request, BackendError> {
-        let provider = self.config.fido2.clone().filter(|_| self.fido2_available);
-        let mut problem = if provider.is_some() {
-            None
-        } else {
-            Some(FormProblem::Fido2Failed("FIDO2 ist auf diesem Gerät nicht verfügbar".into()))
-        };
-        let mut start = provider.is_some();
+        // Verfügbarkeit bei jedem Start live prüfen: ein Sicherheitsschlüssel (CTAP-HID) kann nach dem
+        // Öffnen der Sitzung eingesteckt werden; „erneut versuchen“ prüft wieder.
+        let configured = self.config.fido2.clone();
+        let mut problem = None;
+        let mut start = true;
         loop {
-            if start && let Some(provider) = &provider {
+            let available = if start { configured.clone().filter(|p| p.is_available()) } else { None };
+            if start && available.is_none() {
+                start = false;
+                problem = Some(FormProblem::Fido2Failed("FIDO2 ist auf diesem Gerät nicht verfügbar".into()));
+            }
+            if start && let Some(provider) = &available {
                 start = false;
                 let form = NativeForm::Fido2 { in_progress: true, ctx: self.context(page, None) };
                 let request =
@@ -713,7 +810,12 @@ impl Dialog {
                         }
                     }
                     answer = &mut form_future => {
-                        drop(guard); // laufende Anfrage abbrechen
+                        // laufende Anfrage abbrechen – eine bereits beendete nicht (kein verspäteter
+                        // Abbruch, der beim Provider hängen bliebe)
+                        if task.is_finished() {
+                            guard.disarm();
+                        }
+                        drop(guard);
                         match answer {
                             Ok(FormAnswer::SwitchToSms) if page.sms_link.is_some() => {
                                 return Ok(Request::get(page.sms_link.clone().expect("geprüft")));
@@ -736,7 +838,7 @@ impl Dialog {
             }
             let form = NativeForm::Fido2 { in_progress: false, ctx: self.context(page, problem.clone()) };
             match self.form(form).await? {
-                FormAnswer::StartFido2 if provider.is_some() => {
+                FormAnswer::StartFido2 if configured.is_some() => {
                     problem = None;
                     start = true;
                 }
@@ -744,9 +846,21 @@ impl Dialog {
                     Some(link) => return Ok(Request::get(link.clone())),
                     None => tracing::warn!("SMS gewählt, aber kein SMS-Link auf der FIDO2-Seite"),
                 },
-                other => tracing::debug!(answer = ?other, "Antwort auf die FIDO2-Maske ohne Wirkung"),
+                other => tracing::debug!(answer = answer_kind(&other), "Antwort auf die FIDO2-Maske ohne Wirkung"),
             }
         }
+    }
+}
+
+/// Art einer Maskenantwort für Logs (ohne Benutzername, Passwort oder TAN).
+fn answer_kind(answer: &FormAnswer) -> &'static str {
+    match answer {
+        FormAnswer::Login { .. } => "Login",
+        FormAnswer::Tan(_) => "Tan",
+        FormAnswer::SwitchToSms => "SwitchToSms",
+        FormAnswer::SwitchToFido2 => "SwitchToFido2",
+        FormAnswer::StartFido2 => "StartFido2",
+        FormAnswer::Continue => "Continue",
     }
 }
 
@@ -800,9 +914,30 @@ mod tests {
         assert!(!ok("http://service.a-trust.at/x"));
         assert!(!ok("https://evil-a-trust.at/x"));
         assert!(!ok("https://a-trust.at.evil.example/x"));
+        // Systembrowser nur mit https, auch beim lokalen Endpunkt
         let local = Url::parse("http://127.0.0.1:8080/mobile/default.aspx").unwrap();
-        assert!(allowed_external(&Url::parse("http://127.0.0.1:8080/ShowSigobj.aspx").unwrap(), &local));
-        assert!(!allowed_external(&Url::parse("http://127.0.0.1:9090/ShowSigobj.aspx").unwrap(), &local));
+        assert!(!allowed_external(&Url::parse("http://127.0.0.1:8080/ShowSigobj.aspx").unwrap(), &local));
+        assert!(allowed_external(&Url::parse("https://127.0.0.1/ShowSigobj.aspx").unwrap(), &local));
+        assert!(!allowed_external(&Url::parse("https://127.0.0.2/ShowSigobj.aspx").unwrap(), &local));
+    }
+
+    #[test]
+    fn trusted_targets_for_credentials() {
+        let endpoint = Url::parse(crate::PROD_ENDPOINT).unwrap();
+        let sel = crate::selectors::SelectorSet::builtin();
+        let ok = |s: &str| trusted_target(&Url::parse(s).unwrap(), &endpoint, &sel);
+        assert!(ok("https://service.a-trust.at/mobile/Login.aspx"));
+        assert!(ok("https://www.a-trust.at/x"));
+        assert!(!ok("http://service.a-trust.at/mobile/Login.aspx"), "nie Klartext");
+        assert!(!ok("https://a-trust.at.evil.example/x"));
+        assert!(!ok("https://evil-a-trust.at/x"));
+        assert!(ok("https://www.handy-signatur.at/mobile/x.aspx"));
+        assert!(!ok("http://www.handy-signatur.at/mobile/x.aspx"));
+        let local = Url::parse("http://127.0.0.1:8080/mobile/default.aspx").unwrap();
+        let t = |s: &str| trusted_target(&Url::parse(s).unwrap(), &local, &sel);
+        assert!(t("http://127.0.0.1:8080/Login.aspx"));
+        assert!(!t("http://127.0.0.1:9090/Login.aspx"));
+        assert!(!t("https://127.0.0.1:8080/Login.aspx"));
     }
 
     #[test]

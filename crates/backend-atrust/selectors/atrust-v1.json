@@ -1,5 +1,5 @@
 {
-  "_kommentar": "Selektoren und URL-Muster des A-Trust-Dialogs (Szenario A), Stand PDF-Over 4.4.x (ATrustParser.java, MobileBKUConnector.java; docs/analyse/02 §3.5, §8). Werte unter 'ids' sind CSS-Selektoren (scraper/selectors), URL-Muster sind Teilzeichenfolgen der Dokument-Basis-URL. Bei Seitenänderungen von A-Trust: neue Datei mit erhöhter Version ausliefern (signiert, Update-Manifest), kein Code-Release nötig.",
+  "_kommentar": "Selektoren und URL-Muster des A-Trust-Dialogs (Szenario A), Stand PDF-Over 4.4.x (ATrustParser.java, MobileBKUConnector.java; docs/analyse/02 §3.5, §8). Werte unter 'ids' sind CSS-Selektoren (scraper/selectors), URL-Muster sind Teilzeichenfolgen der Dokument-Basis-URL. 'trusted_hosts' sind die Domains (samt Subdomains, nur https), an die Zugangsdaten, TAN und FIDO2-Assertion gehen dürfen (zusätzlich die Origin des konfigurierten Endpunkts). Bei Seitenänderungen von A-Trust: neue Datei mit erhöhter Version ausliefern (signiert, Update-Manifest), kein Code-Release nötig.",
   "version": 1,
   "autoskip_urls": ["/tanAppInfo.aspx", "/UsernameInfo.aspx"],
   "interstitial_urls": ["/ExpiresInfo.aspx"],
@@ -7,6 +7,7 @@
   "error_pages": ["/SessionClosed.aspx"],
   "poll_function": "qrpoll",
   "login_error": "",
+  "trusted_hosts": ["a-trust.at", "handy-signatur.at"],
   "ids": {
     "username": "#handynummer",
     "password": "#signaturpasswort",

@@ -404,7 +404,13 @@ pub fn parse_response(xml: &[u8]) -> Result<SlResponse> {
                 for pair in data.children_named(SL_NAMESPACE, "Pair") {
                     let Some(key) = pair.attribute("Key") else { continue };
                     let Some(content) = pair.child(SL_NAMESPACE, "Base64Content") else { continue };
-                    pairs.push((key.to_owned(), decode_base64(&content.text)?));
+                    match decode_base64(&content.text) {
+                        Ok(value) => pairs.push((key.to_owned(), value)),
+                        // Nur das Signaturzertifikat ist Pflicht (PDF-AS liest nur dieses Paar);
+                        // ein unlesbares anderes Paar macht die Antwort nicht unbrauchbar.
+                        Err(e) if key == SECURE_SIGNATURE_KEYPAIR => return Err(e),
+                        Err(_) => continue,
+                    }
                 }
             }
             Ok(SlResponse::InfoboxRead(InfoboxReadResponse { pairs }))

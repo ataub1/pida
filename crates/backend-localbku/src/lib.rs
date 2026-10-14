@@ -144,20 +144,21 @@ impl Availability {
             Err(_) => {
                 let state = Arc::clone(&state);
                 let stop = Arc::clone(&stop);
-                std::thread::Builder::new()
-                    .name("LocalBKUProbe".into())
-                    .spawn(move || {
-                        while !stop.load(Ordering::SeqCst) {
-                            let up = std::net::TcpStream::connect_timeout(&addr, PROBE_TIMEOUT).is_ok();
-                            state.store(up, Ordering::SeqCst);
-                            let wait = if up { available } else { unavailable };
-                            let start = std::time::Instant::now();
-                            while start.elapsed() < wait && !stop.load(Ordering::SeqCst) {
-                                std::thread::sleep(Duration::from_millis(50).min(wait));
-                            }
+                let spawned = std::thread::Builder::new().name("LocalBKUProbe".into()).spawn(move || {
+                    while !stop.load(Ordering::SeqCst) {
+                        let up = std::net::TcpStream::connect_timeout(&addr, PROBE_TIMEOUT).is_ok();
+                        state.store(up, Ordering::SeqCst);
+                        let wait = if up { available } else { unavailable };
+                        let start = std::time::Instant::now();
+                        while start.elapsed() < wait && !stop.load(Ordering::SeqCst) {
+                            std::thread::sleep(Duration::from_millis(50).min(wait));
                         }
-                    })
-                    .expect("Probe-Thread");
+                    }
+                });
+                // Ohne Thread (Ressourcen erschöpft) bleibt die BKU „nicht erreichbar“ – kein Panic.
+                if let Err(error) = spawned {
+                    tracing::warn!(%error, "Probe-Thread der lokalen BKU nicht gestartet");
+                }
                 None
             }
         };

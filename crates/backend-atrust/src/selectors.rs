@@ -11,6 +11,10 @@ fn default_poll_function() -> String {
     "qrpoll".into()
 }
 
+fn default_trusted_hosts() -> Vec<String> {
+    vec!["a-trust.at".into(), "handy-signatur.at".into()]
+}
+
 /// Selektoren und URL-Muster.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SelectorSet {
@@ -33,6 +37,11 @@ pub struct SelectorSet {
     /// `ATrustParser.java:152`). Ist er gesetzt und liefert Text, wird nie automatisch angemeldet.
     #[serde(default)]
     pub login_error: String,
+    /// Domains (mit Subdomains, nur `https://`), an die Zugangsdaten, TAN und FIDO2-Assertion
+    /// gesendet werden dürfen – zusätzlich zur Origin des konfigurierten Endpunkts. Ältere Dateien
+    /// ohne das Feld: `a-trust.at`, `handy-signatur.at`.
+    #[serde(default = "default_trusted_hosts")]
+    pub trusted_hosts: Vec<String>,
 }
 
 /// Element-Selektoren. Alle Werte sind CSS-Selektoren außer `signature_data_href` (Teil des
@@ -146,6 +155,18 @@ impl SelectorSet {
         if !self.login_error.trim().is_empty() {
             check_css("login_error", &self.login_error)?;
         }
+        if self.trusted_hosts.is_empty() {
+            return Err(SelectorError::Invalid { field: "trusted_hosts", reason: "leer".into() });
+        }
+        for host in &self.trusted_hosts {
+            let valid_label = |l: &str| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+            if host.split('.').count() < 2 || !host.split('.').all(valid_label) {
+                return Err(SelectorError::Invalid {
+                    field: "trusted_hosts",
+                    reason: format!("kein Domainname: {host}"),
+                });
+            }
+        }
         let non_empty = [
             ("error_prefix", self.error_prefix.as_str()),
             ("poll_function", self.poll_function.as_str()),
@@ -157,6 +178,15 @@ impl SelectorSet {
             }
         }
         Ok(())
+    }
+
+    /// `true`, wenn `host` eine der [`SelectorSet::trusted_hosts`] oder eine Subdomain davon ist.
+    pub fn is_trusted_host(&self, host: &str) -> bool {
+        let host = host.to_ascii_lowercase();
+        self.trusted_hosts.iter().any(|t| {
+            let t = t.to_ascii_lowercase();
+            host == t || host.strip_suffix(t.as_str()).is_some_and(|prefix| prefix.ends_with('.'))
+        })
     }
 
     /// `#LinkList a[href*="ShowSigobj.aspx"]` (`ATrustParser.java:326`).
@@ -187,6 +217,10 @@ mod tests {
         assert_eq!(s.error_pages, ["/SessionClosed.aspx"]);
         assert_eq!(s.poll_function, "qrpoll");
         assert_eq!(s.login_error, "");
+        assert_eq!(s.trusted_hosts, ["a-trust.at", "handy-signatur.at"]);
+        assert!(s.is_trusted_host("service.a-trust.at") && s.is_trusted_host("A-TRUST.at"));
+        assert!(s.is_trusted_host("www.handy-signatur.at"));
+        assert!(!s.is_trusted_host("evil-a-trust.at") && !s.is_trusted_host("a-trust.at.evil.example"));
         assert_eq!(s.ids.username, "#handynummer");
         assert_eq!(s.ids.sign_type, ".ida-signtype #SignType");
         assert_eq!(s.signature_data_link_css(), "#LinkList a[href*=\"ShowSigobj.aspx\"]");
@@ -232,9 +266,11 @@ mod tests {
         let mut v: serde_json::Value = serde_json::from_str(BUILTIN_JSON).unwrap();
         v.as_object_mut().unwrap().remove("poll_function");
         v.as_object_mut().unwrap().remove("login_error");
+        v.as_object_mut().unwrap().remove("trusted_hosts");
         let old = SelectorSet::from_json(&v.to_string()).unwrap();
         assert_eq!(old.poll_function, "qrpoll");
         assert_eq!(old.login_error, "");
+        assert_eq!(old.trusted_hosts, ["a-trust.at", "handy-signatur.at"]);
     }
 
     #[test]
@@ -248,6 +284,11 @@ mod tests {
         let mut s = SelectorSet::builtin();
         s.login_error = ".err[".into();
         assert!(s.validate().is_err());
+        for bad in [vec![], vec!["at".to_owned()], vec!["https://a-trust.at".to_owned()], vec!["a..at".to_owned()]] {
+            let mut s = SelectorSet::builtin();
+            s.trusted_hosts = bad;
+            assert!(matches!(s.validate(), Err(SelectorError::Invalid { field: "trusted_hosts", .. })));
+        }
         assert!(matches!(SelectorSet::from_json_validated("{"), Err(SelectorError::Json(_))));
         assert!(SelectorSet::from_json_validated(BUILTIN_JSON).is_ok());
     }

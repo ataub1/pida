@@ -239,13 +239,20 @@ impl AssertionOptions {
         if challenge.is_empty() {
             return Err(Fido2Error::InvalidOptions("challenge ist leer".into()));
         }
+        let origin_host = pdfover_net::Url::parse(origin)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_ascii_lowercase))
+            .ok_or_else(|| Fido2Error::InvalidOptions("Origin ist ungültig".into()))?;
         let rp_id = match object.get("rpId").and_then(|v| v.as_str()).filter(|s| !s.is_empty()) {
-            Some(r) => r.to_owned(),
-            None => pdfover_net::Url::parse(origin)
-                .ok()
-                .and_then(|u| u.host_str().map(str::to_owned))
-                .ok_or_else(|| Fido2Error::InvalidOptions("rpId fehlt und Origin ist ungültig".into()))?,
+            Some(r) => r.to_ascii_lowercase(),
+            None => origin_host.clone(),
         };
+        // Wie ein Browser (WebAuthn L2 §5.1.4.1 Schritt 8): die RP-ID muss die Origin selbst oder
+        // ein registrierbares Suffix davon sein. Da der Klon die Origin `https://service.a-trust.at`
+        // selbst setzt, verhindert erst diese Prüfung Assertionen für fremde Relying Parties.
+        if !rp_id_matches_origin(&rp_id, &origin_host) {
+            return Err(Fido2Error::InvalidOptions("rpId passt nicht zur Origin".into()));
+        }
         let mut allow_credentials = Vec::new();
         if let Some(list) = object.get("allowCredentials").and_then(|v| v.as_array()) {
             for entry in list {
@@ -269,6 +276,17 @@ impl AssertionOptions {
         let timeout_ms = object.get("timeout").and_then(|v| v.as_u64()).map(|t| t.min(u32::MAX as u64) as u32);
         Ok(AssertionOptions { challenge, rp_id, allow_credentials, user_verification, timeout_ms })
     }
+}
+
+/// `rp_id` ist gleich `origin_host` oder ein Domain-Suffix davon mit mindestens zwei Labels
+/// (`a-trust.at` für `service.a-trust.at`, nie eine Top-Level-Domain wie `at`). Beide Werte
+/// kleingeschrieben.
+fn rp_id_matches_origin(rp_id: &str, origin_host: &str) -> bool {
+    let valid_label = |l: &str| !l.is_empty() && l.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if rp_id.split('.').count() < 2 || !rp_id.split('.').all(valid_label) {
+        return false;
+    }
+    origin_host == rp_id || origin_host.strip_suffix(rp_id).is_some_and(|prefix| prefix.ends_with('.'))
 }
 
 /// `clientDataJSON` wie ein Browser (WebAuthn L2 §5.8.1, Reihenfolge type, challenge, origin,
@@ -362,6 +380,26 @@ mod tests {
         for bad in ["", "[]", r#"{"challenge":""}"#, r#"{"challenge":"***"}"#, r#"{"challenge":[256]}"#, "{}"] {
             assert!(matches!(AssertionOptions::parse(bad, origin), Err(Fido2Error::InvalidOptions(_))), "{bad}");
         }
+    }
+
+    #[test]
+    fn rp_id_must_belong_to_the_origin() {
+        let origin = "https://service.a-trust.at";
+        let parse = |rp: &str| AssertionOptions::parse(&format!(r#"{{"challenge":"AQ","rpId":"{rp}"}}"#), origin);
+        for ok in ["a-trust.at", "service.a-trust.at", "A-Trust.AT"] {
+            assert!(parse(ok).is_ok(), "{ok}");
+        }
+        assert_eq!(parse("A-Trust.AT").unwrap().rp_id, "a-trust.at");
+        for bad in
+            ["google.com", "at", "trust.at", "evil-a-trust.at", "x.service.a-trust.at", ".a-trust.at", "a-trust.at."]
+        {
+            assert!(matches!(parse(bad), Err(Fido2Error::InvalidOptions(_))), "{bad}");
+        }
+        // ohne rpId gilt der Host der Origin; ungültige Origin → Fehler
+        assert_eq!(AssertionOptions::parse(r#"{"challenge":"AQ"}"#, origin).unwrap().rp_id, "service.a-trust.at");
+        assert!(AssertionOptions::parse(r#"{"challenge":"AQ"}"#, "keine-origin").is_err());
+        assert!(rp_id_matches_origin("localhost.test", "localhost.test"));
+        assert!(!rp_id_matches_origin("a..b", "x.a..b"));
     }
 
     #[test]

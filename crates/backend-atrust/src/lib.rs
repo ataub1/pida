@@ -8,7 +8,12 @@
 //! - Formular-Submit immer `multipart/form-data`: alle Felder plus genau ein „geklickter“ Button,
 //! - Long-Poll `qrpoll` mit Bearer-Token, 300 s, Backoff 10 s ([`poll`]); Poll und QR-Bild ohne
 //!   Cookies,
-//! - Loop-Guard 50 Requests / 2 s ([`LoopGuard`]),
+//! - Loop-Guard 50 Requests / 2 s ([`LoopGuard`]); zusätzlich (auch bei langsamer Gegenstelle)
+//!   höchstens 100 Weiterleitungen je Seite, 20 AutoSkip-Seiten und 30 Poll-Neuladungen je SL-Request,
+//! - Zugangsdaten, TAN und FIDO2-Assertion nur über `https://` an die vertrauten Domains der
+//!   Selektor-Datei (`trusted_hosts`: `a-trust.at`, `handy-signatur.at`) bzw. an die Origin des
+//!   konfigurierten Endpunkts (Seite und Formularziel); die FIDO2-RP-ID muss zur Origin
+//!   `https://service.a-trust.at` passen,
 //! - Selektoren/URL-Muster als **versionierte Datendatei** ([`selectors::SelectorSet`]),
 //! - unbekannte Seite → Abbruch mit Diagnosecode, nie raten,
 //! - **kein automatisches Neusenden von Zugangsdaten** bei erneuter Login-Seite bzw. Fehlermeldung
@@ -132,9 +137,13 @@ pub struct AtrustConfig {
     pub endpoint: Url,
     /// Netz (Proxy, Timeouts, User-Agent – Zusatz nur nach Abstimmung mit A-Trust, L10).
     pub net: NetConfig,
-    /// Vorbelegter Benutzername (`MOBILE_NUMBER`/`-n`).
+    /// Vorbelegter Benutzername (`MOBILE_NUMBER`/`-n`). Startwert des „Merken“-Speichers des
+    /// Backends ([`AtrustNativeBackend::new`]); [`AtrustNativeBackend::forget_credentials`] bzw. das
+    /// Abwählen von „Merken“ löschen ihn wie in PDF-Over.
     pub prefill_username: Option<String>,
-    /// Passwort aus `-p` (nur RAM).
+    /// Passwort aus `-p` (nur RAM). Startwert wie `prefill_username`; nach einer Fehlerseite, einer
+    /// abgelehnten Anmeldung oder einem Nutzerabbruch ist es gelöscht und wird **nicht** in der
+    /// nächsten Sitzung erneut gesendet (PDF-Over: Overlay `clearRememberedPassword`).
     pub prefill_password: Option<Zeroizing<String>>,
     /// „Merken“-Zustand (`MOBILE_REMEMBER_PASSWORD`).
     pub remember: bool,
@@ -179,7 +188,7 @@ impl std::fmt::Debug for AtrustConfig {
         f.debug_struct("AtrustConfig")
             .field("endpoint", &self.endpoint.as_str())
             .field("net", &self.net)
-            .field("prefill_username", &self.prefill_username)
+            .field("prefill_username", &self.prefill_username.as_deref().map(redacted))
             .field("prefill_password", &self.prefill_password.as_ref().map(|_| "***"))
             .field("remember", &self.remember)
             .field("fido2_default", &self.fido2_default)
@@ -189,6 +198,11 @@ impl std::fmt::Debug for AtrustConfig {
             .field("poll", &self.poll)
             .finish()
     }
+}
+
+/// Benutzername/Telefonnummer in `Debug` nur als Länge (Personendaten, ADR 0001 §4 Regel 9).
+fn redacted(value: &str) -> String {
+    format!("<{} Zeichen>", value.chars().count())
 }
 
 /// Credentials einer Sitzung (nur RAM).
@@ -203,7 +217,7 @@ pub struct Credentials {
 impl std::fmt::Debug for Credentials {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Credentials")
-            .field("username", &self.username)
+            .field("username", &self.username.as_deref().map(redacted))
             .field("password", &self.password.as_ref().map(|_| "***"))
             .finish()
     }
@@ -218,9 +232,12 @@ pub struct AtrustNativeBackend {
 }
 
 impl AtrustNativeBackend {
-    /// Neues Backend.
+    /// Neues Backend. Der „Merken“-Speicher startet mit der Vorbelegung aus `-n`/`-p` bzw.
+    /// `MOBILE_NUMBER` (wie die PDF-Over-Overlays), damit ein abgelehntes Passwort gelöscht bleibt.
     pub fn new(config: AtrustConfig) -> Self {
-        Self { config, remembered: Arc::new(Mutex::new(Credentials::default())) }
+        let initial =
+            Credentials { username: config.prefill_username.clone(), password: config.prefill_password.clone() };
+        Self { config, remembered: Arc::new(Mutex::new(initial)) }
     }
 
     /// Vergisst gemerkte Credentials (Abwählen von „Merken“, Fehlerseite, Nutzerabbruch).
@@ -272,11 +289,9 @@ impl SignatureBackend for AtrustNativeBackend {
         if ctx.headless {
             return Err(BackendError::Unavailable("ID Austria braucht Eingaben der Nutzerin (nicht headless)".into()));
         }
-        let remembered = self.remembered.lock().expect("poisoned").clone();
-        let credentials = Credentials {
-            username: remembered.username.or_else(|| self.config.prefill_username.clone()),
-            password: remembered.password.or_else(|| self.config.prefill_password.clone()),
-        };
+        // nur der „Merken“-Speicher (mit der Vorbelegung initialisiert): was dort gelöscht wurde,
+        // kommt nicht aus der Konfiguration zurück
+        let credentials = self.remembered.lock().expect("poisoned").clone();
         let fido2_available = self.fido2_available();
         Ok(Box::new(AtrustSession {
             credentials,
@@ -363,9 +378,13 @@ mod tests {
         c.prefill_username = Some("+436641234567".into());
         let dbg = format!("{c:?}");
         assert!(!dbg.contains("geheim"));
+        assert!(!dbg.contains("6641234567"), "{dbg}");
         assert_eq!(c.endpoint.as_str(), PROD_ENDPOINT);
-        let creds = Credentials { username: Some("u".into()), password: Some(Zeroizing::new("geheim".into())) };
-        assert!(!format!("{creds:?}").contains("geheim"));
+        let creds =
+            Credentials { username: Some("max.mustermann".into()), password: Some(Zeroizing::new("geheim".into())) };
+        let dbg = format!("{creds:?}");
+        assert!(!dbg.contains("geheim") && !dbg.contains("mustermann"), "{dbg}");
+        assert!(dbg.contains("<14 Zeichen>"), "{dbg}");
     }
 
     #[test]
