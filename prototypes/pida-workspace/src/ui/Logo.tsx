@@ -1,15 +1,17 @@
 /**
- * PIDA-Wortmarke: eigenes, schlichtes Zeichen (Blatt mit Eselsohr, zwei rote „Textzeilen“ ergeben
- * dezent Rot-Weiß-Rot). Bewusst kein Bundesadler und keine ID-Austria- oder A-Trust-Logos.
+ * PIDA-Zeichen für die Kopfzeile: das App-Symbol im Kleinformat (ADR 0005) – Ring mit Häkchen und
+ * rot-weiß-rotem Akzent auf dem Grund der Wortmarke. Abgeleitet vom Siegel im Signaturblock; bewusst kein
+ * Bundesadler und keine ID-Austria- oder A-Trust-Logos.
  */
 export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
     <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" focusable="false" className={className}>
-      <rect x="1" y="1" width="30" height="30" rx="8" className="logo-bg" />
-      <path d="M10 6.5h8.6L23 10.9V25.5H10z" fill="#fff" />
-      <path d="M18.6 6.5v4.4H23" className="logo-fold" />
-      <rect x="10" y="14.6" width="13" height="2.6" fill="#c8102e" />
-      <rect x="10" y="19.8" width="13" height="2.6" fill="#c8102e" />
+      <rect x="0" y="0" width="32" height="32" rx="7.5" className="logo-bg" />
+      <circle cx="16" cy="16" r="9.5" fill="none" stroke="#fff" strokeWidth="2" />
+      <path d="M11.9 14.7 14.6 17.25 20.1 11.3" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="11.94" y="19.5" width="8.12" height="0.88" fill="#c8102e" />
+      <rect x="11.94" y="20.38" width="8.12" height="0.69" fill="#fff" />
+      <rect x="11.94" y="21.06" width="8.12" height="0.88" fill="#c8102e" />
     </svg>
   );
 }
