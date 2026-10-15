@@ -1,10 +1,391 @@
-# PDF-Over NG – English catalog (EUPL-1.2).
-# Placeholder from the foundation. Package E generates the full catalog with
-# `pdfover_i18n::convert` from reference/PDF-Over/.../messages.properties (Fluent id = Java key with "-" instead of ".").
+### PDF-Over NG – englischer Katalog (EUPL-1.2)
+###
+### Erzeugt mit `pdfover_i18n::convert::convert_pdfover_messages` aus `messages.properties` von PDF-Over
+### (A-SIT, EUPL). NICHT von Hand bearbeiten: Korrekturen gehören in die Tabellen des Konverters,
+### eigene Texte von PDF-Over NG in `pdfover-ng.ftl`. Neu erzeugen:
+### PDFOVER_I18N_BLESS=1 cargo test -p pdfover-i18n --test catalogs
+###
+### Konventionen: Fluent-ID = Java-Key mit „-“ statt „.“; `&`-Mnemonic → `.accesskey`;
+### `%s`/`%d` → `{ $arg1 }`, `{ $arg2 }` … in Reihenfolge; `<a>…</a>` bzw. `<a href="…">…</a>`
+### bleiben als Link-Markup im Text (`pdfover_i18n::markup`).
 
-common-Ok = OK
+AdvancedConfigurationComposite-lblSaveFilePostFix-text = Save File Postfix:
+BKU-KS = Keystore
+BKU-LOCAL = Local Citizen Card
+BKU-MOBILE = ID Austria
+BKU-NONE = no default
+# unused (in PDF-Over 4.4.x nicht referenziert)
+BKUSelectionComposite-btnMobile-text = MOBILE
+# unused (in PDF-Over 4.4.x nicht referenziert)
+PlaceholderSelectionGui-lblNewLabel-text = New Label
+# unused (in PDF-Over 4.4.x nicht referenziert)
+PlaceholderSelectionGui-shlInfo-text = Info
+# unused (in PDF-Over 4.4.x nicht referenziert)
+TrustedSocketFactory-FailedToCreateSecureConnection = Failed to create secure network connection
+advanced_config-AutoPosition = Automatic positioning
+advanced_config-AutoPosition_ToolTip = Activate this option to automatically position the signature
+advanced_config-BKUSelection_Title = CCE Selection
+    .accesskey = E
+advanced_config-BKUSelection_ToolTip = Select the default CCE to use during signature
+advanced_config-KeystoreEnabled = Enable keystore signing
+advanced_config-KeystoreEnabled_ToolTip = Enables the possibility to sign with a local keystore
+advanced_config-LocaleSelection_Title = Interface language selection
+    .accesskey = l
+advanced_config-LocaleSelection_ToolTip = Select the interface language for PDF-Over
+advanced_config-OutputFolder = Default output folder:
+advanced_config-OutputFolder-Dialog = Select a folder
+advanced_config-OutputFolder-Dialog_Title = Select Output folder
+advanced_config-OutputFolder_Title = Output settings
+    .accesskey = O
+advanced_config-OutputFolder_ToolTip = Select the folder where the signed document will be saved automatically (clear this field to disable automatic saving, enter a single dot (".") to denote the input document directory)
+advanced_config-PdfACompat = PDF/A compatibility
+advanced_config-PdfACompat_ToolTip = Whether to make the signature PDF/A compatible (increases pdf size). This option requires a source document that is already in PDF/A format.
+advanced_config-Placeholder_Enabled = Enable placeholder search
+advanced_config-Placeholder_Title = Placeholder
+advanced_config-ProxyHost = Host:
+advanced_config-ProxyHost_Template = Hostname or IP of the proxy server
+advanced_config-ProxyHost_ToolTip = To use a proxy server enter the hostname or the IP here
+advanced_config-ProxyPass = Password:
+advanced_config-ProxyPass_Template = Password for proxy authentication
+advanced_config-ProxyPass_ToolTip = To use proxy authentication enter password here
+advanced_config-ProxyPort = Port:
+advanced_config-ProxyPort_Template = Port of the proxy server [1-65535]
+advanced_config-ProxyPort_ToolTip = To use a proxy server enter the port number here
+advanced_config-ProxyUser = Username:
+advanced_config-ProxyUser_Template = Username for proxy authentication
+advanced_config-ProxyUser_ToolTip = To use proxy authentication enter username here
+advanced_config-Proxy_Title = Proxy
+    .accesskey = P
+# unused (in PDF-Over 4.4.x nicht referenziert)
+advanced_config-SigPHTransparency = Signature placeholder transparency
+# unused (in PDF-Over 4.4.x nicht referenziert)
+advanced_config-SigPHTransparencyMax = Opaque
+# unused (in PDF-Over 4.4.x nicht referenziert)
+advanced_config-SigPHTransparencyMin = Invisible
+# unused (in PDF-Over 4.4.x nicht referenziert)
+advanced_config-SigPHTransparencyTooltip = Set the transparency of the signature placeholder in the positioning step
+advanced_config-Signature_Title = Signature
+    .accesskey = g
+advanced_config-UpdateCheck = Automatically check for updates
+# unused (in PDF-Over 4.4.x nicht referenziert)
+advanced_config-UpdateCheck_Title = Updates
+advanced_config-UpdateCheck_ToolTip = Shows a notification when a new version is available
+advanced_config-UseMarker = Search for QR-Code signature markers
+advanced_config-UseMarker_ToolTip = Activate this option to scan the document for signature markers. In case there is a marker available, you will be asked whether to automatically position your signature according to the marker.
+advanced_config-UseSignatureFields = Search for signature fields
+advanced_config-UseSignatureFields_ToolTip = Activate this option to scan the document for signature markers. In case there is a marker available, you will be asked whether to automatically position your signature according to the marker.
+argument-error-output = is not a directory
+argument-help-autopos = Enables automatic signature positioning
+argument-help-bku = Select the CCE to use. Possible values are: LOCAL, MOBILE, KS. Example: -b MOBILE
+argument-help-config = Defines which configuration file to use. Example: -c <config file>
+argument-help-emblem = Sets the signature logo file to use for the signature. Example: -e <emblem file>
+argument-help-help = Shows this help message
+argument-help-input = Sets the document to sign. Example: -i <input document>
+argument-help-keystorealias = Sets the keystore key alias. Example : -ksalias <alias>
+argument-help-keystorefile = Sets the keystore file. Example : -ks <keystore file>
+# korrigiert (B-08): Hilfetexte -kspass/-kskeypass waren vertauscht
+argument-help-keystorekeypass = Sets the keystore key password. Example : -kskeypass <password>
+# korrigiert (B-08): Hilfetexte -kspass/-kskeypass waren vertauscht
+argument-help-keystorestorepass = Sets the keystore password. Example : -kspass <password>
+argument-help-keystoretype = Sets the keystore type. Example : -kstype [PKCS12|JKS|JCEKS]
+argument-help-number = Sets the phone number or username to use for ID Austria. Example: -n <number>
+argument-help-output = Sets the output folder or file to use. Example: -o <folder>
+argument-help-password = Sets the password to use for ID Austria. Example: -p <password>
+argument-help-proxyhost = Sets the proxy host to use. Example: -proxy <hostname/IP>
+argument-help-proxypass = Sets the proxy password to use. Example: -proxypass <password>
+argument-help-proxyport = Sets the proxy port to use. Example: -proxyport <port>
+argument-help-proxyuser = Sets the proxy username to use. Example: -proxyuser <username>
+argument-help-skipfinish = Enables skipping of the "Finish" dialog (if successfully saved)
+# korrigiert (B-07): -v wertet seinen Wert aus (ADR 0001 §8.9)
+argument-help-vis = Makes the signature invisible (the values false, 0, no, nein or off keep it visible). Example: -v true
+argument-info-help = The following options are available:
+argument-invalid-bku = CCE argument invalid! Usage:
+argument-invalid-config = Configuration file argument invalid! Usage:
+argument-invalid-emblem = Signature logo argument invalid! Usage:
+argument-invalid-input = Document to sign argument invalid! Usage:
+argument-invalid-keystorealias = Keystore alias invalid! Usage:
+argument-invalid-keystorefile = Keystore file invalid! Usage:
+argument-invalid-keystorekeypass = Keystore key password invalid! Usage:
+argument-invalid-keystorestorepass = Keystore password invalid! Usage:
+argument-invalid-keystoretype = Keystore type invalid! Usage:
+argument-invalid-number = Phone number argument invalid! Usage:
+argument-invalid-output = Output folder argument invalid! Usage:
+argument-invalid-password = ID Austria password invalid! Usage:
+argument-invalid-proxyhost = Proxy host argument invalid! Usage:
+argument-invalid-proxypass = Proxy password argument invalid! Usage:
+argument-invalid-proxyport = Proxy port argument invalid! Usage:
+argument-invalid-proxyuser = Proxy username argument invalid! Usage:
+argument-invalid-vis = Profile Visbility argument invalid! Usage:
+bku_selection-card = Card
+    .accesskey = C
+bku_selection-ks = Keystore
+    .accesskey = K
+bku_selection-mobile = ID-A
+    .accesskey = A
+common-AllExtension_Description = All files
 common-Cancel = Cancel
+    .accesskey = a
+common-GIFExtension_Description = GIF files
+common-ImageExtension_Description = All supported image files
+common-JPGExtension_Description = JPG files
+common-KSExtension_Description = Java keystore files
+common-KeystoreExtension_Description = Keystore files
+common-Ok = OK
+    .accesskey = K
+common-PDFExtension_Description = PDF documents
+common-PKCS12Extension_Description = PKCS12 keystore files
+common-PNGExtension_Description = PNG files
 common-Save = Save
+    .accesskey = S
+common-browse = Browse
+    .accesskey = B
+common-info = Information
+common-open = Open
+common-warning = Warning
+common-working = Working...
+common-unavailable = Unavailable
+config-About = About { $arg1 }
+    .accesskey = b
+config-AboutText =
+    This software is freely provided by A-SIT under the conditions of the EUPL. Terms and details at <a>https://technology.a-sit.at/en/terms-of-a-license/</a>. For technical support, contact <a href="mailto:software@egiz.gv.at">software@egiz.gv.at</a>.
+
+    Note that components may have different licenses, partly restricting their free use to EUPL-licensed software.
+config-DataProtection = Data Protection Statement
+config-DataProtectionStatement = The software PDF-Over processes the data required for the signature process locally on the installed device. The signature process with the citizen card is carried out locally. During the signature process using ID Austria, the PDF document to be signed is sent to the company A-Trust. The storage period and further data protection information for signatures using ID Austria can be found in the data protection declaration of A-Trust at <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+config-DataProtectionURL = https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf
+config-FIDO2 = FIDO2
+    .accesskey = F
+config-Advanced = Advanced
+    .accesskey = v
+config-Keystore = Keystore
+    .accesskey = K
+config-Simple = Basic
+    .accesskey = c
+config-ShowLogDirectory = Show Log Directory
+dataSourceSelection-DropLabel = Drag document here
+dataSourceSelection-DropLabel2 = or...
+dataSourceSelection-browse = Browse for PDF on your computer
+    .accesskey = B
+dataSourceSelection-usePlaceholderText = A marker has been found where the creator of the document wants you to put your signature. Do you want to use it?
+dataSourceSelection-usePlaceholderTitle = Info
+error-ATrustConnection = Connection to A-Trust could not be established
+error-CouldNotResolveHostname =
+    Could not resolve hostname '{ $arg1 }'.
+    Are you connected to the internet?
+error-CmdLineArgs = Error parsing the command-line arguments:
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-Details = Details
+error-EnteredReferenceValue = You entered the reference value!
+error-FailedToConnect =
+    Failed to connect to signature server:
+    { $arg1 }
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-FailedToGetSignedDocument = Failed to get signed document.
+error-FailedToLoadEmblem = Failed to load the signature logo
+error-FailedToLoadQRCode = Failed to load the QR code
+error-FailedToOpenDocument = Failed to open signed document: { $arg1 }.
+error-FailedToSaveSettings = Failed to save configuration file!
+error-FileNotExist = File { $arg1 } does not exist!
+error-IOError = Input/Output Error
+error-Initialization =
+    PDF-Over failed to initialize.
+    We're very sorry for the inconvenience.
+
+    It may be possible to restore functionality by resetting PDF-Over's configuration to factory defaults.
+    Would you like to try this now?
+error-ConfigInitialization =
+    The options screen failed to initialize.
+    We're very sorry for the inconvenience.
+
+    It may be possible to restore functionality by resetting PDF-Over's configuration to factory defaults.
+    Would you like to try this now?
+error-InvalidBKU = Invalid CCE selection. Please check.
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-InvalidLocale = Locale not valid
+error-InvalidPhoneNumber = Given phone number is invalid! Example:+43664123456789
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-InvalidSettings = Invalid settings are still present. Please check your input.
+error-KeyStore = Error loading they keystore. Wrong password?
+error-KeyStoreAliasExist = Key alias { $arg1 } not found in keystore
+error-KeyStoreAliasNoKey = Alias { $arg1 } is not a key
+error-KeyStoreFileNotExist = Keystore file { $arg1 } does not exist!
+error-KeyStoreStorePass = Keystore password invalid
+error-KeyStoreKeyPass = Key password invalid
+error-LocalBKU =
+    Please check if a local CCE (citizen card environment) is running
+
+    You need a CCE to access your citizen card. Further information under www.buergerkarte.at
+error-MayNotBeAPDF = This may not be a PDF file
+error-NoTan = No TAN entered
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-PDFProtected = This PDF file is encrypted and can therefore not be signed
+error-PDFPwdProtected = This PDF file is password protected and can therefore not be signed
+error-PositioningNotPossible = Manual positioning currently not possible due to a Java Bug. Using automatic positioning.
+error-PrepareDocument = Failed to prepare document for signature.
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-Retry = Retry
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-SWTLib = Error loading SWT library
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-SaveOutputFolder = Failed to save signed document to configured output folder.
+error-Signatur = Signature error
+error-TanTooLong = Entered TAN too long
+error-SLError =
+    Operation aborted by signature server ({ $arg1 }):
+    { $arg2 }
 error-Title = Error
-error-Unexpected = Unexpected error
+# unused (in PDF-Over 4.4.x nicht referenziert)
+error-TitleFatal = Fatal Error
+error-Unexpected = Unexpected Error
+error-ProxyAuthRequired =
+    HTTP proxy refused connection:
+    HTTP/1.1 407 Proxy Authentication Required
+exception-InvalidEmblemFile = { $arg1 } is an invalid signature logo file!
+exception-InvalidPort = { $arg1 } is invalid: has to be a number between { $arg2 } and { $arg3 }
+exception-PasswordTooLong = Given password is too long!
+exception-PasswordTooShort = Given password is too short!
+exception-PathNotDirectory = Path { $arg1 } does not denote a directory!
+exception-PathNotExist = Path { $arg1 } does not exist!
+keystore-KeystoreKeyPassEntry = Please enter key password:
+keystore-KeystoreStorePassEntry = Please enter keystore password:
+keystore_config-KeystoreAlias = Key alias
+keystore_config-KeystoreFile = Keystore file
+# unused (in PDF-Over 4.4.x nicht referenziert)
+keystore_config-KeystoreFile-Dialog = Choose the keystore
+# unused (in PDF-Over 4.4.x nicht referenziert)
+keystore_config-KeystoreFile-Dialog_Title = Keystore selection
+keystore_config-KeystoreFile_ToolTip = Path to the keystore file
+keystore_config-SaveToWhere-Header = Save Keystore passwords?
+keystore_config-SaveToWhere-None = Do not save (require entry each time)
+keystore_config-SaveToWhere-Memory = Save temporarily (require entry on 1st signature)
+keystore_config-SaveToWhere-Disk = Save permanently (require entry once)
+keystore_config-KeystoreKeyPass = Key password
+keystore_config-KeystoreKeyPass_ToolTip = Warning: The password is stored in plain text.
+keystore_config-KeystoreStorePass = Keystore password
+keystore_config-KeystoreStorePass_ToolTip = Warning: The password is stored in plain text.
+keystore_config-KeystoreType = Keystore type
+keystore_config-KeystoreType_JKS = Java keystore
+keystore_config-KeystoreType_PKCS12 = PKCS12
+keystore_config-Keystore_Title = Keystore
+keystore_config-Load = Load keystore
+keystore_config-Load_ToolTip = Load keystore to show available key aliases
+main-about = About { $arg1 }
+main-configuration = Configuration
+main-done = Finish
+main-hide = Hide { $arg1 }
+main-position = Positioning
+main-quit = Quit { $arg1 }
+main-signature = Signing
+mobileBKU-aTrustDisclaimer = This service is provided by A-Trust
+# unused (in PDF-Over 4.4.x nicht referenziert)
+mobileBKU-notice = Notice from server:
+mobileBKU-number = Username:
+mobileBKU-password = Password:
+mobileBKU-show = <a>Show signature data</a>
+mobileBKU-show_tooltip = Shows the data to be signed
+# unused (in PDF-Over 4.4.x nicht referenziert)
+mobileBKU-tan_tries_exceeded = TAN tries exceeded, request a new TAN?
+# unused (in PDF-Over 4.4.x nicht referenziert)
+mobileBKU-wrong_tan = TAN not accepted
+mobileBKU-rememberPassword = Remember
+    .accesskey = m
+mobileBKU-rememberPasswordNote = If you check this, you will not be prompted for your password again until you re-start PDF-Over
+mobileBKU-authorize = Begin authorization
+output-file_ask_overwrite = File { $arg1 } already exists, do you want to overwrite it?
+output-link_open_message = You can open the signed file <a>here</a>.
+output-link_save_message = You can save the signed file
+output-save_failed = Saving file { $arg1 } failed: { $arg2 }
 output-success_message = Signature was successful
+positioning-newPage = Create new Page
+    .accesskey = n
+positioning-page = Page { $arg1 } of { $arg2 }
+positioning-placeholder = Please select a signature placeholder from the list below:
+positioning-removeNewPage = Undo new Page
+    .accesskey = n
+positioning-sign = Sign
+    .accesskey = S
+# unused (in PDF-Over 4.4.x nicht referenziert)
+positioning-signature = Signature
+simple_config-ReplaceEmblem = Replace emblem
+    .accesskey = p
+simple_config-ClearEmblem = Reset emblem
+    .accesskey = R
+simple_config-Preview_Title = Signature preview
+simple_config-ExampleNumber = +43676123456789
+simple_config-ExampleNumber_ToolTip = To use a default mobile phone number or username, enter it here
+simple_config-MobileBKU_Title = ID Austria
+    .accesskey = A
+simple_config-Note = Text:
+simple_config-Note_Default_Standard = This document is signed with a qualified electronic signature. According to Art. 25 para. 2 of the Regulation (EU) No 910/2014 of 23. July 2014 ("eIDAS-Regulation") it shall have the equivalent legal effect of a handwritten signature.
+simple_config-Note_Default_OfficialSignature = This document was signed/sealed with an official signature. According to  § 20 Austrian E-Government-Act a printout of this document is assumed to be authentic.
+# unused (in PDF-Over 4.4.x nicht referenziert)
+simple_config-Note_Default_Empty = { "" }
+simple_config-Note_SetDefault = Restore default
+simple_config-Note_Title = Signature Note
+    .accesskey = N
+simple_config-Note_Tooltip = Add an optional note to display on your Signature
+simple_config-PhoneNumber = Username:
+simple_config-SigBlockLang_Title = Signature block language:
+    .accesskey = g
+simple_config-SigBlockLang_ToolTip = Select the language to be used in the signature block displayed on the signed document
+simple_config-SigProfile_Title = Signature Profile
+simple_config-LogoOnlyTargetSize_Title = Logo signature size
+simple_config-SIGNATURBLOCK_SMALL = Standard Signature Block
+simple_config-AMTSSIGNATURBLOCK = Official Signature
+simple_config-BASE_LOGO = Logo Only
+simple_config-INVISIBLE = Invisible Signature
+tanEnter-FP =
+    Please open the ID Austria app
+    and confirm the signature.
+tanEnter-QR = QR code:
+tanEnter-ReferenceValue = Reference value:
+tanEnter-SMS = Request SMS
+    .accesskey = S
+tanEnter-FIDO2 = FIDO2
+    .accesskey = F
+tanEnter-TAN = TAN:
+# unused (in PDF-Over 4.4.x nicht referenziert)
+tanEnter-tries = { $arg1 } tries left!
+# unused (in PDF-Over 4.4.x nicht referenziert)
+tanEnter-try = Only 1 try left!
+version_check-UpdateText =
+    Version { $arg1 } is available.
+    Open download page now?
+version_check-UpdateTitle = New version available!
+waiting-message = Signature creation in progress...
+# unused (in PDF-Over 4.4.x nicht referenziert)
+waiting_for_app-message = Please open Signature-App!
+config-UpdateStatus-NOT_CHECKED = Update check not done. <a>Check now</a>?
+config-UpdateStatus-CHECKING = Checking for updates...
+config-UpdateStatus-OUTDATED = New version available. <a>Update now</a>?
+config-UpdateStatus-UP_TO_DATE = PDF-Over is up to date. <a>Check again</a>?
+config-UpdateStatus-FAILED = Update check failed. <a>Retry</a>?
+config-fido2-AboutFIDO =
+    ID Austria users can optionally substitute a suitable hardware security token for app authentication.
+
+    This does not replace username/password entry. However, instead of confirming the signature in the smartphone app, the user instead confirms it using their security token.
+
+    Further information regarding supported tokens is available at <a>oesterreich.gv.at</a>.
+config-fido2-UnsupportedTryLibFido2 =
+    You are currently missing a required dependency to utilize FIDO2 tokens:
+    {" "}● <a>LibFido2</a>
+
+    Please install the dependency via your package manager, then restart PDF-Over.
+config-fido2-UnsupportedPlatform = FIDO2 authentication is currently unsupported on your platform.
+config-fido2-InfoURL = https://www.oesterreich.gv.at/id-austria/haeufige-fragen/allgemeines-zu-id-austria#fido
+config-fido2-Group = FIDO2 settings
+config-fido2-ByDefault = Select FIDO2 authentication by default
+atrusterror-http_413 =
+    a-trust.at rejected request:
+    Provided document exceeds size limit.
+atrusterror-http_generic =
+    a-trust.at rejected request:
+    HTTP { $arg1 } { $arg2 }
+atrusterror-message =
+    a-trust.at reports:
+    { $arg1 }
+# unused (in PDF-Over 4.4.x nicht referenziert)
+# ergänzt (PDF-Over NG): fehlte in dieser Sprache
+tanEnter-APPTAN =
+    Please open the ID Austria app
+    TAN:

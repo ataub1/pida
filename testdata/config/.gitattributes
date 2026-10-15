@@ -1,0 +1,3 @@
+# Fixtures byte-genau halten (CRLF, ISO-8859-1, BOM, Prüfsummen der PDF-AS-Profile):
+# keine Zeilenende-Normalisierung durch die Wurzel-.gitattributes.
+* -text
