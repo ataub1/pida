@@ -1,0 +1,284 @@
+/*
+ * Stapel (aus dem Prototyp, `styles/views.css` Abschnitt „Stapel“, ADR 0004 §4.2): Kopf mit Konto-Chip und
+ * „Alle signieren“, Liste mit Miniatur, Status und Aktion, Fortschritt, Zusammenfassung. Ergänzt: Schätzung
+ * und Speicherort unter dem Kopf, Startdialog (Ordnerwahl, vorhandene Dateien), Miniaturen des Kerns
+ * (`pida-render://thumb`), Zielgrößen für Fingerbedienung, schmale Ansichten wie im Prototyp.
+ */
+.batch-view {
+  display: grid;
+  gap: var(--sp-5);
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: var(--sp-10) var(--sp-8) 96px;
+}
+.batch-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-5);
+}
+.batch-titles {
+  display: grid;
+  gap: var(--sp-2);
+}
+.batch-titles .view-title:focus {
+  outline: none;
+}
+.batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.batch-actions .signer-chip {
+  width: auto;
+}
+.batch-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-2) var(--sp-6);
+  margin-top: calc(-1 * var(--sp-2));
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+}
+.batch-fact {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.batch-fact > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--c-text-3);
+}
+.batch-fact-label {
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+.batch-facts .privacy-note {
+  flex-basis: 100%;
+  font-size: var(--fs-13);
+}
+.batch-progress {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background: var(--c-surface);
+}
+.batch-progress-current {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+}
+.batch-summary {
+  animation: modal-in var(--dur-3) var(--ease-out);
+}
+.batch-list {
+  display: grid;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background: var(--c-surface);
+}
+.batch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px 120px;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-2);
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+.batch-row + .batch-row {
+  border-top: 1px solid var(--c-border);
+}
+.batch-row.is-active {
+  background: color-mix(in srgb, var(--c-info-soft) 70%, transparent);
+}
+.batch-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.batch-row-main {
+  cursor: pointer;
+}
+.batch-row-main[data-hovered] {
+  background: var(--c-hover);
+}
+.batch-thumb {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 65px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--c-page);
+  box-shadow:
+    0 0 0 1px var(--c-border),
+    var(--shadow-1);
+}
+.batch-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+.batch-thumb-lock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 0.72);
+  color: #3a414d;
+  backdrop-filter: blur(1.5px);
+}
+.batch-row-text {
+  display: grid;
+  min-width: 0;
+}
+.batch-row-name {
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.batch-row-meta {
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+}
+.batch-row-status {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  min-width: 0;
+}
+.batch-row-detail {
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+  overflow-wrap: anywhere;
+}
+.batch-row-action {
+  display: flex;
+  justify-content: flex-end;
+}
+.batch-row-caret {
+  color: var(--c-text-3);
+}
+
+/* ------------------------------------------------------------ Startdialog */
+.batch-start-modal {
+  max-width: 520px;
+}
+.batch-start-body {
+  display: grid;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-5) var(--sp-2);
+  color: var(--c-text-2);
+}
+.batch-start-section {
+  display: grid;
+  gap: var(--sp-2);
+}
+.batch-start-heading {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text);
+}
+.batch-start-folder {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-3);
+  background: var(--c-surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  color: var(--c-text);
+  overflow-wrap: anywhere;
+}
+.batch-start-folder.is-empty {
+  font-family: inherit;
+  color: var(--c-text-3);
+}
+.batch-start-text {
+  font-size: var(--fs-13);
+}
+.batch-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+}
+
+/* ------------------------------------------------------------ Responsiv (wie im Prototyp) */
+@media (max-width: 860px) {
+  .batch-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .batch-row-status {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 0 0 var(--sp-2) 72px;
+  }
+  .batch-row-action {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+@media (max-width: 760px) {
+  .batch-view {
+    padding: var(--sp-6) var(--gutter) 96px;
+  }
+  .batch-actions {
+    width: 100%;
+  }
+  .batch-actions > .batch-sign {
+    flex: 1;
+  }
+}
+/* Stapel schmal: Dateiname über die volle Breite, Status und Aktion darunter */
+@media (max-width: 520px) {
+  .batch-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-bottom: var(--sp-3);
+  }
+  .batch-row-status {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 0 0 0 72px;
+  }
+  .batch-row-action {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-start;
+    padding: var(--sp-2) 0 0 72px;
+  }
+  .batch-row-action.has-caret,
+  .batch-row-action:empty {
+    display: none;
+  }
+}
+@media (forced-colors: active) {
+  .batch-row.is-active {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

@@ -4,7 +4,8 @@
  * Kurzhinweis Datenschutz), Signaturbild (Vorschau des Kerns, „Bearbeiten“ → Einstellungen ›
  * Signaturbild), Optionen (Unsichtbar, Auf neuer Seite – gesperrt mit Begründung aus `constraints`),
  * Platzierung (sprechende Lage, „Neu platzieren“/„Frei platzieren“, **keine** Zahlenfelder, D1),
- * vorhandene Signaturen, primärer Knopf „Signieren ⌘↵“. In der Phase `warning` steht hier die Warnung
+ * vorhandene Signaturen, primärer Knopf „Signieren ⌘↵“, darunter „Zurück zum Stapel“ (aus der
+ * Stapelübersicht geöffnet) bzw. „Zum Stapel“ (weitere Dokumente). In der Phase `warning` steht hier die Warnung
  * der Eingangsanalyse mit „Trotzdem signieren“/„Verwerfen“.
  */
 import { useId, useRef, useState } from 'react';
@@ -57,6 +58,8 @@ export function Inspector({
   const leaves = selected?.capabilities?.document_leaves_device === true;
   const field = doc.target.kind === 'field' ? doc.fields.find((f) => doc.target.kind === 'field' && f.index === doc.target.index) : undefined;
   const reason = (id: string) => (c.reasons.includes(id) ? t.code(id) : null);
+  // aus der Stapelübersicht geöffnet: „Zurück zum Stapel“ (Platzierung wird als Plan gemerkt, §3.8)
+  const backToBatch = view.batch?.open_item === doc.doc.id;
   const newPageReason = !c.new_page_allowed ? (reason('ng-constraint-signed') ?? reason('ng-constraint-certified') ?? t.t('ng-ui-insp-new-page-locked')) : null;
   const invisibleReason = !c.visible_allowed ? (reason('ng-constraint-invisible-profile') ?? null) : null;
   const chip = (compact: boolean) => (
@@ -242,6 +245,11 @@ export function Inspector({
           <AccessButton msg="ng-ui-insp-sign" variant="primary" size="lg" className="sign-button" onPress={onSign} isDisabled={!view.actions.sign} icon={<IconSignature size={18} />}>
             <Keys keys={[mod, enter]} decorative />
           </AccessButton>
+          {backToBatch || view.actions.show_batch ? (
+            <Button variant="ghost" size="sm" className="insp-back" onPress={() => void dispatch({ type: backToBatch ? 'back_to_batch' : 'show_batch' })} isDisabled={!editable}>
+              {t.t(backToBatch ? 'ng-ui-batch-back' : 'ng-ui-batch-show')}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </aside>

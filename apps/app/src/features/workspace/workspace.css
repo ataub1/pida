@@ -798,5 +798,9 @@
   .sign-button .keys {
     display: none;
   }
+  /* schmal: „Zurück zum Stapel“ steht als Pfeil in der Kopfzeile (Platz für Konto-Chip und „Signieren“) */
+  .inspector-footer .insp-back {
+    display: none;
+  }
 }
 

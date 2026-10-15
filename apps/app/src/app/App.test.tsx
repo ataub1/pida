@@ -63,8 +63,8 @@ describe('Kernpfad mit dem Mock-Kern', () => {
     expect(mock.dispatched.some((e) => e.type === 'confirm_position' || e.type === 'choose_backend')).toBe(false);
   });
 
-  it('zweites Dokument: gemerkte Anmeldung → direkt die App-Bestätigung; „Nächstes Dokument“', async () => {
-    const { mock, user } = renderApp({ settings: idAustria(), pickFilesResult: ['/Users/demo/Vertrag.pdf', '/Users/demo/Angebot.pdf'] });
+  it('zweites Dokument (ohne Stapelübersicht): gemerkte Anmeldung → direkt die App-Bestätigung; „Nächstes Dokument“', async () => {
+    const { mock, user } = renderApp({ settings: idAustria(), batchOverview: false, pickFilesResult: ['/Users/demo/Vertrag.pdf', '/Users/demo/Angebot.pdf'] });
     await openOne(user);
     await user.click(screen.getByRole('button', { name: /^Signieren/ }));
     const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });

@@ -11,7 +11,7 @@ Oberfläche und Shell von PIDA: **React 19 + TypeScript (strict) + React Aria Co
 | Bridge zu Tauri (`core_view`, `core_dispatch`, Ereignis `pida:view`, `pida-render://`) | `src/core/bridge.ts` |
 | TS-Mock-Kern (Arbeitsbereich wie der echte Kern, Bereiche je Etappe, `?scenario=` wie im Prototyp; für `VITE_MOCK=1`, Browser und Tests) | `src/core/mock/` |
 | Fluent-Kataloge (zur Build-Zeit aus `crates/i18n/locales/{de,en}/*.ftl`, auch die UI-Texte `ng-ui-*`) | `src/i18n/` |
-| Oberfläche „Arbeitsbereich“ (ADR 0004): Shell und Kopfzeile, Start, Arbeitsbereich, Signierkarte, Fertig; Bausteine und Design-Tokens aus dem Prototyp | `src/app/`, `src/features/`, `src/ui/`, `src/styles/` |
+| Oberfläche „Arbeitsbereich“ (ADR 0004): Shell und Kopfzeile, Start, Arbeitsbereich, Signierkarte, Fertig, Stapel (Übersicht, Startdialog, Stapelkarte mit Pausen, Zusammenfassung); Bausteine und Design-Tokens aus dem Prototyp | `src/app/`, `src/features/`, `src/ui/`, `src/styles/` |
 | Einstellungen (bisheriger Dialog bis E3) | `src/settings/` hinter `src/features/settings/` |
 | Echte Kernzustände als UI-Probe (`RealCore.test.tsx`, erzeugt von `crates/core-api/tests/workspace.rs`) | `src/core/fixtures/real-core-views.json` |
 | Shell (PDF-Over-Startargumente, Single-Instance, „Öffnen mit“, Drag & Drop, Fensterzustand, Dialoge, Shell-Funktionen des Kerns, Custom Protocol, Startprüfung) | `src-tauri/` |
@@ -23,6 +23,8 @@ npm ci                 # Abhängigkeiten exakt nach package-lock.json
 npm run dev:mock       # Oberfläche mit Mock-Kern im Browser (http://localhost:1420)
                        # Mobile-Ansicht: http://localhost:1420/?platform=ios (bzw. android), &resume=1
                        # zeigt „Signatur fortsetzen“ (docs/integration/mobile.md)
+                       # Stapel: ?scenario=batch (&fault=decline|network|session|too-large,
+                       # &existing=1, &folder=ask, &auto=0, &batch=0 ohne Stapelübersicht)
 npm run build          # tsc (strict) + Vite → dist/
 npm test               # Vitest + Testing Library (jsdom)
 npm run tauri dev      # App mit Rust-Kern (Vite-Dev-Server + cargo)

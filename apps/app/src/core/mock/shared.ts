@@ -2,7 +2,7 @@
  * Mock-Kern: gemeinsame Schnittstelle der Bereichsmodule (ADR 0004 §4.8, in E0 festgelegt).
  *
  * Jeder Bereich besitzt seinen Zustandsausschnitt; `shared.ts` kennt nur die Typen und kleine, reine
- * Hilfen. `index.ts` (UI-A) hält die Ausschnitte `{ flow (Kern, Arbeitsbereich, Signieren), batch,
+ * Hilfen. `index.ts` (UI-A) hält die Ausschnitte `{ flow (Kern, Arbeitsbereich, Signieren, Stapel),
  * settings, verify, recent, firstrun }`, verteilt **jedes** Ereignis an alle Bereiche, leitet Signale
  * weiter und setzt die Projektionen zum `ViewState` zusammen. Kein Bereich schreibt in den Ausschnitt eines
  * anderen; bereichsübergreifend gibt es nur Signale (`MockSignal`) und die lesenden Zugriffe in `MockCtx`.
@@ -73,7 +73,24 @@ export interface MockOptions {
   examples?: boolean;
   /** Ersteinrichtung beim Start (Beispiel `FirstRunView`) */
   firstRun?: boolean;
+  /**
+   * Stapelübersicht bei ≥ 2 Dokumenten (`CoreOptions::batch_overview`, ADR 0004 §3.14; Standard an wie in
+   * der App nach A2). `false` = mehrere Dokumente nacheinander über „Fertig“ → „Nächstes Dokument“.
+   */
+  batchOverview?: boolean;
+  /**
+   * Störungen im Stapellauf je Dateiname, jeweils nur beim ersten Versuch (ADR 0004 §3.8): `decline` =
+   * Ablehnung in der App (Pause „Dokument“), `network` = Verbindungsfehler nach der Anmeldung (Pause
+   * „Verbindung“, gleiche Sitzung), `session` = Sitzungsfehler (Pause mit neuer Sitzung), `too-large` =
+   * nicht wiederholbarer Dokumentfehler (Zeile „Fehler“, der Lauf geht weiter).
+   */
+  batchFaults?: Record<string, MockBatchFault>;
+  /** Ausgabeordner, die es nicht gibt (Stapel: Ordnerwahl vor dem Start, F-82) */
+  missingFolders?: string[];
 }
+
+/** Störung eines Dokuments im Stapellauf (`MockOptions::batchFaults`). */
+export type MockBatchFault = 'decline' | 'network' | 'session' | 'too-large';
 
 /** Bereichsübergreifende Signale statt direkter Zugriffe auf fremde Ausschnitte (ADR 0004 §4.8). */
 export type MockSignal =
@@ -109,6 +126,9 @@ export interface MockArea<S> {
 /* ---------------------------------------------------------------- reine Hilfen */
 
 export const A4: [number, number] = [595.28, 841.89];
+
+/** App-Sandbox der Mobile-Plattformen (Beispielpfad). */
+export const SANDBOX = '/var/mobile/Containers/Data/Application/DEMO';
 
 /** Anzeigename eines Pfads (beide Trenner). */
 export function fileNameOf(path: string): string {

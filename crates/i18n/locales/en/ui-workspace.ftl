@@ -76,7 +76,7 @@ ng-ui-start-drop-label = Drop area for PDF documents
 ng-ui-start-drop-title = Drop a PDF here or choose one
 ng-ui-start-drop-title-mobile = Choose a PDF
 ng-ui-start-drop-release = Release to open
-ng-ui-start-drop-hint = Several files are signed one after another.
+ng-ui-start-drop-hint = Several files are signed as a batch – one login, you confirm each document individually.
 ng-ui-start-drop-hint-mobile = Or send a PDF from another app to PIDA with “Share” or “Open in”.
 ng-ui-start-pick = Choose PDF
     .accesskey = C
@@ -312,3 +312,133 @@ ng-ui-fin-waiting =
 ng-ui-fin-more = Sign another document
 ng-ui-fin-overwrite-title = Overwrite file?
 ng-ui-fin-overwrite = Overwrite
+
+## Batch (ADR 0004 §3.8): one login, one confirmation per document
+
+ng-ui-batch-title = Batch
+ng-ui-batch-docs =
+    { $n ->
+        [one] { $n } document
+       *[other] { $n } documents
+    }
+ng-ui-batch-lead = All documents are signed in one go: log in once, then confirm each document individually. Documents with errors are skipped.
+ng-ui-batch-add = Add PDF
+    .accesskey = D
+ng-ui-batch-sign-all = Sign all
+    .accesskey = A
+ng-ui-batch-sign-all-long = Sign all ({ $n })
+ng-ui-batch-estimate = Expected
+ng-ui-batch-estimate-logins =
+    { $n ->
+        [one] { $n } login
+       *[other] { $n } logins
+    }
+ng-ui-batch-estimate-confirmations =
+    { $n ->
+        [one] { $n } confirmation
+       *[other] { $n } confirmations
+    }
+ng-ui-batch-estimate-cert = (possibly +1 for the certificate)
+ng-ui-batch-estimate-keystore = keystore password once
+ng-ui-batch-estimate-none = You choose the signing method when you sign.
+ng-ui-batch-output-next = Save: next to each original
+ng-ui-batch-output-folder = Save in { $folder }
+ng-ui-batch-output-ask = You choose the folder for the signed documents when you start.
+ng-ui-batch-output-missing = The folder “{ $folder }” does not exist – you choose another one when you start.
+ng-ui-batch-output-app = Save in this app’s documents
+ng-ui-batch-existing =
+    { $n ->
+        [one] One target file already exists – you decide when you start.
+       *[other] { $n } target files already exist – you decide when you start.
+    }
+ng-ui-batch-list = Documents in the batch
+ng-ui-batch-open = Open and position “{ $name }”
+ng-ui-batch-review = Review
+ng-ui-batch-remove = Remove “{ $name }” from the batch
+ng-ui-batch-remove-short = Remove
+ng-ui-batch-status-analyzing = Checking
+ng-ui-batch-status-ready = Ready
+ng-ui-batch-status-positioned = Positioned
+ng-ui-batch-status-rejected = Rejected
+ng-ui-batch-status-review = Please review
+ng-ui-batch-status-queued = Waiting
+ng-ui-batch-status-active = Signing
+ng-ui-batch-status-signed = Signed
+ng-ui-batch-status-failed = Error
+ng-ui-batch-status-skipped = Skipped
+ng-ui-batch-status-cancelled = Cancelled
+ng-ui-batch-detail-auto = placed automatically
+ng-ui-batch-detail-checked = position checked
+ng-ui-batch-detail-qr = in the QR placeholder
+ng-ui-batch-detail-field = in the signature field “{ $name }”
+ng-ui-batch-detail-manual = page { $page }, placed by you
+ng-ui-batch-detail-invisible = invisible
+ng-ui-batch-detail-locked = Password-protected
+ng-ui-batch-detail-notpdf = Not a PDF file
+ng-ui-batch-detail-review = Note on the document – open and confirm it individually
+ng-ui-batch-detail-signed = as { $file }
+ng-ui-batch-detail-skipped = skipped by you
+ng-ui-batch-detail-skipped-existing = target file already existed
+ng-ui-batch-detail-cancelled = not signed
+ng-ui-batch-detail-exists = “{ $file }” already exists
+ng-ui-batch-detail-waiting = waiting for confirmation
+ng-ui-batch-stage-connecting = connecting
+ng-ui-batch-stage-login = login
+ng-ui-batch-stage-certificate = reading the certificate
+ng-ui-batch-stage-preparing = preparing
+ng-ui-batch-stage-confirming = confirmation in progress
+ng-ui-batch-stage-finishing = creating the signature
+ng-ui-batch-stage-saving = saving
+ng-ui-batch-stage-paused = paused
+ng-ui-batch-progress = { $done } of { $total } signed
+ng-ui-batch-sum-title = Batch complete
+ng-ui-batch-sum-title-aborted = Batch cancelled
+ng-ui-batch-sum-signed = { $signed } of { $total } signed
+ng-ui-batch-sum-skipped = { $n } skipped
+ng-ui-batch-sum-rejected = { $n } rejected
+ng-ui-batch-sum-failed = { $n } failed
+ng-ui-batch-sum-cancelled = { $n } cancelled
+ng-ui-batch-sum-not-started = { $n } not started
+ng-ui-batch-sum-folder = Saved in { $folder }.
+ng-ui-batch-sum-next = Each saved next to its original.
+ng-ui-batch-sum-app = Saved in this app’s documents.
+ng-ui-batch-reveal = Show in folder
+ng-ui-batch-new = New batch
+ng-ui-batch-back = Back to batch
+ng-ui-batch-show = To the batch
+ng-ui-batch-start-title =
+    { $n ->
+        [one] Sign one document
+       *[other] Sign { $n } documents
+    }
+ng-ui-batch-start-folder = Save in
+ng-ui-batch-start-folder-none = No folder chosen yet
+ng-ui-batch-start-folder-pick = Choose folder …
+ng-ui-batch-start-folder-change = Choose another folder …
+ng-ui-batch-start-folder-dialog = Folder for the signed documents
+ng-ui-batch-start-existing = If the target file already exists
+ng-ui-batch-start-existing-count =
+    { $n ->
+        [one] The target file already exists for one document.
+       *[other] The target file already exists for { $n } documents.
+    }
+ng-ui-batch-start-keep = Keep both
+ng-ui-batch-start-keep-desc = The new file gets a number, e.g. “{ $example }”.
+ng-ui-batch-start-overwrite = Overwrite
+ng-ui-batch-start-overwrite-desc = The existing file is replaced by the signed one.
+ng-ui-batch-start-skip = Skip
+ng-ui-batch-start-skip-desc = These documents are not signed – no confirmation in the app.
+ng-ui-batch-start-go = Start signing
+ng-ui-sc-batch-doc = Document { $index } of { $total } · { $name }
+ng-ui-sc-batch-confirm = Confirmation { $index } of { $total } · { $name }
+ng-ui-sc-batch-count = Confirmations
+ng-ui-sc-batch-count-value = { $done } of { $total }
+ng-ui-sc-batch-list = All documents in the batch
+ng-ui-sc-batch-skip = Skip document
+ng-ui-sc-batch-abort = Cancel batch
+ng-ui-sc-batch-abort-title = Cancel the batch?
+ng-ui-sc-batch-abort-text = Documents already signed stay saved; the others are not signed. The password is forgotten.
+ng-ui-sc-batch-abort-keep = Continue signing
+ng-ui-sc-batch-pause-title = The batch is paused
+ng-ui-sc-batch-pause-new-session = Try again opens a new session – you may need to log in again.
+ng-ui-sc-batch-pause-skip = Skip

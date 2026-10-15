@@ -10,12 +10,21 @@
  * Modal mit Fokusfalle, Esc/×/„Abbrechen“ = `cancel`, kein Schließen durch Klick daneben. Kurzhinweis
  * „wird an A-Trust übermittelt“ (ADR 0003) bei `document_leaves_device`. Passwörter, PINs und TANs
  * bleiben nur im Formularzustand, werden nie geloggt und nach dem Senden verworfen.
+ *
+ * Stapel (`progress.batch`, ADR 0004 §3.8/§4.4): Kopf „Dokument k von n · Name“ bzw. „Bestätigung k von n ·
+ * Name“, Zähler „Bestätigungen k von n“, aufklappbare Liste, „Dokument überspringen“ (nur dieser Job, die
+ * Anmeldung bleibt) und „Stapel abbrechen“; nach dem Überspringen der Hinweis auf eine offene Anfrage in der
+ * App (`ng-batch-pending-app-request`). Pausen (`progress.pause`) mit „Erneut versuchen“ (bei neuer Sitzung mit
+ * Hinweis auf eine mögliche neue Anmeldung), „Überspringen“ (nur mit Dokument) und „Stapel abbrechen“. Esc/×
+ * fragen im Stapel erst nach, bevor der Stapel abgebrochen wird.
  */
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import type {
   BackendId,
+  BatchItemStatusView,
+  BatchPauseView,
   ConfirmMethod,
   FormAnswerView,
   FormContext,
@@ -30,17 +39,24 @@ import type {
   ViewState,
 } from '../../core/types';
 import { isMobile } from '../../core/types';
-import { Badge, Button, CheckboxField, Details, RadioCards, Spinner, TextInput } from '../../ui/controls';
+import { Badge, Button, CheckboxField, Details, Progress, RadioCards, Spinner, TextInput } from '../../ui/controls';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
-import { IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage, IconPhone, IconQr, IconUsbKey } from '../../ui/Icons';
+import { IconAlert, IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage, IconPhone, IconQr, IconUsbKey } from '../../ui/Icons';
+import { statusLabel, statusTone } from '../batch/texts';
 import { KeystoreImportDialog, PrivacyNote } from '../settings';
 import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerClass, signerName } from '../workspace/signers';
 import { CountdownRing, useCountdown } from './CountdownRing';
 import { friendlyError, noticeTexts, problemText, progressText, qrDataUrl } from './texts';
 import './signing.css';
 
-/** Welcher Teil der Karte gerade gilt (aus dem Schritt des Kerns). */
-export type CardMode = 'interaction' | 'choose' | 'error' | 'finishing';
+/** Welcher Teil der Karte gerade gilt (aus dem Schritt des Kerns); `pause` = Stapelpause (§3.8). */
+export type CardMode = 'interaction' | 'choose' | 'error' | 'finishing' | 'pause';
+
+/** Karte gehört zu einem Stapellauf („Abbrechen“ heißt dort „Stapel abbrechen“). */
+const BatchCard = createContext(false);
+
+/** Status der Einträge eines laufenden Stapels (die Liste der Karte zeigt nur diese). */
+const RUN_STATES: readonly BatchItemStatusView['state'][] = ['queued', 'active', 'signed', 'failed', 'skipped', 'cancelled'];
 
 /** Gehört ein Fehler in die Karte (Herkunft Signieren bzw. Dokument in der Phase `signing`)? */
 export function errorInCard(view: ViewState): boolean {
@@ -50,7 +66,7 @@ export function errorInCard(view: ViewState): boolean {
 /** Teil der Karte für den aktuellen Zustand; `null` = keine Karte. */
 export function cardMode(view: ViewState): CardMode | null {
   const s = view.step;
-  if (s.step === 'signing') return 'interaction';
+  if (s.step === 'signing') return s.progress.batch && s.progress.pause ? 'pause' : 'interaction';
   if (s.step === 'backend') return 'choose';
   if (errorInCard(view)) return 'error';
   if (s.step === 'output' && !s.result.path && !s.result.save_pending && !s.result.ask_overwrite) return 'finishing';
@@ -149,7 +165,8 @@ export function SigningCard() {
     stage = 'saving';
   }
   memo.current = { backend, docName, stage, method, loginDone };
-  return <SigningDialog mode={mode} backend={backend} docName={docName} stage={stage} method={method} loginDone={loginDone} />;
+  const batch = progress?.batch ? progress : null;
+  return <SigningDialog mode={mode} backend={backend} docName={docName} stage={stage} method={method} loginDone={loginDone} batch={batch} />;
 }
 
 function SigningDialog({
@@ -159,6 +176,7 @@ function SigningDialog({
   stage,
   method,
   loginDone,
+  batch,
 }: {
   mode: CardMode;
   backend: BackendId | null;
@@ -166,18 +184,35 @@ function SigningDialog({
   stage: SigningStage;
   method: ConfirmMethod | null;
   loginDone: boolean;
+  /** Fortschritt eines Stapellaufs (`progress.batch`), sonst `null` */
+  batch: SigningProgressView | null;
 }) {
   const { t, view, dispatch } = useApp();
   const step = view.step;
   const bodyRef = useRef<HTMLDivElement>(null);
-  const finishing = mode === 'finishing' || stage === 'finishing' || stage === 'saving';
+  const [askAbort, setAskAbort] = useState(false);
+  const [skipHint, setSkipHint] = useState(false);
+  const saving = stage === 'finishing' || stage === 'saving';
+  const finishing = mode === 'finishing' || saving;
+  // Stapel: Esc/× fragen nach, „Stapel abbrechen“ in der Karte bricht sofort ab (`abort_batch`, F-72)
+  const abort = () => void dispatch({ type: 'abort_batch' });
   const cancel = () => {
+    if (batch) {
+      setAskAbort((v) => !v);
+      return;
+    }
     if (finishing) return;
     void dispatch({ type: 'cancel' });
   };
+  const skip = () => {
+    // eine schon angezeigte Anfrage bleibt in der App sichtbar, bis sie dort abläuft (§1.2)
+    if (stage === 'confirming' && (method === 'app' || method === 'qr')) setSkipHint(true);
+    setAskAbort(false);
+    void dispatch({ type: 'skip_batch_document' });
+  };
 
   const interaction = step.step === 'signing' ? step.interaction : null;
-  const paneKey = `${mode}:${interaction ? `${interaction.kind}:${'request' in interaction ? interaction.request : ''}:${interaction.kind === 'waiting' ? String(typeof interaction.progress === 'string' ? interaction.progress : 'doc') : ''}` : ''}`;
+  const paneKey = `${mode}:${askAbort ? 'abort' : ''}:${batch?.doc?.id ?? ''}:${interaction ? `${interaction.kind}:${'request' in interaction ? interaction.request : ''}:${interaction.kind === 'waiting' ? String(typeof interaction.progress === 'string' ? interaction.progress : 'doc') : ''}` : ''}`;
   // Fokus beim Schrittwechsel auf das erste Eingabefeld bzw. die Überschrift des Schritts
   useEffect(() => {
     const el = bodyRef.current;
@@ -188,14 +223,17 @@ function SigningDialog({
 
   const title = mode === 'choose' ? t.t('ng-ui-sc-choose-title') : t.t('ng-ui-sc-title', { signer: signerName(t, backend) });
   const steps = stepsFor(backend);
-  const errorNow = mode === 'error';
-  const index = finishing ? steps.length - 1 : stepIndex(backend, stage, loginDone);
+  const errorNow = mode === 'error' || mode === 'pause';
+  // Stapel: „Signiert“ erst am Ende des Laufs; zwischen den Dokumenten bleibt der Schritt „Bestätigen“ aktiv
+  const index = batch ? (saving ? Math.min(1, steps.length - 2) : stepIndex(backend, stage, loginDone)) : finishing ? steps.length - 1 : stepIndex(backend, stage, loginDone);
   const leaves = step.step === 'signing' && step.document_leaves_device;
+  // Stapel: Untertitel „3 Dokumente“, Dokument und Zähler im Kopf der Stapelkarte (§2.5, §4.4)
+  const subtitle = batch ? t.t('ng-ui-batch-docs', { n: batch.total }) : docName || undefined;
 
   return (
-    <ModalShell onClose={cancel} isDismissable={false} isKeyboardDismissDisabled={finishing} className="signing-modal" size="md">
-      <div className={`signing-card${finishing ? ' is-busy' : ''}`} data-testid="signing-card" data-mode={mode}>
-        <DialogHeader title={title} subtitle={docName || undefined} onClose={finishing ? undefined : cancel} icon={<SignerGlyph backend={backend} />} />
+    <ModalShell onClose={cancel} isDismissable={false} isKeyboardDismissDisabled={finishing && !batch} className={batch ? 'signing-modal signing-modal-batch' : 'signing-modal'} size="md">
+      <div className={`signing-card${finishing && !batch ? ' is-busy' : ''}`} data-testid="signing-card" data-mode={mode} data-batch={batch ? '' : undefined}>
+        <DialogHeader title={title} subtitle={subtitle} onClose={finishing && !batch ? undefined : cancel} icon={<SignerGlyph backend={backend} />} />
         {mode !== 'choose' ? (
           <ol className="stepper" aria-label={t.t('ng-ui-sc-steps')}>
             {steps.map((k, i) => {
@@ -219,10 +257,20 @@ function SigningDialog({
           </ol>
         ) : null}
         <div className="signing-body" ref={bodyRef}>
-          {mode === 'interaction' && interaction ? <InteractionPane interaction={interaction} backend={backend} onCancel={cancel} /> : null}
-          {mode === 'choose' && step.step === 'backend' ? <ChoosePane step={step} onCancel={cancel} /> : null}
-          {mode === 'error' && step.step === 'error' ? <ErrorPane step={step} /> : null}
-          {mode === 'finishing' ? <DonePane /> : null}
+          <BatchCard.Provider value={!!batch}>
+            {batch ? <BatchStrip progress={batch} onSkip={skip} canSkip={mode === 'interaction' && !askAbort && !saving} skipHint={skipHint} /> : null}
+            {askAbort && batch ? (
+              <AbortPane key="abort" onKeep={() => setAskAbort(false)} onAbort={abort} />
+            ) : (
+              <>
+                {mode === 'interaction' && interaction ? <InteractionPane interaction={interaction} backend={backend} onCancel={batch ? abort : cancel} /> : null}
+                {mode === 'pause' && batch?.pause ? <PausePane pause={batch.pause} onAbort={abort} onSkip={skip} /> : null}
+                {mode === 'choose' && step.step === 'backend' ? <ChoosePane step={step} onCancel={cancel} /> : null}
+                {mode === 'error' && step.step === 'error' ? <ErrorPane step={step} /> : null}
+                {mode === 'finishing' ? <DonePane /> : null}
+              </>
+            )}
+          </BatchCard.Provider>
           {leaves && !finishing ? (
             <div className="sc-privacy">
               <PrivacyNote />
@@ -231,6 +279,120 @@ function SigningDialog({
         </div>
       </div>
     </ModalShell>
+  );
+}
+
+/**
+ * Kopf der Stapelkarte: Dokument bzw. Bestätigung k von n, Zähler, Liste der Dokumente des Laufs,
+ * „Dokument überspringen“ und der Hinweis auf eine offene Anfrage in der App nach dem Überspringen.
+ */
+function BatchStrip({ progress, onSkip, canSkip, skipHint }: { progress: SigningProgressView; onSkip: () => void; canSkip: boolean; skipHint: boolean }) {
+  const { t, view } = useApp();
+  const name = progress.doc?.name ?? '';
+  const done = progress.confirmations_done;
+  const total = progress.total;
+  const items = (view.batch?.items ?? []).filter((i) => RUN_STATES.includes(i.status.state));
+  const head = progress.stage === 'confirming' ? 'ng-ui-sc-batch-confirm' : 'ng-ui-sc-batch-doc';
+  return (
+    <div className="sc-batch" data-testid="batch-strip">
+      <p className="sc-batch-doc" role="status">
+        {name ? t.t(head, { index: progress.index, total, name }) : null}
+      </p>
+      <Progress className="sc-batch-progress" label={t.t('ng-ui-sc-batch-count')} value={total ? (done / total) * 100 : 0} valueLabel={t.t('ng-ui-sc-batch-count-value', { done, total })} />
+      <div className="sc-batch-foot">
+        {items.length > 0 ? (
+          <Details label={t.t('ng-ui-sc-batch-list')} level={3}>
+            <ul className="sc-batch-list">
+              {items.map((i) => (
+                <li key={i.doc} className="sc-batch-item" aria-current={i.doc === progress.doc?.id ? 'step' : undefined}>
+                  <span className="sc-batch-name">{i.name}</span>
+                  <Badge tone={statusTone(i.status)}>{statusLabel(t, i.status)}</Badge>
+                </li>
+              ))}
+            </ul>
+          </Details>
+        ) : (
+          <span />
+        )}
+        {canSkip && progress.doc ? (
+          <Button variant="secondary" size="sm" className="sc-batch-skip" onPress={onSkip}>
+            {t.t('ng-ui-sc-batch-skip')}
+          </Button>
+        ) : null}
+      </div>
+      {skipHint ? (
+        <p className="callout callout-info sc-batch-hint" role="status">
+          <IconInfo size={18} />
+          <span>{t.code('ng-batch-pending-app-request')}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Rückfrage vor dem Abbruch des Stapels (Esc/×): Gespeichertes bleibt, das Passwort wird vergessen. */
+function AbortPane({ onKeep, onAbort }: { onKeep: () => void; onAbort: () => void }) {
+  const { t } = useApp();
+  return (
+    <div className="step-pane">
+      <span className="step-hero step-hero-info" aria-hidden="true">
+        <IconAlert size={28} />
+      </span>
+      <div role="alert">
+        <StepTitle>{t.t('ng-ui-sc-batch-abort-title')}</StepTitle>
+        <p className="step-text">{t.t('ng-ui-sc-batch-abort-text')}</p>
+      </div>
+      <div className="step-actions">
+        <Button variant="ghost" onPress={onKeep}>
+          {t.t('ng-ui-sc-batch-abort-keep')}
+        </Button>
+        <Button variant="danger" onPress={onAbort}>
+          {t.t('ng-ui-sc-batch-abort')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Stapelpause (§3.8): Ablehnung bzw. wiederholbarer Dokumentfehler (Dokument), Verbindungsfehler (Sitzung
+ * bleibt) oder Sitzungsfehler (neue Sitzung, ggf. neue Anmeldung). Nie automatisch weiter.
+ */
+function PausePane({ pause, onAbort, onSkip }: { pause: BatchPauseView; onAbort: () => void; onSkip: () => void }) {
+  const { t, dispatch } = useApp();
+  const friendly = friendlyError(t, pause.code);
+  const generic = friendly.title === t.t('ng-ui-sc-error-title');
+  return (
+    <div className="step-pane" data-testid="batch-pause" data-scope={pause.scope}>
+      <span className="step-hero step-hero-danger" aria-hidden="true">
+        <IconAlertCircle size={28} />
+      </span>
+      <div role="alert" className="step-prose">
+        <StepTitle>{generic ? t.t('ng-ui-sc-batch-pause-title') : friendly.title}</StepTitle>
+        <p className="step-text pre-line">{t.code(pause.code, pause.params)}</p>
+        <p className="step-text">{t.code('ng-batch-paused')}</p>
+        {pause.new_session ? <p className="step-footnote">{t.t('ng-ui-sc-batch-pause-new-session')}</p> : null}
+      </div>
+      <Details label={t.t('ng-ui-sc-details')} level={4}>
+        <p className="mono-small">{[pause.code, pause.doc?.name].filter(Boolean).join(' · ')}</p>
+        {pause.params.detail ? <p className="mono-small">{pause.params.detail}</p> : null}
+      </Details>
+      <div className="step-actions">
+        <Button variant="ghost" onPress={onAbort}>
+          {t.t('ng-ui-sc-batch-abort')}
+        </Button>
+        {pause.doc ? (
+          <Button variant="secondary" onPress={onSkip}>
+            {t.t('ng-ui-sc-batch-pause-skip')}
+          </Button>
+        ) : null}
+        {pause.can_retry ? (
+          <Button variant="primary" onPress={() => void dispatch({ type: 'retry' })}>
+            {friendly.action ?? t.t('ng-ui-ws-retry')}
+          </Button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -357,9 +519,10 @@ function Alternatives({ ctx, send, sent, sms = true, fido2 = true, app }: { ctx:
 
 function CancelButton({ onCancel, isDisabled }: { onCancel: () => void; isDisabled?: boolean }) {
   const { t } = useApp();
+  const batch = useContext(BatchCard);
   return (
     <Button variant="ghost" onPress={onCancel} isDisabled={isDisabled}>
-      {t.t('ng-ui-sc-cancel')}
+      {t.t(batch ? 'ng-ui-sc-batch-abort' : 'ng-ui-sc-cancel')}
     </Button>
   );
 }

@@ -1,7 +1,8 @@
 /**
  * Wurzel der Oberfläche „Arbeitsbereich“ (ADR 0004 §4.2): abonniert den `ViewState` und rendert je Zustand
- * eine Ansicht – Start, Arbeitsbereich (Warnung, Positionieren, Signieren als Overlay), Fertig, Zustandskarten
- * – dazu Kopfzeile, Sprunglink, Signierkarte, Overlays der Pakete UI-B (Einstellungen, Ersteinrichtung,
+ * eine Ansicht – Start, Arbeitsbereich (Warnung, Positionieren, Signieren als Overlay), Fertig, Stapel
+ * (Übersicht, Lauf mit der Stapelkarte als Overlay), Zustandskarten – dazu Kopfzeile, Sprunglink,
+ * Signierkarte, Overlays der Pakete UI-B (Einstellungen, Ersteinrichtung,
  * Prüfmodus, Palette), „Signatur fortsetzen“, Hinweise und die Live-Region.
  *
  * Shell-Dienste: Dateiauswahl (Desktop-Dialog bzw. Mobile-Picker), Drag & Drop über die Fenster-Ereignisse
@@ -19,6 +20,7 @@ import { I18nProvider } from 'react-aria-components';
 import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar, workspaceDefaults } from '../core/defaults';
 import { isMobile, type UiEvent, type ViewState } from '../core/types';
+import { BatchView } from '../features/batch';
 import { DoneView, OutputDialogs } from '../features/done';
 import { Onboarding } from '../features/onboarding';
 import { CommandPalette, PALETTE_AVAILABLE, ShortcutsDialog } from '../features/palette';
@@ -58,9 +60,12 @@ const STARTING: ViewState = {
 const IMAGE_EXT = /\.(png|jpe?g|gif)$/i;
 
 /** Ansicht des Hauptbereichs. */
-export type MainView = 'starting' | 'start' | 'loading' | 'workspace' | 'warning' | 'done' | 'error' | 'finished' | 'verify';
+export type MainView = 'starting' | 'start' | 'loading' | 'workspace' | 'warning' | 'done' | 'error' | 'finished' | 'verify' | 'batch';
 
-/** Ansicht je Zustand (ADR 0004 §3.1: `document` gesetzt in Warnung, Positionieren, Signieren, Fertig). */
+/**
+ * Ansicht je Zustand (ADR 0004 §3.1: `document` gesetzt in Warnung, Positionieren, Signieren, Fertig; im
+ * Stapellauf liegt die Karte über der Stapelübersicht, §3.8).
+ */
 export function mainView(view: ViewState): MainView {
   if (VERIFY_AVAILABLE && view.verify) return 'verify';
   const s = view.step;
@@ -71,16 +76,18 @@ export function mainView(view: ViewState): MainView {
     case 'finished':
       return 'finished';
     case 'open':
-    case 'batch':
       return 'start';
+    case 'batch':
+      return view.batch ? 'batch' : 'start';
     case 'loading':
       return 'loading';
     case 'warning':
       return doc ? 'workspace' : 'warning';
+    case 'signing':
+      return doc ? 'workspace' : view.batch ? 'batch' : 'start';
     case 'placeholder':
     case 'position':
     case 'backend':
-    case 'signing':
       return doc ? 'workspace' : 'start';
     case 'output':
       return s.result.path || s.result.save_pending ? 'done' : doc ? 'workspace' : 'done';
@@ -100,6 +107,7 @@ const TITLE: Record<MainView, string> = {
   error: 'ng-ui-sc-error-title',
   finished: 'ng-ui-finished',
   verify: 'ng-ui-shell-verify',
+  batch: 'ng-ui-batch-title',
 };
 
 export { accessKeyFromEvent, triggerAccessKey };
@@ -290,8 +298,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         return;
       }
       if (mod && !e.altKey && !e.shiftKey && e.key === 'Enter') {
-        // ⌘↵ = „Signieren“ (ausdrückliche Aktion, A1); im Konto-Chip-Menü oder in Feldern nicht
-        if (v.actions.sign && !blocked) {
+        // ⌘↵ = „Signieren“ bzw. im Stapel „Alle signieren“ (ausdrückliche Aktion, A1)
+        if ((v.actions.sign || v.actions.start_batch) && !blocked) {
           e.preventDefault();
           sign();
         }
@@ -367,7 +375,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
     <I18nProvider locale={current.language === 'de' ? 'de-AT' : 'en-GB'}>
       <AppContext.Provider value={ctx}>
         <div
-          className={`app view-${main === 'workspace' ? 'workspace' : main === 'done' ? 'done' : main === 'verify' ? 'verify' : 'start'}`}
+          className={`app view-${main === 'workspace' ? 'workspace' : main === 'done' ? 'done' : main === 'verify' ? 'verify' : main === 'batch' ? 'batch' : 'start'}`}
           data-step={step.step}
           data-view={main}
           data-drag={dragActive || undefined}
@@ -383,6 +391,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
             {main === 'start' ? <StartView onVerify={() => void openVerify()} /> : null}
             {main === 'loading' && step.step === 'loading' ? <LoadingCard step={step} /> : null}
             {main === 'workspace' && current.document ? <Workspace doc={current.document} /> : null}
+            {main === 'batch' && current.batch ? <BatchView batch={current.batch} /> : null}
             {main === 'warning' && step.step === 'warning' ? <WarningCard step={step} /> : null}
             {main === 'done' && step.step === 'output' ? <DoneView step={step} /> : null}
             {main === 'error' && step.step === 'error' ? <ErrorCard step={step} /> : null}
