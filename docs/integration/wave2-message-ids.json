@@ -1,0 +1,1372 @@
+[
+  {
+    "id": "pdf-docmdp-p1",
+    "de": "Das Dokument ist zertifiziert und erlaubt keine Änderungen (DocMDP P=1); es kann nicht signiert werden.",
+    "en": "The document is certified and does not allow any changes (DocMDP P=1); it cannot be signed."
+  },
+  {
+    "id": "pdf-docmdp-p2",
+    "de": "Das Dokument ist zertifiziert (Formulare ausfüllen und signieren erlaubt): nur vorhandene leere Signaturfelder oder unsichtbare Signaturen.",
+    "en": "The document is certified (form filling and signing allowed): only existing empty signature fields or invisible signatures."
+  },
+  {
+    "id": "pdf-docmdp-p3",
+    "de": "Das Dokument ist zertifiziert (Formulare, Signaturen und Kommentare erlaubt): nur vorhandene leere Signaturfelder oder unsichtbare Signaturen.",
+    "en": "The document is certified (forms, signatures and comments allowed): only existing empty signature fields or invisible signatures."
+  },
+  {
+    "id": "pdf-permissions",
+    "de": "Das Dokument ist geschützt; die Rechte erlauben kein Signieren.",
+    "en": "The document is protected; its permissions do not allow signing."
+  },
+  {
+    "id": "pdf-encrypted",
+    "de": "Das Dokument ist verschlüsselt; die Signatur wird mit derselben Verschlüsselung ergänzt.",
+    "en": "The document is encrypted; the signature is added using the same encryption."
+  },
+  {
+    "id": "pdf-xfa-dynamic",
+    "de": "Das Dokument ist ein dynamisches XFA-Formular und kann nicht signiert werden.",
+    "en": "The document is a dynamic XFA form and cannot be signed."
+  },
+  {
+    "id": "pdf-xfa-hybrid",
+    "de": "Das Dokument enthält ein XFA-Formular; XFA-Anzeigeprogramme zeigen den Signaturblock eventuell nicht.",
+    "en": "The document contains an XFA form; XFA viewers may not show the signature block."
+  },
+  {
+    "id": "pdf-usage-rights",
+    "de": "Das Dokument enthält erweiterte Adobe-Reader-Rechte. Das Signieren macht sie ungültig; Adobe Reader zeigt danach eine Warnung.",
+    "en": "The document contains extended Adobe Reader rights. Signing invalidates them; Adobe Reader will show a warning afterwards."
+  },
+  {
+    "id": "pdf-field-locked",
+    "de": "Einige Signaturfelder sind durch vorhandene Signaturen gesperrt und können nicht gewählt werden.",
+    "en": "Some signature fields are locked by existing signatures and cannot be selected."
+  },
+  {
+    "id": "pdf-seed-value",
+    "de": "Das Signaturfeld enthält Vorgaben für die Signatur; sie werden erfüllt.",
+    "en": "The signature field contains requirements for the signature; they are met."
+  },
+  {
+    "id": "pdf-seed-value-incompatible",
+    "de": "Das Signaturfeld enthält Vorgaben, die diese Signatur nicht erfüllen kann.",
+    "en": "The signature field contains requirements this signature cannot meet."
+  },
+  {
+    "id": "pdf-pdfa-need-appearances",
+    "de": "Das PDF/A-Dokument verlangt die Neuerzeugung von Formularansichten und ist bereits nicht konform.",
+    "en": "The PDF/A document requests regenerated form appearances and is already non-conforming."
+  },
+  {
+    "id": "pdf-prior-signature-invalid",
+    "de": "Eine vorhandene Signatur ist ungültig.",
+    "en": "An existing signature is invalid."
+  },
+  {
+    "id": "pdf-prior-signature-unverifiable",
+    "de": "Eine vorhandene Signatur kann nicht geprüft werden.",
+    "en": "An existing signature cannot be verified."
+  },
+  {
+    "id": "pdf-user-password",
+    "de": "Das Dokument ist mit einem Kennwort zum Öffnen geschützt und kann nicht signiert werden.",
+    "en": "The document is protected by an open password and cannot be signed."
+  },
+  {
+    "id": "pdf-public-key",
+    "de": "Das Dokument ist mit Zertifikaten verschlüsselt und kann nicht signiert werden.",
+    "en": "The document is encrypted with certificates and cannot be signed."
+  },
+  {
+    "id": "pdf-unsupported-security",
+    "de": "Die Verschlüsselung des Dokuments wird nicht unterstützt.",
+    "en": "The document's encryption is not supported."
+  },
+  {
+    "id": "pdf-no-pages",
+    "de": "Das Dokument hat keine Seiten.",
+    "en": "The document has no pages."
+  },
+  {
+    "id": "pdf-not-a-pdf",
+    "de": "Die Datei ist kein PDF-Dokument.",
+    "en": "The file is not a PDF document."
+  },
+  {
+    "id": "pdf-unreadable",
+    "de": "Das Dokument ist beschädigt und kann nicht gelesen werden.",
+    "en": "The document is damaged and cannot be read."
+  },
+  {
+    "id": "pdf-limit-exceeded",
+    "de": "Das Dokument überschreitet eine Verarbeitungsgrenze.",
+    "en": "The document exceeds a processing limit."
+  },
+  {
+    "id": "pdf-decryption",
+    "de": "Das Dokument konnte nicht entschlüsselt werden.",
+    "en": "The document could not be decrypted."
+  },
+  {
+    "id": "pdf-io",
+    "de": "Das Dokument konnte nicht gelesen werden (Lesefehler).",
+    "en": "The document could not be read (read error)."
+  },
+  {
+    "id": "pdf-signature-subfilter",
+    "de": "Das Signaturverfahren einer vorhandenen Signatur wird nicht geprüft.",
+    "en": "The signature method of an existing signature is not verified."
+  },
+  {
+    "id": "pdf-signature-byterange",
+    "de": "Der signierte Bereich einer vorhandenen Signatur ist ungültig.",
+    "en": "The signed range of an existing signature is invalid."
+  },
+  {
+    "id": "pades-pdf-unreadable",
+    "de": "Das Dokument konnte nicht gelesen werden.",
+    "en": "The document could not be read."
+  },
+  {
+    "id": "pades-write",
+    "de": "Die Signatur konnte nicht in das Dokument geschrieben werden.",
+    "en": "The signature could not be written into the document."
+  },
+  {
+    "id": "pades-field-already-signed",
+    "de": "Das gewählte Signaturfeld ist bereits signiert.",
+    "en": "The selected signature field is already signed."
+  },
+  {
+    "id": "pades-field-locked",
+    "de": "Das gewählte Signaturfeld ist gesperrt.",
+    "en": "The selected signature field is locked."
+  },
+  {
+    "id": "pades-certificate-not-valid",
+    "de": "Das Zertifikat ist zum Signierzeitpunkt nicht gültig.",
+    "en": "The certificate is not valid at the time of signing."
+  },
+  {
+    "id": "pades-io",
+    "de": "Lese- oder Schreibfehler.",
+    "en": "Read or write error."
+  },
+  {
+    "id": "pades-field-not-found",
+    "de": "Das gewählte Signaturfeld wurde nicht gefunden.",
+    "en": "The selected signature field was not found."
+  },
+  {
+    "id": "pades-new-page-not-allowed",
+    "de": "Für dieses Dokument darf keine neue Seite angehängt werden.",
+    "en": "No new page may be added to this document."
+  },
+  {
+    "id": "pades-invalid-plan",
+    "de": "Die Signatur kann so nicht platziert werden.",
+    "en": "The signature cannot be placed this way."
+  },
+  {
+    "id": "pades-invalid-state",
+    "de": "Der gespeicherte Signaturvorgang ist ungültig und wird verworfen.",
+    "en": "The saved signing process is invalid and will be discarded."
+  },
+  {
+    "id": "pades-invariant-i1",
+    "de": "Die Selbstprüfung der Signatur ist fehlgeschlagen (Original nicht unverändert); es wurde nichts gespeichert.",
+    "en": "The signature self-check failed (original not preserved); nothing was saved."
+  },
+  {
+    "id": "pades-invariant-i2",
+    "de": "Die Selbstprüfung der Signatur ist fehlgeschlagen (signierter Bereich); es wurde nichts gespeichert.",
+    "en": "The signature self-check failed (signed range); nothing was saved."
+  },
+  {
+    "id": "pades-invariant-i3",
+    "de": "Die Selbstprüfung der Signatur ist fehlgeschlagen (Signaturdaten oder Zertifikat); es wurde nichts gespeichert.",
+    "en": "The signature self-check failed (signature data or certificate); nothing was saved."
+  },
+  {
+    "id": "pades-invariant-i4",
+    "de": "Die Selbstprüfung der Signatur ist fehlgeschlagen (vorhandene Signaturen); es wurde nichts gespeichert.",
+    "en": "The signature self-check failed (existing signatures); nothing was saved."
+  },
+  {
+    "id": "pades-invariant-i5",
+    "de": "Die Selbstprüfung der Signatur ist fehlgeschlagen (Ergebnis nicht lesbar); es wurde nichts gespeichert.",
+    "en": "The signature self-check failed (result not readable); nothing was saved."
+  },
+  {
+    "id": "pades-invariant-i6",
+    "de": "Die Selbstprüfung der Signatur ist fehlgeschlagen (unerlaubte Änderung); es wurde nichts gespeichert.",
+    "en": "The signature self-check failed (disallowed change); nothing was saved."
+  },
+  {
+    "id": "pades-pdfua-skipped",
+    "de": "Die Barrierefreiheits-Struktur (PDF/UA) wurde nicht ergänzt.",
+    "en": "The accessibility structure (PDF/UA) was not extended."
+  },
+  {
+    "id": "pades-output-intent-skipped",
+    "de": "Der Farbraum für PDF/A (OutputIntent) wurde nicht ergänzt, weil das Dokument bereits signiert ist.",
+    "en": "The PDF/A colour profile (output intent) was not added because the document is already signed."
+  },
+  {
+    "id": "pades-i5-without-pdfium",
+    "de": "Die Prüfung mit PDFium wurde übersprungen.",
+    "en": "The check with PDFium was skipped."
+  },
+  {
+    "id": "backend-login-rejected",
+    "de": "Die Anmeldung wurde abgelehnt. Bitte die Zugangsdaten prüfen.",
+    "en": "The login was rejected. Please check your credentials."
+  },
+  {
+    "id": "fido2-pin-required",
+    "de": "Der Sicherheitsschlüssel verlangt eine PIN.",
+    "en": "The security key requires a PIN."
+  },
+  {
+    "id": "fido2-pin-invalid",
+    "de": "Die PIN des Sicherheitsschlüssels ist falsch.",
+    "en": "The security key PIN is incorrect."
+  },
+  {
+    "id": "fido2-internal",
+    "de": "Interner Fehler bei der Anmeldung mit dem Sicherheitsschlüssel.",
+    "en": "Internal error during sign-in with the security key."
+  },
+  {
+    "id": "pades-new-visible-field-not-allowed",
+    "de": "Das Dokument ist zertifiziert: Ein neues sichtbares Signaturfeld würde die Zertifizierung verletzen. Bitte ein vorhandenes leeres Signaturfeld oder eine unsichtbare Signatur wählen.",
+    "en": "The document is certified: a new visible signature field would violate the certification. Please choose an existing empty signature field or an invisible signature."
+  },
+  {
+    "id": "pades-not-self-checked",
+    "de": "Die Selbstprüfung der Signatur wurde nicht bestanden; es wird nichts gespeichert.",
+    "en": "The signature self-check has not been passed; nothing is saved."
+  },
+  {
+    "id": "pdf-signature-dictionary",
+    "de": "Eine vorhandene Signatur hat kein lesbares Signaturdictionary.",
+    "en": "An existing signature has no readable signature dictionary."
+  },
+  {
+    "id": "ng-invariant-violated",
+    "de": "Die Selbstprüfung der Signatur ist fehlgeschlagen ({ $invariant }: { $detail }). Es wurde nichts gespeichert.",
+    "en": "The signature self-check failed ({ $invariant }: { $detail }). Nothing was saved."
+  },
+  {
+    "id": "ng-cms-too-large",
+    "de": "Die Signatur ist größer als der reservierte Platz ({ $needed } statt { $reserve } Bytes). „Wiederholen“ bereitet das Dokument mit mehr Platz neu vor; dafür ist eine erneute Bestätigung nötig.",
+    "en": "The signature is larger than the reserved space ({ $needed } instead of { $reserve } bytes). “Retry” prepares the document again with more space; this needs another confirmation."
+  },
+  {
+    "id": "ng-backend-choice-required",
+    "de": "Mehrere Signiermittel verfügbar ({ $detail }) – bitte mit -b wählen.",
+    "en": "Several signing devices are available ({ $detail }) – please choose one with -b."
+  },
+  {
+    "id": "ng-no-backend-available",
+    "de": "Kein Signiermittel verfügbar.",
+    "en": "No signing device is available."
+  },
+  {
+    "id": "ng-default-backend-unavailable",
+    "de": "Das gewählte Signiermittel ({ $detail }) ist nicht verfügbar.",
+    "en": "The chosen signing device ({ $detail }) is not available."
+  },
+  {
+    "id": "ng-document-rejected",
+    "de": "Das Dokument kann nicht signiert werden.",
+    "en": "The document cannot be signed."
+  },
+  {
+    "id": "ng-pdf-no-sign-rights",
+    "de": "Die Rechte des Dokuments erlauben kein Signieren.",
+    "en": "The document permissions do not allow signing."
+  },
+  {
+    "id": "ng-field-already-signed",
+    "de": "Das Signaturfeld ist bereits signiert.",
+    "en": "The signature field is already signed."
+  },
+  {
+    "id": "ng-field-locked",
+    "de": "Das Signaturfeld ist gesperrt.",
+    "en": "The signature field is locked."
+  },
+  {
+    "id": "ng-certificate-not-valid",
+    "de": "Das Zertifikat ist zum Signierzeitpunkt nicht gültig.",
+    "en": "The certificate is not valid at the time of signing."
+  },
+  {
+    "id": "ng-clock-skew",
+    "de": "Die Uhr dieses Geräts weicht um etwa { $minutes } Minuten von der Zeit des Signaturdienstes ab.",
+    "en": "This device's clock differs from the signing service by about { $minutes } minutes."
+  },
+  {
+    "id": "ng-atrust-login-rejected",
+    "de": "Die Anmeldung wurde abgelehnt. Bitte das Passwort erneut eingeben.",
+    "en": "The login was rejected. Please enter the password again."
+  },
+  {
+    "id": "ng-settings-invalid-postfix",
+    "de": "Der Dateinamenzusatz darf keine Pfadtrenner (/ oder \\) enthalten.",
+    "en": "The file name suffix must not contain path separators (/ or \\)."
+  },
+  {
+    "id": "ng-settings-proxy-host-missing",
+    "de": "Für einen manuellen Proxy ist ein Host anzugeben.",
+    "en": "A host is required for a manual proxy."
+  },
+  {
+    "id": "ng-settings-invalid-logo-size",
+    "de": "Die Größe der Bildmarke muss größer als 0 und höchstens 120 mm sein.",
+    "en": "The logo size must be greater than 0 and at most 120 mm."
+  },
+  {
+    "id": "ng-verify-failed",
+    "de": "Die Datei konnte nicht geprüft werden: { $detail }",
+    "en": "The file could not be verified: { $detail }"
+  },
+  {
+    "id": "ng-verify-no-signature-dictionary",
+    "de": "Signaturfeld ohne Signaturdaten.",
+    "en": "Signature field without signature data."
+  },
+  {
+    "id": "ng-verify-no-byte-range",
+    "de": "Signatur ohne /ByteRange bzw. /Contents.",
+    "en": "Signature without /ByteRange or /Contents."
+  },
+  {
+    "id": "ng-verify-byte-range",
+    "de": "Die /ByteRange der Signatur ist ungültig.",
+    "en": "The signature /ByteRange is invalid."
+  },
+  {
+    "id": "ng-unknown-document",
+    "de": "Das Dokument ist nicht (mehr) geöffnet.",
+    "en": "The document is not open (any more)."
+  },
+  {
+    "id": "ng-core-stopped",
+    "de": "Der Programmkern wurde beendet.",
+    "en": "The application core has stopped."
+  },
+  {
+    "id": "ng-no-preview",
+    "de": "Keine Vorschau des Signaturblocks verfügbar.",
+    "en": "No preview of the signature block is available."
+  },
+  {
+    "id": "ng-progress-connecting",
+    "de": "Verbindung wird aufgebaut",
+    "en": "Connecting"
+  },
+  {
+    "id": "ng-progress-certificate",
+    "de": "Zertifikat wird gelesen",
+    "en": "Reading the certificate"
+  },
+  {
+    "id": "ng-progress-waiting",
+    "de": "Warten auf den Signaturdienst",
+    "en": "Waiting for the signing service"
+  },
+  {
+    "id": "ng-progress-document",
+    "de": "Dokument { $index } von { $total }",
+    "en": "Document { $index } of { $total }"
+  },
+  {
+    "id": "ng-progress-done",
+    "de": "Fertig",
+    "en": "Done"
+  },
+  {
+    "id": "backend-cancelled",
+    "de": "Der Vorgang wurde abgebrochen.",
+    "en": "The operation was cancelled."
+  },
+  {
+    "id": "backend-unavailable",
+    "de": "Das Signiermittel ist nicht verfügbar: { $detail }",
+    "en": "The signing method is not available: { $detail }"
+  },
+  {
+    "id": "backend-network",
+    "de": "Die Verbindung zum Signaturdienst ist fehlgeschlagen: { $detail }",
+    "en": "The connection to the signature service failed: { $detail }"
+  },
+  {
+    "id": "backend-proxy-auth",
+    "de": "Der Proxy-Server verlangt eine Anmeldung.",
+    "en": "The proxy server requires authentication."
+  },
+  {
+    "id": "backend-document-too-large",
+    "de": "Das Dokument überschreitet die Größengrenze des Signaturdienstes.",
+    "en": "The document exceeds the size limit of the signature service."
+  },
+  {
+    "id": "backend-http",
+    "de": "Der Signaturdienst hat die Anfrage abgelehnt: HTTP { $status } { $reason }",
+    "en": "The signature service rejected the request: HTTP { $status } { $reason }"
+  },
+  {
+    "id": "backend-security-layer",
+    "de": "Vorgang vom Signaturserver abgebrochen ({ $code }): { $info }",
+    "en": "Operation aborted by the signature server ({ $code }): { $info }"
+  },
+  {
+    "id": "backend-unknown-page",
+    "de": "Unbekannte Seite des Signaturdienstes ({ $diagnostic }). Der Vorgang wurde abgebrochen.",
+    "en": "Unknown page of the signature service ({ $diagnostic }). The operation was cancelled."
+  },
+  {
+    "id": "backend-loop",
+    "de": "Der Signaturdienst antwortet in einer Endlosschleife; der Vorgang wurde abgebrochen.",
+    "en": "The signature service is responding in an endless loop; the operation was cancelled."
+  },
+  {
+    "id": "backend-protocol",
+    "de": "Unerwartete Antwort des Signaturdienstes: { $detail }",
+    "en": "Unexpected response from the signature service: { $detail }"
+  },
+  {
+    "id": "backend-wrong-password",
+    "de": "Das Passwort ist falsch.",
+    "en": "The password is wrong."
+  },
+  {
+    "id": "backend-keystore",
+    "de": "Fehler beim Keystore: { $detail }",
+    "en": "Keystore error: { $detail }"
+  },
+  {
+    "id": "backend-keystore-format",
+    "de": "Das Keystore-Format { $format } wird nicht unterstützt – bitte nach PKCS#12 konvertieren.",
+    "en": "The keystore format { $format } is not supported – please convert it to PKCS#12."
+  },
+  {
+    "id": "backend-certificate-mismatch",
+    "de": "Die Signatur wurde mit einem anderen als dem erwarteten Zertifikat erstellt.",
+    "en": "The signature was created with a certificate other than the expected one."
+  },
+  {
+    "id": "backend-fido2",
+    "de": "FIDO2-Fehler: { $detail }",
+    "en": "FIDO2 error: { $detail }"
+  },
+  {
+    "id": "backend-timeout",
+    "de": "Zeitüberschreitung: Der Signaturdienst hat nicht rechtzeitig geantwortet.",
+    "en": "Timeout: the signature service did not respond in time."
+  },
+  {
+    "id": "backend-internal",
+    "de": "Interner Fehler: { $detail }",
+    "en": "Internal error: { $detail }"
+  },
+  {
+    "id": "ng-cli-help-title",
+    "de": "PDF-Over NG – PDF-Dokumente elektronisch signieren",
+    "en": "PDF-Over NG – sign PDF documents electronically"
+  },
+  {
+    "id": "ng-cli-help-usage",
+    "de": "Aufruf: pdfover-cli [Optionen] [Dateien …] | pdfover-cli <Befehl> [Optionen]",
+    "en": "Usage: pdfover-cli [options] [files …] | pdfover-cli <command> [options]"
+  },
+  {
+    "id": "ng-cli-help-options",
+    "de": "Optionen (kompatibel zu PDF-Over):",
+    "en": "Options (compatible with PDF-Over):"
+  },
+  {
+    "id": "ng-cli-help-new-options",
+    "de": "Neue Optionen:",
+    "en": "New options:"
+  },
+  {
+    "id": "ng-cli-help-commands",
+    "de": "Befehle:",
+    "en": "Commands:"
+  },
+  {
+    "id": "ng-cli-help-headless",
+    "de": "Ohne Rückfragen signieren (Keystore mit -kspass/--kspass-stdin/--kspass-env, lokale BKU); ohne Terminal automatisch",
+    "en": "Sign without prompts (keystore with -kspass/--kspass-stdin/--kspass-env, local BKU); automatic without a terminal"
+  },
+  {
+    "id": "ng-cli-help-json",
+    "de": "Ergebnis maschinenlesbar (JSON) auf stdout ausgeben",
+    "en": "Print the result as JSON on stdout"
+  },
+  {
+    "id": "ng-cli-help-kspass-stdin",
+    "de": "Keystore-Passwort von stdin lesen (erste Zeile)",
+    "en": "Read the keystore password from stdin (first line)"
+  },
+  {
+    "id": "ng-cli-help-kspass-env",
+    "de": "Keystore-Passwort aus der Umgebungsvariable lesen",
+    "en": "Read the keystore password from the environment variable"
+  },
+  {
+    "id": "ng-cli-help-log-level",
+    "de": "Log-Stufe (error, warn, info, debug, trace)",
+    "en": "Log level (error, warn, info, debug, trace)"
+  },
+  {
+    "id": "ng-cli-help-version",
+    "de": "Version anzeigen",
+    "en": "Show the version"
+  },
+  {
+    "id": "ng-cli-help-cmd-sign",
+    "de": "Dokumente signieren (Dateien, Ordner, Muster wie *.pdf)",
+    "en": "Sign documents (files, folders, patterns such as *.pdf)"
+  },
+  {
+    "id": "ng-cli-help-cmd-verify",
+    "de": "Signaturen eines PDFs prüfen",
+    "en": "Verify the signatures of a PDF"
+  },
+  {
+    "id": "ng-cli-help-cmd-profiles",
+    "de": "Signaturprofile auflisten",
+    "en": "List signature profiles"
+  },
+  {
+    "id": "ng-cli-help-cmd-migrate",
+    "de": "Einstellungen aus ~/.pdf-over übernehmen (--from <Ordner>, --dry-run)",
+    "en": "Import settings from ~/.pdf-over (--from <folder>, --dry-run)"
+  },
+  {
+    "id": "ng-cli-help-cmd-render-block",
+    "de": "Signaturblock als PDF/PNG ausgeben (--profile <ID> <Datei>)",
+    "en": "Write the signature block as PDF/PNG (--profile <ID> <file>)"
+  },
+  {
+    "id": "ng-cli-help-exit-codes",
+    "de": "Exit-Codes: 0 erfolgreich, 1 allgemeiner Fehler, 2 Aufruf, 3 Dokument abgelehnt, 4 abgebrochen, 5 Signiermittel/Netz, 6 Selbstprüfung (nichts gespeichert), 7 Schreibfehler",
+    "en": "Exit codes: 0 success, 1 general error, 2 usage, 3 document rejected, 4 cancelled, 5 signing device/network, 6 self-check (nothing saved), 7 write error"
+  },
+  {
+    "id": "ng-cli-no-input",
+    "de": "Kein Dokument angegeben (Hilfe: pdfover-cli -h).",
+    "en": "No document given (help: pdfover-cli -h)."
+  },
+  {
+    "id": "ng-cli-keypass-mismatch",
+    "de": "-kskeypass weicht von -kspass ab: PKCS#12 hat nur ein Passwort. Bitte den Keystore mit einheitlichem Passwort exportieren.",
+    "en": "-kskeypass differs from -kspass: PKCS#12 has a single password. Please export the keystore with one password."
+  },
+  {
+    "id": "ng-cli-kspass-env-missing",
+    "de": "Die Umgebungsvariable { $name } ist nicht gesetzt.",
+    "en": "The environment variable { $name } is not set."
+  },
+  {
+    "id": "ng-cli-stdin-failed",
+    "de": "Passwort von stdin nicht lesbar: { $detail }",
+    "en": "Could not read the password from stdin: { $detail }"
+  },
+  {
+    "id": "ng-cli-signed",
+    "de": "signiert: { $input } → { $output }",
+    "en": "signed: { $input } → { $output }"
+  },
+  {
+    "id": "ng-cli-cancelled",
+    "de": "abgebrochen: { $input }",
+    "en": "cancelled: { $input }"
+  },
+  {
+    "id": "ng-cli-failed",
+    "de": "fehlgeschlagen: { $input }: { $message }",
+    "en": "failed: { $input }: { $message }"
+  },
+  {
+    "id": "ng-cli-overwrite",
+    "de": "Datei { $name } existiert bereits. Überschreiben? [j/N] ",
+    "en": "File { $name } already exists. Overwrite? [y/N] "
+  },
+  {
+    "id": "ng-cli-privacy",
+    "de": "Das Dokument wird zum Signieren an A-Trust übermittelt (Datenschutzerklärung: https://www.a-trust.at/datenschutz). Fortfahren? [j/N] ",
+    "en": "The document is sent to A-Trust for signing (privacy policy: https://www.a-trust.at/datenschutz). Continue? [y/N] "
+  },
+  {
+    "id": "ng-cli-retry",
+    "de": "Wiederholen? [j/N] ",
+    "en": "Retry? [y/N] "
+  },
+  {
+    "id": "ng-cli-continue",
+    "de": "Fortfahren? [j/N] ",
+    "en": "Continue? [y/N] "
+  },
+  {
+    "id": "ng-cli-username",
+    "de": "Benutzername/Telefonnummer: ",
+    "en": "Username/phone number: "
+  },
+  {
+    "id": "ng-cli-password",
+    "de": "Passwort: ",
+    "en": "Password: "
+  },
+  {
+    "id": "ng-cli-tan",
+    "de": "TAN (Vergleichswert { $reference }): ",
+    "en": "TAN (reference value { $reference }): "
+  },
+  {
+    "id": "ng-cli-qr",
+    "de": "Vergleichswert { $reference }: Bitte den QR-Code mit der App „ID Austria“ scannen ({ $path }).",
+    "en": "Reference value { $reference }: please scan the QR code with the ID Austria app ({ $path })."
+  },
+  {
+    "id": "ng-cli-app",
+    "de": "Vergleichswert { $reference }: Bitte in der App „ID Austria“ bestätigen.",
+    "en": "Reference value { $reference }: please confirm in the ID Austria app."
+  },
+  {
+    "id": "ng-cli-countdown",
+    "de": "noch { $seconds } s …",
+    "en": "{ $seconds } s left …"
+  },
+  {
+    "id": "ng-cli-fido2",
+    "de": "FIDO2: Bitte den Sicherheitsschlüssel berühren …",
+    "en": "FIDO2: please touch your security key …"
+  },
+  {
+    "id": "ng-cli-keystore-password",
+    "de": "Keystore-Passwort für { $name }: ",
+    "en": "Keystore password for { $name }: "
+  },
+  {
+    "id": "ng-cli-key-password",
+    "de": "Schlüssel-Passwort für { $name }: ",
+    "en": "Key password for { $name }: "
+  },
+  {
+    "id": "ng-cli-proxy-password",
+    "de": "Proxy-Passwort für { $name }: ",
+    "en": "Proxy password for { $name }: "
+  },
+  {
+    "id": "ng-cli-wrong-password",
+    "de": "Passwort falsch.",
+    "en": "Wrong password."
+  },
+  {
+    "id": "ng-cli-progress",
+    "de": "… { $step }",
+    "en": "… { $step }"
+  },
+  {
+    "id": "ng-cli-valid",
+    "de": "gültig: { $field } ({ $signer })",
+    "en": "valid: { $field } ({ $signer })"
+  },
+  {
+    "id": "ng-cli-invalid",
+    "de": "ungültig: { $field } ({ $error })",
+    "en": "invalid: { $field } ({ $error })"
+  },
+  {
+    "id": "ng-cli-no-signatures",
+    "de": "Keine Signaturen gefunden.",
+    "en": "No signatures found."
+  },
+  {
+    "id": "ng-cli-written",
+    "de": "geschrieben: { $path }",
+    "en": "written: { $path }"
+  },
+  {
+    "id": "ng-cli-no-legacy",
+    "de": "Keine PDF-Over-Konfiguration gefunden ({ $path }).",
+    "en": "No PDF-Over configuration found ({ $path })."
+  },
+  {
+    "id": "ng-cli-migrate-dry-run",
+    "de": "Probelauf – es wurde nichts geschrieben.",
+    "en": "Dry run – nothing was written."
+  },
+  {
+    "id": "ng-cli-unknown-profile",
+    "de": "Profil { $id } existiert nicht (Liste: pdfover-cli profiles).",
+    "en": "Profile { $id } does not exist (list: pdfover-cli profiles)."
+  },
+  {
+    "id": "ng-ui-yes",
+    "de": "Ja",
+    "en": "Yes"
+  },
+  {
+    "id": "ng-ui-no",
+    "de": "Nein",
+    "en": "No"
+  },
+  {
+    "id": "ng-ui-close",
+    "de": "Schließen",
+    "en": "Close"
+  },
+  {
+    "id": "ng-ui-continue",
+    "de": "Weiter",
+    "en": "Continue"
+  },
+  {
+    "id": "ng-ui-skip-to-content",
+    "de": "Zum Inhalt springen",
+    "en": "Skip to content"
+  },
+  {
+    "id": "ng-ui-link-external",
+    "de": "(öffnet im Browser)",
+    "en": "(opens in browser)"
+  },
+  {
+    "id": "ng-ui-page-n",
+    "de": "Seite { $page }",
+    "en": "Page { $page }"
+  },
+  {
+    "id": "ng-ui-page-previous",
+    "de": "Vorherige Seite",
+    "en": "Previous page"
+  },
+  {
+    "id": "ng-ui-page-next",
+    "de": "Nächste Seite",
+    "en": "Next page"
+  },
+  {
+    "id": "ng-ui-unit",
+    "de": "Einheit",
+    "en": "Unit"
+  },
+  {
+    "id": "ng-ui-starting",
+    "de": "PDF-Over NG wird gestartet",
+    "en": "PDF-Over NG is starting"
+  },
+  {
+    "id": "ng-ui-finished",
+    "de": "PDF-Over NG wurde beendet.",
+    "en": "PDF-Over NG has exited."
+  },
+  {
+    "id": "ng-ui-finished-code",
+    "de": "Beendet mit Code { $code }.",
+    "en": "Exited with code { $code }."
+  },
+  {
+    "id": "ng-ui-mainbar-label",
+    "de": "Arbeitsschritte",
+    "en": "Steps"
+  },
+  {
+    "id": "ng-ui-step-done",
+    "de": "erledigt",
+    "en": "done"
+  },
+  {
+    "id": "ng-ui-lang-system",
+    "de": "Systemsprache",
+    "en": "System language"
+  },
+  {
+    "id": "ng-ui-lang-de",
+    "de": "Deutsch",
+    "en": "German"
+  },
+  {
+    "id": "ng-ui-lang-en",
+    "de": "Englisch",
+    "en": "English"
+  },
+  {
+    "id": "ng-ui-drop-not-here",
+    "de": "Dokumente können im Schritt „Öffnen“ oder auf dem Ergebnis abgelegt werden.",
+    "en": "Documents can be dropped in the “Open” step or on the result."
+  },
+  {
+    "id": "ng-ui-core-unavailable",
+    "de": "Der Signaturkern konnte nicht gestartet werden. Bitte versuchen Sie es erneut; bleibt der Fehler bestehen, prüfen Sie die Protokolle (Einstellungen › Über).",
+    "en": "The signature core could not be started. Please try again; if the error persists, check the logs (Settings › About)."
+  },
+  {
+    "id": "ng-ui-event-invalid",
+    "de": "Diese Aktion wird von dieser Version des Signaturkerns noch nicht unterstützt.",
+    "en": "This action is not yet supported by this version of the signature core."
+  },
+  {
+    "id": "ng-ui-bridge-error",
+    "de": "Die Verbindung zum Signaturkern ist gestört.",
+    "en": "The connection to the signature core is disrupted."
+  },
+  {
+    "id": "ng-ui-error-unknown",
+    "de": "Unerwarteter Fehler ({ $code }).",
+    "en": "Unexpected error ({ $code })."
+  },
+  {
+    "id": "ng-ui-open-failed",
+    "de": "Das Öffnen ist fehlgeschlagen.",
+    "en": "Opening failed."
+  },
+  {
+    "id": "ng-ui-dialog-failed",
+    "de": "Der Dateidialog konnte nicht geöffnet werden.",
+    "en": "The file dialog could not be opened."
+  },
+  {
+    "id": "ng-ui-open-title",
+    "de": "Dokument öffnen",
+    "en": "Open document"
+  },
+  {
+    "id": "ng-ui-open-analyzing",
+    "de": "Dokument wird geprüft …",
+    "en": "Checking document …"
+  },
+  {
+    "id": "ng-ui-dropzone-label",
+    "de": "Ablagefläche für PDF-Dokumente",
+    "en": "Drop area for PDF documents"
+  },
+  {
+    "id": "ng-ui-dropzone-hint",
+    "de": "Mehrere Dokumente werden nacheinander signiert. Tastatur: Strg+O bzw. ⌘O öffnet den Dateidialog.",
+    "en": "Several documents are signed one after the other. Keyboard: Ctrl+O or ⌘O opens the file dialog."
+  },
+  {
+    "id": "ng-ui-dropzone-release",
+    "de": "Loslassen, um die Dokumente zu öffnen",
+    "en": "Release to open the documents"
+  },
+  {
+    "id": "ng-ui-queue-title",
+    "de": "Warteschlange ({ $count })",
+    "en": "Queue ({ $count })"
+  },
+  {
+    "id": "ng-ui-queue-current",
+    "de": "aktuell",
+    "en": "current"
+  },
+  {
+    "id": "ng-ui-placeholder-title",
+    "de": "Signaturplatzhalter gefunden",
+    "en": "Signature placeholder found"
+  },
+  {
+    "id": "ng-ui-placeholder-qr",
+    "de": "QR-Code-Platzhalter auf Seite { $page }",
+    "en": "QR code placeholder on page { $page }"
+  },
+  {
+    "id": "ng-ui-placeholder-field",
+    "de": "Signaturfeld „{ $name }“",
+    "en": "Signature field “{ $name }”"
+  },
+  {
+    "id": "ng-ui-placeholder-kind",
+    "de": "Art der Platzhalter",
+    "en": "Kind of placeholders"
+  },
+  {
+    "id": "ng-ui-position-title",
+    "de": "Signatur positionieren",
+    "en": "Position the signature"
+  },
+  {
+    "id": "ng-ui-position-help",
+    "de": "Ziehen Sie den Signaturblock an die gewünschte Stelle oder verwenden Sie die Pfeiltasten (Umschalt: 1 pt, Strg/⌘: 50 pt), Bild auf/ab für die Seite und Eingabe zum Signieren.",
+    "en": "Drag the signature block to the desired place or use the arrow keys (Shift: 1 pt, Ctrl/⌘: 50 pt), Page Up/Down for the page and Enter to sign."
+  },
+  {
+    "id": "ng-ui-position-block-role",
+    "de": "verschiebbarer Signaturblock",
+    "en": "movable signature block"
+  },
+  {
+    "id": "ng-ui-position-announce",
+    "de": "Seite { $page } von { $pages }, { $left } mm von links, { $bottom } mm von unten",
+    "en": "Page { $page } of { $pages }, { $left } mm from the left, { $bottom } mm from the bottom"
+  },
+  {
+    "id": "ng-ui-position-pages",
+    "de": "Seiten",
+    "en": "Pages"
+  },
+  {
+    "id": "ng-ui-position-page-alt",
+    "de": "Seite { $page } von { $pages } – { $name }",
+    "en": "Page { $page } of { $pages } – { $name }"
+  },
+  {
+    "id": "ng-ui-position-new-page-alt",
+    "de": "Neue leere Seite",
+    "en": "New blank page"
+  },
+  {
+    "id": "ng-ui-position-preview-failed",
+    "de": "Die Seitenvorschau ist nicht verfügbar.",
+    "en": "The page preview is not available."
+  },
+  {
+    "id": "ng-ui-position-coordinates",
+    "de": "Position",
+    "en": "Position"
+  },
+  {
+    "id": "ng-ui-position-x",
+    "de": "X von links ({ $unit })",
+    "en": "X from the left ({ $unit })"
+  },
+  {
+    "id": "ng-ui-position-y",
+    "de": "Y Oberkante von unten ({ $unit })",
+    "en": "Y top edge from the bottom ({ $unit })"
+  },
+  {
+    "id": "ng-ui-position-page-field",
+    "de": "Seite",
+    "en": "Page"
+  },
+  {
+    "id": "ng-ui-position-auto",
+    "de": "Automatisch",
+    "en": "Automatic"
+  },
+  {
+    "id": "ng-ui-position-auto-done",
+    "de": "Der Signaturblock wurde automatisch platziert.",
+    "en": "The signature block was placed automatically."
+  },
+  {
+    "id": "ng-ui-position-invisible",
+    "de": "Unsichtbar signieren",
+    "en": "Sign invisibly"
+  },
+  {
+    "id": "ng-ui-position-signed-hint",
+    "de": "Das Dokument ist bereits signiert; eine neue Seite kann nicht angefügt werden.",
+    "en": "The document is already signed; a new page cannot be added."
+  },
+  {
+    "id": "ng-ui-backend-title",
+    "de": "Signiermittel wählen",
+    "en": "Choose signing method"
+  },
+  {
+    "id": "ng-ui-backend-hint",
+    "de": "Ein Standard-Signiermittel lässt sich in den Einstellungen (Erweitert) festlegen.",
+    "en": "A default signing method can be set in the settings (Advanced)."
+  },
+  {
+    "id": "ng-ui-backend-atrust-desc",
+    "de": "Signieren mit ID Austria: Bestätigung in der App, per SMS-TAN oder mit FIDO2-Sicherheitsschlüssel.",
+    "en": "Sign with ID Austria: confirm in the app, by SMS TAN or with a FIDO2 security key."
+  },
+  {
+    "id": "ng-ui-backend-local-desc",
+    "de": "Signieren mit der Bürgerkarte über eine lokal installierte Bürgerkartenumgebung.",
+    "en": "Sign with the citizen card via a locally installed citizen card environment."
+  },
+  {
+    "id": "ng-ui-backend-keystore-desc",
+    "de": "Signieren mit einer PKCS#12-Datei (Keystore).",
+    "en": "Sign with a PKCS#12 file (keystore)."
+  },
+  {
+    "id": "ng-ui-backend-unavailable",
+    "de": "Derzeit nicht verfügbar.",
+    "en": "Currently not available."
+  },
+  {
+    "id": "ng-ui-backend-local-unavailable",
+    "de": "Keine lokale Bürgerkartenumgebung gefunden.",
+    "en": "No local citizen card environment found."
+  },
+  {
+    "id": "ng-ui-backend-keystore-unavailable",
+    "de": "Keystore nicht eingerichtet (Einstellungen › Keystore).",
+    "en": "Keystore not configured (Settings › Keystore)."
+  },
+  {
+    "id": "ng-ui-backend-leaves-device",
+    "de": "Das Dokument wird zum Signieren an A-Trust übermittelt.",
+    "en": "The document is sent to A-Trust for signing."
+  },
+  {
+    "id": "ng-ui-backend-qes",
+    "de": "Qualifizierte Signatur",
+    "en": "Qualified signature"
+  },
+  {
+    "id": "ng-ui-factor-app",
+    "de": "App",
+    "en": "App"
+  },
+  {
+    "id": "ng-ui-factor-sms",
+    "de": "SMS",
+    "en": "SMS"
+  },
+  {
+    "id": "ng-ui-factor-card",
+    "de": "Karte",
+    "en": "Card"
+  },
+  {
+    "id": "ng-ui-privacy-title",
+    "de": "Datenschutz",
+    "en": "Privacy"
+  },
+  {
+    "id": "ng-ui-privacy-lead",
+    "de": "Bitte lesen Sie den Datenschutzhinweis, bevor das Dokument übermittelt wird.",
+    "en": "Please read the data protection notice before the document is sent."
+  },
+  {
+    "id": "ng-ui-privacy-accept",
+    "de": "Zustimmen und fortfahren",
+    "en": "Agree and continue"
+  },
+  {
+    "id": "ng-ui-privacy-decline",
+    "de": "Ablehnen",
+    "en": "Decline"
+  },
+  {
+    "id": "ng-ui-progress-connecting",
+    "de": "Verbindung wird aufgebaut …",
+    "en": "Connecting …"
+  },
+  {
+    "id": "ng-ui-progress-certificate",
+    "de": "Zertifikat wird gelesen …",
+    "en": "Reading certificate …"
+  },
+  {
+    "id": "ng-ui-progress-server",
+    "de": "Warten auf den Signaturdienst …",
+    "en": "Waiting for the signature service …"
+  },
+  {
+    "id": "ng-ui-progress-document",
+    "de": "Dokument { $index } von { $total } wird signiert …",
+    "en": "Signing document { $index } of { $total } …"
+  },
+  {
+    "id": "ng-ui-progress-done",
+    "de": "Signatur erstellt.",
+    "en": "Signature created."
+  },
+  {
+    "id": "ng-ui-sms-title",
+    "de": "SMS-TAN eingeben",
+    "en": "Enter SMS TAN"
+  },
+  {
+    "id": "ng-ui-qr-title",
+    "de": "QR-Code scannen",
+    "en": "Scan QR code"
+  },
+  {
+    "id": "ng-ui-qr-alt",
+    "de": "QR-Code zum Scannen mit der App „ID Austria“",
+    "en": "QR code to scan with the “ID Austria” app"
+  },
+  {
+    "id": "ng-ui-app-title",
+    "de": "Bestätigung in der App",
+    "en": "Confirm in the app"
+  },
+  {
+    "id": "ng-ui-fido2-title",
+    "de": "FIDO2-Sicherheitsschlüssel",
+    "en": "FIDO2 security key"
+  },
+  {
+    "id": "ng-ui-fido2-hint",
+    "de": "Verbinden Sie Ihren Sicherheitsschlüssel und folgen Sie den Anweisungen des Systems (PIN eingeben, Schlüssel berühren).",
+    "en": "Connect your security key and follow the instructions of the system (enter PIN, touch the key)."
+  },
+  {
+    "id": "ng-ui-fido2-failed",
+    "de": "FIDO2 ist fehlgeschlagen: { $detail }",
+    "en": "FIDO2 failed: { $detail }"
+  },
+  {
+    "id": "ng-ui-countdown",
+    "de": "Verbleibende Zeit: { $time }",
+    "en": "Time remaining: { $time }"
+  },
+  {
+    "id": "ng-ui-countdown-expired",
+    "de": "Die Zeit ist abgelaufen.",
+    "en": "The time has expired."
+  },
+  {
+    "id": "ng-ui-login-rejected",
+    "de": "Die Anmeldung wurde abgelehnt. Bitte geben Sie das Passwort erneut ein.",
+    "en": "The login was rejected. Please enter the password again."
+  },
+  {
+    "id": "ng-ui-username-required",
+    "de": "Bitte geben Sie den Benutzernamen oder die Telefonnummer ein.",
+    "en": "Please enter the username or phone number."
+  },
+  {
+    "id": "ng-ui-secret-title",
+    "de": "Passwort",
+    "en": "Password"
+  },
+  {
+    "id": "ng-ui-secret-prompt",
+    "de": "Bitte geben Sie das Passwort ein:",
+    "en": "Please enter the password:"
+  },
+  {
+    "id": "ng-ui-secret-retry",
+    "de": "Das Passwort ist falsch.",
+    "en": "The password is wrong."
+  },
+  {
+    "id": "ng-ui-secret-subject",
+    "de": "Für: { $subject }",
+    "en": "For: { $subject }"
+  },
+  {
+    "id": "ng-ui-proxy-password-prompt",
+    "de": "Bitte geben Sie das Proxy-Passwort ein:",
+    "en": "Please enter the proxy password:"
+  },
+  {
+    "id": "ng-ui-proxy-password-retry",
+    "de": "Das Proxy-Passwort ist falsch.",
+    "en": "The proxy password is wrong."
+  },
+  {
+    "id": "ng-ui-notice-keystore-conversion",
+    "de": "JKS- und JCEKS-Keystores werden nicht unterstützt. Bitte wandeln Sie den Keystore in PKCS#12 um (z. B. mit keytool -importkeystore).",
+    "en": "JKS and JCEKS keystores are not supported. Please convert the keystore to PKCS#12 (e.g. with keytool -importkeystore)."
+  },
+  {
+    "id": "ng-ui-output-reveal",
+    "de": "Im Ordner anzeigen",
+    "en": "Show in folder"
+  },
+  {
+    "id": "ng-ui-output-saving",
+    "de": "Das signierte Dokument wird gespeichert …",
+    "en": "Saving the signed document …"
+  },
+  {
+    "id": "ng-ui-output-next",
+    "de": "Nächstes Dokument: { $name }",
+    "en": "Next document: { $name }"
+  },
+  {
+    "id": "ng-ui-output-next-button",
+    "de": "Nächstes Dokument signieren",
+    "en": "Sign next document"
+  },
+  {
+    "id": "ng-ui-output-more",
+    "de": "Weitere Dokumente öffnen",
+    "en": "Open more documents"
+  },
+  {
+    "id": "ng-ui-output-drop-hint",
+    "de": "Sie können weitere Dokumente hier ablegen.",
+    "en": "You can drop more documents here."
+  },
+  {
+    "id": "ng-ui-output-saved-next",
+    "de": "{ $file } wurde gespeichert, weiter mit dem nächsten Dokument.",
+    "en": "{ $file } was saved, continuing with the next document."
+  },
+  {
+    "id": "ng-ui-settings-interface",
+    "de": "Oberfläche",
+    "en": "Interface"
+  },
+  {
+    "id": "ng-ui-settings-reset",
+    "de": "Einstellungen zurücksetzen …",
+    "en": "Reset settings …"
+  },
+  {
+    "id": "ng-ui-settings-reset-confirm",
+    "de": "Alle Einstellungen werden auf die Standardwerte zurückgesetzt; die bisherigen werden als Sicherung aufbewahrt.",
+    "en": "All settings are reset to their defaults; the previous ones are kept as a backup."
+  },
+  {
+    "id": "ng-ui-settings-reset-confirm-button",
+    "de": "Zurücksetzen",
+    "en": "Reset"
+  },
+  {
+    "id": "ng-ui-settings-preview-alt",
+    "de": "Vorschau des Signaturblocks",
+    "en": "Preview of the signature block"
+  },
+  {
+    "id": "ng-ui-settings-preview-note",
+    "de": "Die Vorschau zeigt die gespeicherten Einstellungen.",
+    "en": "The preview shows the saved settings."
+  },
+  {
+    "id": "ng-ui-emblem-none",
+    "de": "Keine Bildmarke gewählt",
+    "en": "No emblem selected"
+  },
+  {
+    "id": "ng-ui-emblem-drop-hint",
+    "de": "Sie können eine Bilddatei (PNG, JPEG, GIF) auf die Vorschau ziehen.",
+    "en": "You can drag an image file (PNG, JPEG, GIF) onto the preview."
+  },
+  {
+    "id": "ng-ui-theme",
+    "de": "Darstellung",
+    "en": "Appearance"
+  },
+  {
+    "id": "ng-ui-theme-system",
+    "de": "Wie System",
+    "en": "Same as system"
+  },
+  {
+    "id": "ng-ui-theme-light",
+    "de": "Hell",
+    "en": "Light"
+  },
+  {
+    "id": "ng-ui-theme-dark",
+    "de": "Dunkel",
+    "en": "Dark"
+  },
+  {
+    "id": "ng-ui-cms-profile",
+    "de": "Signaturformat (Keystore)",
+    "en": "Signature format (keystore)"
+  },
+  {
+    "id": "ng-ui-cms-profile-hint",
+    "de": "Gilt für lokal erstellte Signaturen.",
+    "en": "Applies to signatures created locally."
+  },
+  {
+    "id": "ng-ui-cms-pdfas",
+    "de": "Kompatibel zu PDF-AS",
+    "en": "Compatible with PDF-AS"
+  },
+  {
+    "id": "ng-ui-cms-pades",
+    "de": "PAdES-BASELINE-B",
+    "en": "PAdES-BASELINE-B"
+  },
+  {
+    "id": "ng-ui-postfix-hint",
+    "de": "Leer bedeutet „_signed“.",
+    "en": "Empty means “_signed”."
+  },
+  {
+    "id": "ng-ui-proxy-mode",
+    "de": "Proxy verwenden",
+    "en": "Use proxy"
+  },
+  {
+    "id": "ng-ui-proxy-system",
+    "de": "Proxy des Systems",
+    "en": "System proxy"
+  },
+  {
+    "id": "ng-ui-proxy-none",
+    "de": "Kein Proxy",
+    "en": "No proxy"
+  },
+  {
+    "id": "ng-ui-proxy-manual",
+    "de": "Manuell",
+    "en": "Manual"
+  },
+  {
+    "id": "ng-ui-proxy-password-hint",
+    "de": "Das Passwort wird bei Bedarf abgefragt und im Schlüsselbund gespeichert.",
+    "en": "The password is requested when needed and stored in the keychain."
+  },
+  {
+    "id": "ng-ui-certcache",
+    "de": "Signaturzertifikat zwischenspeichern",
+    "en": "Cache the signing certificate"
+  },
+  {
+    "id": "ng-ui-certcache-hint",
+    "de": "Speichert nur das öffentliche Zertifikat, damit die Vorschau den echten Signaturblock zeigt.",
+    "en": "Stores only the public certificate so that the preview shows the real signature block."
+  },
+  {
+    "id": "ng-ui-keystore-keychain",
+    "de": "Im Schlüsselbund des Betriebssystems speichern",
+    "en": "Store in the operating system keychain"
+  },
+  {
+    "id": "ng-ui-keystore-alias-hint",
+    "de": "Leer lassen, wenn der Keystore nur einen Schlüssel enthält.",
+    "en": "Leave empty if the keystore contains only one key."
+  },
+  {
+    "id": "ng-ui-problem-required",
+    "de": "Bitte füllen Sie dieses Feld aus.",
+    "en": "Please fill in this field."
+  },
+  {
+    "id": "ng-ui-problem-port",
+    "de": "Der Port muss zwischen 1 und 65535 liegen.",
+    "en": "The port must be between 1 and 65535."
+  },
+  {
+    "id": "ng-ui-problem-invalid",
+    "de": "Der Wert ist ungültig.",
+    "en": "The value is invalid."
+  },
+  {
+    "id": "ng-ui-about-version",
+    "de": "Version { $version }",
+    "en": "Version { $version }"
+  },
+  {
+    "id": "ng-ui-about-thirdparty",
+    "de": "Die Lizenzhinweise der verwendeten Komponenten liegen dem Programmpaket bei.",
+    "en": "The license notices of the components used are included in the program package."
+  },
+  {
+    "id": "ng-notice-atrust-interstitial",
+    "de": "Hinweis von A-Trust",
+    "en": "Notice from A-Trust"
+  },
+  {
+    "id": "ng-form-login-rejected",
+    "de": "Die Anmeldung wurde nicht angenommen. Bitte das Passwort erneut eingeben.",
+    "en": "The login was not accepted. Please enter the password again."
+  }
+]

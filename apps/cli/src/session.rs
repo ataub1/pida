@@ -181,6 +181,7 @@ fn ask(term: &dyn Terminal, lang: Lang, prompt: &Prompt) -> Option<UiEvent> {
                 SecretKind::KeystorePassword => "ng-cli-keystore-password",
                 SecretKind::KeyPassword => "ng-cli-key-password",
                 SecretKind::ProxyPassword => "ng-cli-proxy-password",
+                SecretKind::Fido2Pin => "ng-cli-fido2-pin",
             };
             let secret: Zeroizing<String> = term.secret(&tr(lang, id, &[("name", subject.clone())]))?;
             Some(UiEvent::SubmitSecret { request: *request, secret: secret.to_string() })

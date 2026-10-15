@@ -117,6 +117,7 @@ pub const NG_TEXTS: &[(&str, &str, &str)] = &[
     ("ng-cli-keystore-password", "Keystore-Passwort für { $name }: ", "Keystore password for { $name }: "),
     ("ng-cli-key-password", "Schlüssel-Passwort für { $name }: ", "Key password for { $name }: "),
     ("ng-cli-proxy-password", "Proxy-Passwort für { $name }: ", "Proxy password for { $name }: "),
+    ("ng-cli-fido2-pin", "PIN des Sicherheitsschlüssels: ", "Security key PIN: "),
     ("ng-cli-wrong-password", "Passwort falsch.", "Wrong password."),
     ("ng-cli-progress", "… { $step }", "… { $step }"),
     ("ng-cli-valid", "gültig: { $field } ({ $signer })", "valid: { $field } ({ $signer })"),
