@@ -21,6 +21,11 @@ Abnahme der App: [docs/integration/app-abnahme.md](docs/integration/app-abnahme.
 CI und Lizenzen: [docs/entwicklung.md](docs/entwicklung.md). Ownership und Regeln: ADR 0001 §4,
 verbindliche Präzisierungen aus dem Schnittstellen-Review: §8.
 
+## Mitarbeit und Sicherheit
+
+Beiträge sind willkommen – siehe [CONTRIBUTING.md](CONTRIBUTING.md). Sicherheitslücken bitte vertraulich melden,
+wie in [SECURITY.md](SECURITY.md) beschrieben (nicht als öffentliches Issue).
+
 ## Struktur
 
 ```
