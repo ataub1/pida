@@ -195,10 +195,17 @@ enum AutoChoice {
     Fail(WorkflowError),
 }
 
-/// F-53 (Standard-BKU überspringt die Auswahl), F-54 (ohne lokale BKU und Keystore automatisch ID
-/// Austria); ohne Oberfläche zusätzlich: genau ein verfügbares Backend wird genommen, sonst Fehler.
+/// F-53 (Standard-BKU überspringt die Auswahl), F-54 (ohne erreichbare lokale BKU und ohne **aktiven**
+/// Keystore automatisch ID Austria); ohne Oberfläche zusätzlich: genau ein verfügbares Backend wird
+/// genommen, sonst Fehler.
+///
+/// „Aktiv“ heißt wie in PDF-Over (`BKUSelectionState.java:68-73`, `KEYSTORE_ENABLED`) eingeschaltet –
+/// auch wenn die Datei gerade fehlt (die Option steht dann nicht verfügbar in der Liste). Sonst startete
+/// eine eingerichtete, aber verschwundene Keystore-Datei (z. B. nach einem App-Update mit neuem
+/// Sandbox-Pfad) ohne Rückfrage eine ID-Austria-Sitzung bei A-Trust.
 fn auto_choice(options: &[BackendOption], ctx: &Context) -> AutoChoice {
     let available = |id: BackendId| options.iter().any(|o| o.id == id && o.available());
+    let enabled = |id: BackendId| options.iter().any(|o| o.id == id);
     if let Some(choice) = ctx.default_backend {
         let id = backend_for_choice(choice);
         if available(id) {
@@ -212,7 +219,7 @@ fn auto_choice(options: &[BackendOption], ctx: &Context) -> AutoChoice {
         }
         return AutoChoice::Ask;
     }
-    if !available(BackendId::LocalBku) && !available(BackendId::Keystore) && available(BackendId::AtrustNative) {
+    if !available(BackendId::LocalBku) && !enabled(BackendId::Keystore) && available(BackendId::AtrustNative) {
         return AutoChoice::Choose(BackendId::AtrustNative);
     }
     if !ctx.headless {

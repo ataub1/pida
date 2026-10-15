@@ -39,8 +39,6 @@ clap = { workspace = true }
 zeroize = { workspace = true }
 # Tauri 2.12.4 (Apache-2.0 OR MIT), Plan §2.1 „Tauri 2.12.x, gepinnt“.
 tauri = { workspace = true }
-# Datei-/Speichern-Dialoge (Apache-2.0 OR MIT).
-tauri-plugin-dialog = { workspace = true }
 # Ergebnis/Ordner/Links im System öffnen (Apache-2.0 OR MIT).
 tauri-plugin-opener = { workspace = true }
 # OS-Sprache für `Lang::set_system` (MIT OR Apache-2.0), siehe docs/integration/wave1-offene-punkte.md.
@@ -56,6 +54,10 @@ tracing-subscriber = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
 # Nur Desktop: Fenstergröße/-position merken (Apache-2.0 OR MIT).
 tauri-plugin-window-state = { workspace = true }
+# Nur Desktop: Datei-/Speichern-Dialoge (Apache-2.0 OR MIT). Mobile nutzt Dokument-Picker bzw. SAF über
+# `pdfover-mobile`; ohne das Plugin fehlen dort auch dessen Photos/PhotosUI-Bezüge (iOS, App-Store-
+# Zweckangaben) und die zusätzliche Kotlin-Bibliothek.
+tauri-plugin-dialog = { workspace = true }
 
 # Natives FIDO2 nur auf dem Desktop (ADR 0001 §2): Windows über webauthn.dll, macOS/Linux über CTAP-HID.
 [target.'cfg(windows)'.dependencies]

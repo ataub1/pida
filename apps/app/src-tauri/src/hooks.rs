@@ -58,16 +58,16 @@ impl<R: Runtime> ShellHooks for TauriHooks<R> {
         if !path.is_file() {
             return Err("keine Datei".into());
         }
-        // Mobile: Anzeige über das Plugin (Android: ACTION_VIEW mit FileProvider-URI – `opener` übergibt
-        // file://-Pfade, die Android anderen Apps verweigert). Ohne native Umsetzung (iOS bis M-iOS) wie
-        // bisher über `opener`.
+        // Mobile: Anzeige über das Plugin (iOS QuickLook; Android ACTION_VIEW mit FileProvider-URI –
+        // `opener` übergibt file://-Pfade, die Android anderen Apps verweigert und iOS nicht öffnet). Nur
+        // eine native Seite ohne `openFile` fällt auf `opener` zurück.
         #[cfg(mobile)]
         {
-            use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
+            use tauri_plugin_pdfover_mobile::{Error as MobileError, PdfoverMobileExt};
             match self.app.pdfover_mobile().open_file(path, crate::mobile::PDF_MIME) {
                 Ok(()) => return Ok(()),
-                Err(e) if cfg!(target_os = "android") => return Err(e.code().to_owned()),
-                Err(_) => {}
+                Err(MobileError::NotImplemented) => {}
+                Err(e) => return Err(e.code().to_owned()),
             }
         }
         self.app.opener().open_path(path.to_string_lossy(), None::<&str>).map_err(|e| opener_error_kind(&e))

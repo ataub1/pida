@@ -573,5 +573,7 @@ ng-ui-keystore-current = Importierte Datei: { $name }
 ng-ui-backend-atrust-desc-mobile = Signieren mit ID Austria: Bestätigung in der App „ID Austria“ oder per SMS-TAN.
 ng-ui-backend-keystore-import-hint = Noch kein Keystore auf diesem Gerät.
 ng-ui-fido2-unavailable-badge = FIDO2 nicht verfügbar
+ng-ui-browse-mobile = Dokument wählen …
+    .accesskey = w
 ng-ui-dropzone-hint-mobile = Sie können PDF-Dokumente auch aus anderen Apps über „Teilen“ bzw. „Öffnen in“ an PDF-Over NG senden.
 ng-ui-position-help-mobile = Tippen Sie auf die gewünschte Stelle oder ziehen Sie den Signaturblock mit dem Finger; er bleibt dabei über dem Finger sichtbar. Die Position lässt sich auch unten in mm eingeben.

@@ -159,6 +159,13 @@ code {
   text-underline-offset: 2px;
 }
 
+/* Mobile: Zugriffstasten (Alt+Buchstabe) gibt es ohne Tastatur nicht – keine Unterstreichung (auch in
+   Dialogen: die liegen als Portal außerhalb von `.app`, `data-mobile` steht deshalb auch an <html>) */
+.app[data-mobile] .mnemonic,
+:root[data-mobile] .mnemonic {
+  text-decoration: none;
+}
+
 .hint {
   color: var(--text-muted);
   font-size: 0.92rem;

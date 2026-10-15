@@ -155,6 +155,11 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
 
   // --- Dateien öffnen --------------------------------------------------------------------------
   const mobile = isMobile(current);
+  // Auch an der Dokumentwurzel: Dialoge (React Aria `Modal`) liegen als Portal außerhalb von `.app`;
+  // Stilregeln für Mobile (z. B. keine Zugriffstasten-Unterstreichung) gelten so auch dort.
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-mobile', mobile);
+  }, [mobile]);
   const browse = useCallback(async () => {
     if (mobile) {
       // Mobile: Dokument-Picker bzw. SAF über das Plugin; Kopien in der Sandbox (keine Pfade der Quelle)

@@ -22,7 +22,8 @@ Angelegt mit `npm run tauri android init --ci` (Tauri CLI 2.12.3) und versionier
 | Manifest | Intent-Filter `VIEW` (`content://`, `application/pdf`), `SEND` und `SEND_MULTIPLE` (`application/pdf`); Activity `singleTask` mit `configChanges` für Drehen, Dark Mode, Sprache, Schriftgröße, Tastatur; `windowSoftInputMode=adjustResize`. Berechtigungen nur `INTERNET` und `VIBRATE` (Haptik beim Positionieren), **keine** Speicher-Berechtigungen. |
 | Klartext | `usesCleartextTraffic=false` im Release **und** Debug; nur `tauri android dev` (Dev-Server im LAN) braucht `PDFOVER_ANDROID_DEV_CLEARTEXT=1` beim Build. |
 | Sicherung | `allowBackup=false`, `fullBackupContent` und `dataExtractionRules` schließen alle Bereiche aus (Cloud-Sicherung und Gerätewechsel): Einstellungen, importierter Keystore, verschlüsselte Secrets bleiben auf dem Gerät. |
-| FileProvider | App: `${applicationId}.fileprovider` (wry, nur `Pictures/` für Kameraaufnahmen der WebView – die Vorlage gab den ganzen externen Speicher frei). Plugin: `${applicationId}.pdfover.files` (`PdfoverFileProvider`, nur `Documents/` = Ausgabeordner) für „Teilen“ und „Öffnen“. Beide nicht exportiert, Lesezugriff nur per Einzelfreigabe. |
+| FileProvider | App: `${applicationId}.fileprovider` (wry, nur `Pictures/` für Kameraaufnahmen der WebView – die Vorlage gab den ganzen externen Speicher frei). Plugin: `${applicationId}.pdfover.files` (`PdfoverFileProvider`, nur `files-path Documents/` = Ausgabeordner `filesDir/Documents`, Review R-3) für „Teilen“ und „Öffnen“. Beide nicht exportiert, Lesezugriff nur per Einzelfreigabe. |
+| Datei-Zuordnung | `tauri.android.conf.json` setzt `bundle.fileAssociations = null`: der von Tauri erzeugte Filter (`VIEW`/`SEND` mit `BROWSABLE`, implizit `file:`) entfällt, der Block zwischen den Markierungen im Manifest bleibt leer (Review R-6). |
 | PDFium | `sourceSets.main.jniLibs.srcDir(tools/pdfium/android/jniLibs)` (aus `tools/fetch-pdfium.sh --jnilibs`, SHA-256 in `tools/pdfium.lock`); anderer Ort mit `-Ppdfover.pdfiumJniLibs=<pfad>`. Fehlt die Bibliothek, warnt Gradle; die App startet dann ohne Vorschau. Der Kern lädt `libpdfium.so` mit `dlopen` aus `nativeLibraryDir`. |
 | TLS | Kotlin-Komponente `org.rustls:rustls-platform-verifier:0.2.0` (Maven-Archiv des Projekts auf GitHub, Repository mit `includeGroup("org.rustls")` im Wurzelprojekt). **Achtung:** Die README des Crates nennt die Gruppe `rustls`, im Archiv heißt sie `org.rustls`. Das Plugin bricht den Build ab, wenn `rustls-platform-verifier-android` in `Cargo.lock` eine andere Version hat. SHA-256 der AAR (Gradle-Cache): `aa021794230fbc2f0be355999e2cf67398dd563de066a2e17001ffbd0b69101b`. |
 | Symbole, Farben | Icons aus `apps/app/src-tauri/icons/android` (adaptiv), Fensterfarbe wie die Oberfläche (`#F4F6F9`, dunkel `#11161D`); Standardvorlage (Tauri-Logo, Hello-World-Layout, Android-TV-Eintrag) entfernt. |
@@ -141,7 +142,7 @@ Die WebView ist in Debug-Builds über `adb forward tcp:9222 localabstract:webvie
   SHA-256-Namen und `v1:`-Chiffrate (kein Klartext `test`). Nach Neuinstallation (neuer Prozess) signiert die App
   ohne Passwortabfrage (`secureStoreGet` liefert das Passwort).
 - **Signatur und Export:** Signatur mit dem Keystore in der App („Signatur war erfolgreich“, Screenshot 05),
-  Ausgabe `Android/data/at.pdf_over_ng/files/Documents/Vertrag_signed.pdf`; „Sichern unter …“ → SAF →
+  Ausgabe (Stand M-Android; seit dem Review `files/Documents` im internen Speicher) `Android/data/at.pdf_over_ng/files/Documents/Vertrag_signed.pdf`; „Sichern unter …“ → SAF →
   `Download/Vertrag_signed.pdf` (bitgleich, SHA-256 `093b844f…d56e`). Auf dem Mac mit `adb pull`:
 
   ```text
@@ -166,9 +167,16 @@ Die WebView ist in Debug-Builds über `adb forward tcp:9222 localabstract:webvie
   Gradle `testDebugUnitTest` 5/5. Der APK enthält `org.rustls.platformverifier.*`; die Warnung
   „TLS-Prüfung der Plattform nicht initialisiert“ trat nicht auf.
 
-Screenshots (`docs/integration/screenshots/android/`, 432 px breit, 128 Farben): `01-start`,
-`02-positionieren`, `03-signiermittel`, `04-keystore-import`, `05-fertig`, `06-teilen`, `07-querformat`,
-`08-oeffnen`.
+Screenshots (`docs/integration/screenshots/android/`, 432 px breit, JPEG; `07-querformat.png` aus M-Android, übrige aus
+dem Review): `01-start`, `02-positionieren`, `03-signiermittel`, `04-keystore-import`, `05-fertig`, `06-teilen`,
+`07-querformat`, `08-oeffnen`, `09-sichern-unter`, `10-keystore-dateiauswahl`.
+
+**Review (15.10.2026, mobile.md §10):** neu gebaut, im Flugmodus erneut durchgespielt – Startprüfung `pdfium=true`,
+Keystore-Import über SAF (Kopie in `cache/import` danach entfernt), `VIEW`-Intent genau einmal, Ziehen des Blocks,
+Hintergrund/Vordergrund ohne Zustandsverlust, Signatur ohne Passwortabfrage, Ausgabe `files/Documents/Vertrag_signed.pdf`
+(0600), Teilen und „Öffnen“ über den FileProvider (`content://at.pdf_over_ng.pdfover.files/…`), „Sichern unter“ bitgleich
+nach `Download/`; pyHanko *VALID*. `cmd package query-activities`: `VIEW` mit `BROWSABLE` bzw. `file:` löst nicht mehr
+auf PDF-Over NG auf.
 
 ## 6. Nicht nachgewiesen
 
@@ -193,13 +201,13 @@ Screenshots (`docs/integration/screenshots/android/`, 432 px breit, 128 Farben):
    über `exit()` mit statischen Destruktoren, während Android-Threads laufen). Die Startprüfung meldet vorher
    `ok`; für Nutzer kann ein Absturzhinweis erscheinen. Integration: Mobile-Ende über `finish()` ohne
    `exit()` oder `_exit` prüfen (M-iOS hat `smoke.rs` für iOS bereits auf `process::exit` umgestellt).
-3. **Ausgabeordner:** `getExternalFilesDir(Documents)` ist unter Android 9/10 für Apps mit Speicher-Berechtigung
+3. **Behoben im Review (mobile.md §10, R-3).** **Ausgabeordner:** `getExternalFilesDir(Documents)` ist unter Android 9/10 für Apps mit Speicher-Berechtigung
    lesbar und in „Dateien“ nicht sichtbar (Nutzer brauchen ohnehin „Teilen“/„Sichern unter“). Empfehlung:
    unter Android `filesDir/Documents` (Shell `mobile_options`, gemeinsame Datei) und die FileProvider-Pfade
    anpassen.
-4. **Kopien im Cache:** `cache/inbox/<n>/` und `cache/import/<n>/` werden nie aufgeräumt (Dokumente bleiben,
+4. **Behoben (R-4).** **Kopien im Cache:** `cache/inbox/<n>/` und `cache/import/<n>/` wurden nie aufgeräumt (Dokumente bleiben,
    bis das System den Cache leert). Aufräumen beim Start oder nach Abschluss (Shell) empfohlen.
-5. **Oberfläche auf Android** (gemeinsame Dateien, nicht geändert): Tastatur-Kürzel-Unterstreichungen
+5. **Weitgehend behoben (R-8; offen: Warnung „keine Blockvorschau“ beim Laden).** **Oberfläche auf Android**: Tastatur-Kürzel-Unterstreichungen
    („A_b_lehnen“) erscheinen auch auf Touch-Geräten; die Überschreiben-Rückfrage nennt den vollen Pfad
    `/storage/emulated/0/Android/data/…`; der englische Text „Browse for PDF on your computer“ passt nicht zu
    Mobile; beim Laden erscheint einmal `WARN Rendern fehlgeschlagen error=keine Blockvorschau verfügbar`.

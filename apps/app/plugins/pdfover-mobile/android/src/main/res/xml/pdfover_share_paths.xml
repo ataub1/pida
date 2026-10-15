@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- „Teilen“ (shareFile): nur signierte Dokumente im Ausgabeordner der App
-     (getExternalFilesDir(DIRECTORY_DOCUMENTS) = Tauri `document_dir`, CoreOptions::default_output_dir). -->
+<!-- „Teilen“/„Öffnen“ (shareFile/openFile): nur signierte Dokumente im Ausgabeordner der App
+     (filesDir/Documents = Shell `mobile::ANDROID_OUTPUT_DIR`, CoreOptions::default_output_dir). Bewusst im
+     internen App-Speicher und nicht in getExternalFilesDir(DIRECTORY_DOCUMENTS): den lesen unter
+     Android 9/10 alle Apps mit Speicher-Berechtigung mit. -->
 <paths>
-    <external-files-path name="documents" path="Documents/" />
+    <files-path name="documents" path="Documents/" />
 </paths>

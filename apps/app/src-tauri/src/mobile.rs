@@ -30,8 +30,14 @@ use zeroize::Zeroizing;
 pub const INBOX_DIR: &str = "inbox";
 /// Ordner für Dateien aus der Dateiauswahl (PDF, PKCS#12) im Cache.
 pub const IMPORT_DIR: &str = "import";
-/// Unterordner der App-Dokumente für signierte Dokumente.
-pub const OUTPUT_DIR: &str = "PDF-Over NG";
+/// Android: Ausgabeordner unter `filesDir` (internes App-Verzeichnis). Nicht `getExternalFilesDir`
+/// (Tauri `document_dir`): das lesen unter Android 9/10 alle Apps mit Speicher-Berechtigung mit.
+/// Muss zu `res/xml/pdfover_share_paths.xml` des Plugins passen (`files-path` `Documents/`).
+pub const ANDROID_OUTPUT_DIR: &str = "files/Documents";
+/// Kopien in [`INBOX_DIR`]/[`IMPORT_DIR`], die älter sind, räumt die Shell beim Start weg. So lange
+/// bietet der Kern „Signatur fortsetzen“ an (dessen Datensatz kann wartende Dokumente im Eingang
+/// nennen); danach braucht niemand mehr die Kopien.
+pub const STALE_COPY_AGE: Duration = Duration::from_secs(60 * 60);
 /// Frist für Aufrufe des sicheren Speichers (die native Seite antwortet sonst sofort).
 pub const SECURE_STORE_TIMEOUT: Duration = Duration::from_secs(5);
 /// Höchstgröße eines eingehenden Dokuments (Schutz vor Speicherüberlauf; Plan §7.7).
@@ -99,6 +105,29 @@ pub fn ingest_urls(urls: &[url::Url], inbox: &Path) -> Ingested {
         }
     }
     out
+}
+
+/// Entfernt Kopien eingehender bzw. gewählter Dokumente (`dir/<n>/…`), die älter als `max_age` sind;
+/// liefert die Anzahl entfernter Unterordner. Ohne Aufräumen blieben Dokumente (und die Kopie eines
+/// importierten PKCS#12-Keystores) im Cache liegen, bis das System ihn leert.
+pub fn purge_stale_copies(dir: &Path, max_age: Duration, now: std::time::SystemTime) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let Ok(meta) = entry.metadata() else { continue };
+        let modified = meta.modified().unwrap_or(now);
+        let stale = now.duration_since(modified).is_ok_and(|age| age > max_age);
+        if !stale {
+            continue;
+        }
+        let path = entry.path();
+        let result = if meta.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
+        match result {
+            Ok(()) => removed += 1,
+            Err(e) => tracing::debug!(kind = ?e.kind(), "alte Kopie nicht entfernt"),
+        }
+    }
+    removed
 }
 
 /// Sicherer Speicher über das Plugin (`secure_store_get/set/delete`). Jeder Aufruf läuft in einem eigenen
@@ -210,6 +239,26 @@ mod tests {
         assert_eq!(std::fs::read(&got.files[0]).unwrap(), b"%PDF-1.7 a");
         assert_eq!(got.unresolved.len(), 2, "content:// und Unlesbares an die native Seite");
         assert!(got.unresolved[0].starts_with("content://"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn stale_copies_are_purged_fresh_ones_kept() {
+        let root = tmp("purge");
+        let old = root.join("1");
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(old.join("alt.pdf"), b"%PDF").unwrap();
+        let fresh = root.join("2");
+        std::fs::create_dir_all(&fresh).unwrap();
+        std::fs::write(fresh.join("neu.pdf"), b"%PDF").unwrap();
+        // „jetzt“ liegt zwei Stunden in der Zukunft: beide Ordner wären alt
+        let later = std::time::SystemTime::now() + Duration::from_secs(2 * 3600);
+        let now = std::time::SystemTime::now();
+        assert_eq!(purge_stale_copies(&root, STALE_COPY_AGE, now), 0, "frische Kopien bleiben");
+        assert_eq!(purge_stale_copies(&root, STALE_COPY_AGE, later), 2);
+        assert!(!old.exists() && !fresh.exists());
+        assert!(root.is_dir(), "der Ordner selbst bleibt");
+        assert_eq!(purge_stale_copies(&root.join("fehlt"), STALE_COPY_AGE, later), 0);
         let _ = std::fs::remove_dir_all(root);
     }
 

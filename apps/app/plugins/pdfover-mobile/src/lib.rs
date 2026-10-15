@@ -1,11 +1,10 @@
 //! `tauri-plugin-pdfover-mobile` – gemeinsames Mobile-Plugin von PDF-Over NG (Plan §5.2/§5.3,
 //! docs/integration/mobile.md).
 //!
-//! Die Rust-Seite ist fertig und plattformneutral; die nativen Seiten sind **leere Hüllen**
-//! (`ios/Sources/PdfoverMobilePlugin.swift`, `android/src/main/java/.../PdfoverMobilePlugin.kt`), die jede
-//! Methode mit dem Code `not-implemented` ablehnen. Die Pakete M-iOS und M-Android füllen sie; die Shell
-//! fällt bis dahin auf sichere Rückfälle zurück (Secrets nur im RAM, kein Teilen/Exportieren, Dateiauswahl
-//! über den Dialog).
+//! Die Rust-Seite ist plattformneutral; die nativen Seiten setzen den Vertrag um (iOS:
+//! `ios/Sources/*.swift`, docs/integration/mobile-ios.md; Android: `android/src/main/java/.../*.kt`,
+//! docs/integration/mobile-android.md). Fehlt eine Methode (Code `not-implemented`), fällt die Shell auf
+//! sichere Rückfälle zurück (Secrets nur im RAM, kein Teilen/Exportieren).
 //!
 //! Das Plugin hat **keine** Befehle für die WebView – nur die Rust-Shell ruft die nativen Methoden über
 //! [`PdfoverMobile`] auf (der sichere Speicher wäre sonst aus der Oberfläche lesbar).
@@ -19,11 +18,11 @@
 //!
 //! | Methode | Argumente | Antwort | Umsetzung iOS / Android |
 //! |---|---|---|---|
-//! | `secureStoreGet` | `{ key }` | `{ value: string \| null }` | Keychain (`kSecClassGenericPassword`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) / Android Keystore (AES-GCM-Schlüssel, Werte verschlüsselt in privaten SharedPreferences) |
+//! | `secureStoreGet` | `{ key }` | `{ value: string \| null }` | Keychain (`kSecClassGenericPassword`, `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, nicht synchronisiert) / Android Keystore (AES-256-GCM-Schlüssel, Werte verschlüsselt in privaten SharedPreferences, ohne Sicherung) |
 //! | `secureStoreSet` | `{ key, value }` | `{}` | wie oben (ersetzt einen vorhandenen Wert) |
 //! | `secureStoreDelete` | `{ key }` | `{}` | wie oben (fehlender Eintrag ist kein Fehler) |
 //! | `shareFile` | `{ path, mimeType }` | `{}` sobald das Share-Sheet gezeigt wird | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI und `FLAG_GRANT_READ_URI_PERMISSION` |
-//! | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | Android: `ACTION_VIEW` mit `FileProvider`-URI (ohne die App selbst); iOS: QuickLook – bis dahin fehlt die Methode, die Shell fällt auf `opener` zurück |
+//! | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | iOS: QuickLook (`QLPreviewController`, ohne Bearbeiten) / `ACTION_VIEW` mit `FileProvider`-URI (ohne die App selbst) |
 //! | `exportFile` | `{ path, fileName, mimeType }` | `{ saved: bool }` nach der Wahl | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT`, dann Bytes kopieren |
 //! | `importFile` | `{ kind: "pdf" \| "pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; Inhalt nach `destination` kopieren (Security-Scoped bzw. `ContentResolver`) |
 //! | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | eingegangene Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE` `application/pdf`) **und** die übergebenen URLs (Security-Scoped `file://` bzw. `content://`) nach `destination` kopieren; die Warteschlange danach leeren |

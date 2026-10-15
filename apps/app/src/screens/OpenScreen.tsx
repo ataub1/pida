@@ -30,7 +30,8 @@ export function OpenScreen({ queue, onBrowse }: { queue: QueueItemView[]; onBrow
             <p className="dropzone-or">{t.t('dataSourceSelection-DropLabel2')}</p>
           </>
         )}
-        <AccessButton msg="dataSourceSelection-browse" variant="primary" onPress={onBrowse} />
+        {/* Mobile: „… auf Ihrem Computer“ passt nicht – eigener Text für die Dateiauswahl des Systems */}
+        <AccessButton msg={mobile ? 'ng-ui-browse-mobile' : 'dataSourceSelection-browse'} variant="primary" onPress={onBrowse} />
         <p id="dropzone-hint" className="hint">
           {t.t(mobile ? 'ng-ui-dropzone-hint-mobile' : 'ng-ui-dropzone-hint')}
         </p>

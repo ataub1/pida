@@ -49,16 +49,9 @@
                 <data android:mimeType="application/pdf" />
             </intent-filter>
             <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="application/pdf" />
-                <data android:pathPattern=".*\\.pdf" />
-            </intent-filter>
-            
+            <!-- leer: tauri.android.conf.json setzt bundle.fileAssociations = null – die von Tauri erzeugte
+                 Variante (VIEW/SEND mit BROWSABLE und implizitem file://) wäre weiter als nötig; die Filter oben
+                 decken „Öffnen mit“ und „Teilen“ ab. -->
             <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
         </activity>
 

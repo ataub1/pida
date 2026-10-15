@@ -21,7 +21,8 @@
 //! - **Sprache**: `Lang::set_system` aus `sys-locale` (unter Windows/macOS-GUI fehlen POSIX-Variablen). Das Plugin `deep-link` kommt erst mit eigenen URL-Schemata bzw. App Links (Szenario C/D,
 //!   Mobile) hinzu; in v1 gäbe es nur tote Abhängigkeiten (u. a. `tiny-keccak`, CC0, im Lizenz-Gate).
 //! - **Drag & Drop** über die Fenster-Ereignisse von Tauri (Oberfläche: `onDragDropEvent`).
-//! - **Fensterzustand** (Plugin `window-state`), Dialoge (`dialog`), Öffnen im System (`opener`).
+//! - **Fensterzustand** (Plugin `window-state`), Dialoge (`dialog`, nur Desktop), Öffnen im System
+//!   (`opener`).
 //! - Logs: Datei im Log-Ordner der Plattform ([`pdfover_config::Paths`]) über
 //!   `pdfover_core_api::logging` (rotierend auch während des Laufs), ohne Secrets und Dokumentinhalte
 //!   (Regel 9); Filter über `--log-level`, sonst `PDFOVER_LOG`.
@@ -43,7 +44,10 @@
 //! - Pfade der App-Sandbox (`Paths::sandbox`), Ausgabe in die App-Dokumente, Secrets über das Plugin
 //!   ([`mobile::secret_store`]), PDFium aus dem Bundle bzw. `jniLibs` ([`pdfium::mobile_dir`]).
 //! - Lebenszyklus `WindowEvent::Suspended`/`Resumed` → `UiEvent::Backgrounded`/`Foregrounded` (kein
-//!   Abbruch); Schließen/Beenden geht nie als `Quit` an den Kern.
+//!   Abbruch); Schließen/Beenden geht nie als `Quit` an den Kern. Die App beendet sich nie selbst:
+//!   `Finished` des Kerns bzw. „Beenden“ ohne Kern starten einen neuen Kern ([`finish_on_mobile`]).
+//! - Aufräumen: alte Kopien im Eingangs- und Import-Ordner des Caches beim Start
+//!   ([`mobile::purge_stale_copies`]).
 //! - Dokument-Eingang: `RunEvent::Opened` (URLs, keine Pfade) und Intents über das Plugin
 //!   (`take_pending_open_documents`, beim Start und nach jeder Rückkehr); Bytes werden in den
 //!   Eingangsordner der Sandbox kopiert ([`mobile::ingest_urls`]).
@@ -106,6 +110,9 @@ fn core_dispatch(app: AppHandle, shell: State<'_, Shell>, event: serde_json::Val
     match shell.dispatch_json(event).map_err(str::to_owned)? {
         DispatchOutcome::Dispatched => {}
         DispatchOutcome::Restart => start_core(&app, &shell),
+        // Mobile: Apps beenden sich nicht selbst (iOS: `app.exit` endet in tao in einer Panik, Android in
+        // `exit()` mit laufenden Systemthreads) – „Beenden“ ohne Kern startet ihn neu
+        DispatchOutcome::Quit if cfg!(mobile) => start_core(&app, &shell),
         DispatchOutcome::Quit => app.exit(0),
     }
     Ok(())
@@ -197,7 +204,13 @@ fn start_core(app: &AppHandle, shell: &Shell) {
                     };
                     let _ = app.emit(VIEW_EVENT, &view);
                     if let Some(code) = finished {
-                        app.exit(code);
+                        if cfg!(mobile) {
+                            // Mobile beendet sich nicht selbst (siehe `finish_on_mobile`): neuer Kern, der
+                            // wieder bei „Dokument öffnen“ beginnt
+                            finish_on_mobile(&app, code);
+                        } else {
+                            app.exit(code);
+                        }
                         break;
                     }
                     if rx.changed().await.is_err() {
@@ -215,6 +228,18 @@ fn start_core(app: &AppHandle, shell: &Shell) {
         Started::Unavailable => {
             let _ = app.emit(VIEW_EVENT, shell.view());
         }
+    }
+}
+
+/// Mobile: Der Kern meldet `Finished` (z. B. „Abbrechen“ im Fehlerschritt beim Start, `SKIP_FINISH`).
+/// iOS-Apps beenden sich nicht selbst (App-Store-Richtlinien; tao kennt kein `ControlFlow::Exit`,
+/// `app.exit` endet dort in einer Panik und `abort`), unter Android liefe `exit()` gegen die noch
+/// aktiven Systemthreads. Stattdessen startet ein neuer Kern – die App steht wieder bei „Dokument
+/// öffnen“; das System verwaltet den Prozess.
+fn finish_on_mobile(app: &AppHandle, code: i32) {
+    tracing::info!(code, "Kern beendet – Mobile startet neu statt zu beenden");
+    if let Some(shell) = app.try_state::<Shell>() {
+        start_core(app, &shell);
     }
 }
 
@@ -279,7 +304,14 @@ fn platform_paths(app: &AppHandle) -> Result<Paths, pdfover_config::ConfigError>
 #[cfg(mobile)]
 fn mobile_options(app: &AppHandle, shell: &Shell) {
     use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
-    let documents = app.path().document_dir().ok();
+    // iOS: `Documents` (in der Dateien-App sichtbar, UIFileSharingEnabled). Android: `filesDir/Documents`
+    // statt `getExternalFilesDir(DOCUMENTS)` (Tauri `document_dir`) – den lesen unter Android 9/10 alle
+    // Apps mit Speicher-Berechtigung mit; Teilen/„Sichern unter“ geben das Dokument gezielt weiter.
+    let documents = if cfg!(target_os = "android") {
+        app.path().app_data_dir().ok().map(|d| d.join(mobile::ANDROID_OUTPUT_DIR))
+    } else {
+        app.path().document_dir().ok()
+    };
     let secrets = mobile::secret_store(app.pdfover_mobile());
     shell.update_options(move |o| {
         o.secret_store = Some(secrets);
@@ -299,6 +331,22 @@ fn lifecycle(app: &AppHandle, suspended: bool) {
     if !suspended {
         take_pending_documents(app, Vec::new());
     }
+}
+
+/// Mobile: alte Kopien im Eingangs- und Import-Ordner des Caches entfernen (im Hintergrund).
+#[cfg(mobile)]
+fn purge_stale_copies(app: &AppHandle) {
+    let Ok(cache) = app.path().app_cache_dir() else { return };
+    std::thread::spawn(move || {
+        let now = std::time::SystemTime::now();
+        let removed: usize = [mobile::INBOX_DIR, mobile::IMPORT_DIR]
+            .iter()
+            .map(|d| mobile::purge_stale_copies(&cache.join(d), mobile::STALE_COPY_AGE, now))
+            .sum();
+        if removed > 0 {
+            tracing::info!(removed, "alte Kopien im Cache entfernt");
+        }
+    });
 }
 
 /// Mobile: Dokumente aus „Öffnen in“/Share/Intents in die Sandbox kopieren und an den Kern geben – im
@@ -437,8 +485,12 @@ pub fn run() {
         builder.plugin(tauri_plugin_window_state::Builder::default().build())
     };
 
+    // Datei-/Speichern-Dialoge nur auf dem Desktop (Mobile: Dokument-Picker bzw. SAF über
+    // `pdfover-mobile`); das Plugin ist dort gar nicht im Binary (Cargo.toml, iOS: ohne Photos/PhotosUI).
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_dialog::init());
+
     let app = builder
-        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         // Mobile: native Seite (Swift/Kotlin); Desktop: ohne Funktion. Keine Befehle für die WebView.
         .plugin(tauri_plugin_pdfover_mobile::init())
@@ -495,7 +547,10 @@ pub fn run() {
             shell.set_system_language(system_language);
             shell.set_hooks(Arc::new(hooks::TauriHooks::new(handle.clone())));
             #[cfg(mobile)]
-            mobile_options(&handle, &shell);
+            {
+                mobile_options(&handle, &shell);
+                purge_stale_copies(&handle);
+            }
             app.manage(shell);
             let shell = handle.state::<Shell>();
             // vor `setup` eingetroffene Dokumente (macOS-Kaltstart über ein Dokument) gehen mit dem Start

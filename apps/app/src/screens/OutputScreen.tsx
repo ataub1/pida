@@ -138,7 +138,8 @@ export function OutputScreen({ result, next }: { result: OutputView; next: DocIn
             </>
           }
         >
-          <p>{t.t('output-file_ask_overwrite', { arg1: result.ask_overwrite })}</p>
+          {/* Mobile: nur der Dateiname – der Sandbox-Pfad ist unlesbar und läuft aus dem Dialog */}
+          <p>{t.t('output-file_ask_overwrite', { arg1: mobile ? baseName(result.ask_overwrite) : result.ask_overwrite })}</p>
         </ConfirmDialog>
       ) : null}
     </div>

@@ -49,7 +49,7 @@ einem iCloud-Download). Fehler nur als kurzer Code (`invoke.reject(_, code:)`), 
 | Methode | Umsetzung | Codes |
 |---|---|---|
 | `secureStoreGet/Set/Delete` | `SecureStore.swift`: `kSecClassGenericPassword`, Dienst `<Bundle-ID>.secrets`, Konto = Schlüssel der Rust-Seite, **`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`**, nicht synchronisiert. Setzen = `SecItemUpdate`, sonst `SecItemAdd`; Löschen eines fehlenden Eintrags ist kein Fehler | `keychain-locked`, `keychain-unavailable`, `keychain-error`, `keychain-bad-data` |
-| (Start) | Keychain-Einträge überleben das Löschen der App: Fehlt die Markierung in `UserDefaults` (erste Ausführung nach einer Installation), löscht das Plugin alle Einträge seines Dienstes | – |
+| (Start) | Keychain-Einträge überleben das Löschen der App: Fehlt die Markierung in `UserDefaults` (erste Ausführung nach einer Installation), löscht das Plugin alle Einträge seines Dienstes. Außerdem legt es `Library/Application Support/<Bundle-ID>/data/keystores` (0700) an und nimmt den Ordner von iCloud-/Geräte-Sicherungen aus (`isExcludedFromBackup`, Review R-5) | – |
 | `shareFile` | `UIActivityViewController` mit der Datei-URL (nur Dateien in der Sandbox); `{}` sobald gezeigt; iPad: Popover mittig | `file-missing`, `no-view` |
 | `openFile` | **QuickLook** (`QLPreviewController`, Bearbeiten gesperrt – jede Änderung bräche die Signatur); darin auch Teilen/Drucken. Vertrag von M-Android eingeführt (`PdfoverMobile::open_file`, `ShellHooks::open_path` auf Mobile) | `file-missing`, `no-preview`, `no-view` |
 | `exportFile` | `UIDocumentPickerViewController(forExporting:asCopy: true)`; weicht `fileName` ab, zuerst eine benannte Kopie in `tmp/export-…`; Abbruch (auch Wegwischen) → `cancelled` | `file-missing`, `busy`, `no-view`, `io-error` |
@@ -166,7 +166,15 @@ tauri-plugin-pdfover-mobile` (58 Tests grün), Swift-Paket ohne Warnungen der ei
 | I-14 | Lebenszyklus | Home-Taste → `Lebenszyklus suspended=true`, zurück → `suspended=false`, gleicher Prozess, Zustand erhalten |
 | I-15 | Dateien-App | „Auf meinem iPhone › PDF-Over NG“ zeigt `Testdokument_signed.pdf` |
 
-Screenshots: `docs/integration/screenshots/ios/01-start.jpg` … `09-oeffnen-quicklook.jpg` (verkleinert).
+Screenshots: `docs/integration/screenshots/ios/01-start.jpg` … `11-ueberschreiben-nur-dateiname.jpg` (verkleinert; 01, 03–11
+neu aus dem Review, mobile.md §10; 02 aus M-iOS).
+
+**Review (15.10.2026, mobile.md §10):** neu gebaut und erneut durchgespielt – Startprüfung `pdfium=true`,
+Keystore-Import (Cache-Kopie entfernt, `data/keystores` mit Sicherungsausschluss), Signatur ohne Passwortabfrage,
+Teilen, „Sichern unter“, QuickLook, Überschreiben-Rückfrage nur mit Dateinamen (Screenshot 11), Update-Installation
+mit neuer Container-UUID: Keystore und Keychain-Passwörter neu zugeordnet, Signatur weiter ohne Abfrage. Alle
+signierten Dokumente laut pyHanko *VALID*. Gestartet mit `SIMCTL_CHILD_HTTPS_PROXY=http://127.0.0.1:9` (u. a.), damit
+kein Request A-Trust erreichen kann.
 
 ## 6. Nicht nachgewiesen
 
@@ -182,29 +190,29 @@ Screenshots: `docs/integration/screenshots/ios/01-start.jpg` … `09-oeffnen-qui
 
 ## 7. Befunde und offene Punkte
 
-1. **Kern, hoch: absolute Pfade in den Einstellungen.** iOS vergibt bei jeder Installation/Aktualisierung
+1. **Behoben im Review (mobile.md §10, R-1).** **Kern, hoch: absolute Pfade in den Einstellungen.** iOS vergibt bei jeder Installation/Aktualisierung
    einen neuen Container-Pfad (`…/Data/Application/<UUID>/`). `[keystore] file` (und
    `general.last_source_directory`) speichern den absoluten Pfad – nach einem App-Update ist der Keystore
    „nicht auf diesem Gerät“, obwohl die Datei mitgewandert ist. Folge im Test: Mit nur einem verbleibenden
    Signiermittel startete die App ohne Auswahl direkt ID Austria (anonymer InfoboxRead-Request an A-Trust,
    sofort abgebrochen). Vorschlag: Keystore-Pfad relativ zu `Paths::data_dir` speichern bzw. beim Laden
    unter `data_dir/keystores/<Name>` neu auflösen (core-api/config, nicht M-iOS).
-2. **Shell:** `app.exit` panikt unter iOS (tao); betroffen sind außer der Startprüfung `Finished` →
+2. **Behoben (R-2).** **Shell:** `app.exit` panikt unter iOS (tao); betroffen sind außer der Startprüfung `Finished` →
    `app.exit(code)` und `DispatchOutcome::Quit` in `lib.rs` (z. B. „Beenden“ im Fehlerschritt ohne Kern).
    Auf Mobile nicht beenden bzw. `process::exit` nur nach Rückfrage.
-3. **Oberfläche:** Rückfrage „Datei … existiert bereits“ zeigt den vollen Sandbox-Pfad (unlesbar, läuft aus
+3. **Behoben (R-8).** **Oberfläche:** Rückfrage „Datei … existiert bereits“ zeigt den vollen Sandbox-Pfad (unlesbar, läuft aus
    dem Dialog) – auf Mobile nur den Dateinamen. Unterstrichene Tastenkürzel (Mnemonics) sind auf dem
    Telefon ohne Nutzen.
-4. **Kern/Shell:** Kopien im Cache bleiben liegen: `Caches/…/import/<n>/test-rsa2048.p12` (der importierte
+4. **Behoben (R-4).** **Kern/Shell:** Kopien im Cache bleiben liegen: `Caches/…/import/<n>/test-rsa2048.p12` (der importierte
    Keystore liegt danach ein zweites Mal im Cache) und `inbox/<n>/…`. Nach dem Import bzw. nach Abschluss
    löschen.
 5. Logs im System-Log enthalten ANSI-Farbcodes (stderr-Ausgabe im Debug-Build).
-6. `tauri-plugin-dialog` ist auch auf Mobile registriert und zieht `Photos`/`PhotosUI` in das Binary – vor
+6. **Behoben (R-7).** `tauri-plugin-dialog` ist auch auf Mobile registriert und zieht `Photos`/`PhotosUI` in das Binary – vor
    der App-Store-Einreichung prüfen, ob Zweckangaben verlangt werden, sonst das Plugin nur auf dem Desktop
    registrieren.
 7. `CFBundleShortVersionString`/`CFBundleVersion` setzt die CLI auf 1.0.0, die App meldet 0.1.0 –
    `version` in `tauri.conf.json` bzw. `bundle.iOS.bundleVersion` festlegen.
-8. Doku-Tabellen in `apps/app/plugins/pdfover-mobile/src/lib.rs` und docs/integration/mobile.md §2 nennen
+8. **Behoben (R-10).** Doku-Tabellen in `apps/app/plugins/pdfover-mobile/src/lib.rs` und docs/integration/mobile.md §2 nennen
    für die Keychain noch `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`; umgesetzt ist (Vorgabe M-iOS)
    `…WhenUnlockedThisDeviceOnly` – der Kern liest Secrets nur im Vordergrund. Ebenso ist dort `openFile`
    für iOS noch als fehlend beschrieben.

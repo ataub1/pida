@@ -37,6 +37,32 @@ enum SandboxFiles {
     documents.appendingPathComponent("Inbox", isDirectory: true)
   }
 
+  /// Ordner der importierten PKCS#12-Keystores des Kerns (`Paths::data_dir/keystores`; Tauri
+  /// `app_data_dir` = `Library/Application Support/<Bundle-ID>`, `Paths::sandbox` → `data/`).
+  static var importedKeystores: URL {
+    let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    return support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "at.pdf-over-ng", isDirectory: true)
+      .appendingPathComponent("data", isDirectory: true)
+      .appendingPathComponent("keystores", isDirectory: true)
+  }
+
+  /// Importierte Keystores (privater Schlüssel, durch das Passwort geschützt) nicht in iCloud-/Geräte-
+  /// Sicherungen: wie unter Android (`allowBackup=false`) und wie ihr Passwort in der Keychain
+  /// (`…ThisDeviceOnly`) bleiben sie auf diesem Gerät. Der Ordner wird dafür vorab angelegt (0700); der
+  /// Kern schreibt später hinein. Fehler nur im Log (ohne Pfad).
+  static func excludeImportedKeystoresFromBackup() {
+    var dir = importedKeystores
+    do {
+      try FileManager.default.createDirectory(
+        at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      try dir.setResourceValues(values)
+    } catch {
+      NSLog("pdfover-mobile: Keystore-Ordner nicht von der Sicherung ausgenommen")
+    }
+  }
+
   /// Liegt `url` innerhalb von `dir` (nach Auflösen von Symlinks, ohne `..`)?
   static func isInside(_ url: URL, _ dir: URL) -> Bool {
     let path = url.standardizedFileURL.resolvingSymlinksInPath().path

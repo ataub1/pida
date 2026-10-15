@@ -88,6 +88,7 @@ class PdfoverMobilePlugin: Plugin {
     // stehen, bevor iOS die erste Szene verbindet bzw. `application:openURL:options:` ruft
     OpenURLHooks.install()
     SecureStore.purgeAfterReinstall()
+    SandboxFiles.excludeImportedKeystoresFromBackup()
   }
 
   // MARK: Hilfen

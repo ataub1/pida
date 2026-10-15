@@ -186,6 +186,23 @@ describe('Mobile-Bedienelemente', () => {
     expect(mock.dispatched).toEqual([{ type: 'share_result' }, { type: 'export_result' }]);
   });
 
+  it('Überschreiben-Rückfrage nennt nur den Dateinamen, nicht den Sandbox-Pfad', async () => {
+    const existing = '/var/mobile/Containers/Data/Application/X/Documents/Vertrag_signed.pdf';
+    renderApp({ view: onMobile(viewOf({ step: 'output', result: outputResult({ ask_overwrite: existing }), next: null })) });
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('Datei Vertrag_signed.pdf existiert bereits');
+    expect(dialog).not.toHaveTextContent('/var/mobile');
+  });
+
+  it('Mobile: Zugriffstasten-Unterstreichung ist per CSS abgeschaltet (data-mobile an der Wurzel)', async () => {
+    renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] })) });
+    const button = await screen.findByRole('button', { name: 'Dokument wählen …' });
+    // Die Markierung bleibt im DOM (Tastatur am Tablet), die Stilregel `.app[data-mobile] .mnemonic` blendet sie aus
+    expect(button.closest('.app[data-mobile]')).not.toBeNull();
+    // Dialoge liegen als Portal außerhalb von `.app`: das Attribut steht deshalb auch an <html>
+    expect(document.documentElement.hasAttribute('data-mobile')).toBe(true);
+  });
+
   it('Signiermittel: FIDO2 ausgegraut mit Hinweis, Beschreibung ohne FIDO2', async () => {
     renderApp({ view: onMobile(backendView(MOBILE_OPTIONS), ANDROID) });
     const card = await screen.findByRole('button', { name: /ID Austria|Handy/ });
@@ -212,7 +229,8 @@ describe('Mobile-Bedienelemente', () => {
 
   it('Durchsuchen nutzt die Dateiauswahl des Plugins (Kopien in der Sandbox)', async () => {
     const { mock, user } = renderApp({ platform: 'ios' });
-    await user.click(await screen.findByRole('button', { name: /Durchsuchen/ }));
+    // Mobile-Text statt „Durchsuchen um ein Dokument zu wählen“ („… on your computer“ im Englischen)
+    await user.click(await screen.findByRole('button', { name: 'Dokument wählen …' }));
     await waitFor(() => expect(mock.dispatched[0]).toMatchObject({ type: 'open_files' }));
     expect(mock.nativeCalls).toEqual(['pickMobileFiles:pdf:multiple']);
     const ev = mock.dispatched[0] as Extract<UiEvent, { type: 'open_files' }>;

@@ -90,7 +90,8 @@ class SecureStore(context: Context) {
         require(stored.startsWith(VERSION)) { "version" }
         val raw = Base64.decode(stored.substring(VERSION.length), Base64.NO_WRAP)
         val ivLen = raw[0].toInt()
-        require(ivLen in 12..16 && raw.size > 1 + ivLen + GCM_TAG_BITS / 8) { "format" }
+        // `>=`: ein leerer Wert besteht nur aus dem GCM-Tag
+        require(ivLen in 12..16 && raw.size >= 1 + ivLen + GCM_TAG_BITS / 8) { "format" }
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(
             Cipher.DECRYPT_MODE,

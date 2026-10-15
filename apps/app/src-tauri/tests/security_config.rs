@@ -131,3 +131,59 @@ fn csp_has_no_remote_sources() {
         }
     }
 }
+
+const ANDROID_MANIFEST: &str = include_str!("../gen/android/app/src/main/AndroidManifest.xml");
+const ANDROID_CONF: &str = include_str!("../tauri.android.conf.json");
+const ANDROID_SHARE_PATHS: &str =
+    include_str!("../../plugins/pdfover-mobile/android/src/main/res/xml/pdfover_share_paths.xml");
+const IOS_INFO_PLIST: &str = include_str!("../gen/apple/pdfover-app_iOS/Info.plist");
+
+/// Teil des XML ohne Kommentare (die Dateien erklären ihre Entscheidungen in Kommentaren).
+fn without_xml_comments(xml: &str) -> String {
+    let mut out = String::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find("<!--") {
+        out.push_str(&rest[..start]);
+        match rest[start..].find("-->") {
+            Some(end) => rest = &rest[start + end + 3..],
+            None => return out,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Android (Plan §7.7, Review der Mobile-Welle R-3/R-6): Dokumente nur über `content:`-Intents ohne
+/// `BROWSABLE` (Webseiten), kein Klartext, keine Sicherung, keine Speicher-Berechtigungen; der
+/// FileProvider des Plugins gibt nur den internen Ausgabeordner frei.
+#[test]
+fn android_surface_is_minimal() {
+    let manifest = without_xml_comments(ANDROID_MANIFEST);
+    assert!(!manifest.contains("BROWSABLE"), "keine Intent-Filter für Webseiten");
+    assert!(!manifest.contains("pathPattern"), "kein von Tauri erzeugter Datei-Filter");
+    assert!(manifest.contains(r#"android:scheme="content""#), "VIEW nur für content://");
+    assert!(!manifest.contains(r#"android:scheme="file""#));
+    assert!(manifest.contains(r#"android:allowBackup="false""#));
+    assert!(manifest.contains(r#"android:usesCleartextTraffic="${usesCleartextTraffic}""#));
+    for permission in ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "MANAGE_EXTERNAL_STORAGE", "READ_MEDIA"] {
+        assert!(!manifest.contains(permission), "keine Speicher-Berechtigung {permission}");
+    }
+    assert_eq!(manifest.matches(r#"android:exported="true""#).count(), 1, "nur die Haupt-Activity exportiert");
+    let conf = json(ANDROID_CONF);
+    assert_eq!(conf["bundle"]["fileAssociations"], serde_json::Value::Null, "Datei-Zuordnung unter Android aus");
+    let paths = without_xml_comments(ANDROID_SHARE_PATHS);
+    assert!(paths.contains(r#"<files-path name="documents" path="Documents/" />"#), "{paths}");
+    assert!(!paths.contains("external"), "nicht der externe App-Speicher (Android 9/10 für andere Apps lesbar)");
+    assert!(!paths.contains("root-path") && !paths.contains(r#"path=".""#) && !paths.contains(r#"path="/""#));
+}
+
+/// iOS: keine ATS-Ausnahmen (nur HTTPS), keine Zweckangaben für ungenutzte Dienste.
+#[test]
+fn ios_info_plist_has_no_transport_exceptions() {
+    assert!(!IOS_INFO_PLIST.contains("NSAppTransportSecurity"));
+    assert!(!IOS_INFO_PLIST.contains("NSAllowsArbitraryLoads"));
+    for key in ["NSPhotoLibraryUsageDescription", "NSCameraUsageDescription", "NSFaceIDUsageDescription"] {
+        assert!(!IOS_INFO_PLIST.contains(key), "{key}");
+    }
+    assert!(IOS_INFO_PLIST.contains("<key>LSHandlerRank</key>\n\t\t\t<string>Alternate</string>"));
+}

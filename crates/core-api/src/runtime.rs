@@ -444,6 +444,44 @@ impl CoreTask {
         }
     }
 
+    /// Mobile: Pfade importierter Dateien nach einem Umzug der Sandbox neu auflösen.
+    ///
+    /// Die Einstellungen speichern absolute Pfade (`[keystore] file`, `signature.emblem`). iOS vergibt bei
+    /// jeder Installation bzw. jedem Update einen neuen Container (`…/Application/<UUID>/`), die Dateien
+    /// ziehen mit um – der gespeicherte Pfad zeigte danach ins Leere („Keystore nicht auf diesem Gerät“).
+    /// Liegt die Datei unter demselben Namen im Ordner der importierten Dateien (`data_dir/keystores`
+    /// bzw. `data_dir/emblem`), wird der Pfad umgestellt und – beim Keystore – die Passwörter im sicheren
+    /// Speicher (Konto = Pfad, `SecretId::account`) auf den neuen Pfad übertragen. Andere Pfade bleiben
+    /// unangetastet.
+    fn relocate_sandbox_files(&mut self) {
+        if self.mobile.platform.is_desktop() {
+            return;
+        }
+        let mut changed = false;
+        let keystores = self.cfg.paths.data_dir.join(KEYSTORE_DIR);
+        if let Some(old) = self.cfg.settings.keystore.file.clone()
+            && let Some(new) = relocated(&old, &keystores)
+        {
+            let alias = self.cfg.settings.keystore.alias.clone().unwrap_or_default();
+            let secrets = self.cfg.secrets.as_ref();
+            let moved = migrate_secret(secrets, &old, &new, pdfover_config::SecretId::keystore_store)
+                + migrate_secret(secrets, &old, &new, |p| pdfover_config::SecretId::keystore_key(p, &alias));
+            tracing::info!(secrets = moved, "importierter Keystore nach Umzug der Sandbox neu zugeordnet");
+            self.cfg.settings.keystore.file = Some(new);
+            changed = true;
+        }
+        if let Some(old) = self.cfg.settings.signature.emblem.clone()
+            && let Some(new) = relocated(&old, &self.cfg.paths.emblem_dir())
+        {
+            tracing::info!("Bildmarke nach Umzug der Sandbox neu zugeordnet");
+            self.cfg.settings.signature.emblem = Some(new);
+            changed = true;
+        }
+        if changed && let Err(e) = self.cfg.save() {
+            tracing::warn!(id = e.message_id(), "Einstellungen nach dem Umzug der Sandbox nicht gespeichert");
+        }
+    }
+
     /// Lebenszyklus „Vordergrund“: Wartet ID Austria auf die Bestätigung in der App bzw. einen QR-Scan,
     /// wird der Long-Poll sofort neu gestartet (Seite neu laden, R7) – der Wechsel ist kein Abbruch.
     fn foregrounded(&mut self) {
@@ -538,7 +576,7 @@ impl CoreTask {
         }
         let ks = &mut self.cfg.settings.keystore;
         ks.enabled = true;
-        ks.file = Some(target);
+        ks.file = Some(target.clone());
         ks.declared_type = Some("PKCS12".into());
         ks.alias = alias;
         if stored {
@@ -556,6 +594,9 @@ impl CoreTask {
         self.ctx = self.cfg.context(self.headless);
         self.registry.configure(&self.cfg);
         self.apply(Event::SettingsChanged);
+        // Die Kopie aus der Dateiauswahl (Shell, `mobile_pick_files` → Cache) ist jetzt überzählig: ein
+        // zweites Exemplar des privaten Schlüssels bleibt nicht im Cache liegen.
+        remove_cache_copy(path, &target, &self.cfg.paths.cache_dir);
         Ok(stored)
     }
 
@@ -742,6 +783,7 @@ impl CoreTask {
             self.apply(Event::SettingsUnreadable(e.localized(self.cfg.language())));
             return;
         }
+        self.relocate_sandbox_files();
         self.registry.configure(&self.cfg);
         // Schlüsselbund gewünscht, aber nicht verfügbar (z. B. Linux ohne Secret Service): Hinweis
         if self.cfg.settings.keystore.password_storage == pdfover_config::PasswordStorage::Keychain
@@ -2109,6 +2151,65 @@ fn store_prepared(
     slot.prepared = Some(prepared);
     slot.cms_profile = Some(cms_profile);
     Event::PhaseCompleted(pdfover_workflow::SigningPhase::Preparing)
+}
+
+/// Entfernt die Kopie `source` der Dateiauswahl, wenn sie im Cache der App liegt (nie das Ziel `kept`, nie
+/// Dateien außerhalb des Caches – etwa eine vom Desktop übergebene Datei); ein leerer Unterordner
+/// (`import/<n>/`) geht mit.
+fn remove_cache_copy(source: &Path, kept: &Path, cache_dir: &Path) {
+    let (Ok(source), Ok(cache)) = (std::fs::canonicalize(source), std::fs::canonicalize(cache_dir)) else { return };
+    if !source.starts_with(&cache) || source == cache || std::fs::canonicalize(kept).is_ok_and(|k| k == source) {
+        return;
+    }
+    match std::fs::remove_file(&source) {
+        Ok(()) => {
+            if let Some(parent) = source.parent().filter(|p| *p != cache) {
+                let _ = std::fs::remove_dir(parent);
+            }
+        }
+        Err(e) => tracing::warn!(kind = ?e.kind(), "Kopie der Dateiauswahl nicht entfernt"),
+    }
+}
+
+/// Neuer Ort einer in die Sandbox importierten Datei nach einem Umzug der Sandbox: `old` fehlt, lag in
+/// einem Ordner mit dem Namen von `dir` (z. B. `keystores`), und `dir/<Dateiname>` ist vorhanden.
+fn relocated(old: &Path, dir: &Path) -> Option<PathBuf> {
+    if old.is_file() || old.parent()?.file_name()? != dir.file_name()? {
+        return None;
+    }
+    let new = dir.join(old.file_name()?);
+    (new != old && new.is_file()).then_some(new)
+}
+
+/// Überträgt ein Secret vom alten auf den neuen Pfad (Konto = Pfad). Der alte Pfad existiert nicht mehr
+/// und wurde beim Speichern kanonisiert: unter iOS ist `/var` ein Symlink auf `/private/var`, deshalb
+/// beide Schreibweisen. Liefert die Anzahl übertragener Secrets.
+fn migrate_secret(
+    secrets: &dyn pdfover_config::SecretStore,
+    old: &Path,
+    new: &Path,
+    id: impl Fn(&Path) -> pdfover_config::SecretId,
+) -> usize {
+    let mut candidates = vec![old.to_path_buf()];
+    if let Ok(rest) = old.strip_prefix("/var") {
+        candidates.push(Path::new("/private/var").join(rest));
+    }
+    let target = id(new);
+    for candidate in candidates {
+        let old_id = id(&candidate);
+        if old_id == target {
+            continue;
+        }
+        if let Ok(Some(value)) = secrets.get(&old_id) {
+            if secrets.set(&target, &value).is_err() {
+                tracing::warn!("Passwort nach Umzug der Sandbox nicht übertragen");
+                return 0;
+            }
+            let _ = secrets.delete(&old_id);
+            return 1;
+        }
+    }
+    0
 }
 
 /// Dateiname ohne Pfadanteile und Steuerzeichen; leer → `fallback`.
