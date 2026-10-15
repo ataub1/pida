@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { defaultSigningProgress } from '../core/defaults';
 import { renderApp } from '../test/render';
 import { outputResult, QUEUE, viewOf } from '../test/views';
 
@@ -104,7 +105,15 @@ describe('Hauptleiste', () => {
   });
 
   it('während des Signierens ist nichts klickbar', async () => {
-    renderApp({ view: viewOf({ step: 'signing', interaction: { kind: 'waiting', progress: 'Connecting' }, queue: [], document_leaves_device: false }) });
+    renderApp({
+      view: viewOf({
+        step: 'signing',
+        interaction: { kind: 'waiting', progress: 'Connecting' },
+        queue: [],
+        document_leaves_device: false,
+        progress: defaultSigningProgress(),
+      }),
+    });
     const nav = await screen.findByRole('navigation', { name: 'Arbeitsschritte' });
     for (const b of within(nav).getAllByRole('button')) expect(b).toBeDisabled();
   });

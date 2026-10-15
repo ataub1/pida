@@ -1,5 +1,5 @@
 /** Bausteine für Test-Zustände (serde-Format wie `pida-core-api`). */
-import { defaultSettings, mainBar } from '../core/defaults';
+import { defaultErrorContext, defaultSettings, defaultSigningProgress, mainBar, workspaceDefaults } from '../core/defaults';
 import type {
   BackendOptionView,
   DocInfo,
@@ -45,6 +45,8 @@ const BARS: Record<StepView['step'], [string, string, string, string]> = {
   output: ['AE', 'AE', 'AE', 'A'],
   error: ['AE', '', '', ''],
   finished: ['', '', '', ''],
+  // Stapelübersicht (ADR 0004 §3.8, Kern ab K2)
+  batch: ['AE', '', '', ''],
 };
 
 /** Plattform der Tests (Standard: Desktop). */
@@ -66,9 +68,13 @@ export function viewOf(step: StepView, extra: Partial<ViewState> = {}): ViewStat
     resume: null,
     keystore_import: null,
     privacy_text: null,
+    ...workspaceDefaults(),
     ...extra,
   };
 }
+
+/** Fehlerkontext des Kerns bis K1 (ADR 0004 §3.6). */
+export const NO_ERROR_CONTEXT = defaultErrorContext();
 
 /** Derselbe Zustand auf einer Mobile-Plattform. */
 export function onMobile(view: ViewState, platform: PlatformView = IOS): ViewState {
@@ -105,7 +111,10 @@ export function ctx(extra: Partial<FormContext> = {}): FormContext {
 
 /** Signieren; `leaves` = das Dokument geht an A-Trust (Kurzhinweis, Standard: Masken von ID Austria). */
 export function signingView(interaction: InteractionView, lang: Lang = 'de', leaves = interaction.kind !== 'secret'): ViewState {
-  return viewOf({ step: 'signing', interaction, queue: QUEUE, document_leaves_device: leaves }, { language: lang });
+  return viewOf(
+    { step: 'signing', interaction, queue: QUEUE, document_leaves_device: leaves, progress: defaultSigningProgress() },
+    { language: lang },
+  );
 }
 
 export function formView(form: NativeForm, request = 1, lang: Lang = 'de'): ViewState {
@@ -121,7 +130,17 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
     { step: 'open', queue: [] },
     {
       language: lang,
-      settings: { settings, problems: {}, keychain_available: true, fido2_available: true, read_only: false, preview_revision: 0, ...extra },
+      settings: {
+        settings,
+        problems: {},
+        keychain_available: true,
+        fido2_available: true,
+        read_only: false,
+        preview_revision: 0,
+        applied_revision: 0,
+        examples: {},
+        ...extra,
+      },
       main_bar: mainBar(['AE', '', '', ''], false),
     },
   );
@@ -129,5 +148,5 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
 
 /** Ergebnis des Ausgabe-Schritts (ohne Rückfragen, sofern nicht angegeben). */
 export function outputResult(extra: Partial<OutputView> = {}): OutputView {
-  return { path: null, save_pending: false, ask_overwrite: null, save_dialog: null, ...extra };
+  return { path: null, save_pending: false, ask_overwrite: null, save_dialog: null, summary: null, ...extra };
 }

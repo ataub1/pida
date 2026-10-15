@@ -46,7 +46,7 @@ pub use capabilities::{
     BackendId, Capabilities, Capture, CertNeed, Environment, FactorSet, Interaction, Platform, Qualification,
     ServerNeed, SignInput, SignOutput,
 };
-pub use error::BackendError;
+pub use error::{BackendError, ErrorScope};
 pub use interaction::{
     BackendEvent, BrowserRequest, CallbackData, FormAnswer, FormContext, FormProblem, InteractionBroker,
     InteractionError, NativeForm, Notice, NoticeAnswer, NoticeButtons, NoticeCode, NoticeKind, Progress, QrImage,
@@ -111,8 +111,83 @@ pub trait BackendSession: Send {
     /// Modell A (`SignInput::Digest`) [`SignResult::Raw`]. Ergebnisreihenfolge = Jobreihenfolge.
     async fn sign(&mut self, jobs: Vec<SignJob>) -> Result<Vec<SignResult>, BackendError>;
 
+    /// Signiert **ein** Dokument (ADR 0004 §3.8, Arbeitsbereich und Stapel). `job_cancel` bricht nur
+    /// diesen Job ab („Dokument überspringen“) und liefert [`BackendError::Cancelled`] – gemerkte
+    /// Zugangsdaten der Sitzung bleiben erhalten, die Sitzung bleibt benutzbar; [`SessionContext::cancel`]
+    /// bricht wie bisher die ganze Sitzung ab (F-72).
+    ///
+    /// Standard: [`BackendSession::sign`] mit einem Job, abgebrochen durch Drop des Futures (drop-sicher
+    /// nach ADR 0001 §8). Backends, die beim Abbruch eines Jobs anders aufräumen müssen (A-Trust: kein
+    /// Löschen der Zugangsdaten), überschreiben die Methode.
+    async fn sign_one(&mut self, job: SignJob, job_cancel: CancelToken) -> Result<SignResult, BackendError> {
+        if job_cancel.is_cancelled() {
+            return Err(BackendError::Cancelled);
+        }
+        let results = tokio::select! {
+            r = self.sign(vec![job]) => r?,
+            () = job_cancel.cancelled() => return Err(BackendError::Cancelled),
+        };
+        results.into_iter().next().ok_or_else(|| BackendError::Internal("sign lieferte kein Ergebnis".into()))
+    }
+
     /// Räumt nach einem Abbruch auf (idempotent, auch ohne laufenden Vorgang): gemerkte Passwörter
     /// werden gelöscht (F-72: Benutzername bleibt), offene Verbindungen geschlossen. Laufende
     /// Vorgänge bricht der Kern vorher über [`SessionContext::cancel`] ab (siehe oben).
     async fn cancel(&mut self);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Sitzung, deren `sign` sofort antwortet oder (mit `pending`) nie fertig wird.
+    struct FakeSession {
+        pending: bool,
+        calls: usize,
+    }
+
+    #[async_trait]
+    impl BackendSession for FakeSession {
+        async fn certificate(&mut self) -> Result<CertChain, BackendError> {
+            Err(BackendError::Internal("kein Zertifikat".into()))
+        }
+
+        async fn sign(&mut self, jobs: Vec<SignJob>) -> Result<Vec<SignResult>, BackendError> {
+            self.calls += 1;
+            if self.pending {
+                std::future::pending::<()>().await;
+            }
+            Ok(jobs.iter().map(|_| SignResult::Cms(vec![1, 2, 3])).collect())
+        }
+
+        async fn cancel(&mut self) {}
+    }
+
+    fn job() -> SignJob {
+        SignJob::Digest(DigestJob { display_name: "a.pdf".into(), alg: DigestAlg::Sha256, digest: vec![0; 32] })
+    }
+
+    /// ADR 0004 §3.8: Standard von `sign_one` = `sign` mit einem Job; der Job-Abbruch liefert `Cancelled`
+    /// und lässt die Sitzung benutzbar.
+    #[tokio::test]
+    async fn sign_one_default_signs_one_job_and_honours_job_cancel() {
+        let mut s = FakeSession { pending: false, calls: 0 };
+        assert_eq!(s.sign_one(job(), CancelToken::new()).await, Ok(SignResult::Cms(vec![1, 2, 3])));
+        let cancelled = CancelToken::new();
+        cancelled.cancel();
+        assert_eq!(s.sign_one(job(), cancelled).await, Err(BackendError::Cancelled));
+        assert_eq!(s.calls, 1, "ein bereits abgebrochener Job ruft `sign` nicht auf");
+
+        let mut p = FakeSession { pending: true, calls: 0 };
+        let token = CancelToken::new();
+        let trigger = token.clone();
+        tokio::spawn(async move {
+            tokio::task::yield_now().await;
+            trigger.cancel();
+        });
+        assert_eq!(p.sign_one(job(), token).await, Err(BackendError::Cancelled));
+        p.pending = false;
+        assert!(p.sign_one(job(), CancelToken::new()).await.is_ok(), "Sitzung bleibt benutzbar");
+        assert_eq!(p.calls, 2);
+    }
 }

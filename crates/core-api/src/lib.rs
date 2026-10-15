@@ -79,8 +79,22 @@
 //! | `Position.announce` | Schlüssel `page`, `pages`, `left` (linke Kante), `top` (Oberkante von unten, wie das Feld Y; mm, ganzzahlig) |
 //! | Migrationsassistent | [`MigrationOfferView::plaintext_secrets`] ergänzt: die UI fragt nur dann nach der Übernahme der Passwörter in den Schlüsselbund |
 //!
+//! # Neue Oberfläche „Arbeitsbereich“ (ADR 0004, Vertrag E0)
+//!
+//! Alle Bridge-Typen und Ereignisse aus ADR 0004 §3 stehen additiv in `view.rs` (neue Felder mit
+//! `#[serde(default)]`, neue Varianten am Ende): [`ViewState::document`], `signers`, `batch`, `verify`,
+//! `recent`, `first_run`, `actions`; `StepView::Signing::progress`, `StepView::Error::context`,
+//! [`StepView::Batch`]; [`OutputView::summary`]; `SettingsView::{applied_revision, examples}`;
+//! [`MigrationOfferView::items`] sowie 23 neue [`UiEvent`]s (`set_invisible` … `offer_migration`).
+//! Gemeinsame Typen von Reducer und Bridge liegen in `pida-workflow` (`PlacementOrigin`, `ExistingPolicy`,
+//! `BatchOutput`). Bis zur Umsetzung in K1–K4 liefert der Kern Standardwerte (`None`/leer; nur
+//! [`ViewState::actions`] ist schon aus dem Zustand berechnet) und ignoriert die neuen Ereignisse mit
+//! einem Debug-Log – keines öffnet eine Sitzung (Invariante A1). Klassischer Ablauf und CLI bleiben
+//! unverändert.
+//!
 //! Ownership: **Integration**.
 
+mod actions;
 mod backends;
 mod broker;
 mod config;
@@ -107,6 +121,16 @@ pub use view::{
     BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, FormAnswerView, InteractionView,
     KeystoreImportView, MainBarView, MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView, QrInfo,
     QueueItemView, ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
+};
+// ADR 0004 (neue Oberfläche „Arbeitsbereich“, Vertrag E0)
+pub use view::{
+    ActionsView, AppearanceView, BatchEstimateView, BatchItemStatusView, BatchItemView, BatchOutputView,
+    BatchPauseView, BatchSummaryView, BatchView, CertificateSource, ConfirmMethod, DocConstraintsView, DocRefView,
+    DocumentPhase, DocumentView, ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldTargetView, FirstRunView,
+    GuideAxis, GuideKind, GuideView, MigrationItemView, OutputModeView, PageLayoutView, PauseScope, PlacementCheckView,
+    PlacementTarget, PositionSummaryView, PriorStatusView, QrTargetView, QualificationClaim, RecentItemView, RectPt,
+    SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView, SignerView, SignersView,
+    SigningProgressView, SigningStage, TrustCheck, VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView,
 };
 
 use pida_backend_api::{Platform, SignatureBackend};
@@ -315,6 +339,13 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         resume: None,
         keystore_import: None,
         privacy_text: None,
+        document: None,
+        signers: SignersView::default(),
+        batch: None,
+        verify: None,
+        recent: None,
+        first_run: None,
+        actions: actions::actions_for(&pida_workflow::State::Starting, false),
     }
 }
 

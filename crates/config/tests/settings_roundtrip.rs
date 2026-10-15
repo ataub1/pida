@@ -181,6 +181,23 @@ fn json_bridge_keeps_unknown_keys() {
     assert_eq!(table["future"]["name"].as_str(), Some("Zukunft"));
 }
 
+/// ADR 0004 §3.10/§3.12: neue Schlüssel ohne neue `schema_version`; fehlen sie (Bestandsdatei), gilt
+/// `true` – Bestandsnutzer sehen keine Ersteinrichtung, „Zuletzt signiert“ ist eingeschaltet (§8 F6).
+#[test]
+fn workspace_keys_default_to_true_and_roundtrip() {
+    let s = Settings::from_toml("[general]\nupdate_check = false\n").unwrap();
+    assert!(s.general.recent_documents && s.general.first_run_completed);
+    let d = Settings::default();
+    assert!(d.general.recent_documents && d.general.first_run_completed);
+    let mut changed = Settings::default();
+    changed.general.recent_documents = false;
+    changed.general.first_run_completed = false;
+    let text = changed.to_toml().unwrap();
+    assert!(text.contains("recent_documents = false") && text.contains("first_run_completed = false"), "{text}");
+    assert_eq!(Settings::from_toml(&text).unwrap(), changed);
+    assert!(changed.unknown.is_empty());
+}
+
 #[test]
 fn schema_versions() {
     let s = Settings::from_toml("[general]\nupdate_check = false\n").unwrap();

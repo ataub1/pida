@@ -76,9 +76,9 @@ pub use output::{
 pub use queue::{DocId, DocOutcome, DocResult, InputDocument, Queue};
 pub use reducer::{grown_reserve, reduce};
 pub use state::{
-    BackendOption, Context, DocFacts, Effect, Event, MSG_BACKEND_CHOICE_REQUIRED, MSG_CMS_TOO_LARGE,
-    MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_DOCUMENT_LEAVES_DEVICE, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND,
-    MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_UNEXPECTED, MainBarStep,
-    PlaceholderAnswer, PlaceholderFound, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step,
-    Transition, WorkflowError, backend_for_choice,
+    BackendOption, BatchOutput, Context, DocFacts, Effect, Event, ExistingPolicy, MSG_BACKEND_CHOICE_REQUIRED,
+    MSG_CMS_TOO_LARGE, MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_DOCUMENT_LEAVES_DEVICE, MSG_INITIALIZATION, MSG_INVARIANT,
+    MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_UNEXPECTED,
+    MainBarStep, PlaceholderAnswer, PlaceholderFound, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget,
+    SignFlow, SigningPhase, State, Step, Transition, WorkflowError, backend_for_choice,
 };

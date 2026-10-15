@@ -85,7 +85,46 @@ pub enum BackendError {
     Internal(String),
 }
 
+/// Wirkungsbereich eines Backend-Fehlers für Stapel und „Erneut versuchen“ (ADR 0004 §3.6, §3.8):
+/// entscheidet, ob die Sitzung (samt Anmeldung) offen bleiben darf.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ErrorScope {
+    /// betrifft nur dieses Dokument: [`BackendError::DocumentTooLarge`] (nicht wiederholbar),
+    /// [`BackendError::SecurityLayer`] (wiederholbar)
+    Document,
+    /// Verbindung gestört, Sitzung und Zugangsdaten intakt: [`BackendError::Network`],
+    /// [`BackendError::Timeout`], [`BackendError::Http`]
+    Transient,
+    /// Sitzung unbrauchbar, neu öffnen: alle übrigen Fehler außer [`BackendError::Cancelled`]
+    Session,
+    /// [`BackendError::Cancelled`] – ob Abbruch in PIDA oder Ablehnung in der App, entscheidet der Kern
+    Cancelled,
+}
+
 impl BackendError {
+    /// Wirkungsbereich (ADR 0004 §3.8); vollständig über alle Varianten (kein Platzhalter-Arm, damit eine
+    /// neue Variante bewusst zugeordnet wird).
+    pub fn scope(&self) -> ErrorScope {
+        match self {
+            BackendError::Cancelled => ErrorScope::Cancelled,
+            BackendError::DocumentTooLarge | BackendError::SecurityLayer { .. } => ErrorScope::Document,
+            BackendError::Network(_) | BackendError::Timeout | BackendError::Http { .. } => ErrorScope::Transient,
+            BackendError::Unavailable(_)
+            | BackendError::ProxyAuthRequired
+            | BackendError::UnknownPage { .. }
+            | BackendError::LoopDetected
+            | BackendError::Protocol(_)
+            | BackendError::WrongPassword
+            | BackendError::Keystore(_)
+            | BackendError::KeystoreDetail { .. }
+            | BackendError::UnsupportedKeystoreFormat { .. }
+            | BackendError::CertificateMismatch
+            | BackendError::Fido2(_)
+            | BackendError::Internal(_) => ErrorScope::Session,
+        }
+    }
+
     /// `true` für Nutzerabbruch (inkl. SL 6000/6001, die Backends bereits auf `Cancelled` abbilden).
     pub fn is_user_cancel(&self) -> bool {
         matches!(self, BackendError::Cancelled)
@@ -152,5 +191,38 @@ mod tests {
         assert_eq!(e.to_string(), "Keystore: abweichendes Schlüsselpasswort");
         assert!(!e.is_retryable() && !e.is_user_cancel());
         assert_eq!(BackendError::Keystore("x".into()).detail_code(), None);
+    }
+
+    /// ADR 0004 §3.8: Tabelle Fehler → Wirkungsbereich, je Variante.
+    #[test]
+    fn scope_of_every_variant() {
+        use ErrorScope::*;
+        let s = |x: &str| x.to_owned();
+        let table: Vec<(BackendError, ErrorScope)> = vec![
+            (BackendError::Cancelled, Cancelled),
+            (BackendError::Unavailable(s("x")), Session),
+            (BackendError::Network(s("x")), Transient),
+            (BackendError::ProxyAuthRequired, Session),
+            (BackendError::DocumentTooLarge, Document),
+            (BackendError::Http { status: 503, reason: s("x") }, Transient),
+            (BackendError::SecurityLayer { code: 6002, info: s("x") }, Document),
+            (BackendError::UnknownPage { diagnostic: s("x") }, Session),
+            (BackendError::LoopDetected, Session),
+            (BackendError::Protocol(s("x")), Session),
+            (BackendError::WrongPassword, Session),
+            (BackendError::Keystore(s("x")), Session),
+            (BackendError::KeystoreDetail { code: s("keystore-x"), message: s("x") }, Session),
+            (BackendError::UnsupportedKeystoreFormat { format: s("JKS") }, Session),
+            (BackendError::CertificateMismatch, Session),
+            (BackendError::Fido2(s("x")), Session),
+            (BackendError::Timeout, Transient),
+            (BackendError::Internal(s("x")), Session),
+        ];
+        // jede Variante genau einmal (über den stabilen Code; `Keystore`/`KeystoreDetail` teilen ihn)
+        let codes: std::collections::BTreeSet<&str> = table.iter().map(|(e, _)| e.code()).collect();
+        assert_eq!(codes.len(), table.len() - 1);
+        for (e, scope) in &table {
+            assert_eq!(e.scope(), *scope, "{e:?}");
+        }
     }
 }

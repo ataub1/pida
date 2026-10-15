@@ -181,11 +181,26 @@ pub struct GeneralSettings {
     pub window_size: Option<WindowSize>,
     /// Zuletzt geöffneter Ordner.
     pub last_source_directory: Option<PathBuf>,
+    /// „Zuletzt signiert“ merken (Einstellungen › Datenschutz; ADR 0004 §3.10, Standard **ein** nach §8 F6).
+    /// Fehlt der Schlüssel, gilt `true` (Struct-Standard). Wirksam ab K3 (`RecentStore`); die Richtlinie
+    /// [`crate::Policy::recent_documents`] kann die Funktion abschalten.
+    pub recent_documents: bool,
+    /// Ersteinrichtung abgeschlossen (ADR 0004 §3.12). Fehlt der Schlüssel (Bestandsnutzer), gilt `true`;
+    /// fehlt die Einstellungsdatei beim Start mit Oberfläche, setzt der Kern ab K4 `false` bis
+    /// „Fertig“/„Später einrichten“.
+    pub first_run_completed: bool,
 }
 
 impl Default for GeneralSettings {
     fn default() -> Self {
-        Self { ui_language: None, update_check: true, window_size: None, last_source_directory: None }
+        Self {
+            ui_language: None,
+            update_check: true,
+            window_size: None,
+            last_source_directory: None,
+            recent_documents: true,
+            first_run_completed: true,
+        }
     }
 }
 

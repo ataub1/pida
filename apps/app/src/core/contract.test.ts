@@ -23,12 +23,13 @@ import {
   str,
   tagged,
   tuple2,
+  unknownValue,
   validate,
   type Infer,
   type Same,
 } from '../test/schema';
 import { UI_EVENT_EXTRA, UI_EVENT_SAMPLES } from './fixtures/ui-events';
-import { defaultSettings } from './defaults';
+import { defaultErrorContext, defaultSettings, defaultSigningProgress, workspaceDefaults } from './defaults';
 import type { UiEvent, ViewState } from './types';
 
 const lang = lit('de', 'en');
@@ -114,6 +115,226 @@ const interaction = tagged('kind', {
 const docInfo = obj({ id: int, name: str, page_count: int, page_sizes: arr(tuple2(num, num)), signed: bool });
 const queueItem = obj({ id: int, name: str, current: bool });
 
+// --- ADR 0004 (neue Oberfläche „Arbeitsbereich“, Vertrag E0) -----------------------------------
+const rectPt = obj({ left: num, bottom: num, right: num, top: num });
+const docRef = obj({ id: int, name: str });
+const signatureProfile = lit('SIGNATURBLOCK_SMALL', 'AMTSSIGNATURBLOCK', 'BASE_LOGO', 'INVISIBLE');
+const backendChoice = lit('id_austria', 'local_bku', 'keystore');
+const placementTarget = tagged('kind', { free: {}, field: { index: int }, qr: {} });
+const signingStage = lit('connecting', 'login', 'certificate', 'preparing', 'confirming', 'finishing', 'saving', 'paused');
+const guideKind = lit(
+  'content_left',
+  'content_right',
+  'content_top',
+  'content_bottom',
+  'center_x',
+  'center_y',
+  'below_content',
+  'margin_left',
+  'margin_right',
+  'margin_top',
+  'margin_bottom',
+);
+
+const documentView = obj({
+  doc: docInfo,
+  size_bytes: int,
+  phase: lit('warning', 'editing', 'signing', 'done'),
+  revision: int,
+  block: obj({ width: num, height: num, preview_revision: int }),
+  placement: obj({ page_index: int, x: num, y: num, width: num, height: num }),
+  origin: lit('auto', 'user', 'field', 'qr'),
+  target: placementTarget,
+  invisible: bool,
+  new_page: bool,
+  sticker: nullable(rectPt),
+  fields: arr(obj({ index: int, name: str, page: nullable(int), rect: nullable(rectPt), selectable: bool })),
+  qr: nullable(obj({ page: int, rect: rectPt, id: nullable(str) })),
+  existing: arr(
+    obj({
+      field_name: str,
+      signer: nullable(str),
+      signing_time: nullable(str),
+      status: lit('valid', 'invalid', 'not_verifiable'),
+      page: nullable(int),
+      rect: nullable(rectPt),
+    }),
+  ),
+  constraints: obj({ new_page_allowed: bool, visible_allowed: bool, new_visible_field_allowed: bool, reasons: arr(str) }),
+  layout: arr(
+    obj({
+      page: int,
+      content: nullable(rectPt),
+      free: arr(rectPt),
+      guides: arr(obj({ axis: lit('x', 'y'), at: num, kind: guideKind })),
+    }),
+  ),
+  check: obj({ for_revision: int, overlaps_content: nullable(bool), overlaps_widget: bool, clamped: bool }),
+  announce: record(str),
+});
+
+const signersView = obj({
+  options: arr(
+    obj({
+      backend: backendId,
+      available: bool,
+      account: nullable(str),
+      capabilities: nullable(capabilities),
+      notes: arr(str),
+      unavailable_reason: nullable(str),
+    }),
+  ),
+  selected: nullable(backendId),
+  default: nullable(backendId),
+});
+
+const signingProgress = obj({
+  backend: nullable(backendId),
+  stage: signingStage,
+  method: nullable(lit('app', 'qr', 'sms', 'fido2', 'password', 'card')),
+  doc: nullable(docRef),
+  index: int,
+  total: int,
+  login_done: bool,
+  confirmations_done: int,
+  confirmations_total: int,
+  certificate: lit('read', 'cache', 'session', 'not_needed'),
+  batch: bool,
+  pause: nullable(
+    obj({
+      doc: nullable(docRef),
+      code: str,
+      params: record(str),
+      scope: lit('document', 'session'),
+      can_retry: bool,
+      new_session: bool,
+    }),
+  ),
+});
+
+const errorContext = obj({
+  origin: lit('load', 'analysis', 'prepare', 'signing', 'output', 'config', 'other'),
+  occurred_at: nullable(str),
+  backend: nullable(backendId),
+  doc: nullable(docRef),
+});
+
+const signedSummary = obj({
+  file_name: str,
+  folder_display: nullable(str),
+  signer: nullable(str),
+  signing_time: str,
+  backend: backendId,
+  qualification: lit('Qes', 'AdES', 'Unknown'),
+  self_check: bool,
+  page: nullable(int),
+});
+
+const batchView = obj({
+  items: arr(
+    obj({
+      doc: int,
+      name: str,
+      page_count: nullable(int),
+      size_bytes: nullable(int),
+      status: tagged('state', {
+        analyzing: {},
+        ready: {},
+        positioned: {},
+        rejected: { code: str },
+        needs_review: { codes: arr(str) },
+        queued: {},
+        active: { stage: signingStage },
+        signed: { path: str },
+        failed: { code: str, params: record(str) },
+        skipped: { existing: bool },
+        cancelled: {},
+      }),
+      position: tagged('kind', { auto: {}, manual: { page: int }, field: { name: str }, qr: {}, invisible: {} }),
+      target_name: nullable(str),
+      target_exists: bool,
+      thumbnail: bool,
+    }),
+  ),
+  open_item: nullable(int),
+  running: bool,
+  summary: nullable(
+    obj({
+      total: int,
+      signed: int,
+      rejected: int,
+      failed: int,
+      skipped: int,
+      cancelled: int,
+      not_started: int,
+      folder_display: nullable(str),
+    }),
+  ),
+  output: obj({ mode: lit('next_to_source', 'folder', 'ask', 'app_documents'), folder_display: nullable(str), needs_folder: bool }),
+  estimate: nullable(
+    obj({
+      backend: backendId,
+      documents: int,
+      logins: int,
+      confirmations: int,
+      certificate_confirmation_possible: bool,
+      large: bool,
+    }),
+  ),
+});
+
+const verifyView = obj({
+  file_name: str,
+  status: tagged('state', { loading: {}, ready: {}, failed: { code: str } }),
+  doc: nullable(docInfo),
+  signatures: arr(
+    obj({
+      index: int,
+      field_name: str,
+      signer: nullable(str),
+      organization: nullable(str),
+      issuer: nullable(str),
+      serial: nullable(str),
+      cert_valid_from: nullable(str),
+      cert_valid_to: nullable(str),
+      signing_time: nullable(str),
+      cert_valid_at_signing: nullable(bool),
+      integrity: tagged('kind', { intact: {}, broken: { code: str }, not_verifiable: { code: str } }),
+      coverage: tagged('kind', { whole_document: {}, revision: { later_revisions: int, later_signatures: int } }),
+      qualification: tagged('kind', { qualified: { qscd: bool }, not_qualified: {}, unknown: {} }),
+      format: lit('pades', 'pkcs7_detached', 'pkcs7_sha1', 'other'),
+      digest: nullable(str),
+      algorithm: nullable(str),
+      appearance: nullable(obj({ page: int, rect: rectPt })),
+      warnings: arr(str),
+      trust: lit('not_checked'),
+    }),
+  ),
+  summary: lit('no_signatures', 'all_intact', 'some_broken', 'some_not_verifiable', 'modified_after_last_signature'),
+  revisions: int,
+});
+
+const migrationOffer = obj({ legacy_file: str, plaintext_secrets: bool, items: arr(obj({ code: str, detail: nullable(str) })) });
+
+const firstRun = obj({
+  migration: nullable(migrationOffer),
+  default_backend: nullable(backendChoice),
+  profile: signatureProfile,
+  block_language: nullable(lang),
+  preview_revision: int,
+});
+
+const actions = obj({
+  open_files: bool,
+  sign: bool,
+  edit_placement: bool,
+  start_batch: bool,
+  show_batch: bool,
+  verify: bool,
+  settings: bool,
+  home: bool,
+});
+
 const stepView = tagged('step', {
   starting: {},
   open: { queue: arr(queueItem) },
@@ -135,18 +356,20 @@ const stepView = tagged('step', {
   backend: {
     options: arr(obj({ id: backendId, available: bool, capabilities: nullable(capabilities), notes: arr(str) })),
   },
-  signing: { interaction, queue: arr(queueItem), document_leaves_device: bool },
+  signing: { interaction, queue: arr(queueItem), document_leaves_device: bool, progress: signingProgress },
   output: {
     result: obj({
       path: nullable(str),
       save_pending: bool,
       ask_overwrite: nullable(str),
       save_dialog: nullable(obj({ directory: str, file_name: str })),
+      summary: nullable(signedSummary),
     }),
     next: nullable(docInfo),
   },
-  error: { code: str, params: record(str), retry: bool },
+  error: { code: str, params: record(str), retry: bool, context: errorContext },
   finished: { exit_code: int },
+  batch: {},
 });
 
 const settings = objOpen({
@@ -156,9 +379,11 @@ const settings = objOpen({
     update_check: bool,
     window_size: nullable(obj({ width: int, height: int })),
     last_source_directory: nullable(str),
+    recent_documents: bool,
+    first_run_completed: bool,
   }),
   signature: obj({
-    profile: lit('SIGNATURBLOCK_SMALL', 'AMTSSIGNATURBLOCK', 'BASE_LOGO', 'INVISIBLE'),
+    profile: signatureProfile,
     block_language: nullable(lang),
     note: tagged('mode', { default: {}, none: {}, custom: { text: str } }),
     pdfa_force: bool,
@@ -168,7 +393,7 @@ const settings = objOpen({
     cms_profile: lit('pdfas_compat', 'pades_bb'),
   }),
   placeholder: obj({ search: bool, kind: lit('fields', 'marker') }),
-  backend: obj({ default: nullable(lit('id_austria', 'local_bku', 'keystore')) }),
+  backend: obj({ default: nullable(backendChoice) }),
   id_austria: obj({ username: nullable(str), remember: bool, fido2_default: bool }),
   keystore: obj({
     enabled: bool,
@@ -206,16 +431,32 @@ const viewState = obj({
   step: stepView,
   main_bar: obj({ steps: arr(obj({ step, active: bool, enabled: bool })), settings_enabled: bool }),
   settings: nullable(
-    obj({ settings, problems: record(str), keychain_available: bool, fido2_available: bool, read_only: bool, preview_revision: int }),
+    obj({
+      settings,
+      problems: record(str),
+      keychain_available: bool,
+      fido2_available: bool,
+      read_only: bool,
+      preview_revision: int,
+      applied_revision: int,
+      examples: record(str),
+    }),
   ),
   language: lang,
   notices: arr(obj({ id: int, code: str, params: record(str) })),
-  migration: nullable(obj({ legacy_file: str, plaintext_secrets: bool })),
+  migration: nullable(migrationOffer),
   done: arr(obj({ id: int, name: str, input: str, result: docResult })),
   platform: obj({ os: lit('windows', 'macos', 'linux', 'ios', 'android'), mobile: bool }),
   resume: nullable(obj({ name: str, backend: backendId, age_minutes: int, pending: int, document_leaves_device: bool })),
   keystore_import: nullable(obj({ file_name: str, ok: bool, code: str, password_stored: bool })),
   privacy_text: nullable(str),
+  document: nullable(documentView),
+  signers: signersView,
+  batch: nullable(batchView),
+  verify: nullable(verifyView),
+  recent: nullable(arr(obj({ id: int, file_name: str, folder_display: nullable(str), signed_at: str, exists: bool }))),
+  first_run: nullable(firstRun),
+  actions,
 });
 
 const formAnswer = tagged('kind', {
@@ -265,6 +506,30 @@ const uiEvent = tagged('type', {
   dismiss_notice: { id: int },
   accept_migration: { store_secrets: bool },
   decline_migration: {},
+  // ADR 0004 (Vertrag E0)
+  set_invisible: { invisible: bool },
+  use_target: { target: placementTarget },
+  inspect_pages: { pages: arr(int) },
+  select_signer: { backend: nullable(backendId), make_default: bool },
+  sign_with: { backend: backendId },
+  show_batch: {},
+  open_batch_item: { doc: int },
+  back_to_batch: {},
+  remove_from_batch: { doc: int },
+  start_batch: { backend: backendId, docs: arr(int), output_dir: nullable(str), on_existing: lit('overwrite', 'keep_both', 'skip') },
+  skip_batch_document: {},
+  abort_batch: {},
+  open_verify: { path: str },
+  verify_recent: { id: int },
+  close_verify: {},
+  sign_verified: {},
+  remove_recent: { id: int },
+  clear_recent: {},
+  apply_settings: { changes: record(unknownValue), revision: int },
+  set_ui_language: { language: nullable(lang) },
+  update_first_run: { default_backend: nullable(backendChoice), profile: signatureProfile, block_language: nullable(lang) },
+  finish_first_run: {},
+  offer_migration: {},
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -295,6 +560,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     const steps = new Set(views.map((v) => v.step.step));
     expect([...steps].sort()).toEqual([
       'backend',
+      'batch',
       'error',
       'finished',
       'loading',
@@ -312,9 +578,53 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     expect([...forms].sort()).toEqual(['Fido2', 'Login', 'QrCode', 'SmsTan', 'WaitForApp']);
   });
 
+  it('deckt jede Variante der Typen aus ADR 0004 ab', () => {
+    const views = fixture.map((f) => f.view as ViewState);
+    const docs = views.flatMap((v) => (v.document ? [v.document] : []));
+    const progress = views.flatMap((v) => (v.step.step === 'signing' ? [v.step.progress] : []));
+    const items = views.flatMap((v) => v.batch?.items ?? []);
+    const sigs = views.flatMap((v) => v.verify?.signatures ?? []);
+    const sorted = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => typeof x === 'string'))].sort();
+    expect(sorted(docs.map((d) => d.phase))).toEqual(['done', 'editing', 'signing', 'warning']);
+    expect(sorted(docs.map((d) => d.origin))).toEqual(['auto', 'field', 'qr', 'user']);
+    expect(sorted(docs.map((d) => d.target.kind))).toEqual(['field', 'free', 'qr']);
+    expect(sorted(docs.flatMap((d) => d.existing.map((e) => e.status)))).toEqual(['invalid', 'not_verifiable', 'valid']);
+    expect(sorted(docs.flatMap((d) => d.layout.flatMap((l) => l.guides.map((g) => g.kind))))).toHaveLength(11);
+    expect(sorted(progress.map((p) => p.stage))).toHaveLength(8);
+    expect(sorted(progress.map((p) => p.method))).toEqual(['app', 'card', 'fido2', 'password', 'qr', 'sms']);
+    expect(sorted(progress.map((p) => p.certificate))).toEqual(['cache', 'not_needed', 'read', 'session']);
+    expect(sorted(progress.map((p) => p.pause?.scope))).toEqual(['document', 'session']);
+    expect(sorted(views.map((v) => (v.step.step === 'error' ? v.step.context.origin : null)))).toHaveLength(7);
+    expect(views.some((v) => v.step.step === 'output' && v.step.result.summary !== null)).toBe(true);
+    expect(sorted(items.map((i) => i.status.state))).toHaveLength(11);
+    expect(sorted(items.map((i) => i.position.kind))).toEqual(['auto', 'field', 'invisible', 'manual', 'qr']);
+    expect(sorted(views.map((v) => v.batch?.output.mode))).toEqual(['app_documents', 'ask', 'folder', 'next_to_source']);
+    expect(sorted(views.map((v) => v.verify?.status.state))).toEqual(['failed', 'loading', 'ready']);
+    expect(sorted(views.map((v) => v.verify?.summary))).toHaveLength(5);
+    expect(sorted(sigs.map((s) => s.integrity.kind))).toEqual(['broken', 'intact', 'not_verifiable']);
+    expect(sorted(sigs.map((s) => s.coverage.kind))).toEqual(['revision', 'whole_document']);
+    expect(sorted(sigs.map((s) => s.qualification.kind))).toEqual(['not_qualified', 'qualified', 'unknown']);
+    expect(sorted(sigs.map((s) => s.format))).toEqual(['other', 'pades', 'pkcs7_detached', 'pkcs7_sha1']);
+    expect(views.some((v) => (v.recent?.length ?? 0) > 0)).toBe(true);
+    expect(views.some((v) => (v.first_run?.migration?.items.length ?? 0) === 8)).toBe(true);
+    expect(views.some((v) => v.signers.options.length > 0 && v.actions.sign)).toBe(true);
+    expect(views.some((v) => v.settings !== null && Object.keys(v.settings.examples).length > 0)).toBe(true);
+  });
+
   it('defaultSettings() entspricht Settings::default() aus Rust (Mock-Kern, Tests, Zurücksetzen)', () => {
     const v = fixture.find((f) => f.name === 'settings_defaults')?.view as ViewState;
     expect(v.settings?.settings).toEqual(defaultSettings());
+  });
+
+  it('Standardwerte der neuen Typen entsprechen den Rust-Defaults (ADR 0004, Stand E0)', () => {
+    const at = (name: string) => fixture.find((f) => f.name === name)?.view as ViewState;
+    const waiting = at('waiting_connecting');
+    expect(waiting.step.step === 'signing' ? waiting.step.progress : null).toEqual(defaultSigningProgress());
+    const error = at('error');
+    expect(error.step.step === 'error' ? error.step.context : null).toEqual(defaultErrorContext());
+    const starting = at('starting');
+    const { document, signers, batch, verify, recent, first_run, actions } = starting;
+    expect({ document, signers, batch, verify, recent, first_run, actions }).toEqual(workspaceDefaults());
   });
 
   it('unbekannte Einstellungen stehen auf oberster Ebene (flatten)', () => {
@@ -337,6 +647,22 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         resume: null,
         keystore_import: null,
         privacy_text: null,
+        document: null,
+        signers: { options: [], selected: null, default: null },
+        batch: null,
+        verify: null,
+        recent: null,
+        first_run: null,
+        actions: {
+          open_files: true,
+          sign: false,
+          edit_placement: false,
+          start_batch: false,
+          show_batch: false,
+          verify: false,
+          settings: true,
+          home: true,
+        },
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);
@@ -351,9 +677,9 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(validate(uiEvent, sample)).toEqual([]);
   });
 
-  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003)
-  it('alle 37 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(37);
+  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 23 davon aus ADR 0004
+  it('alle 60 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(60);
   });
 
   it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen, Import)', () => {

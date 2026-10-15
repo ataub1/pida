@@ -41,6 +41,10 @@ pub struct Policy {
     /// Eigener Datenschutztext der Organisation; ersetzt den Text aus PDF-Over in Einstellungen ›
     /// Datenschutz und in den „Details“ des Kurzhinweises (ADR 0003). Eine Zustimmung erzwingt er nicht.
     pub privacy_notice_text: Option<String>,
+    /// „Zuletzt signiert“ erzwingen bzw. verbieten (ADR 0004 §3.10, wie `update_check`): `Some(false)`
+    /// schaltet die Liste ab (dann wird auch keine Datei geschrieben), der Schalter erscheint gesperrt.
+    /// Wirksam ab K3.
+    pub recent_documents: Option<bool>,
 }
 
 impl Policy {

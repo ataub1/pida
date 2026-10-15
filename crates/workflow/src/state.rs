@@ -98,6 +98,62 @@ pub enum PlaceholderAnswer {
     Cancel,
 }
 
+/// Herkunft der Platzierung im Arbeitsbereich (ADR 0004 §3.3; Typ für Reducer **und** Bridge, §3.0
+/// Regel 9). Der Reducer erzeugt die Werte ab K1; bis dahin dient der Typ nur dem Vertrag.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementOrigin {
+    /// automatische Platzierung (PDF-AS-Regel wie `-a`, „Freie Fläche suchen“)
+    Auto,
+    /// von der Nutzerin gesetzt (Ziehen, Tastatur, Doppelklick)
+    User,
+    /// in ein leeres Signaturfeld gesetzt („Ins Feld setzen“)
+    Field,
+    /// im QR-Platzhalter (automatisch bei eingeschalteter Platzhaltersuche)
+    Qr,
+}
+
+/// Umgang mit bereits vorhandenen Zieldateien im Stapellauf (ADR 0004 §3.8, §3.0 Regel 9). Standard im
+/// Startdialog: „Beide behalten“ (§8 F11).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExistingPolicy {
+    /// vorhandene Datei ersetzen
+    Overwrite,
+    /// neue Datei mit der ersten freien Nummer ab 2 (`Name_signed (2).pdf`)
+    #[default]
+    KeepBoth,
+    /// Dokument überspringen – geprüft **vor** dem Signieren (keine Bestätigung für ein Ergebnis, das nicht
+    /// gespeichert würde)
+    Skip,
+}
+
+/// Ausgabeziel eines Stapellaufs (ADR 0004 §3.8, §3.0 Regel 9): nach den Einstellungen
+/// (`output.folder`, F-82; Mobile: App-Dokumente) oder ein vor dem Start gewählter Ordner.
+/// Serde: `{ "kind": "configured" }` bzw. `{ "kind": "folder", "path": "…" }`.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Clone, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "path", rename_all = "snake_case")]
+pub enum BatchOutput {
+    /// wie eingestellt
+    #[default]
+    Configured,
+    /// gewählter Ordner (`StartBatch::output_dir`)
+    Folder(PathBuf),
+}
+
+impl std::fmt::Debug for BatchOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // ohne Pfad (ADR 0001 Regel 9)
+        match self {
+            BatchOutput::Configured => f.write_str("Configured"),
+            BatchOutput::Folder(_) => f.write_str("Folder(<Pfad>)"),
+        }
+    }
+}
+
 /// Phasen des Signierens (Plan §3.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SigningPhase {

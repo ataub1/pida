@@ -33,9 +33,9 @@ use crate::engine::{PadesEngine, PreparedDoc, SignedDoc};
 use crate::plan::{self, BlockSpec, PlanInput, SpecInput};
 use crate::resume;
 use crate::view::{
-    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, KeystoreImportView, MainBarView,
+    BackendOptionView, BlockView, DocInfo, DoneItemView, ErrorContextView, FieldInfo, KeystoreImportView, MainBarView,
     MigrationOfferView, NoticeView, OutputView, PlatformView, QrInfo, QueueItemView, ResumeOfferView, SaveDialogView,
-    SettingsView, StepView, UiEvent, ViewState,
+    SettingsView, SignersView, SigningProgressView, StepView, UiEvent, ViewState,
 };
 
 /// Nachricht an den Kern-Task.
@@ -134,6 +134,30 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::DismissNotice { .. } => "dismiss_notice",
         UiEvent::AcceptMigration { .. } => "accept_migration",
         UiEvent::DeclineMigration => "decline_migration",
+        // ADR 0004 (Vertrag E0)
+        UiEvent::SetInvisible { .. } => "set_invisible",
+        UiEvent::UseTarget { .. } => "use_target",
+        UiEvent::InspectPages { .. } => "inspect_pages",
+        UiEvent::SelectSigner { .. } => "select_signer",
+        UiEvent::SignWith { .. } => "sign_with",
+        UiEvent::ShowBatch => "show_batch",
+        UiEvent::OpenBatchItem { .. } => "open_batch_item",
+        UiEvent::BackToBatch => "back_to_batch",
+        UiEvent::RemoveFromBatch { .. } => "remove_from_batch",
+        UiEvent::StartBatch { .. } => "start_batch",
+        UiEvent::SkipBatchDocument => "skip_batch_document",
+        UiEvent::AbortBatch => "abort_batch",
+        UiEvent::OpenVerify { .. } => "open_verify",
+        UiEvent::VerifyRecent { .. } => "verify_recent",
+        UiEvent::CloseVerify => "close_verify",
+        UiEvent::SignVerified => "sign_verified",
+        UiEvent::RemoveRecent { .. } => "remove_recent",
+        UiEvent::ClearRecent => "clear_recent",
+        UiEvent::ApplySettings { .. } => "apply_settings",
+        UiEvent::SetUiLanguage { .. } => "set_ui_language",
+        UiEvent::UpdateFirstRun { .. } => "update_first_run",
+        UiEvent::FinishFirstRun => "finish_first_run",
+        UiEvent::OfferMigration => "offer_migration",
     }
 }
 
@@ -638,7 +662,7 @@ impl CoreTask {
             tracing::error!("Altkonfiguration nicht auswertbar (Programmfehler) – Angebot ohne Passwortfrage");
             false
         });
-        self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets });
+        self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets, items: Vec::new() });
     }
 
     /// Hauptschleife.
@@ -1727,6 +1751,33 @@ impl CoreTask {
                     tracing::warn!(id = e.message_id(), "Standardeinstellungen nicht gespeichert");
                 }
             }
+            // ADR 0004 (neue Oberfläche): Vertrag steht (E0), Verhalten folgt in K1–K4 – bis dahin ohne
+            // Wirkung. Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
+            e @ (UiEvent::SetInvisible { .. }
+            | UiEvent::UseTarget { .. }
+            | UiEvent::InspectPages { .. }
+            | UiEvent::SelectSigner { .. }
+            | UiEvent::SignWith { .. }
+            | UiEvent::ShowBatch
+            | UiEvent::OpenBatchItem { .. }
+            | UiEvent::BackToBatch
+            | UiEvent::RemoveFromBatch { .. }
+            | UiEvent::StartBatch { .. }
+            | UiEvent::SkipBatchDocument
+            | UiEvent::AbortBatch
+            | UiEvent::OpenVerify { .. }
+            | UiEvent::VerifyRecent { .. }
+            | UiEvent::CloseVerify
+            | UiEvent::SignVerified
+            | UiEvent::RemoveRecent { .. }
+            | UiEvent::ClearRecent
+            | UiEvent::ApplySettings { .. }
+            | UiEvent::SetUiLanguage { .. }
+            | UiEvent::UpdateFirstRun { .. }
+            | UiEvent::FinishFirstRun
+            | UiEvent::OfferMigration) => {
+                tracing::debug!(event = ui_event_kind(&e), "noch nicht umgesetzt (ADR 0004) – ignoriert");
+            }
         }
     }
 
@@ -1738,6 +1789,8 @@ impl CoreTask {
             fido2_available: self.fido2_available,
             read_only: self.cfg.read_only(),
             preview_revision: 0,
+            applied_revision: 0,
+            examples: BTreeMap::new(),
         }
     }
 
@@ -1957,6 +2010,7 @@ impl CoreTask {
             steps: self.state.main_bar().to_vec(),
             settings_enabled: !settings_open && self.state.settings_enabled(),
         };
+        let actions = crate::actions::actions_for(&self.state, main_bar.settings_enabled);
         let done = self
             .state
             .results()
@@ -1994,6 +2048,15 @@ impl CoreTask {
             }),
             keystore_import: self.keystore_import.clone(),
             privacy_text: self.cfg.privacy_text(),
+            // ADR 0004: Standardwerte bis zur Umsetzung (K1: document, signers; K2: batch; K3: recent;
+            // K4: verify, first_run)
+            document: None,
+            signers: SignersView::default(),
+            batch: None,
+            verify: None,
+            recent: None,
+            first_run: None,
+            actions,
         }
     }
 
@@ -2017,6 +2080,7 @@ impl CoreTask {
                 interaction: self.shared.broker.current(),
                 queue: self.queue_items(),
                 document_leaves_device: self.leaves_device(plan.backend),
+                progress: SigningProgressView::default(),
             },
             State::AnalysisWarning { warnings, doc, .. } => {
                 StepView::Warning { doc: self.doc_info(doc.id), codes: warnings.clone() }
@@ -2070,6 +2134,7 @@ impl CoreTask {
                 interaction: self.shared.broker.current(),
                 queue: self.queue_items(),
                 document_leaves_device: self.leaves_device(*backend),
+                progress: SigningProgressView::default(),
             },
             State::Output { saved, decision, queue, .. } => {
                 let (ask_overwrite, save_dialog) = match &self.dialog {
@@ -2083,6 +2148,7 @@ impl CoreTask {
                         save_pending: saved.is_none() && decision.is_none(),
                         ask_overwrite,
                         save_dialog,
+                        summary: None,
                     },
                     next: queue.pending.front().map(|d| self.doc_info(d.id)),
                 }
@@ -2109,7 +2175,12 @@ impl CoreTask {
                         params.insert("hint".into(), hint);
                     }
                 }
-                StepView::Error { code: error.code(), params, retry: retry.is_some() }
+                StepView::Error {
+                    code: error.code(),
+                    params,
+                    retry: retry.is_some(),
+                    context: ErrorContextView::default(),
+                }
             }
             State::Finished { exit, .. } => StepView::Finished { exit_code: *exit as u8 },
         }

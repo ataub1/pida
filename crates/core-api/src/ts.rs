@@ -96,6 +96,10 @@ pub struct GeneralSettings {
     pub window_size: Option<WindowSize>,
     /// letzter Ordner (Dateidialog, F-11)
     pub last_source_directory: Option<PathBuf>,
+    /// „Zuletzt signiert“ merken (ADR 0004 §3.10)
+    pub recent_documents: bool,
+    /// Ersteinrichtung abgeschlossen (ADR 0004 §3.12)
+    pub first_run_completed: bool,
 }
 
 /// Spiegel von `pida_config::CmsProfileChoice`.
@@ -297,7 +301,14 @@ impl From<&pida_config::Settings> for Settings {
             certificate_cache,
             unknown,
         } = v;
-        let c::GeneralSettings { ui_language, update_check, window_size, last_source_directory } = general;
+        let c::GeneralSettings {
+            ui_language,
+            update_check,
+            window_size,
+            last_source_directory,
+            recent_documents,
+            first_run_completed,
+        } = general;
         let c::SignatureSettings {
             profile,
             block_language,
@@ -322,6 +333,8 @@ impl From<&pida_config::Settings> for Settings {
                 update_check: *update_check,
                 window_size: window_size.map(|c::WindowSize { width, height }| WindowSize { width, height }),
                 last_source_directory: last_source_directory.clone(),
+                recent_documents: *recent_documents,
+                first_run_completed: *first_run_completed,
             },
             signature: SignatureSettings {
                 profile: match profile {
@@ -461,6 +474,9 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         w::ts_mirror::OutputInfo,
         w::WorkflowError,
         w::DocResult,
+        w::PlacementOrigin,
+        w::ExistingPolicy,
+        w::BatchOutput,
         // pida-backend-api
         b::BackendId,
         b::ts_mirror::DigestAlg,
@@ -528,6 +544,55 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         ViewState,
         FormAnswerView,
         UiEvent,
+        // ADR 0004 (neue Oberfläche, Vertrag E0)
+        RectPt,
+        DocRefView,
+        DocumentPhase,
+        PlacementTarget,
+        FieldTargetView,
+        QrTargetView,
+        PriorStatusView,
+        ExistingSignatureView,
+        DocConstraintsView,
+        GuideAxis,
+        GuideKind,
+        GuideView,
+        PageLayoutView,
+        PlacementCheckView,
+        DocumentView,
+        SignersView,
+        SignerView,
+        SigningStage,
+        ConfirmMethod,
+        CertificateSource,
+        PauseScope,
+        BatchPauseView,
+        SigningProgressView,
+        ErrorOrigin,
+        ErrorContextView,
+        SignedSummaryView,
+        BatchItemStatusView,
+        PositionSummaryView,
+        BatchItemView,
+        OutputModeView,
+        BatchOutputView,
+        BatchEstimateView,
+        BatchSummaryView,
+        BatchView,
+        VerifyStatus,
+        VerifySummaryView,
+        SignatureIntegrity,
+        SignatureCoverage,
+        QualificationClaim,
+        SignatureFormat,
+        AppearanceView,
+        TrustCheck,
+        VerifiedSignatureView,
+        VerifyView,
+        RecentItemView,
+        MigrationItemView,
+        FirstRunView,
+        ActionsView,
     );
     (out, names)
 }
@@ -560,6 +625,8 @@ mod tests {
         s.general.ui_language = Some(Lang::En);
         s.general.window_size = Some(c::WindowSize { width: 800, height: 600 });
         s.general.last_source_directory = Some("/tmp".into());
+        s.general.recent_documents = false;
+        s.general.first_run_completed = false;
         s.signature.block_language = Some(Lang::De);
         s.signature.note = c::NoteSetting::Custom("Hinweis".into());
         s.signature.emblem = Some("/logo.png".into());

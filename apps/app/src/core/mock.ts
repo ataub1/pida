@@ -7,9 +7,20 @@
  * **kein** Ersatz für die Fachlogik des Rust-Kerns: Regeln sind nur so weit nachgebaut, wie die
  * Oberfläche sie zum Bedienen und Testen braucht. Keine echten Zugangsdaten, kein Netz.
  */
-import { MAIN_BAR_ORDER, baseName, defaultSettings, dirName, mainBar, mmToPt } from './defaults';
+import {
+  MAIN_BAR_ORDER,
+  baseName,
+  defaultErrorContext,
+  defaultSettings,
+  defaultSigningProgress,
+  dirName,
+  mainBar,
+  mmToPt,
+  workspaceDefaults,
+} from './defaults';
 import type { Bridge, FileDragEvent } from './bridge';
 import type {
+  ActionsView,
   BackendId,
   BackendOptionView,
   Capabilities,
@@ -472,20 +483,41 @@ export class MockCore implements Bridge {
             fido2_available: this.opts.fido2Available,
             read_only: this.opts.readOnly,
             preview_revision: this.blockRevision,
+            applied_revision: 0,
+            examples: {},
           }
         : null,
       language: this.settings.general.ui_language ?? this.lang ?? 'de',
       notices: this.notices.map((n) => ({ ...n, params: { ...n.params } })),
       migration: this.migrationOffer
-        ? { legacy_file: this.migrationOffer, plaintext_secrets: this.opts.migrationSecrets }
+        ? { legacy_file: this.migrationOffer, plaintext_secrets: this.opts.migrationSecrets, items: [] }
         : null,
       done: this.done.map((d) => structuredClone(d)),
       platform: this.platformView(),
       resume: this.stage === 'open' && this.resumeOffer ? { ...this.resumeOffer } : null,
       keystore_import: this.keystoreImport ? { ...this.keystoreImport } : null,
       privacy_text: this.privacyText,
+      // ADR 0004: Standardwerte wie der Kern bis K1–K4 (die Bereichsmodule des Mocks folgen in U0)
+      ...workspaceDefaults(),
+      actions: this.actionsView(),
     };
     return view;
+  }
+
+  /** Freigaben wie `pida_core_api::actions` (ADR 0004 §3.13, Stand E0). */
+  private actionsView(): ActionsView {
+    const bar = this.bar();
+    const positioning = this.stage === 'position';
+    return {
+      open_files: !['starting', 'finished', 'signing'].includes(this.stage),
+      sign: positioning,
+      edit_placement: positioning,
+      start_batch: false,
+      show_batch: false,
+      verify: false,
+      settings: bar.settings_enabled,
+      home: bar.steps[0]?.enabled ?? false,
+    };
   }
 
   private emit(): void {
@@ -589,13 +621,20 @@ export class MockCore implements Bridge {
       case 'backend':
         return { step: 'backend', options: this.backendOptions() };
       case 'signing':
-        return { step: 'signing', interaction: this.interaction, queue: this.queueView(), document_leaves_device: this.leavesDevice(this.backend) };
+        return {
+          step: 'signing',
+          interaction: this.interaction,
+          queue: this.queueView(),
+          document_leaves_device: this.leavesDevice(this.backend),
+          progress: defaultSigningProgress(),
+        };
       case 'output': {
         const result = {
           path: this.output.path,
           save_pending: this.output.savePending,
           ask_overwrite: this.output.askOverwrite,
           save_dialog: this.output.saveDialog ? { ...this.output.saveDialog } : null,
+          summary: null,
         };
         const next = this.queue[1];
         return { step: 'output', result, next: next ? this.docInfo(next) : null };
@@ -606,6 +645,7 @@ export class MockCore implements Bridge {
           code: this.error?.code ?? 'error-Unexpected',
           params: { ...(this.error?.params ?? {}) },
           retry: this.error?.retry ?? false,
+          context: defaultErrorContext(),
         };
       case 'finished':
         return { step: 'finished', exit_code: this.exitCode };

@@ -11,16 +11,30 @@
  * Die Konsistenz der serde-Ausgabe mit diesen Typen prüfen zusätzlich `src/core/contract.test.ts`
  * (Beispiel-JSON aus `apps/app/src-tauri/tests/serde_contract.rs`) und der Rust-Test selbst
  * (TS-Beispiele → `UiEvent`).
+ *
+ * Neue Oberfläche „Arbeitsbereich“ (ADR 0004, Vertrag E0): Alle Typen aus ADR 0004 §3 stehen in
+ * `generated.ts`; neue Einheits-Enums sind `snake_case`-Strings, Enums mit Daten intern getaggt (`kind`,
+ * Status-Enums `state`). Bis zur Umsetzung im Kern (K1–K4) kommen sie mit den Standardwerten aus
+ * `defaults.ts` (`workspaceDefaults`, `defaultSigningProgress`, `defaultErrorContext`).
  */
 export type * from './generated';
 
-import type { NativeForm, StepView, UiEvent, ViewState } from './generated';
+import type { BatchItemStatusView, NativeForm, PlacementTarget, StepView, UiEvent, VerifyStatus, ViewState } from './generated';
 
 /** Name eines Schritts (`StepView['step']`). */
 export type StepName = StepView['step'];
 
 /** Name eines Ereignisses. */
 export type UiEventType = UiEvent['type'];
+
+/** Status eines Stapeleintrags ohne Daten (`BatchItemStatusView['state']`, ADR 0004 §3.8). */
+export type BatchItemState = BatchItemStatusView['state'];
+
+/** Art des Platzierungsziels (`PlacementTarget['kind']`, ADR 0004 §3.3). */
+export type PlacementTargetKind = PlacementTarget['kind'];
+
+/** Ladezustand des Prüfmodus (`VerifyStatus['state']`, ADR 0004 §3.9). */
+export type VerifyState = VerifyStatus['state'];
 
 /** Daten einer Maske (`NativeForm`) mit dem Variantennamen `K`. */
 export type FormData<K extends string> = Extract<NativeForm, Record<K, unknown>> extends Record<K, infer D> ? D : never;

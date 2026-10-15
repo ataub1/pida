@@ -580,6 +580,7 @@ mod tests {
             },
             queue: Vec::new(),
             document_leaves_device: true,
+            progress: Default::default(),
         }
     }
 
@@ -617,6 +618,7 @@ mod tests {
             interaction: InteractionView::Waiting { progress: Progress::Signing },
             queue: vec![],
             document_leaves_device: true,
+            progress: Default::default(),
         };
         ui.next(&waiting, &term);
         assert!(!path.exists());

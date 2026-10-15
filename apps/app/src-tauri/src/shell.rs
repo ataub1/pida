@@ -320,7 +320,12 @@ pub fn unavailable_view(detail: &str, language: Lang) -> ViewState {
 /// Fehlerschritt ohne Kern (gesperrte Hauptleiste, keine Einstellungen).
 pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, language: Lang) -> ViewState {
     ViewState {
-        step: StepView::Error { code: code.to_owned(), params, retry },
+        step: StepView::Error {
+            code: code.to_owned(),
+            params,
+            retry,
+            context: pida_core_api::ErrorContextView::default(),
+        },
         main_bar: MainBarView {
             steps: [Step::Open, Step::Positioning, Step::Signing, Step::Finish]
                 .into_iter()
@@ -337,6 +342,14 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         resume: None,
         keystore_import: None,
         privacy_text: None,
+        // ohne Kern: nichts freigegeben, keine Inhalte der neuen Oberfläche (ADR 0004)
+        document: None,
+        signers: pida_core_api::SignersView::default(),
+        batch: None,
+        verify: None,
+        recent: None,
+        first_run: None,
+        actions: pida_core_api::ActionsView::default(),
     }
 }
 
@@ -362,7 +375,7 @@ mod tests {
     fn unavailable_view_blocks_navigation_and_offers_retry() {
         let v = unavailable_view("not yet implemented: Integration", Lang::En);
         match &v.step {
-            StepView::Error { code, params, retry } => {
+            StepView::Error { code, params, retry, .. } => {
                 assert_eq!(code, CORE_UNAVAILABLE);
                 assert_eq!(params.get("detail").map(String::as_str), Some("not yet implemented: Integration"));
                 assert!(retry);
@@ -475,7 +488,7 @@ mod tests {
         shell.mark_stopped(crate::CORE_STOPPED);
         assert!(shell.core().is_none());
         match shell.view().step {
-            StepView::Error { code, params, retry } => {
+            StepView::Error { code, params, retry, .. } => {
                 assert_eq!(code, crate::CORE_STOPPED);
                 assert!(params.is_empty());
                 assert!(retry);
@@ -493,7 +506,7 @@ mod tests {
         assert!(matches!(shell.start(), Started::Unavailable));
         assert!(shell.log_dir().is_none());
         match shell.view().step {
-            StepView::Error { code, params, retry } => {
+            StepView::Error { code, params, retry, .. } => {
                 assert_eq!(code, CORE_UNAVAILABLE);
                 assert_eq!(params.get("detail").map(String::as_str), Some("Konfigurationsordner nicht ermittelbar"));
                 assert!(retry);

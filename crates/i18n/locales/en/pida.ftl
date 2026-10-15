@@ -100,8 +100,12 @@ keystore-key-mismatch = The key and certificate in the keystore do not match.
 ## Signature backends (`pida_backend_api::BackendError::code`); variables = fields of the variant
 
 backend-cancelled = The operation was cancelled.
+    .title = Operation cancelled
+    .action = Try again
 backend-unavailable = The signing method is not available: { $detail }
 backend-network = The connection to the signature service failed: { $detail }
+    .title = The signature service cannot be reached right now
+    .action = Try again
 backend-proxy-auth = The proxy server requires authentication.
 backend-document-too-large = The document exceeds the size limit of the signature service.
 backend-http = The signature service rejected the request: HTTP { $status } { $reason }
@@ -115,6 +119,8 @@ backend-keystore-format = The keystore format { $format } is not supported – p
 backend-certificate-mismatch = The signature was created with a certificate other than the expected one.
 backend-fido2 = FIDO2 error: { $detail }
 backend-timeout = Timeout: the signature service did not respond in time.
+    .title = Time has run out
+    .action = Request a new confirmation
 backend-internal = Internal error: { $detail }
 
 ## Backend notices and forms without a PDF-Over key (`NoticeCode::AtrustInterstitial` as title,
@@ -481,10 +487,14 @@ ng-verify-byte-range = The signature /ByteRange is invalid.
 
 ng-invariant-violated = The signature self-check failed ({ $invariant }: { $detail }). Nothing was saved.
 ng-cms-too-large = The signature is larger than the reserved space ({ $needed } instead of { $reserve } bytes). “Retry” prepares the document again with more space; this needs another confirmation.
+    .title = The signature needs more space
+    .action = Try again
 ng-backend-choice-required = Several signing devices are available ({ $detail }) – please choose one with -b.
 ng-no-backend-available = No signing device is available.
 ng-default-backend-unavailable = The chosen signing device ({ $detail }) is not available.
 ng-document-rejected = The document cannot be signed.
+    .title = This document cannot be signed
+    .action = Open another document
 ng-pdf-no-sign-rights = The document permissions do not allow signing.
 ng-field-already-signed = The signature field is already signed.
 ng-field-locked = The signature field is locked.
@@ -580,3 +590,53 @@ ng-ui-privacy-local = With a keystore or the citizen card (local citizen card en
 ng-ui-privacy-atrust-link = A-Trust privacy policy: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Where your documents go when signing is described in the <a>Privacy</a> section.
 ng-ui-certcache-title = Certificate cache
+
+## New “workspace” interface (ADR 0004 §3.16): messages of the core. Wording per ADR 0004 §8 F3 – never
+## “valid” or “legally valid”. UI texts of the packages live in `ui-workspace.ftl` and `ui-tools.ftl`.
+
+ng-signer-unavailable = The selected signing method is currently not available. Please choose another one.
+ng-signer-localbku-not-running = The citizen card environment (local BKU) is not running. Start it and try again.
+ng-signer-keystore-missing = No keystore is set up, or the file is missing (Settings › Signing methods).
+ng-signer-keystore-import = There is no keystore on this device yet – import a PKCS#12 file.
+ng-signer-policy = This signing method is not permitted by your organisation.
+ng-signing-cancelled = Signing cancelled – nothing was signed.
+ng-signing-declined = Declined or expired in the app – nothing was signed.
+    .title = Declined or expired in the app
+    .action = Try again
+ng-constraint-signed = The document is already signed; a new page would alter the existing signatures.
+ng-constraint-certified = The document is certified; it may only be signed in existing signature fields or invisibly.
+ng-constraint-invisible-profile = The selected profile signs invisibly (Settings › Signature block).
+ng-batch-added =
+    { $count ->
+        [one] One more document was added.
+       *[other] { $count } more documents were added.
+    }
+ng-batch-item-signed = “{ $file }” was signed.
+ng-batch-done = { $signed } of { $total } documents signed.
+ng-batch-nothing-to-sign = No document in the batch is ready to be signed.
+ng-batch-output-folder-required = Please choose a folder for the signed documents before starting.
+ng-batch-aborted =
+    { $signed ->
+        [one] Batch cancelled – one document had already been signed and saved.
+       *[other] Batch cancelled – { $signed } documents had already been signed and saved.
+    }
+ng-batch-paused = The batch is paused. Please decide how to continue.
+ng-batch-large = { $count } documents: each document is confirmed separately in the app.
+ng-batch-pending-app-request = Please decline any request still open in the app; always compare the reference value.
+ng-verify-open-failed = The file could not be opened for verification.
+ng-verify-busy = No document can be verified while signing.
+ng-verify-warning-sha1 = The signature uses the outdated hash algorithm SHA-1; it is unchanged but no longer considered secure.
+ng-verify-warning-signing-certificate-v1 = The signature binds its certificate only through the older “signing-certificate” attribute (SHA-1).
+ng-verify-warning-weak-key = The key of this signature is too short by today’s standards.
+ng-recent-missing = The file is no longer at the saved location.
+ng-recent-policy = “Recently signed” has been switched off by your organisation.
+ng-migration-item-block = Signature block (profile, language, note)
+ng-migration-item-emblem = Emblem
+ng-migration-item-username = ID Austria user name
+ng-migration-item-output = Save location and file name
+ng-migration-item-keystore = Keystore
+ng-migration-item-proxy = Proxy
+ng-migration-item-placeholder = Placeholder search
+ng-migration-item-language = Language
+ng-firstrun-done = Setup complete. You can change everything in the settings at any time.
+ng-settings-field-unknown = Unknown setting.

@@ -8,7 +8,7 @@ import { I18nProvider } from 'react-aria-components';
 import { MainBar } from '../components/MainBar';
 import { Toasts } from '../components/Toasts';
 import type { Bridge, FileDragEvent } from '../core/bridge';
-import { mainBar } from '../core/defaults';
+import { mainBar, workspaceDefaults } from '../core/defaults';
 import { isMobile, type StepView, type UiEvent, type ViewState } from '../core/types';
 import { translator } from '../i18n/catalog';
 import { BackendScreen } from '../screens/BackendScreen';
@@ -37,6 +37,7 @@ const STARTING: ViewState = {
   resume: null,
   keystore_import: null,
   privacy_text: null,
+  ...workspaceDefaults(),
 };
 
 const STEP_TITLE: Record<StepView['step'], string> = {
@@ -51,6 +52,8 @@ const STEP_TITLE: Record<StepView['step'], string> = {
   output: 'main-done',
   error: 'error-Title',
   finished: 'ng-ui-finished',
+  // Stapelübersicht (ADR 0004 §3.8): erzeugt der Kern erst ab K2, die Oberfläche dazu kommt mit A2
+  batch: 'ng-ui-open-title',
 };
 
 const IMAGE_EXT = /\.(png|jpe?g|gif)$/i;

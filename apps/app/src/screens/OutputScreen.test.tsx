@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderApp } from '../test/render';
-import { DOC, outputResult, viewOf } from '../test/views';
+import { DOC, NO_ERROR_CONTEXT, outputResult, viewOf } from '../test/views';
 
 describe('Ergebnis', () => {
   it('gespeichert: Erfolgsmeldung, Öffnen per Link und Knopf, im Ordner anzeigen', async () => {
@@ -130,7 +130,7 @@ describe('Ergebnis', () => {
 
 describe('Fehler', () => {
   it('Meldung aus dem Katalog, Details, Wiederholen/Abbrechen', async () => {
-    const { mock, user } = renderApp({ view: viewOf({ step: 'error', code: 'error-PDFPwdProtected', params: {}, retry: true }) });
+    const { mock, user } = renderApp({ view: viewOf({ step: 'error', code: 'error-PDFPwdProtected', params: {}, retry: true, context: NO_ERROR_CONTEXT }) });
     expect(await screen.findByRole('heading', { level: 1, name: 'Fehler' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('Passwortgeschützt');
     await user.click(screen.getByRole('button', { name: 'Wiederholen' }));
@@ -139,18 +139,24 @@ describe('Fehler', () => {
   });
 
   it('Codes mit Punkt und Parameter; unbekannte Codes', async () => {
-    renderApp({ view: viewOf({ step: 'error', code: 'output.save_failed', params: { arg1: 'a.pdf', arg2: 'Datenträger voll' }, retry: false }) });
+    renderApp({ view: viewOf({ step: 'error', code: 'output.save_failed', params: { arg1: 'a.pdf', arg2: 'Datenträger voll' }, retry: false, context: NO_ERROR_CONTEXT }) });
     expect(await screen.findByRole('alert')).toHaveTextContent('Datei a.pdf konnte nicht gespeichert werden: Datenträger voll');
     expect(screen.queryByRole('button', { name: 'Wiederholen' })).not.toBeInTheDocument();
   });
 
   it('unbekannter Code → allgemeine Meldung mit Code', async () => {
-    renderApp({ view: viewOf({ step: 'error', code: 'pades.something_new', params: {}, retry: false }, { language: 'en' }) });
+    renderApp({ view: viewOf({ step: 'error', code: 'pades.something_new', params: {}, retry: false, context: NO_ERROR_CONTEXT }, { language: 'en' }) });
     expect(await screen.findByRole('alert')).toHaveTextContent('Unexpected error (pades.something_new).');
   });
 
   it('Kern nicht verfügbar (Shell-Fehlerschritt)', async () => {
-    renderApp({ view: viewOf({ step: 'error', code: 'ng-ui-core-unavailable', params: { detail: 'not yet implemented: Integration' }, retry: true }) });
+    renderApp({ view: viewOf({
+        step: 'error',
+        code: 'ng-ui-core-unavailable',
+        params: { detail: 'not yet implemented: Integration' },
+        retry: true,
+        context: NO_ERROR_CONTEXT,
+      }) });
     expect(await screen.findByRole('alert')).toHaveTextContent('Der Signaturkern konnte nicht gestartet werden');
     expect(screen.getByText('not yet implemented: Integration')).toBeInTheDocument();
   });
