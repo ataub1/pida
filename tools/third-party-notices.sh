@@ -13,10 +13,12 @@
 #   2. Schriften und Metriken aus crates/sigblock/assets/licenses (DejaVu/Bitstream Vera, Adobe AFM)
 #   3. Rust-Abhängigkeiten über cargo-about 0.9.2 (tools/licenses/about.toml, about.hbs) plus die
 #      NOTICE-Dateien von Apache-2.0-Crates
-#   4. npm-Abhängigkeiten der Oberfläche (apps/app/package-lock.json, falls vorhanden; tools/npm-licenses.mjs)
+#   4. Rust-Standardbibliothek (in jede Binary gelinkt; MIT OR Apache-2.0): Lizenztexte aus der
+#      Toolchain, vollständige Hinweise als RUST-STD-COPYRIGHT.html neben der Ausgabe
+#   5. npm-Abhängigkeiten der Oberfläche (apps/app/package-lock.json, falls vorhanden; tools/npm-licenses.mjs)
 #
-# Benötigt: cargo, cargo-about 0.9.x (`brew install cargo-about` oder
-# `cargo install --locked cargo-about@0.9.2`), python3; für Teil 4 node ≥ 18 und `npm ci` in apps/app.
+# Benötigt: cargo, rustc, cargo-about 0.9.x (`brew install cargo-about` oder
+# `cargo install --locked cargo-about@0.9.2`), python3; für Teil 5 node ≥ 18 und `npm ci` in apps/app.
 # Ein Crate mit nicht zulässiger oder nicht erkennbarer Lizenz bricht ab (cargo about --fail).
 set -euo pipefail
 
@@ -25,8 +27,10 @@ OUT="$ROOT/target/notices"
 PDFIUM_PLATFORM=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --out) shift; OUT="$1" ;;
-    --pdfium) shift; PDFIUM_PLATFORM="$1" ;;
+    --out | --pdfium)
+      [ $# -ge 2 ] && [ -n "$2" ] || { echo "third-party-notices: $1 braucht einen Wert" >&2; exit 2; }
+      if [ "$1" = --out ]; then OUT="$2"; else PDFIUM_PLATFORM="$2"; fi
+      shift ;;
     -h | --help) sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "third-party-notices: unbekanntes Argument $1" >&2; exit 2 ;;
   esac
@@ -135,14 +139,45 @@ if blocks:
     print("\n".join(blocks))
 PY
 
-# --- 4. npm ----------------------------------------------------------------------------------------
+# --- 4. Rust-Standardbibliothek --------------------------------------------------------------------
+# std/core/alloc (samt compiler_builtins, libc, hashbrown …) stecken in jeder Binary, stehen aber nicht
+# in Cargo.lock. Die Toolchain (Komponente rustc, auch im Profil minimal) liefert die Texte mit.
+RUST_DOC="$(rustc --print sysroot)/share/doc/rust"
+for f in COPYRIGHT-library.html licenses/MIT.txt licenses/Apache-2.0.txt; do
+  [ -f "$RUST_DOC/$f" ] || { echo "third-party-notices: $RUST_DOC/$f fehlt (Toolchain unvollständig?)" >&2; exit 1; }
+done
+cp "$RUST_DOC/COPYRIGHT-library.html" "$OUT/RUST-STD-COPYRIGHT.html"
+{
+  echo "## Rust-Standardbibliothek (Rust standard library) – $(rustc --version)"
+  echo
+  echo "Die Rust-Standardbibliothek steht unter MIT oder Apache-2.0 (nach Wahl); die vollständigen"
+  echo "Hinweise einschließlich der mitgelinkten Bibliotheken stehen in \`RUST-STD-COPYRIGHT.html\`."
+  echo
+  echo "The Rust standard library is dual-licensed under MIT or Apache-2.0; the complete notices,"
+  echo "including the libraries linked into it, are in \`RUST-STD-COPYRIGHT.html\`."
+  echo
+  echo "### MIT"
+  echo
+  echo '~~~~text'
+  emit_text "$RUST_DOC/licenses/MIT.txt"
+  echo '~~~~'
+  echo
+  echo "### Apache-2.0"
+  echo
+  echo '~~~~text'
+  emit_text "$RUST_DOC/licenses/Apache-2.0.txt"
+  echo '~~~~'
+  echo
+} >"$TMP/4-rust-std.md"
+
+# --- 5. npm ----------------------------------------------------------------------------------------
 LOCK="$ROOT/apps/app/package-lock.json"
 if [ -f "$LOCK" ]; then
   command -v node >/dev/null 2>&1 || { echo "third-party-notices: node fehlt (für $LOCK)" >&2; exit 1; }
-  node "$ROOT/tools/npm-licenses.mjs" "$LOCK" --notices "$TMP/4-npm.md"
+  node "$ROOT/tools/npm-licenses.mjs" "$LOCK" --notices "$TMP/5-npm.md"
 else
   echo "third-party-notices: apps/app/package-lock.json fehlt – npm-Teil übersprungen" >&2
-  : >"$TMP/4-npm.md"
+  : >"$TMP/5-npm.md"
 fi
 
 # --- Zusammenführen --------------------------------------------------------------------------------
@@ -158,7 +193,7 @@ fi
   echo "Quelle (source): Cargo.lock sha256 $(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$ROOT/Cargo.lock")"
   echo
   # Muss gültiges UTF-8 sein; Zeilenenden einheitlich LF.
-  cat "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-npm.md" | python3 -I -c '
+  cat "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-rust-std.md" "$TMP/5-npm.md" | python3 -I -c '
 import sys
 data = sys.stdin.buffer.read().decode("utf-8")
 sys.stdout.write(data.replace("\r\n", "\n").replace("\r", "\n"))

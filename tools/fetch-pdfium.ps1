@@ -158,6 +158,8 @@ elseif ($env:PDFIUM_RELEASE -and $env:PDFIUM_RELEASE -ne $release) {
 if (-not $release -or $release -notmatch '^chromium/[0-9]+$') { Fail "ungueltige oder fehlende Release '$release' in $Lock" }
 $baseUrl = $env:PDFIUM_BASE_URL
 if (-not $baseUrl) { $baseUrl = 'https://github.com/bblanchon/pdfium-binaries/releases/download' }
+# Nur HTTPS (wie curl --proto '=https' in fetch-pdfium.sh): -UpdateLock uebernimmt Hashes ungeprueft.
+if ($baseUrl -notmatch '^https://') { Fail "PDFIUM_BASE_URL muss mit https:// beginnen: $baseUrl" }
 $baseUrl = "$baseUrl/$release"
 $cacheRoot = $env:PDFIUM_CACHE
 if (-not $cacheRoot) { $cacheRoot = Join-Path $Dest '.downloads' }
@@ -242,7 +244,8 @@ if ($PrintDir) { Write-Output $firstDir }
 if ($PrintEnv) { Write-Output ("`$env:PDFOVER_PDFIUM_DIR = '{0}'" -f ($firstDir -replace "'", "''")) }
 if ($GitHubEnv) {
     if (-not $env:GITHUB_ENV) { Fail '-GitHubEnv: GITHUB_ENV ist nicht gesetzt' }
-    # Muster aus der GitHub-Dokumentation (Out-File -Append, UTF-8).
-    "PDFOVER_PDFIUM_DIR=$firstDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    # UTF-8 ohne BOM, auch unter Windows PowerShell 5.1 (dort schreibt Out-File -Encoding utf8 ein BOM,
+    # das den ersten Variablennamen in GITHUB_ENV verfaelschen wuerde).
+    [System.IO.File]::AppendAllText($env:GITHUB_ENV, "PDFOVER_PDFIUM_DIR=$firstDir`n", (New-Object System.Text.UTF8Encoding $false))
     Log "PDFOVER_PDFIUM_DIR=$firstDir -> GITHUB_ENV"
 }

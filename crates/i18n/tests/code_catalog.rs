@@ -582,6 +582,24 @@ fn wave1_message_ids_are_in_catalog_verbatim() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// Die Kopie unter `testdata/i18n` entspricht dem Original `docs/integration/wave1-message-ids.json`,
+/// solange es existiert (sonst prüft der Katalogtest eine veraltete Liste).
+#[test]
+fn wave1_copy_matches_integration_docs() {
+    let original = workspace().join("docs/integration/wave1-message-ids.json");
+    let Ok(original) = std::fs::read_to_string(&original) else {
+        eprintln!("docs/integration/wave1-message-ids.json fehlt – Abgleich übersprungen");
+        return;
+    };
+    let copy = std::fs::read_to_string(WAVE1_IDS).expect("testdata/i18n/wave1-message-ids.json");
+    let original: serde_json::Value = serde_json::from_str(&original).expect("JSON (docs)");
+    let copy: serde_json::Value = serde_json::from_str(&copy).expect("JSON (testdata)");
+    assert!(
+        original == copy,
+        "testdata/i18n/wave1-message-ids.json weicht von docs/integration/wave1-message-ids.json ab – Kopie erneuern"
+    );
+}
+
 fn substitute_placeholders(text: &str) -> (String, Vec<String>) {
     let mut out = String::new();
     let mut names = Vec::new();

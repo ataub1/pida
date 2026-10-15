@@ -84,6 +84,7 @@ impl RawDocument {
         let doc = unsafe { bindings.FPDF_LoadMemDocument64(&data[..], password) };
         if doc.is_null() {
             // SAFETY: reiner Statusabruf.
+            #[allow(clippy::unnecessary_cast, reason = "c_ulong ist unter Windows u32, sonst u64")]
             let err = u64::from(unsafe { bindings.FPDF_GetLastError() } as u32);
             return Err(match err {
                 FPDF_ERR_PASSWORD => RenderError::PasswordRequired,

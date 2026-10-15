@@ -24,7 +24,7 @@ Unter Windows (PowerShell): `Invoke-Expression (tools\fetch-pdfium.ps1 -PrintEnv
 | Rust | **1.99.0** stable, Edition 2024 (`rust-version` im Workspace) | Bauen | macOS: `brew install rustup` (keg-only, `/opt/homebrew/opt/rustup/bin`), dann `rustup toolchain install 1.99.0 -c clippy,rustfmt`; sonst rustup.rs |
 | PDFium | chromium/8100 (pdfium-render 0.9.4 = API 7881) | Renderer, Tests | `tools/fetch-pdfium.sh` / `.ps1` (§3) |
 | qpdf | ≥ 11.7 (lokal 12) | Orakel `qpdf --check`, Testdaten | `brew install qpdf`, `apt install qpdf` |
-| OpenSSL | ≥ 3.2 (`openssl cms -cades`; lokal 4) | CMS-Orakel | macOS: `brew install openssl@3` (das System-`openssl` ist LibreSSL) |
+| OpenSSL | ≥ 3.2 (`openssl cms -cades`; lokal 4) | CMS-Orakel | macOS: `brew install openssl@3` (das System-`openssl` ist LibreSSL). Ubuntu 24.04 hat 3.0 ohne `-cades`: dort überspringt sich das CAdES-Orakel von `cades` (CI: Prüfung unter macOS) |
 | pyHanko | 0.37.0 (+ cli 0.5.0, certvalidator 0.32.1), Pillow 12.3.0 | PAdES-/ICC-Orakel | `python3 -m venv .venv && .venv/bin/pip install -r tools/python-oracles.txt` |
 | Java | 21 (nur Test-Orakel, nie im Produkt) | Differentialtests (Properties, Konfiguration, i18n, Keystore-Generator) | `brew install openjdk@21` bzw. Temurin 21 |
 | xmllint | beliebig | SL-1.2-XML-Orakel | macOS vorhanden, `apt install libxml2-utils` |
@@ -85,6 +85,7 @@ cargo check -p pdfover-render -p pdfover-placement -p pdfover-pades --no-default
 cargo test --workspace --locked                     # mit PDFOVER_PDFIUM_DIR und Orakeln im PATH
 cargo test -p pdfover-backend-atrust --features fido2-hid      # macOS/Linux (fido2-windows unter Windows)
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+tools/cross-clippy.sh x86_64-pc-windows-msvc        # CI-Clippy für Windows/Linux lokal nachstellen (§9)
 ```
 
 - `--locked` wie in der CI: `Cargo.lock` wird mit committet; kein `cargo update` ohne Absprache.
@@ -150,7 +151,9 @@ cargo deny --locked check          # advisories bans licenses sources
   `serde_spanned`, `syn`, `thiserror`, `thiserror-impl`, `toml`, `toml_datetime`, `toml_edit`,
   `windows-sys`, `windows-targets`, `windows_aarch64_msvc`, `windows_x86_64_msvc`, `winnow`). Sie
   werden bei der Aufnahme von `apps/app/src-tauri` mit Begründung in `skip` eingetragen (die genauen
-  Versionen nennt `cargo deny check bans`).
+  Versionen nennt `cargo deny check bans`). Dieselbe Lizenz-Ausnahme braucht `tools/licenses/about.toml`
+  (sonst bricht `cargo about --fail` im Job `notices` ab), dort als crate-bezogene Klarstellung bzw.
+  `accepted`-Eintrag nur für `target-lexicon`.
 
 **THIRD-PARTY-NOTICES** (Plan §10.2; CI-Job `notices` lädt das Ergebnis als Artefakt hoch):
 
@@ -161,13 +164,20 @@ tools/third-party-notices.sh            # → target/notices/THIRD-PARTY-NOTICES
 Enthält PDFium samt mitgebauten Bibliotheken (aus dem PDFium-Paket), die Font-/AFM-Lizenzen aus
 `crates/sigblock/assets/licenses`, alle ausgelieferten Rust-Crates über cargo-about
 (`tools/licenses/about.toml`, `about.hbs`; Dev-Abhängigkeiten ausgenommen, Build-Abhängigkeiten
-enthalten) mit den NOTICE-Dateien von Apache-2.0-Crates und – sobald `apps/app/package-lock.json`
-existiert – die npm-Laufzeitabhängigkeiten. Die Datei gehört in das Über-Fenster und jedes Paket.
+enthalten) mit den NOTICE-Dateien von Apache-2.0-Crates, die Rust-Standardbibliothek (steht nicht in
+`Cargo.lock`, ist aber in jeder Binary: MIT-/Apache-Text aus der Toolchain, vollständige Hinweise als
+`RUST-STD-COPYRIGHT.html` daneben) und – sobald `apps/app/package-lock.json` existiert – die
+npm-Laufzeitabhängigkeiten. Beide Dateien gehören in das Über-Fenster bzw. jedes Paket. PDFium-Lizenzen
+stammen aus dem Paket der Host-Plattform; für ein anderes Paket `--pdfium <plattform>` angeben.
 
 **npm** (Plan §2.5: dieselbe Allowlist für die UI): `node tools/npm-licenses.mjs apps/app/package-lock.json`
-prüft das Lockfile – Laufzeitpakete gegen die Allowlist, reine Build-Werkzeuge (`dev`) zusätzlich gegen
-übliche permissive Daten-/Werkzeuglizenzen (CC0, CC-BY, 0BSD, BlueOak, Python-2.0 …); Copyleft und
-fehlende Angaben brechen ab. Mit `--notices <datei>` entstehen die Hinweise.
+prüft das Lockfile – Laufzeitpakete gegen die Allowlist, reine Build-Werkzeuge (`dev: true`) zusätzlich
+gegen übliche permissive Daten-/Werkzeuglizenzen (CC0, CC-BY, 0BSD, BlueOak, Python-2.0 …); Copyleft und
+fehlende Angaben brechen ab. `devOptional`-Pakete zählen zur Laufzeit (npm installiert sie auch ohne
+Dev-Abhängigkeiten), eigene Workspace-Pakete (Einträge außerhalb `node_modules/`) werden übersprungen.
+Alles, was der Bundler in die App übernimmt – auch Framework-Laufzeit –, gehört in `dependencies`, sonst
+fehlt es in den Hinweisen. Mit `--notices <datei>` entstehen die Hinweise; `--self-test` prüft Parser und
+Einordnung (CI-Job `deny`).
 
 ## 7. i18n: Codes und Kataloge
 
@@ -192,10 +202,10 @@ fehlende Angaben brechen ab. Mit `--notices <datei>` entstehen die Hinweise.
 
 | Job | Inhalt | blockierend |
 |---|---|---|
-| `fmt` | `cargo fmt --all --check` | ja |
+| `fmt` | `cargo fmt --all --check`, `shellcheck` der Skripte in `tools/` | ja |
 | `build` (ubuntu, macOS, Windows) | PDFium laden (Cache über `tools/pdfium.lock`), Orakel (pyHanko aus `tools/python-oracles.txt`, Java 21, qpdf/xmllint unter Linux, qpdf/OpenSSL 3 unter macOS), ggf. Frontend und Tauri-Systembibliotheken, `cargo check`, Check ohne PDFium, Clippy `--no-deps -D warnings` (außer `CLIPPY_LENIENT`), FIDO2 (`fido2-windows` unter Windows, sonst `fido2-hid`), `cargo test`, unter Linux Doc-Build mit `RUSTDOCFLAGS=-D warnings` | ja |
-| `deny` | `cargo deny --locked check` (cargo-deny 0.20.2) | ja |
-| `notices` | `tools/third-party-notices.sh`, Artefakt `THIRD-PARTY-NOTICES` | ja |
+| `deny` | `cargo deny --locked check` (cargo-deny 0.20.2), Selbsttest `tools/npm-licenses.mjs --self-test` | ja |
+| `notices` | `tools/third-party-notices.sh`, Artefakt `THIRD-PARTY-NOTICES` (`.md` + `RUST-STD-COPYRIGHT.html`) | ja |
 | `mobile` | `cargo check` für `aarch64-apple-ios` und `aarch64-linux-android` (NDK des Runners) | verifizierte Crates ja, ganzer Workspace informativ |
 | `app` | nur wenn `apps/app/package.json` existiert: Lockfile-Pflicht, npm-Lizenzprüfung, `npm ci`, `lint`/`build`/`test` (falls vorhanden) | ja |
 
@@ -213,6 +223,15 @@ Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lok
 | `x86_64-unknown-linux-gnu` | wie Windows: alle reinen Rust-Crates ok, `ring`-abhängige nur nativ (CI `ubuntu-latest`) |
 | `aarch64-apple-ios` | ok: alle Crates außer config/workflow/core-api/cli (ring baut mit Xcode). **Blocker:** `keyring` 4 → `apple-native-keyring-store` 1.0.2 verlangt unter iOS das Feature `protected` (`compile_error!`). Behoben in Welle 2: `time` ohne `local-offset` (zog `num_threads` 0.1.7, das für iOS nicht übersetzt) |
 | `aarch64-linux-android` | ok: alle reinen Rust-Crates inkl. config/workflow; `ring`-abhängige brauchen das NDK (`CC_aarch64_linux_android`), CI-Job `mobile` setzt es |
+
+**Clippy für Fremdziele** (`tools/cross-clippy.sh <ziel>`, Review Welle 2): stellt die blockierenden
+Clippy-Schritte des Jobs `build` (strikt ohne `CLIPPY_LENIENT` aus `ci.yml`, dazu FIDO2 mit
+`fido2-windows` bzw. `fido2-hid`) für `x86_64-pc-windows-msvc` und `x86_64-unknown-linux-gnu` nach. ring
+übersetzt dafür mit clang und Platzhalter-Headern (nur Typprüfung, nie gelinkt), damit auch net, localbku,
+atrust, core-api und cli geprüft werden. Ergebnis 15.10.2026: beide Ziele grün, nachdem
+`clippy::unnecessary_cast` in `crates/render/src/ffi.rs` (`c_ulong` ist unter Windows `u32`) mit
+begründetem `allow` versehen wurde – ohne das wäre `clippy -D warnings` auf `windows-latest` rot gewesen.
+Tests und Linken bleiben der nativen CI vorbehalten.
 
 Gefunden und behoben: `trivial_numeric_casts` schlug nur für Windows an (`c_ulong` in render/ffi) und
 ist deshalb nicht Teil der Workspace-Lints. Offen für Mobile: `pdfover-config` sollte `keyring` nur auf

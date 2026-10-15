@@ -1,12 +1,13 @@
 # PDF-Over NG – CI (Plan §8.7, §2.5/§10.2; ADR 0001 §4, ADR 0060 §1; docs/entwicklung.md „CI“)
 #
 # Jobs:
-#   fmt      rustfmt (blockierend)
+#   fmt      rustfmt, shellcheck der Werkzeuge in tools/ (blockierend)
 #   build    Matrix ubuntu/macOS/Windows: check, Clippy (-D warnings außer CLIPPY_LENIENT), FIDO2-Features,
 #            Tests mit PDFium (tools/fetch-pdfium.*) und den Orakeln qpdf/openssl/pyHanko/Java, wo verfügbar;
 #            auf Linux zusätzlich der Doc-Build (rustdoc -D warnings)
-#   deny     cargo-deny: Lizenzen, Advisories, Duplikate, Quellen (blockierend, Plan §2.5)
-#   notices  THIRD-PARTY-NOTICES (cargo-about + PDFium + Fonts + npm) als Artefakt (Plan §10.2)
+#   deny     cargo-deny: Lizenzen, Advisories, Duplikate, Quellen; Selbsttest des npm-Lizenzprüfers
+#            (blockierend, Plan §2.5)
+#   notices  THIRD-PARTY-NOTICES (cargo-about + PDFium + Fonts + Rust-std + npm) als Artefakt (Plan §10.2)
 #   mobile   cargo check für iOS und Android (blockierend für die lokal verifizierten Crates)
 #   app      Tauri-Frontend apps/app (npm ci, Lizenzprüfung, build, test) – nur wenn apps/app/package.json existiert
 #
@@ -56,6 +57,10 @@ jobs:
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component rustfmt
           rustup default "$RUST_TOOLCHAIN"
       - run: cargo fmt --all --check
+      - name: shellcheck (tools/*.sh ohne env.sh, das auch zsh bedient)
+        run: |
+          command -v shellcheck >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends shellcheck; }
+          shellcheck tools/fetch-pdfium.sh tools/third-party-notices.sh tools/cross-clippy.sh
 
   build:
     name: Build/Test (${{ matrix.os }})
@@ -127,14 +132,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends qpdf libxml2-utils
       - name: qpdf, OpenSSL 3 (macOS)
         if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
           brew install qpdf openssl@3
           echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
       - name: Orakel-Versionen
         run: |
           for t in qpdf openssl pyhanko java xmllint; do
-            # sed statt head: liest die ganze Ausgabe (kein SIGPIPE unter pipefail)
-            printf '%-8s ' "$t"; { "$t" --version 2>&1 || "$t" version 2>&1 || echo fehlt; } | sed -n 1p
+            # openssl kennt nur `version`; sed statt head liest die ganze Ausgabe (kein SIGPIPE unter pipefail)
+            if [ "$t" = openssl ]; then args=(version); else args=(--version); fi
+            printf '%-8s ' "$t"; { "$t" "${args[@]}" 2>&1 || echo fehlt; } | sed -n 1p
           done
 
       # --- Tauri-Shell (apps/app, Paket I3): Systembibliotheken und Frontend-Build für generate_context! ---
@@ -207,6 +216,8 @@ jobs:
           tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
       - name: cargo deny check
         run: cargo deny --locked check
+      - name: npm-Lizenzprüfer (Selbsttest, Node des Runners)
+        run: node tools/npm-licenses.mjs --self-test
 
   notices:
     name: THIRD-PARTY-NOTICES
@@ -243,7 +254,8 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: THIRD-PARTY-NOTICES
-          path: target/notices/THIRD-PARTY-NOTICES.md
+          # THIRD-PARTY-NOTICES.md und RUST-STD-COPYRIGHT.html (Rust-Standardbibliothek)
+          path: target/notices/
           if-no-files-found: error
 
   mobile:

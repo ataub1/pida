@@ -18,7 +18,7 @@
 #
 # Umgebung (optional): PDFIUM_DEST (Zielordner, Standard tools/pdfium), PDFIUM_CACHE (Archive,
 # Standard <Ziel>/.downloads), PDFIUM_RELEASE (nur mit --update-lock), PDFIUM_BASE_URL (Spiegel).
-# Benötigt: bash ≥ 3.2, curl (oder wget), tar, sha256sum/shasum/openssl. Lädt nur von github.com.
+# Benötigt: bash ≥ 3.2, curl (oder wget), tar, sha256sum/shasum/openssl. Lädt nur über HTTPS.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,7 +30,7 @@ die() { echo "fetch-pdfium: $*" >&2; exit 1; }
 log() { echo "fetch-pdfium: $*" >&2; }
 
 usage() {
-  sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
