@@ -1,0 +1,295 @@
+/**
+ * Arbeitsbereich (Gestalt aus dem Prototyp, ADR 0004 §2.3/§4.3): Miniaturen | durchgehende Seitenansicht
+ * mit Zoom | Inspektor. Ein Bildschirm statt vier Schritten: Öffnen → automatisch platziert →
+ * „Signieren“ → Signierkarte als Overlay → Fertig. Inhalte ausschließlich aus `ViewState::document`
+ * (Phasen `warning`, `editing`, `signing`), Freigaben aus `ViewState::actions`.
+ *
+ * - Seiten werden nur in Sichtweite geladen; die sichtbaren Seiten gehen als `inspect_pages` (≤ 8) an den
+ *   Kern, der dafür Layout (Einrastlinien, freie Flächen) und Prüfung liefert.
+ * - Live-Region nach jeder Änderung der Platzierung (`announce` + Einrasten + Prüfergebnis).
+ * - „Signieren“ (Knopf, ⌘↵, Palette): mit gewähltem Signiermittel `sign_with`, sonst öffnet sich das Menü
+ *   des Konto-Chips und die Wahl dort signiert (§3.4, §8 F12).
+ * - ⌘/Strg + Plus/Minus/0 zoomt nur die Seitenansicht.
+ */
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Toolbar } from 'react-aria-components';
+import { useApp } from '../../app/context';
+import type { DocumentView, GuideKind } from '../../core/types';
+import { Button, IconButton } from '../../ui/controls';
+import { useNarrow } from '../../ui/hooks';
+import { IconEyeOff, IconFitWidth, IconQr, IconSidebar, IconSignature, IconZoomIn, IconZoomOut } from '../../ui/Icons';
+import { Inspector } from './Inspector';
+import { Pages } from './Pages';
+import { announceText, displayPages, layoutPages, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
+import { Thumbnails } from './Thumbnails';
+import './workspace.css';
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(Math.max(v, min), max);
+}
+
+export function Workspace({ doc }: { doc: DocumentView }) {
+  return <WorkspaceView key={doc.doc.id} doc={doc} />;
+}
+
+function WorkspaceView({ doc }: { doc: DocumentView }) {
+  const { t, view, dispatch, announce, registerSign, overlay } = useApp();
+  const narrow = useNarrow();
+  const sizes = useMemo(() => displayPages(doc), [doc]);
+  const maxW = Math.max(...sizes.map((s) => s[0]));
+  const [zoom, setZoom] = useState<number | null>(null);
+  const [fitScale, setFitScale] = useState(1.15);
+  const [fitReady, setFitReady] = useState(typeof ResizeObserver === 'undefined');
+  const [current, setCurrent] = useState(doc.placement.page_index);
+  const [pagesOpen, setPagesOpen] = useState(!narrow);
+  const [coach, setCoach] = useState(doc.origin === 'auto' && doc.phase === 'editing');
+  const [chip, setChip] = useState<{ open: boolean; sign: boolean }>({ open: false, sign: false });
+  const [viewport, setViewport] = useState({ top: 0, height: 0 });
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
+  const stickerRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const lastSnap = useRef<GuideKind[]>([]);
+  const editable = view.actions.edit_placement && doc.phase === 'editing';
+
+  const scale = zoom ? (zoom / 100) * PT_TO_PX : fitScale;
+  const layout = useMemo(() => layoutPages(sizes, scale), [sizes, scale]);
+  const zoomPct = Math.round((scale / PT_TO_PX) * 100);
+
+  // Seitenbreite einpassen
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      if (w > 0) {
+        setFitScale(clamp((w - 2 * PAGE_PAD - 8) / maxW, 0.35, 1.45));
+        setFitReady(true);
+      }
+      setViewport({ top: el.scrollTop, height: el.clientHeight });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [maxW]);
+
+  // Beim Öffnen zum Signaturblock scrollen (er steht meist auf der letzten Seite)
+  const mountedAt = useRef(Date.now());
+  const didScroll = useRef(false);
+  useLayoutEffect(() => {
+    if (!fitReady) return;
+    if (didScroll.current && Date.now() - mountedAt.current > 1000) return;
+    didScroll.current = true;
+    stickerRef.current?.scrollIntoView?.({ block: 'center' });
+  }, [fitReady, fitScale]);
+
+  // Hinweis „automatisch platziert“ nach einigen Sekunden ausblenden – er verdeckt sonst Text
+  useEffect(() => {
+    if (!coach) return undefined;
+    const timer = setTimeout(() => setCoach(false), 8000);
+    return () => clearTimeout(timer);
+  }, [coach]);
+
+  // Miniaturen folgen der Layoutbreite (schmal: eingeklappt, breit: sichtbar)
+  useEffect(() => setPagesOpen(!narrow), [narrow]);
+
+  // Sichtbare Seiten: Kacheln laden (± 1 Seite) und Layout beim Kern anfragen (≤ 8, idempotent)
+  const visible = useMemo(() => {
+    const v = visiblePages(layout, sizes, scale, viewport.top, viewport.height || 800, 0).filter((i) => i < doc.doc.page_count);
+    if (v.length === 0) v.push(Math.min(doc.placement.page_index, doc.doc.page_count - 1));
+    return v;
+  }, [layout, sizes, scale, viewport, doc.doc.page_count, doc.placement.page_index]);
+  const loadPages = useMemo(() => {
+    const s = new Set<number>();
+    for (const i of visible) for (const j of [i - 1, i, i + 1]) if (j >= 0 && j < doc.doc.page_count) s.add(j);
+    if (doc.placement.page_index < doc.doc.page_count) s.add(doc.placement.page_index);
+    return s;
+  }, [visible, doc.doc.page_count, doc.placement.page_index]);
+  const inspectKey = visible.slice(0, 8).join(',');
+  useEffect(() => {
+    if (!editable) return undefined;
+    const pages = inspectKey.split(',').filter(Boolean).map(Number);
+    const timer = setTimeout(() => void dispatch({ type: 'inspect_pages', pages }), 120);
+    return () => clearTimeout(timer);
+  }, [inspectKey, editable, dispatch]);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setViewport({ top: el.scrollTop, height: el.clientHeight });
+    const probe = el.scrollTop + el.clientHeight / 3;
+    let idx = 0;
+    layout.tops.forEach((top, i) => {
+      if (top <= probe) idx = i;
+    });
+    if (idx !== current) setCurrent(idx);
+  };
+
+  const scrollToPage = (i: number) => {
+    const el = scrollRef.current;
+    const top = layout.tops[i];
+    if (el && top !== undefined) el.scrollTo?.({ top: top - 12, behavior: 'smooth' });
+    setCurrent(i);
+    // Schmal liegen die Miniaturen über der Seite – nach der Auswahl schließen, Fokus auf den Umschalter
+    if (narrow) {
+      setPagesOpen(false);
+      toolbarRef.current?.querySelector<HTMLElement>('button')?.focus();
+    }
+  };
+
+  // Live-Region nach jeder Änderung der Platzierung (nicht beim Öffnen)
+  const text = announceText(t, doc, lastSnap.current);
+  const firstText = useRef(true);
+  useEffect(() => {
+    if (firstText.current) {
+      firstText.current = false;
+      return undefined;
+    }
+    const timer = setTimeout(() => announce(text), 250);
+    return () => clearTimeout(timer);
+  }, [doc.revision, text, announce]);
+
+  // Sticker beim Seitenwechsel im Blick halten
+  const page = doc.placement.page_index;
+  const prevPage = useRef(page);
+  useEffect(() => {
+    if (prevPage.current !== page) stickerRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    prevPage.current = page;
+  }, [page]);
+
+  const interact = useCallback(() => setCoach(false), []);
+  const onSnap = useCallback((s: GuideKind[]) => {
+    lastSnap.current = s;
+  }, []);
+
+  // „Signieren“: mit gewähltem Signiermittel sofort, sonst das Menü des Konto-Chips (Wahl signiert)
+  const sign = useCallback(() => {
+    if (!view.actions.sign) return;
+    setCoach(false);
+    if (view.signers.selected) void dispatch({ type: 'sign_with', backend: view.signers.selected });
+    else setChip({ open: true, sign: true });
+  }, [view.actions.sign, view.signers.selected, dispatch]);
+  useEffect(() => {
+    registerSign(sign);
+    return () => registerSign(null);
+  }, [sign, registerSign]);
+
+  const zoomBy = useCallback(
+    (dir: 1 | -1) => {
+      const cur = zoomPct;
+      const next = dir > 0 ? ZOOM_STEPS.find((z) => z > cur + 1) : [...ZOOM_STEPS].reverse().find((z) => z < cur - 1);
+      setZoom(next ?? (dir > 0 ? 200 : 50));
+    },
+    [zoomPct],
+  );
+
+  // Zoom-Kürzel (Strg/⌘ + Plus/Minus/0) – nur ohne offenes Overlay
+  const zoomState = useRef({ zoomBy, blocked: false });
+  zoomState.current = { zoomBy, blocked: !!overlay || view.settings !== null || view.step.step === 'signing' };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || zoomState.current.blocked) return;
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        zoomState.current.zoomBy(1);
+      } else if (e.key === '-') {
+        e.preventDefault();
+        zoomState.current.zoomBy(-1);
+      } else if (e.key === '0') {
+        e.preventDefault();
+        setZoom(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const unusedField = editable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
+
+  return (
+    <div className={`workspace${pagesOpen ? ' pages-open' : ''}`} data-phase={doc.phase}>
+      {pagesOpen ? <Thumbnails doc={doc} sizes={sizes} current={current} onSelect={scrollToPage} /> : null}
+
+      <h1 className="sr-only" id="main-heading" tabIndex={-1} data-main-heading="">
+        {doc.doc.name}
+      </h1>
+      <section className="canvas" aria-label={t.t('ng-ui-ws-canvas', { name: doc.doc.name })}>
+        {/* React-Aria-Toolbar: Pfeiltasten zwischen den Knöpfen, Tab verlässt die Leiste (ARIA-Muster „toolbar“) */}
+        <Toolbar className="canvas-toolbar" aria-label={t.t('ng-ui-ws-toolbar')} ref={toolbarRef}>
+          <IconButton label={t.t('ng-ui-ws-toggle-pages')} onPress={() => setPagesOpen((v) => !v)} aria-pressed={pagesOpen}>
+            <IconSidebar size={18} />
+          </IconButton>
+          <span className="page-indicator" aria-live="off">
+            {t.t('ng-ui-ws-page-indicator', { n: current + 1, total: sizes.length })}
+          </span>
+          <span className="toolbar-spacer" />
+          <IconButton label={t.t('ng-ui-ws-zoom-out')} onPress={() => zoomBy(-1)} isDisabled={zoomPct <= 50}>
+            <IconZoomOut size={18} />
+          </IconButton>
+          <span className="zoom-value" aria-label={t.t('ng-ui-ws-zoom-value', { value: zoomPct })}>
+            {zoomPct} %
+          </span>
+          <IconButton label={t.t('ng-ui-ws-zoom-in')} onPress={() => zoomBy(1)} isDisabled={zoomPct >= 200}>
+            <IconZoomIn size={18} />
+          </IconButton>
+          <IconButton label={t.t('ng-ui-ws-fit')} onPress={() => setZoom(null)} aria-pressed={zoom === null}>
+            <IconFitWidth size={18} />
+          </IconButton>
+        </Toolbar>
+
+        {doc.invisible ? (
+          <p className="canvas-banner">
+            <IconEyeOff size={16} />
+            {t.t('ng-ui-ws-invisible')}
+          </p>
+        ) : unusedField ? (
+          <div className="canvas-banner canvas-banner-field">
+            <IconSignature size={16} />
+            <span>
+              <strong>{t.t('ng-ui-ws-field-found')}:</strong> {t.t('ng-ui-ws-field-banner', { name: unusedField.name, page: (unusedField.page ?? 0) + 1 })}
+            </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => {
+                setCoach(false);
+                lastSnap.current = [];
+                void dispatch({ type: 'use_target', target: { kind: 'field', index: unusedField.index } });
+              }}
+            >
+              {t.t('ng-ui-ws-field-use')}
+            </Button>
+          </div>
+        ) : doc.target.kind === 'qr' ? (
+          <p className="canvas-banner">
+            <IconQr size={16} />
+            {t.t('ng-ui-ws-qr-banner')}
+          </p>
+        ) : null}
+
+        <div className="canvas-scroll" ref={scrollRef} onScroll={onScroll}>
+          <Pages
+            doc={doc}
+            sizes={sizes}
+            scale={scale}
+            layout={layout}
+            loadPages={loadPages}
+            editable={editable}
+            coach={coach}
+            hostRef={hostRef}
+            stickerRef={stickerRef}
+            onInteract={interact}
+            onSnap={onSnap}
+          />
+        </div>
+      </section>
+
+      <Inspector
+        doc={doc}
+        chipOpen={chip.open}
+        signMode={chip.sign}
+        onChipOpenChange={(open) => setChip({ open, sign: open ? chip.sign : false })}
+        onSign={sign}
+      />
+    </div>
+  );
+}

@@ -1,0 +1,456 @@
+/*
+ * Signierkarte (aus dem Prototyp, `styles/views.css` Abschnitt „Signieren“, ADR 0004 §4.2): Stepper,
+ * Vergleichswert, Countdown-Ring, FIDO2, Erfolgshäkchen. Ergänzt: QR-Code, Problemzeile, Kurzhinweis
+ * Datenschutz, Responsiv der Karte (unter 760 px Sheet von unten, `styles/components.css`).
+ */
+/* ------------------------------------------------------------ Signieren */
+.signing-modal {
+  max-width: 480px;
+}
+.signing-card {
+  display: flex;
+  flex-direction: column;
+}
+.signing-card .dialog-icon {
+  background: none;
+  border: 0;
+}
+.signer-glyph {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--c-accent-soft);
+  color: var(--c-accent-on-soft);
+}
+.signer-glyph.signer-keystore {
+  background: var(--c-info-soft);
+  color: var(--c-info-on-soft);
+}
+.signer-glyph.signer-card {
+  background: var(--c-success-soft);
+  color: var(--c-success-on-soft);
+}
+.stepper {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-5) var(--sp-4);
+}
+.step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  color: var(--c-text-3);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  line-height: 1.2;
+}
+.step + .step::before {
+  content: '';
+  flex: 0 0 14px;
+  height: 2px;
+  margin-right: 2px;
+  border-radius: 2px;
+  background: var(--c-border-strong);
+}
+.step.is-done + .step::before,
+.step.is-done + .step.is-done::before {
+  background: var(--c-success);
+}
+.step-dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid var(--c-border-strong);
+  border-radius: 50%;
+  background: var(--c-surface);
+  font-size: 11px;
+  transition: all var(--dur-2) var(--ease-out);
+}
+.step.is-current {
+  color: var(--c-text);
+}
+.step.is-current .step-dot {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  box-shadow: 0 0 0 3px var(--c-accent-soft);
+}
+.step.is-done {
+  color: var(--c-text-2);
+}
+.step.is-done .step-dot {
+  border-color: var(--c-success);
+  background: var(--c-success);
+  color: var(--c-on-primary);
+}
+.step.is-error .step-dot {
+  border-color: var(--c-danger);
+  background: var(--c-danger);
+  color: var(--c-surface);
+  font-size: 13px;
+  font-weight: var(--fw-bold);
+  box-shadow: 0 0 0 3px var(--c-danger-soft);
+}
+.step.is-error .step-label {
+  color: var(--c-danger);
+}
+.signing-body,
+.ob-body {
+  padding: 0 var(--sp-5) var(--sp-5);
+  border-top: 1px solid var(--c-border);
+}
+.step-pane {
+  display: grid;
+  gap: var(--sp-4);
+  padding-top: var(--sp-5);
+  animation: pane-in var(--dur-3) var(--ease-out);
+}
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+.step-pane-center {
+  justify-items: center;
+  text-align: center;
+  padding-block: var(--sp-10) var(--sp-8);
+}
+.step-title {
+  font-size: var(--fs-18);
+  line-height: var(--lh-snug);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+}
+.step-title:focus {
+  outline: none;
+}
+.step-text {
+  color: var(--c-text-2);
+}
+.step-prose {
+  display: grid;
+  gap: var(--sp-2);
+  color: var(--c-text-2);
+}
+.step-footnote {
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+}
+.step-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+.step-pane-center .step-actions {
+  justify-content: center;
+}
+.step-hero {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-5);
+}
+.step-hero-info {
+  background: var(--c-info-soft);
+  color: var(--c-info-on-soft);
+}
+.step-hero-danger {
+  background: var(--c-danger-soft);
+  color: var(--c-danger-on-soft);
+}
+.step-spinner {
+  color: var(--c-text);
+}
+.app-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+.app-status > div {
+  display: grid;
+  gap: 4px;
+}
+.app-phone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-4);
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+.app-ping {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-surface);
+  animation: ping 1.8s var(--ease-out) infinite;
+}
+@keyframes ping {
+  0% {
+    box-shadow:
+      0 0 0 2px var(--c-surface),
+      0 0 0 2px color-mix(in srgb, var(--c-accent) 50%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px var(--c-surface),
+      0 0 0 14px transparent;
+  }
+}
+.app-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background: var(--c-surface-2);
+}
+.refvalue {
+  display: grid;
+  gap: 6px;
+}
+.refvalue-label {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--c-text-3);
+}
+.refvalue-chars {
+  display: flex;
+  gap: 6px;
+}
+.refvalue-char {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 50px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-3);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-1);
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: var(--fw-bold);
+}
+.refvalue-sm .refvalue-char {
+  width: 28px;
+  height: 34px;
+  border-radius: var(--r-2);
+  font-size: 17px;
+}
+.countdown {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.countdown svg {
+  position: absolute;
+  inset: 0;
+}
+.countdown-track {
+  fill: none;
+  stroke: var(--c-border);
+  stroke-width: 5;
+}
+.countdown-arc {
+  fill: none;
+  stroke: var(--c-text);
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+.countdown.is-low .countdown-arc {
+  stroke: var(--c-warning);
+}
+.countdown-text {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.waiting-dots {
+  color: var(--c-text-2);
+}
+.refvalue-data {
+  justify-self: start;
+  margin-top: 2px;
+  font-size: var(--fs-13);
+}
+.alt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.alt-note {
+  color: var(--c-success);
+  font-weight: var(--fw-medium);
+}
+.fido-key {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border: 1px solid var(--c-border);
+  border-radius: 28px;
+  background: var(--c-surface-2);
+}
+.fido-pulse {
+  position: absolute;
+  inset: -6px;
+  border: 2px solid var(--c-accent);
+  border-radius: 32px;
+  opacity: 0;
+  animation: pulse 1.6s var(--ease-out) infinite;
+}
+@keyframes pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+.done-check {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--c-success);
+  color: var(--c-on-primary);
+  animation: check-pop var(--dur-4) var(--ease-spring);
+}
+@keyframes check-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------ App: QR, Problemzeile, Datenschutz */
+.busy {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+}
+.qr-box {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background: var(--c-surface-2);
+}
+.qr-image {
+  flex: none;
+  width: 180px;
+  height: 180px;
+  border-radius: var(--r-3);
+  background: #fff;
+  image-rendering: pixelated;
+}
+.qr-side {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+.sc-problem:empty {
+  display: none;
+}
+.sc-problem .message {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.sc-problem .message > svg {
+  flex: none;
+  margin-top: 1px;
+}
+.sc-privacy {
+  padding-top: var(--sp-4);
+}
+.alt-row .link[data-disabled] {
+  color: var(--c-text-3);
+  cursor: not-allowed;
+  text-decoration-style: dotted;
+}
+.signing-card .radio-card-icon > span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+/* ------------------------------------------------------------ Responsiv */
+@media (max-width: 760px) {
+  .app-confirm {
+    flex-wrap: wrap;
+    padding: var(--sp-4);
+  }
+  .qr-box {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (max-width: 420px) {
+  .refvalue-char {
+    width: 34px;
+    height: 44px;
+    font-size: 22px;
+  }
+  /* Ring neben dem Vergleichswert halten (statt darunter mit leerer Fläche) */
+  .app-confirm .countdown,
+  .app-confirm .countdown svg {
+    width: 60px !important;
+    height: 60px !important;
+  }
+  .stepper {
+    padding-inline: var(--gutter);
+  }
+  .step-label {
+    font-size: 11px;
+  }
+  .signing-body {
+    padding-inline: var(--gutter);
+  }
+  .dialog-header {
+    padding-inline: var(--gutter);
+  }
+}

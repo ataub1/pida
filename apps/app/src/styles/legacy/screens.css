@@ -1,0 +1,207 @@
+/*
+ * Vorübergehend (ADR 0004 §4.2): Gestaltung der bisherigen Schritt-Bildschirme, die nur noch als Rückfall
+ * des klassischen Ablaufs dienen (Kern ohne `workspace_ui`: `StepView::Position` ohne `document`,
+ * `StepView::Placeholder`). Farben aus den Design-Tokens; alles ist unter `.legacy-screen` gekapselt, damit
+ * nichts in die neue Oberfläche wirkt.
+ */
+.legacy-screen {
+  --legacy-border: var(--c-border-strong);
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--gutter) var(--sp-10);
+}
+
+.legacy-screen .screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.legacy-screen .screen-header {
+  display: grid;
+  gap: 2px;
+}
+.legacy-screen .screen-title {
+  font-size: var(--fs-24);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+}
+.legacy-screen .screen-subtitle {
+  color: var(--c-text-3);
+  overflow-wrap: anywhere;
+}
+.legacy-screen .card {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-1);
+}
+.legacy-screen .actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+/* Positionieren */
+.legacy-screen .position-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--sp-5);
+  align-items: start;
+}
+.legacy-screen .page-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100dvh - 220px);
+  min-height: 360px;
+  padding: var(--sp-2);
+  background: var(--c-sunken);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  overflow: hidden;
+}
+.legacy-screen .page-surface {
+  position: relative;
+  flex: none;
+  background: var(--c-page);
+  box-shadow: var(--shadow-page);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: crosshair;
+}
+.legacy-screen .page-image,
+.legacy-screen .page-blank {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.legacy-screen .page-blank {
+  background: repeating-linear-gradient(45deg, #ffffff 0 12px, #f4f5f7 12px 24px);
+}
+.legacy-screen .page-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  color: #4f5560;
+  background: rgb(255 255 255 / 70%);
+}
+.legacy-screen .block-overlay {
+  position: absolute;
+  outline: 1.5px dashed #c8102e;
+  outline-offset: 2px;
+  box-shadow: 0 6px 18px rgb(16 20 26 / 0.16);
+  cursor: grab;
+}
+.legacy-screen .block-overlay:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 3px;
+}
+.legacy-screen .block-overlay[data-dragging] {
+  cursor: grabbing;
+}
+.legacy-screen .block-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.legacy-screen .position-controls {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background: var(--c-surface);
+}
+.legacy-screen .position-status {
+  font-weight: var(--fw-semibold);
+}
+.legacy-screen .pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1);
+}
+.legacy-screen .pager-label {
+  font-weight: var(--fw-semibold);
+}
+.legacy-screen .icon-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: var(--r-3);
+  background: transparent;
+  color: var(--c-text-2);
+  cursor: pointer;
+}
+.legacy-screen .icon-button[data-hovered] {
+  background: var(--c-hover);
+}
+.legacy-screen .icon-button[data-disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.legacy-screen .position-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.legacy-screen .position-actions .btn {
+  flex: 1 1 auto;
+}
+
+/* Platzhalterfrage */
+.legacy-screen .radio-group {
+  display: grid;
+  gap: var(--sp-1);
+}
+.legacy-screen .radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-height: 36px;
+  padding: var(--sp-1) 0;
+  cursor: pointer;
+}
+.legacy-screen .radio-mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 1.5px solid var(--c-control-border);
+  border-radius: 50%;
+  background: var(--c-surface);
+}
+.legacy-screen .radio[data-selected] .radio-mark {
+  border: 5px solid var(--c-text);
+}
+.legacy-screen .radio[data-focus-visible] .radio-mark {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .legacy-screen .position-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .legacy-screen .page-stage {
+    height: min(70vh, 720px);
+  }
+}
+@media (pointer: coarse) {
+  .legacy-screen .block-overlay::after {
+    content: '';
+    position: absolute;
+    inset: -14px;
+  }
+}

@@ -4,3 +4,306 @@
 ### shell, start, ws, insp, sc, fin, batch. Alle Kataloge einer Sprache bilden ein Fluent-Bündel: keine ID aus `pida.ftl`,
 ### `pdfover.ftl` oder der anderen `ui-*.ftl` wiederverwenden; jede ID mit denselben Variablen in
 ### `de/` und `en/` (Test `crates/i18n/tests/catalogs.rs`). Einzahl/Mehrzahl über Selektoren.
+###
+### Texte aus dem Prototyp (`prototypes/pida-workspace/src/i18n/de.ts`), angepasst an den Kern: Wortlaut nach
+### ADR 0004 §8 F3 – nie „gültig“ oder „rechtsgültig“, sondern „Signatur erstellt und geprüft (Selbstprüfung)“
+### und „laut Zertifikat“; Schrittweiten der Tastatur wie im Kern (15/1/50 pt).
+
+## Shell: Kopfzeile, Befehle, Hinweise
+
+ng-ui-shell-skip = Zum Inhalt springen
+ng-ui-shell-home = PIDA – Startseite
+ng-ui-shell-starting = PIDA wird gestartet …
+ng-ui-shell-title-workspace = Arbeitsbereich
+ng-ui-shell-doc-info = { $pages } · { $size }
+ng-ui-shell-pages =
+    { $n ->
+        [one] { $n } Seite
+       *[other] { $n } Seiten
+    }
+ng-ui-shell-verify = Prüfen
+ng-ui-shell-verify-long = Signatur prüfen
+ng-ui-shell-commands = Befehle
+ng-ui-shell-commands-long = Befehle und Suche
+ng-ui-shell-lang = Sprache der Oberfläche
+ng-ui-shell-theme = Farbschema
+ng-ui-shell-theme-system = Wie System
+ng-ui-shell-theme-light = Hell
+ng-ui-shell-theme-dark = Dunkel
+ng-ui-shell-settings = Einstellungen
+ng-ui-shell-toasts = Benachrichtigungen
+ng-ui-shell-toast-close = Hinweis schließen
+ng-ui-shell-cmd-open = Dokument öffnen …
+    .keywords = öffnen datei pdf laden
+ng-ui-shell-cmd-sign = Signieren
+    .keywords = unterschreiben signatur
+ng-ui-shell-cmd-verify = Signatur prüfen (Prüfmodus)
+    .keywords = prüfen verify kontrolle
+ng-ui-shell-cmd-settings = Einstellungen
+    .keywords = optionen konfiguration
+ng-ui-shell-cmd-signature = Signaturbild bearbeiten
+    .keywords = logo profil bildmarke hinweis
+ng-ui-shell-cmd-home = Zur Startseite
+    .keywords = start schließen
+ng-ui-shell-cmd-theme-light = Farbschema: Hell
+    .keywords = theme hell
+ng-ui-shell-cmd-theme-dark = Farbschema: Dunkel
+    .keywords = theme dunkel
+ng-ui-shell-cmd-theme-system = Farbschema: Wie System
+    .keywords = theme system
+ng-ui-shell-cmd-lang-de = Sprache: Deutsch
+    .keywords = language sprache
+ng-ui-shell-cmd-lang-en = Language: English
+    .keywords = language sprache englisch
+ng-ui-shell-cmd-shortcuts = Tastenkürzel anzeigen
+    .keywords = hilfe tastatur kürzel
+ng-ui-shell-key-close = Dialog schließen, Vorgang abbrechen
+ng-ui-shell-key-accesskeys = Zugriffstasten (unterstrichene Buchstaben bei gedrückter Alt-Taste)
+ng-ui-shell-key-move = Signaturblock verschieben (15 pt)
+ng-ui-shell-key-move-fine = Fein verschieben (1 pt)
+ng-ui-shell-key-move-coarse = Grob verschieben (50 pt)
+ng-ui-shell-key-page = Block auf vorige / nächste Seite
+ng-ui-shell-key-place = Block an diese Stelle setzen
+ng-ui-shell-key-dblclick = Doppelklick
+ng-ui-shell-key-zoom = Vergrößern / Verkleinern
+ng-ui-shell-key-fit = An Breite anpassen
+
+## Start
+
+ng-ui-start-title = Was möchten Sie signieren?
+ng-ui-start-lead = Öffnen Sie ein PDF – PIDA platziert die Signatur automatisch, Sie bestätigen mit Ihrem Signiermittel.
+ng-ui-start-drop-label = Ablagefläche für PDF-Dokumente
+ng-ui-start-drop-title = PDF hierher ziehen oder auswählen
+ng-ui-start-drop-title-mobile = PDF auswählen
+ng-ui-start-drop-release = Loslassen zum Öffnen
+ng-ui-start-drop-hint = Mehrere Dateien werden nacheinander signiert.
+ng-ui-start-drop-hint-mobile = Oder ein PDF aus einer anderen App über „Teilen“ bzw. „Öffnen in“ an PIDA senden.
+ng-ui-start-pick = PDF auswählen
+    .accesskey = P
+ng-ui-start-pick-mobile = Dokument auswählen
+ng-ui-start-local = Ihre Dokumente bleiben auf diesem Gerät, bis Sie signieren.
+ng-ui-start-shortcut = öffnet die Dateiauswahl
+ng-ui-start-side = Zuletzt signiert und Prüfmodus
+ng-ui-start-verify-title = Signatur prüfen?
+ng-ui-start-verify-text = Im Prüfmodus sehen Sie, wer ein PDF wann signiert hat und ob es seither verändert wurde.
+ng-ui-start-verify-button = Prüfmodus öffnen
+
+## Arbeitsbereich: Seiten, Sticker, Live-Region, Zustandskarten
+
+ng-ui-ws-canvas = Dokumentvorschau: { $name }
+ng-ui-ws-toolbar = Ansicht
+ng-ui-ws-pages = Seiten
+ng-ui-ws-thumb = Seite { $n }
+ng-ui-ws-thumb-sticker = Seite { $n }, enthält den Signaturblock
+ng-ui-ws-toggle-pages = Seitenleiste ein-/ausblenden
+ng-ui-ws-page-indicator = Seite { $n } / { $total }
+ng-ui-ws-zoom-in = Vergrößern
+ng-ui-ws-zoom-out = Verkleinern
+ng-ui-ws-zoom-value = Zoom { $value } %
+ng-ui-ws-fit = An Breite anpassen
+ng-ui-ws-page-alt = Seite { $n } von { $total } – { $name }
+ng-ui-ws-page-failed = Vorschau nicht verfügbar
+ng-ui-ws-new-page = Neue Seite für die Signatur
+ng-ui-ws-sticker-role = verschiebbarer Signaturblock
+ng-ui-ws-sticker-label = Signaturblock
+ng-ui-ws-sticker-help = Ziehen oder mit den Pfeiltasten verschieben, Umschalt+Pfeil verschiebt fein, Alt+Pfeil grob, Bild auf/ab wechselt die Seite, { $sign } signiert.
+ng-ui-ws-sticker-overlap = Überdeckt Inhalt
+ng-ui-ws-sticker-widget = Überdeckt ein Feld
+ng-ui-ws-sticker-in-field = Im Signaturfeld
+ng-ui-ws-sticker-in-qr = Im QR-Platzhalter
+ng-ui-ws-placed = Signaturblock automatisch auf freier Fläche platziert
+ng-ui-ws-marker = Hier signieren
+ng-ui-ws-marker-field = Hier signieren: Signaturfeld „{ $name }“
+ng-ui-ws-marker-qr = Hier signieren: QR-Code-Platzhalter
+ng-ui-ws-field-found = Signaturfeld gefunden
+ng-ui-ws-field-banner = „{ $name }“ auf Seite { $page }. Klicken Sie dort auf „Hier signieren“ oder setzen Sie den Block direkt ins Feld.
+ng-ui-ws-field-use = Ins Feld setzen
+ng-ui-ws-qr-banner = Positioniert im QR-Code-Platzhalter des Dokuments.
+ng-ui-ws-invisible = Unsichtbare Signatur – auf den Seiten erscheint kein Signaturbild.
+ng-ui-ws-announce = Seite { $page } von { $pages }, { $left } mm von links, { $bottom } mm von unten.
+ng-ui-ws-announce-snap = Rastet ein: { $where }.
+ng-ui-ws-announce-overlap = Achtung: überdeckt Inhalt.
+ng-ui-ws-announce-widget = Achtung: überdeckt ein Formularfeld.
+ng-ui-ws-announce-free = Freie Fläche.
+ng-ui-ws-announce-field = Im Signaturfeld „{ $name }“.
+ng-ui-ws-announce-qr = Im QR-Code-Platzhalter.
+ng-ui-ws-announce-invisible = Unsichtbare Signatur, kein Signaturbild.
+ng-ui-ws-snap-left = linker Rand
+ng-ui-ws-snap-right = rechter Rand
+ng-ui-ws-snap-hcenter = Mitte
+ng-ui-ws-snap-top = oberer Rand
+ng-ui-ws-snap-bottom = unterer Rand
+ng-ui-ws-snap-vcenter = Seitenmitte
+ng-ui-ws-snap-below = unter dem Text
+ng-ui-ws-snap-corner = rechts unten
+ng-ui-ws-zone-top-left = links oben
+ng-ui-ws-zone-top-center = oben mittig
+ng-ui-ws-zone-top-right = rechts oben
+ng-ui-ws-zone-middle-left = links mittig
+ng-ui-ws-zone-middle-center = mittig
+ng-ui-ws-zone-middle-right = rechts mittig
+ng-ui-ws-zone-bottom-left = links unten
+ng-ui-ws-zone-bottom-center = unten mittig
+ng-ui-ws-zone-bottom-right = rechts unten
+ng-ui-ws-loading-title = Dokument wird geöffnet
+ng-ui-ws-loading = Das Dokument wird gelesen und geprüft …
+ng-ui-ws-locked-title = Dieses PDF ist mit einem Kennwort geschützt
+ng-ui-ws-locked-text = Dokumente mit einem Kennwort zum Öffnen kann PIDA nicht signieren. Öffnen Sie bitte eine Fassung ohne Kennwortschutz.
+ng-ui-ws-locked-other = Anderes Dokument öffnen
+ng-ui-ws-notpdf-title = Diese Datei ist kein PDF
+ng-ui-ws-retry = Erneut versuchen
+
+## Inspektor
+
+ng-ui-insp-label = Signatur
+ng-ui-insp-sign-with = Signieren mit
+ng-ui-insp-switch = Signiermittel wechseln
+ng-ui-insp-chip-label = Signiermittel: { $value }. Wechseln
+ng-ui-insp-make-default = Als Standard verwenden
+ng-ui-insp-manage = Konten verwalten …
+ng-ui-insp-signer-atrust = ID Austria
+ng-ui-insp-signer-atrust-desc = Bestätigung in der App, mit FIDO2-Schlüssel oder per SMS-TAN
+ng-ui-insp-signer-atrust-desc-mobile = Bestätigung in der App „ID Austria“ oder per SMS-TAN
+ng-ui-insp-signer-keystore = Keystore
+ng-ui-insp-signer-keystore-desc = Zertifikatsdatei (PKCS#12) auf diesem Gerät
+ng-ui-insp-signer-card = Bürgerkarte
+ng-ui-insp-signer-card-desc = Karte im Lesegerät mit lokaler Bürgerkartenumgebung
+ng-ui-insp-signer-card-reader = Bürgerkarte · Kartenleser
+ng-ui-insp-signer-none = Signiermittel wählen
+ng-ui-insp-signer-import = PKCS#12-Datei importieren …
+ng-ui-insp-block = Signaturbild
+ng-ui-insp-block-edit = Signaturbild bearbeiten
+ng-ui-insp-block-alt = Vorschau des Signaturbilds
+ng-ui-insp-edit = Bearbeiten
+ng-ui-insp-options = Optionen
+ng-ui-insp-invisible = Unsichtbar signieren
+ng-ui-insp-invisible-hint = Ohne Signaturbild; die Signatur steckt nur in der Datei.
+ng-ui-insp-new-page = Auf neuer Seite
+ng-ui-insp-new-page-hint = Hängt eine leere Seite für das Signaturbild an.
+ng-ui-insp-new-page-locked = Für dieses Dokument nicht möglich.
+ng-ui-insp-placement = Platzierung
+ng-ui-insp-placement-text = Seite { $page } · { $zone }
+ng-ui-insp-placement-field = Im Signaturfeld „{ $name }“
+ng-ui-insp-placement-qr = Im QR-Code-Platzhalter
+ng-ui-insp-placement-free = Frei platzieren
+ng-ui-insp-placement-hint = Ziehen Sie den Block auf der Seite – er rastet an Rändern und unter dem Text ein.
+ng-ui-insp-auto-place = Neu platzieren
+ng-ui-insp-existing = Vorhandene Signaturen
+ng-ui-insp-existing-meta = Angabe beim Signieren: { $time }
+ng-ui-insp-existing-unknown = Unterzeichner nicht lesbar
+ng-ui-insp-status-valid = intakt
+ng-ui-insp-status-invalid = verändert
+ng-ui-insp-status-unknown = nicht prüfbar
+ng-ui-insp-overlap = Der Signaturblock überdeckt Inhalt der Seite.
+ng-ui-insp-overlap-widget = Der Signaturblock überdeckt ein Formular- oder Signaturfeld.
+ng-ui-insp-overlap-fix = Freie Fläche suchen
+ng-ui-insp-sign = Signieren
+    .accesskey = S
+ng-ui-insp-sheet-expand = Optionen einblenden
+ng-ui-insp-sheet-collapse = Optionen ausblenden
+ng-ui-insp-warning = Hinweis zum Dokument
+ng-ui-insp-warning-proceed = Trotzdem signieren
+ng-ui-insp-warning-discard = Dokument verwerfen
+
+## Signierkarte
+
+ng-ui-sc-title = Signieren mit { $signer }
+ng-ui-sc-steps = Fortschritt
+ng-ui-sc-step-login = Anmelden
+ng-ui-sc-step-app = In der App bestätigen
+ng-ui-sc-step-fido2 = Mit FIDO2 bestätigen
+ng-ui-sc-step-sms = SMS-TAN eingeben
+ng-ui-sc-step-unlock = Entsperren
+ng-ui-sc-step-card = PIN eingeben
+ng-ui-sc-step-done = Signiert
+ng-ui-sc-state-done = erledigt
+ng-ui-sc-state-current = aktueller Schritt
+ng-ui-sc-state-todo = ausstehend
+ng-ui-sc-state-error = fehlgeschlagen
+ng-ui-sc-cancel = Abbrechen
+ng-ui-sc-continue = Weiter
+ng-ui-sc-details = Technische Details
+ng-ui-sc-connecting = Verbindung wird aufgebaut …
+ng-ui-sc-certificate = Zertifikat wird gelesen …
+ng-ui-sc-waiting-server = Warten auf den Signaturdienst …
+ng-ui-sc-signing = Signatur wird erstellt …
+ng-ui-sc-done = Signiert
+ng-ui-sc-saving = Das signierte Dokument wird gespeichert …
+ng-ui-sc-document = Dokument { $index } von { $total }
+ng-ui-sc-login-user = Telefonnummer oder Benutzername
+ng-ui-sc-login-password = Signatur-Passwort
+ng-ui-sc-login-remember = Daten merken
+ng-ui-sc-login-remember-hint = PIDA fragt bis zum Beenden nicht erneut nach dem Passwort; der Benutzername bleibt gespeichert.
+ng-ui-sc-login-submit = Anmelden
+ng-ui-sc-login-provider = Dieser Dienst wird von A-Trust bereitgestellt.
+ng-ui-sc-app-sent = Benachrichtigung an die ID-Austria-App gesendet
+ng-ui-sc-app-instruction = Öffnen Sie die App, vergleichen Sie den Wert und bestätigen Sie die Signatur.
+ng-ui-sc-app-instruction-mobile = Bestätigen Sie in der App „ID Austria“ und kehren Sie dann zu PIDA zurück.
+ng-ui-sc-app-remaining = Verbleibende Zeit: { $time }
+ng-ui-sc-app-low-time = Noch eine Minute für die Bestätigung in der App.
+ng-ui-sc-app-waiting = Warten auf Bestätigung …
+ng-ui-sc-app-confirmed = In der App bestätigt
+ng-ui-sc-ref = Vergleichswert
+ng-ui-sc-ref-hint = Muss mit der Anzeige in der App übereinstimmen.
+ng-ui-sc-data = Signaturdaten anzeigen
+ng-ui-sc-alternatives = Stattdessen:
+ng-ui-sc-alt-app = In der App bestätigen
+ng-ui-sc-alt-fido2 = FIDO2-Schlüssel
+ng-ui-sc-alt-sms = SMS-TAN
+ng-ui-sc-qr-title = QR-Code mit der App „ID Austria“ scannen
+ng-ui-sc-qr-continue = Weiter
+ng-ui-sc-sms-text = Sie erhalten eine SMS mit der TAN.
+ng-ui-sc-sms-tan = TAN aus der SMS
+ng-ui-sc-sms-submit = Bestätigen
+ng-ui-sc-sms-err-ref = Das ist der Vergleichswert – bitte geben Sie die TAN aus der SMS ein.
+ng-ui-sc-fido2-title = Sicherheitsschlüssel verwenden
+ng-ui-sc-fido2-text = Stecken Sie Ihren FIDO2-Sicherheitsschlüssel an und starten Sie die Bestätigung.
+ng-ui-sc-fido2-start = Mit Schlüssel bestätigen
+ng-ui-sc-fido2-touch = Berühren Sie jetzt Ihren Sicherheitsschlüssel
+ng-ui-sc-fido2-touch-hint = Der Schlüssel blinkt, sobald er bereit ist.
+ng-ui-sc-fido2-pin = PIN des Sicherheitsschlüssels
+ng-ui-sc-fido2-pin-text = Geben Sie die PIN Ihres FIDO2-Sicherheitsschlüssels ein.
+ng-ui-sc-fido2-pin-retry = Die PIN wurde nicht angenommen. Bitte versuchen Sie es noch einmal.
+ng-ui-sc-ks-text = Geben Sie das Passwort für „{ $file }“ ein.
+ng-ui-sc-ks-password = Keystore-Passwort
+ng-ui-sc-ks-key-password = Passwort des Schlüssels
+ng-ui-sc-ks-submit = Signieren
+ng-ui-sc-proxy-title = Anmeldung am Proxy
+ng-ui-sc-proxy-text = Der Proxy „{ $host }“ verlangt ein Passwort.
+ng-ui-sc-proxy-password = Proxy-Passwort
+ng-ui-sc-secret-empty = Bitte geben Sie das Passwort ein.
+ng-ui-sc-card-text = Stecken Sie Ihre Bürgerkarte in das Lesegerät und geben Sie die Signatur-PIN in der Bürgerkartenumgebung ein.
+ng-ui-sc-card-waiting = Warten auf die Bürgerkartenumgebung …
+ng-ui-sc-err-new-confirmation = Neue Bestätigung anfordern
+ng-ui-sc-error-title = Das hat nicht geklappt
+ng-ui-sc-choose-title = Signiermittel wählen
+ng-ui-sc-choose-text = Das ursprünglich gewählte Signiermittel ist nicht verfügbar. Womit möchten Sie signieren?
+ng-ui-sc-choose-unavailable = Derzeit nicht verfügbar
+ng-ui-sc-choose-sign = Signieren
+
+## Fertig
+
+ng-ui-fin-title = Signiert
+ng-ui-fin-seal = Signatur erstellt und geprüft (Selbstprüfung)
+ng-ui-fin-text = PIDA hat die neue Signatur vor dem Speichern selbst geprüft. Vertrauenskette und Sperrstatus prüft signaturpruefung.gv.at.
+ng-ui-fin-qes = Qualifiziert laut Zertifikat
+ng-ui-fin-ades = Fortgeschritten laut Zertifikat
+ng-ui-fin-saving = Das signierte Dokument wird gespeichert …
+ng-ui-fin-not-saved = Das signierte Dokument ist noch nicht gespeichert.
+ng-ui-fin-save = Speichern unter …
+ng-ui-fin-save-failed-title = Das Dokument konnte nicht gespeichert werden
+ng-ui-fin-saved-in = Gespeichert in { $folder }
+ng-ui-fin-saved-mobile = Gespeichert in den Dokumenten dieser App
+ng-ui-fin-signed-by = Signiert von { $name } · { $time }
+ng-ui-fin-signed-at = Signiert am { $time }
+ng-ui-fin-preview = Vorschau der signierten Seite
+ng-ui-fin-open = Öffnen
+ng-ui-fin-reveal = Im Ordner zeigen
+ng-ui-fin-share = Teilen
+ng-ui-fin-export = Sichern unter …
+ng-ui-fin-check = Vollständige Prüfung bei signaturpruefung.gv.at
+ng-ui-fin-next = Nächstes Dokument
+ng-ui-fin-next-hint = Weiter mit „{ $name }“
+ng-ui-fin-more = Weiteres Dokument signieren
+ng-ui-fin-overwrite-title = Datei überschreiben?
+ng-ui-fin-overwrite = Überschreiben

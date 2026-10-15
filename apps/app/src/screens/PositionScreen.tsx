@@ -13,11 +13,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
 import { Button, Group } from 'react-aria-components';
 import { useApp } from '../app/context';
-import { IconChevronLeft, IconChevronRight, IconEyeOff, IconPagePlus, IconWand } from '../components/icons';
-import { AccessButton, ScreenHeading, Spinner } from '../components/ui';
 import { tileScale } from '../core/bridge';
 import { ptToMm } from '../core/defaults';
 import { isMobile, type StepView } from '../core/types';
+import '../styles/legacy/screens.css';
+import { AccessButton, ScreenHeading, Spinner } from '../ui/controls';
+import { IconChevronLeft, IconChevronRight, IconEyeOff, IconPagePlus, IconWand } from '../ui/Icons';
 
 type PositionView = Extract<StepView, { step: 'position' }>;
 

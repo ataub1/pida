@@ -5,8 +5,9 @@
 import { useState } from 'react';
 import { Label, Radio, RadioGroup } from 'react-aria-components';
 import { useApp } from '../app/context';
-import { AccessButton, ScreenHeading } from '../components/ui';
 import type { DocInfo, FieldInfo, QrInfo } from '../core/types';
+import '../styles/legacy/screens.css';
+import { AccessButton, ScreenHeading } from '../ui/controls';
 
 export function PlaceholderScreen({ doc, fields, qr }: { doc: DocInfo; fields: FieldInfo[]; qr: QrInfo | null }) {
   const { t, dispatch } = useApp();

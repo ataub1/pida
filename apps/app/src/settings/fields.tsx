@@ -20,7 +20,7 @@ import {
   TextField,
 } from 'react-aria-components';
 import { useApp } from '../app/context';
-import { Mnemonic } from '../components/ui';
+import { Mnemonic } from '../ui/controls';
 
 /** Fehlermeldung eines Feldes (`problems[key]` ist eine i18n-ID). */
 export function useProblem(problems: Record<string, string>, key: string): string | null {
