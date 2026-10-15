@@ -74,9 +74,10 @@ fn mutate(rng: &mut Rng, data: &[u8]) -> Vec<u8> {
     d
 }
 
-fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) {
+/// Signiert, falls `prepare` gelingt (`false` sonst), und prüft die Selbstprüfung.
+fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) -> bool {
     let chain = key.chain().clone();
-    let Ok(prepared) = prepare(src, plan, Some(&chain)) else { return };
+    let Ok(prepared) = prepare(src, plan, Some(&chain)) else { return false };
     let alg = key.algorithm().digest();
     let digest = prepared.digest(alg);
     let attrs =
@@ -104,15 +105,17 @@ fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) {
         // repro-xref-misassigned.pdf`).
         assert!(src.xref_health() != pdfover_pdf_cos::XrefHealth::Intact, "Selbstprüfung bei intaktem Original: {v}");
     }
+    true
 }
 
-/// Signiert unsichtbar und sichtbar; bei intaktem Querverweis muss die Selbstprüfung bestehen.
+/// Signiert sichtbar und unsichtbar (beides muss gelingen); bei intaktem Querverweis muss die
+/// Selbstprüfung bestehen.
 fn sign_both(src: &SourcePdf, key: &LoadedKey) {
     let report = analyze(src).unwrap();
     let opts = PlanOptions::new(pdfover_pades::local_signing_time());
     let planned = plan_for(src, &report, "SIGNATURBLOCK_SMALL_DE", &key.chain().signer, &opts, None).unwrap();
-    sign(src, &planned.plan, key);
-    sign(src, &SignPlan::invisible(pdfover_pades::local_signing_time()), key);
+    assert!(sign(src, &planned.plan, key), "sichtbar vorbereitet");
+    assert!(sign(src, &SignPlan::invisible(pdfover_pades::local_signing_time()), key), "unsichtbar vorbereitet");
 }
 
 fn test_key() -> LoadedKey {
@@ -147,7 +150,8 @@ fn misassigned_xref_entries_fail_safe() {
     signed.self_check(&CheckContext { source: &src, expected_signer: Some(&chain.signer), renderer: None }).unwrap();
 }
 
-/// Weitere Funde des Mutationstests mit intaktem Querverweis (als Byte-Patch der Korpusdateien):
+/// Weitere Funde des Mutationstests mit intaktem Querverweis (als Byte-Patch der Korpusdateien bzw.
+/// als Increment):
 /// - `/DR /Font 29 h R` (kein Dictionary): der PDFBox-Fixup ersetzt es durch ein direktes
 ///   Dictionary, I6 lässt genau das zu;
 /// - `/MediaBox [0 0.595.32 841.92]`: die Originalschreibweise des fehlerhaften Reals wird beim
@@ -158,6 +162,10 @@ fn known_mutations_with_intact_xref_sign_cleanly() {
     for (rel, from, to) in [
         ("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf", &b"/Font 29 0 R"[..], &b"/Font 29 h R"[..]),
         ("pdf/pdfas/pdf-as-cli/rotate_090.pdf", b"/MediaBox[0 0 595.32 841.92]", b"/MediaBox[0 0.595.32 841.92]"),
+        // `/Fields` ohne Array (`]` statt Leerzeichen) bzw. `/DA` ohne String: beides ersetzt der
+        // Fixup wie PDFBox, I6 lässt es zu
+        ("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf", b"/Fields [27 0 R]", b"/Fields][27 0 R]"),
+        ("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf", b"/DA (/Helv 0 Tf 0 g )", b"/DA \xd9/Helv 0 Tf 0 g )"),
     ] {
         let mut data = std::fs::read(testdata().join(rel)).unwrap();
         let pos = data.windows(from.len()).position(|w| w == from).unwrap_or_else(|| panic!("{rel}: Muster fehlt"));
@@ -166,6 +174,43 @@ fn known_mutations_with_intact_xref_sign_cleanly() {
         assert_eq!(src.xref_health(), pdfover_pdf_cos::XrefHealth::Intact, "{rel}");
         sign_both(&src, &key);
     }
+    // `/ByteRange` der PDF-AS-Vorsignatur reicht über das Dateiende: vor `prepare` abgelehnt
+    // (K5 `pdf-prior-signature-beyond-eof`), statt erst in der Selbstprüfung an I4 zu scheitern
+    let mut data = std::fs::read(testdata().join("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf")).unwrap();
+    let from = b"/ByteRange [0 184508 192702 32395]";
+    let pos = data.windows(from.len()).position(|w| w == from).expect("ByteRange der Vorsignatur");
+    data[pos..pos + from.len()].copy_from_slice(b"/ByteRange [0 184508 192702 42395]");
+    let src = SourcePdf::open(data, &Limits::default()).unwrap();
+    let report = analyze(&src).unwrap();
+    assert!(report.has_finding(pdfover_pades::codes::PRIOR_SIGNATURE_BEYOND_EOF), "{:?}", report.findings);
+    let invisible = SignPlan::invisible(pdfover_pades::local_signing_time());
+    match prepare(&src, &invisible, Some(key.chain())) {
+        Err(pdfover_pades::PadesError::Rejected(c)) => assert_eq!(c, pdfover_pades::codes::PRIOR_SIGNATURE_BEYOND_EOF),
+        Err(e) => panic!("{e}"),
+        Ok(_) => panic!("Vorsignatur über das Dateiende darf nicht signiert werden"),
+    }
+    // `/Pages 1 0 R` (der Katalog als Seitenbaum, manySignFields.pdf): kein Blatt mit fremdem
+    // `/Type` gilt als Seite – sonst schriebe das Increment `/Annots` in den Katalog
+    let mut data = std::fs::read(testdata().join("pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf")).unwrap();
+    let from = b"/Pages 2 0 R";
+    let pos = data.windows(from.len()).position(|w| w == from).expect("/Pages");
+    data[pos + 7] = b'1';
+    assert!(SourcePdf::open(data, &Limits::default()).is_err(), "Katalog ist keine Seite");
+    // `/AcroForm 62` (Mutation im Object Stream von manySignFields.pdf: „0 R“ verloren): ein
+    // Katalogeintrag, der kein Dictionary ist, wird durch ein neues direktes AcroForm ersetzt
+    let base = SourcePdf::open(
+        std::fs::read(testdata().join("pdf/pdfas/pdf-as-legacy/simple.pdf")).unwrap(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let mut b =
+        pdfover_pdf_incremental::IncrementBuilder::new(&base, pdfover_pdf_incremental::IncrementOptions::default());
+    let mut catalog = base.catalog().unwrap().clone();
+    catalog.set("AcroForm", pdfover_pdf_cos::Object::Integer(62));
+    b.update_object(base.catalog_id().unwrap(), pdfover_pdf_cos::Object::Dictionary(catalog)).unwrap();
+    let derived = SourcePdf::open(b.build().unwrap().to_vec(base.bytes()), &Limits::default()).unwrap();
+    assert_eq!(derived.xref_health(), pdfover_pdf_cos::XrefHealth::Intact);
+    sign_both(&derived, &key);
 }
 
 #[test]
@@ -191,11 +236,11 @@ fn mutated_inputs_do_not_panic() {
                 };
                 let Ok(report) = analyze(&src) else { return false };
                 let _ = pdfover_pades::empty_fields(&report);
-                sign(&src, &SignPlan::invisible(pdfover_pades::local_signing_time()), &key);
+                let _ = sign(&src, &SignPlan::invisible(pdfover_pades::local_signing_time()), &key);
                 let opts = PlanOptions::new(pdfover_pades::local_signing_time());
                 if let Ok(planned) = plan_for(&src, &report, "SIGNATURBLOCK_SMALL_DE", &key.chain().signer, &opts, None)
                 {
-                    sign(&src, &planned.plan, &key);
+                    let _ = sign(&src, &planned.plan, &key);
                     return true;
                 }
                 false

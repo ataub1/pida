@@ -81,3 +81,18 @@ fn xref_stream_only_header_with_foreign_id_does_not_replace_the_catalog() {
     assert_eq!(cat.get(b"Type").unwrap().as_name().unwrap(), b"Catalog");
     assert_eq!(src.page_count(), 1);
 }
+
+/// Mutationstest (Welle 3): ein Byte in den komprimierten Daten des `/XRefStm`-Streams macht aus
+/// Objekt 5 einen Eintrag „komprimiert in Objekt 3“ (die Seite, kein Object Stream). Die Datei
+/// öffnet weiter, gilt aber als repariert (K2) – vorher „intakt“, und die Selbstprüfung meldete
+/// beim Fortschreiben der Seite I6 („Objekt liegt in einem neuen Object Stream“).
+#[test]
+fn compressed_entry_in_a_non_object_stream_is_repaired() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/pdf/generated/simple-xref-hybrid.pdf");
+    let mut data = std::fs::read(path).unwrap();
+    assert_eq!(data[628], 0x63, "Testdatei unverändert");
+    data[628] = 0x96;
+    let src = pdfover_pdf_cos::SourcePdf::open(data, &pdfover_pdf_cos::Limits::default()).unwrap();
+    assert_eq!(src.xref_health(), pdfover_pdf_cos::XrefHealth::Repaired);
+    assert_eq!(src.page_count(), 1);
+}

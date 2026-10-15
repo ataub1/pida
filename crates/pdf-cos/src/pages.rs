@@ -98,7 +98,12 @@ fn walk(
     }
 
     let kids = node.get(b"Kids").ok().and_then(|o| resolve(doc, o, limits.max_depth)).and_then(|o| o.as_array().ok());
-    let is_page = node.has_type(b"Page") || (kids.is_none() && !node.has_type(b"Pages"));
+    // Blatt ohne /Type gilt nachsichtig als Seite (PDFBox ebenso), eines mit fremdem /Type (z. B.
+    // der Katalog selbst nach `/Pages 1 0 R`, Mutationstest) nicht: sonst schriebe ein Increment
+    // `/Annots` in den Katalog.
+    let foreign_type =
+        node.get(b"Type").ok().and_then(|t| t.as_name().ok()).is_some_and(|t| t != b"Page" && t != b"Pages");
+    let is_page = node.has_type(b"Page") || (kids.is_none() && !node.has_type(b"Pages") && !foreign_type);
     if is_page {
         let media_box = inh.media_box.unwrap_or(LETTER);
         let crop_box = inh.crop_box.map(|c| intersect(c, media_box)).unwrap_or(media_box);

@@ -119,6 +119,16 @@ fn preflight(src: &SourcePdf) -> Result<(), PadesError> {
     if signed && src.tail().kind == TailKind::Garbage {
         return reject(codes::TAIL_GARBAGE);
     }
+    if signed
+        && src
+            .signature_fields()?
+            .iter()
+            .filter(|f| f.signed)
+            .filter_map(|f| crate::sigs::read_sig_dict(src, f))
+            .any(|info| info.covered_end().is_some_and(|e| e > src.len()))
+    {
+        return reject(codes::PRIOR_SIGNATURE_BEYOND_EOF);
+    }
     if !src.rights().may_sign() {
         return reject(codes::PERMISSIONS);
     }

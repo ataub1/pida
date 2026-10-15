@@ -170,6 +170,9 @@ fn arrays_appended(src: &SourcePdf, old: &Dictionary, new: &Dictionary, keys: &[
         (Ok(Object::Reference(r)), Ok(Object::Array(b))) => {
             matches!(src.get_object(*r), Ok(Object::Array(a)) if append_only(a, b))
         }
+        // ein direkter Wert, der kein Array ist (beschädigt), wird wie fehlend durch ein neues
+        // Array mit genau dem neuen Eintrag ersetzt (`build::update_acroform`, PDFBox)
+        (Ok(x), Ok(Object::Array(b))) if !matches!(x, Object::Array(_) | Object::Reference(_)) => b.len() == 1,
         (Err(_), _) => true,
         (Ok(a), Ok(b)) => same(a, b),
         (Ok(_), Err(_)) => false,
@@ -217,11 +220,9 @@ fn check_acroform(src: &SourcePdf, id: ObjectId, o: &Dictionary, n: &Dictionary)
             if !matches!(src.get_object(*r), Ok(Object::Dictionary(_))) => {}
         _ => return Err(violation("/DR des AcroForms unerwartet ersetzt")),
     }
-    let old_da_empty = match o.get(b"DA").ok().map(|x| src.resolve(x)) {
-        None => true,
-        Some(Ok(Object::String(s, _))) => s.is_empty(),
-        Some(_) => false,
-    };
+    // wie `build::update_acroform` (`str_key`): ein `/DA`, das kein String ist, gilt als fehlend
+    let old_da_empty =
+        !matches!(o.get(b"DA").ok().map(|x| src.resolve(x)), Some(Ok(Object::String(s, _))) if !s.is_empty());
     if !old_da_empty && !matches!((o.get(b"DA"), n.get(b"DA")), (Ok(a), Ok(b)) if same(a, b)) {
         return Err(violation("/DA des AcroForms geändert"));
     }
@@ -278,8 +279,9 @@ fn check_catalog(src: &SourcePdf, id: ObjectId, o: &Dictionary, n: &Dictionary) 
             let od = match old {
                 None => &empty,
                 Some(Object::Dictionary(d)) => d,
-                // Verweis auf ein fehlendes bzw. kaputtes AcroForm: neues direktes
-                Some(Object::Reference(r)) if !matches!(src.get_object(*r), Ok(Object::Dictionary(_))) => &empty,
+                // Verweis auf ein fehlendes bzw. kaputtes AcroForm bzw. ein Wert, der kein
+                // Dictionary ist: neues direktes (`build::update_acroform`, PDFBox)
+                Some(x) if !matches!(src.resolve(x), Ok(Object::Dictionary(_))) => &empty,
                 Some(_) => return Err(violation("/AcroForm des Katalogs unerwartet ersetzt")),
             };
             check_acroform(src, id, od, nd)?;

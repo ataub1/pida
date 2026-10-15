@@ -55,18 +55,24 @@ unsichtbar) und neue unsichtbare Signatur lassen die Zertifizierung bei `FORM_FI
 Die I6-Whitelist ist rollengenau (Unit-Tests in `src/check.rs`: fremde Arrays wie `/Contents`,
 `/Kids` nicht-terminaler Felder, Inhalt eines direkten AcroForms).
 
-**Welle 3 (Härtung):** Mutationstest `robustness.rs` mit 14 Startwerten × 2000–2500 Mutationen je
-Datei (über 200 000 signierte Fälle, Release): kein Panic, bei intaktem Original **keine** Verletzung
-mehr, auch nicht I5. Behoben in `pdf-cos`: Querverweiseinträge, die auf den Kopf eines anderen
-Objekts zeigen (lopdf überschrieb dessen gültige Fassung, `repro-xref-misassigned.pdf`), und
-`/StrF`/`/StmF` fehlend, `/Identity` oder unbekannt (lopdf entschlüsselte mit RC4; jetzt
-spezifikationsgemäß, unbekannte Namen K5); Originalschreibweise fehlerhafter Reals (`0.595.32`) wird
-nicht mehr übernommen. In `pades`: `/DR /Font`, das kein Dictionary ist, ersetzt der PDFBox-Fixup
-durch ein direktes Dictionary, I6 lässt genau das zu. Bei beschädigtem Querverweis (K2) scheitert I5
-weiterhin vereinzelt fail-safe (Ausgabe erbt die Beschädigung; qpdf liest sie ebenso wenig).
+**Welle 3 (Härtung):** Mutationstest `robustness.rs` nach der letzten Korrektur mit 32 Startwerten
+× 2500 Mutationen je Datei (560 000 Mutationen, Release, je sichtbar und unsichtbar signiert): kein
+Panic, bei intaktem Original keine Verletzung mehr, auch nicht I5. Behoben in
+`pdf-cos`: Querverweiseinträge, die auf den Kopf eines anderen Objekts zeigen (lopdf überschrieb
+dessen gültige Fassung, `repro-xref-misassigned.pdf`); `/StrF`/`/StmF` fehlend, `/Identity` oder
+unbekannt (lopdf entschlüsselte mit RC4; jetzt spezifikationsgemäß, unbekannte Namen K5);
+Originalschreibweise fehlerhafter Reals (`0.595.32`) wird nicht übernommen; komprimierte Einträge
+in einem Container, der kein Object Stream ist, gelten als repariert (K2); ein Blatt des Seitenbaums
+mit fremdem `/Type` (z. B. der Katalog nach `/Pages 1 0 R`) ist keine Seite. In `pades`:
+Werte, die der PDFBox-Fixup ersetzt, weil sie beschädigt sind (`/DR /Font` kein Dictionary,
+`/AcroForm` kein Dictionary, `/Fields` kein Array, `/DA` kein String), lässt I6 genau so zu;
+eine Vorsignatur, deren `/ByteRange` über das Dateiende reicht, lehnen `analyze`/`prepare` vorab ab
+(K5 `pdf-prior-signature-beyond-eof`, vorher I4 in der Selbstprüfung). Regressionstests:
+`known_mutations_with_intact_xref_sign_cleanly`. Bei beschädigtem Querverweis (K2) scheitert I5/I6
+weiterhin vereinzelt fail-safe (die Ausgabe erbt die Beschädigung; qpdf liest sie ebenso wenig).
 `fuzz_prepare.rs` (gesamter Korpus, `open` → `analyze` → `plan_signature` → `prepare`, 8 Threads):
-201 300 und 610 000 Mutationen ohne Panic und ohne Hänger (> 30 s je Fall). PDF/A: `verapdf.rs`
-(Strukturprüfung immer; veraPDF 1.28.2 über `tools/verapdf/fetch.sh`, sonst übersprungen).
+201 300, 610 000 und zweimal 244 000 Mutationen ohne Panic und ohne Hänger (> 30 s je Fall). PDF/A:
+`verapdf.rs` (Strukturprüfung immer; veraPDF 1.28.2 über `tools/verapdf/fetch.sh`, sonst übersprungen).
 
 <!-- abschnitt:korpus -->
 ## Korpus (Modell A, Keystore-Backend)

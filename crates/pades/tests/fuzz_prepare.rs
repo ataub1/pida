@@ -165,6 +165,9 @@ fn run_case(data: Vec<u8>, key: &LoadedKey) {
     }
 }
 
+/// Laufender Fall eines Threads: Start, Bezeichnung, Eingabe.
+type Running = (Instant, String, Arc<Vec<u8>>);
+
 fn dump(data: &[u8], what: &str) {
     if let Some(dir) = std::env::var_os("PDFOVER_FUZZ_DUMP") {
         let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
@@ -197,7 +200,7 @@ fn fuzz_open_analyze_prepare() {
     let stop = AtomicBool::new(false);
     let panics: Mutex<Vec<String>> = Mutex::new(Vec::new());
     // je Thread: (Start, Bezeichnung, Eingabe) des laufenden Falls
-    let running: Vec<Mutex<Option<(Instant, String, Arc<Vec<u8>>)>>> = (0..threads).map(|_| Mutex::new(None)).collect();
+    let running: Vec<Mutex<Option<Running>>> = (0..threads).map(|_| Mutex::new(None)).collect();
     let started = Instant::now();
 
     std::thread::scope(|scope| {

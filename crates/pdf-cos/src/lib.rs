@@ -840,10 +840,14 @@ fn fixup_objects(
                         .filter(|s| filters::stream_params_sane(&s.dict))
                         .and_then(|s| lopdf::ObjectStream::new_with_limit(s, Some(max_stream)).ok())
                 });
-                if let Some(os) = os
-                    && let Some(obj) = os.objects.get(&id)
-                {
-                    doc.objects.insert(id, obj.clone());
+                match os.as_ref().and_then(|os| os.objects.get(&id)) {
+                    Some(obj) => {
+                        doc.objects.insert(id, obj.clone());
+                    }
+                    // Container ist kein lesbarer Object Stream bzw. enthält das Objekt nicht: der
+                    // Eintrag ist falsch (Mutationstest: Container = Seite) – eine Fassung von
+                    // anderswo (lopdf) stammt nicht aus dem Querverweis ⇒ K2 (repariert)
+                    None => repaired = true,
                 }
             }
             xref::Entry::Free => {}
