@@ -10,8 +10,10 @@ publish.workspace = true
 
 [features]
 default = []
-# Native FIDO2-Authenticatoren (nur Desktop): Windows webauthn.dll bzw. CTAP-HID (macOS/Linux).
-# Die Implementierungen ergänzt Paket D in diesem Crate (Abhängigkeiten nur hier, ADR 0001 §4).
+# Native FIDO2-Authenticatoren (nur Desktop), beide ohne zusätzliche Abhängigkeiten:
+# - fido2-windows: webauthn.dll (dynamisch geladen, FFI in src/fido2/windows.rs)
+# - fido2-hid: CTAP2 über USB-HID (Linux hidraw ohne unsafe, macOS IOKit-FFI in src/fido2/hid/macos.rs)
+# `fido2::platform_provider()` liefert den passenden Provider der eingeschalteten Features.
 fido2-windows = []
 fido2-hid = []
 
@@ -31,6 +33,14 @@ zeroize = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 time = { workspace = true }
+# SHA-256 von clientDataJSON (CTAP2-HID, `clientDataHash`).
+sha2 = { workspace = true }
+
+[dev-dependencies]
+pdfover-backend-api = { workspace = true, features = ["testing"] }
+pdfover-net = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

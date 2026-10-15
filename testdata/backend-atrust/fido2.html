@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<!-- Synthetische Testseite (NUR TEST): FIDO2 mit credentialOptions (HTML-escaped JSON), credentialResult, FidoContinue, Wechsel auf SMS. -->
+<html lang="de">
+<head><meta charset="utf-8"><title>FIDO2 (Testfixture)</title></head>
+<body>
+  <form method="post" action="fido.aspx?sid={{SID}}" id="form1">
+    <input type="hidden" name="__VIEWSTATE" value="Zmlkbw==" />
+    <div id="fidoBlock">
+      <input type="hidden" id="credentialOptions" value="{{OPTIONS}}" />
+      <input type="hidden" id="credentialResult" name="ctl00$Main$credentialResult" value="" />
+      <input type="submit" name="ctl00$Main$FidoContinue" id="FidoContinue" value="Weiter" style="display:none" />
+    </div>
+    <a id="SmsButton" href="sms.aspx?sid={{SID}}">SMS anfordern</a>
+  </form>
+</body>
+</html>

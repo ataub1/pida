@@ -2592,6 +2592,7 @@ dependencies = [
  "scraper",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror",
  "time",
  "tokio",
@@ -2622,10 +2623,12 @@ name = "pdfover-backend-localbku"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64",
  "pdfover-backend-api",
  "pdfover-cades",
  "pdfover-net",
  "pdfover-sl12",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -2738,12 +2741,17 @@ dependencies = [
 name = "pdfover-net"
 version = "0.1.0"
 dependencies = [
+ "encoding_rs",
+ "hyper",
+ "pdfover-net",
  "reqwest",
  "rustls",
  "serde",
+ "tempfile",
  "thiserror",
  "time",
  "tokio",
+ "tokio-rustls",
  "tracing",
  "url",
  "zeroize",

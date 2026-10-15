@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<!-- Synthetische Testseite (NUR TEST): App-Bestätigung per Biometrie (biometricimage) mit Vergleichswert und Long-Poll. -->
+<html lang="de">
+<head><meta charset="utf-8"><title>Biometrie (Testfixture)</title></head>
+<body>
+  <form method="post" action="bio.aspx" id="form1">
+    <img id="biometricimage" src="bio.png" alt="" />
+    <p>Vergleichswert: <span id="vergleichswert">B1o</span></p>
+  </form>
+  <div id="jsLongPoll"><script>qrpoll("poll.ashx?id=3", "T-bio");</script></div>
+</body>
+</html>

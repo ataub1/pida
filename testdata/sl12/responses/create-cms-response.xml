@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sl:CreateCMSSignatureResponse xmlns:sl="http://www.buergerkarte.at/namespaces/securitylayer/1.2#">
+  <sl:CMSSignature>MIAGCSqGSIb3DQEHAqCAMIACAQExDzANBglghkgBZQMEAgEFADALBgkqhkiG9w0BBwE=</sl:CMSSignature>
+</sl:CreateCMSSignatureResponse>

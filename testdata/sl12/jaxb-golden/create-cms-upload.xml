@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<CreateCMSSignatureRequest Structure="detached" xmlns="http://www.buergerkarte.at/namespaces/securitylayer/1.2#" xmlns:ns2="http://www.w3.org/2000/09/xmldsig#">
+    <KeyboxIdentifier>SecureSignatureKeypair</KeyboxIdentifier>
+    <DataObject>
+        <MetaInfo>
+            <MimeType>application/pdf</MimeType>
+        </MetaInfo>
+        <Content Reference="formdata:fileupload"/>
+        <ExcludedByteRange>
+            <From>1234</From>
+            <To>5678</To>
+        </ExcludedByteRange>
+    </DataObject>
+</CreateCMSSignatureRequest>
