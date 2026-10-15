@@ -95,6 +95,8 @@ export interface DocSpec {
   signatures: ExistingSignature[];
   /** mit Kennwort zum Öffnen geschützt (Demo-Kennwort „demo“) */
   locked: boolean;
+  /** PDF/A-Kennung im XMP (`pdfaid:part`) vorhanden; fehlt = kein PDF/A-Dokument */
+  pdfa?: boolean;
 }
 
 /** Position des Signaturblocks; `fieldId` gesetzt = im Signaturfeld bzw. Platzhalter. */
@@ -115,6 +117,8 @@ export interface DocState {
   newPage: boolean;
   unlocked: boolean;
   outputName: string | null;
+  /** Platzierung stammt aus der Automatik (freie Fläche bzw. erkannter Platzhalter), nicht von Hand */
+  autoPlaced: boolean;
 }
 
 export type SigProfile = 'standard' | 'amt';
@@ -130,6 +134,8 @@ export interface SigBlockSettings {
 }
 
 export type SaveTarget = 'original' | 'folder' | 'ask';
+/** Wonach die automatische Platzhaltersuche sucht (PDF-Over: `USE_MARKER` bzw. `USE_FIELDS`). */
+export type PlaceholderKind = 'qr' | 'field';
 export type ProxyMode = 'system' | 'none' | 'manual';
 
 export interface Settings {
@@ -150,7 +156,11 @@ export interface Settings {
   proxyPort: string;
   autoUpdate: boolean;
   debugLog: boolean;
+  /** PDF/A-konform signieren auch ohne PDF/A-Kennung (PDF-Over: `SIGNATURE_PDFA_COMPAT`) */
+  pdfaForce: boolean;
+  /** Platzhalter beim Öffnen automatisch suchen und nutzen */
   placeholderSearch: boolean;
+  placeholderKind: PlaceholderKind;
 }
 
 export interface RecentItem {

@@ -214,8 +214,9 @@ function contractPages(): PageSpec[] {
   return [p1, p2, p3];
 }
 
-export function contractDoc(fileName = 'Vertrag.pdf', id = 'doc-contract'): DocSpec {
-  return { id, fileName, folder: '~/Dokumente/Verträge', sizeKb: 214, pages: contractPages(), fields: [], signatures: [], locked: false };
+/** Dienstleistungsvertrag; das Beispiel ist ein PDF/A-Dokument (selbst geöffnete Dateien nicht). */
+export function contractDoc(fileName = 'Vertrag.pdf', id = 'doc-contract', pdfa = true): DocSpec {
+  return { id, fileName, folder: '~/Dokumente/Verträge', sizeKb: 214, pages: contractPages(), fields: [], signatures: [], locked: false, pdfa };
 }
 
 /* ---------------------------------------------------------------- Leeres Dokument */

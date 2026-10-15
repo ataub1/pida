@@ -320,7 +320,7 @@ export function Pages({
             ) : null}
             {coachmark && !dragging ? (
               <span className="sticker-coach" aria-hidden="true">
-                {t('ws.placed')}
+                {inField ? (doc.spec.fields.find((f) => f.id === placement.fieldId)?.kind === 'qr' ? t('ws.placed.qr') : t('ws.placed.field')) : t('ws.placed')}
               </span>
             ) : null}
             <span id={helpId} className="sr-only">

@@ -48,8 +48,8 @@ Unten links liegt dezent der Knopf **„Demo“**. Er klappt ein Panel auf:
 | --- | --- | --- |
 | `start` | Leerzustand | Ablagefläche, „Zuletzt signiert“ (öffnet Prüfmodus), Hinweis auf Prüfmodus, Beispielvertrag |
 | `blank` | Leeres Dokument, 1 Seite | Sticker rechts unten, Einrasten an Rändern/Mitte |
-| `contract` | Dienstleistungsvertrag, 3 Seiten (Text, Liste, Tabelle, Unterschriftszeilen) | Kernablauf: automatisch platziert → ziehen → Signieren → Fertig |
-| `field` | Förderantrag, 2 Seiten, mit leerem Signaturfeld | „Hier signieren“-Markierung, Hinweisleiste „Ins Feld setzen“ |
+| `contract` | Dienstleistungsvertrag, 3 Seiten (Text, Liste, Tabelle, Unterschriftszeilen), PDF/A | Kernablauf: automatisch platziert → ziehen → Signieren → Fertig; Hinweis „PDF/A-Dokument erkannt“ |
+| `field` | Förderantrag, 2 Seiten, mit leerem Signaturfeld | „Hier signieren“-Markierung, Hinweisleiste „Ins Feld setzen“; mit Einstellungen › Dokument › „Leere Signaturfelder“ automatisch im Feld |
 | `signed` | Mietvertrag, bereits signiert (Dr. Anna Gruber) | „Vorhandene Signaturen“, „Auf neuer Seite“ gesperrt |
 | `batch` | Stapel mit 4 Dateien (eine kennwortgeschützt, eine mit QR-Platzhalter) | „Alle signieren“ mit einer Anmeldung, Fortschritt, Zusammenfassung, Toast |
 | `verify` | Kaufvertrag mit 2 Signaturen | Prüfmodus: Status, Zertifikatsdetails aufklappbar, „Auf der Seite zeigen“ |

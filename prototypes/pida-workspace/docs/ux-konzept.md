@@ -87,6 +87,10 @@ Passwort → in der App bestätigen → fertig. Kein Positionieren nötig, kein 
   („Im Signaturfeld“, grüner Rahmen). „Frei platzieren“ macht es rückgängig.
 - Die feste Platzierung im Feld ersetzt den Ja/Nein/Abbrechen-Dialog von PDF-Over: keine modale Frage, die
   Entscheidung ist sichtbar und umkehrbar.
+- Wonach automatisch gesucht wird, steht in Einstellungen › Dokument (wie PDF-Over `USE_MARKER`/`USE_FIELDS`):
+  „QR-Code-Platzhalter“ (Standard) oder „Leere Signaturfelder“ (dann wird das erste leere Feld automatisch
+  genutzt); ausgeschaltet wird nichts automatisch genutzt, Markierungen bleiben als Angebot. Der Inspektor nennt
+  dezent, was erkannt wurde („QR-Platzhalter gefunden – Signatur dort platziert“, „PDF/A-Dokument erkannt“).
 
 ### 4.3 Stapel
 
@@ -168,12 +172,14 @@ Synonyme wie „Logo“, „Handy“, „Proxy“), Bereichsnavigation links:
 - **Signaturbild:** Live-Vorschau (bleibt beim Bearbeiten oben sichtbar), Profil Standard (klein) /
   Amtssignatur, Blocksprache DE/EN, Bildmarke per Drag & Drop oder Dateiauswahl (bleibt lokal), Hinweistext
   mit „Standardtext wiederherstellen“.
+- **Dokument:** „PDF/A-kompatibel signieren“ (PDF/A wird ohnehin erkannt; der Schalter erzwingt es auch ohne
+  Kennung), „Signaturplatzhalter automatisch suchen“ mit Auswahl QR-Code-Platzhalter / Leere Signaturfelder.
 - **Signiermittel:** Standard (ID Austria / Keystore / Bürgerkarte / Jedes Mal fragen), Konten (ID-Austria-
   Benutzer + „merken“, Keystore-Datei + Alias, Bürgerkartenumgebung erkannt), FIDO2 bevorzugen.
 - **Speichern:** Neben dem Original / fester Ordner / jedes Mal fragen; Namensmuster `{name}_signiert`
   (Platzhalter `{name}`, `{datum}`) mit Live-Beispiel „Vertrag.pdf → Vertrag_signiert.pdf“.
 - **Darstellung:** Farbschema (System/Hell/Dunkel), Oberflächensprache.
-- **Erweitert:** Proxy (System/kein/manuell mit Port-Prüfung), Updates, Protokolle, Platzhaltersuche,
+- **Erweitert:** Proxy (System/kein/manuell mit Port-Prüfung), Updates, Protokolle,
   Datenschutzhinweis erneut zeigen, PDF-Over-Einstellungen übernehmen.
 
 **Ersteinrichtung** (einmalig, überspringbar, 3 Schritte): gefundene PDF-Over-Einstellungen übernehmen
@@ -282,7 +288,8 @@ Statuskarte über dem Arbeitsbereich, `output` als „Fertig“ (bzw. Toast bei 
 ## 12. Offene Fragen an den Auftraggeber
 
 1. Signaturfeld vorhanden: **automatisch ins Feld setzen** (wie QR-Platzhalter) oder – wie jetzt –
-   anbieten? Der Prototyp bietet an, um die Markierung erlebbar zu machen.
+   anbieten? Der Prototyp bietet standardmäßig an, um die Markierung erlebbar zu machen; mit Einstellungen ›
+   Dokument › „Leere Signaturfelder“ setzt er automatisch ins Feld.
 2. Standard-Signiermittel „Jedes Mal fragen“: Auswahl als erster Schritt der Signierkarte oder über den
    Konto-Chip? (Prototyp: Konto-Chip.)
 3. Soll „Fertig“ bei Einzeldokumenten automatisch das Prüfsiegel zeigen, auch wenn die Prüfung offline

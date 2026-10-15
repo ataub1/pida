@@ -1,14 +1,14 @@
 /**
  * Einstellungen als Seitenleiste über der App: Änderungen gelten sofort (kein Speichern/Abbrechen),
- * Suche über alle Bereiche. Bereiche: Signaturbild (Live-Editor), Signiermittel, Speichern,
- * Darstellung, Erweitert.
+ * Suche über alle Bereiche. Bereiche: Signaturbild (Live-Editor), Dokument (PDF/A, Platzhalter),
+ * Signiermittel, Speichern, Darstellung, Erweitert.
  */
 import { useRef, useState, type ReactNode } from 'react';
 import { Button as AriaButton, DropZone, FileTrigger, Input, SearchField, type DropItem } from 'react-aria-components';
 import { SIGNER_NAME, useAppState, useDispatch, type SettingsSection } from '../../app/store';
 import { useT, type MsgKey } from '../../i18n';
 import { blockSize, defaultNote, effectiveNote, isoWithOffset, outputName } from '../../model/format';
-import type { Lang, ProxyMode, SaveTarget, SignerKind, SigProfile, ThemePref } from '../../model/types';
+import type { Lang, PlaceholderKind, ProxyMode, SaveTarget, SignerKind, SigProfile, ThemePref } from '../../model/types';
 import { Badge, Button, RadioCards, Segmented, SwitchField, TextAreaInput, TextInput } from '../../ui/controls';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { useFitScale } from '../../ui/hooks';
@@ -16,11 +16,14 @@ import {
   IconCard,
   IconClose,
   IconFileKey,
+  IconFileText,
   IconFolder,
   IconImage,
   IconMonitor,
   IconMoon,
+  IconPen,
   IconPhone,
+  IconQr,
   IconRefresh,
   IconSearch,
   IconSettings,
@@ -38,6 +41,7 @@ interface RowDef {
 
 const SECTIONS: { id: SettingsSection; label: MsgKey; icon: ReactNode }[] = [
   { id: 'block', label: 'set.sec.block', icon: <IconSignature size={18} /> },
+  { id: 'document', label: 'set.sec.document', icon: <IconFileText size={18} /> },
   { id: 'signer', label: 'set.sec.signer', icon: <IconPhone size={18} /> },
   { id: 'save', label: 'set.sec.save', icon: <IconFolder size={18} /> },
   { id: 'appearance', label: 'set.sec.appearance', icon: <IconSun size={18} /> },
@@ -50,6 +54,13 @@ const ROWS: RowDef[] = [
   { id: 'block.lang', section: 'block', label: 'set.block.lang', extra: ['sprache', 'language', 'deutsch', 'english'] },
   { id: 'block.logo', section: 'block', label: 'set.block.logo', extra: ['logo', 'bildmarke', 'emblem', 'bild', 'image'] },
   { id: 'block.note', section: 'block', label: 'set.block.note', extra: ['hinweis', 'text', 'note', 'eidas'] },
+  { id: 'doc.pdfa', section: 'document', label: 'set.doc.pdfa', extra: ['pdf/a', 'pdfa', 'archiv', 'archive', 'langzeit', 'long-term', 'konform', 'compliant', 'iso 19005'] },
+  {
+    id: 'doc.placeholder',
+    section: 'document',
+    label: 'set.doc.placeholder',
+    extra: ['qr', 'qr-code', 'signaturfeld', 'signaturfelder', 'feld', 'field', 'formular', 'form', 'acroform', 'platzhalter', 'placeholder', 'marker', 'automatisch', 'automatic'],
+  },
   { id: 'signer.default', section: 'signer', label: 'set.signer.default', extra: ['id austria', 'keystore', 'bürgerkarte', 'standard'] },
   { id: 'signer.ida', section: 'signer', label: 'set.signer.ida.user', extra: ['telefon', 'handy', 'benutzer', 'phone', 'user', 'merken', 'konto', 'account'] },
   { id: 'signer.fido2', section: 'signer', label: 'set.signer.fido2', extra: ['fido2', 'sicherheitsschlüssel', 'security key', 'yubikey'] },
@@ -62,7 +73,6 @@ const ROWS: RowDef[] = [
   { id: 'adv.proxy', section: 'advanced', label: 'set.adv.proxy', extra: ['netzwerk', 'network', 'host', 'port'] },
   { id: 'adv.updates', section: 'advanced', label: 'set.adv.updates', extra: ['update', 'version', 'aktualisierung'] },
   { id: 'adv.logs', section: 'advanced', label: 'set.adv.logs', extra: ['log', 'protokoll', 'debug', 'fehlersuche'] },
-  { id: 'adv.placeholder', section: 'advanced', label: 'set.adv.placeholder', extra: ['qr', 'signaturfeld', 'platzhalter', 'field'] },
   { id: 'adv.privacy', section: 'advanced', label: 'set.adv.privacy', extra: ['datenschutz', 'privacy', 'pdf-over', 'import'] },
 ];
 
@@ -152,6 +162,10 @@ function SettingRow({ id }: { id: string }) {
       return <LogoRow />;
     case 'block.note':
       return <NoteRow />;
+    case 'doc.pdfa':
+      return <PdfaRow />;
+    case 'doc.placeholder':
+      return <PlaceholderRow />;
     case 'signer.default':
       return <DefaultSignerRow />;
     case 'signer.ida':
@@ -176,8 +190,6 @@ function SettingRow({ id }: { id: string }) {
       return <UpdatesRow />;
     case 'adv.logs':
       return <LogsRow />;
-    case 'adv.placeholder':
-      return <PlaceholderRow />;
     case 'adv.privacy':
       return <PrivacyRow />;
     default:
@@ -336,6 +348,50 @@ function NoteRow() {
           {t('set.block.note.reset')}
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ Dokument */
+
+function PdfaRow() {
+  const { settings } = useAppState();
+  const dispatch = useDispatch();
+  const t = useT();
+  return (
+    <SwitchField
+      label={t('set.doc.pdfa')}
+      hint={t('set.doc.pdfa.hint')}
+      isSelected={settings.pdfaForce}
+      onChange={(v) => dispatch({ type: 'settings', patch: { pdfaForce: v } })}
+    />
+  );
+}
+
+/** Platzhaltersuche wie in PDF-Over: ein Schalter, darunter QR-Code (`USE_MARKER`) oder Felder (`USE_FIELDS`). */
+function PlaceholderRow() {
+  const { settings } = useAppState();
+  const dispatch = useDispatch();
+  const t = useT();
+  return (
+    <div className="stack-3">
+      <SwitchField
+        label={t('set.doc.placeholder')}
+        hint={t('set.doc.placeholder.hint')}
+        isSelected={settings.placeholderSearch}
+        onChange={(v) => dispatch({ type: 'settings', patch: { placeholderSearch: v } })}
+      />
+      <RadioCards<PlaceholderKind>
+        label={t('set.doc.placeholder.kind')}
+        value={settings.placeholderKind}
+        onChange={(v) => dispatch({ type: 'settings', patch: { placeholderKind: v } })}
+        isDisabled={!settings.placeholderSearch}
+        columns={2}
+        options={[
+          { value: 'qr', label: t('set.doc.placeholder.qr'), description: t('set.doc.placeholder.qr.desc'), icon: <IconQr size={18} /> },
+          { value: 'field', label: t('set.doc.placeholder.field'), description: t('set.doc.placeholder.field.desc'), icon: <IconPen size={18} /> },
+        ]}
+      />
     </div>
   );
 }
@@ -577,13 +633,6 @@ function LogsRow() {
       </Button>
     </div>
   );
-}
-
-function PlaceholderRow() {
-  const { settings } = useAppState();
-  const dispatch = useDispatch();
-  const t = useT();
-  return <SwitchField label={t('set.adv.placeholder')} isSelected={settings.placeholderSearch} onChange={(v) => dispatch({ type: 'settings', patch: { placeholderSearch: v } })} />;
 }
 
 function PrivacyRow() {

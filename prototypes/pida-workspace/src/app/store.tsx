@@ -20,6 +20,7 @@ import type {
   DocSpec,
   DocState,
   PageSpec,
+  PlaceholderKind,
   Placement,
   RecentItem,
   ScenarioId,
@@ -31,7 +32,7 @@ import type {
 } from '../model/types';
 
 export type Overlay = null | 'settings' | 'palette' | 'shortcuts' | 'onboarding';
-export type SettingsSection = 'block' | 'signer' | 'save' | 'appearance' | 'advanced';
+export type SettingsSection = 'block' | 'document' | 'signer' | 'save' | 'appearance' | 'advanced';
 
 export interface DemoState {
   scenario: ScenarioId;
@@ -90,7 +91,9 @@ export const DEFAULT_SETTINGS: Settings = {
   proxyPort: '',
   autoUpdate: true,
   debugLog: false,
+  pdfaForce: false,
   placeholderSearch: true,
+  placeholderKind: 'qr',
 };
 
 /** Name der signierenden Person in allen Mock-Signaturblöcken. */
@@ -106,10 +109,18 @@ export function displayPages(doc: DocState): PageSpec[] {
   return [...pages, { w: last.w, h: last.h, blocks: [] }];
 }
 
-/** Erste Platzierung: QR-Platzhalter automatisch, sonst freie Fläche der letzten Seite. */
-export function initialPlacement(doc: DocState, sig: SigBlockSettings, usePlaceholders = true): Placement {
-  const qr = usePlaceholders ? doc.spec.fields.find((f) => f.kind === 'qr') : undefined;
-  if (qr) return { page: qr.page, x: qr.rect.x, y: qr.rect.y, fieldId: qr.id };
+/** Welche Platzhalter beim Öffnen automatisch genutzt werden (`null` = Suche aus). */
+export function autoTarget(s: Settings): PlaceholderKind | null {
+  return s.placeholderSearch ? s.placeholderKind : null;
+}
+
+/**
+ * Erste Platzierung: gesuchter Platzhalter (QR-Code bzw. leeres Signaturfeld) automatisch, sonst freie
+ * Fläche der letzten Seite. `auto = null` platziert immer frei.
+ */
+export function initialPlacement(doc: DocState, sig: SigBlockSettings, auto: PlaceholderKind | null = 'qr'): Placement {
+  const target = auto ? doc.spec.fields.find((f) => f.kind === auto) : undefined;
+  if (target) return { page: target.page, x: target.rect.x, y: target.rect.y, fieldId: target.id };
   const pages = displayPages(doc);
   const index = pages.length - 1;
   const page = pages[index];
@@ -119,7 +130,7 @@ export function initialPlacement(doc: DocState, sig: SigBlockSettings, usePlaceh
   return { page: index, x: pos.x, y: pos.y, fieldId: null };
 }
 
-function docState(spec: DocSpec, sig: SigBlockSettings, usePlaceholders: boolean): DocState {
+function docState(spec: DocSpec, sig: SigBlockSettings, auto: PlaceholderKind | null): DocState {
   const base: DocState = {
     spec,
     status: spec.locked ? 'error' : 'ready',
@@ -128,8 +139,9 @@ function docState(spec: DocSpec, sig: SigBlockSettings, usePlaceholders: boolean
     newPage: false,
     unlocked: !spec.locked,
     outputName: null,
+    autoPlaced: true,
   };
-  const placement = initialPlacement(base, sig, usePlaceholders);
+  const placement = initialPlacement(base, sig, auto);
   return { ...base, placement, status: spec.locked ? 'error' : placement.fieldId ? 'positioned' : 'ready' };
 }
 
@@ -188,7 +200,7 @@ export interface InitOptions {
 export function createState(opts: InitOptions = {}): AppState {
   const settings: Settings = { ...DEFAULT_SETTINGS, ...opts.settings, sigBlock: { ...DEFAULT_SETTINGS.sigBlock, ...opts.settings?.sigBlock } };
   const sc = scenario(opts.scenario ?? 'start');
-  const docs = sc.docs.map((d) => docState(d, settings.sigBlock, settings.placeholderSearch));
+  const docs = sc.docs.map((d) => docState(d, settings.sigBlock, autoTarget(settings)));
   return {
     view: sc.view,
     docs,
@@ -252,8 +264,25 @@ function updateDoc(state: AppState, id: string, fn: (d: DocState) => DocState): 
 /** Bei geänderter Blockgröße frei platzierte Blöcke neu auf freie Fläche setzen (nur unberührte). */
 function replaceUntouched(state: AppState, sig: SigBlockSettings): DocState[] {
   return state.docs.map((d) =>
-    d.status === 'ready' && d.placement && !d.placement.fieldId ? { ...d, placement: initialPlacement(d, sig, state.settings.placeholderSearch) } : d,
+    d.status === 'ready' && d.placement && !d.placement.fieldId
+      ? { ...d, placement: initialPlacement(d, sig, d.autoPlaced ? autoTarget(state.settings) : null) }
+      : d,
   );
+}
+
+/**
+ * Geänderte Platzhaltersuche wirkt sofort auf automatisch platzierte Dokumente (von Hand gesetzte und
+ * signierte bleiben). „Positioniert“ allein wegen eines Platzhalters fällt dabei auf „Bereit“ zurück.
+ */
+function reapplyAuto(state: AppState): DocState[] {
+  const auto = autoTarget(state.settings);
+  return state.docs.map((d) => {
+    if (!d.autoPlaced || d.status === 'done' || d.status === 'signing') return d;
+    const placement = initialPlacement(d, state.settings.sigBlock, auto);
+    const reviewed = d.status === 'positioned' && !d.placement?.fieldId;
+    const status = d.status === 'error' ? 'error' : placement.fieldId || reviewed ? 'positioned' : 'ready';
+    return { ...d, placement, status };
+  });
 }
 
 export function reducer(state: AppState, action: Action): AppState {
@@ -273,19 +302,19 @@ export function reducer(state: AppState, action: Action): AppState {
       if (names.length === 0) return state;
       if (names.length === 1) {
         const name = names[0] as string;
-        const spec = contractDoc(name, `doc-${Date.now()}`);
-        const doc = docState(spec, state.settings.sigBlock, state.settings.placeholderSearch);
+        const spec = contractDoc(name, `doc-${Date.now()}`, false);
+        const doc = docState(spec, state.settings.sigBlock, autoTarget(state.settings));
         return { ...state, view: 'workspace', docs: [doc], activeId: spec.id, batchMode: false, batchRun: null, verify: null };
       }
       const pool = batchDocs();
       const docs = names.map((name, i) => {
         const tpl = pool[i % pool.length] as DocSpec;
-        return docState({ ...tpl, id: `doc-${i}-${tpl.id}`, fileName: name }, state.settings.sigBlock, state.settings.placeholderSearch);
+        return docState({ ...tpl, id: `doc-${i}-${tpl.id}`, fileName: name }, state.settings.sigBlock, autoTarget(state.settings));
       });
       return { ...state, view: 'batch', docs, activeId: null, batchMode: true, batchRun: null, verify: null };
     }
     case 'openSpec': {
-      const doc = docState(action.spec, state.settings.sigBlock, state.settings.placeholderSearch);
+      const doc = docState(action.spec, state.settings.sigBlock, autoTarget(state.settings));
       return { ...state, view: 'workspace', docs: [doc], activeId: action.spec.id, batchMode: false, batchRun: null, verify: null };
     }
     case 'goHome':
@@ -300,15 +329,15 @@ export function reducer(state: AppState, action: Action): AppState {
         docs: state.docs.map((d) => (d.spec.id === state.activeId && d.status === 'ready' ? { ...d, status: 'positioned' } : d)),
       };
     case 'place':
-      return updateDoc(state, action.id, (d) => ({ ...d, placement: action.placement, status: d.status === 'ready' ? 'positioned' : d.status }));
+      return updateDoc(state, action.id, (d) => ({ ...d, placement: action.placement, autoPlaced: false, status: d.status === 'ready' ? 'positioned' : d.status }));
     case 'autoPlace':
-      return updateDoc(state, action.id, (d) => ({ ...d, placement: initialPlacement({ ...d }, state.settings.sigBlock, false) }));
+      return updateDoc(state, action.id, (d) => ({ ...d, placement: initialPlacement({ ...d }, state.settings.sigBlock, null), autoPlaced: false }));
     case 'setInvisible':
       return updateDoc(state, action.id, (d) => ({ ...d, invisible: action.value }));
     case 'setNewPage':
       return updateDoc(state, action.id, (d) => {
         const next = { ...d, newPage: action.value };
-        return { ...next, placement: initialPlacement(next, state.settings.sigBlock, false) };
+        return { ...next, placement: initialPlacement(next, state.settings.sigBlock, null), autoPlaced: false };
       });
     case 'unlock':
       return updateDoc(state, action.id, (d) => ({ ...d, unlocked: true, status: d.placement?.fieldId ? 'positioned' : 'ready' }));
@@ -387,6 +416,7 @@ export function reducer(state: AppState, action: Action): AppState {
       const settings = { ...state.settings, ...action.patch };
       const next = { ...state, settings };
       if (action.patch.defaultSigner && action.patch.defaultSigner !== 'ask' && !state.signing) next.signer = action.patch.defaultSigner;
+      if (autoTarget(settings) !== autoTarget(state.settings)) next.docs = reapplyAuto(next);
       return next;
     }
     case 'sigBlock': {
@@ -413,7 +443,7 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'signVerified': {
       if (!state.verify) return state;
       const spec = { ...state.verify, id: `${state.verify.id}-sign` };
-      const doc = docState(spec, state.settings.sigBlock, state.settings.placeholderSearch);
+      const doc = docState(spec, state.settings.sigBlock, autoTarget(state.settings));
       return { ...state, view: 'workspace', docs: [doc], activeId: spec.id, verify: null, batchMode: false };
     }
   }

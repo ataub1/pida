@@ -99,6 +99,18 @@ function WorkspaceView({ doc }: { doc: DocState }) {
     stickerRef.current?.scrollIntoView?.({ block: 'center' });
   }, [fitReady, fitScale]);
 
+  // Von der Automatik auf eine andere Seite bzw. in einen Platzhalter versetzt (z. B. geänderte
+  // Platzhaltersuche in den Einstellungen): Block in den Blick holen und den Hinweis erneut zeigen
+  const autoKey = doc.autoPlaced && doc.placement ? `${doc.placement.page}:${doc.placement.fieldId ?? ''}` : null;
+  const lastAutoKey = useRef(autoKey);
+  useLayoutEffect(() => {
+    if (autoKey === lastAutoKey.current) return;
+    lastAutoKey.current = autoKey;
+    if (!autoKey) return;
+    stickerRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    setCoach(true);
+  }, [autoKey]);
+
   // Hinweis „automatisch platziert“ nach einigen Sekunden ausblenden – er verdeckt sonst (v. a. schmal) Text
   useEffect(() => {
     if (!coach) return undefined;
@@ -145,7 +157,7 @@ function WorkspaceView({ doc }: { doc: DocState }) {
   const announce = useCallback((text: string) => setAnnouncement(text), []);
 
   const autoPlace = () => {
-    const p = initialPlacement({ ...doc, placement: null }, sig, false);
+    const p = initialPlacement({ ...doc, placement: null }, sig, null);
     dispatch({ type: 'place', id: doc.spec.id, placement: p });
     announce(describePlacement(t, doc, p, pages, sig));
     requestStickerScroll('smooth');

@@ -141,7 +141,7 @@ function BatchRow({ doc, disabled, skipped }: { doc: DocState; disabled: boolean
   const dispatch = useDispatch();
   const first = doc.spec.pages[0];
   const scale = first ? 46 / first.w : 1;
-  const usesPlaceholder = !!doc.placement?.fieldId;
+  const placeholder = doc.placement?.fieldId ? doc.spec.fields.find((f) => f.id === doc.placement?.fieldId) : undefined;
   const detail =
     doc.status === 'error'
       ? skipped
@@ -150,8 +150,10 @@ function BatchRow({ doc, disabled, skipped }: { doc: DocState; disabled: boolean
       : doc.status === 'done'
         ? t('batch.detail.done', { file: doc.outputName ?? '' })
         : doc.status === 'positioned'
-          ? usesPlaceholder
-            ? t('batch.detail.placeholder')
+          ? placeholder
+            ? placeholder.kind === 'qr'
+              ? t('batch.detail.placeholder')
+              : t('batch.detail.field')
             : t('batch.detail.positioned')
           : doc.status === 'ready'
             ? t('batch.detail.ready')

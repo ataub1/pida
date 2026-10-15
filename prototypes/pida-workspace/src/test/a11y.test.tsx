@@ -96,7 +96,7 @@ describe('axe – Hauptansichten', () => {
     const { user } = renderApp({ scenario: 'contract' });
     await user.click(screen.getByRole('button', { name: 'Einstellungen' }));
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
-    for (const section of ['Signaturbild', 'Signiermittel', 'Speichern', 'Darstellung', 'Erweitert']) {
+    for (const section of ['Signaturbild', 'Dokument', 'Signiermittel', 'Speichern', 'Darstellung', 'Erweitert']) {
       await user.click(within(dialog).getByRole('button', { name: section }));
       expect(within(dialog).getByRole('heading', { level: 3, name: section })).toBeInTheDocument();
       await expectNoAxeViolations();
@@ -106,6 +106,32 @@ describe('axe – Hauptansichten', () => {
     expect(within(dialog).getByText('Der Port muss zwischen 1 und 65535 liegen.')).toBeInTheDocument();
     await expectNoAxeViolations();
     await user.type(within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' }), 'logo');
+    await expectNoAxeViolations();
+  });
+
+  it('Einstellungen › Dokument (Platzhaltersuche aus: Auswahl gesperrt; Suche „pdf/a“)', async () => {
+    const { user } = renderApp({ scenario: 'contract' });
+    await user.click(screen.getByRole('button', { name: 'Einstellungen' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    await user.click(within(dialog).getByRole('button', { name: 'Dokument' }));
+    await user.click(within(dialog).getByRole('switch', { name: 'PDF/A-kompatibel signieren' }));
+    await user.click(within(dialog).getByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' }));
+    expect(within(dialog).getByRole('radiogroup', { name: 'Suchen nach' })).toHaveAttribute('aria-disabled', 'true');
+    await expectNoAxeViolations();
+    await user.type(within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' }), 'pdf/a');
+    expect(within(dialog).getByRole('heading', { level: 3, name: 'Dokument' })).toBeInTheDocument();
+    await expectNoAxeViolations();
+  });
+
+  it('Arbeitsbereich mit Hinweisen auf Erkanntes (PDF/A, Signaturfeld, QR-Platzhalter)', async () => {
+    const first = renderApp({ scenario: 'field', settings: { placeholderKind: 'field', pdfaForce: true } });
+    expect(screen.getByText('Signaturfeld gefunden – Signatur im Feld platziert')).toBeInTheDocument();
+    expect(screen.getByText('PDF/A-kompatible Signatur (erzwungen)')).toBeInTheDocument();
+    await expectNoAxeViolations();
+    first.unmount();
+    const { user } = renderApp({ scenario: 'batch' });
+    await user.click(screen.getByRole('button', { name: '„Auftragsbestaetigung_4711.pdf“ öffnen und positionieren' }));
+    expect(await screen.findByText('QR-Platzhalter gefunden – Signatur dort platziert')).toBeInTheDocument();
     await expectNoAxeViolations();
   });
 

@@ -1,7 +1,8 @@
 /**
  * Schmale rechte Seitenleiste des Arbeitsbereichs (unter 760 px als Bottom-Sheet): Signiermittel,
  * Signaturbild, Optionen, Platzierung, vorhandene Signaturen, primärer Knopf „Signieren“.
- * Bewusst ohne Zahlenfelder für die Position (vom Auftraggeber verworfen).
+ * Bewusst ohne Zahlenfelder für die Position (vom Auftraggeber verworfen). Dezente Hinweise zeigen,
+ * was beim Öffnen erkannt wurde (PDF/A, QR-Platzhalter bzw. Signaturfeld).
  */
 import { useId, useRef, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
@@ -10,7 +11,7 @@ import { useT } from '../../i18n';
 import { blockSize, humanDateTime } from '../../model/format';
 import type { DocState, PageSpec, Rect } from '../../model/types';
 import { Badge, Button, Keys, SwitchField, useModKey } from '../../ui/controls';
-import { IconAlert, IconChevronDown, IconInfo, IconPen, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
+import { IconAlert, IconChevronDown, IconFileText, IconInfo, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
 import { useFitScale, useNarrow } from '../../ui/hooks';
 import { SignatureBlock } from '../sigblock/SignatureBlock';
 import { SignerChip } from './SignerChip';
@@ -44,6 +45,9 @@ export function Inspector({
   const field = placement?.fieldId ? doc.spec.fields.find((f) => f.id === placement.fieldId) : undefined;
   const overlap = sticker && page && !field ? overlapCount(sticker, page) > 0 : false;
   const alreadySigned = doc.spec.signatures.length > 0;
+  // Erkanntes nur nennen, solange die Automatik es gesetzt hat (nicht nach „Hier signieren“ von Hand)
+  const detected = field && doc.autoPlaced ? field : undefined;
+  const pdfaNote = doc.spec.pdfa ? t('insp.detect.pdfa') : state.settings.pdfaForce ? t('insp.detect.pdfaForced') : null;
   const previewRef = useRef<HTMLDivElement>(null);
   const previewScale = useFitScale(previewRef, blockSize(sig).w, { min: 0.4, max: 1.2, pad: 28, initial: sig.profile === 'amt' ? 0.6 : 1.05 });
 
@@ -107,6 +111,12 @@ export function Inspector({
             isDisabled={alreadySigned || doc.invisible}
             onChange={(v) => dispatch({ type: 'setNewPage', id: doc.spec.id, value: v })}
           />
+          {pdfaNote ? (
+            <p className="insp-note">
+              <IconFileText size={15} />
+              {pdfaNote}
+            </p>
+          ) : null}
         </section>
 
         {!doc.invisible && placement && page && sticker ? (
@@ -132,6 +142,12 @@ export function Inspector({
                   : t('insp.placement.text', { page: placement.page + 1, zone: zoneLabel(t, sticker, page) })}
               </span>
             </p>
+            {detected ? (
+              <p className="insp-note">
+                {detected.kind === 'qr' ? <IconQr size={15} /> : <IconPen size={15} />}
+                {detected.kind === 'qr' ? t('insp.detect.qr') : t('insp.detect.field')}
+              </p>
+            ) : null}
             {field ? (
               <Button variant="secondary" size="sm" onPress={onAutoPlace}>
                 {t('insp.placement.free')}

@@ -263,6 +263,7 @@ export function RadioCards<V extends string>({
   options,
   columns = 1,
   hideLabel,
+  isDisabled,
 }: {
   label: string;
   value: V;
@@ -270,9 +271,11 @@ export function RadioCards<V extends string>({
   options: ChoiceOption<V>[];
   columns?: number;
   hideLabel?: boolean;
+  /** ganze Gruppe gesperrt (z. B. solange ein übergeordneter Schalter aus ist) */
+  isDisabled?: boolean;
 }) {
   return (
-    <RadioGroup className="radio-cards-group" value={value} onChange={(v) => onChange(v as V)} aria-label={hideLabel ? label : undefined}>
+    <RadioGroup className="radio-cards-group" value={value} onChange={(v) => onChange(v as V)} aria-label={hideLabel ? label : undefined} isDisabled={isDisabled}>
       {hideLabel ? null : <Label className="field-label">{label}</Label>}
       <div className="radio-cards" style={{ ['--cols' as string]: columns }}>
         {options.map((o) => (

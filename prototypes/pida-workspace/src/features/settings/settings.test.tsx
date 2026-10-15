@@ -88,3 +88,99 @@ describe('Einstellungen', () => {
     expect(document.documentElement).toHaveAttribute('lang', 'en');
   });
 });
+
+describe('Einstellungen › Dokument (PDF/A, Platzhaltersuche)', () => {
+  async function openDocumentSection(opts: Parameters<typeof renderApp>[0] = { scenario: 'start' }) {
+    const r = renderApp(opts);
+    await r.user.click(screen.getByRole('button', { name: opts.settings?.uiLang === 'en' ? 'Settings' : 'Einstellungen' }));
+    const dialog = await screen.findByRole('dialog', { name: opts.settings?.uiLang === 'en' ? 'Settings' : 'Einstellungen' });
+    return { ...r, dialog };
+  }
+
+  it('steht direkt nach „Signaturbild“ und enthält PDF/A-Schalter und Platzhaltersuche (nicht mehr unter „Erweitert“)', async () => {
+    const { user, dialog } = await openDocumentSection();
+    const nav = within(dialog).getByRole('navigation', { name: 'Bereiche' });
+    const names = within(nav)
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+    expect(names.indexOf('Dokument')).toBe(names.indexOf('Signaturbild') + 1);
+
+    await user.click(within(nav).getByRole('button', { name: 'Dokument' }));
+    expect(within(dialog).getByRole('heading', { level: 3, name: 'Dokument' })).toBeInTheDocument();
+    const pdfa = within(dialog).getByRole('switch', { name: 'PDF/A-kompatibel signieren' });
+    expect(pdfa).not.toBeChecked();
+    expect(pdfa).toHaveAccessibleDescription(/erkennt PIDA automatisch .* erzwingt das auch für Dokumente ohne PDF\/A-Kennung/);
+    expect(within(dialog).getByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' })).toBeChecked();
+    const kind = within(dialog).getByRole('radiogroup', { name: 'Suchen nach' });
+    expect(within(kind).getByRole('radio', { name: /QR-Code-Platzhalter/ })).toBeChecked();
+    expect(within(kind).getByRole('radio', { name: /Leere Signaturfelder/ })).not.toBeChecked();
+
+    await user.click(within(nav).getByRole('button', { name: 'Erweitert' }));
+    expect(within(dialog).queryByRole('switch', { name: /Platzhalter/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('radiogroup', { name: 'Suchen nach' })).not.toBeInTheDocument();
+  });
+
+  it('ist über „pdf/a“, „platzhalter“, „qr“ und „signaturfeld“ auffindbar', async () => {
+    const { user, dialog } = await openDocumentSection();
+    const search = within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' });
+    const cases: [string, RegExp][] = [
+      ['pdf/a', /PDF\/A-kompatibel signieren/],
+      ['PDF/A', /PDF\/A-kompatibel signieren/],
+      ['platzhalter', /Signaturplatzhalter automatisch suchen/],
+      ['qr', /Signaturplatzhalter automatisch suchen/],
+      ['signaturfeld', /Signaturplatzhalter automatisch suchen/],
+    ];
+    for (const [q, control] of cases) {
+      await user.clear(search);
+      await user.type(search, q);
+      expect(within(dialog).getByRole('heading', { level: 3, name: 'Dokument' })).toBeInTheDocument();
+      expect(within(dialog).getByRole('switch', { name: control })).toBeInTheDocument();
+      expect(within(dialog).queryByRole('heading', { name: 'Erweitert' })).not.toBeInTheDocument();
+    }
+    // Platzhalter-Treffer zeigen nur die Platzhaltersuche, PDF/A-Treffer nur den PDF/A-Schalter
+    expect(within(dialog).queryByRole('switch', { name: 'PDF/A-kompatibel signieren' })).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'pdf/a');
+    expect(within(dialog).queryByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' })).not.toBeInTheDocument();
+  });
+
+  it('ist auch englisch auffindbar („signature field“, „pdf/a“)', async () => {
+    const en = await openDocumentSection({ scenario: 'start', settings: { uiLang: 'en' } });
+    const enSearch = within(en.dialog).getByRole('searchbox', { name: 'Search settings' });
+    await en.user.type(enSearch, 'signature field');
+    expect(within(en.dialog).getByRole('heading', { level: 3, name: 'Document' })).toBeInTheDocument();
+    expect(within(en.dialog).getByRole('switch', { name: 'Search for signature placeholders automatically' })).toBeInTheDocument();
+    await en.user.clear(enSearch);
+    await en.user.type(enSearch, 'pdf/a');
+    expect(within(en.dialog).getByRole('switch', { name: 'PDF/A-compatible signature' })).toBeInTheDocument();
+  });
+
+  it('Schalter wirken sofort; die Auswahl ist bei ausgeschalteter Suche gesperrt', async () => {
+    const { user, dialog } = await openDocumentSection();
+    await user.click(within(dialog).getByRole('button', { name: 'Dokument' }));
+    const pdfa = within(dialog).getByRole('switch', { name: 'PDF/A-kompatibel signieren' });
+    await user.click(pdfa);
+    expect(pdfa).toBeChecked();
+
+    const search = within(dialog).getByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' });
+    const group = within(dialog).getByRole('radiogroup', { name: 'Suchen nach' });
+    const qr = within(group).getByRole('radio', { name: /QR-Code-Platzhalter/ });
+    const field = within(group).getByRole('radio', { name: /Leere Signaturfelder/ });
+    await user.click(search);
+    expect(search).not.toBeChecked();
+    expect(group).toHaveAttribute('aria-disabled', 'true');
+    expect(qr).toBeDisabled();
+    expect(field).toBeDisabled();
+    await user.click(field);
+    expect(field).not.toBeChecked();
+    expect(qr).toBeChecked();
+
+    await user.click(search);
+    expect(search).toBeChecked();
+    expect(group).not.toHaveAttribute('aria-disabled');
+    expect(field).toBeEnabled();
+    await user.click(field);
+    expect(field).toBeChecked();
+    expect(qr).not.toBeChecked();
+  });
+});
