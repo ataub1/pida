@@ -573,6 +573,7 @@ ng-ui-position-help-mobile = Tippen Sie auf die gewünschte Stelle oder ziehen S
 ## Datenschutz ohne Zustimmungsdialog (ADR 0003): Kurzhinweis beim Signiermittel, Einstellungen › Datenschutz, CLI
 
 ng-document-leaves-device = Hinweis: Das Dokument wird zum Signieren an A-Trust übermittelt (Datenschutzerklärung von A-Trust: https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
+ng-ui-privacy-statement = Die Software PIDA verarbeitet die für den Signaturvorgang benötigten Daten lokal auf dem installierten Gerät. Der Signaturvorgang mit der Bürgerkarte wird lokal durchgeführt. Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet. Die Speicherdauer sowie weitere Datenschutzinformationen zur ID-Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Details zum Datenschutz
 ng-ui-privacy-local = Mit einem Keystore oder der Bürgerkarte (lokale BKU) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.

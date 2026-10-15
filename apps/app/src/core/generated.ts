@@ -1217,7 +1217,7 @@ keystore_import: KeystoreImportView | null,
 /**
  * Eigener Datenschutztext der Organisation (Richtlinie `privacy_notice_text`) für Einstellungen ›
  * Datenschutz und die „Details“ des Kurzhinweises; `None` = Text aus PDF-Over
- * (`config-DataProtectionStatement`, ADR 0003)
+ * (`ng-ui-privacy-statement`, PIDA-Fassung des PDF-Over-Texts `config-DataProtectionStatement`, ADR 0003)
  */
 privacy_text: string | null, };
 

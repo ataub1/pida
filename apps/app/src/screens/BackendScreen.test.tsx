@@ -102,7 +102,7 @@ describe('Datenschutz: Kurzhinweis → Einstellungen › Datenschutz (Mock-Kern)
     expect(within(dialog).getByRole('tab', { name: 'Datenschutz' })).toHaveAttribute('aria-selected', 'true');
     expect(within(dialog).getByRole('heading', { name: 'Datenschutzinformation' })).toBeInTheDocument();
     // vollständiger Text aus PDF-Over mit Link zur Datenschutzerklärung von A-Trust, Hinweis auf lokales Signieren
-    expect(within(dialog).getByText(/zu signierende PDF Dokument an die Firma A-Trust gesendet/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Die Software PIDA verarbeitet .*zu signierende PDF-Dokument an die Firma A-Trust gesendet/)).toBeInTheDocument();
     expect(within(dialog).getByText(/Keystore oder der Bürgerkarte .* nicht hochgeladen/)).toBeInTheDocument();
     const link = within(dialog).getByRole('link', { name: /a-trust\.at\/downloads\/documents\/datenschutzerklaerung\.pdf/ });
     // Link als echter Inline-Link; der Satzpunkt folgt direkt im selben Absatz

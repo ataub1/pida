@@ -23,7 +23,7 @@ export function PrivacyInfo() {
   return (
     <>
       <p className="pre-line">
-        {custom ? custom : <Markup text={t.t('config-DataProtectionStatement')} targets={[{ href: url }]} />}
+        {custom ? custom : <Markup text={t.t('ng-ui-privacy-statement')} targets={[{ href: url }]} />}
       </p>
       <p>{t.t('ng-ui-privacy-local')}</p>
       {custom ? (
