@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use pdfover_core_api::{Core, CoreConfig, MainBarView, StepView, UiEvent, ViewState};
+use pdfover_core_api::{Core, CoreConfig, CoreOptions, MainBarView, ShellHooks, StepView, UiEvent, ViewState};
 use pdfover_i18n::Lang;
 use pdfover_workflow::{MainBarStep, Step};
 
@@ -30,6 +30,10 @@ pub const MAX_PENDING_DOCUMENTS: usize = 1000;
 pub struct Shell {
     /// `None`: Konfiguration nicht ermittelbar (z. B. kein Benutzerordner) – nur Fehlerschritt.
     config: Option<CoreConfig>,
+    /// Optionen des Kerns (Shell-Funktionen, Systemsprache; Logging richtet die Shell ein)
+    options: Mutex<CoreOptions>,
+    /// Start gesperrt (ungültige Startargumente): nur der Fehlerschritt, „Abbrechen“ beendet
+    blocked: bool,
     core: Mutex<Option<Arc<Core>>>,
     fallback: Mutex<ViewState>,
     pending: Mutex<Vec<PathBuf>>,
@@ -68,18 +72,28 @@ pub enum QuitRequest {
 impl Shell {
     /// Shell ohne laufenden Kern (Start mit [`Shell::start`]).
     pub fn new(config: CoreConfig) -> Shell {
-        Shell::with(Some(config), unavailable_view("", Lang::system()))
+        Shell::with(Some(config), unavailable_view("", Lang::system()), false)
     }
 
     /// Shell ohne Konfiguration: Der Kern kann nicht starten, die Oberfläche zeigt den Fehlerschritt
     /// mit `detail` (statt die App beim Start mit einer Panik zu beenden).
     pub fn without_config(detail: &str) -> Shell {
-        Shell::with(None, unavailable_view(detail, Lang::system()))
+        Shell::with(None, unavailable_view(detail, Lang::system()), false)
     }
 
-    fn with(config: Option<CoreConfig>, fallback: ViewState) -> Shell {
+    /// Ungültige Startargumente (PDF-Over: Fehlerdialog `error.CmdLineArgs`/`error.FileNotExist`, dann
+    /// Ende): Fehlerschritt `code` ohne „Wiederholen“, der Kern startet nicht.
+    pub fn start_error(config: Option<CoreConfig>, code: &str, params: BTreeMap<String, String>) -> Shell {
+        Shell::with(config, error_view(code, params, false, Lang::system()), true)
+    }
+
+    fn with(config: Option<CoreConfig>, fallback: ViewState, blocked: bool) -> Shell {
+        // Logging richtet die Shell ein (`pdfover_core_api::logging`), nicht der Kern.
+        let options = CoreOptions { init_logging: false, ..CoreOptions::default() };
         Shell {
             config,
+            options: Mutex::new(options),
+            blocked,
             core: Mutex::new(None),
             fallback: Mutex::new(fallback),
             pending: Mutex::new(Vec::new()),
@@ -87,14 +101,37 @@ impl Shell {
         }
     }
 
-    /// Startet den Kern; Fehler und Paniken (Stub) werden als Fehlerschritt abgebildet. Vorgemerkte
+    /// Optionen für den nächsten Kernstart (Tests, Einbettung).
+    pub fn set_options(&self, options: CoreOptions) {
+        *lock(&self.options) = options;
+    }
+
+    /// Systemsprache aus dem Betriebssystem (`sys-locale`) für den Kern (`CoreOptions::system_language`).
+    pub fn set_system_language(&self, lang: Option<Lang>) {
+        lock(&self.options).system_language = lang;
+    }
+
+    /// Shell-Funktionen (Öffnen von Dateien/URLs, Elternfenster) – für den laufenden Kern und jeden
+    /// weiteren Start.
+    pub fn set_hooks(&self, hooks: Arc<dyn ShellHooks>) {
+        lock(&self.options).shell = Some(Arc::clone(&hooks));
+        if let Some(core) = self.core() {
+            core.set_shell(Some(hooks));
+        }
+    }
+
+    /// Startet den Kern; Fehler und Paniken werden als Fehlerschritt abgebildet. Vorgemerkte
     /// Dokumente gehen nach einem erfolgreichen Start an den Kern.
     pub fn start(&self) -> Started {
+        if self.blocked {
+            return Started::Unavailable;
+        }
         let Some(config) = self.config.clone() else {
             tracing::error!("Kern ohne Konfiguration nicht startbar");
             return Started::Unavailable;
         };
-        let result = catch_unwind(AssertUnwindSafe(move || Core::new(config)));
+        let options = lock(&self.options).clone();
+        let result = catch_unwind(AssertUnwindSafe(move || Core::new_with(config, options)));
         match result {
             Ok(Ok(core)) => {
                 let core = Arc::new(core);
@@ -123,6 +160,17 @@ impl Shell {
         *lock(&self.fallback) = unavailable_view(detail, Lang::system());
     }
 
+    /// Der Kern-Task hat ohne `Finished` geendet: Kern verwerfen, Fehlerschritt `code` (eigene
+    /// Meldungs-ID, z. B. `ng-core-stopped`) mit „Wiederholen“ (Neustart) in der zuletzt gezeigten
+    /// Sprache.
+    pub fn mark_stopped(&self, code: &str) {
+        let language = self.core().map_or_else(Lang::system, |core| {
+            catch_unwind(AssertUnwindSafe(|| core.view().language)).unwrap_or_else(|_| Lang::system())
+        });
+        *lock(&self.core) = None;
+        *lock(&self.fallback) = error_view(code, BTreeMap::new(), true, language);
+    }
+
     /// Laufender Kern.
     pub fn core(&self) -> Option<Arc<Core>> {
         lock(&self.core).clone()
@@ -148,7 +196,7 @@ impl Shell {
                 Ok(DispatchOutcome::Dispatched)
             }
             None => match event {
-                UiEvent::Retry => Ok(DispatchOutcome::Restart),
+                UiEvent::Retry if !self.blocked => Ok(DispatchOutcome::Restart),
                 UiEvent::Quit | UiEvent::Cancel => Ok(DispatchOutcome::Quit),
                 _ => Err(CORE_UNAVAILABLE),
             },
@@ -254,8 +302,13 @@ pub fn unavailable_view(detail: &str, language: Lang) -> ViewState {
     if !detail.is_empty() {
         params.insert("detail".to_owned(), detail.to_owned());
     }
+    error_view(CORE_UNAVAILABLE, params, true, language)
+}
+
+/// Fehlerschritt ohne Kern (gesperrte Hauptleiste, keine Einstellungen).
+pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, language: Lang) -> ViewState {
     ViewState {
-        step: StepView::Error { code: CORE_UNAVAILABLE.to_owned(), params, retry: true },
+        step: StepView::Error { code: code.to_owned(), params, retry },
         main_bar: MainBarView {
             steps: [Step::Open, Step::Positioning, Step::Signing, Step::Finish]
                 .into_iter()
@@ -265,6 +318,9 @@ pub fn unavailable_view(detail: &str, language: Lang) -> ViewState {
         },
         settings: None,
         language,
+        notices: Vec::new(),
+        migration: None,
+        done: Vec::new(),
     }
 }
 
@@ -321,7 +377,10 @@ mod tests {
             fido2: None,
             app_version: "0.0.0-test".into(),
         };
-        (Shell::new(config), root)
+        let shell = Shell::new(config);
+        // ohne Systemrichtlinie, Altordner, PDFium, TCP-Probe und Schlüsselbund (Tests)
+        shell.set_options(CoreOptions::isolated());
+        (shell, root)
     }
 
     /// Der Start darf nie panisch abbrechen – weder mit dem Stub von `core-api` (Welle 2) noch mit
@@ -347,7 +406,8 @@ mod tests {
             }
             Started::Running(_) => assert!(shell.core().is_some()),
         }
-        assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "choose_invisible" })), Err(EVENT_INVALID));
+        assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "gibt_es_nicht" })), Err(EVENT_INVALID));
+        assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "move_block", "page": "x" })), Err(EVENT_INVALID));
         assert_eq!(shell.render("/../x", None).status(), 404);
         assert_eq!(shell.render("/page/a/0", None).status(), 400);
         let _ = std::fs::remove_dir_all(root);
@@ -373,6 +433,26 @@ mod tests {
             (0..MAX_PENDING_DOCUMENTS + 50).map(|i| PathBuf::from(format!("/x/{i}.pdf"))).collect();
         shell.open_files(many);
         assert_eq!(shell.pending_documents(), MAX_PENDING_DOCUMENTS);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Endet der Kern-Task ohne `Finished`, zeigt die Shell `ng-core-stopped` als eigenen Fehlerschritt
+    /// (nicht als Detail von `ng-ui-core-unavailable`); „Wiederholen“ startet den Kern neu.
+    #[test]
+    fn stopped_core_yields_its_own_error_step_with_retry() {
+        let (shell, root) = test_shell();
+        let _ = shell.start();
+        shell.mark_stopped(crate::CORE_STOPPED);
+        assert!(shell.core().is_none());
+        match shell.view().step {
+            StepView::Error { code, params, retry } => {
+                assert_eq!(code, crate::CORE_STOPPED);
+                assert!(params.is_empty());
+                assert!(retry);
+            }
+            other => panic!("unerwartet: {other:?}"),
+        }
+        assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "retry" })), Ok(DispatchOutcome::Restart));
         let _ = std::fs::remove_dir_all(root);
     }
 

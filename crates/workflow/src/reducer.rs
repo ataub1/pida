@@ -489,8 +489,16 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 return stay(queue, page, placement, new_page, doc, Vec::new());
             }
             if p.page_index == n && !doc.new_page_allowed() {
-                let effects = vec![Effect::Notify(MSG_NEW_PAGE_NOT_ALLOWED.into())];
-                return stay(queue, page, placement, new_page, doc, effects);
+                // wie PDF-Over/PDF-AS (docs/analyse/04 §4.5): auf signierten Dokumenten keine neue Seite,
+                // sondern dieselben Koordinaten auf der letzten Seite – mit Hinweis statt stillschweigend
+                let last = n.saturating_sub(1);
+                let moved = Placement { page_index: last, ..p };
+                let mut effects = vec![Effect::Notify(MSG_NEW_PAGE_NOT_ALLOWED.into())];
+                if page != last {
+                    effects.push(Effect::RenderPage { doc: doc.id, page: last });
+                    effects.push(Effect::BuildBlockPreview(doc.id));
+                }
+                return stay(queue, last, Some(moved), false, doc, effects);
             }
             let new_page = new_page || p.page_index == n;
             stay(queue, p.page_index, Some(p), new_page, doc, Vec::new())
@@ -516,7 +524,16 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 let effects = vec![Effect::RenderPage { doc: doc.id, page }, Effect::BuildBlockPreview(doc.id)];
                 stay(queue, page, placement, false, doc, effects)
             } else if !doc.new_page_allowed() {
-                stay(queue, page, placement, false, doc, vec![Effect::Notify(MSG_NEW_PAGE_NOT_ALLOWED.into())])
+                // wie PDF-Over: „Neue Seite“ auf einem signierten Dokument landet auf der letzten Seite
+                // (docs/analyse/04 §4.5); NG zeigt dazu einen Hinweis
+                let last = n.saturating_sub(1);
+                let placement = placement.map(|p| Placement { page_index: last, ..p });
+                let mut effects = vec![Effect::Notify(MSG_NEW_PAGE_NOT_ALLOWED.into())];
+                if page != last {
+                    effects.push(Effect::RenderPage { doc: doc.id, page: last });
+                    effects.push(Effect::BuildBlockPreview(doc.id));
+                }
+                stay(queue, last, placement, false, doc, effects)
             } else {
                 let placement = placement.map(|p| Placement { page_index: n, ..p });
                 let effects = vec![Effect::BuildBlockPreview(doc.id)];
@@ -533,6 +550,7 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
             }
             None => stay(queue, page, placement, new_page, doc, Vec::new()),
         },
+        Event::InvisibleChosen => to_backend_choice(queue, doc, PositionChoice::Invisible, true, Vec::new()),
         Event::PreviewUnavailable { doc: d } if d == doc.id => {
             let effects = vec![Effect::Notify(MSG_POSITIONING_NOT_POSSIBLE.into())];
             to_backend_choice(queue, doc, PositionChoice::Auto, true, effects)

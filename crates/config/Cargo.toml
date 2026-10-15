@@ -15,12 +15,17 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 directories = { workspace = true }
-keyring = { workspace = true }
 zeroize = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+
+# OS-Schlüsselbund nur auf dem Desktop (macOS Keychain, Windows Credential Manager, Linux Secret
+# Service). Unter iOS/Android verlangt apple-native-keyring-store das Feature `protected`; dort setzt die
+# Mobile-Shell ihren eigenen `SecretStore` ein (`secure-store`-Plugin, Mobile-Welle).
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+keyring = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

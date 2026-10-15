@@ -1,13 +1,12 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { ViewStateExt } from '../core/extensions';
 import { renderApp } from '../test/render';
-import { DOC, viewOf } from '../test/views';
+import { DOC, outputResult, viewOf } from '../test/views';
 
 describe('Ergebnis', () => {
   it('gespeichert: Erfolgsmeldung, Öffnen per Link und Knopf, im Ordner anzeigen', async () => {
     const { mock, user } = renderApp({
-      view: viewOf({ step: 'output', result: { path: '/Users/demo/Vertrag_signed.pdf', save_pending: false }, next: null }),
+      view: viewOf({ step: 'output', result: outputResult({ path: '/Users/demo/Vertrag_signed.pdf', save_pending: false }), next: null }),
     });
     expect(await screen.findByRole('heading', { level: 1, name: 'Signatur war erfolgreich' })).toBeInTheDocument();
     expect(screen.getByText('Vertrag_signed.pdf')).toBeInTheDocument();
@@ -21,7 +20,7 @@ describe('Ergebnis', () => {
 
   it('Speichern fehlgeschlagen/abgebrochen: Knopf öffnet den Speichern-Dialog', async () => {
     const { mock, user } = renderApp({
-      view: viewOf({ step: 'output', result: { path: null, save_pending: true }, next: null }),
+      view: viewOf({ step: 'output', result: outputResult({ path: null, save_pending: true }), next: null }),
       pickSaveResult: '/Users/demo/ziel.pdf',
     });
     expect(await screen.findByText('Sie können das signierte Dokument speichern')).toBeInTheDocument();
@@ -31,17 +30,17 @@ describe('Ergebnis', () => {
 
   it('abgebrochener Speichern-Dialog sendet save(null)', async () => {
     const { mock, user } = renderApp({
-      view: viewOf({ step: 'output', result: { path: null, save_pending: true }, next: null }),
+      view: viewOf({ step: 'output', result: outputResult({ path: null, save_pending: true }), next: null }),
       pickSaveResult: null,
     });
     await user.click(await screen.findByRole('button', { name: 'Speichern' }));
     await waitFor(() => expect(mock.dispatched).toEqual([{ type: 'save', path: null }]));
   });
 
-  it('Rückfrage „Speichern unter“ (Erweiterung) öffnet den Dialog einmal mit Vorschlag', async () => {
-    const view: ViewStateExt = viewOf({
+  it('Speichern-Dialog des Kerns (save_dialog) öffnet sich einmal mit Vorschlag', async () => {
+    const view = viewOf({
       step: 'output',
-      result: { path: null, save_pending: false, prompt: { kind: 'save_path', directory: '/Users/demo', file_name: 'Vertrag_signed.pdf' } } as never,
+      result: outputResult({ save_dialog: { directory: '/Users/demo', file_name: 'Vertrag_signed.pdf' } }),
       next: null,
     });
     const { mock } = renderApp({ view, pickSaveResult: null });
@@ -51,10 +50,26 @@ describe('Ergebnis', () => {
     expect(mock.nativeCalls).toHaveLength(1);
   });
 
-  it('Überschreiben-Rückfrage (Erweiterung)', async () => {
+  it('Knopf „Speichern“ nach abgebrochenem Dialog nutzt den Vorschlag des Kerns erneut', async () => {
     const view = viewOf({
       step: 'output',
-      result: { path: null, save_pending: false, prompt: { kind: 'overwrite', path: '/Users/demo/Vertrag_signed.pdf' } } as never,
+      result: outputResult({ save_dialog: { directory: '/Users/demo', file_name: 'Vertrag_signed.pdf' } }),
+      next: null,
+    });
+    const { mock, user } = renderApp({ view, pickSaveResult: null });
+    await waitFor(() => expect(mock.dispatched).toEqual([{ type: 'save', path: null }]));
+    // Kern: Dialog abgebrochen → Knopf „Speichern“ (save_pending), kein save_dialog mehr
+    act(() => mock.setView(viewOf({ step: 'output', result: outputResult({ path: null, save_pending: true }), next: null })));
+    await user.click(await screen.findByRole('button', { name: 'Speichern' }));
+    await waitFor(() =>
+      expect(mock.nativeCalls).toEqual(['pickSavePath:/Users/demo/Vertrag_signed.pdf', 'pickSavePath:/Users/demo/Vertrag_signed.pdf']),
+    );
+  });
+
+  it('Überschreiben-Rückfrage (ask_overwrite)', async () => {
+    const view = viewOf({
+      step: 'output',
+      result: outputResult({ ask_overwrite: '/Users/demo/Vertrag_signed.pdf' }),
       next: null,
     });
     const { mock, user } = renderApp({ view });
@@ -69,14 +84,44 @@ describe('Ergebnis', () => {
   });
 
   it('nächstes Dokument der Warteschlange', async () => {
-    const { mock, user } = renderApp({ view: viewOf({ step: 'output', result: { path: null, save_pending: true }, next: { ...DOC, name: 'Angebot.pdf' } }) });
+    const { mock, user } = renderApp({ view: viewOf({ step: 'output', result: outputResult({ path: null, save_pending: true }), next: { ...DOC, name: 'Angebot.pdf' } }) });
     expect(await screen.findByText('Nächstes Dokument: Angebot.pdf')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Nächstes Dokument signieren' }));
     expect(mock.dispatched).toEqual([{ type: 'navigate', step: 'Open' }]);
   });
 
+  it('Speichern-Dialog nicht verfügbar: Hinweis und save(null)', async () => {
+    const view = viewOf({
+      step: 'output',
+      result: outputResult({ save_dialog: { directory: '/Users/demo', file_name: 'Vertrag_signed.pdf' } }),
+      next: null,
+    });
+    const { mock } = renderApp({ view });
+    mock.pickSavePath = () => Promise.reject(new Error('kaputt'));
+    act(() => mock.setView({ ...view, step: { ...view.step } }));
+    await waitFor(() => expect(mock.dispatched).toContainEqual({ type: 'save', path: null }));
+  });
+
+  it('abgeschlossene Dokumente der Sitzung', async () => {
+    renderApp({
+      view: viewOf(
+        { step: 'output', result: outputResult({ path: '/x/c_signed.pdf' }), next: null },
+        {
+          done: [
+            { id: 1, name: 'a.pdf', input: '/x/a.pdf', result: { kind: 'signed', output: { path: '/x/a_signed.pdf', len: 1, sha256: '00' } } },
+            { id: 2, name: 'b.pdf', input: '/x/b.pdf', result: { kind: 'failed', error: { Backend: { code: 'backend-wrong-password', detail: '' } } } },
+          ],
+        },
+      ),
+    });
+    const panel = await screen.findByRole('complementary', { name: 'Erledigt (2)' });
+    expect(panel).toHaveTextContent('a.pdf');
+    expect(panel).toHaveTextContent('a_signed.pdf');
+    expect(panel).toHaveTextContent('Das Passwort ist falsch.');
+  });
+
   it('Ablegen auf dem Ergebnis hängt Dokumente an (F-89)', async () => {
-    const { mock } = renderApp({ view: viewOf({ step: 'output', result: { path: '/x/a_signed.pdf', save_pending: false }, next: null }) });
+    const { mock } = renderApp({ view: viewOf({ step: 'output', result: outputResult({ path: '/x/a_signed.pdf', save_pending: false }), next: null }) });
     await screen.findByRole('heading', { level: 1 });
     act(() => mock.simulateFileDrag({ type: 'drop', paths: ['/x/b.pdf'], x: 1, y: 1 }));
     await waitFor(() => expect(mock.dispatched).toEqual([{ type: 'open_files', paths: ['/x/b.pdf'] }]));

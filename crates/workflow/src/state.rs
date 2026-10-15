@@ -15,6 +15,7 @@ use crate::output::{ExitCode, OutputDecision};
 use crate::queue::{DocId, DocOutcome, InputDocument, Queue};
 
 /// Schritte der Hauptleiste (F-100).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Step {
     /// Öffnen
@@ -28,6 +29,7 @@ pub enum Step {
 }
 
 /// Zustand eines Schritts in der Hauptleiste (Tabelle docs/analyse/01 §3.5).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct MainBarStep {
     /// Schritt
@@ -85,6 +87,7 @@ impl PlaceholderFound {
 }
 
 /// Antwort auf „Platzhalter verwenden?“.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PlaceholderAnswer {
     /// Ja
@@ -130,12 +133,14 @@ pub enum RetryTarget {
 }
 
 /// Fehler im Workflow (Fehlercode + Parameter für i18n).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, serde::Deserialize)]
 pub enum WorkflowError {
     /// Dokument nicht ladbar/abgelehnt
     #[error("Dokument abgelehnt: {class:?} {code}")]
     Rejected {
         /// Klasse
+        #[cfg_attr(feature = "ts", ts(as = "crate::ts_mirror::AcceptanceClass"))]
         class: AcceptanceClass,
         /// Code
         code: String,
@@ -150,7 +155,7 @@ pub enum WorkflowError {
     },
     /// Invariante verletzt – nichts gespeichert
     #[error("Selbstprüfung fehlgeschlagen: {0}")]
-    Invariant(InvariantViolation),
+    Invariant(#[cfg_attr(feature = "ts", ts(as = "crate::ts_mirror::InvariantViolation"))] InvariantViolation),
     /// CMS größer als die Reserve – nichts gespeichert (`pdfover_pades::FinishError::CmsTooLarge`)
     #[error("Signatur zu groß: {needed} Bytes, Reserve {reserve}")]
     CmsTooLarge {
@@ -734,6 +739,9 @@ pub enum Event {
     NewPageToggled,
     /// Position bestätigt („Signieren“/Enter)
     PositionConfirmed,
+    /// „Unsichtbar signieren“ im Positionierungsschritt (NG-Ergänzung): dieses Dokument ohne
+    /// sichtbaren Block signieren ([`PositionChoice::Invisible`]); das Profil bleibt unverändert
+    InvisibleChosen,
     /// Backends geprüft
     BackendsProbed(Vec<BackendOption>),
     /// Backend gewählt

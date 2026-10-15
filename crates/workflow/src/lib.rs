@@ -28,6 +28,8 @@
 //! | Positioning: PDF nicht ladbar → Retry/Cancel | [`Event::AnalysisFailed`] → `Error{Load}`; Wiederholen lädt neu, Abbrechen verwirft das Dokument |
 //! | Positioning: Composite-Fehler | [`Event::PreviewUnavailable`] → Hinweis `error-PositioningNotPossible`, automatische Position |
 //! | Positioning: bestätigt | [`Event::PositionConfirmed`] → `ChoosingBackend` mit [`PositionChoice::Manual`] |
+//! | Positioning: „Neue Seite“ auf signiertem Dokument | wie PDF-AS (docs/analyse/04 §4.5) dieselben Koordinaten auf der letzten Seite, zusätzlich Hinweis `placement.notice.new_page_not_allowed` |
+//! | „Unsichtbar signieren“ (neu) | [`Event::InvisibleChosen`] → `ChoosingBackend` mit [`PositionChoice::Invisible`] (nur dieses Dokument) |
 //! | BKUSelection: Default/automatisch/Auswahl | [`Event::BackendsProbed`] wendet Standard-Backend (F-53) bzw. „nur ID Austria verfügbar“ (F-54) an; [`Event::BackendChosen`] |
 //! | Datenschutzhinweis (neu, Plan §3.3) | `document_leaves_device` und nicht bestätigt → `PrivacyNotice`; „Ja“ speichert die Bestätigung ([`Effect::AcknowledgePrivacy`]) |
 //! | PrepareSigning/LocalBKU/MobileBKU/KS/Signing | `Signing{OpeningSession → ReadingCertificate? → Preparing → Signing → Finishing}` |
@@ -54,6 +56,8 @@ mod output;
 pub mod queue;
 mod reducer;
 mod state;
+#[cfg(feature = "ts")]
+pub mod ts_mirror;
 
 pub use output::{
     ExitCode, FsProbe, OutputDecision, PathProbe, chosen_path, decide_output, output_file_name, resolve_without_dialog,

@@ -49,6 +49,11 @@ export function problemText(t: Translator, problem: FormProblem): string {
         return t.t('ng-ui-login-rejected');
     }
   }
+  if ('Fido2Error' in problem) {
+    // stabiler Code (`fido2-…`, FormProblem::code), Detail nur zur Diagnose
+    const { code, detail } = problem.Fido2Error;
+    return t.has(code) ? t.t(code) : t.t('ng-ui-fido2-failed', { detail: detail || code });
+  }
   if ('Fido2Failed' in problem) {
     const code = problem.Fido2Failed;
     return t.has(code) ? t.t(code) : t.t('ng-ui-fido2-failed', { detail: code });

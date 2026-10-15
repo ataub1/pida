@@ -2,6 +2,7 @@
   {
     "name": "starting",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -28,6 +29,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "step": "starting"
@@ -37,6 +40,7 @@
   {
     "name": "open_empty",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -63,6 +67,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "queue": [],
@@ -73,6 +79,7 @@
   {
     "name": "open_queue",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -99,6 +106,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "queue": [
@@ -118,8 +127,9 @@
     }
   },
   {
-    "name": "placeholder_fields",
+    "name": "loading",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -146,6 +156,207 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
+      "settings": null,
+      "step": {
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "loading"
+      }
+    }
+  },
+  {
+    "name": "warning",
+    "view": {
+      "done": [],
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "settings": null,
+      "step": {
+        "codes": [
+          "pdf-usage-rights",
+          "pdf-xfa-hybrid"
+        ],
+        "doc": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": false
+        },
+        "step": "warning"
+      }
+    }
+  },
+  {
+    "name": "open_notices_migration_done",
+    "view": {
+      "done": [
+        {
+          "id": 1,
+          "input": "/Users/demo/a.pdf",
+          "name": "a.pdf",
+          "result": {
+            "kind": "signed",
+            "output": {
+              "len": 1234,
+              "path": "/Users/demo/a_signed.pdf",
+              "sha256": "ab"
+            }
+          }
+        },
+        {
+          "id": 2,
+          "input": "/Users/demo/b.pdf",
+          "name": "b.pdf",
+          "result": {
+            "kind": "cancelled"
+          }
+        },
+        {
+          "id": 3,
+          "input": "/Users/demo/c.pdf",
+          "name": "c.pdf",
+          "result": {
+            "error": {
+              "Rejected": {
+                "class": "K5Rejected",
+                "code": "ng-document-rejected"
+              }
+            },
+            "kind": "failed"
+          }
+        }
+      ],
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": {
+        "legacy_file": "/Users/demo/.pdf-over/PDF-Over.config",
+        "plaintext_secrets": true
+      },
+      "notices": [
+        {
+          "code": "error-PositioningNotPossible",
+          "id": 1,
+          "params": {}
+        },
+        {
+          "code": "ng-config-reset-done",
+          "id": 2,
+          "params": {
+            "path": "/Users/demo/settings.toml.old"
+          }
+        }
+      ],
+      "settings": null,
+      "step": {
+        "queue": [],
+        "step": "open"
+      }
+    }
+  },
+  {
+    "name": "placeholder_fields",
+    "view": {
+      "done": [],
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "doc": {
@@ -182,6 +393,7 @@
   {
     "name": "placeholder_qr",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -208,6 +420,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "doc": {
@@ -238,6 +452,7 @@
   {
     "name": "position",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -264,6 +479,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "announce": {
@@ -309,6 +526,7 @@
   {
     "name": "position_new_page",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -335,6 +553,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "announce": {},
@@ -375,6 +595,7 @@
   {
     "name": "backend",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -401,6 +622,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "options": [
@@ -476,6 +699,7 @@
   {
     "name": "backend_privacy",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -502,6 +726,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "options": [
@@ -541,6 +767,7 @@
   {
     "name": "waiting_connecting",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -567,6 +794,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -592,6 +821,7 @@
   {
     "name": "waiting_certificate",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -618,6 +848,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -643,6 +875,7 @@
   {
     "name": "waiting_server",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -669,6 +902,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -694,6 +929,7 @@
   {
     "name": "waiting_signing",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -720,6 +956,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -745,6 +983,7 @@
   {
     "name": "waiting_document",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -771,6 +1010,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -801,6 +1042,7 @@
   {
     "name": "waiting_done",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -827,6 +1069,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -852,6 +1096,7 @@
   {
     "name": "form_login",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -878,6 +1123,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -916,6 +1163,7 @@
   {
     "name": "form_login_too_short",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -942,6 +1190,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -980,6 +1230,7 @@
   {
     "name": "form_login_too_long",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1006,6 +1257,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1044,6 +1297,7 @@
   {
     "name": "form_login_rejected",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1070,6 +1324,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1108,6 +1364,7 @@
   {
     "name": "form_login_atrust",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1134,6 +1391,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1172,8 +1431,9 @@
     }
   },
   {
-    "name": "form_sms",
+    "name": "form_login_fido2_error",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1200,6 +1460,80 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Login": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": {
+                  "Fido2Error": {
+                    "code": "fido2-timeout",
+                    "detail": "x"
+                  }
+                },
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "prefill_username": null,
+              "remember": false
+            }
+          },
+          "kind": "form",
+          "request": 2
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_sms",
+    "view": {
+      "done": [],
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1237,6 +1571,7 @@
   {
     "name": "form_sms_no_tan",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1263,6 +1598,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1300,6 +1637,7 @@
   {
     "name": "form_sms_too_long",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1326,6 +1664,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1363,6 +1703,7 @@
   {
     "name": "form_sms_reference",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1389,6 +1730,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1426,6 +1769,7 @@
   {
     "name": "form_qr",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1452,6 +1796,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1499,6 +1845,7 @@
   {
     "name": "form_qr_failed",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1525,6 +1872,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1564,6 +1913,7 @@
   {
     "name": "form_app",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1590,6 +1940,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1628,6 +1980,7 @@
   {
     "name": "form_app_no_reference",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1654,6 +2007,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1692,6 +2047,7 @@
   {
     "name": "form_fido2",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1718,6 +2074,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1755,6 +2113,7 @@
   {
     "name": "form_fido2_failed",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1781,6 +2140,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1820,6 +2181,7 @@
   {
     "name": "secret_keystore",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1846,6 +2208,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1876,6 +2240,7 @@
   {
     "name": "secret_key_retry",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1902,6 +2267,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1932,6 +2299,7 @@
   {
     "name": "secret_proxy",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1958,6 +2326,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -1986,8 +2356,9 @@
     }
   },
   {
-    "name": "notice_interstitial",
+    "name": "secret_fido2_pin",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2014,6 +2385,67 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "secret",
+          "prompt": {
+            "kind": "Fido2Pin",
+            "retry": false,
+            "subject": "keystore.p12"
+          },
+          "request": 11
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_interstitial",
+    "view": {
+      "done": [],
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2045,6 +2477,7 @@
   {
     "name": "notice_atrust_error",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2071,6 +2504,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2102,6 +2537,7 @@
   {
     "name": "notice_proxy",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2128,6 +2564,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2159,6 +2597,7 @@
   {
     "name": "notice_too_large",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2185,6 +2624,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2216,6 +2657,7 @@
   {
     "name": "notice_http",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2242,6 +2684,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2277,6 +2721,7 @@
   {
     "name": "notice_connection",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2303,6 +2748,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2334,6 +2781,7 @@
   {
     "name": "notice_local_bku",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2360,6 +2808,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2391,6 +2841,7 @@
   {
     "name": "notice_keystore_missing",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2417,6 +2868,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2448,6 +2901,7 @@
   {
     "name": "notice_alias_missing",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2474,6 +2928,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2505,6 +2961,7 @@
   {
     "name": "notice_keystore",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2531,6 +2988,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2562,6 +3021,7 @@
   {
     "name": "notice_conversion",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2588,6 +3048,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "interaction": {
@@ -2619,6 +3081,7 @@
   {
     "name": "output_saved",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -2645,11 +3108,15 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "next": null,
         "result": {
+          "ask_overwrite": null,
           "path": "/Users/demo/Vertrag_signed.pdf",
+          "save_dialog": null,
           "save_pending": false
         },
         "step": "output"
@@ -2659,6 +3126,7 @@
   {
     "name": "output_pending_next",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -2685,6 +3153,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "next": {
@@ -2704,8 +3174,103 @@
           "signed": false
         },
         "result": {
+          "ask_overwrite": null,
           "path": null,
+          "save_dialog": null,
           "save_pending": true
+        },
+        "step": "output"
+      }
+    }
+  },
+  {
+    "name": "output_ask_overwrite",
+    "view": {
+      "done": [],
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Signing"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "settings": null,
+      "step": {
+        "next": null,
+        "result": {
+          "ask_overwrite": "/Users/demo/Vertrag_signed.pdf",
+          "path": null,
+          "save_dialog": null,
+          "save_pending": false
+        },
+        "step": "output"
+      }
+    }
+  },
+  {
+    "name": "output_save_dialog",
+    "view": {
+      "done": [],
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Signing"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "settings": null,
+      "step": {
+        "next": null,
+        "result": {
+          "ask_overwrite": null,
+          "path": null,
+          "save_dialog": {
+            "directory": "/Users/demo",
+            "file_name": "Vertrag_signed.pdf"
+          },
+          "save_pending": false
         },
         "step": "output"
       }
@@ -2714,6 +3279,7 @@
   {
     "name": "error",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -2740,6 +3306,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "code": "error-MayNotBeAPDF",
@@ -2754,6 +3322,7 @@
   {
     "name": "finished",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2780,6 +3349,8 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": null,
       "step": {
         "exit_code": 4,
@@ -2790,6 +3361,7 @@
   {
     "name": "settings_open",
     "view": {
+      "done": [],
       "language": "en",
       "main_bar": {
         "settings_enabled": false,
@@ -2816,12 +3388,15 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": {
         "fido2_available": false,
         "keychain_available": true,
         "problems": {
           "proxy.host": "ng-ui-problem-required"
         },
+        "read_only": false,
         "settings": {
           "backend": {
             "default": null
@@ -2893,6 +3468,7 @@
   {
     "name": "settings_defaults",
     "view": {
+      "done": [],
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2919,10 +3495,13 @@
           }
         ]
       },
+      "migration": null,
+      "notices": [],
       "settings": {
         "fido2_available": true,
         "keychain_available": false,
         "problems": {},
+        "read_only": true,
         "settings": {
           "backend": {
             "default": null

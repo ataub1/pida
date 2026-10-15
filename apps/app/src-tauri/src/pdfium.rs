@@ -2,12 +2,13 @@
 //!
 //! Reihenfolge: Umgebungsvariable `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**: Entwicklung, Tests),
 //! Ordner der Binary, `../Frameworks` im macOS-Bundle, Ressourcenordner (auch `pdfium/` darunter).
-//! Wird nichts gefunden, entscheidet der Kern (`CoreConfig::pdfium_dir = None` → neben der
-//! Binary/System).
+//! Wird nichts gefunden ([`resolve`]), entscheidet in Debug-Builds der Kern (`CoreConfig::pdfium_dir =
+//! None` → `PDFOVER_PDFIUM_DIR`, neben der Binary, System); ein Release-Build nennt dann den Ordner der
+//! Binary, sodass der Kern ohne mitgelieferte Bibliothek ohne Vorschau startet (automatische Position).
 //!
-//! Sicherheit: Ein Release-Build lädt keine Bibliothek aus einem per Umgebungsvariable genannten
-//! Ordner, solange die mitgelieferte gefunden wird. Sonst könnte jeder, der die Umgebung der App
-//! setzen kann, Code mit den Rechten der (signierten) App ausführen – z. B. deren macOS-TCC-Freigaben
+//! Sicherheit: Ein Release-Build lädt nie eine Bibliothek aus einem per Umgebungsvariable genannten
+//! Ordner oder aus Systempfaden (`DYLD_*`, `PATH`, Homebrew). Sonst könnte jeder, der die Umgebung der
+//! App setzen kann, Code mit den Rechten der (signierten) App ausführen – z. B. deren macOS-TCC-Freigaben
 //! für Dokumente/Downloads erben (Bibliotheks-Injektion trotz Hardened Runtime).
 
 use std::path::{Path, PathBuf};
@@ -53,6 +54,13 @@ pub fn find(candidates: &[PathBuf]) -> Option<PathBuf> {
     candidates.iter().find(|dir| dir.join(library_file_name()).is_file()).cloned()
 }
 
+/// Ordner für `CoreConfig::pdfium_dir`: der erste Kandidat mit der Bibliothek; ohne Treffer in einem
+/// Release-Build (`release`) der Ordner der Binary – `pdfover-render` sucht mit einem genannten Ordner
+/// nur dort, nie in `PDFOVER_PDFIUM_DIR` oder Systempfaden (siehe Moduldoku).
+pub fn resolve(candidates: &[PathBuf], exe: Option<&Path>, release: bool) -> Option<PathBuf> {
+    find(candidates).or_else(|| if release { exe.and_then(Path::parent).map(Path::to_path_buf) } else { None })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,6 +84,23 @@ mod tests {
         assert_eq!(list.first(), Some(&env));
         assert_eq!(list.last(), Some(&root.join("pdfium")));
         assert!(find(&[root.join("nichts")]).is_none());
+    }
+
+    #[test]
+    fn release_builds_never_fall_back_to_search_paths() {
+        let root = std::env::temp_dir().join(format!("pdfover-app-pdfium-resolve-{}", std::process::id()));
+        let exe = root.join("MacOS").join("pdf-over-ng");
+        let none = [root.join("nichts")];
+        // Debug: ohne Treffer entscheidet der Kern (Umgebung, Systempfad)
+        assert_eq!(resolve(&none, Some(&exe), false), None);
+        // Release: nur der Ordner der Binary (dort fehlt sie → keine Vorschau, keine fremde Bibliothek)
+        assert_eq!(resolve(&none, Some(&exe), true), Some(root.join("MacOS")));
+        // Treffer gehen immer vor
+        let lib_dir = root.join("Frameworks");
+        std::fs::create_dir_all(&lib_dir).expect("Ordner");
+        std::fs::write(lib_dir.join(library_file_name()), b"").expect("lib");
+        assert_eq!(resolve(std::slice::from_ref(&lib_dir), Some(&exe), true), Some(lib_dir));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

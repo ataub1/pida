@@ -38,6 +38,8 @@ mod interaction;
 mod job;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
+#[cfg(feature = "ts")]
+pub mod ts_mirror;
 
 pub use cancel::CancelToken;
 pub use capabilities::{

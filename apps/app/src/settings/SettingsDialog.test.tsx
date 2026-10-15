@@ -229,6 +229,8 @@ describe('Einstellungen', () => {
     expect(mock.openedUrls).toEqual(['mailto:software@egiz.gv.at']);
     await user.click(within(dialog).getByRole('button', { name: /Log/ }));
     await waitFor(() => expect(mock.nativeCalls).toContain('openLogDir'));
+    await user.click(within(dialog).getByRole('button', { name: 'Drittlizenzen anzeigen' }));
+    await waitFor(() => expect(mock.nativeCalls).toContain('openNotices'));
     // Update-Prüfung wie in PDF-Over im Tab „Über“
     await user.click(within(dialog).getByRole('checkbox', { name: /Automatisch auf Updates überprüfen/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Speichern' }));

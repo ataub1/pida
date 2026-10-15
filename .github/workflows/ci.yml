@@ -10,6 +10,9 @@
 #   notices  THIRD-PARTY-NOTICES (cargo-about + PDFium + Fonts + Rust-std + npm) als Artefakt (Plan §10.2)
 #   mobile   cargo check für iOS und Android (blockierend für die lokal verifizierten Crates)
 #   app      Tauri-Frontend apps/app (npm ci, Lizenzprüfung, build, test) – nur wenn apps/app/package.json existiert
+#   bundle   Matrix ubuntu/macOS/Windows: Tauri-Debug-Bundle mit PDFium (und Drittlizenz-Hinweisen auf
+#            Linux/macOS), Größe in der Zusammenfassung, Startprüfung PDFOVER_SMOKE=1 (Kern + WebView),
+#            Bundle als Artefakt
 #
 # Actions sind auf Commit-SHAs gepinnt (Kommentar = Release-Tag); Toolchain und Werkzeuge exakt versioniert.
 
@@ -34,10 +37,10 @@ env:
   RUST_BACKTRACE: "1"
   RUST_TOOLCHAIN: "1.99.0"
   # Clippy läuft mit --no-deps und -D warnings für alle Crates außer diesen (für sie nur Warnungen):
-  # - pades, workflow, core-api, cli: verbliebene todo!()-Stubs (Welle 2, Pakete I1/I2),
-  # - pdf-cos, sigblock, backend-keystore: je eine bekannte dead_code-Warnung (docs/entwicklung.md §5).
-  # Nach der Integration leeren bzw. kürzen – Ziel ist eine leere Liste.
-  CLIPPY_LENIENT: "pdfover-pades pdfover-workflow pdfover-core-api pdfover-cli pdfover-pdf-cos pdfover-sigblock pdfover-backend-keystore"
+  # pades, pdf-cos, sigblock, placement (Test golden_pdfas442), backend-keystore: je eine bekannte
+  # dead_code-Warnung (docs/entwicklung.md §5; Welle 3 Track T2). workflow, core-api, cli und die
+  # Tauri-Shell sind seit Welle 3 streng geprüft. Ziel ist eine leere Liste.
+  CLIPPY_LENIENT: "pdfover-pades pdfover-pdf-cos pdfover-sigblock pdfover-placement pdfover-backend-keystore"
   CARGO_DENY_VERSION: "0.20.2"
   CARGO_ABOUT_VERSION: "0.9.2"
   NODE_VERSION: "22"
@@ -265,14 +268,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Lokal verifiziert (docs/entwicklung.md „Cross-Checks“): alle Crates außer denen, die
-          # pdfover-config (keyring → apple-native-keyring-store verlangt auf iOS das Feature `protected`) nutzen.
+          # Lokal verifiziert (docs/entwicklung.md „Cross-Checks“): seit Welle 3 auch config/workflow/core-api
+          # (keyring nur für Desktop-Targets; auf iOS/Android setzt die Mobile-Shell den SecretStore).
           - os: macos-latest
             target: aarch64-apple-ios
             crates: >-
               pdfover-java-properties pdfover-i18n pdfover-pdf-cos pdfover-pdf-incremental pdfover-cades
               pdfover-sigblock pdfover-placement pdfover-render pdfover-sl12 pdfover-backend-api pdfover-net
               pdfover-backend-keystore pdfover-backend-localbku pdfover-backend-atrust pdfover-pades
+              pdfover-config pdfover-workflow pdfover-core-api
           # Lokal ohne NDK verifiziert: alle Crates ohne ring (C-Code); mit NDK zusätzlich der Rest (unten).
           - os: ubuntu-latest
             target: aarch64-linux-android
@@ -364,3 +368,108 @@ jobs:
         if: steps.app.outputs.present == 'true'
         working-directory: apps/app
         run: npm run test --if-present
+
+  bundle:
+    name: Tauri-Debug-Bundle (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: app
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bundles: deb
+            notices: true
+          - os: macos-latest
+            bundles: app
+            notices: true
+          # Windows: Hinweise noch ohne CI-Nachweis (tools/third-party-notices.sh unter Git Bash) – Bundle ohne
+          # Hinweise, Release-Bundles verlangen sie (`npm run bundle:release`).
+          - os: windows-latest
+            bundles: nsis
+            notices: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: bundle
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: PDFium-Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/pdfium
+          key: pdfium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/pdfium.lock') }}
+      - name: PDFium laden (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: tools/fetch-pdfium.sh --github-env
+      - name: PDFium laden (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tools/fetch-pdfium.ps1 -GitHubEnv
+      - name: Tauri-Systembibliotheken und Xvfb (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev \
+            patchelf xvfb
+      - name: Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/app/package-lock.json
+      - name: npm ci
+        working-directory: apps/app
+        run: npm ci
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        if: matrix.notices
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+      - name: Drittlizenz-Hinweise (ins Bundle)
+        if: matrix.notices
+        run: tools/third-party-notices.sh --out target/notices
+      - name: Debug-Bundle (${{ matrix.bundles }}) mit PDFium
+        working-directory: apps/app
+        env:
+          REQUIRE: ${{ matrix.notices && '--require-notices' || '' }}
+        run: |
+          # shellcheck disable=SC2086 # REQUIRE ist leer oder genau ein Schalter
+          node scripts/bundle-config.mjs --require-pdfium $REQUIRE --out src-tauri/bundle.conf.json
+          npm run tauri -- build --debug --bundles ${{ matrix.bundles }} --config src-tauri/bundle.conf.json
+      - name: Größe
+        run: |
+          {
+            echo "### Debug-Bundle ${{ matrix.os }} (${{ matrix.bundles }})"
+            echo '```'
+            du -sh target/debug/bundle/*/* 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Startprüfung (Kern + WebView, PDFOVER_SMOKE=1)
+        # macOS lokal nachgewiesen (docs/integration/app-abnahme.md); Linux/Windows zunächst informativ
+        continue-on-error: ${{ runner.os != 'macOS' }}
+        timeout-minutes: 3
+        env:
+          PDFOVER_SMOKE: "1"
+        run: |
+          home="$(mktemp -d)"
+          case "$RUNNER_OS" in
+            Linux) HOME="$home" xvfb-run -a target/debug/pdf-over-ng ;;
+            macOS) HOME="$home" "target/debug/bundle/macos/PDF-Over NG.app/Contents/MacOS/pdf-over-ng" ;;
+            Windows) APPDATA="$home" LOCALAPPDATA="$home" target/debug/pdf-over-ng.exe ;;
+          esac | tee smoke.txt
+          grep -q '^pdfover-smoke: ok' smoke.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pdf-over-ng-debug-${{ matrix.os }}
+          path: target/debug/bundle/
+          if-no-files-found: error

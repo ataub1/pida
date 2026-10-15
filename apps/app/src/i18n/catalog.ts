@@ -1,8 +1,7 @@
 /**
- * Fluent-Kataloge der Oberfläche (Plan §7.5): dieselben Dateien wie Kern und CLI
- * (`crates/i18n/locales/{de,en}/pdfover.ftl` und `pdfover-ng.ftl`, zur Build-Zeit eingebunden) plus
- * die UI-Texte `src/i18n/locales/{de,en}/app.ftl` (IDs `ng-ui-*`; gemeldet als neue Meldungs-IDs,
- * die Integration übernimmt sie nach `pdfover-ng.ftl`).
+ * Fluent-Kataloge der Oberfläche (Plan §7.5): **dieselben Dateien** wie Kern und CLI
+ * (`crates/i18n/locales/{de,en}/pdfover.ftl` und `pdfover-ng.ftl`, zur Build-Zeit eingebunden). Die
+ * UI-Texte (IDs `ng-ui-*`) stehen in `pdfover-ng.ftl` – eine Quelle für alle Oberflächen.
  *
  * Semantik wie `pdfover_i18n::Catalog::format`: gewählte Sprache → DE → EN → `!id!`; Zugriffstasten
  * (`.accesskey`) ohne Sprach-Fallback; keine Unicode-Isolationszeichen.
@@ -13,20 +12,16 @@ import deCore from '@locales/de/pdfover.ftl?raw';
 import deNg from '@locales/de/pdfover-ng.ftl?raw';
 import enCore from '@locales/en/pdfover.ftl?raw';
 import enNg from '@locales/en/pdfover-ng.ftl?raw';
-import deApp from './locales/de/app.ftl?raw';
-import enApp from './locales/en/app.ftl?raw';
 
-/** Quellen je Sprache (Reihenfolge: erzeugter Katalog, eigene Texte, UI-Texte). */
+/** Quellen je Sprache (Reihenfolge: erzeugter Katalog, eigene Texte inkl. UI-Texte `ng-ui-*`). */
 export const SOURCES: Record<Lang, { name: string; text: string }[]> = {
   de: [
     { name: 'de/pdfover.ftl', text: deCore },
     { name: 'de/pdfover-ng.ftl', text: deNg },
-    { name: 'de/app.ftl', text: deApp },
   ],
   en: [
     { name: 'en/pdfover.ftl', text: enCore },
     { name: 'en/pdfover-ng.ftl', text: enNg },
-    { name: 'en/app.ftl', text: enApp },
   ],
 };
 
@@ -43,7 +38,7 @@ function buildBundle(lang: Lang, issues: CatalogIssue[]): FluentBundle {
   const bundle = new FluentBundle(lang, { useIsolating: false });
   for (const { name, text } of SOURCES[lang]) {
     const resource = new FluentResource(text);
-    // Doppelte IDs (z. B. wenn die Integration `ng-ui-*` nach pdfover-ng.ftl übernimmt): erste gewinnt.
+    // Doppelte IDs wären ein Katalogfehler (Test); zur Laufzeit gewinnt die erste.
     for (const error of bundle.addResource(resource)) {
       issues.push({ source: name, message: error.message });
     }

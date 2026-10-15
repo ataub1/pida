@@ -19,12 +19,14 @@ use pdfover_backend_api::{
 };
 use pdfover_config::{NoteSetting, Settings};
 use pdfover_core_api::{
-    BackendOptionView, BlockView, DocInfo, FieldInfo, InteractionView, MainBarView, OutputView, PrivacyNoticeView,
-    QrInfo, QueueItemView, SettingsView, StepView, UiEvent, ViewState,
+    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, InteractionView, MainBarView, MigrationOfferView,
+    NoticeView, OutputView, PrivacyNoticeView, QrInfo, QueueItemView, SaveDialogView, SettingsView, StepView, UiEvent,
+    ViewState,
 };
 use pdfover_i18n::Lang;
+use pdfover_pades::{AcceptanceClass, OutputInfo};
 use pdfover_placement::Placement;
-use pdfover_workflow::{DocId, MainBarStep, Step};
+use pdfover_workflow::{DocId, DocResult, MainBarStep, Step, WorkflowError};
 
 const VIEW_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/core/fixtures/view-states.json");
 const EVENT_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/core/fixtures/ui-events.json");
@@ -39,7 +41,15 @@ fn bar(cells: [&str; 4], settings_enabled: bool) -> MainBarView {
 }
 
 fn view(step: StepView, bar: MainBarView) -> ViewState {
-    ViewState { step, main_bar: bar, settings: None, language: Lang::De }
+    ViewState {
+        step,
+        main_bar: bar,
+        settings: None,
+        language: Lang::De,
+        notices: Vec::new(),
+        migration: None,
+        done: Vec::new(),
+    }
 }
 
 fn doc() -> DocInfo {
@@ -119,7 +129,55 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         ("starting", view(StepView::Starting, bar(["", "", "", ""], false))),
         ("open_empty", view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true))),
         ("open_queue", view(StepView::Open { queue: queue() }, bar(["AE", "", "", ""], true))),
+        ("loading", view(StepView::Loading { queue: queue() }, bar(["AE", "", "", ""], true))),
+        (
+            "warning",
+            view(
+                StepView::Warning { doc: doc(), codes: vec!["pdf-usage-rights".into(), "pdf-xfa-hybrid".into()] },
+                bar(["AE", "", "", ""], true),
+            ),
+        ),
     ];
+    // Hinweise ohne Rückfrage, Import-Angebot und abgeschlossene Dokumente (Querschnitt)
+    let mut open = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    let mut p = BTreeMap::new();
+    p.insert("path".to_owned(), "/Users/demo/settings.toml.old".to_owned());
+    open.notices = vec![
+        NoticeView { id: 1, code: "error-PositioningNotPossible".into(), params: BTreeMap::new() },
+        NoticeView { id: 2, code: "ng-config-reset-done".into(), params: p },
+    ];
+    open.migration = Some(MigrationOfferView {
+        legacy_file: PathBuf::from("/Users/demo/.pdf-over/PDF-Over.config"),
+        plaintext_secrets: true,
+    });
+    open.done = vec![
+        DoneItemView {
+            id: DocId(1),
+            name: "a.pdf".into(),
+            input: PathBuf::from("/Users/demo/a.pdf"),
+            result: DocResult::Signed {
+                output: OutputInfo { path: PathBuf::from("/Users/demo/a_signed.pdf"), len: 1234, sha256: "ab".into() },
+            },
+        },
+        DoneItemView {
+            id: DocId(2),
+            name: "b.pdf".into(),
+            input: PathBuf::from("/Users/demo/b.pdf"),
+            result: DocResult::Cancelled,
+        },
+        DoneItemView {
+            id: DocId(3),
+            name: "c.pdf".into(),
+            input: PathBuf::from("/Users/demo/c.pdf"),
+            result: DocResult::Failed {
+                error: WorkflowError::Rejected {
+                    class: AcceptanceClass::K5Rejected,
+                    code: "ng-document-rejected".into(),
+                },
+            },
+        },
+    ];
+    out.push(("open_notices_migration_done", open));
     out.push((
         "placeholder_fields",
         view(
@@ -230,6 +288,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         ("form_login_too_long", FormProblem::PasswordTooLong),
         ("form_login_rejected", FormProblem::LoginRejected),
         ("form_login_atrust", FormProblem::Atrust("Benutzer gesperrt".into())),
+        ("form_login_fido2_error", FormProblem::Fido2Error { code: "fido2-timeout".into(), detail: "x".into() }),
     ] {
         out.push((
             name,
@@ -291,6 +350,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         ("secret_keystore", SecretKind::KeystorePassword, false),
         ("secret_key_retry", SecretKind::KeyPassword, true),
         ("secret_proxy", SecretKind::ProxyPassword, false),
+        ("secret_fido2_pin", SecretKind::Fido2Pin, false),
     ] {
         out.push((
             name,
@@ -357,7 +417,12 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         "output_saved",
         view(
             StepView::Output {
-                result: OutputView { path: Some(PathBuf::from("/Users/demo/Vertrag_signed.pdf")), save_pending: false },
+                result: OutputView {
+                    path: Some(PathBuf::from("/Users/demo/Vertrag_signed.pdf")),
+                    save_pending: false,
+                    ask_overwrite: None,
+                    save_dialog: None,
+                },
                 next: None,
             },
             bar(["AE", "AE", "AE", "A"], true),
@@ -366,7 +431,43 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     out.push((
         "output_pending_next",
         view(
-            StepView::Output { result: OutputView { path: None, save_pending: true }, next: Some(doc()) },
+            StepView::Output {
+                result: OutputView { path: None, save_pending: true, ask_overwrite: None, save_dialog: None },
+                next: Some(doc()),
+            },
+            bar(["AE", "AE", "AE", "A"], true),
+        ),
+    ));
+    out.push((
+        "output_ask_overwrite",
+        view(
+            StepView::Output {
+                result: OutputView {
+                    path: None,
+                    save_pending: false,
+                    ask_overwrite: Some(PathBuf::from("/Users/demo/Vertrag_signed.pdf")),
+                    save_dialog: None,
+                },
+                next: None,
+            },
+            bar(["AE", "AE", "AE", "A"], true),
+        ),
+    ));
+    out.push((
+        "output_save_dialog",
+        view(
+            StepView::Output {
+                result: OutputView {
+                    path: None,
+                    save_pending: false,
+                    ask_overwrite: None,
+                    save_dialog: Some(SaveDialogView {
+                        directory: PathBuf::from("/Users/demo"),
+                        file_name: "Vertrag_signed.pdf".into(),
+                    }),
+                },
+                next: None,
+            },
             bar(["AE", "AE", "AE", "A"], true),
         ),
     ));
@@ -394,7 +495,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     problems.insert("proxy.host".to_owned(), "ng-ui-problem-required".to_owned());
     let mut with_settings = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], false));
     with_settings.settings =
-        Some(SettingsView { settings, problems, keychain_available: true, fido2_available: false });
+        Some(SettingsView { settings, problems, keychain_available: true, fido2_available: false, read_only: false });
     with_settings.language = Lang::En;
     out.push(("settings_open", with_settings));
     let mut defaults = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], false));
@@ -403,6 +504,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         problems: BTreeMap::new(),
         keychain_available: false,
         fido2_available: true,
+        read_only: true,
     });
     out.push(("settings_defaults", defaults));
     out
@@ -448,7 +550,19 @@ fn every_step_and_interaction_variant_is_covered() {
     let list = fixture.as_array().expect("Liste");
     let steps: std::collections::BTreeSet<&str> =
         list.iter().filter_map(|s| s["view"]["step"]["step"].as_str()).collect();
-    for step in ["starting", "open", "placeholder", "position", "backend", "signing", "output", "error", "finished"] {
+    for step in [
+        "starting",
+        "open",
+        "loading",
+        "warning",
+        "placeholder",
+        "position",
+        "backend",
+        "signing",
+        "output",
+        "error",
+        "finished",
+    ] {
         assert!(steps.contains(step), "Schritt {step} fehlt");
     }
     let kinds: std::collections::BTreeSet<&str> =
@@ -474,7 +588,7 @@ fn normalize(v: serde_json::Value) -> serde_json::Value {
 fn typescript_events_deserialize_into_ui_event() {
     let text = std::fs::read_to_string(EVENT_FIXTURE).expect("ui-events.json lesen (npm test erzeugt sie)");
     let samples: Vec<serde_json::Value> = serde_json::from_str(&text).expect("JSON-Liste");
-    assert!(samples.len() >= 27, "alle UiEvent-Varianten erwartet, gefunden {}", samples.len());
+    assert!(samples.len() >= UI_EVENT_VARIANTS, "alle UiEvent-Varianten erwartet, gefunden {}", samples.len());
     let mut types = std::collections::BTreeSet::new();
     for sample in samples {
         let event: UiEvent = serde_json::from_value(sample.clone()).unwrap_or_else(|e| panic!("{sample}: {e}"));
@@ -486,13 +600,16 @@ fn typescript_events_deserialize_into_ui_event() {
         assert!(!debug.contains("geheim-123"), "Debug enthält das Passwort: {debug}");
         assert!(!debug.contains("917253"), "Debug enthält die TAN: {debug}");
     }
-    assert_eq!(types.len(), 27, "alle 27 UiEvent-Varianten: {types:?}");
+    assert_eq!(types.len(), UI_EVENT_VARIANTS, "alle UiEvent-Varianten: {types:?}");
 }
+
+/// Anzahl der `UiEvent`-Varianten (die TS-Beispiele müssen jede abdecken).
+const UI_EVENT_VARIANTS: usize = 32;
 
 #[test]
 fn unknown_events_are_rejected() {
-    let unknown = serde_json::json!({ "type": "choose_invisible" });
-    assert!(serde_json::from_value::<UiEvent>(unknown).is_err(), "Vorschlag noch nicht im Kern");
+    let unknown = serde_json::json!({ "type": "frobnicate" });
+    assert!(serde_json::from_value::<UiEvent>(unknown).is_err(), "unbekanntes Ereignis");
     let missing = serde_json::json!({ "type": "move_block", "page": 0 });
     assert!(serde_json::from_value::<UiEvent>(missing).is_err());
 }

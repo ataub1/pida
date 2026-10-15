@@ -761,3 +761,130 @@ async fn analysis_warning_asks_before_signing() {
     assert_eq!(core.wait_finished().await, ExitCode::Success);
     assert!(core.view().notices.iter().any(|n| n.code == "pdf-usage-rights"));
 }
+
+// ------------------------------------------------------------------------------------------------
+// Zertifikats-Cache (Opt-in, Plan §4.2): ab der zweiten Signatur kein InfoboxRead; Abweichung →
+// Ergebnis verwerfen, Eintrag löschen, „Wiederholen“ liest neu
+// ------------------------------------------------------------------------------------------------
+
+const CACHE_SETTINGS: &str = "[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n\
+[id_austria]\nusername = \"+436641234567\"\n[certificate_cache]\nenabled = true\n";
+
+fn cache_key() -> pdfover_config::CertCacheKey {
+    pdfover_config::CertCacheKey::new("atrust_native", "+436641234567")
+}
+
+async fn answer_tan(core: &pdfover_core_api::Core) {
+    let v = wait_for(core, "TAN", |v| {
+        matches!(
+            &v.step,
+            StepView::Signing { interaction: InteractionView::Form { form: NativeForm::SmsTan { .. }, .. }, .. }
+        )
+    })
+    .await;
+    let StepView::Signing { interaction: InteractionView::Form { request, .. }, .. } = v.step else { unreachable!() };
+    core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn certificate_cache_skips_the_certificate_request() {
+    let fx = Fixture::new();
+    fx.write_settings(CACHE_SETTINGS);
+    let cache = pdfover_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
+    cache.put(&cache_key(), &std::fs::read(testdata("keystores/test-rsa2048.crt.der")).unwrap()).unwrap();
+    let input = fx.dir("in");
+    let out = fx.dir("out");
+    let a = copy_pdf(PDF, &input, "a.pdf");
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let overlay = Overlay { input_files: vec![a.clone()], output: Some(out.clone()), ..Overlay::default() };
+    let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    // ohne InfoboxRead (Anmeldung) direkt zur Signatur
+    answer_tan(&core).await;
+    wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
+        .await;
+    assert_eq!(fake.certificates.load(Ordering::SeqCst), 0, "Zertifikat kam aus dem Cache");
+    verify_fake_output(&out.join("a_signed.pdf"), &std::fs::read(&a).unwrap());
+    // Block mit dem Zertifikat aus dem Cache (/Name)
+    assert!(engine.last_plan().name.as_deref().is_some_and(|n| n.contains("NUR TEST")));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn certificate_cache_mismatch_discards_result_and_rereads() {
+    let fx = Fixture::new();
+    fx.write_settings(CACHE_SETTINGS);
+    let cache = pdfover_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
+    // im Cache ein anderes Zertifikat (z. B. vor der Erneuerung)
+    let other = std::fs::read(testdata("keystores/test-ecp256.crt.der")).unwrap();
+    cache.put(&cache_key(), &other).unwrap();
+    let input = fx.dir("in");
+    let out = fx.dir("out");
+    let a = copy_pdf(PDF, &input, "a.pdf");
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let overlay = Overlay { input_files: vec![a.clone()], output: Some(out.clone()), ..Overlay::default() };
+    let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    answer_tan(&core).await;
+    // Ergebnis verworfen, nichts gespeichert; Begründung mit „Wiederholen“
+    let v = wait_for(&core, "Fehler", |v| matches!(&v.step, StepView::Error { .. })).await;
+    let StepView::Error { code, retry, .. } = v.step else { unreachable!() };
+    assert_eq!(code, "ng-certcache-mismatch");
+    assert!(retry);
+    assert!(!out.join("a_signed.pdf").exists());
+    assert_eq!(cache.get(&cache_key()).unwrap(), None, "Eintrag gelöscht");
+    assert_eq!(fake.certificates.load(Ordering::SeqCst), 0);
+    // Wiederholen: Zertifikat neu lesen (Anmeldung), Block neu bauen, zweite Bestätigung
+    core.dispatch(UiEvent::Retry);
+    let v = wait_for(&core, "Login", |v| {
+        matches!(
+            &v.step,
+            StepView::Signing { interaction: InteractionView::Form { form: NativeForm::Login { .. }, .. }, .. }
+        )
+    })
+    .await;
+    let StepView::Signing { interaction: InteractionView::Form { request, .. }, .. } = v.step else { unreachable!() };
+    core.dispatch(UiEvent::SubmitForm {
+        request,
+        answer: FormAnswerView::Login { username: "+436641234567".into(), password: "geheim1".into(), remember: true },
+    });
+    answer_tan(&core).await;
+    wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
+        .await;
+    assert_eq!(fake.certificates.load(Ordering::SeqCst), 1);
+    verify_fake_output(&out.join("a_signed.pdf"), &std::fs::read(&a).unwrap());
+    // jetzt steht das bestätigte Zertifikat im Cache
+    let cached = cache.get(&cache_key()).unwrap().expect("Zertifikat im Cache");
+    assert_eq!(cached, std::fs::read(testdata("keystores/test-rsa2048.crt.der")).unwrap());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn certificate_cache_without_opt_in_stores_nothing() {
+    let fx = Fixture::new();
+    fx.write_settings(&CACHE_SETTINGS.replace("enabled = true", "enabled = false"));
+    let input = fx.dir("in");
+    let out = fx.dir("out");
+    let a = copy_pdf(PDF, &input, "a.pdf");
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let overlay = Overlay { input_files: vec![a], output: Some(out.clone()), ..Overlay::default() };
+    let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    let v = wait_for(&core, "Login", |v| {
+        matches!(
+            &v.step,
+            StepView::Signing { interaction: InteractionView::Form { form: NativeForm::Login { .. }, .. }, .. }
+        )
+    })
+    .await;
+    let StepView::Signing { interaction: InteractionView::Form { request, .. }, .. } = v.step else { unreachable!() };
+    core.dispatch(UiEvent::SubmitForm {
+        request,
+        answer: FormAnswerView::Login { username: "+436641234567".into(), password: "geheim1".into(), remember: false },
+    });
+    answer_tan(&core).await;
+    wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
+        .await;
+    assert!(!fx.paths.certificate_cache_dir().exists(), "ohne Opt-in kein Cache-Ordner");
+}

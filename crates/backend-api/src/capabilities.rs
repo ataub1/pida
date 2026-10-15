@@ -3,6 +3,7 @@
 use pdfover_cades::DigestAlg;
 
 /// Kennung eines Backends.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BackendId {
@@ -45,6 +46,7 @@ impl BackendId {
 }
 
 /// Was das Backend signiert.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SignInput {
     /// Modell B: ganzes vorbereitetes PDF mit geschwärztem `/Contents` + ExcludedByteRange.
@@ -52,11 +54,13 @@ pub enum SignInput {
     /// Modell A: Hash über die SignedAttributes.
     Digest {
         /// unterstützte Hashverfahren
+        #[cfg_attr(feature = "ts", ts(as = "Vec<crate::ts_mirror::DigestAlg>"))]
         algs: Vec<DigestAlg>,
     },
 }
 
 /// Was das Backend liefert.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SignOutput {
     /// fertiges CMS (SL `CreateCMSSignatureResponse`)
@@ -66,6 +70,7 @@ pub enum SignOutput {
 }
 
 /// Wann ein Zertifikat vorab benötigt wird.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum CertNeed {
     /// immer (Modell A, sichtbarer Block)
@@ -77,6 +82,7 @@ pub enum CertNeed {
 }
 
 /// Art der Interaktion.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Interaction {
     /// keine
@@ -96,6 +102,7 @@ pub enum Interaction {
 }
 
 /// Benötigter Server.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ServerNeed {
     /// keiner
@@ -116,6 +123,7 @@ pub enum Capture {
 }
 
 /// Qualifikation der Signatur (Anzeige).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Qualification {
     /// qualifiziert
@@ -127,6 +135,7 @@ pub enum Qualification {
 }
 
 /// Faktoren (nur Anzeige).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
 pub struct FactorSet {
     /// ID-Austria-App
@@ -142,6 +151,7 @@ pub struct FactorSet {
 }
 
 /// Fähigkeiten eines Backends in einer Umgebung.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Capabilities {
     /// Eingabe

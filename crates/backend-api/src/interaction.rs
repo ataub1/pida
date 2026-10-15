@@ -19,6 +19,7 @@ pub enum InteractionError {
 pub struct WindowHandle(pub u64);
 
 /// Validierungs- bzw. Fehlerhinweis in einer Maske (i18n-Keys aus PDF-Over).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FormProblem {
     /// `exception.PasswordTooShort` (< 5)
@@ -73,6 +74,7 @@ impl FormProblem {
 }
 
 /// Gemeinsamer Kontext der A-Trust-Masken.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct FormContext {
     /// Link „Signaturdaten anzeigen“ (`ShowSigobj.aspx`), nur wenn A-Trust ihn liefert (F-68).
@@ -88,6 +90,7 @@ pub struct FormContext {
 }
 
 /// QR-Bild (per HTTP von A-Trust geladen, R8).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct QrImage {
     /// Bildbytes (typisch PNG)
@@ -97,6 +100,7 @@ pub struct QrImage {
 }
 
 /// Native Maske (Szenario A).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum NativeForm {
     /// Anmeldung: Benutzername/Telefonnummer + Passwort (5–200), „Merken“.
@@ -188,6 +192,7 @@ impl std::fmt::Debug for FormAnswer {
 }
 
 /// Art der Passwortabfrage (Keystore, Proxy).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SecretKind {
     /// `keystore.KeystoreStorePassEntry`
@@ -203,6 +208,7 @@ pub enum SecretKind {
 }
 
 /// Passwortabfrage.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SecretPrompt {
     /// Art
@@ -214,6 +220,7 @@ pub struct SecretPrompt {
 }
 
 /// Art einer Meldung.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum NoticeKind {
     /// Info
@@ -225,6 +232,7 @@ pub enum NoticeKind {
 }
 
 /// Knöpfe einer Meldung.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum NoticeButtons {
     /// OK
@@ -236,6 +244,7 @@ pub enum NoticeButtons {
 }
 
 /// Inhalt einer Meldung (i18n über den Code; Texte von A-Trust roh in [`Notice::text`]).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum NoticeCode {
     /// `ExpiresInfo.aspx` (`#Label2`) – Info, danach weiter
@@ -265,7 +274,29 @@ pub enum NoticeCode {
     KeystoreConversionNeeded,
 }
 
+impl NoticeCode {
+    /// Stabile Meldungs-ID für die Übersetzung (ADR 0001 Regel 11): Überschrift bzw. Text der
+    /// Meldung; A-Trust-Texte kommen zusätzlich roh aus [`Notice::text`]. Die IDs stammen – soweit
+    /// vorhanden – aus PDF-Over (`atrusterror.*`, `error.*`), sonst `ng-…`/`keystore-…`.
+    pub fn code(&self) -> &'static str {
+        match self {
+            NoticeCode::AtrustInterstitial => "ng-notice-atrust-interstitial",
+            NoticeCode::AtrustError => "atrusterror-message",
+            NoticeCode::ProxyAuthRequired => "error-ProxyAuthRequired",
+            NoticeCode::DocumentTooLarge => "atrusterror-http_413",
+            NoticeCode::Http { .. } => "atrusterror-http_generic",
+            NoticeCode::ConnectionFailed => "error-FailedToConnect",
+            NoticeCode::LocalBkuNotReachable => "error-LocalBKU",
+            NoticeCode::KeystoreFileMissing => "error-KeyStoreFileNotExist",
+            NoticeCode::KeystoreAliasMissing => "error-KeyStoreAliasExist",
+            NoticeCode::KeystoreError => "error-KeyStore",
+            NoticeCode::KeystoreConversionNeeded => "keystore-conversion-needed",
+        }
+    }
+}
+
 /// Meldung.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Notice {
     /// Art
@@ -279,6 +310,7 @@ pub struct Notice {
 }
 
 /// Antwort auf eine Meldung.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum NoticeAnswer {
     /// OK
@@ -290,6 +322,7 @@ pub enum NoticeAnswer {
 }
 
 /// Fortschritt (Warte-Screen, Live-Region).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Progress {
     /// Verbindung wird aufgebaut

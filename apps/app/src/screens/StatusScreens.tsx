@@ -1,9 +1,12 @@
 /**
- * Start, Fehler mit „Wiederholen“ (docs/analyse/01 §4.10) und Programmende.
+ * Start, Laden/Analyse, Warnung der Eingangsanalyse (Plan §6.1, mit „Trotzdem signieren“/„Verwerfen“),
+ * Fehler mit „Wiederholen“ (docs/analyse/01 §4.10) und Programmende.
  */
 import { useApp } from '../app/context';
 import { IconAlert } from '../components/icons';
+import { QueuePanel } from '../components/QueuePanel';
 import { AccessButton, ScreenHeading, Spinner } from '../components/ui';
+import type { DocInfo, QueueItemView } from '../core/types';
 
 export function StartingScreen() {
   const { t } = useApp();
@@ -13,6 +16,57 @@ export function StartingScreen() {
       <p className="status-line" role="status">
         <Spinner size={22} /> {t.t('common-working')}
       </p>
+    </div>
+  );
+}
+
+/** Dokument wird geladen und analysiert (Platzhaltersuche); Abbrechen verwirft das Dokument. */
+export function LoadingScreen({ queue }: { queue: QueueItemView[] }) {
+  const { t, dispatch } = useApp();
+  const current = queue.find((q) => q.current);
+  return (
+    <div className="screen screen-loading">
+      <ScreenHeading subtitle={current?.name}>{t.t('ng-ui-open-title')}</ScreenHeading>
+      <p className="status-line" role="status">
+        <Spinner size={22} /> {t.t('ng-ui-open-analyzing')}
+      </p>
+      <div className="actions actions-start">
+        <AccessButton msg="common-Cancel" onPress={() => dispatch({ type: 'cancel' })} />
+      </div>
+      <QueuePanel queue={queue} />
+    </div>
+  );
+}
+
+/**
+ * Warnung der Eingangsanalyse mit Abbruchmöglichkeit (`/Perms /UR3`, Hybrid-XFA, unerfüllbare Seed
+ * Values): „Trotzdem signieren“ oder Dokument verwerfen (`answer_warning`).
+ */
+export function WarningScreen({ doc, codes }: { doc: DocInfo; codes: string[] }) {
+  const { t, dispatch } = useApp();
+  return (
+    <div className="screen screen-warning">
+      <ScreenHeading subtitle={doc.name}>{t.t('ng-ui-warning-title')}</ScreenHeading>
+      <div className="card warning-card" role="alert">
+        <span className="error-icon" aria-hidden="true">
+          <IconAlert size={30} />
+        </span>
+        <div>
+          <p>{t.t('ng-ui-warning-lead')}</p>
+          <ul className="warning-list">
+            {codes.map((code) => (
+              <li key={code} data-code={code}>
+                {t.code(code)}
+              </li>
+            ))}
+          </ul>
+          <p>{t.t('ng-ui-warning-question')}</p>
+        </div>
+      </div>
+      <div className="actions actions-start">
+        <AccessButton msg="ng-ui-warning-proceed" variant="primary" onPress={() => dispatch({ type: 'answer_warning', proceed: true })} />
+        <AccessButton msg="ng-ui-warning-discard" onPress={() => dispatch({ type: 'answer_warning', proceed: false })} />
+      </div>
     </div>
   );
 }

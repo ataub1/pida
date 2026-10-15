@@ -575,6 +575,7 @@ function AboutTab({ draft, update }: TabProps) {
       <section className="group">
         <div className="actions actions-start">
           <AccessButton msg="config-ShowLogDirectory" onPress={() => bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
+          <AccessButton msg="ng-ui-about-notices" onPress={() => bridge.openNotices().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
         </div>
       </section>
     </div>
@@ -661,6 +662,11 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
               <IconClose size={18} />
             </Button>
           </div>
+          {settingsView.read_only ? (
+            <p className="settings-readonly" role="note" data-testid="settings-read-only">
+              {t.t('ng-ui-settings-read-only')}
+            </p>
+          ) : null}
           {problemEntries.length > 0 ? (
             <div className="message message-error problems" role="alert" tabIndex={-1} ref={summaryRef}>
               <p>{t.t('error-InvalidSettings')}</p>

@@ -14,6 +14,7 @@ use crate::output::ExitCode;
 use crate::state::WorkflowError;
 
 /// Kennung eines Dokuments innerhalb einer Sitzung.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct DocId(pub u64);
 
@@ -39,12 +40,14 @@ impl InputDocument {
 }
 
 /// Ergebnis eines abgeschlossenen Dokuments.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DocResult {
     /// signiert und gespeichert
     Signed {
         /// Ausgabe
+        #[cfg_attr(feature = "ts", ts(as = "crate::ts_mirror::OutputInfo"))]
         output: OutputInfo,
     },
     /// von der Nutzerin verworfen bzw. abgebrochen (auch: Speichern abgelehnt)

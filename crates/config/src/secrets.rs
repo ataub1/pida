@@ -4,8 +4,11 @@
 //! auch nicht im Schlüsselbund (Vorgabe des Auftraggebers; recherche/03 §9.1).
 //!
 //! - [`KeyringSecretStore`]: macOS Keychain, Windows Credential Manager, Linux Secret Service (über
-//!   `keyring` 4, Feature `v1`). Unter iOS/Android gibt es keinen Standardspeicher; dort liefert die
-//!   Shell eine eigene [`SecretStore`]-Implementierung (Plan §3.1, `secure-store`-Plugin).
+//!   `keyring` 4, Feature `v1`; nur Desktop-Targets). Unter iOS/Android gibt es keinen Standardspeicher
+//!   und keine `keyring`-Abhängigkeit: [`KeyringSecretStore`] meldet sich dort als nicht verfügbar,
+//!   [`platform_secret_store`] liefert den Platzhalter [`MobileSecretStorePlaceholder`] (nur RAM), bis
+//!   die Mobile-Shell ihre eigene [`SecretStore`]-Implementierung über `CoreOptions::secret_store`
+//!   einsetzt (Plan §3.1, `secure-store`-Plugin).
 //! - [`MemorySecretStore`]: Speicherart „Temporär“, Rückfall ohne Schlüsselbund, Tests.
 //! - [`platform_secret_store`]: Schlüsselbund, wenn verfügbar, sonst RAM
 //!   ([`SecretStore::is_persistent`] = `false` → Hinweis `ng-secrets-not-persistent` in der UI).
@@ -18,7 +21,7 @@ use std::sync::{Arc, Mutex};
 
 use zeroize::Zeroizing;
 
-use crate::{ConfigError, Result};
+use crate::Result;
 
 /// Dienstname im Schlüsselbund.
 pub const KEYRING_SERVICE: &str = "PDF-Over NG";
@@ -133,38 +136,114 @@ impl KeyringSecretStore {
     /// Prüft, ob ein Schlüsselbund verfügbar ist (einmalige Initialisierung des Plattformspeichers,
     /// ohne Lese- oder Schreibzugriff; unter iOS/Android immer `false`).
     pub fn is_available(&self) -> bool {
-        keyring::Entry::store_status().is_ok()
+        desktop_keyring::available()
     }
-
-    fn entry(&self, id: &SecretId) -> Result<keyring::Entry> {
-        keyring::Entry::new(&self.service, &id.account()).map_err(keyring_error)
-    }
-}
-
-/// Fehlertext ohne Secret-Inhalt (keyring-Fehler enthalten keine Passwörter).
-fn keyring_error(e: keyring::Error) -> ConfigError {
-    ConfigError::Secret(e.to_string())
 }
 
 impl SecretStore for KeyringSecretStore {
     fn get(&self, id: &SecretId) -> Result<Option<Zeroizing<String>>> {
-        match self.entry(id)?.get_password() {
+        desktop_keyring::get(&self.service, &id.account())
+    }
+    fn set(&self, id: &SecretId, value: &str) -> Result<()> {
+        desktop_keyring::set(&self.service, &id.account(), value)
+    }
+    fn delete(&self, id: &SecretId) -> Result<()> {
+        desktop_keyring::delete(&self.service, &id.account())
+    }
+    fn is_persistent(&self) -> bool {
+        desktop_keyring::available()
+    }
+}
+
+/// Zugriff über `keyring` (nur Desktop-Targets).
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+mod desktop_keyring {
+    use zeroize::Zeroizing;
+
+    use crate::{ConfigError, Result};
+
+    /// Fehlertext ohne Secret-Inhalt (keyring-Fehler enthalten keine Passwörter).
+    fn keyring_error(e: keyring::Error) -> ConfigError {
+        ConfigError::Secret(e.to_string())
+    }
+
+    fn entry(service: &str, account: &str) -> Result<keyring::Entry> {
+        keyring::Entry::new(service, account).map_err(keyring_error)
+    }
+
+    pub(super) fn available() -> bool {
+        keyring::Entry::store_status().is_ok()
+    }
+
+    pub(super) fn get(service: &str, account: &str) -> Result<Option<Zeroizing<String>>> {
+        match entry(service, account)?.get_password() {
             Ok(p) => Ok(Some(Zeroizing::new(p))),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(e) => Err(keyring_error(e)),
         }
     }
-    fn set(&self, id: &SecretId, value: &str) -> Result<()> {
-        self.entry(id)?.set_password(value).map_err(keyring_error)
+
+    pub(super) fn set(service: &str, account: &str, value: &str) -> Result<()> {
+        entry(service, account)?.set_password(value).map_err(keyring_error)
     }
-    fn delete(&self, id: &SecretId) -> Result<()> {
-        match self.entry(id)?.delete_credential() {
+
+    pub(super) fn delete(service: &str, account: &str) -> Result<()> {
+        match entry(service, account)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(keyring_error(e)),
         }
     }
+}
+
+/// iOS/Android: kein `keyring` – der Speicher kommt von der Mobile-Shell ([`super::MobileSecretStorePlaceholder`]).
+#[cfg(any(target_os = "ios", target_os = "android"))]
+mod desktop_keyring {
+    use zeroize::Zeroizing;
+
+    use crate::{ConfigError, Result};
+
+    fn unavailable() -> ConfigError {
+        ConfigError::Secret("kein Schlüsselbund auf dieser Plattform (Mobile-Shell setzt den SecretStore)".into())
+    }
+
+    pub(super) fn available() -> bool {
+        false
+    }
+
+    pub(super) fn get(_service: &str, _account: &str) -> Result<Option<Zeroizing<String>>> {
+        Err(unavailable())
+    }
+
+    pub(super) fn set(_service: &str, _account: &str, _value: &str) -> Result<()> {
+        Err(unavailable())
+    }
+
+    pub(super) fn delete(_service: &str, _account: &str) -> Result<()> {
+        Err(unavailable())
+    }
+}
+
+/// Platzhalter für iOS/Android (Mobile-Welle): hält Secrets nur im RAM und meldet sich als nicht
+/// persistent (UI-Hinweis `ng-secrets-not-persistent`), bis die Mobile-Shell über
+/// `CoreOptions::secret_store` den Speicher des `secure-store`-Plugins (Keychain bzw. Android Keystore)
+/// einsetzt. Auf dem Desktop nur in Tests verwendet.
+#[derive(Debug, Default)]
+pub struct MobileSecretStorePlaceholder {
+    inner: MemorySecretStore,
+}
+
+impl SecretStore for MobileSecretStorePlaceholder {
+    fn get(&self, id: &SecretId) -> Result<Option<Zeroizing<String>>> {
+        self.inner.get(id)
+    }
+    fn set(&self, id: &SecretId, value: &str) -> Result<()> {
+        self.inner.set(id, value)
+    }
+    fn delete(&self, id: &SecretId) -> Result<()> {
+        self.inner.delete(id)
+    }
     fn is_persistent(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -220,8 +299,13 @@ impl SecretStore for MemorySecretStore {
     }
 }
 
-/// Schlüsselbund der Plattform, wenn verfügbar, sonst RAM.
+/// Schlüsselbund der Plattform, wenn verfügbar, sonst RAM. Unter iOS/Android der Platzhalter
+/// [`MobileSecretStorePlaceholder`] (die Mobile-Shell setzt ihren eigenen Speicher).
 pub fn platform_secret_store() -> Arc<dyn SecretStore> {
+    if cfg!(any(target_os = "ios", target_os = "android")) {
+        tracing::info!("Mobile: Secrets bis zum Speicher der Shell nur im RAM");
+        return Arc::new(MobileSecretStorePlaceholder::default());
+    }
     let keyring = KeyringSecretStore::new(KEYRING_SERVICE);
     if keyring.is_available() {
         Arc::new(keyring)
@@ -250,6 +334,7 @@ pub fn store_all(store: &dyn SecretStore, secrets: &[(SecretId, Zeroizing<String
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ConfigError;
 
     #[test]
     fn memory_store_roundtrip() {
@@ -357,6 +442,17 @@ mod tests {
         let failing = FailingStore { fail_on: 2, ..Default::default() };
         assert!(store_all(&failing, &secrets).is_err());
         assert!(failing.inner.is_empty());
+    }
+
+    #[test]
+    fn mobile_placeholder_keeps_secrets_in_ram_only() {
+        let store = MobileSecretStorePlaceholder::default();
+        let id = SecretId::ProxyPassword { host: "proxy".into(), user: "u".into() };
+        store.set(&id, "x").unwrap();
+        assert_eq!(store.get(&id).unwrap().as_deref().map(String::as_str), Some("x"));
+        assert!(!store.is_persistent());
+        store.delete(&id).unwrap();
+        assert_eq!(store.get(&id).unwrap(), None);
     }
 
     #[test]

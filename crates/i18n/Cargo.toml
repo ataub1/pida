@@ -8,6 +8,10 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[features]
+# TypeScript-Typen der Bridge (ts-rs, nur für `pdfover-core-api/ts`).
+ts = ["dep:ts-rs"]
+
 [dependencies]
 pdfover-java-properties = { workspace = true }
 fluent-bundle = { workspace = true }
@@ -15,6 +19,8 @@ fluent-syntax = { workspace = true }
 unic-langid = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
 # tests/code_catalog.rs liest testdata/i18n/wave1-message-ids.json

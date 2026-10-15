@@ -18,7 +18,6 @@ use crate::engine::PadesEngine;
 /// Geöffnetes Dokument. `Debug` ohne Inhalt (Regel 9).
 pub(crate) struct DocData {
     pub id: DocId,
-    pub path: PathBuf,
     pub name: String,
     pub src: Arc<SourcePdf>,
     pub report: DocReport,
@@ -41,7 +40,7 @@ impl DocData {
     pub(crate) fn new(id: DocId, path: PathBuf, src: Arc<SourcePdf>, report: DocReport) -> DocData {
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let pages = src.pages().to_vec();
-        DocData { id, path, name, src, report, pages, renderer: Mutex::new(None) }
+        DocData { id, name, src, report, pages, renderer: Mutex::new(None) }
     }
 
     /// Führt `f` mit dem (bei Bedarf geöffneten) Renderer aus.
@@ -186,7 +185,7 @@ pub(crate) struct TileCache {
     budget: usize,
     used: usize,
     order: VecDeque<TileKey>,
-    tiles: HashMap<TileKey, Arc<Vec<u8>>>,
+    tiles: HashMap<TileKey, Arc<[u8]>>,
 }
 
 impl TileCache {
@@ -194,7 +193,7 @@ impl TileCache {
         TileCache { budget, used: 0, order: VecDeque::new(), tiles: HashMap::new() }
     }
 
-    pub(crate) fn get(&mut self, key: &TileKey) -> Option<Arc<Vec<u8>>> {
+    pub(crate) fn get(&mut self, key: &TileKey) -> Option<Arc<[u8]>> {
         let v = self.tiles.get(key)?.clone();
         if let Some(pos) = self.order.iter().position(|k| k == key) {
             self.order.remove(pos);
@@ -203,7 +202,7 @@ impl TileCache {
         Some(v)
     }
 
-    pub(crate) fn put(&mut self, key: TileKey, png: Arc<Vec<u8>>) {
+    pub(crate) fn put(&mut self, key: TileKey, png: Arc<[u8]>) {
         if png.len() > self.budget {
             return;
         }
@@ -231,6 +230,7 @@ impl TileCache {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.tiles.len()
     }
@@ -260,6 +260,7 @@ impl DocStore {
     }
 
     /// Anzahl geöffneter Dokumente (Diagnose, Tests).
+    #[cfg(any(test, feature = "testing"))]
     pub(crate) fn len(&self) -> usize {
         self.docs.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len()
     }
@@ -276,7 +277,7 @@ impl DocStore {
         page: usize,
         scale: f32,
         backend: &dyn RenderBackend,
-    ) -> Result<Option<Arc<Vec<u8>>>, RenderError> {
+    ) -> Result<Option<Arc<[u8]>>, RenderError> {
         let Some(doc) = self.get(id) else { return Ok(None) };
         let scale = if scale.is_finite() && scale > 0.0 { scale.min(MAX_SCALE) } else { 1.0 };
         let key = (id, page, (scale * 1000.0).round() as u32);
@@ -290,14 +291,9 @@ impl DocStore {
         } else {
             doc.with_renderer(backend, |r| r.render_page(page, scale))??
         };
-        let png = Arc::new(pdfover_render::encode_png(&image)?);
+        let png: Arc<[u8]> = Arc::from(pdfover_render::encode_png(&image)?);
         self.tiles.lock().unwrap_or_else(std::sync::PoisonError::into_inner).put(key, png.clone());
         Ok(Some(png))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn cached_tiles(&self) -> usize {
-        self.tiles.lock().unwrap().len()
     }
 }
 
@@ -308,13 +304,13 @@ mod tests {
     #[test]
     fn lru_respects_budget() {
         let mut c = TileCache::new(10);
-        c.put((DocId(1), 0, 1000), Arc::new(vec![0; 4]));
-        c.put((DocId(1), 1, 1000), Arc::new(vec![0; 4]));
+        c.put((DocId(1), 0, 1000), Arc::from(vec![0u8; 4]));
+        c.put((DocId(1), 1, 1000), Arc::from(vec![0u8; 4]));
         assert!(c.get(&(DocId(1), 0, 1000)).is_some()); // 0 zuletzt benutzt
-        c.put((DocId(1), 2, 1000), Arc::new(vec![0; 4]));
+        c.put((DocId(1), 2, 1000), Arc::from(vec![0u8; 4]));
         assert!(c.get(&(DocId(1), 1, 1000)).is_none(), "ältester Eintrag verdrängt");
         assert!(c.get(&(DocId(1), 0, 1000)).is_some());
-        c.put((DocId(2), 0, 1000), Arc::new(vec![0; 11]));
+        c.put((DocId(2), 0, 1000), Arc::from(vec![0u8; 11]));
         assert!(c.get(&(DocId(2), 0, 1000)).is_none(), "größer als Budget");
         c.purge(DocId(1));
         assert_eq!(c.len(), 0);

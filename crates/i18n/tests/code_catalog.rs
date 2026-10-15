@@ -8,9 +8,10 @@
 //!   - jedes Literal, das wie ein Code einer bekannten Familie aussieht (`cms-…`, `backend-…`,
 //!     `render.…` …, siehe [`is_family_code`]).
 //! - Codes mit Punkt werden wie Java-Keys abgebildet (`fluent_id_for_java_key`: `.` → `-`).
-//! - `NoticeCode`/`FormProblem` (backend-api) tragen keinen Code-String; ihre Zuordnung zu
-//!   Katalog-IDs steht hier ([`NOTICE_CODE_IDS`], [`FORM_PROBLEM_IDS`]) und muss jede Variante abdecken.
+//! - `NoticeCode::code`/`FormProblem::code` (backend-api) bilden jede Variante ohne Platzhalter-Arm
+//!   (`_ =>`) ab; die gelieferten IDs prüft der Quelltext-Scanner wie alle anderen Codes.
 //! - Die Welle-1-Liste `testdata/i18n/wave1-message-ids.json` (108 IDs, DE/EN) steht wortgleich im Katalog.
+//! - Die Welle-2-Liste `docs/integration/wave2-message-ids.json` (274 IDs, DE/EN) steht im Katalog.
 //! - IDs in `t!(…, "id")`/`translate(…, "id")` existieren.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -21,41 +22,12 @@ use pdfover_i18n::{ArgValue, BUILTIN_SOURCES, Catalog, Lang, fluent_id_for_java_
 
 const WORKSPACE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
 const WAVE1_IDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/i18n/wave1-message-ids.json");
+const WAVE2_IDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/integration/wave2-message-ids.json");
 
 /// Literale, die wie Codes aussehen, aber keine Meldungen sind (mit Fundstelle).
 const NOT_MESSAGE_CODES: &[(&str, &str)] = &[
     ("atrust-native", "config::certcache – Backend-Kennung im Cache-Schlüssel"),
     ("pdf-over-ng", "config::paths – Ordnername unter Linux"),
-];
-
-/// `pdfover_backend_api::NoticeCode` → Katalog-ID (Überschrift bzw. Text der Meldung; A-Trust-Texte
-/// kommen roh aus `Notice::text`).
-const NOTICE_CODE_IDS: &[(&str, &str)] = &[
-    ("AtrustInterstitial", "ng-notice-atrust-interstitial"),
-    ("AtrustError", "atrusterror-message"),
-    ("ProxyAuthRequired", "error-ProxyAuthRequired"),
-    ("DocumentTooLarge", "atrusterror-http_413"),
-    ("Http", "atrusterror-http_generic"),
-    ("ConnectionFailed", "error-FailedToConnect"),
-    ("LocalBkuNotReachable", "error-LocalBKU"),
-    ("KeystoreFileMissing", "error-KeyStoreFileNotExist"),
-    ("KeystoreAliasMissing", "error-KeyStoreAliasExist"),
-    ("KeystoreError", "error-KeyStore"),
-    ("KeystoreConversionNeeded", "keystore-conversion-needed"),
-];
-
-/// `pdfover_backend_api::FormProblem` → Katalog-ID. `Fido2Failed` trägt den Detailcode von
-/// `Fido2Error::code` (`fido2-…`); ohne Code gilt `backend-fido2`.
-const FORM_PROBLEM_IDS: &[(&str, &str)] = &[
-    ("PasswordTooShort", "exception-PasswordTooShort"),
-    ("PasswordTooLong", "exception-PasswordTooLong"),
-    ("NoTan", "error-NoTan"),
-    ("TanTooLong", "error-TanTooLong"),
-    ("EnteredReferenceValue", "error-EnteredReferenceValue"),
-    ("QrImageFailed", "error-FailedToLoadQRCode"),
-    ("Fido2Failed", "backend-fido2"),
-    ("LoginRejected", "ng-form-login-rejected"),
-    ("Atrust", "atrusterror-message"),
 ];
 
 // --- Quelltexte -----------------------------------------------------------------------------------
@@ -505,28 +477,40 @@ fn de_and_en_use_the_same_variables() {
 }
 
 #[test]
-fn notice_and_form_variants_are_mapped() {
+fn notice_and_form_variants_have_codes() {
     let src =
         std::fs::read_to_string(workspace().join("crates/backend-api/src/interaction.rs")).expect("interaction.rs");
-    let catalog = Catalog::builtin().unwrap();
     let mut problems = Vec::new();
-    for (enum_name, table) in [("NoticeCode", NOTICE_CODE_IDS), ("FormProblem", FORM_PROBLEM_IDS)] {
+    for enum_name in ["NoticeCode", "FormProblem"] {
         let variants = enum_variants(&src, enum_name);
         assert!(variants.len() >= 5, "{enum_name}: nur {variants:?}");
-        let mapped: BTreeSet<&str> = table.iter().map(|(v, _)| *v).collect();
-        for v in &variants {
-            if !mapped.contains(v.as_str()) {
-                problems.push(format!("{enum_name}::{v} ohne Katalog-ID (Tabelle in code_catalog.rs ergänzen)"));
-            }
+        let Some(body) = code_fn_body(&src, enum_name) else {
+            problems.push(format!("impl {enum_name} {{ fn code(…) }} fehlt"));
+            continue;
+        };
+        if body.contains("_ =>") {
+            problems.push(format!("{enum_name}::code: Platzhalter-Arm `_ =>` – jede Variante einzeln abbilden"));
         }
-        for (v, id) in table {
-            if !variants.iter().any(|x| x == v) {
-                problems.push(format!("{enum_name}::{v} existiert nicht mehr (Tabelle bereinigen)"));
+        for v in &variants {
+            if !body.contains(&format!("{enum_name}::{v}")) {
+                problems.push(format!("{enum_name}::{v} fehlt in {enum_name}::code"));
             }
-            problems.extend(assert_in_both_languages(&catalog, id, &format!("{enum_name}::{v}")));
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Rumpf von `fn code` im `impl <name> {`-Block (die Varianten stehen als `Name::Variante` darin).
+fn code_fn_body(src: &str, name: &str) -> Option<String> {
+    let lexed = lex(src);
+    let mask = String::from_utf8_lossy(&lexed.mask).into_owned();
+    let start = mask.find(&format!("impl {name} {{"))?;
+    let impl_open = start + mask[start..].find('{')?;
+    let impl_close = matching(&lexed.mask, impl_open, (b'{', b'}'));
+    let fn_pos = impl_open + mask[impl_open..impl_close].find("fn code(")?;
+    let body_open = fn_pos + mask[fn_pos..].find('{')?;
+    let body_close = matching(&lexed.mask, body_open, (b'{', b'}'));
+    Some(src[body_open..=body_close.min(src.len() - 1)].to_owned())
 }
 
 /// Varianten eines (rustfmt-formatierten) Enums: Bezeichner mit genau vier Leerzeichen Einzug.
@@ -666,6 +650,43 @@ fn translate_calls_use_existing_ids() {
             let rel = file.strip_prefix(&root).unwrap_or(&file).display().to_string();
             let line = src[..pos].matches('\n').count() + 1;
             problems.extend(assert_in_both_languages(&catalog, &id, &format!("{rel}:{line}")));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Welle 2 (Integration, 274 IDs): jede ID steht in DE und EN mit den Variablen des Berichts (die
+/// Texte dürfen nach Review angepasst sein).
+#[test]
+fn wave2_message_ids_are_in_catalog() {
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        id: String,
+        de: String,
+        en: String,
+    }
+    let Ok(text) = std::fs::read_to_string(WAVE2_IDS) else {
+        eprintln!("docs/integration/wave2-message-ids.json fehlt – übersprungen");
+        return;
+    };
+    let entries: Vec<Entry> = serde_json::from_str(&text).expect("JSON");
+    assert!(entries.len() >= 274, "Welle-2-Liste: {}", entries.len());
+    let catalog = Catalog::builtin().unwrap();
+    let vars = [(Lang::De, ftl_variables(Lang::De)), (Lang::En, ftl_variables(Lang::En))];
+    let mut problems = Vec::new();
+    for e in &entries {
+        let id = fluent_id_for_java_key(&e.id);
+        for ((lang, catalog_vars), text) in vars.iter().zip([&e.de, &e.en]) {
+            if !catalog.has(*lang, &id) {
+                problems.push(format!("{id} fehlt in {}", lang.tag()));
+                continue;
+            }
+            let (_, names) = substitute_placeholders(text);
+            let expected: BTreeSet<String> = names.into_iter().collect();
+            let actual = catalog_vars.get(&id).cloned().unwrap_or_default();
+            if expected != actual {
+                problems.push(format!("{id} ({}): Variablen {actual:?} ≠ {expected:?}", lang.tag()));
+            }
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));

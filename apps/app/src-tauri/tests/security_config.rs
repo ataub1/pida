@@ -37,6 +37,7 @@ fn capabilities_are_minimal() {
         "allow-app-info",
         "allow-open-log-dir",
         "allow-reveal-output",
+        "allow-open-notices",
         "dialog:allow-open",
         "dialog:allow-save",
         "opener:allow-open-url",

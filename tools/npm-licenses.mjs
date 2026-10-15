@@ -35,6 +35,14 @@ const ALLOW_BUILD_ONLY = new Set([
   "Unlicense", "Unicode-DFS-2016", "WTFPL", "Artistic-2.0",
 ]);
 
+// Ausnahmen je Paket (wie `[licenses].exceptions` in deny.toml): nur für genau dieses Paket, mit
+// Begründung. Neue Einträge nur per Review.
+const RUNTIME_EXCEPTIONS = new Map([
+  // tslib (Laufzeit-Helfer von @swc/helpers und aria-hidden über react-aria-components): 0BSD ist
+  // gemeinfrei-nah (keine Bedingungen, nicht einmal Namensnennung) – permissiver als MIT.
+  ["tslib", new Set(["0BSD"])],
+]);
+
 function usage(code) {
   console.error("Aufruf: node tools/npm-licenses.mjs <package-lock.json> [--notices <datei.md>]");
   console.error("        node tools/npm-licenses.mjs --self-test");
@@ -141,7 +149,8 @@ function licenseFiles(dir) {
 function checkPackages(pkgs) {
   const problems = [];
   for (const p of pkgs) {
-    const allow = p.dev ? ALLOW_BUILD_ONLY : ALLOW_RUNTIME;
+    const extra = p.dev ? null : RUNTIME_EXCEPTIONS.get(p.name);
+    const allow = p.dev ? ALLOW_BUILD_ONLY : extra ? new Set([...ALLOW_RUNTIME, ...extra]) : ALLOW_RUNTIME;
     if (!licenseOk(p.license, allow)) {
       problems.push(`${p.name}@${p.version} (${p.dev ? "Build" : "Laufzeit"}): ${p.license ?? "keine Lizenzangabe"}`);
     }
@@ -190,6 +199,8 @@ function selfTest() {
         "node_modules/optional-cc": { version: "1.0.0", license: "CC-BY-4.0", devOptional: true },
         "node_modules/a/node_modules/nested-gpl": { version: "2.0.0", license: "GPL-3.0-only" },
         "node_modules/legacy": { version: "0.1.0", licenses: [{ type: "MIT" }, { type: "Apache-2.0" }] },
+        "node_modules/tslib": { version: "2.8.1", license: "0BSD" },
+        "node_modules/other-0bsd": { version: "1.0.0", license: "0BSD" },
       },
     };
     const lockPath = path.join(dir, "package-lock.json");
@@ -200,7 +211,7 @@ function selfTest() {
     expect("dev ist Build-Werkzeug", pkgs.find((p) => p.name === "build-cc")?.dev, true);
     expect("Name verschachtelter Pakete", pkgs.some((p) => p.name === "nested-gpl"), true);
     const problems = checkPackages(pkgs).map((p) => p.split("@")[0]).sort().join(",");
-    expect("Befunde", problems, "nested-gpl,optional-cc");
+    expect("Befunde", problems, "nested-gpl,optional-cc,other-0bsd");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -249,8 +260,29 @@ function main() {
       const inside = !path.relative(root, dir).startsWith("..") && !path.isAbsolute(path.relative(root, dir));
       const files = inside ? licenseFiles(dir) : [];
       if (files.length === 0) {
-        withoutText += 1;
-        lines.push("_(Lizenztext nicht installiert – `npm ci` ausführen)_", "");
+        // Paket ohne Lizenzdatei (z. B. @fluent/bundle, client-only): Urheber aus package.json und
+        // Verweis auf den Standardtext der SPDX-Lizenz (MIT/Apache-2.0 stehen im Abschnitt
+        // „Rust-Standardbibliothek“). Ist das Paket gar nicht installiert, fehlt auch package.json.
+        let meta = null;
+        try {
+          meta = inside ? JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")) : null;
+        } catch {
+          meta = null;
+        }
+        if (meta) {
+          const author = typeof meta.author === "string" ? meta.author : meta.author?.name;
+          const repo = typeof meta.repository === "string" ? meta.repository : meta.repository?.url;
+          if (author) lines.push(`Copyright: ${author}`, "");
+          if (repo) lines.push(`Quelle (source): ${repo}`, "");
+          lines.push(
+            `_Das Paket enthält keinen Lizenztext; es gilt der Standardtext der Lizenz ${p.license ?? "?"} ` +
+              `(siehe https://spdx.org/licenses/; MIT und Apache-2.0 im Abschnitt „Rust-Standardbibliothek“)._`,
+            "",
+          );
+        } else {
+          withoutText += 1;
+          lines.push("_(Lizenztext nicht installiert – `npm ci` ausführen)_", "");
+        }
       }
       for (const f of files) {
         lines.push("~~~~text", fs.readFileSync(f, "utf8").replace(/\s+$/, ""), "~~~~", "");

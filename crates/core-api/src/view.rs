@@ -9,6 +9,7 @@ use pdfover_workflow::{DocId, DocResult, MainBarStep, PlaceholderAnswer, Step};
 
 /// Hinweis ohne Rückfrage (i18n-ID mit Parametern), z. B. `error-PositioningNotPossible`,
 /// `placement.notice.*`, `ng-config-reset-done`. Die UI schließt ihn mit [`UiEvent::DismissNotice`].
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NoticeView {
     /// Kennung
@@ -20,6 +21,7 @@ pub struct NoticeView {
 }
 
 /// Speichern-Dialog (F-83/F-86): Startordner und Namensvorschlag.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SaveDialogView {
     /// Startordner
@@ -29,13 +31,19 @@ pub struct SaveDialogView {
 }
 
 /// Angebot, die Einstellungen aus `~/.pdf-over` zu übernehmen (Plan §7.2, einmalig).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MigrationOfferView {
     /// gefundene `PDF-Over.config`
     pub legacy_file: PathBuf,
+    /// die Altdatei enthält Klartext-Passwörter (Keystore/Proxy): Zustimmung zum Übernehmen in den
+    /// Schlüsselbund erfragen (`UiEvent::AcceptMigration::store_secrets`)
+    #[serde(default)]
+    pub plaintext_secrets: bool,
 }
 
 /// Abgeschlossenes Dokument (Warteschlangen-Panel, CLI-Ergebnis).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DoneItemView {
     /// Kennung
@@ -49,6 +57,7 @@ pub struct DoneItemView {
 }
 
 /// Dokument (Anzeige).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DocInfo {
     /// Kennung
@@ -64,6 +73,7 @@ pub struct DocInfo {
 }
 
 /// Eintrag der Warteschlange.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct QueueItemView {
     /// Kennung
@@ -75,6 +85,7 @@ pub struct QueueItemView {
 }
 
 /// Leeres Feld (Auswahlliste).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FieldInfo {
     /// qualifizierter Name
@@ -84,6 +95,7 @@ pub struct FieldInfo {
 }
 
 /// QR-Platzhalter.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct QrInfo {
     /// Seite
@@ -93,6 +105,7 @@ pub struct QrInfo {
 }
 
 /// Blockgröße und Vorschau.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BlockView {
     /// Breite in pt
@@ -104,6 +117,7 @@ pub struct BlockView {
 }
 
 /// Backend-Option.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BackendOptionView {
     /// Backend
@@ -115,6 +129,7 @@ pub struct BackendOptionView {
 }
 
 /// Datenschutzhinweis.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PrivacyNoticeView {
     /// Backend
@@ -126,6 +141,7 @@ pub struct PrivacyNoticeView {
 }
 
 /// Interaktion während des Signierens.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum InteractionView {
@@ -158,6 +174,7 @@ pub enum InteractionView {
 }
 
 /// Ergebnis.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OutputView {
     /// gespeichert unter
@@ -173,6 +190,7 @@ pub struct OutputView {
 }
 
 /// Hauptleiste.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MainBarView {
     /// Schritte
@@ -182,6 +200,7 @@ pub struct MainBarView {
 }
 
 /// Schritt-spezifische Sicht.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "step", rename_all = "snake_case")]
 pub enum StepView {
@@ -223,10 +242,12 @@ pub enum StepView {
         /// Block
         block: BlockView,
         /// Position (PAGE_ABS, linke obere Ecke)
+        #[cfg_attr(feature = "ts", ts(as = "crate::ts::Placement"))]
         placement: pdfover_placement::Placement,
         /// virtuelle neue Seite
         new_page: bool,
-        /// Live-Region-Text-Parameter (Seite, mm von links/unten)
+        /// Parameter des Live-Region-Texts `ng-ui-position-announce`: `page`, `pages`, `left` (mm von
+        /// links), `bottom` (mm der Blockunterkante von unten), ganzzahlig
         announce: BTreeMap<String, String>,
     },
     /// Backend-Auswahl
@@ -267,11 +288,14 @@ pub enum StepView {
 }
 
 /// Einstellungen (Overlay über jedem Schritt).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SettingsView {
     /// Einstellungen (Schema `pdfover-config`)
+    #[cfg_attr(feature = "ts", ts(as = "crate::ts::Settings"))]
     pub settings: pdfover_config::Settings,
-    /// Validierungsprobleme je Feld (i18n-IDs)
+    /// Validierungsprobleme je Feld: Schlüssel = TOML-Punktpfad des Felds (`proxy.host`,
+    /// `output.folder`, `keystore.file` …), Wert = i18n-ID
     pub problems: BTreeMap<String, String>,
     /// Schlüsselbund verfügbar
     pub keychain_available: bool,
@@ -283,6 +307,7 @@ pub struct SettingsView {
 }
 
 /// Gesamtzustand für die UI.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ViewState {
     /// Schritt
@@ -306,6 +331,7 @@ pub struct ViewState {
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
 /// überführt und nie geloggt).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FormAnswerView {
@@ -352,6 +378,7 @@ impl std::fmt::Debug for FormAnswerView {
 }
 
 /// UI-Ereignis.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UiEvent {
@@ -404,6 +431,9 @@ pub enum UiEvent {
     AutoPlace,
     /// Position bestätigen
     ConfirmPosition,
+    /// „Unsichtbar signieren“ im Positionierungsschritt: dieses Dokument ohne sichtbaren Block
+    /// (`PositionChoice::Invisible`, NG-Ergänzung; das Profil bleibt unverändert)
+    ChooseInvisible,
     /// Backend wählen
     ChooseBackend {
         /// Backend
@@ -467,6 +497,7 @@ pub enum UiEvent {
     /// Einstellungen speichern
     SaveSettings {
         /// neue Einstellungen
+        #[cfg_attr(feature = "ts", ts(as = "crate::ts::Settings"))]
         settings: Box<pdfover_config::Settings>,
     },
     /// Einstellungen schließen (verwerfen)

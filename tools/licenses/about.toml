@@ -44,3 +44,8 @@ private = { ignore = true }
 
 # Bekannte Paketierungslücken (Lizenzdateien ohne erkennbaren SPDX-Text), von cargo-about gepflegt.
 workarounds = ["ring", "rustls"]
+
+# target-lexicon 0.12: Build-Abhängigkeit von cfg-expr/system-deps (gtk-rs-sys über Tauri, nur Linux);
+# Apache-2.0 mit LLVM-Ausnahme (permissiver als Apache-2.0). Wie die Ausnahme in deny.toml.
+[target-lexicon]
+accepted = ["Apache-2.0 WITH LLVM-exception"]

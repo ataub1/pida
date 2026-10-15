@@ -223,7 +223,6 @@ fn headless_without_pades_fails_cleanly_or_signs() {
 }
 
 #[test]
-#[ignore = "braucht pades (I1)"]
 fn headless_keystore_signing_with_real_engine() {
     let h = Home::new();
     let a = h.pdf("a.pdf");

@@ -35,8 +35,7 @@ members = [
     "crates/core-api",
     # Anwendungen
     "apps/cli",
-    "apps/app/src-tauri",
-    # "apps/app/src-tauri",   # Tauri-2-Shell (Desktop + Mobile); wird erst in der Integration angelegt (ADR 0001 §3)
+    "apps/app/src-tauri",   # Tauri-2-Shell (Desktop; Mobile folgt), ADR 0001 §3
 ]
 
 [workspace.package]
@@ -72,6 +71,8 @@ pdfover-net = { path = "crates/net" }
 pdfover-workflow = { path = "crates/workflow" }
 pdfover-config = { path = "crates/config" }
 pdfover-core-api = { path = "crates/core-api" }
+# Argument-Parser von PDF-Over (auch für die GUI-Shell); `features = ["run"]` = Ablauf der CLI.
+pdfover-cli = { path = "apps/cli", default-features = false }
 
 # --- PDF ------------------------------------------------------------------------------------------
 # Plan §2.1/§2.5: lopdf 0.45.x nur als Parser/Objektmodell (gekapselt in pdf-cos); kein rayon/chrono-clock,
@@ -156,6 +157,28 @@ clap = { version = "4.6.7", features = ["derive", "wrap_help"] }
 fluent-bundle = "0.16.0"
 fluent-syntax = "0.12.0"
 unic-langid = { version = "0.9.6", features = ["macros"] }
+
+# --- Anwendungen (Welle 3: aus den Crate-Manifesten gehoben) ---------------------------------------
+# Logdatei mit Rotation (core-api, Plan §7.1). MIT.
+tracing-appender = "=0.2.5"
+# Verdeckte Eingabe im Terminal (CLI). Apache-2.0.
+rpassword = "=7.5.4"
+# Tauri 2.12.x exakt gepinnt (Plan §2.1/§2.5); Apache-2.0 OR MIT.
+tauri = { version = "=2.12.4", features = [] }
+tauri-build = { version = "=2.7.3", features = [] }
+tauri-plugin-dialog = "=2.8.3"
+tauri-plugin-opener = "=2.7.2"
+tauri-plugin-single-instance = "=2.5.4"
+tauri-plugin-window-state = "=2.5.0"
+# Eigene Benutzerkennung (geteuid ohne unsafe) für die Prüfung des Single-Instance-Sockets unter macOS
+# (apps/app/src-tauri/src/instance.rs). Bereits im Abhängigkeitsbaum; Apache-2.0 WITH LLVM-exception OR
+# Apache-2.0 OR MIT.
+rustix = { version = "=1.1.5", default-features = false, features = ["std", "process"] }
+# OS-Sprache der Shell (`Lang::set_system`). MIT OR Apache-2.0.
+sys-locale = "=0.3.2"
+# TypeScript-Typen der Bridge aus Rust (Feature `ts` in backend-api, i18n, workflow, core-api; nur
+# Build-/Testzeit, nicht in der ausgelieferten App). ts-rs 12.0.1 (31.01.2026), MIT.
+ts-rs = { version = "=12.0.1", default-features = false, features = ["serde-compat", "no-serde-warnings"] }
 
 # --- nur Tests ------------------------------------------------------------------------------------
 tempfile = "3.27.0"
