@@ -1,0 +1,275 @@
+/*
+ * Mock-Seiten und Signaturblock. Maße in px entsprechen pt der Seite (1 px = 1 pt), gezoomt wird per
+ * `transform: scale()` – Schriftgrößen müssen zu `DOC_FONT` in `src/model/documents.ts` passen.
+ */
+.mock-page-box {
+  position: relative;
+  overflow: hidden;
+  background: var(--c-page);
+  filter: var(--page-filter);
+}
+.mock-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  color: var(--c-page-text);
+  font-family: var(--font-doc);
+  -webkit-font-smoothing: antialiased;
+}
+.doc-block {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+}
+.doc-letterhead {
+  border-bottom: 0.8px solid var(--c-page-rule);
+}
+.doc-org {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.01em;
+}
+.doc-org-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 2.5px;
+  background: #24496e;
+  box-shadow: 3px 3px 0 -1px #8fb0cf;
+}
+.doc-small {
+  font-size: 7px;
+  line-height: 11px;
+  color: var(--c-page-muted);
+}
+.doc-title {
+  font-size: 19px;
+  line-height: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.doc-subtitle {
+  font-size: 8.5px;
+  line-height: 13px;
+  color: var(--c-page-muted);
+}
+.doc-heading {
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 700;
+}
+.doc-para {
+  font-size: 9px;
+  line-height: 13px;
+  text-align: justify;
+  hyphens: auto;
+}
+.doc-list {
+  font-size: 9px;
+  line-height: 13px;
+  padding-left: 16px;
+  list-style: disc;
+}
+.doc-list li {
+  margin-bottom: 3px;
+}
+.doc-parties {
+  font-size: 9px;
+  line-height: 14px;
+}
+.doc-parties-strong {
+  font-weight: 600;
+}
+.doc-parties-muted {
+  color: var(--c-page-muted);
+  font-style: italic;
+}
+.doc-table {
+  border-collapse: collapse;
+  font-size: 8.5px;
+  table-layout: fixed;
+}
+.doc-table th {
+  height: 22px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--c-page-text);
+  text-align: left;
+  font-weight: 700;
+}
+.doc-table td {
+  height: 19px;
+  padding: 0 6px;
+  border-bottom: 0.6px solid var(--c-page-rule);
+}
+.doc-table th:first-child,
+.doc-table td:first-child {
+  width: 55%;
+  padding-left: 0;
+}
+.doc-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-right: 0;
+}
+.doc-table tr.total td {
+  font-weight: 700;
+  border-top: 1px solid var(--c-page-text);
+  border-bottom: 0;
+}
+.doc-form {
+  display: grid;
+}
+.doc-form-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: end;
+  height: 24px;
+  padding-bottom: 3px;
+  border-bottom: 0.6px solid var(--c-page-rule);
+  font-size: 9px;
+}
+.doc-form-label {
+  font-size: 7.5px;
+  color: var(--c-page-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.doc-sigline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  font-size: 8.5px;
+}
+.doc-sigline-col {
+  display: grid;
+  gap: 3px;
+}
+.doc-sigline-place {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+}
+.doc-sigline-blank {
+  flex: 1;
+  border-bottom: 0.6px dotted var(--c-page-muted);
+  height: 9px;
+}
+.doc-sigline-line {
+  margin-top: 16px;
+  border-top: 0.8px solid var(--c-page-text);
+}
+.doc-sigline-who {
+  font-size: 7.5px;
+  color: var(--c-page-muted);
+}
+.doc-footer {
+  font-size: 7px;
+  line-height: 12px;
+  color: var(--c-page-muted);
+  text-align: center;
+}
+.doc-signature {
+  border-radius: 1px;
+  transition: box-shadow var(--dur-2) var(--ease-out);
+}
+.doc-signature.is-highlighted {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px var(--c-focus);
+}
+
+/* ------------------------------------------------------------ Signaturblock */
+.sb-outer {
+  position: relative;
+  flex: none;
+}
+.sb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  transform-origin: 0 0;
+  background: #ffffff;
+  color: #1a1d22;
+  border: 0.7px solid #6b7480;
+  font-family: var(--font-doc);
+  overflow: hidden;
+}
+.sb-main {
+  display: grid;
+  grid-template-columns: 42px 52px minmax(0, 1fr);
+}
+.sb-amt .sb-main {
+  grid-template-columns: 62px 72px minmax(0, 1fr);
+}
+.sb-emblem {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border-right: 0.6px solid #9aa1ab;
+  min-height: 0;
+}
+.sb-emblem > svg,
+.sb-logo-img {
+  width: 100%;
+  height: 100%;
+  max-height: 40px;
+  object-fit: contain;
+}
+.sb-amt .sb-emblem > svg,
+.sb-amt .sb-logo-img {
+  max-height: 56px;
+}
+.sb-row {
+  display: contents;
+}
+.sb-caption {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 1px 3px;
+  border-right: 0.5px solid #c3c8cf;
+  border-bottom: 0.5px solid #c3c8cf;
+  font-size: 5px;
+  line-height: 1.2;
+  font-weight: 700;
+  text-align: right;
+}
+.sb-value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 1px 3px;
+  border-bottom: 0.5px solid #c3c8cf;
+  font-family: var(--font-mono);
+  font-size: 5px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sb-value-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sb-note {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  border-top: 0.6px solid #9aa1ab;
+}
+.sb-amt .sb-note {
+  grid-template-columns: 62px minmax(0, 1fr);
+}
+.sb-note .sb-caption,
+.sb-note .sb-value {
+  border-bottom: 0;
+  align-items: center;
+}
+.sb-note .sb-value {
+  font-size: 4.6px;
+}
