@@ -109,7 +109,7 @@ mit Fehler (z. B. Kennwort) blockieren den Stapel nicht; sie lassen sich einzeln
 | Abbruch durch Nutzer | Karte schließt, Toast „es wurde nichts signiert“ | – |
 
 Fehlerkarten nennen nie Stacktraces im Fließtext; Codes stehen in aufklappbaren „Technischen Details“ und
-entsprechen den stabilen Fehlercodes der Crates (`crates/i18n/locales/*/pdfover-ng.ftl`).
+entsprechen den stabilen Fehlercodes der Crates (`crates/i18n/locales/*/pida.ftl`).
 
 ### 4.5 Prüfmodus
 
@@ -274,7 +274,7 @@ Statuskarte über dem Arbeitsbereich, `output` als „Fertig“ (bzw. Toast bei 
 
 - Seiten sind HTML-Mock-Seiten; in `apps/app` liefert PDFium Bitmaps (Miniaturen in niedriger Auflösung,
   Seiten im sichtbaren Bereich nachladen).
-- Freie Flächen/Überdeckung rechnet der Prototyp selbst; in der App kommen sie aus `pdfover_placement`.
+- Freie Flächen/Überdeckung rechnet der Prototyp selbst; in der App kommen sie aus `pida_placement`.
 - Der Stapel bestätigt einmal in der App; ob A-Trust je Dokument eine eigene Bestätigung verlangt
   (`max_batch: 1`, `login_once_per_batch`), muss die Statuskarte dann pro Dokument zeigen („2 von 3 bestätigen“).
 - Keystore- und Bürgerkartenweg sind bewusst knapp.
