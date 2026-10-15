@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    PIDA – App-Symbol (Master, ADR 0005). Eigenes Werk des Projekts, EUPL-1.2.
+    Abgeleitet vom Siegel (pida-seal.svg): kräftiger weißer Ring, großes Häkchen, breiterer rot-weiß-roter
+    Akzent, ohne gepunkteten Innenring; vollflächiger Grund in der Tinte der Oberfläche (Token c-primary bzw. c-logo-bg, #16191f).
+    Alle Plattform-Varianten (iOS hell/dunkel/getönt, Android adaptiv + monochrom, Desktop, Favicon) erzeugt
+    design/brand/tools/build.mjs aus der Gruppe zwischen den Markierungen glyph:start/glyph:end.
+  -->
+  <title>PIDA – App-Symbol</title>
+  <rect id="background" width="1024" height="1024" fill="#16191f"/>
+  <!-- glyph:start -->
+  <circle id="ring" cx="512" cy="512" r="304" fill="none" stroke="#ffffff" stroke-width="64"/>
+  <path id="check" d="M381 470 468 552 643 363" fill="none" stroke="#ffffff" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect id="accent-red-1" x="382" y="624" width="260" height="28" fill="#c8102e"/>
+  <rect id="accent-white" x="382" y="652" width="260" height="22" fill="#ffffff"/>
+  <rect id="accent-red-2" x="382" y="674" width="260" height="28" fill="#c8102e"/>
+  <!-- glyph:end -->
+</svg>

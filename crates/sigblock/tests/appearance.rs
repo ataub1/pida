@@ -223,9 +223,19 @@ fn unpredict(data: &[u8], width: usize, bpp: usize) -> Vec<u8> {
     out
 }
 
+/// PDF-AS-Standardlogo (`ProfileStore::builtin_pdfas`): RGB ohne Alpha ⇒ keine SMask, verlustfrei.
 #[test]
 fn logo_image_is_lossless() {
-    let a = build("SIGNATURBLOCK_SMALL_DE", 230.0, 0, PdfaMode::None, &input());
+    let s = ProfileStore::builtin_pdfas().unwrap();
+    let opts = BuildOptions { width: 230.0, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
+    let a = Appearance::build(
+        s.get("SIGNATURBLOCK_SMALL_DE").unwrap(),
+        &input(),
+        &opts,
+        &FontProvider::builtin(),
+        &**s.resources(),
+    )
+    .unwrap();
     let imgs = images(&a);
     assert_eq!(imgs.len(), 1, "Standardlogo ohne Alpha ⇒ keine SMask");
     let d = imgs[0];
@@ -237,6 +247,52 @@ fn logo_image_is_lossless() {
     let rgb = unpredict(&stream_data(obj), 326, 3);
     let logo = Emblem::decode_original(include_bytes!("../assets/images/signatur-logo_de.png")).unwrap();
     assert_eq!(rgb, logo.rgb());
+}
+
+fn stream_of<'a>(a: &'a Appearance, d: &Dictionary) -> &'a Object {
+    a.objects.iter().find(|o| matches!(o, Object::Stream(s) if std::ptr::eq(&s.dict, d))).unwrap()
+}
+
+/// PIDA-Siegel (Standard der kleinen Blöcke, ADR 0005): RGB + SMask verlustfrei; PDF/A-2/3 ebenso
+/// (ICCBased), PDF/A-1 auf Weiß komponiert ohne SMask.
+#[test]
+fn seal_image_is_lossless_with_smask() {
+    let seal = Emblem::decode_original(include_bytes!("../assets/images/pida-seal.png")).unwrap();
+    assert!(seal.has_alpha);
+    let a = build("SIGNATURBLOCK_SMALL_DE", 230.0, 0, PdfaMode::None, &input());
+    let imgs = images(&a);
+    assert_eq!(imgs.len(), 2, "Siegel mit Transparenz ⇒ Bild + SMask");
+    let main = *imgs.iter().find(|d| d.get(b"SMask").is_ok()).expect("SMask");
+    assert_eq!(
+        (main.get(b"Width").unwrap().as_i64().unwrap(), main.get(b"Height").unwrap().as_i64().unwrap()),
+        (652, 684)
+    );
+    assert_eq!(main.get(b"ColorSpace").unwrap().as_name().unwrap(), b"DeviceRGB");
+    assert_eq!(unpredict(&stream_data(stream_of(&a, main)), 652, 3), seal.rgb());
+    let smask_obj = &a.objects[local_index(main.get(b"SMask").unwrap())];
+    assert_eq!(dict(smask_obj).get(b"ColorSpace").unwrap().as_name().unwrap(), b"DeviceGray");
+    assert_eq!(unpredict(&stream_data(smask_obj), 652, 1), seal.alpha());
+
+    for pdfa in [PdfaMode::Part2, PdfaMode::Part3] {
+        let p = build("SIGNATURBLOCK_SMALL_DE_PDFA", 230.0, 0, pdfa, &input());
+        let imgs = images(&p);
+        assert_eq!(imgs.len(), 2, "{pdfa:?}: Transparenz erlaubt");
+        let main = *imgs.iter().find(|d| d.get(b"SMask").is_ok()).expect("SMask");
+        icc_of(&p, main.get(b"ColorSpace").unwrap());
+    }
+
+    let p1 = build("SIGNATURBLOCK_SMALL_EN_NOTE_PDFA", 230.0, 0, PdfaMode::Part1, &input());
+    let imgs = images(&p1);
+    assert_eq!(imgs.len(), 1, "PDF/A-1: keine SMask");
+    assert!(imgs[0].get(b"SMask").is_err());
+    let rgb = unpredict(&stream_data(stream_of(&p1, imgs[0])), 652, 3);
+    assert_eq!(rgb, seal.flattened_on_white().rgb());
+    // Ecke (außerhalb des Kreises) weiß, Mitte des Rings dunkel (#3a414d)
+    assert_eq!(&rgb[0..3], &[255, 255, 255]);
+    let px = |x: usize, y: usize| &rgb[(y * 652 + x) * 3..(y * 652 + x) * 3 + 3];
+    // Ring links auf halber Höhe: x = (20 − 17,5) · 652/40 ≈ 41, y = 16 + 326
+    let ring = px(41, 342);
+    assert!(ring.iter().zip([0x3a, 0x41, 0x4d]).all(|(&c, e)| c.abs_diff(e) <= 24), "Ring {ring:?}");
 }
 
 fn alpha_emblem() -> Arc<Emblem> {

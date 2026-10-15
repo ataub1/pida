@@ -10,8 +10,27 @@
 | `fonts/DejaVuSansMono.ttf`, `fonts/DejaVuSansCondensed-Bold.ttf`, `fonts/DejaVuSansCondensed.ttf` | Wertefont, PDF/A-Captionfont, PDF/A-Ersatz für Helvetica | Bitstream Vera / DejaVu (`licenses/DejaVu-LICENSE.txt`) | nein (Subsets entstehen erst beim Einbetten) |
 | `images/signatur-logo_de.png`, `images/signatur-logo_en.png` (326×342 px), `images/amtsignatur-logo_demo.png` (236×235 px) | Standard-Bildmarken | EUPL | nein |
 | `licenses/Adobe-Core14-AFM-License.html` | Lizenzhinweis der Adobe Core 14 AFM Files | Adobe | nein |
+| `images/pida-seal.png` (652×684 px, RGBA) | PIDA-Siegel: Standard-Bildmarke von `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]` und `BASE_LOGO` (ADR 0005) | **eigenes Werk des Projekts, EUPL-1.2** (kein PDF-AS-Bestandteil) | – (erzeugt aus `design/brand/pida-seal.svg` mit `design/brand/tools/build.mjs`) |
 
 `arial.ttf` aus `pdfas-config/fonts` wird bewusst **nicht** übernommen (analyse/05 §6.3).
+
+## PIDA-Siegel als Standard-Bildmarke
+
+Die Profildateien bleiben byte-gleich zu PDF-AS. `ProfileStore::builtin()` setzt beim Laden für die
+acht kleinen Standardprofile und `BASE_LOGO` („nur Bildmarke“) `value.SIG_LABEL = ./images/pida-seal.png`
+(eigener Schlüssel des Profils, ersetzt den aus `BASE_NORMAL[_EN]` geerbten bzw. den eigenen Wert
+`signatur-logo_de.png` von `BASE_LOGO`); die Amtssignatur (`AMTSSIGNATURBLOCK_*`,
+`amtsignatur-logo_demo.png`) bleibt unverändert. Eine eigene Bildmarke (Einstellung, CLI `-e`,
+PDF-Over-Overlay) geht weiterhin vor. `ProfileStore::builtin_pdfas()` liefert die
+Konfiguration ohne diese Vorgabe (Golden-Abgleich mit PDF-AS); eigene Konfigurationsordner
+(`ProfileStore::load_dir`) verwenden ihre eigenen Bildmarken.
+
+Das Siegel hat die doppelten Pixelmaße von `signatur-logo_de/en.png` (652×684 statt 326×342, Siegel
+652×652 mittig): Die Bildhöhe im Block folgt aus Spaltenbreite · Höhe/Breite, bei gleichem
+Seitenverhältnis mit Faktor 2 rechnet das Layout bitgleich, so bleiben Zeilenhöhen und Blockmaße für
+jede Blockbreite gleich (Standardbreite 230 pt ≈ 1400 dpi, 495 pt ≈ 570 dpi, „nur Bildmarke“ 23 mm
+≈ 750 dpi). Außerhalb des Kreises ist es transparent (voll transparente Pixel
+tragen Weiß): PDF/A-1 komponiert auf Weiß, sonst wird eine `SMask` geschrieben.
 
 ## Standard-14-Metriken
 
