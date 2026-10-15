@@ -2809,8 +2809,12 @@ version = "0.1.0"
 dependencies = [
  "pdfover-pdf-cos",
  "pdfover-render",
+ "png",
+ "proptest",
  "rxing",
  "serde",
+ "serde_json",
+ "tempfile",
  "thiserror",
 ]
 
@@ -2818,10 +2822,12 @@ dependencies = [
 name = "pdfover-render"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "pdfium-render",
  "png",
  "serde",
  "thiserror",
+ "zeroize",
 ]
 
 [[package]]

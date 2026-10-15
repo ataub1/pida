@@ -15,5 +15,16 @@ rxing = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 
+[dev-dependencies]
+# Tests mit echtem PDFium (nur mit PDFOVER_PDFIUM_DIR, sonst übersprungen).
+pdfover-render = { workspace = true, features = ["pdfium"] }
+# QR-Testdokumente selbst erzeugen.
+rxing = { workspace = true, features = ["encoders"] }
+# Referenzbilder der PDF-AS-Testsuiten lesen, Manifest der Golden-Tests.
+png = { workspace = true }
+serde_json = { workspace = true }
+proptest = { workspace = true }
+tempfile = { workspace = true }
+
 [lints]
 workspace = true

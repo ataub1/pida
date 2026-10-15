@@ -15,13 +15,28 @@ publish.workspace = true
 # konstruiert (`pdfover-core-api`, Tauri-Shell). Rückfall-Renderer (z. B. hayro, Plan §2.4) kämen als
 # weiteres Feature hinzu.
 default = ["pdfium"]
-pdfium = ["dep:pdfium-render"]
+pdfium = ["dep:pdfium-render", "dep:zeroize"]
 
 [dependencies]
 pdfium-render = { workspace = true, optional = true }
 png = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+# Passwort für die zweite (Forced-Color-)Dokumentinstanz nur im Speicher, beim Drop überschrieben.
+zeroize = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Testdokumente mit FlateDecode-Bildern (Dekompressionsbomben, Speicherbudget).
+flate2 = { workspace = true }
+
+# PDFium-Integrationstests brauchen das Feature `pdfium` (ohne werden sie nicht gebaut).
+[[test]]
+name = "pdfium"
+required-features = ["pdfium"]
+
+[[test]]
+name = "bind_missing"
+required-features = ["pdfium"]
 
 [lints]
 workspace = true
