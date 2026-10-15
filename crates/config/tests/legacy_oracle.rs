@@ -99,6 +99,7 @@ fn b(x: bool) -> Option<String> {
     Some(x.to_string())
 }
 
+#[allow(dead_code, reason = "Hilfsfunktion des Orakelvergleichs, derzeit ohne Aufrufer")]
 fn s<T: AsRef<str>>(x: Option<T>) -> Option<String> {
     x.map(|v| v.as_ref().to_owned())
 }

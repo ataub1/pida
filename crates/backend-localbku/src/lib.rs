@@ -103,6 +103,7 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 #[derive(Debug, Clone)]
 pub struct Availability {
     state: Arc<std::sync::atomic::AtomicBool>,
+    #[allow(dead_code, reason = "Drop-Guard: beendet die Probe mit der letzten Kopie")]
     stop: Arc<StopOnDrop>,
 }
 

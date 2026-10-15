@@ -8,6 +8,7 @@ pub(crate) fn trim(s: &str) -> &str {
 }
 
 /// `s == null || s.trim().isEmpty()`
+#[cfg_attr(not(test), allow(dead_code, reason = "Java-Semantik vollständig; derzeit nur in Tests genutzt"))]
 pub(crate) fn is_blank(s: Option<&str>) -> bool {
     s.is_none_or(|s| trim(s).is_empty())
 }

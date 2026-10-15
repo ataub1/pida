@@ -1,57 +1,354 @@
+# PDF-Over NG – CI (Plan §8.7, §2.5/§10.2; ADR 0001 §4, ADR 0060 §1; docs/entwicklung.md „CI“)
+#
+# Jobs:
+#   fmt      rustfmt (blockierend)
+#   build    Matrix ubuntu/macOS/Windows: check, Clippy (-D warnings außer CLIPPY_LENIENT), FIDO2-Features,
+#            Tests mit PDFium (tools/fetch-pdfium.*) und den Orakeln qpdf/openssl/pyHanko/Java, wo verfügbar;
+#            auf Linux zusätzlich der Doc-Build (rustdoc -D warnings)
+#   deny     cargo-deny: Lizenzen, Advisories, Duplikate, Quellen (blockierend, Plan §2.5)
+#   notices  THIRD-PARTY-NOTICES (cargo-about + PDFium + Fonts + npm) als Artefakt (Plan §10.2)
+#   mobile   cargo check für iOS und Android (blockierend für die lokal verifizierten Crates)
+#   app      Tauri-Frontend apps/app (npm ci, Lizenzprüfung, build, test) – nur wenn apps/app/package.json existiert
+#
+# Actions sind auf Commit-SHAs gepinnt (Kommentar = Release-Tag); Toolchain und Werkzeuge exakt versioniert.
+
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUST_BACKTRACE: "1"
   RUST_TOOLCHAIN: "1.99.0"
+  # Clippy läuft mit --no-deps und -D warnings für alle Crates außer diesen (für sie nur Warnungen):
+  # - pades, workflow, core-api, cli: verbliebene todo!()-Stubs (Welle 2, Pakete I1/I2),
+  # - pdf-cos, sigblock, backend-keystore: je eine bekannte dead_code-Warnung (docs/entwicklung.md §5).
+  # Nach der Integration leeren bzw. kürzen – Ziel ist eine leere Liste.
+  CLIPPY_LENIENT: "pdfover-pades pdfover-workflow pdfover-core-api pdfover-cli pdfover-pdf-cos pdfover-sigblock pdfover-backend-keystore"
+  CARGO_DENY_VERSION: "0.20.2"
+  CARGO_ABOUT_VERSION: "0.9.2"
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.13"
+  JAVA_VERSION: "21"
 
 jobs:
   fmt:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-          components: rustfmt
+          persist-credentials: false
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component rustfmt
+          rustup default "$RUST_TOOLCHAIN"
       - run: cargo fmt --all --check
 
   build:
-    name: check/clippy/test (${{ matrix.os }})
+    name: Build/Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            fido2: fido2-hid
+          - os: macos-latest
+            fido2: fido2-hid
+          - os: windows-latest
+            fido2: fido2-windows
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          toolchain: ${{ env.RUST_TOOLCHAIN }}
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
+          persist-credentials: false
+
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy
+          rustup default "$RUST_TOOLCHAIN"
+          rustc --version
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # --- PDFium (ADR 0060 §1): SHA-256 aus tools/pdfium.lock, PDFOVER_PDFIUM_DIR über GITHUB_ENV ---
+      - name: PDFium-Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/pdfium
+          key: pdfium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/pdfium.lock') }}
+      - name: PDFium laden (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: tools/fetch-pdfium.sh --github-env
+      - name: PDFium laden (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tools/fetch-pdfium.ps1 -GitHubEnv
+
+      # --- Test-Orakel (Tests überspringen sich ohne Werkzeug) ---------------------------------------
+      - name: Python (pyHanko, Pillow)
+        id: python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: tools/python-oracles.txt
+      - name: pyHanko installieren
+        env:
+          PY: ${{ steps.python.outputs.python-path }}
+        run: |
+          "$PY" -m pip install --disable-pip-version-check -r tools/python-oracles.txt
+          echo "PDFOVER_PYTHON=$PY" >> "$GITHUB_ENV"
+      - name: Java 21 (nur Test-Orakel)
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: qpdf, xmllint (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends qpdf libxml2-utils
+      - name: qpdf, OpenSSL 3 (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install qpdf openssl@3
+          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+      - name: Orakel-Versionen
+        run: |
+          for t in qpdf openssl pyhanko java xmllint; do
+            # sed statt head: liest die ganze Ausgabe (kein SIGPIPE unter pipefail)
+            printf '%-8s ' "$t"; { "$t" --version 2>&1 || "$t" version 2>&1 || echo fehlt; } | sed -n 1p
+          done
+
+      # --- Tauri-Shell (apps/app, Paket I3): Systembibliotheken und Frontend-Build für generate_context! ---
+      - name: apps/app erkennen
+        id: app
+        run: |
+          if [ -f apps/app/package.json ]; then echo "frontend=true" >> "$GITHUB_OUTPUT"; fi
+          if grep -Eq '^[[:space:]]*"apps/app/src-tauri"' Cargo.toml; then echo "tauri=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Tauri-Systembibliotheken (Linux)
+        if: runner.os == 'Linux' && steps.app.outputs.tauri == 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev
+      - name: Node
+        if: steps.app.outputs.frontend == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: ${{ hashFiles('apps/app/package-lock.json') != '' && 'npm' || '' }}
+          cache-dependency-path: apps/app/package-lock.json
+      - name: Frontend bauen
+        if: steps.app.outputs.frontend == 'true'
+        working-directory: apps/app
+        run: |
+          npm ci
+          npm run build --if-present
+
+      # --- Rust ----------------------------------------------------------------------------------------
       - name: cargo check
         run: cargo check --workspace --all-targets --locked
-      - name: cargo check ohne PDFium (Traits genügen, ADR 0001 §8)
+      - name: cargo check ohne PDFium (Traits genügen, ADR 0001 §8.1)
         run: cargo check -p pdfover-render -p pdfover-placement -p pdfover-pades --no-default-features --all-targets --locked
-      - name: cargo clippy
-        # Bewusst ohne `-D warnings`, solange Stubs existieren (ADR 0001 §4 Regel 7).
-        run: cargo clippy --workspace --all-targets --locked
+      - name: cargo clippy (-D warnings)
+        run: |
+          excludes=()
+          for c in $CLIPPY_LENIENT; do excludes+=(--exclude "$c"); done
+          # --no-deps: -D warnings nur für die geprüften Crates, nicht für mitübersetzte Workspace-Abhängigkeiten
+          cargo clippy --workspace "${excludes[@]}" --no-deps --all-targets --locked -- -D warnings
+      - name: cargo clippy (CLIPPY_LENIENT, nicht blockierend)
+        if: env.CLIPPY_LENIENT != ''
+        run: |
+          packages=()
+          for c in $CLIPPY_LENIENT; do packages+=(-p "$c"); done
+          cargo clippy "${packages[@]}" --no-deps --all-targets --locked
+      - name: FIDO2 (${{ matrix.fido2 }}) – clippy
+        run: cargo clippy -p pdfover-backend-atrust --features ${{ matrix.fido2 }} --no-deps --all-targets --locked -- -D warnings
+      - name: FIDO2 (${{ matrix.fido2 }}) – test
+        run: cargo test -p pdfover-backend-atrust --features ${{ matrix.fido2 }} --locked
       - name: cargo test
         run: cargo test --workspace --locked
+      - name: Doc-Build (rustdoc -D warnings)
+        if: runner.os == 'Linux'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --locked
 
   deny:
-    name: cargo-deny (Lizenzen, Advisories)
+    name: cargo-deny (Lizenzen, Advisories, Duplikate, Quellen)
     runs-on: ubuntu-latest
-    # Bis zur Integration informativ; danach blockierend (Plan §2.5).
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          command: check licenses advisories sources bans
+          persist-credentials: false
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
+      - name: cargo deny check
+        run: cargo deny --locked check
+
+  notices:
+    name: THIRD-PARTY-NOTICES
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+      - name: PDFium-Cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/pdfium
+          key: pdfium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/pdfium.lock') }}
+      - name: Node (für apps/app)
+        if: hashFiles('apps/app/package-lock.json') != ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/app/package-lock.json
+      - name: npm ci (Lizenztexte)
+        if: hashFiles('apps/app/package-lock.json') != ''
+        working-directory: apps/app
+        run: npm ci --ignore-scripts
+      - name: Hinweise erzeugen
+        run: tools/third-party-notices.sh --out target/notices
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: THIRD-PARTY-NOTICES
+          path: target/notices/THIRD-PARTY-NOTICES.md
+          if-no-files-found: error
+
+  mobile:
+    name: Mobile-Ziele (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Lokal verifiziert (docs/entwicklung.md „Cross-Checks“): alle Crates außer denen, die
+          # pdfover-config (keyring → apple-native-keyring-store verlangt auf iOS das Feature `protected`) nutzen.
+          - os: macos-latest
+            target: aarch64-apple-ios
+            crates: >-
+              pdfover-java-properties pdfover-i18n pdfover-pdf-cos pdfover-pdf-incremental pdfover-cades
+              pdfover-sigblock pdfover-placement pdfover-render pdfover-sl12 pdfover-backend-api pdfover-net
+              pdfover-backend-keystore pdfover-backend-localbku pdfover-backend-atrust pdfover-pades
+          # Lokal ohne NDK verifiziert: alle Crates ohne ring (C-Code); mit NDK zusätzlich der Rest (unten).
+          - os: ubuntu-latest
+            target: aarch64-linux-android
+            crates: >-
+              pdfover-java-properties pdfover-i18n pdfover-pdf-cos pdfover-pdf-incremental pdfover-cades
+              pdfover-sigblock pdfover-placement pdfover-render pdfover-sl12 pdfover-backend-api pdfover-config
+              pdfover-backend-keystore pdfover-pades pdfover-workflow
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --target ${{ matrix.target }}
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ${{ matrix.target }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Android-NDK (C-Compiler für ring)
+        if: contains(matrix.target, 'android')
+        run: |
+          ndk="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}"
+          [ -n "$ndk" ] || { echo "kein Android-NDK auf dem Runner" >&2; exit 1; }
+          bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          {
+            echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang"
+            echo "AR_aarch64_linux_android=$bin/llvm-ar"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang"
+          } >> "$GITHUB_ENV"
+      - name: cargo check (verifizierte Crates, blockierend)
+        env:
+          TARGET: ${{ matrix.target }}
+          CRATES: ${{ matrix.crates }}
+        run: |
+          packages=()
+          for c in $CRATES; do packages+=(-p "$c"); done
+          cargo check --locked --target "$TARGET" "${packages[@]}"
+      - name: cargo check (ganzer Workspace, informativ)
+        continue-on-error: true
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo check --locked --target "$TARGET" --workspace
+
+  app:
+    name: apps/app (Frontend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: apps/app erkennen
+        id: app
+        run: |
+          if [ -f apps/app/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::apps/app/package.json fehlt – Frontend-Job übersprungen"
+          fi
+      - name: Node
+        if: steps.app.outputs.present == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: ${{ hashFiles('apps/app/package-lock.json') != '' && 'npm' || '' }}
+          cache-dependency-path: apps/app/package-lock.json
+      - name: Lockfile vorhanden (Plan §2.5 – Node-Abhängigkeiten per Lockfile gepinnt)
+        if: steps.app.outputs.present == 'true'
+        run: test -f apps/app/package-lock.json || { echo "::error::apps/app/package-lock.json fehlt"; exit 1; }
+      - name: Lizenzprüfung (Lockfile, Allowlist wie deny.toml)
+        if: steps.app.outputs.present == 'true'
+        run: node tools/npm-licenses.mjs apps/app/package-lock.json
+      - name: npm ci
+        if: steps.app.outputs.present == 'true'
+        working-directory: apps/app
+        run: npm ci
+      - name: npm run lint
+        if: steps.app.outputs.present == 'true'
+        working-directory: apps/app
+        run: npm run lint --if-present
+      - name: npm run build
+        if: steps.app.outputs.present == 'true'
+        working-directory: apps/app
+        run: npm run build --if-present
+      - name: npm test
+        if: steps.app.outputs.present == 'true'
+        working-directory: apps/app
+        run: npm run test --if-present

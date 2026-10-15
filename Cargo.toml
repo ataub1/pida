@@ -3,9 +3,10 @@
 # Verbindliche Grundlage: docs/00-architektur-und-umsetzungsplan.md (§2 Stack/Pinning, §3 Architektur)
 # und docs/adr/0001-workspace-und-schnittstellen.md (Crate-Graph, Ownership, Regeln für die parallele Arbeit).
 #
-# WICHTIG für die Paket-Agenten A–F: Diese Datei wird NICHT geändert. Neue Abhängigkeiten kommen
-# ausschließlich in das eigene Crate-Cargo.toml (mit `workspace = true`, wenn hier vorhanden,
-# sonst mit expliziter Version). Siehe ADR 0001 §4.
+# WICHTIG für die Paket-Agenten: Diese Datei ändert nur die Integration. Neue Abhängigkeiten kommen
+# zunächst in das eigene Crate-Cargo.toml (mit `workspace = true`, wenn hier vorhanden, sonst mit
+# exakter Version); die Integration hebt sie danach in [workspace.dependencies]. Siehe ADR 0001 §4
+# und docs/entwicklung.md („Abhängigkeiten“).
 
 [workspace]
 resolver = "3"
@@ -96,6 +97,12 @@ p521 = { version = "~0.13.3", features = ["ecdsa", "pkcs8", "std"] }
 ecdsa = { version = "~0.16.9", features = ["der", "verifying", "signing", "std"] }
 signature = { version = "~2.2.0", features = ["std"] }
 p12-keystore = { version = "=0.4.1" }
+# Nur Feature-Vereinigung (backend-keystore): aktiviert in der von p12-keystore 0.4.1 genutzten
+# pkcs5-Version die Lesepfade PBES2/HMAC-SHA-1 (`sha1-insecure`) und DES-EDE3-CBC (`3des`). Version
+# muss der von p12-keystore entsprechen und wird bei einem Update von p12-keystore mitgezogen.
+pkcs5 = { version = "=0.8.1", default-features = false, features = ["sha1-insecure", "3des"] }
+# Zufall für RSA-Blinding beim Signieren (`OsRng`, cades); dieselbe Generation wie rsa/elliptic-curve.
+rand_core = { version = "=0.6.4", features = ["getrandom"] }
 
 # --- Fonts, Bilder, QR ----------------------------------------------------------------------------
 skrifa = "0.48.0"
@@ -116,6 +123,10 @@ rustls = { version = "0.23.46", default-features = false, features = ["ring", "s
 url = "2.5.8"
 scraper = { version = "0.27.0", default-features = false, features = ["errors"] }
 quick-xml = "0.42.0"
+# Charset-Dekodierung von Antwortkörpern (net); bereits über reqwest/charset im Graph.
+encoding_rs = "=0.8.42"
+# Nur `hyper::ext::ReasonPhrase` (net); dieselben Features wie über reqwest im Graph.
+hyper = { version = "=1.12.0", default-features = false, features = ["http1", "client"] }
 
 # --- Allgemein ------------------------------------------------------------------------------------
 thiserror = "2.0.21"
@@ -127,7 +138,10 @@ async-trait = "0.1.92"
 tokio = { version = "1.53.3", features = ["sync", "time", "rt", "macros"] }
 futures = "0.3.34"
 zeroize = { version = "1.9.1", features = ["zeroize_derive", "std"] }
-time = { version = "0.3.55", features = ["formatting", "parsing", "macros", "local-offset", "serde"] }
+# Ohne Feature `local-offset` (Welle 2): ungenutzt (lokale Zeit kommt aus `jiff`, s. u.) und zog
+# `num_threads` 0.1.7, das für iOS nicht übersetzt (`libc::mach_task_self` fehlt) – damit scheiterte
+# jedes Crate mit `time` am Ziel aarch64-apple-ios. `OffsetDateTime::now_local` steht nicht zur Verfügung.
+time = { version = "0.3.55", features = ["formatting", "parsing", "macros", "serde"] }
 # Zeitzonen (ADR 0001 §8): `time` bleibt Datentyp aller Schnittstellen (`OffsetDateTime`), ermittelt
 # den lokalen Offset unter Unix in Mehrthread-Prozessen aber nicht und kennt keine IANA-Namen.
 # `jiff` liefert lokale Zeitzone (inkl. Sommerzeit) und `timezone`-Profilwerte (`Europe/Vienna`).
@@ -145,17 +159,36 @@ unic-langid = { version = "0.9.6", features = ["macros"] }
 # --- nur Tests ------------------------------------------------------------------------------------
 tempfile = "3.27.0"
 proptest = "1.12.0"
+# TLS-Testserver (net); Provider ring statt aws-lc-rs, bereits über hyper-rustls im Graph.
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
 
+# Lints (Welle 2, Paket I4): Die Ausnahmen für Stubs (`unused_variables`/`dead_code` = allow,
+# `clippy::todo`/`unimplemented` = allow) sind aufgehoben. Solange einzelne Integrations-Crates noch
+# `todo!()` enthalten, warnen nur diese (Warnung, kein Fehler); die CI prüft alle übrigen Crates mit
+# `clippy --no-deps -- -D warnings` (Ausnahmeliste `CLIPPY_LENIENT` in .github/workflows/ci.yml,
+# docs/entwicklung.md §5). Zusätzlich aktiviert sind nur Lints, die im Bestand ohne Befund sind.
 [workspace.lints.rust]
 unsafe_code = "deny"
 missing_debug_implementations = "warn"
-# Stubs (todo!()) erzeugen erwartbar unbenutzte Parameter; das ist bis zur Implementierung gewollt.
-unused_variables = "allow"
-dead_code = "allow"
+unused_variables = "warn"
+dead_code = "warn"
+unused_lifetimes = "warn"
+redundant_lifetimes = "warn"
+unused_import_braces = "warn"
+# Bewusst nicht: `trivial_numeric_casts` – FFI-Typen wie `c_ulong` sind je Plattform verschieden
+# (Windows u32, sonst u64), der Lint schlüge nur auf einzelnen Zielen an.
 
 [workspace.lints.clippy]
-todo = "allow"
-unimplemented = "allow"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+mem_forget = "warn"
+rc_buffer = "warn"
+lossy_float_literal = "warn"
+verbose_file_reads = "warn"
+unnecessary_safety_comment = "warn"
+infinite_loop = "warn"
+rest_pat_in_fully_bound_structs = "warn"
 too_many_arguments = "allow"
 module_name_repetitions = "allow"
 

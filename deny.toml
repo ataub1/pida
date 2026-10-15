@@ -1,10 +1,59 @@
-# cargo-deny: Lizenz-Gate und Lieferkette (Plan §2.5). Allowlist laut Plan, ergänzt um
-# CDLA-Permissive-2.0 (webpki-root-certs über rustls-platform-verifier, Plan §16).
-[graph]
-all-features = false
+# cargo-deny: Lizenz-Gate und Lieferkette (Plan §2.5, §10.2; ADR 0001 §7/§8.10).
+#
+# Lokal:   cargo deny check                 (cargo-deny 0.20.2, siehe docs/entwicklung.md)
+# CI:      Job `deny` in .github/workflows/ci.yml – blockierend.
+#
+# Grundsatz: Alles, was nicht ausdrücklich erlaubt ist, bricht den Build. Jede Ausnahme steht hier
+# mit Begründung; neue Ausnahmen nur per Review.
 
+[graph]
+# Nur die Zielplattformen, die PDF-Over NG ausliefert (Plan §5, §8.7). Abhängigkeiten anderer
+# Plattformen (WASI, Redox, …) werden damit nicht bewertet, die ausgelieferten dagegen vollständig.
+targets = [
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-apple-ios",
+    "aarch64-apple-ios-sim",
+    "x86_64-apple-ios",
+    "aarch64-linux-android",
+    "armv7-linux-androideabi",
+    "x86_64-linux-android",
+]
+# Alle Features der eigenen Crates (FIDO2 `fido2-windows`/`fido2-hid`, Test-Hilfen `testing`,
+# PDFium), damit kein Feature eine ungeprüfte Abhängigkeit einschleust.
+all-features = true
+
+[output]
+feature-depth = 1
+
+# ---------------------------------------------------------------------------------------------
+# Sicherheitsmeldungen (RustSec)
+# ---------------------------------------------------------------------------------------------
+[advisories]
+# Sicherheitslücken, zurückgezogene Versionen (yanked), „unmaintained“ und „unsound“ brechen den
+# Build – auch für transitive Abhängigkeiten. Stand 15.10.2026 ohne Befund außer der begründeten
+# Ausnahme unten. Ein neuer transitiver Fund ist zu bewerten: Update, Ersatz oder begründete Ausnahme.
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+ignore = [
+    # Marvin (Timing-Seitenkanal beim RSA-*Entschlüsseln*). PDF-Over NG signiert nur lokal und
+    # entschlüsselt nie mit RSA (Plan §2.1, ADR 0001 §7). Bei einer rsa-Version mit Fix wird gehoben.
+    { id = "RUSTSEC-2023-0071", reason = "nur lokales Signieren, kein RSA-Entschlüsseln (Plan §2.1)" },
+]
+
+# ---------------------------------------------------------------------------------------------
+# Lizenzen
+# ---------------------------------------------------------------------------------------------
 [licenses]
-confidence-threshold = 0.9
+# Allowlist laut Plan §2.5/§10.2: permissiv bzw. schwach-copyleft (MPL-2.0). GPL/AGPL/LGPL und
+# alles Unbekannte brechen den Build. OFL-1.1/Bitstream-Vera sind für Schrift-Crates zugelassen
+# (die DejaVu-Fonts selbst liegen als Asset in crates/sigblock/assets und stehen in
+# THIRD-PARTY-NOTICES, siehe tools/third-party-notices.sh).
 allow = [
     "MIT",
     "Apache-2.0",
@@ -16,24 +65,99 @@ allow = [
     "Unicode-3.0",
     "BSL-1.0",
     "OFL-1.1",
-    "CDLA-Permissive-2.0",
+    "Bitstream-Vera",
 ]
+# Strenger als der Standard (0.8): unscharf erkannte Lizenztexte brechen den Build.
+confidence-threshold = 0.93
+# Die Font-Lizenzen stehen vorsorglich in der Allowlist (Plan §2.5), kommen bei Crates aber
+# derzeit nicht vor; das ist kein Befund.
+unused-allowed-license = "allow"
+# Keine Ausnahmen. Hinweis: `webpki-root-certs` (CDLA-Permissive-2.0, ADR 0001 §7) zieht
+# rustls-platform-verifier 0.7 nur für wasm32 – kein Auslieferungsziel. Kommt ein WASM-Werkzeug
+# dazu, wird die Lizenz hier als Ausnahme nur für dieses Crate eingetragen:
+#   { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] }
+exceptions = []
 
 [licenses.private]
 # Eigene Crates (EUPL-1.2, publish = false) nicht gegen die Allowlist prüfen.
 ignore = true
 
+# ---------------------------------------------------------------------------------------------
+# Verbotene Crates, doppelte Versionen, Wildcards
+# ---------------------------------------------------------------------------------------------
 [bans]
-multiple-versions = "warn"
+# Jede zusätzliche doppelte Version bricht den Build; die bekannten stehen unten in `skip`.
+multiple-versions = "deny"
 wildcards = "deny"
+# Interne path-Abhängigkeiten (`workspace = true`) haben keine Version.
 allow-wildcard-paths = true
-
-[advisories]
-ignore = [
-    # Marvin (Timing-Seitenkanal beim RSA-Entschlüsseln). Betrifft lokales Signieren nicht (Plan §2.1).
-    { id = "RUSTSEC-2023-0071", reason = "nur lokales Signieren, kein Entschlüsseln (Plan §2.1)" },
+highlight = "all"
+deny = [
+    # Lizenz (Plan §10.2): GPL/AGPL-PDF-Bibliotheken.
+    { crate = "pdfium", reason = "GPL; PDFium wird über pdfium-render (MIT/Apache-2.0) gebunden (Plan §10.2)" },
+    { crate = "mupdf", reason = "AGPL (Plan §10.2)" },
+    { crate = "mupdf-sys", reason = "AGPL (Plan §10.2)" },
+    { crate = "pdf_signer", reason = "GPL (Plan §10.2)" },
+    { crate = "pdfluent", reason = "nicht zulässige Lizenz (Plan §10.2)" },
+    # TLS: rustls mit Provider ring und OS-Truststore (Plan §2.1).
+    { crate = "openssl", reason = "TLS nur über rustls + ring (Plan §2.1)" },
+    { crate = "openssl-sys", reason = "TLS nur über rustls + ring (Plan §2.1)" },
+    { crate = "native-tls", reason = "TLS nur über rustls + ring (Plan §2.1)" },
+    { crate = "aws-lc-rs", reason = "Provider ring statt aws-lc-rs (Build für iOS/Android/WASM, Plan §2.1)" },
+    { crate = "aws-lc-sys", reason = "Provider ring statt aws-lc-rs (Plan §2.1)" },
+    { crate = "aws-lc-fips-sys", reason = "Provider ring statt aws-lc-rs (Plan §2.1)" },
+]
+skip = [
+    # --- Zweite RustCrypto-Generation (ADR 0001 §5.2/§7): p12-keystore 0.4.1, pkcs5 0.8.1, lopdf
+    # 0.45 (Entschlüsselung, MD5/SHA-2) und secret-service (keyring, Linux) ziehen die Folgegeneration
+    # (der 0.8, digest 0.11, sha2 0.11 …). Gekapselt: Typen erscheinen in keiner öffentlichen API,
+    # die Grenze sind DER-Bytes. Gepinnt bleibt cms 0.2 / der 0.7 (Plan §2.5); Migration auf cms 0.3
+    # ist ein eigenes Fenster. Übersprungen wird jeweils die Folgegeneration.
+    { crate = "block-buffer@0.12.1", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "cms@0.3.0-pre.1", reason = "Folgegeneration RustCrypto über p12-keystore (ADR 0001 §5.2)" },
+    { crate = "const-oid@0.10.2", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "cpufeatures@0.3.1", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "crypto-common@0.2.2", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "der@0.8.2", reason = "Folgegeneration RustCrypto über p12-keystore/pkcs5 (ADR 0001 §5.2)" },
+    { crate = "der_derive@0.8.0", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "digest@0.11.3", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "hkdf@0.13.0", reason = "Folgegeneration RustCrypto über secret-service (keyring, Linux)" },
+    { crate = "hmac@0.13.0", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "pem-rfc7468@1.0.0", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "pkcs8@0.11.0", reason = "Folgegeneration RustCrypto über p12-keystore (ADR 0001 §5.2)" },
+    { crate = "sha1@0.11.0", reason = "Folgegeneration RustCrypto über p12-keystore/pkcs5 (ADR 0001 §5.2)" },
+    { crate = "sha2@0.11.1", reason = "Folgegeneration RustCrypto über lopdf/p12-keystore (ADR 0001 §5.2/§7)" },
+    { crate = "spki@0.8.1", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
+    { crate = "x509-cert@0.3.0", reason = "Folgegeneration RustCrypto über p12-keystore (ADR 0001 §5.2)" },
+    # Zufall: rand_core 0.6/getrandom 0.2 gehören zur gepinnten Generation (rsa, elliptic-curve, ring),
+    # rand 0.10/getrandom 0.4 zu lopdf, p12-keystore, tempfile und proptest.
+    { crate = "getrandom@0.2.17", reason = "gepinnte RustCrypto-Generation und ring 0.17" },
+    { crate = "rand@0.8.8", reason = "num-bigint-dig (rsa 0.9)" },
+    { crate = "rand_core@0.6.4", reason = "gepinnte RustCrypto-Generation (rsa/elliptic-curve)" },
+    # Sonstige Übergänge in Fremdbibliotheken, ohne eigenen Einfluss.
+    { crate = "core-foundation@0.9.4", reason = "system-configuration 0.7 (hyper-util, macOS-Systemproxy)" },
+    { crate = "miniz_oxide@0.8.9", reason = "png 0.18 (flate2 nutzt 0.9)" },
+    { crate = "nom@7.1.3", reason = "x509-parser/asn1-rs (rustls-platform-verifier unter Android); lopdf nutzt nom 8" },
+    { crate = "syn@2.0.119", reason = "Proc-Macros, die noch syn 2 nutzen (nur Build-Zeit)" },
+    { crate = "synstructure@0.13.2", reason = "asn1-rs-derive (nur Build-Zeit)" },
+    { crate = "weezl@0.1.12", reason = "gif 0.14 (lopdf nutzt weezl 0.2)" },
+    { crate = "windows-sys@0.52.0", reason = "ring 0.17 (übrige Crates nutzen windows-sys 0.61)" },
 ]
 
+[[bans.features]]
+# rustls nur mit Provider ring (Plan §2.1); aws-lc-rs als Feature wäre ein stiller Provider-Wechsel.
+crate = "rustls"
+deny = ["aws_lc_rs", "aws-lc-rs", "fips"]
+
+[[bans.features]]
+crate = "reqwest"
+deny = ["default-tls", "native-tls", "rustls"]
+
+# ---------------------------------------------------------------------------------------------
+# Quellen: nur crates.io
+# ---------------------------------------------------------------------------------------------
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

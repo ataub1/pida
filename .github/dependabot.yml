@@ -1,0 +1,12 @@
+# Nur GitHub Actions: Die Actions in .github/workflows sind auf Commit-SHAs gepinnt; Dependabot schlägt
+# neue Releases als PR vor (SHA + Tag-Kommentar). Cargo- und npm-Abhängigkeiten werden bewusst nicht
+# automatisch gehoben (Pinning-Regeln Plan §2.5, kein `cargo update` ohne Absprache, ADR 0001 §4).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

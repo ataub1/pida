@@ -1,0 +1,24 @@
+# PDFium-Binaries für PDF-Over NG (ADR 0060 §1, Plan §2.1/§2.5)
+#
+# Quelle:   https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F8100
+#           (PDFium 157.0.8100.0, veröffentlicht 12.10.2026; Bindings pdfium-render 0.9.4 = API pdfium_7881)
+# Format:   <sha256>  <archiv>   – wie `sha256sum`, eine Zeile je Plattform
+# Werkzeug: tools/fetch-pdfium.sh (macOS/Linux/Git Bash) und tools/fetch-pdfium.ps1 (Windows) laden,
+#           prüfen und entpacken nach tools/pdfium/<plattform>/. Neue Release:
+#           PDFIUM_RELEASE=chromium/<n> tools/fetch-pdfium.sh --update-lock --all
+#           und die Hashes gegen die Release-Seite bzw. `gh attestation verify` abgleichen.
+# Geprüft:  15.10.2026 – alle 12 Hashes stimmen mit den Digests der GitHub-Release-API überein;
+#           mac-arm64/lib/libpdfium.dylib ist bitgleich mit der bisher verwendeten Kopie.
+release chromium/8100
+7ea647c7a7a9c1169be3f947000bc071ece2fade2cd6bd7e401e3675c6560cce  pdfium-mac-arm64.tgz
+d513a0530a0f0c1ca9929ded06660e27edb9a108a7d18d9df55a5fb060b091c8  pdfium-mac-x64.tgz
+1c1894a12d4d96ee01400c3874444126254180c5c7d2ab628576b67f8120320a  pdfium-linux-x64.tgz
+58c87a95a40a24c914a9c755fae798843f46f06adf9e5e9f2c893302d4bdb040  pdfium-linux-arm64.tgz
+51621bcc1d9be9ea448f4b84b0516862b928e3968d3fca899af1a6d6e2848d6d  pdfium-win-x64.tgz
+cca9b28d406ae2a902b0b710a92ab699c4c2931564ab6efe44630014d492a9ca  pdfium-win-arm64.tgz
+9bd1a444edab9f9610cd15beb30af0fa2c18357317117da2e9c292543a267139  pdfium-ios-device-arm64.tgz
+b66dcd38508cb39fbd76fbf8cf9210feddb8960653bfbaf2e670592fc799d119  pdfium-ios-simulator-arm64.tgz
+e174a5fc8eab3d760cbf07429def69fd5e7547cff27278199ccdc65cb8727069  pdfium-ios-simulator-x64.tgz
+e9bab2929443d3d881166af9ec1d191c76ecdd37effb07a58743a7d7b507e149  pdfium-android-arm64.tgz
+876a8c44bb8d10b19ce816af11f1c527f101c4f714ef5670d885457b451846bb  pdfium-android-arm.tgz
+b5cd96bc81c3414a84ce1f3eb928d6fe6981b13fe555f21bfa931bc478f51876  pdfium-android-x64.tgz

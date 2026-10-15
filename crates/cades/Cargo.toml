@@ -28,9 +28,9 @@ hex = { workspace = true }
 serde = { workspace = true }
 # PEM-Zertifikate (`Certificate::from_pem`)
 base64 = { workspace = true }
-# Zufall für RSA-Blinding beim Signieren (`OsRng`). Paket B, neu: rand_core 0.6.4 (MIT OR Apache-2.0),
-# ist als Abhängigkeit von rsa/elliptic-curve bereits im Lockfile; hier nur mit Feature `getrandom`.
-rand_core = { version = "=0.6.4", features = ["getrandom"] }
+# Zufall für RSA-Blinding beim Signieren (`OsRng`). rand_core 0.6.4 (MIT OR Apache-2.0) ist als
+# Abhängigkeit von rsa/elliptic-curve ohnehin im Graph; Feature `getrandom` steht im Workspace.
+rand_core = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
