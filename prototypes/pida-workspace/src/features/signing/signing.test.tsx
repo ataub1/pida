@@ -160,7 +160,7 @@ describe('Fehler und Abbruch', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('Keystore- und Bürgerkarten-Weg', async () => {
+  it('Keystore- und Chipkarten-Weg', async () => {
     const { user } = renderApp({ scenario: 'contract' });
     await user.click(screen.getByRole('button', { name: /Signiermittel: ID Austria/ }));
     await user.click(await screen.findByRole('menuitemradio', { name: /Keystore · max\.mustermann\.p12/ }));

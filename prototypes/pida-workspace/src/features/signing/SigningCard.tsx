@@ -1,7 +1,7 @@
 /**
  * Signieren als Statuskarte über dem Arbeitsbereich (kein Seitenwechsel). ID Austria:
  * Datenschutzhinweis (einmalig) → Anmelden → App-Bestätigung mit Vergleichswert und Countdown
- * (alternativ FIDO2 oder SMS-TAN) → Signiert. Keystore und Bürgerkarte mit eigenen, kurzen Wegen.
+ * (alternativ FIDO2 oder SMS-TAN) → Signiert. Keystore und Chipkarte mit eigenen, kurzen Wegen.
  * Abbrechen ist jederzeit möglich (Esc, ×, „Abbrechen“). Alles simuliert, kein Netz.
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';

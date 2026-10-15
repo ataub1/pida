@@ -1,4 +1,4 @@
-/** Konto-Chip des Signiermittels mit Umschaltmenü (ID Austria, Keystore, Bürgerkarte). */
+/** Konto-Chip des Signiermittels mit Umschaltmenü (ID Austria, Keystore, Chipkarte). */
 import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator } from 'react-aria-components';
 import { useAppState, useDispatch } from '../../app/store';
 import { useT } from '../../i18n';
