@@ -148,7 +148,7 @@ export const de = {
   'insp.label': 'Signatur',
   'insp.signWith': 'Signieren mit',
   'insp.switch': 'Signiermittel wechseln',
-  'insp.manage': 'Konten verwalten …',
+  'insp.manage': 'Einstellungen …',
   'insp.block': 'Signaturbild',
   'insp.block.edit': 'Signaturbild bearbeiten',
   'insp.options': 'Optionen',

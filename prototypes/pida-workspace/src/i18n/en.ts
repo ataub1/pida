@@ -147,7 +147,7 @@ export const en: Record<MsgKey, string> = {
   'insp.label': 'Signature',
   'insp.signWith': 'Sign with',
   'insp.switch': 'Switch signing method',
-  'insp.manage': 'Manage accounts …',
+  'insp.manage': 'Settings …',
   'insp.block': 'Signature block',
   'insp.block.edit': 'Edit signature block',
   'insp.options': 'Options',
