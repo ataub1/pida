@@ -1,0 +1,855 @@
+//! Tabellentests der Stapelübersicht und des Stapellaufs (ADR 0004 §3.8, Paket K2): Übersicht ab zwei
+//! Dokumenten mit Voranalyse, Einzeldokument öffnen/zurück mit eigenem Plan, „Alle signieren“ mit **einer**
+//! Sitzung (eine Anmeldung, höchstens ein Zertifikat, je Dokument eine Bestätigung), Überspringen ≠ Abbrechen,
+//! Pausen je Fehlerart, Umgang mit vorhandenen Zieldateien, Zusammenfassung.
+
+mod common;
+
+use common::*;
+use pida_backend_api::{BackendError, BackendId};
+use pida_pades::{AcceptanceClass, OutputInfo};
+use pida_placement::Placement;
+use pida_workflow::{
+    BatchItemStatus, BatchOutput, BatchPause, BatchPhase, Context, DocId, DocSummary, Effect, Event, ExistingPolicy,
+    PlaceholderFound, PositionChoice, Queue, RetryTarget, SigningPhase, State, Step, Target, WorkflowError,
+};
+
+fn ctx() -> Context {
+    Context { workspace: true, batch_overview: true, ..Context::default() }
+}
+
+fn summary(pages: usize) -> DocSummary {
+    DocSummary {
+        page_count: pages,
+        size_bytes: 1234,
+        signed: false,
+        class: AcceptanceClass::K1Regular,
+        qr: false,
+        fields: 0,
+        warnings: Vec::new(),
+        placeholder: None,
+        new_visible_field_allowed: true,
+    }
+}
+
+fn info(path: &str) -> OutputInfo {
+    OutputInfo { path: path.into(), len: 10, sha256: "ab".into() }
+}
+
+fn batch_of(s: &State) -> &pida_workflow::Batch {
+    s.queue().and_then(|q| q.batch.as_ref()).expect("Stapel")
+}
+
+fn status(s: &State, id: u64) -> BatchItemStatus {
+    batch_of(s).item(DocId(id)).expect("Eintrag").status.clone()
+}
+
+fn opens(effects: &[Effect]) -> usize {
+    effects.iter().filter(|e| matches!(e, Effect::OpenSession(_))).count()
+}
+
+fn count(effects: &[Effect], pred: impl Fn(&Effect) -> bool) -> usize {
+    effects.iter().filter(|e| pred(e)).count()
+}
+
+/// Übersicht mit `ids`, alle voranalysiert (`Ready`).
+fn overview(ids: &[u64]) -> State {
+    let t =
+        step(State::Idle { queue: Queue::default() }, Event::FilesAdded(ids.iter().map(|i| doc(*i)).collect()), &ctx());
+    let mut s = t.state;
+    for id in ids {
+        s = step(s, Event::Preanalyzed { doc: DocId(*id), result: Ok(summary(3)) }, &ctx()).state;
+    }
+    s
+}
+
+fn started(s: State, backend: BackendId, docs: &[u64], on_existing: ExistingPolicy) -> pida_workflow::Transition {
+    step(
+        s,
+        Event::BatchStarted {
+            backend,
+            docs: docs.iter().map(|d| DocId(*d)).collect(),
+            output: Some(BatchOutput::Folder("/out".into())),
+            on_existing,
+            options: options(true, true),
+        },
+        &ctx(),
+    )
+}
+
+/// Treibt einen Lauf: protokolliert alle Effekte, beantwortet sie wie core-api (Erfolg) bis zum Ende bzw.
+/// bis `stop` für ein Ereignis gilt.
+struct Driver {
+    state: State,
+    effects: Vec<Effect>,
+}
+
+impl Driver {
+    fn new(t: pida_workflow::Transition) -> Driver {
+        Driver { state: t.state, effects: t.effects }
+    }
+
+    fn send(&mut self, e: Event) -> Vec<Effect> {
+        let t = step(self.state.clone(), e, &ctx());
+        self.state = t.state;
+        self.effects.extend(t.effects.clone());
+        t.effects
+    }
+
+    fn current(&self) -> u64 {
+        self.state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(0)
+    }
+
+    fn phase(&self) -> BatchPhase {
+        match &self.state {
+            State::BatchSigning { run, .. } => run.phase,
+            other => panic!("kein Lauf: {}", other.name()),
+        }
+    }
+
+    fn pause(&self) -> Option<BatchPause> {
+        match &self.state {
+            State::BatchSigning { run, .. } => run.pause.clone(),
+            _ => None,
+        }
+    }
+
+    /// Erfolgreicher Schritt der aktuellen Phase.
+    fn ok(&mut self) -> Vec<Effect> {
+        let id = self.current();
+        match self.phase() {
+            BatchPhase::OpeningSession => self.send(Event::PhaseCompleted(SigningPhase::OpeningSession)),
+            BatchPhase::ReadingCertificate => self.send(Event::PhaseCompleted(SigningPhase::ReadingCertificate)),
+            BatchPhase::CheckingTarget => self.send(Event::BatchOutputDecided {
+                doc: DocId(id),
+                path: format!("/out/doc{id}_signed.pdf").into(),
+                exists: false,
+            }),
+            BatchPhase::Loading => self.send(analyzed(id, 3, None, false)),
+            BatchPhase::Preparing => self.send(Event::PhaseCompleted(SigningPhase::Preparing)),
+            BatchPhase::Confirming => self.send(Event::PhaseCompleted(SigningPhase::Signing)),
+            BatchPhase::Finishing => self.send(Event::PhaseCompleted(SigningPhase::Finishing)),
+            BatchPhase::Writing => {
+                let decided = self.effects.iter().rev().find_map(|e| match e {
+                    Effect::DecideBatchOutput { doc, .. } => Some(*doc),
+                    _ => None,
+                });
+                let written = self.effects.last().is_some_and(|e| matches!(e, Effect::Write(_) | Effect::Overwrite(_)));
+                if written || decided != Some(DocId(id)) {
+                    self.send(Event::Saved(info(&format!("/out/doc{id}_signed.pdf"))))
+                } else {
+                    self.send(Event::BatchOutputDecided {
+                        doc: DocId(id),
+                        path: format!("/out/doc{id}_signed.pdf").into(),
+                        exists: false,
+                    })
+                }
+            }
+        }
+    }
+
+    /// Bis zur Phase `phase` des Dokuments `id` (Erfolg in allen Schritten davor).
+    fn until(&mut self, id: u64, phase: BatchPhase) {
+        for _ in 0..200 {
+            if matches!(self.state, State::BatchSigning { .. }) && self.current() == id && self.phase() == phase {
+                return;
+            }
+            assert!(matches!(self.state, State::BatchSigning { .. }), "Lauf endete vor {id}/{phase:?}");
+            self.ok();
+        }
+        panic!("{id}/{phase:?} nicht erreicht");
+    }
+
+    fn finish(&mut self) {
+        for _ in 0..400 {
+            if !matches!(self.state, State::BatchSigning { .. }) {
+                return;
+            }
+            self.ok();
+        }
+        panic!("Lauf endet nicht");
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// Übersicht
+// ------------------------------------------------------------------------------------------------
+
+#[test]
+fn two_or_more_documents_open_the_overview_with_preanalysis() {
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2), doc(3)]), &ctx());
+    let State::BatchOverview { queue } = &t.state else { panic!("{:?}", t.state) };
+    assert_eq!(queue.current_id(), None, "Übersicht ohne aktuelles Dokument");
+    assert_eq!(queue.pending.len(), 3);
+    for id in 1..=3 {
+        assert!(t.effects.contains(&Effect::Preanalyze(DocId(id))));
+        assert_eq!(status(&t.state, id), BatchItemStatus::Analyzing);
+    }
+    assert!(t.effects.contains(&Effect::RememberDirectory("/in".into())));
+    // „Öffnen mit“ mehrerer Dateien beim Start
+    let t = step(State::Starting, Event::Started { documents: vec![doc(1), doc(2)] }, &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }));
+    // ein Dokument: Arbeitsbereich wie bisher
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1)]), &ctx());
+    assert!(matches!(t.state, State::Analyzing { .. }));
+    // ohne Stapelübersicht bzw. mit Startargument-Automatik (D-06): nacheinander
+    for c in [Context { workspace: true, ..Context::default() }, Context { cli_auto: true, ..ctx() }] {
+        let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &c);
+        assert!(matches!(t.state, State::Analyzing { .. }), "{:?}", t.state);
+    }
+}
+
+#[test]
+fn preanalysis_sets_ready_positioned_rejected_and_needs_review() {
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded((1..=4).map(doc).collect()), &ctx());
+    let c = Context { placeholder_search: true, ..ctx() };
+    let mut s = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(summary(2)) }, &c).state;
+    let with_qr = DocSummary { qr: true, placeholder: Some(qr()), ..summary(1) };
+    s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(with_qr) }, &c).state;
+    let rejected = WorkflowError::Rejected { class: AcceptanceClass::K5Rejected, code: "error-PDFPwdProtected".into() };
+    s = step(s, Event::Preanalyzed { doc: DocId(3), result: Err(rejected) }, &c).state;
+    let warned = DocSummary { warnings: vec!["pdf-usage-rights".into()], ..summary(1) };
+    s = step(s, Event::Preanalyzed { doc: DocId(4), result: Ok(warned) }, &c).state;
+    assert_eq!(status(&s, 1), BatchItemStatus::Ready);
+    assert_eq!(status(&s, 2), BatchItemStatus::Positioned);
+    assert!(matches!(batch_of(&s).item(DocId(2)).unwrap().plan, Some(PositionChoice::Placeholder(_))));
+    assert_eq!(status(&s, 3), BatchItemStatus::Rejected { code: "error-PDFPwdProtected".into() });
+    assert_eq!(status(&s, 4), BatchItemStatus::NeedsReview { codes: vec!["pdf-usage-rights".into()] });
+    assert_eq!(batch_of(&s).signable(), 2);
+    // StartBatch nimmt nur Ready/Positioned: ein Lauf mit 1, 2
+    let t = started(s, BackendId::AtrustNative, &[1, 2, 3, 4], ExistingPolicy::KeepBoth);
+    let State::BatchSigning { run, .. } = &t.state else { panic!() };
+    assert_eq!(run.order, vec![DocId(1), DocId(2)]);
+    assert_eq!(t.effects, vec![Effect::OpenSession(BackendId::AtrustNative)]);
+}
+
+#[test]
+fn start_is_refused_without_documents_signer_or_folder() {
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &ctx()).state;
+    // noch in der Voranalyse
+    let t = started(s.clone(), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth);
+    assert!(matches!(t.state, State::BatchOverview { .. }));
+    assert_eq!(t.effects, vec![Effect::Notify("ng-batch-nothing-to-sign".into())]);
+    let s = overview(&[1, 2]);
+    // Signiermittel nicht verfügbar
+    let t = step(
+        s.clone(),
+        Event::BatchStarted {
+            backend: BackendId::LocalBku,
+            docs: vec![DocId(1)],
+            output: Some(BatchOutput::Configured),
+            on_existing: ExistingPolicy::KeepBoth,
+            options: options(false, true),
+        },
+        &ctx(),
+    );
+    assert!(matches!(t.state, State::BatchOverview { .. }));
+    assert_eq!(t.effects, vec![Effect::Notify("ng-signer-unavailable".into())]);
+    // Ziel nicht bestimmbar („jedes Mal fragen“ ohne Ordnerwahl)
+    let t = step(
+        s,
+        Event::BatchStarted {
+            backend: BackendId::Keystore,
+            docs: vec![DocId(1), DocId(2)],
+            output: None,
+            on_existing: ExistingPolicy::KeepBoth,
+            options: options(false, true),
+        },
+        &ctx(),
+    );
+    assert!(matches!(t.state, State::BatchOverview { .. }));
+    assert_eq!(t.effects, vec![Effect::Notify("ng-batch-output-folder-required".into())]);
+}
+
+#[test]
+fn removing_entries_ends_in_idle() {
+    let s = overview(&[1, 2]);
+    let t = step(s, Event::BatchItemRemoved(DocId(1)), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }));
+    assert_eq!(batch_of(&t.state).items.len(), 1);
+    assert_eq!(t.effects, vec![Effect::Discard(DocId(1))]);
+    let t = step(t.state, Event::BatchItemRemoved(DocId(2)), &ctx());
+    let State::Idle { queue } = &t.state else { panic!("{:?}", t.state) };
+    assert!(queue.is_empty() && queue.batch.is_none());
+}
+
+#[test]
+fn files_added_to_the_overview_and_while_running_are_not_part_of_the_run() {
+    let s = overview(&[1, 2]);
+    let t = step(s, Event::FilesAdded(vec![doc(3)]), &ctx());
+    assert_eq!(t.effects, vec![Effect::Preanalyze(DocId(3))]);
+    assert_eq!(status(&t.state, 3), BatchItemStatus::Analyzing);
+    let s = step(t.state, Event::Preanalyzed { doc: DocId(3), result: Ok(summary(1)) }, &ctx()).state;
+    let mut d = Driver::new(started(s, BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    let effects = d.send(Event::FilesAdded(vec![doc(4)]));
+    assert!(effects.contains(&Effect::Preanalyze(DocId(4))));
+    assert!(effects.iter().any(|e| matches!(e, Effect::NotifyWith(c, _) if c == "ng-batch-added")));
+    let State::BatchSigning { run, .. } = &d.state else { panic!() };
+    assert_eq!(run.order, vec![DocId(1), DocId(2)], "genau die genannten Dokumente (A1)");
+    d.finish();
+    assert_eq!(status(&d.state, 3), BatchItemStatus::Ready, "nicht im Lauf");
+    assert_eq!(status(&d.state, 4), BatchItemStatus::Analyzing);
+}
+
+// ------------------------------------------------------------------------------------------------
+// Einzeldokument aus der Übersicht
+// ------------------------------------------------------------------------------------------------
+
+#[test]
+fn open_item_move_and_back_to_batch_keeps_the_plan() {
+    let s = overview(&[1, 2]);
+    let t = step(s, Event::BatchItemOpened(DocId(2)), &ctx());
+    assert_eq!(t.effects, vec![Effect::Analyze(DocId(2))]);
+    assert!(matches!(&t.state, State::Analyzing { queue } if queue.current_id() == Some(DocId(2))));
+    assert!(t.state.opened_from_batch());
+    let t = step(t.state, analyzed(2, 3, None, false), &ctx());
+    let State::Positioning { edit: Some(edit), .. } = &t.state else { panic!("{:?}", t.state) };
+    assert!(edit.return_to_batch);
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(2))), "ohne Plan automatisch platziert");
+    // Bewegen → „Zurück zum Stapel“ → Positioned mit diesem Plan
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(t.state, Event::PlacementChanged(p), &ctx()).state;
+    let t = step(s, Event::BackToBatch, &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{:?}", t.state);
+    assert!(t.effects.contains(&Effect::Discard(DocId(2))), "Dokument freigegeben");
+    assert_eq!(status(&t.state, 2), BatchItemStatus::Positioned);
+    assert_eq!(batch_of(&t.state).item(DocId(2)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    assert_eq!(t.state.queue().unwrap().current_id(), None);
+    // erneut öffnen: Plan wiederhergestellt (frei, Herkunft Nutzerin), keine automatische Platzierung
+    let t = step(t.state, Event::BatchItemOpened(DocId(2)), &ctx());
+    let t = step(t.state, analyzed(2, 3, None, false), &ctx());
+    let State::Positioning { placement: Some(q), page: 1, edit: Some(edit), .. } = &t.state else {
+        panic!("{:?}", t.state)
+    };
+    assert_eq!(*q, p);
+    assert_eq!(edit.origin, pida_workflow::PlacementOrigin::User);
+    assert!(!t.effects.contains(&Effect::AutoPlace(DocId(2))));
+    // Abbrechen bzw. „Start“ kehrt ohne Änderung zurück
+    for e in [Event::Cancel, Event::Navigate(Step::Open)] {
+        let back = step(t.state.clone(), e, &ctx());
+        assert!(matches!(back.state, State::BatchOverview { .. }), "{:?}", back.state);
+        assert_eq!(batch_of(&back.state).item(DocId(2)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    }
+    // unsichtbar → Plan „unsichtbar“; automatisch platziert → kein Plan (Ready)
+    let s = step(t.state, Event::InvisibleSet(true), &ctx()).state;
+    let t = step(s, Event::BackToBatch, &ctx());
+    assert_eq!(batch_of(&t.state).item(DocId(2)).unwrap().plan, Some(PositionChoice::Invisible));
+    let t = step(t.state, Event::BatchItemOpened(DocId(1)), &ctx());
+    let t = step(t.state, analyzed(1, 3, None, false), &ctx());
+    let t = step(t.state, Event::BackToBatch, &ctx());
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Ready);
+}
+
+#[test]
+fn opened_item_signed_individually_returns_to_the_overview() {
+    let s = overview(&[1, 2]);
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let t = step(s, Event::SignRequested { backend: BackendId::Keystore, options: options(false, true) }, &ctx());
+    assert!(matches!(t.state, State::Signing { .. }));
+    assert!(t.state.opened_from_batch());
+    let (s, _) = run(
+        t.state,
+        [
+            Event::PhaseCompleted(SigningPhase::OpeningSession),
+            Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+            Event::PhaseCompleted(SigningPhase::Preparing),
+            Event::PhaseCompleted(SigningPhase::Signing),
+            Event::PhaseCompleted(SigningPhase::Finishing),
+        ],
+        &ctx(),
+    );
+    assert!(matches!(s, State::Output { .. }), "{s:?}");
+    let s = step(
+        s,
+        Event::OutputDecided(pida_workflow::OutputDecision::Save { path: "/in/doc1_signed.pdf".into(), exists: false }),
+        &ctx(),
+    )
+    .state;
+    let t = step(s, Event::Saved(info("/in/doc1_signed.pdf")), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{:?}", t.state);
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Signed { output: info("/in/doc1_signed.pdf") });
+    assert!(
+        t.effects
+            .iter()
+            .any(|e| matches!(e, Effect::NotifyWith(c, p) if c == "ng-batch-item-signed" && p["file"] == "doc1.pdf"))
+    );
+    let q = t.state.queue().unwrap();
+    assert!(q.done.iter().any(|o| o.doc.id == DocId(1)), "Ergebnisliste");
+    // die Zusammenfassung zählt den einzeln signierten Eintrag (Lauf für den Rest)
+    let mut d = Driver::new(started(t.state, BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    let State::BatchSigning { run, .. } = &d.state else { panic!() };
+    assert_eq!(run.order, vec![DocId(2)], "signierte Einträge nie erneut");
+    d.finish();
+    let b = batch_of(&d.state);
+    assert_eq!(b.items.iter().filter(|i| matches!(i.status, BatchItemStatus::Signed { .. })).count(), 2);
+    assert!(b.last_run.is_some());
+}
+
+#[test]
+fn analysis_warning_from_the_overview() {
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &ctx());
+    let warned = DocSummary { warnings: vec!["pdf-usage-rights".into()], ..summary(1) };
+    let s = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(warned) }, &ctx()).state;
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let Event::Analyzed { doc, class, placeholder, signed, page_count, start, fields, .. } =
+        analyzed(1, 3, None, false)
+    else {
+        unreachable!()
+    };
+    let with_warning = Event::Analyzed {
+        doc,
+        class,
+        placeholder,
+        signed,
+        page_count,
+        start,
+        warnings: vec!["pdf-usage-rights".into()],
+        fields,
+        new_visible_field_allowed: true,
+    };
+    let w = step(s, with_warning.clone(), &ctx()).state;
+    assert!(matches!(w, State::AnalysisWarning { .. }));
+    // „Abbrechen“ bzw. „Zurück“ ohne Bestätigung: bleibt zu prüfen
+    for e in [Event::WarningAnswered(false), Event::BackToBatch, Event::Cancel] {
+        let back = step(w.clone(), e, &ctx()).state;
+        assert!(matches!(back, State::BatchOverview { .. }));
+        assert!(matches!(status(&back, 1), BatchItemStatus::NeedsReview { .. }));
+    }
+    // „Fortfahren“ → Arbeitsbereich → zurück: bestätigt, bereit; erneutes Öffnen fragt nicht mehr
+    let s = step(w, Event::WarningAnswered(true), &ctx()).state;
+    assert!(matches!(s, State::Positioning { .. }));
+    let s = step(s, Event::BackToBatch, &ctx()).state;
+    assert_eq!(status(&s, 1), BatchItemStatus::Ready);
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    assert!(matches!(step(s, with_warning, &ctx()).state, State::Positioning { .. }));
+}
+
+#[test]
+fn show_batch_from_a_single_document_with_waiting_documents() {
+    // ein Dokument im Arbeitsbereich, weitere kommen dazu → Hinweis, „Zur Stapelübersicht“
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1)]), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let t = step(s, Event::FilesAdded(vec![doc(2), doc(3)]), &ctx());
+    assert!(matches!(t.state, State::Positioning { .. }));
+    assert!(
+        t.effects.iter().any(|e| matches!(e, Effect::NotifyWith(c, p) if c == "ng-batch-added" && p["count"] == "2"))
+    );
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(t.state, Event::PlacementChanged(p), &ctx()).state;
+    let t = step(s, Event::ShowBatch, &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{:?}", t.state);
+    assert_eq!(batch_of(&t.state).items.len(), 3);
+    assert_eq!(batch_of(&t.state).item(DocId(1)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    assert!(t.effects.contains(&Effect::Preanalyze(DocId(2))) && t.effects.contains(&Effect::Discard(DocId(1))));
+}
+
+#[test]
+fn resumed_document_of_an_interrupted_batch_returns_to_the_overview() {
+    let plan = pida_workflow::ResumePlan { position: PositionChoice::Auto, backend: BackendId::AtrustNative };
+    let t = step(
+        State::Idle { queue: Queue::default() },
+        Event::ResumeRequested { document: doc(5), plan, pending: vec![doc(6)] },
+        &ctx(),
+    );
+    let s = step(t.state, analyzed(5, 2, None, false), &ctx()).state;
+    let t = step(s, Event::BackendsProbed(options(false, false)), &ctx());
+    assert!(matches!(t.state, State::Signing { .. }), "nur das unterbrochene Dokument wird fortgesetzt");
+    assert_eq!(opens(&t.effects), 1);
+    let (s, _) = run(
+        t.state,
+        [
+            Event::PhaseCompleted(SigningPhase::OpeningSession),
+            Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+            Event::PhaseCompleted(SigningPhase::Preparing),
+            Event::PhaseCompleted(SigningPhase::Signing),
+            Event::PhaseCompleted(SigningPhase::Finishing),
+            Event::OutputDecided(pida_workflow::OutputDecision::Save {
+                path: "/docs/doc5_signed.pdf".into(),
+                exists: false,
+            }),
+        ],
+        &ctx(),
+    );
+    let t = step(s, Event::Saved(info("/docs/doc5_signed.pdf")), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{:?}", t.state);
+    assert!(matches!(status(&t.state, 5), BatchItemStatus::Signed { .. }));
+    assert_eq!(status(&t.state, 6), BatchItemStatus::Analyzing, "die übrigen: neue Voranalyse");
+    assert_eq!(t.effects.iter().filter(|e| matches!(e, Effect::Preanalyze(_))).count(), 1);
+    assert_eq!(opens(&t.effects), 0, "der Lauf wird nicht automatisch fortgesetzt");
+}
+
+// ------------------------------------------------------------------------------------------------
+// Lauf
+// ------------------------------------------------------------------------------------------------
+
+/// Eine Sitzung, höchstens ein Zertifikat (vor dem ersten sichtbaren Block), je Dokument eine Bestätigung.
+#[test]
+fn run_with_one_session_one_certificate_and_one_confirmation_per_document() {
+    let mut d =
+        Driver::new(started(overview(&[1, 2, 3]), BackendId::AtrustNative, &[1, 2, 3], ExistingPolicy::KeepBoth));
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Queued);
+    d.until(2, BatchPhase::Confirming);
+    assert_eq!(status(&d.state, 2), BatchItemStatus::Active);
+    assert!(matches!(status(&d.state, 1), BatchItemStatus::Signed { .. }));
+    assert_eq!(status(&d.state, 3), BatchItemStatus::Queued);
+    let State::BatchSigning { run, .. } = &d.state else { panic!() };
+    assert_eq!((run.index, run.confirmations_done, run.certificate_doc), (1, 1, Some(DocId(1))));
+    d.finish();
+    assert_eq!(opens(&d.effects), 1, "eine Sitzung");
+    assert_eq!(count(&d.effects, |e| *e == Effect::ReadCertificate), 1, "höchstens ein Zertifikat");
+    assert_eq!(count(&d.effects, |e| *e == Effect::SignDocument), 3, "je Dokument eine Bestätigung");
+    assert_eq!(count(&d.effects, |e| matches!(e, Effect::Write(_))), 3);
+    assert_eq!(count(&d.effects, |e| *e == Effect::CloseSession), 1);
+    assert!(!d.effects.contains(&Effect::CancelSession));
+    assert!(d.effects.iter().any(
+        |e| matches!(e, Effect::NotifyWith(c, p) if c == "ng-batch-done" && p["signed"] == "3" && p["total"] == "3")
+    ));
+    let State::BatchOverview { queue } = &d.state else { panic!("{:?}", d.state) };
+    let last = queue.batch.as_ref().unwrap().last_run.clone().unwrap();
+    assert_eq!((last.total, last.signed, last.aborted), (3, 3, false));
+    assert_eq!(last.folder.as_deref(), Some(std::path::Path::new("/out")));
+    assert_eq!(queue.done.len(), 3);
+}
+
+/// Das Zertifikat wird vor dem ersten Dokument **mit sichtbarem Block** gelesen, nicht zwingend vor dem
+/// ersten Dokument.
+#[test]
+fn certificate_is_read_before_the_first_visible_document() {
+    let mut s = overview(&[1, 2]);
+    if let Some(i) = s.queue_mut().and_then(|q| q.batch.as_mut()).and_then(|b| b.item_mut(DocId(1))) {
+        i.plan = Some(PositionChoice::Invisible);
+        i.status = BatchItemStatus::Positioned;
+    }
+    let mut d = Driver::new(started(s, BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Preparing);
+    assert_eq!(count(&d.effects, |e| *e == Effect::ReadCertificate), 0, "unsichtbar: kein Zertifikat");
+    d.until(2, BatchPhase::ReadingCertificate);
+    d.finish();
+    assert_eq!(count(&d.effects, |e| *e == Effect::ReadCertificate), 1);
+}
+
+#[test]
+fn skip_keeps_the_session_and_abort_cancels_it() {
+    let mut d =
+        Driver::new(started(overview(&[1, 2, 3]), BackendId::AtrustNative, &[1, 2, 3], ExistingPolicy::KeepBoth));
+    d.until(2, BatchPhase::Confirming);
+    let e = d.send(Event::BatchSkip);
+    assert_eq!(e, vec![Effect::SkipCurrentJob], "nur den Auftrag abbrechen");
+    assert_eq!(d.current(), 2, "wartet auf das Ende des Auftrags");
+    let e = d.send(Event::BackendFailed(BackendError::Cancelled));
+    assert_eq!(status(&d.state, 2), BatchItemStatus::Skipped { existing: false });
+    assert!(e.contains(&Effect::Notify("ng-batch-pending-app-request".into())));
+    assert!(!e.contains(&Effect::CancelSession) && !e.contains(&Effect::CloseSession));
+    assert_eq!(d.current(), 3);
+    assert_eq!(opens(&e), 0, "dieselbe Sitzung");
+    d.finish();
+    assert_eq!(opens(&d.effects), 1);
+    let s = batch_of(&d.state);
+    assert_eq!(s.items.iter().filter(|i| matches!(i.status, BatchItemStatus::Signed { .. })).count(), 2);
+
+    // „Stapel abbrechen“ beim zweiten Dokument: Sitzung abgebrochen (F-72), Rest bleibt bereit
+    let mut d =
+        Driver::new(started(overview(&[1, 2, 3]), BackendId::AtrustNative, &[1, 2, 3], ExistingPolicy::KeepBoth));
+    d.until(2, BatchPhase::Confirming);
+    let e = d.send(Event::BatchAbort);
+    assert!(e.contains(&Effect::CancelSession) && e.contains(&Effect::DeletePersisted));
+    assert!(e.iter().any(|e| matches!(e, Effect::NotifyWith(c, p) if c == "ng-batch-aborted" && p["signed"] == "1")));
+    assert!(matches!(d.state, State::BatchOverview { .. }));
+    assert!(matches!(status(&d.state, 1), BatchItemStatus::Signed { .. }), "Gespeichertes bleibt");
+    assert_eq!(status(&d.state, 2), BatchItemStatus::Cancelled);
+    assert_eq!(status(&d.state, 3), BatchItemStatus::Ready);
+    assert!(batch_of(&d.state).last_run.as_ref().unwrap().aborted);
+    // Esc im Lauf bedeutet dasselbe
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Loading);
+    assert!(d.send(Event::Cancel).contains(&Effect::CancelSession));
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Cancelled);
+}
+
+#[test]
+fn skip_in_phases_without_a_backend_job_waits_for_the_step() {
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Preparing);
+    d.send(Event::BatchSkip);
+    // das vorbereitete Dokument kommt zurück → verworfen, nächstes Dokument
+    let e = d.send(Event::PhaseCompleted(SigningPhase::Preparing));
+    assert!(e.contains(&Effect::ReleaseDocument));
+    assert!(!e.contains(&Effect::SignDocument));
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Skipped { existing: false });
+    assert!(!e.contains(&Effect::Notify("ng-batch-pending-app-request".into())), "keine App-Anfrage");
+    // während des Öffnens der Sitzung gibt es nichts zu überspringen
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    assert!(d.send(Event::BatchSkip).is_empty());
+    // gespeichert ist gespeichert
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Writing);
+    d.ok();
+    d.send(Event::BatchSkip);
+    d.send(Event::Saved(info("/out/doc1_signed.pdf")));
+    assert!(matches!(status(&d.state, 1), BatchItemStatus::Signed { .. }));
+}
+
+#[test]
+fn connection_error_pauses_and_retries_in_the_same_session() {
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(2, BatchPhase::Confirming);
+    let e = d.send(Event::BackendFailed(BackendError::Network("weg".into())));
+    assert!(!e.contains(&Effect::CloseSession) && !e.contains(&Effect::CancelSession), "Sitzung bleibt");
+    assert!(matches!(d.pause(), Some(BatchPause::Session { new_session: false, doc: Some(DocId(2)), .. })));
+    // nie automatisch weiter
+    for e in [Event::PhaseCompleted(SigningPhase::Signing), analyzed(2, 3, None, false)] {
+        assert!(d.send(e).is_empty());
+        assert!(d.pause().is_some());
+    }
+    let e = d.send(Event::Retry);
+    assert_eq!(opens(&e), 0, "ohne neue Sitzung");
+    assert!(matches!(e.as_slice(), [Effect::Prepare { doc: DocId(2), .. }]), "{e:?}");
+    d.finish();
+    assert_eq!(opens(&d.effects), 1);
+}
+
+#[test]
+fn session_error_pauses_and_retry_opens_a_new_session() {
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(2, BatchPhase::Confirming);
+    let e = d.send(Event::BackendFailed(BackendError::UnknownPage { diagnostic: "x".into() }));
+    assert!(e.contains(&Effect::CloseSession));
+    assert!(matches!(d.pause(), Some(BatchPause::Session { new_session: true, doc: Some(DocId(2)), .. })));
+    let e = d.send(Event::Retry);
+    assert_eq!(e, vec![Effect::OpenSession(BackendId::AtrustNative)], "neue Sitzung (ggf. neue Anmeldung)");
+    // neue Sitzung: das Zertifikat wird erneut gelesen, weiter beim aktuellen Dokument
+    let e = d.send(Event::PhaseCompleted(SigningPhase::OpeningSession));
+    assert_eq!(e, vec![Effect::ReadCertificate]);
+    assert_eq!(d.current(), 2);
+    d.finish();
+    assert_eq!(opens(&d.effects), 2);
+    assert!(matches!(status(&d.state, 2), BatchItemStatus::Signed { .. }));
+
+    // Sitzungsfehler vor dem ersten Dokument: Pause ohne Dokument, Überspringen nicht möglich
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.send(Event::BackendFailed(BackendError::Keystore("x".into())));
+    assert!(matches!(d.pause(), Some(BatchPause::Session { doc: None, new_session: true, .. })));
+    assert!(d.send(Event::BatchSkip).is_empty());
+    assert!(d.pause().is_some());
+    // Überspringen in einer Sitzungspause mit Dokument: nächstes Dokument wartet weiter auf eine neue Sitzung
+    let mut d =
+        Driver::new(started(overview(&[1, 2, 3]), BackendId::AtrustNative, &[1, 2, 3], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    d.send(Event::BackendFailed(BackendError::Protocol("x".into())));
+    let e = d.send(Event::BatchSkip);
+    assert_eq!(opens(&e), 0, "A1: neue Sitzung nur nach „Erneut versuchen“");
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Skipped { existing: false });
+    assert!(matches!(d.pause(), Some(BatchPause::Session { new_session: true, doc: Some(DocId(2)), .. })));
+    assert_eq!(d.send(Event::Retry), vec![Effect::OpenSession(BackendId::AtrustNative)]);
+}
+
+#[test]
+fn declined_in_the_app_pauses_the_document_never_automatically_on() {
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    let e = d.send(Event::SigningDeclined);
+    assert!(e.contains(&Effect::ReleaseDocument) && !e.contains(&Effect::CancelSession), "Zugangsdaten bleiben");
+    let Some(BatchPause::Document { doc, error, retry, .. }) = d.pause() else { panic!("{:?}", d.pause()) };
+    assert_eq!((doc, error.code(), retry), (DocId(1), "ng-signing-declined".to_owned(), RetryTarget::Prepare));
+    assert!(d.send(Event::PhaseCompleted(SigningPhase::Signing)).is_empty(), "nie automatisch weiter");
+    // „Erneut anfordern“: neue Bestätigung in derselben Sitzung
+    let e = d.send(Event::Retry);
+    assert!(matches!(e.as_slice(), [Effect::Prepare { doc: DocId(1), .. }]));
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Active);
+    d.until(1, BatchPhase::Confirming);
+    d.send(Event::SigningDeclined);
+    // „Überspringen“ in der Pause
+    let e = d.send(Event::BatchSkip);
+    assert!(e.contains(&Effect::Analyze(DocId(2))));
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Skipped { existing: false });
+}
+
+#[test]
+fn document_errors_fail_the_document_or_pause_when_retryable() {
+    // nicht wiederholbar: Fehler, der Lauf geht weiter
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    let e = d.send(Event::BackendFailed(BackendError::DocumentTooLarge));
+    assert!(
+        matches!(status(&d.state, 1), BatchItemStatus::Failed { error } if error.code() == "backend-document-too-large")
+    );
+    assert!(e.contains(&Effect::Analyze(DocId(2))) && d.pause().is_none());
+    for e in [
+        Event::SigningFailed(WorkflowError::Prepare { code: "sigblock-x".into(), detail: String::new() }),
+        Event::SelfCheckFailed(pida_pades::InvariantViolation {
+            invariant: pida_pades::Invariant::I1Prefix,
+            detail: "x".into(),
+        }),
+    ] {
+        let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+        d.until(1, BatchPhase::Finishing);
+        d.send(e);
+        assert!(matches!(status(&d.state, 1), BatchItemStatus::Failed { .. }));
+        assert_eq!(d.current(), 2);
+    }
+    // wiederholbar: SL-Fehler, „CMS zu groß“ (mit größerer Reserve), Speichern, Zertifikats-Cache
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    d.send(Event::BackendFailed(BackendError::SecurityLayer { code: 6002, info: "x".into() }));
+    assert!(matches!(d.pause(), Some(BatchPause::Document { .. })));
+    d.send(Event::Retry);
+    d.until(1, BatchPhase::Finishing);
+    d.send(Event::CmsTooLarge { needed: 20_000, reserve: 16_384 });
+    let Some(BatchPause::Document { retry: RetryTarget::PrepareWithReserve(n), .. }) = d.pause() else { panic!() };
+    let e = d.send(Event::Retry);
+    assert!(matches!(e.as_slice(), [Effect::Prepare { min_reserve: Some(m), .. }] if *m == n));
+    d.until(1, BatchPhase::Writing);
+    d.ok();
+    d.send(Event::SaveFailed("voll".into()));
+    let Some(BatchPause::Document { retry: RetryTarget::Save, .. }) = d.pause() else { panic!("{:?}", d.pause()) };
+    let e = d.send(Event::Retry);
+    assert!(matches!(e.as_slice(), [Effect::DecideBatchOutput { doc: DocId(1), .. }]), "{e:?}");
+    d.ok();
+    d.send(Event::Saved(info("/out/doc1_signed.pdf")));
+    d.until(2, BatchPhase::Finishing);
+    d.send(Event::SigningFailed(WorkflowError::Prepare {
+        code: "ng-certcache-mismatch".into(),
+        detail: String::new(),
+    }));
+    assert!(matches!(d.pause(), Some(BatchPause::Document { resume: BatchPhase::ReadingCertificate, .. })));
+    assert_eq!(d.send(Event::Retry), vec![Effect::ReadCertificate], "Zertifikat neu lesen, gleiche Sitzung");
+    d.finish();
+    assert_eq!(opens(&d.effects), 1);
+}
+
+#[test]
+fn existing_targets_skip_without_confirmation_keep_both_or_overwrite() {
+    // „Überspringen“: Ziel vor dem Signieren geprüft – keine Bestätigung
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::Skip));
+    let e = d.send(Event::PhaseCompleted(SigningPhase::OpeningSession));
+    assert!(matches!(
+        e.as_slice(),
+        [Effect::DecideBatchOutput { doc: DocId(1), on_existing: ExistingPolicy::Skip, .. }]
+    ));
+    let e = d.send(Event::BatchOutputDecided { doc: DocId(1), path: "/out/doc1_signed.pdf".into(), exists: true });
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Skipped { existing: true });
+    assert!(e.iter().any(|e| matches!(e, Effect::DecideBatchOutput { doc: DocId(2), .. })));
+    d.finish();
+    assert_eq!(count(&d.effects, |e| *e == Effect::SignDocument), 1, "nur das zweite Dokument");
+    // beim Schreiben gilt dann „Beide behalten“
+    assert!(
+        d.effects.iter().any(|e| matches!(
+            e,
+            Effect::DecideBatchOutput { doc: DocId(2), on_existing: ExistingPolicy::KeepBoth, .. }
+        ))
+    );
+    // „Beide behalten“: Pfad mit Nummer aus core-api wird geschrieben (nie ersetzt)
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Writing);
+    let e = d.send(Event::BatchOutputDecided { doc: DocId(1), path: "/out/doc1_signed (2).pdf".into(), exists: true });
+    assert_eq!(e, vec![Effect::Write("/out/doc1_signed (2).pdf".into())]);
+    // „Überschreiben“
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::Overwrite));
+    d.until(1, BatchPhase::Writing);
+    let e = d.send(Event::BatchOutputDecided { doc: DocId(1), path: "/out/doc1_signed.pdf".into(), exists: true });
+    assert_eq!(e, vec![Effect::Overwrite("/out/doc1_signed.pdf".into())]);
+}
+
+#[test]
+fn certified_documents_and_analysis_warnings_in_the_run() {
+    // DocMDP-zertifiziert, automatisch (neues sichtbares Feld): Fehler, weiter
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Loading);
+    let Event::Analyzed { doc, class, placeholder, signed, page_count, start, fields, warnings, .. } =
+        analyzed(1, 3, None, false)
+    else {
+        unreachable!()
+    };
+    d.send(Event::Analyzed {
+        doc,
+        class,
+        placeholder,
+        signed,
+        page_count,
+        start,
+        warnings,
+        fields,
+        new_visible_field_allowed: false,
+    });
+    assert!(
+        matches!(status(&d.state, 1), BatchItemStatus::Failed { error } if error.code() == "ng-constraint-certified")
+    );
+    // Warnung im Lauf ohne Bestätigung: nie durchwinken
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Loading);
+    let Event::Analyzed { doc, class, placeholder, signed, page_count, start, fields, .. } =
+        analyzed(1, 3, None, false)
+    else {
+        unreachable!()
+    };
+    let e = d.send(Event::Analyzed {
+        doc,
+        class,
+        placeholder,
+        signed,
+        page_count,
+        start,
+        warnings: vec!["pdf-usage-rights".into()],
+        fields,
+        new_visible_field_allowed: true,
+    });
+    assert!(matches!(status(&d.state, 1), BatchItemStatus::NeedsReview { .. }));
+    assert!(!e.contains(&Effect::SignDocument));
+    // QR-Platzhalter ohne Plan: im Lauf der Platzhalter (Platzhaltersuche)
+    let c = Context { placeholder_search: true, ..ctx() };
+    let t = step(
+        started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth).state,
+        Event::PhaseCompleted(SigningPhase::OpeningSession),
+        &c,
+    );
+    let t = step(t.state, analyzed(1, 3, Some(PlaceholderFound::Qr(qr())), false), &c);
+    let State::BatchSigning { run, .. } = &t.state else { panic!() };
+    assert!(matches!(run.position, Some(PositionChoice::Placeholder(_))));
+}
+
+#[test]
+fn quit_while_running_cancels_the_session() {
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    let e = d.send(Event::Quit);
+    assert!(e.contains(&Effect::CancelSession));
+    assert!(matches!(d.state, State::Finished { .. }));
+    // „Start“ aus der Übersicht verwirft den Stapel
+    let t = step(overview(&[1, 2]), Event::Navigate(Step::Open), &ctx());
+    assert!(matches!(&t.state, State::Idle { queue } if queue.batch.is_none() && queue.is_empty()));
+}
+
+#[test]
+fn target_of_moves_in_the_workspace() {
+    // Feld als Plan
+    let s = overview(&[1, 2]);
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings, .. } =
+        analyzed(1, 3, None, false)
+    else {
+        unreachable!()
+    };
+    let s = step(
+        s,
+        Event::Analyzed {
+            doc,
+            class,
+            placeholder,
+            signed,
+            page_count,
+            start,
+            warnings,
+            fields: vec![field("Sig1")],
+            new_visible_field_allowed: true,
+        },
+        &ctx(),
+    )
+    .state;
+    let s = step(s, Event::TargetChosen(Target::Field(0)), &ctx()).state;
+    let s = step(s, Event::BackToBatch, &ctx()).state;
+    assert!(
+        matches!(&batch_of(&s).item(DocId(1)).unwrap().plan, Some(PositionChoice::Field(f)) if f.qualified_name == "Sig1")
+    );
+}

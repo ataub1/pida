@@ -11,6 +11,7 @@ use pida_config::BackendChoice;
 use pida_pades::{AcceptanceClass, InvariantViolation, OutputInfo};
 use pida_placement::{EmptyFieldCandidate, Placement, QrPlaceholder};
 
+use crate::batch::{BatchRun, DocSummary};
 use crate::output::{ExitCode, OutputDecision};
 use crate::queue::{DocId, DocOutcome, InputDocument, Queue};
 
@@ -470,6 +471,16 @@ pub struct Context {
     /// Arbeitsbereich-Modus der klassische automatische Weg – aber nur für Signiermittel ohne
     /// `document_leaves_device`
     pub cli_auto: bool,
+    /// Stapelübersicht bei ≥ 2 Dokumenten (ADR 0004 §3.8, aus `CoreOptions::batch_overview`; nur mit
+    /// `workspace`, nie mit `cli_auto` – D-06 bleibt ohne Übersicht)
+    pub batch_overview: bool,
+}
+
+impl Context {
+    /// Stapelübersicht aktiv (Arbeitsbereich, Oberfläche, keine Startargument-Automatik)?
+    pub fn batch(&self) -> bool {
+        self.workspace && self.batch_overview && !self.cli_auto && !self.headless
+    }
 }
 
 impl Default for Context {
@@ -485,6 +496,7 @@ impl Default for Context {
             output_postfix: "_signed".into(),
             workspace: false,
             cli_auto: false,
+            batch_overview: false,
         }
     }
 }
@@ -573,6 +585,26 @@ pub const MSG_FIELD_LOCKED: &str = "ng-field-locked";
 /// Meldungs-ID: Das Signiermittel des fortgesetzten Vorgangs ist nicht mehr verfügbar; die Auswahl
 /// wird gezeigt und das Dokument neu vorbereitet.
 pub const MSG_RESUME_BACKEND_UNAVAILABLE: &str = "ng-resume-backend-unavailable";
+
+/// Meldungs-ID (ADR 0004 §3.8): Dokumente zur Warteschlange hinzugefügt (`$count`).
+pub const MSG_BATCH_ADDED: &str = "ng-batch-added";
+/// Meldungs-ID: ein aus der Stapelübersicht geöffnetes Dokument wurde signiert (`$file`).
+pub const MSG_BATCH_ITEM_SIGNED: &str = "ng-batch-item-signed";
+/// Meldungs-ID: Stapellauf beendet (`$signed`, `$total`).
+pub const MSG_BATCH_DONE: &str = "ng-batch-done";
+/// Meldungs-ID: kein Dokument zum Signieren bereit.
+pub const MSG_BATCH_NOTHING_TO_SIGN: &str = "ng-batch-nothing-to-sign";
+/// Meldungs-ID: vor dem Start einen Ordner wählen („jedes Mal fragen“ bzw. kein vorhandener Ordner).
+pub const MSG_BATCH_OUTPUT_FOLDER_REQUIRED: &str = "ng-batch-output-folder-required";
+/// Meldungs-ID: Stapel abgebrochen (`$signed`).
+pub const MSG_BATCH_ABORTED: &str = "ng-batch-aborted";
+/// Meldungs-ID: nach „Dokument überspringen“ kann eine offene Anfrage in der App bis zu ihrem Ablauf
+/// sichtbar bleiben (A-Trust erfährt vom Abbruch nichts, ADR 0004 §1.2).
+pub const MSG_BATCH_PENDING_APP_REQUEST: &str = "ng-batch-pending-app-request";
+
+/// Meldungs-ID: das Zertifikat aus dem Zertifikats-Cache passt nicht mehr (erneuert, anderes Konto); der
+/// Eintrag ist gelöscht, „Wiederholen“ liest das Zertifikat neu (`pida-core-api`).
+pub const MSG_CERT_CACHE_MISMATCH: &str = "ng-certcache-mismatch";
 
 /// Meldungs-ID: einzeiliger Hinweis ohne Rückfrage, dass das Dokument zum Signieren an A-Trust geht
 /// (`document_leaves_device`). Nur ohne grafische Oberfläche ([`Context::headless`], CLI); die Oberfläche
@@ -723,6 +755,19 @@ pub enum State {
         #[serde(default)]
         results: Vec<DocOutcome>,
     },
+    // --- ADR 0004 §3.8: Stapel (neue Varianten am Ende)
+    /// Stapelübersicht (Arbeitsbereich, ≥ 2 Dokumente); Einträge in `queue.batch`, kein aktuelles Dokument
+    BatchOverview {
+        /// Warteschlange mit Stapel
+        queue: Queue,
+    },
+    /// Stapellauf mit **einer** Sitzung; aktuelles Dokument = `queue.current`
+    BatchSigning {
+        /// Warteschlange mit Stapel
+        queue: Queue,
+        /// Lauf
+        run: Box<BatchRun>,
+    },
 }
 
 impl State {
@@ -762,7 +807,9 @@ impl State {
             | State::ChoosingBackend { queue, .. }
             | State::Signing { queue, .. }
             | State::Output { queue, .. }
-            | State::Error { queue, .. } => Some(queue),
+            | State::Error { queue, .. }
+            | State::BatchOverview { queue }
+            | State::BatchSigning { queue, .. } => Some(queue),
         }
     }
 
@@ -779,7 +826,9 @@ impl State {
             | State::ChoosingBackend { queue, .. }
             | State::Signing { queue, .. }
             | State::Output { queue, .. }
-            | State::Error { queue, .. } => Some(queue),
+            | State::Error { queue, .. }
+            | State::BatchOverview { queue }
+            | State::BatchSigning { queue, .. } => Some(queue),
         }
     }
 
@@ -794,6 +843,7 @@ impl State {
             | State::Output { doc, .. } => Some(doc),
             State::Resuming { doc, .. } => doc.as_ref(),
             State::Error { from: Some(f), .. } => f.doc(),
+            State::BatchSigning { run, .. } => run.doc.as_ref(),
             _ => None,
         }
     }
@@ -812,6 +862,8 @@ impl State {
             State::ChoosingBackend { .. } | State::Signing { .. } => Some(Step::Signing),
             State::Output { .. } => Some(Step::Finish),
             State::Error { from, .. } => from.as_deref().and_then(State::step).or(Some(Step::Open)),
+            State::BatchOverview { .. } => Some(Step::Open),
+            State::BatchSigning { .. } => Some(Step::Signing),
         }
     }
 
@@ -825,12 +877,15 @@ impl State {
             State::Idle { .. }
             | State::Analyzing { .. }
             | State::AnalysisWarning { .. }
-            | State::PlaceholderQuestion { .. } => [(true, true), (false, false), (false, false), (false, false)],
+            | State::PlaceholderQuestion { .. }
+            | State::BatchOverview { .. } => [(true, true), (false, false), (false, false), (false, false)],
             State::Positioning { .. } => [(true, true), (true, false), (false, false), (false, false)],
             // „Öffnen“ verwirft den fortgesetzten Vorgang; Positionieren entfällt (Position steht fest)
             State::Resuming { .. } => [(true, true), (true, false), (true, false), (false, false)],
             State::ChoosingBackend { .. } => [(true, true), (true, true), (true, false), (false, false)],
-            State::Signing { .. } => [(true, false), (true, false), (true, false), (false, false)],
+            State::Signing { .. } | State::BatchSigning { .. } => {
+                [(true, false), (true, false), (true, false), (false, false)]
+            }
             State::Output { .. } => [(true, true), (true, true), (true, true), (true, false)],
             State::Error { from, .. } => {
                 let base = from.as_deref().map(State::main_bar);
@@ -862,6 +917,7 @@ impl State {
                 | State::Positioning { .. }
                 | State::ChoosingBackend { .. }
                 | State::Output { .. }
+                | State::BatchOverview { .. }
         )
     }
 
@@ -885,7 +941,31 @@ impl State {
             State::Output { .. } => "Output",
             State::Error { .. } => "Error",
             State::Finished { .. } => "Finished",
+            State::BatchOverview { .. } => "BatchOverview",
+            State::BatchSigning { .. } => "BatchSigning",
         }
+    }
+
+    /// Stapel, aus dem dieses Einzeldokument geöffnet wurde (`Queue::batch` mit `open` = aktuelles
+    /// Dokument) bzw. – nach „Signatur fortsetzen“ eines unterbrochenen Stapels – ein Bearbeitungszustand
+    /// mit `return_to_batch`.
+    pub fn opened_from_batch(&self) -> bool {
+        let state = match self {
+            State::Error { from: Some(f), .. } => f.as_ref(),
+            s => s,
+        };
+        let edit = match state {
+            State::Positioning { edit, .. }
+            | State::ChoosingBackend { edit, .. }
+            | State::Signing { edit, .. }
+            | State::Output { edit, .. } => edit.as_ref(),
+            _ => None,
+        };
+        if edit.is_some_and(|e| e.return_to_batch) {
+            return true;
+        }
+        let Some(q) = self.queue() else { return false };
+        q.current_id().is_some() && q.batch.as_ref().is_some_and(|b| b.open == q.current_id())
     }
 }
 
@@ -1046,6 +1126,50 @@ pub enum Event {
     /// `BackendError::Cancelled`, das core-api **nicht** selbst ausgelöst hat (SL 6000/6001, „Abbrechen“
     /// in einer A-Trust-Meldung; ADR 0004 §3.6)
     SigningDeclined,
+    // --- ADR 0004 §3.8: Stapel
+    /// Ergebnis der Voranalyse eines Stapeleintrags (`Effect::Preanalyze`)
+    Preanalyzed {
+        /// Dokument
+        doc: DocId,
+        /// Voranalyse bzw. Grund der Ablehnung
+        result: Result<DocSummary, WorkflowError>,
+    },
+    /// Eintrag der Übersicht im Arbeitsbereich öffnen
+    BatchItemOpened(DocId),
+    /// zurück zur Übersicht; die Platzierung wird als Plan gemerkt
+    BackToBatch,
+    /// zur Stapelübersicht (Einzeldokument mit weiteren Dokumenten in der Warteschlange)
+    ShowBatch,
+    /// Eintrag aus dem Stapel entfernen
+    BatchItemRemoved(DocId),
+    /// „Alle signieren (n) mit X“
+    BatchStarted {
+        /// Signiermittel
+        backend: BackendId,
+        /// genau diese Dokumente
+        docs: Vec<DocId>,
+        /// Ausgabeziel; `None` = nicht bestimmbar (Ordnerwahl fehlt)
+        output: Option<BatchOutput>,
+        /// Umgang mit vorhandenen Zieldateien
+        on_existing: ExistingPolicy,
+        /// aktuelle Optionen (Fähigkeiten, Verfügbarkeit)
+        options: Vec<BackendOption>,
+    },
+    /// aktuelles Dokument überspringen (Sitzung und Zugangsdaten bleiben)
+    BatchSkip,
+    /// Stapel abbrechen (Sitzung abbrechen, F-72)
+    BatchAbort,
+    /// Ausgabeziel eines Stapeldokuments (`Effect::DecideBatchOutput`): `path` nach F-81/F-82 und der
+    /// Regel für vorhandene Dateien („Beide behalten“: erste freie Nummer), `exists` = das Ziel nach F-81
+    /// existierte bereits
+    BatchOutputDecided {
+        /// Dokument
+        doc: DocId,
+        /// Ziel
+        path: PathBuf,
+        /// Ziel existierte
+        exists: bool,
+    },
 }
 
 /// Effekt, den `pida-core-api` ausführt.
@@ -1125,6 +1249,23 @@ pub enum Effect {
     /// vorbereitetes Dokument, Attribute und Ergebnis verwerfen, Sitzung und Kette behalten (Wiederholen
     /// ohne neue Anmeldung, ADR 0004 §3.6)
     ReleaseDocument,
+    // --- ADR 0004 §3.8: Stapel
+    /// Voranalyse: laden, analysieren, Platzhalter zählen, Miniatur; danach freigeben (nacheinander, niedrige
+    /// Priorität) → [`Event::Preanalyzed`]
+    Preanalyze(DocId),
+    /// nur den laufenden Auftrag abbrechen („Dokument überspringen“), Sitzung und Zugangsdaten behalten
+    SkipCurrentJob,
+    /// Ausgabeziel eines Stapeldokuments bestimmen → [`Event::BatchOutputDecided`]
+    DecideBatchOutput {
+        /// Dokument
+        doc: DocId,
+        /// Ausgabeziel des Laufs
+        output: BatchOutput,
+        /// Regel für vorhandene Dateien
+        on_existing: ExistingPolicy,
+    },
+    /// Hinweis mit Parametern (Fluent-Variablen)
+    NotifyWith(String, BTreeMap<String, String>),
 }
 
 /// Ergebnis eines Reducer-Schritts.

@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use pida_pades::OutputInfo;
 
+use crate::batch::Batch;
 use crate::output::ExitCode;
 use crate::state::WorkflowError;
 
@@ -89,6 +90,10 @@ pub struct Queue {
     /// abgeschlossene Dokumente in Reihenfolge (Ergebnisliste für CLI und Warteschlangen-Panel)
     #[serde(default)]
     pub done: Vec<DocOutcome>,
+    /// Stapel (Arbeitsbereich mit Stapelübersicht, ADR 0004 §3.8): Einträge der Übersicht; reist mit der
+    /// Warteschlange auch durch die Zustände eines aus der Übersicht geöffneten Einzeldokuments
+    #[serde(default)]
+    pub batch: Option<Batch>,
 }
 
 impl Queue {
@@ -124,11 +129,85 @@ impl Queue {
     }
 
     /// Alles verwerfen (Hauptleiste „Öffnen“ außerhalb des Ergebnis-Screens, F-16). Das aktuelle
-    /// und alle wartenden Dokumente gelten als abgebrochen.
+    /// und alle wartenden Dokumente gelten als abgebrochen; ein Stapel entfällt.
     pub fn clear(&mut self) {
         let mut rest: Vec<InputDocument> = self.current.take().into_iter().collect();
         rest.extend(self.pending.drain(..));
         self.done.extend(rest.into_iter().map(|doc| DocOutcome { doc, result: DocResult::Cancelled }));
+        self.batch = None;
+    }
+
+    /// Fügt Dokumente **nur** an die wartenden an (ohne Duplikate nach Pfad) – auch ohne aktuelles Dokument
+    /// (Stapelübersicht). Liefert die tatsächlich angefügten.
+    pub fn append(&mut self, docs: impl IntoIterator<Item = InputDocument>) -> Vec<InputDocument> {
+        let mut added = Vec::new();
+        for d in docs {
+            let dup = self.current.as_ref().is_some_and(|c| c.path == d.path)
+                || self.pending.iter().any(|p| p.path == d.path)
+                || added.iter().any(|a: &InputDocument| a.path == d.path);
+            if !dup {
+                added.push(d);
+            }
+        }
+        self.pending.extend(added.iter().cloned());
+        added
+    }
+
+    /// Macht `id` zum aktuellen Dokument (ADR 0004 §3.8); ein bisheriges aktuelles Dokument kommt an den
+    /// Anfang der wartenden. `false`, wenn das Dokument nicht (mehr) offen ist.
+    pub fn make_current(&mut self, id: DocId) -> bool {
+        if self.current_id() == Some(id) {
+            return true;
+        }
+        let Some(pos) = self.pending.iter().position(|d| d.id == id) else { return false };
+        let doc = self.pending.remove(pos).expect("Index geprüft");
+        if let Some(old) = self.current.replace(doc) {
+            self.pending.push_front(old);
+        }
+        true
+    }
+
+    /// Das aktuelle Dokument kommt zurück zu den wartenden (Stapelübersicht ohne aktuelles Dokument).
+    pub fn park_current(&mut self) {
+        if let Some(doc) = self.current.take() {
+            self.pending.push_front(doc);
+        }
+    }
+
+    /// Entfernt ein offenes Dokument ohne Ergebnis (aus dem Stapel entfernt). `false`, wenn es nicht offen ist.
+    pub fn remove(&mut self, id: DocId) -> bool {
+        if self.current_id() == Some(id) {
+            self.current = None;
+            return true;
+        }
+        match self.pending.iter().position(|d| d.id == id) {
+            Some(pos) => {
+                self.pending.remove(pos);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Schließt ein offenes Dokument mit `result` ab (Ergebnisliste), **ohne** weiterzuschalten.
+    pub fn complete(&mut self, id: DocId, result: DocResult) {
+        let doc = if self.current_id() == Some(id) {
+            self.current.take()
+        } else {
+            self.pending.iter().position(|d| d.id == id).and_then(|pos| self.pending.remove(pos))
+        };
+        if let Some(doc) = doc {
+            self.done.push(DocOutcome { doc, result });
+        }
+    }
+
+    /// Eingabedokument zur Kennung (offen oder abgeschlossen).
+    pub fn find(&self, id: DocId) -> Option<&InputDocument> {
+        self.current
+            .iter()
+            .chain(self.pending.iter())
+            .find(|d| d.id == id)
+            .or_else(|| self.done.iter().rev().map(|o| &o.doc).find(|d| d.id == id))
     }
 
     /// Anzahl offener Dokumente (aktuell + wartend).
@@ -195,6 +274,27 @@ mod tests {
         assert_eq!(q.done.len(), 2);
         assert!(q.done.iter().all(|o| o.result == DocResult::Cancelled));
         assert_eq!(q.exit_code(), ExitCode::Cancelled);
+    }
+
+    #[test]
+    fn batch_helpers_keep_the_documents() {
+        let mut q = Queue::default();
+        let added = q.append([doc(1, "/a.pdf"), doc(2, "/b.pdf"), doc(3, "/a.pdf")]);
+        assert_eq!(added.len(), 2);
+        assert_eq!(q.current_id(), None, "append macht kein Dokument aktuell");
+        assert!(q.make_current(DocId(2)));
+        assert_eq!(q.current_id(), Some(DocId(2)));
+        assert!(q.make_current(DocId(1)));
+        assert_eq!(q.pending.front().map(|d| d.id), Some(DocId(2)), "bisheriges aktuelles vorn");
+        assert!(!q.make_current(DocId(9)));
+        q.complete(DocId(1), DocResult::Cancelled);
+        assert_eq!(q.current_id(), None, "complete schaltet nicht weiter");
+        assert_eq!(q.find(DocId(1)).map(|d| d.display_name.as_str()), Some("a.pdf"), "auch abgeschlossene");
+        assert!(q.remove(DocId(2)) && q.is_empty());
+        assert!(!q.remove(DocId(2)));
+        q.add([doc(4, "/c.pdf")]);
+        q.park_current();
+        assert_eq!((q.current_id(), q.pending.len()), (None, 1));
     }
 
     #[test]

@@ -271,6 +271,7 @@ impl Shell {
         let result = catch_unwind(AssertUnwindSafe(|| match request {
             RenderRequest::Page { doc, page, scale } => core.page_tile(doc, page, scale),
             RenderRequest::Block { scale } => core.block_preview(scale),
+            RenderRequest::Thumb { doc } => core.thumbnail(doc),
         }));
         match result {
             Ok(Ok(png)) => protocol::png(png),
@@ -303,9 +304,16 @@ impl Shell {
         {
             return Some(path.clone());
         }
-        view.done.iter().find(|d| d.id == doc).and_then(|d| match &d.result {
+        let done = view.done.iter().find(|d| d.id == doc).and_then(|d| match &d.result {
             pida_workflow::DocResult::Signed { output } => Some(output.path.clone()),
             _ => None,
+        });
+        // Stapel: Status `Signed` (vom Kern geschrieben)
+        done.or_else(|| {
+            view.batch.as_ref()?.items.iter().find(|i| i.doc == doc).and_then(|i| match &i.status {
+                pida_core_api::BatchItemStatusView::Signed { path } => Some(path.clone()),
+                _ => None,
+            })
         })
     }
 
@@ -324,6 +332,14 @@ pub fn workspace_ui_from_env(value: Option<&str>, debug_build: bool) -> Option<b
     }
     let value = value?;
     value.split(',').map(str::trim).any(|p| p.eq_ignore_ascii_case("workspace")).then_some(true)
+}
+
+/// Stapelübersicht für die Abnahme vor dem Merge von A2 (ADR 0004 §3.14): `PIDA_UI=workspace,batch` schaltet
+/// in **Debug-Builds** zusätzlich `CoreOptions::batch_overview` ein (nur zusammen mit `workspace`); in
+/// Release-Builds ohne Wirkung. Liefert `None`, wenn nichts zu setzen ist.
+pub fn batch_overview_from_env(value: Option<&str>, debug_build: bool) -> Option<bool> {
+    workspace_ui_from_env(value, debug_build)?;
+    value?.split(',').map(str::trim).any(|p| p.eq_ignore_ascii_case("batch")).then_some(true)
 }
 
 /// Ergebnis von [`Shell::dispatch_json`].
@@ -480,6 +496,13 @@ mod tests {
         assert_eq!(workspace_ui_from_env(Some("classic"), true), None);
         assert_eq!(workspace_ui_from_env(None, true), None);
         assert_eq!(workspace_ui_from_env(Some("workspace"), false), None, "Release: ohne Wirkung");
+        // Stapelübersicht (K2): nur mit `workspace`, nur Debug
+        assert_eq!(batch_overview_from_env(Some("workspace,batch"), true), Some(true));
+        assert_eq!(batch_overview_from_env(Some(" workspace , Batch "), true), Some(true));
+        assert_eq!(batch_overview_from_env(Some("workspace"), true), None);
+        assert_eq!(batch_overview_from_env(Some("batch"), true), None, "nur zusammen mit workspace");
+        assert_eq!(batch_overview_from_env(Some("workspace,batch"), false), None, "Release: ohne Wirkung");
+        assert_eq!(batch_overview_from_env(None, true), None);
     }
 
     /// „Im Ordner zeigen“ mit Dokument: nur Pfade, die der Kern geschrieben hat.

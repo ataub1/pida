@@ -251,6 +251,14 @@ impl AtrustNativeBackend {
         *self.remembered.lock().expect("poisoned") = Credentials::default();
     }
 
+    /// Hält der „Merken“-Speicher Benutzername **und** Passwort, sodass eine neue Sitzung ohne Login-Maske
+    /// anmeldet (ADR 0004 §3.8: Schätzung „0 Anmeldungen“ im Stapel)? Nur lesend; eine Erwartung, keine
+    /// Zusage (eine A-Trust-Fehlerseite löscht das Passwort).
+    pub fn has_remembered_password(&self) -> bool {
+        let c = self.remembered.lock().expect("poisoned");
+        c.username.is_some() && c.password.is_some()
+    }
+
     /// Konfiguration.
     pub fn config(&self) -> &AtrustConfig {
         &self.config
@@ -415,6 +423,20 @@ mod tests {
         let dbg = format!("{creds:?}");
         assert!(!dbg.contains("geheim") && !dbg.contains("mustermann"), "{dbg}");
         assert!(dbg.contains("<14 Zeichen>"), "{dbg}");
+    }
+
+    #[test]
+    fn remembered_password_is_reported_without_revealing_it() {
+        let backend = AtrustNativeBackend::new(AtrustConfig::production());
+        assert!(!backend.has_remembered_password());
+        let mut c = AtrustConfig::production();
+        c.prefill_username = Some("+436641234567".into());
+        assert!(!AtrustNativeBackend::new(c.clone()).has_remembered_password(), "nur Benutzername");
+        c.prefill_password = Some(Zeroizing::new("geheim1".into()));
+        let backend = AtrustNativeBackend::new(c);
+        assert!(backend.has_remembered_password());
+        backend.forget_credentials();
+        assert!(!backend.has_remembered_password());
     }
 
     #[test]

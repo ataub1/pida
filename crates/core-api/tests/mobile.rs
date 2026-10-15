@@ -709,3 +709,104 @@ async fn missing_keystore_does_not_start_id_austria_automatically() {
     assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::Keystore]);
     assert!(!options[1].available);
 }
+
+// ------------------------------------------------------------------------------------------------
+// Stapel auf Mobile (ADR 0004 §3.8, Abnahme E2 Punkt 8)
+// ------------------------------------------------------------------------------------------------
+
+fn batch_ready(v: &ViewState, n: usize) -> bool {
+    matches!(v.step, StepView::Batch)
+        && v.batch.as_ref().is_some_and(|b| {
+            b.items.len() == n
+                && b.items.iter().all(|i| !matches!(i.status, pida_core_api::BatchItemStatusView::Analyzing))
+        })
+}
+
+fn batch_tan(v: &ViewState, index: u32) -> bool {
+    form_request(v).is_some_and(|(_, f)| matches!(f, NativeForm::SmsTan { .. }))
+        && matches!(&v.step, StepView::Signing { progress, .. } if progress.batch && progress.index == index)
+}
+
+/// Stapel mit ID Austria auf dem Telefon: der Wechsel in die App „ID Austria“ je Bestätigung ist kein Abbruch;
+/// nach einem App-Kill mitten im Lauf setzt „Signatur fortsetzen“ **nur** das unterbrochene Dokument fort
+/// (Ausgabe wie beim Einzeldokument in die App-Dokumente), danach folgt die Stapelübersicht mit dem Rest als
+/// „Bereit“ – der Lauf wird nicht automatisch fortgesetzt.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn batch_on_mobile_resumes_only_the_interrupted_document() {
+    let fx = Fixture::new();
+    let docs = fx.dir("docs");
+    let inbox = fx.dir("inbox");
+    let files: Vec<PathBuf> = ["a.pdf", "b.pdf", "c.pdf"]
+        .iter()
+        .map(|n| {
+            let p = copy_pdf(PDF, &inbox, n);
+            std::fs::write(&p, [std::fs::read(&p).unwrap().as_slice(), format!("\n%{n}\n").as_bytes()].concat())
+                .unwrap();
+            p
+        })
+        .collect();
+    let batch_options = |engine: &Arc<FakeEngine>, fake: &Arc<FakeAtrust>| CoreOptions {
+        workspace_ui: Some(true),
+        batch_overview: Some(true),
+        ..mobile_options(engine, &docs, Some(vec![fake.backend()]))
+    };
+
+    // 1. Lauf: a signiert, bei b „vom System beendet“
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let core = start(&fx, Platform::Ios, batch_options(&engine, &fake));
+    wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    core.dispatch(UiEvent::OpenFiles { paths: files.clone() });
+    let v = wait_for(&core, "Übersicht", |v| batch_ready(v, 3)).await;
+    let b = v.batch.as_ref().unwrap();
+    assert_eq!(b.output.mode, pida_core_api::OutputModeView::AppDocuments, "Mobile: App-Dokumente");
+    assert!(!b.output.needs_folder && b.output.folder_display.is_none());
+    let ids = b.items.iter().map(|i| i.doc).collect();
+    core.dispatch(UiEvent::StartBatch {
+        backend: BackendId::AtrustNative,
+        docs: ids,
+        output_dir: None,
+        on_existing: pida_workflow::ExistingPolicy::KeepBoth,
+    });
+    login(&core).await;
+    let v = wait_for(&core, "Bestätigung 1", |v| batch_tan(v, 1)).await;
+    // Wechsel in die App „ID Austria“ und zurück: kein Abbruch
+    core.dispatch(UiEvent::Backgrounded);
+    core.dispatch(UiEvent::Foregrounded);
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert!(batch_tan(&core.view(), 1), "App-Wechsel ist kein Abbruch: {:?}", core.view().step);
+    assert_eq!(fake.cancelled.load(Ordering::SeqCst), 0);
+    let (request, _) = form_request(&v).unwrap();
+    core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
+    wait_for(&core, "Bestätigung 2", |v| batch_tan(v, 2)).await;
+    assert!(docs.join("a_signed.pdf").is_file());
+    assert!(resume_dir(&fx).join("resume.json").is_file(), "nach prepare gesichert");
+    core.dispatch(UiEvent::Backgrounded);
+    drop(core);
+
+    // 2. Lauf: „Signatur fortsetzen“ nur für b; danach die Übersicht mit c „Bereit“
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let core = start(&fx, Platform::Ios, batch_options(&engine, &fake));
+    let v = wait_for(&core, "Angebot", |v| matches!(v.step, StepView::Open { .. }) && v.resume.is_some()).await;
+    let offer = v.resume.unwrap();
+    assert_eq!((offer.name.as_str(), offer.pending), ("b.pdf", 1), "a ist signiert, c wartet");
+    core.dispatch(UiEvent::ResumeSignature);
+    login(&core).await;
+    let request = wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
+    let v = core.view();
+    assert!(matches!(&v.step, StepView::Signing { progress, .. } if !progress.batch), "nur das unterbrochene Dokument");
+    assert_eq!(engine.restores.load(Ordering::SeqCst), 1, "Prepared::restore statt prepare");
+    core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
+    let v = wait_for(&core, "Übersicht mit dem Rest", |v| batch_ready(v, 2)).await;
+    let items = &v.batch.as_ref().unwrap().items;
+    let status = |name: &str| items.iter().find(|i| i.name == name).map(|i| i.status.clone()).unwrap();
+    assert!(matches!(status("b.pdf"), pida_core_api::BatchItemStatusView::Signed { .. }));
+    assert_eq!(status("c.pdf"), pida_core_api::BatchItemStatusView::Ready, "neue Voranalyse");
+    assert!(v.notices.iter().any(|n| n.code == "ng-batch-item-signed"));
+    assert!(docs.join("b_signed.pdf").is_file());
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(matches!(core.view().step, StepView::Batch), "der Lauf wird nicht automatisch fortgesetzt");
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "keine weitere Sitzung");
+    assert!(!resume_dir(&fx).exists(), "nach Erfolg kein persistierter Zustand");
+}

@@ -266,6 +266,32 @@ impl Registry {
         self.atrust.as_ref().map(|(_, a)| a.clone())
     }
 
+    /// Erwartete Anmeldungen eines Stapellaufs (ADR 0004 §3.8, `BatchEstimateView::logins`): 0, wenn das
+    /// Signiermittel ohne Rückfrage anmeldet bzw. entsperrt – lokale BKU (PIN je Dokument in der
+    /// Chipkarten-Software), Keystore mit Passwort aus dem Overlay bzw. im Passwortspeicher, ID Austria mit
+    /// Passwort im „Merken“-Speicher (`AtrustNativeBackend::has_remembered_password`) –, sonst 1. Fest
+    /// vorgegebene Backends (Tests) zählen eine Anmeldung. Eine Erwartung, keine Zusage (§1.2).
+    pub(crate) fn expected_logins(&self, id: BackendId) -> u32 {
+        if self.fixed.is_some() {
+            return u32::from(id != BackendId::LocalBku);
+        }
+        match id {
+            BackendId::LocalBku => 0,
+            BackendId::AtrustNative => {
+                u32::from(!self.atrust.as_ref().is_some_and(|(_, a)| a.has_remembered_password()))
+            }
+            BackendId::Keystore => {
+                let stored = self.keystore.as_ref().is_some_and(|k| {
+                    let c = k.config();
+                    c.store_password.is_some()
+                        || (c.storage != PasswordStorage::None && c.cache.get(&c.path, PasswordKind::Store).is_some())
+                });
+                u32::from(!stored)
+            }
+            _ => 1,
+        }
+    }
+
     /// Umgebung für `capabilities` (F-51/F-52, Richtlinie).
     pub(crate) fn environment(&self, interactive: bool, cfg: &ConfigState) -> Environment {
         let keystore_configured = if self.fixed.is_some() {

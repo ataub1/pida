@@ -4,6 +4,7 @@
 //! |---|---|---|
 //! | `pida-render://localhost/page/<doc>/<seite>?scale=<f>` | `http://pida-render.localhost/page/…` | PNG der Seite (0-basiert) |
 //! | `pida-render://localhost/block?scale=<f>&rev=<n>` | `http://pida-render.localhost/block?…` | PNG der Blockvorschau |
+//! | `pida-render://localhost/thumb/<doc>` | `http://pida-render.localhost/thumb/<doc>` | PNG-Miniatur eines Stapeleintrags (ADR 0004 §3.8) |
 //!
 //! `scale` ist der Faktor gegenüber 72 dpi (1 pt = 1 px); `rev` dient nur dem Cache-Busting
 //! (`BlockView::preview_revision`). Alle Eingaben werden streng geprüft; Antworten tragen nie
@@ -35,6 +36,11 @@ pub enum RenderRequest {
         /// Maßstab
         scale: f32,
     },
+    /// Miniatur eines Stapeleintrags aus der Voranalyse (feste Breite, ohne Maßstab)
+    Thumb {
+        /// Dokument
+        doc: DocId,
+    },
 }
 
 /// Ungültige Anfrage (→ HTTP 400/404).
@@ -57,6 +63,10 @@ pub fn parse(path: &str, query: Option<&str>) -> Result<RenderRequest, RenderUri
             Ok(RenderRequest::Page { doc: DocId(doc), page, scale })
         }
         ["block"] => Ok(RenderRequest::Block { scale }),
+        ["thumb", doc] => {
+            let doc = doc.parse::<u64>().map_err(|_| RenderUriError::BadRequest("doc"))?;
+            Ok(RenderRequest::Thumb { doc: DocId(doc) })
+        }
         _ => Err(RenderUriError::NotFound),
     }
 }
@@ -117,6 +127,16 @@ mod tests {
     #[test]
     fn parses_block_preview_with_revision() {
         assert_eq!(parse("/block", Some("rev=12&scale=2")), Ok(RenderRequest::Block { scale: 2.0 }));
+    }
+
+    #[test]
+    fn parses_batch_thumbnails() {
+        assert_eq!(parse("/thumb/4", None), Ok(RenderRequest::Thumb { doc: DocId(4) }));
+        assert_eq!(parse("thumb/4", Some("rev=2")), Ok(RenderRequest::Thumb { doc: DocId(4) }));
+        assert_eq!(parse("/thumb/x", None), Err(RenderUriError::BadRequest("doc")));
+        assert_eq!(parse("/thumb/-1", None), Err(RenderUriError::BadRequest("doc")));
+        assert_eq!(parse("/thumb", None), Err(RenderUriError::NotFound));
+        assert_eq!(parse("/thumb/1/2", None), Err(RenderUriError::NotFound));
     }
 
     #[test]

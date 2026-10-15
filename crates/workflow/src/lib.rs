@@ -72,8 +72,20 @@
 //!
 //! Invariante **A1** (Property-Test `workspace_session_only_after_explicit_action`): `Effect::OpenSession`
 //! entsteht nur in den Paaren (`SignRequested`, `Positioning`/`ChoosingBackend`), (`BackendChosen`,
-//! `ChoosingBackend`), (`BackendsProbed`, `Resuming`), (`Retry`, Fehler des Signierens) und – mit `cli_auto` –
-//! (`BackendsProbed`, `ChoosingBackend`) für ein Signiermittel ohne `document_leaves_device`.
+//! `ChoosingBackend`), (`BackendsProbed`, `Resuming`), (`Retry`, Fehler des Signierens), (`BatchStarted`,
+//! `BatchOverview`), (`Retry`, `BatchSigning` mit Sitzungspause) und – mit `cli_auto` – (`BackendsProbed`,
+//! `ChoosingBackend`) für ein Signiermittel ohne `document_leaves_device`.
+//!
+//! # Stapel (ADR 0004 §3.8, [`Context::batch`], Modul [`batch`])
+//!
+//! | Ereignis / Weg | hier |
+//! |---|---|
+//! | ≥ 2 Dokumente (Auswahl, Start, nach dem Speichern) | [`State::BatchOverview`], [`Effect::Preanalyze`] je Dokument → [`Event::Preanalyzed`] (`Ready`, QR → `Positioned`, `Rejected`, `NeedsReview`) |
+//! | [`Event::BatchItemOpened`] / [`Event::BackToBatch`] / [`Event::ShowBatch`] | Einzeldokument im Arbeitsbereich mit dem Plan des Eintrags; zurück mit der Platzierung als Plan; einzeln signiert → zurück, `Signed` |
+//! | [`Event::BatchStarted`] | [`State::BatchSigning`] mit **einer** Sitzung (`Effect::OpenSession` nur hier und nach „Erneut versuchen“ einer Sitzungspause) |
+//! | je Dokument | (Ziel prüfen) → laden → (Zertifikat einmal je Sitzung) → vorbereiten → `SignDocument` → abschließen → [`Effect::DecideBatchOutput`] → schreiben |
+//! | [`Event::BatchSkip`] / [`Event::BatchAbort`] | [`Effect::SkipCurrentJob`] (Sitzung bleibt) bzw. `CancelSession` (F-72) |
+//! | Fehler | nach `ErrorScope`: Pause Verbindung/Sitzung/Dokument ([`BatchPause`]) bzw. `Failed` und weiter |
 //!
 //! Ohne grafische Oberfläche ([`Context::headless`], CLI) gelten feste Regeln: automatische
 //! Positionierung, QR-Platzhalter bzw. genau ein leeres Feld werden verwendet, kein Speichern-Dialog
@@ -83,6 +95,7 @@
 //!
 //! Ownership: **Integration**.
 
+pub mod batch;
 mod output;
 pub mod queue;
 mod reducer;
@@ -90,6 +103,7 @@ mod state;
 #[cfg(feature = "ts")]
 pub mod ts_mirror;
 
+pub use batch::{Batch, BatchItem, BatchItemStatus, BatchPause, BatchPhase, BatchRun, BatchSummary, DocSummary};
 pub use output::{
     ExitCode, FsProbe, OutputDecision, PathProbe, chosen_path, decide_output, output_file_name, resolve_without_dialog,
     save_dialog,
@@ -98,10 +112,12 @@ pub use queue::{DocId, DocOutcome, DocResult, InputDocument, Queue};
 pub use reducer::{grown_reserve, reduce};
 pub use state::{
     BackendOption, BatchOutput, Context, DocFacts, Effect, Event, ExistingPolicy, MSG_BACKEND_CHOICE_REQUIRED,
-    MSG_CMS_TOO_LARGE, MSG_CONSTRAINT_CERTIFIED, MSG_CONSTRAINT_INVISIBLE_PROFILE, MSG_CONSTRAINT_SIGNED,
-    MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_DOCUMENT_LEAVES_DEVICE, MSG_FIELD_LOCKED, MSG_INITIALIZATION, MSG_INVARIANT,
-    MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED,
-    MSG_SIGNER_UNAVAILABLE, MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, MSG_UNEXPECTED, MainBarStep, ParkedPlacement,
-    PlaceholderAnswer, PlaceholderFound, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget, SignFlow,
-    SigningPhase, State, Step, Target, Transition, WorkflowError, WorkspaceEdit, backend_for_choice,
+    MSG_BATCH_ABORTED, MSG_BATCH_ADDED, MSG_BATCH_DONE, MSG_BATCH_ITEM_SIGNED, MSG_BATCH_NOTHING_TO_SIGN,
+    MSG_BATCH_OUTPUT_FOLDER_REQUIRED, MSG_BATCH_PENDING_APP_REQUEST, MSG_CERT_CACHE_MISMATCH, MSG_CMS_TOO_LARGE,
+    MSG_CONSTRAINT_CERTIFIED, MSG_CONSTRAINT_INVISIBLE_PROFILE, MSG_CONSTRAINT_SIGNED, MSG_DEFAULT_BACKEND_UNAVAILABLE,
+    MSG_DOCUMENT_LEAVES_DEVICE, MSG_FIELD_LOCKED, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND,
+    MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_SIGNER_UNAVAILABLE,
+    MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, MSG_UNEXPECTED, MainBarStep, ParkedPlacement, PlaceholderAnswer,
+    PlaceholderFound, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step,
+    Target, Transition, WorkflowError, WorkspaceEdit, backend_for_choice,
 };

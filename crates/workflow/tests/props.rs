@@ -289,17 +289,20 @@ proptest! {
     /// Platzhaltersuche, Startargument-Automatik) nur in den Paaren der Tabelle: `SignRequested` in
     /// `Positioning`/`ChoosingBackend`, `BackendChosen` in `ChoosingBackend`, `BackendsProbed` in `Resuming`,
     /// `Retry` im Fehler des Signierens und – nur mit `cli_auto` – `BackendsProbed` in `ChoosingBackend` mit
-    /// einem Signiermittel, bei dem das Dokument auf dem Gerät bleibt. Zusätzlich: `Resuming` nur nach
-    /// `ResumeRequested`; ohne `cli_auto` nie eine automatische Wahl; `Positioning` immer mit
-    /// Bearbeitungszustand.
+    /// einem Signiermittel, bei dem das Dokument auf dem Gerät bleibt. Mit Stapelübersicht (ADR 0004 §3.8)
+    /// zusätzlich `BatchStarted` in `BatchOverview` und `Retry` einer Sitzungspause im Stapellauf – innerhalb
+    /// eines Laufs nie sonst. Zusätzlich: `Resuming` nur nach `ResumeRequested`; ohne `cli_auto` nie eine
+    /// automatische Wahl; `Positioning` immer mit Bearbeitungszustand; ein Lauf signiert nur die beim Start
+    /// genannten Dokumente.
     #[test]
     fn workspace_session_only_after_explicit_action(
-        events in prop::collection::vec(0u8..50, 0..90),
+        events in prop::collection::vec(0u8..62, 0..110),
         auto_position in any::<bool>(),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
         placeholder_fields in any::<bool>(),
         cli_auto in any::<bool>(),
+        batch_overview in any::<bool>(),
         default in 0u8..4,
     ) {
         use pida_backend_api::BackendId;
@@ -317,10 +320,15 @@ proptest! {
             default_backend,
             workspace: true,
             cli_auto,
+            batch_overview,
             ..Context::default()
         };
         let mut state = State::Starting;
         let mut next_id = 2u64;
+        let item = |state: &State, n: u64| -> DocId {
+            let ids: Vec<DocId> = state.queue().and_then(|q| q.batch.as_ref()).map(|b| b.items.iter().map(|i| i.doc).collect()).unwrap_or_default();
+            if ids.is_empty() { DocId(1) } else { ids[(n as usize) % ids.len()] }
+        };
         let some_placement = pida_placement::Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
         for e in events {
             let current = state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1);
@@ -387,7 +395,38 @@ proptest! {
                 46 => Event::SigningDeclined,
                 47 => Event::PlacementChanged(some_placement),
                 48 => Event::CmsTooLarge { needed: 20_000, reserve: 16_384 },
-                _ => Event::SigningFailed(pida_workflow::WorkflowError::Prepare { code: "x".into(), detail: String::new() }),
+                49 => Event::SigningFailed(pida_workflow::WorkflowError::Prepare { code: "x".into(), detail: String::new() }),
+                // ADR 0004 §3.8: Stapel
+                50 => {
+                    let doc = item(&state, next_id);
+                    let summary = pida_workflow::DocSummary {
+                        page_count: 2, size_bytes: 10, signed: false, class: pida_pades::AcceptanceClass::K1Regular,
+                        qr: next_id.is_multiple_of(3), fields: 0,
+                        warnings: if next_id.is_multiple_of(5) { vec!["pdf-usage-rights".into()] } else { Vec::new() },
+                        placeholder: next_id.is_multiple_of(3).then(qr), new_visible_field_allowed: true,
+                    };
+                    next_id += 1;
+                    Event::Preanalyzed { doc, result: Ok(summary) }
+                }
+                51 => Event::BatchItemOpened(item(&state, next_id)),
+                52 => Event::BackToBatch,
+                53 => Event::ShowBatch,
+                54 => Event::BatchItemRemoved(item(&state, next_id + 1)),
+                55 => {
+                    let docs = state.queue().and_then(|q| q.batch.as_ref()).map(|b| b.items.iter().map(|i| i.doc).collect()).unwrap_or_default();
+                    let backend = if next_id.is_multiple_of(2) { BackendId::AtrustNative } else { BackendId::Keystore };
+                    Event::BatchStarted {
+                        backend, docs, output: Some(pida_workflow::BatchOutput::Configured),
+                        on_existing: if next_id.is_multiple_of(3) { pida_workflow::ExistingPolicy::Skip } else { pida_workflow::ExistingPolicy::KeepBoth },
+                        options: options(false, true),
+                    }
+                }
+                56 => Event::BatchSkip,
+                57 => Event::BatchAbort,
+                58 => Event::BatchOutputDecided { doc: DocId(current), path: "/o.pdf".into(), exists: next_id.is_multiple_of(2) },
+                59 => { next_id += 2; Event::FilesAdded(vec![doc(next_id - 1), doc(next_id)]) }
+                60 => Event::Preanalyzed { doc: item(&state, next_id), result: Err(pida_workflow::WorkflowError::Rejected { class: pida_pades::AcceptanceClass::K5Rejected, code: "error-PDFPwdProtected".into() }) },
+                _ => Event::BackendFailed(BackendError::Network("x".into())),
             };
             let before = state.clone();
             let t = reduce(state, event.clone(), &ctx);
@@ -402,9 +441,30 @@ proptest! {
                     (Event::BackendsProbed(_), State::Resuming { .. }) => true,
                     (Event::Retry, State::Error { from: Some(f), .. }) => matches!(**f, State::Signing { .. }),
                     (Event::BackendsProbed(options), State::ChoosingBackend { .. }) => cli_auto && local(options),
+                    (Event::BatchStarted { .. }, State::BatchOverview { .. }) => true,
+                    (Event::Retry, State::BatchSigning { run, .. }) => {
+                        matches!(run.pause, Some(pida_workflow::BatchPause::Session { new_session: true, .. }))
+                    }
                     _ => false,
                 };
                 prop_assert!(allowed, "OpenSession({id:?}) ohne Nutzeraktion: {event:?} in {} ({:?})", before.name(), t.effects);
+            }
+            // Stapel nur mit Stapelübersicht, nie mit der Startargument-Automatik (D-06)
+            if matches!(t.state, State::BatchOverview { .. } | State::BatchSigning { .. }) {
+                prop_assert!(batch_overview && !cli_auto, "{event:?} in {} → {}", before.name(), t.state.name());
+            }
+            // ein Lauf signiert nur die beim Start genannten Dokumente (später hinzugefügte nie)
+            if let (State::BatchSigning { run: before_run, .. }, State::BatchSigning { run, .. }) = (&before, &t.state) {
+                prop_assert_eq!(&before_run.order, &run.order);
+            }
+            if let State::BatchSigning { queue, run } = &t.state
+                && let Some(b) = &queue.batch
+            {
+                for i in &b.items {
+                    if matches!(i.status, pida_workflow::BatchItemStatus::Active | pida_workflow::BatchItemStatus::Queued) {
+                        prop_assert!(run.order.contains(&i.doc), "{:?} nicht im Lauf", i.doc);
+                    }
+                }
             }
             if matches!(t.state, State::Resuming { .. }) {
                 let resumed = matches!(event, Event::ResumeRequested { .. }) || matches!(before, State::Resuming { .. });

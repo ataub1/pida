@@ -1,0 +1,1450 @@
+{
+  "batch_confirm_1": {
+    "actions": {
+      "edit_placement": false,
+      "home": false,
+      "open_files": false,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": false
+    },
+    "batch": {
+      "estimate": null,
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "stage": "confirming",
+            "state": "active"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "state": "queued"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "queued"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": true,
+      "summary": null
+    },
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Open"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": null,
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "document_leaves_device": true,
+      "interaction": {
+        "form": {
+          "SmsTan": {
+            "ctx": {
+              "can_switch_to_fido2": false,
+              "can_switch_to_sms": false,
+              "fido2_visible": false,
+              "problem": null,
+              "signature_data_url": null
+            },
+            "reference_value": "V1"
+          }
+        },
+        "kind": "form",
+        "request": 2
+      },
+      "progress": {
+        "backend": "atrust_native",
+        "batch": true,
+        "certificate": "read",
+        "confirmations_done": 0,
+        "confirmations_total": 3,
+        "doc": {
+          "id": 1,
+          "name": "Vertrag.pdf"
+        },
+        "index": 1,
+        "login_done": true,
+        "method": "sms",
+        "pause": null,
+        "stage": "confirming",
+        "total": 3
+      },
+      "queue": [
+        {
+          "current": true,
+          "id": 1,
+          "name": "Vertrag.pdf"
+        },
+        {
+          "current": false,
+          "id": 2,
+          "name": "Geheim.pdf"
+        },
+        {
+          "current": false,
+          "id": 3,
+          "name": "Antrag.pdf"
+        },
+        {
+          "current": false,
+          "id": 4,
+          "name": "Beilage.pdf"
+        }
+      ],
+      "step": "signing"
+    },
+    "verify": null
+  },
+  "batch_confirm_2": {
+    "actions": {
+      "edit_placement": false,
+      "home": false,
+      "open_files": false,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": false
+    },
+    "batch": {
+      "estimate": null,
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "path": "/Users/test/Dokumente/Vertrag_signed.pdf",
+            "state": "signed"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "stage": "confirming",
+            "state": "active"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "queued"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": true,
+      "summary": null
+    },
+    "document": null,
+    "done": [
+      {
+        "id": 1,
+        "input": "/Users/test/in/Vertrag.pdf",
+        "name": "Vertrag.pdf",
+        "result": {
+          "kind": "signed",
+          "output": {
+            "len": 7898,
+            "path": "/Users/test/Dokumente/Vertrag_signed.pdf",
+            "sha256": "fake"
+          }
+        }
+      }
+    ],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Open"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": null,
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "document_leaves_device": true,
+      "interaction": {
+        "form": {
+          "SmsTan": {
+            "ctx": {
+              "can_switch_to_fido2": false,
+              "can_switch_to_sms": false,
+              "fido2_visible": false,
+              "problem": null,
+              "signature_data_url": null
+            },
+            "reference_value": "V3"
+          }
+        },
+        "kind": "form",
+        "request": 3
+      },
+      "progress": {
+        "backend": "atrust_native",
+        "batch": true,
+        "certificate": "session",
+        "confirmations_done": 1,
+        "confirmations_total": 3,
+        "doc": {
+          "id": 3,
+          "name": "Antrag.pdf"
+        },
+        "index": 2,
+        "login_done": true,
+        "method": "sms",
+        "pause": null,
+        "stage": "confirming",
+        "total": 3
+      },
+      "queue": [
+        {
+          "current": true,
+          "id": 3,
+          "name": "Antrag.pdf"
+        },
+        {
+          "current": false,
+          "id": 2,
+          "name": "Geheim.pdf"
+        },
+        {
+          "current": false,
+          "id": 4,
+          "name": "Beilage.pdf"
+        }
+      ],
+      "step": "signing"
+    },
+    "verify": null
+  },
+  "batch_login": {
+    "actions": {
+      "edit_placement": false,
+      "home": false,
+      "open_files": false,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": false
+    },
+    "batch": {
+      "estimate": null,
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "stage": "login",
+            "state": "active"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "state": "queued"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "queued"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": true,
+      "summary": null
+    },
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Open"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": null,
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "document_leaves_device": true,
+      "interaction": {
+        "form": {
+          "Login": {
+            "ctx": {
+              "can_switch_to_fido2": false,
+              "can_switch_to_sms": false,
+              "fido2_visible": false,
+              "problem": null,
+              "signature_data_url": null
+            },
+            "prefill_username": null,
+            "remember": false
+          }
+        },
+        "kind": "form",
+        "request": 1
+      },
+      "progress": {
+        "backend": "atrust_native",
+        "batch": true,
+        "certificate": "read",
+        "confirmations_done": 0,
+        "confirmations_total": 3,
+        "doc": {
+          "id": 1,
+          "name": "Vertrag.pdf"
+        },
+        "index": 1,
+        "login_done": false,
+        "method": null,
+        "pause": null,
+        "stage": "login",
+        "total": 3
+      },
+      "queue": [
+        {
+          "current": true,
+          "id": 1,
+          "name": "Vertrag.pdf"
+        },
+        {
+          "current": false,
+          "id": 2,
+          "name": "Geheim.pdf"
+        },
+        {
+          "current": false,
+          "id": 3,
+          "name": "Antrag.pdf"
+        },
+        {
+          "current": false,
+          "id": 4,
+          "name": "Beilage.pdf"
+        }
+      ],
+      "step": "signing"
+    },
+    "verify": null
+  },
+  "batch_overview": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": true,
+      "verify": false
+    },
+    "batch": {
+      "estimate": null,
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": false,
+      "summary": null
+    },
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": null,
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "step": "batch"
+    },
+    "verify": null
+  },
+  "batch_overview_estimate": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": true,
+      "verify": false
+    },
+    "batch": {
+      "estimate": {
+        "backend": "atrust_native",
+        "certificate_confirmation_possible": true,
+        "confirmations": 3,
+        "documents": 3,
+        "large": false,
+        "logins": 1
+      },
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": false,
+      "summary": null
+    },
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": null,
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "step": "batch"
+    },
+    "verify": null
+  },
+  "batch_paused_connection": {
+    "actions": {
+      "edit_placement": false,
+      "home": false,
+      "open_files": false,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": false
+    },
+    "batch": {
+      "estimate": null,
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "path": "/Users/test/Dokumente/Vertrag_signed.pdf",
+            "state": "signed"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "stage": "paused",
+            "state": "active"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "queued"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": true,
+      "summary": null
+    },
+    "document": null,
+    "done": [
+      {
+        "id": 1,
+        "input": "/Users/test/in/Vertrag.pdf",
+        "name": "Vertrag.pdf",
+        "result": {
+          "kind": "signed",
+          "output": {
+            "len": 7898,
+            "path": "/Users/test/Dokumente/Vertrag_signed.pdf",
+            "sha256": "fake"
+          }
+        }
+      }
+    ],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Open"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": null,
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "document_leaves_device": true,
+      "interaction": {
+        "kind": "waiting",
+        "progress": {
+          "Document": {
+            "index": 2,
+            "total": 3
+          }
+        }
+      },
+      "progress": {
+        "backend": "atrust_native",
+        "batch": true,
+        "certificate": "session",
+        "confirmations_done": 1,
+        "confirmations_total": 3,
+        "doc": {
+          "id": 3,
+          "name": "Antrag.pdf"
+        },
+        "index": 2,
+        "login_done": true,
+        "method": null,
+        "pause": {
+          "can_retry": true,
+          "code": "backend-network",
+          "doc": {
+            "id": 3,
+            "name": "Antrag.pdf"
+          },
+          "new_session": false,
+          "params": {
+            "detail": "Verbindung fehlgeschlagen: Verbindung getrennt"
+          },
+          "scope": "session"
+        },
+        "stage": "paused",
+        "total": 3
+      },
+      "queue": [
+        {
+          "current": true,
+          "id": 3,
+          "name": "Antrag.pdf"
+        },
+        {
+          "current": false,
+          "id": 2,
+          "name": "Geheim.pdf"
+        },
+        {
+          "current": false,
+          "id": 4,
+          "name": "Beilage.pdf"
+        }
+      ],
+      "step": "signing"
+    },
+    "verify": null
+  },
+  "batch_summary": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": false
+    },
+    "batch": {
+      "estimate": null,
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "path": "/Users/test/Dokumente/Vertrag_signed.pdf",
+            "state": "signed"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "existing": false,
+            "state": "skipped"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "path": "/Users/test/Dokumente/Beilage_signed.pdf",
+            "state": "signed"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": false,
+      "summary": {
+        "cancelled": 0,
+        "failed": 0,
+        "folder_display": "/Users/test/Dokumente",
+        "not_started": 0,
+        "rejected": 1,
+        "signed": 2,
+        "skipped": 1,
+        "total": 4
+      }
+    },
+    "document": null,
+    "done": [
+      {
+        "id": 1,
+        "input": "/Users/test/in/Vertrag.pdf",
+        "name": "Vertrag.pdf",
+        "result": {
+          "kind": "signed",
+          "output": {
+            "len": 7898,
+            "path": "/Users/test/Dokumente/Vertrag_signed.pdf",
+            "sha256": "fake"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "input": "/Users/test/in/Beilage.pdf",
+        "name": "Beilage.pdf",
+        "result": {
+          "kind": "signed",
+          "output": {
+            "len": 7898,
+            "path": "/Users/test/Dokumente/Beilage_signed.pdf",
+            "sha256": "fake"
+          }
+        }
+      }
+    ],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [
+      {
+        "code": "ng-batch-pending-app-request",
+        "id": 1,
+        "params": {}
+      },
+      {
+        "code": "ng-batch-done",
+        "id": 2,
+        "params": {
+          "signed": "2",
+          "total": "3"
+        }
+      }
+    ],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": null,
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "step": "batch"
+    },
+    "verify": null
+  }
+}

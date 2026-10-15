@@ -1,10 +1,10 @@
 //! Freigaben der neuen Oberfläche (ADR 0004 §3.13): aus dem Workflow-Zustand berechnet wie
 //! `State::main_bar`. Die UI aktiviert danach Knöpfe, Befehlspalette und Tastenkürzel.
 //!
-//! Stand E0 (Paket K0): Freigaben für Ereignisse, die der Kern noch ignoriert, bleiben aus –
-//! `start_batch`/`show_batch` bis K2 (Stapelübersicht, `batch_overview`), `verify` bis K4 (Prüfmodus).
-//! `sign` und `edit_placement` folgen der Regel aus §3.13 (Positionieren); K1 verfeinert `sign` um
-//! „Platzierung zulässig“.
+//! `start_batch`/`show_batch` setzt der Kern nur mit Stapelübersicht (`batch_overview`, K2:
+//! [`batch_start_allowed`], [`batch_show_allowed`]), `verify` bleibt bis K4 (Prüfmodus) aus. `sign` und
+//! `edit_placement` folgen der Regel aus §3.13 (Positionieren); K1 verfeinert `sign` um „Platzierung
+//! zulässig“.
 
 use pida_workflow::{State, Step, Target};
 
@@ -13,7 +13,7 @@ use crate::view::ActionsView;
 /// Freigaben zum Zustand; `settings_enabled` = `main_bar.settings_enabled` (berücksichtigt das offene
 /// Einstellungs-Overlay).
 pub(crate) fn actions_for(state: &State, settings_enabled: bool) -> ActionsView {
-    let signing = matches!(state, State::Signing { .. } | State::Resuming { .. });
+    let signing = matches!(state, State::Signing { .. } | State::Resuming { .. } | State::BatchSigning { .. });
     let positioning = matches!(state, State::Positioning { .. });
     ActionsView {
         open_files: !signing && !matches!(state, State::Starting | State::Finished { .. }),
@@ -24,6 +24,22 @@ pub(crate) fn actions_for(state: &State, settings_enabled: bool) -> ActionsView 
         verify: false,
         settings: settings_enabled,
         home: state.step_enabled(Step::Open),
+    }
+}
+
+/// Stapelübersicht mit mindestens einem signierbaren Eintrag (`Ready`/`Positioned`, ADR 0004 §3.13)?
+pub(crate) fn batch_start_allowed(state: &State) -> bool {
+    matches!(state, State::BatchOverview { queue } if queue.batch.as_ref().is_some_and(|b| b.signable() > 0))
+}
+
+/// „Zur Stapelübersicht“: Einzeldokument (Arbeitsbereich bzw. „Fertig“ nach dem Speichern) mit weiteren
+/// Dokumenten in der Warteschlange oder aus der Übersicht geöffnet.
+pub(crate) fn batch_show_allowed(state: &State) -> bool {
+    let more = |q: &pida_workflow::Queue| !q.pending.is_empty();
+    match state {
+        State::Positioning { queue, .. } => more(queue) || state.opened_from_batch(),
+        State::Output { queue, saved: Some(_), .. } => more(queue) && !state.opened_from_batch(),
+        _ => false,
     }
 }
 

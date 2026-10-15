@@ -98,16 +98,30 @@
 //! Startplatzierung (PDF-AS-Regel), [`ViewState::signers`] mit `select_signer`, `sign_with`,
 //! `StepView::Signing::progress`, `StepView::Error::context`, Abbruch zurück in den Arbeitsbereich
 //! (`ng-signing-cancelled`), Ablehnung in der App (`ng-signing-declined`), Wiederholen in derselben Sitzung
-//! (`sign_one`, `ReleaseDocument`), [`OutputView::summary`] und `set_ui_language` (beide Modi). Stapel (K2),
+//! (`sign_one`, `ReleaseDocument`), [`OutputView::summary`] und `set_ui_language` (beide Modi).
+//!
+//! **Umgesetzt (K2, Etappe E2)** mit [`CoreOptions::batch_overview`] (Shell: `PIDA_UI=workspace,batch` in
+//! Debug-Builds; Standard aus, eingeschaltet wird im Merge-Commit von A2): ab zwei Dokumenten die
+//! Stapelübersicht [`ViewState::batch`] mit Voranalyse je Datei (Seiten, Größe, Status inkl. abgelehnt,
+//! Analysewarnung und QR-Platzhalter, Miniatur über [`Core::thumbnail`] bzw. `pida-render://thumb/<doc>`),
+//! Schätzung „n Dokumente · Anmeldungen · Bestätigungen“ (Zertifikats-Cache, gemerktes Passwort),
+//! `open_batch_item`/`back_to_batch` mit eigenem Plan je Dokument, `start_batch` mit Ordnerwahl und Umgang
+//! mit vorhandenen Dateien, ein Lauf mit **einer** Sitzung (`sign_one` je Dokument, höchstens ein
+//! Zertifikat), Pausen nach `ErrorScope` (Verbindung ohne neue Anmeldung, Sitzung mit neuer Sitzung erst nach
+//! „Erneut versuchen“, Dokument), `skip_batch_document` (Sitzung bleibt), `abort_batch` bzw. `cancel` (F-72),
+//! Zusammenfassung über alle Einträge; Mobile setzt nach einem App-Kill nur das unterbrochene Dokument fort,
+//! danach die Übersicht. Die Startargument-Automatik (D-06) bleibt ohne Übersicht.
+//!
 //! „Zuletzt signiert“ und „sofort wirksam“ (K3), Prüfmodus und Ersteinrichtung (K4) liefern weiter
-//! Standardwerte und ignorieren ihre Ereignisse mit einem Debug-Log – keines öffnet eine Sitzung.
-//! Im klassischen Ablauf (ohne `workspace_ui`) bleiben auch die Ereignisse des Arbeitsbereichs ohne
-//! Wirkung.
+//! Standardwerte und ignorieren ihre Ereignisse mit einem Debug-Log – keines öffnet eine Sitzung. Im
+//! klassischen Ablauf (ohne `workspace_ui`) bleiben auch die Ereignisse des Arbeitsbereichs ohne Wirkung,
+//! ohne `batch_overview` die des Stapels.
 //!
 //! Ownership: **Integration**.
 
 mod actions;
 mod backends;
+mod batch;
 mod broker;
 mod config;
 mod docs;
@@ -262,6 +276,11 @@ pub struct CoreOptions {
     /// zurück zum Arbeitsbereich. `None` = `false` (CLI, Tests, klassische UI); ohne Oberfläche
     /// (`headless`) nie.
     pub workspace_ui: Option<bool>,
+    /// Stapelübersicht bei ≥ 2 Dokumenten (ADR 0004 §3.8, nur mit `workspace_ui`): eine Sitzung, eine
+    /// Anmeldung, je Dokument eine Bestätigung. `None` = `false`: mehrere Dokumente laufen wie bisher
+    /// nacheinander (im Arbeitsbereich über „Fertig“ → „Nächstes Dokument“). Die Startargument-Automatik
+    /// (`-b … -a`, D-06) bleibt immer ohne Übersicht.
+    pub batch_overview: Option<bool>,
 }
 
 impl Default for CoreOptions {
@@ -286,6 +305,7 @@ impl Default for CoreOptions {
             persist_prepared: None,
             default_output_dir: None,
             workspace_ui: None,
+            batch_overview: None,
         }
     }
 }
@@ -320,6 +340,7 @@ impl std::fmt::Debug for CoreOptions {
             .field("init_logging", &self.init_logging)
             .field("persist_prepared", &self.persist_prepared)
             .field("workspace_ui", &self.workspace_ui)
+            .field("batch_overview", &self.batch_overview)
             .finish_non_exhaustive()
     }
 }
@@ -464,6 +485,7 @@ impl Core {
             tx: tx.clone(),
             shell: Mutex::new(options.shell.clone()),
             tile_scale: Mutex::new(1.0),
+            thumbs: Mutex::new(std::collections::HashMap::new()),
         });
         let registry = backends::Registry::new(
             config.platform,
@@ -490,6 +512,7 @@ impl Core {
             fido2_available,
             mobile,
             options.workspace_ui.unwrap_or(false),
+            options.batch_overview.unwrap_or(false),
         );
         handle.spawn(task.run(rx));
         Ok(Core { tx, view_rx, finished_rx, shared, runtime, _log: Mutex::new(log) })
@@ -527,6 +550,13 @@ impl Core {
             Some(png) => Ok(png.to_vec()),
             None => Err(CoreError::UnknownDocument(doc)),
         }
+    }
+
+    /// PNG-Miniatur eines Stapeleintrags aus der Voranalyse (Custom Protocol `pida-render://thumb/<doc>`,
+    /// ADR 0004 §3.8; Breite 96 px, nur mit PDFium).
+    pub fn thumbnail(&self, doc: DocId) -> Result<Vec<u8>, CoreError> {
+        let thumbs = self.shared.thumbs.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        thumbs.get(&doc).map(|png| png.to_vec()).ok_or(CoreError::UnknownDocument(doc))
     }
 
     /// PNG der Blockvorschau aus dem echten Appearance-Objekt (Plan §6.6).

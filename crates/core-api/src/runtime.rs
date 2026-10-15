@@ -61,6 +61,12 @@ pub(crate) enum Msg {
         page: usize,
         grid: Option<Arc<pida_placement::OccupancyGrid>>,
     },
+    /// Voranalyse eines Stapeleintrags fertig (ADR 0004 §3.8) samt Miniatur
+    Preanalyzed {
+        doc: DocId,
+        result: Result<pida_workflow::DocSummary, WorkflowError>,
+        thumb: Option<Arc<[u8]>>,
+    },
     Shutdown,
 }
 
@@ -262,6 +268,9 @@ pub(crate) struct Shared {
     pub tx: mpsc::UnboundedSender<Msg>,
     pub shell: Mutex<Option<Arc<dyn ShellHooks>>>,
     pub tile_scale: Mutex<f32>,
+    /// Miniaturen der Stapeleinträge (PNG, `pida-render://thumb/<doc>`; ADR 0004 §3.8) – eigener kleiner
+    /// Cache, nicht im LRU der Kacheln
+    pub thumbs: Mutex<std::collections::HashMap<DocId, Arc<[u8]>>>,
 }
 
 impl std::fmt::Debug for Shared {
@@ -273,7 +282,7 @@ impl std::fmt::Debug for Shared {
     }
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
@@ -404,6 +413,12 @@ pub(crate) struct CoreTask {
     keystore_import: Option<KeystoreImportView>,
     /// Oberfläche „Arbeitsbereich“ (ADR 0004)
     pub(crate) ws: WorkspaceRuntime,
+    /// Stapelübersicht (`CoreOptions::batch_overview`, ADR 0004 §3.8)
+    batch_overview: bool,
+    /// Voranalyse der Stapeleinträge (nacheinander)
+    preanalysis: crate::batch::Preanalysis,
+    /// gecachte Abfragen der Projektion (Zieldateien, Ordner, gemerkte Passwörter, Zertifikats-Cache)
+    pub(crate) probe: crate::batch::ProbeCache,
 }
 
 impl CoreTask {
@@ -418,6 +433,7 @@ impl CoreTask {
         fido2_available: bool,
         mobile: MobileSetup,
         workspace_ui: bool,
+        batch_overview: bool,
     ) -> CoreTask {
         let overlay = &cfg.overlay;
         // Startargument-Automatik der GUI (D-06): `-b` und (`-a` oder `-v`), nicht `signature.auto_position`
@@ -426,6 +442,8 @@ impl CoreTask {
         let mut ctx = cfg.context(headless);
         ctx.workspace = ws.enabled;
         ctx.cli_auto = ws.enabled && cli_auto;
+        // D-06 (`-b … -a`) bleibt ohne Übersicht (ADR 0004 §3.2, Abnahme E2 Punkt 9)
+        ctx.batch_overview = ws.enabled && batch_overview && !cli_auto;
         CoreTask {
             shared,
             state: State::Starting,
@@ -453,6 +471,9 @@ impl CoreTask {
             persist_owned: false,
             keystore_import: None,
             ws,
+            batch_overview,
+            preanalysis: crate::batch::Preanalysis::default(),
+            probe: crate::batch::ProbeCache::default(),
         }
     }
 
@@ -461,6 +482,12 @@ impl CoreTask {
         self.ctx = self.cfg.context(self.headless);
         self.ctx.workspace = self.ws.enabled;
         self.ctx.cli_auto = self.ws.enabled && self.ws.cli_auto;
+        self.ctx.batch_overview = self.ws.enabled && self.batch_overview && !self.ws.cli_auto;
+    }
+
+    /// Folgeereignis eines Effekts in Reihenfolge (nach dem laufenden Reducer-Schritt).
+    pub(crate) fn apply_later(&mut self, event: Event) {
+        self.queue.push_back(event);
     }
 
     /// Ordner des persistierten Signierzustands (App-Sandbox, nicht der Cache).
@@ -585,7 +612,10 @@ impl CoreTask {
         let was_background = std::mem::replace(&mut self.backgrounded, false);
         self.apply(Event::Foregrounded);
         self.refresh_signers();
-        if was_background && matches!(self.state, State::Signing { .. }) && self.shared.broker.restart_long_poll() {
+        if was_background
+            && matches!(self.state, State::Signing { .. } | State::BatchSigning { .. })
+            && self.shared.broker.restart_long_poll()
+        {
             tracing::info!("nach der Rückkehr in die App: Long-Poll neu gestartet");
         }
     }
@@ -615,7 +645,11 @@ impl CoreTask {
         // Signiermittel-Auswahl ja – danach ist der Keystore dort sofort verfügbar
         let busy = matches!(
             self.state,
-            State::Signing { .. } | State::Resuming { .. } | State::Starting | State::Finished { .. }
+            State::Signing { .. }
+                | State::BatchSigning { .. }
+                | State::Resuming { .. }
+                | State::Starting
+                | State::Finished { .. }
         );
         if busy {
             return Err(MSG_KEYSTORE_IMPORT_BUSY.into());
@@ -745,7 +779,7 @@ impl CoreTask {
                 _ = tick.tick() => {
                     self.guarded(|t| t.refresh_backend_options());
                     // Konto-Chip aktuell halten (lokale BKU erscheint bzw. verschwindet), nicht im Signieren
-                    if !matches!(self.state, State::Signing { .. } | State::Resuming { .. }) {
+                    if !matches!(self.state, State::Signing { .. } | State::BatchSigning { .. } | State::Resuming { .. }) {
                         self.guarded(|t| t.refresh_signers());
                     }
                     self.publish();
@@ -763,10 +797,50 @@ impl CoreTask {
         self.cancel_session();
     }
 
-    /// Nach jeder Nachricht (Arbeitsbereich): Revision der Platzierung, Belegungsraster anfordern.
+    /// Nach jeder Nachricht (Arbeitsbereich): Revision der Platzierung, Belegungsraster anfordern; Stapel:
+    /// nächste Voranalyse, Miniaturen entfernter Einträge verwerfen.
     fn after_message(&mut self) {
         self.track_revision();
         self.request_layout();
+        self.pump_preanalysis();
+        self.prune_thumbnails();
+    }
+
+    /// Nächste Voranalyse beginnen (eine zur Zeit; verworfene Einträge entfallen).
+    fn pump_preanalysis(&mut self) {
+        let state = &self.state;
+        let wanted = |doc: DocId| {
+            state.queue().and_then(|q| q.batch.as_ref()).and_then(|b| b.item(doc)).is_some_and(|i| i.summary.is_none())
+        };
+        let Some(doc) = self.preanalysis.next(wanted) else { return };
+        let Some(input) = self.state.queue().and_then(|q| q.find(doc)).cloned() else {
+            self.preanalysis.finished(doc);
+            return;
+        };
+        let shared = self.shared.clone();
+        let search_qr = self.ctx.placeholder_search && !self.ctx.placeholder_fields;
+        tokio::task::spawn_blocking(move || {
+            let (result, thumb) = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                crate::batch::preanalyze(doc, &input.path, shared.engine.as_ref(), search_qr, shared.render.as_deref())
+            })) {
+                Ok(r) => r,
+                Err(_) => {
+                    tracing::error!("Voranalyse abgebrochen (Programmfehler)");
+                    (Err(WorkflowError::Unexpected("Voranalyse".into())), None)
+                }
+            };
+            shared.send(Msg::Preanalyzed { doc, result, thumb });
+        });
+    }
+
+    /// Miniaturen nur für Einträge des Stapels behalten.
+    fn prune_thumbnails(&self) {
+        let mut thumbs = lock(&self.shared.thumbs);
+        if thumbs.is_empty() {
+            return;
+        }
+        let batch = self.state.queue().and_then(|q| q.batch.as_ref());
+        thumbs.retain(|doc, _| batch.is_some_and(|b| b.item(*doc).is_some()));
     }
 
     /// Führt `f` aus; eine Panik (Programmfehler, feindliche Eingabe in einer Bibliothek) beendet nicht
@@ -821,7 +895,7 @@ impl CoreTask {
                         && epoch.is_some()
                         && event == Event::BackendFailed(BackendError::Cancelled)
                         && !self.ws.own_cancel
-                        && matches!(self.state, State::Signing { .. });
+                        && matches!(self.state, State::Signing { .. } | State::BatchSigning { .. });
                     if declined {
                         tracing::info!("Signieren abgelehnt bzw. abgelaufen (nicht in PIDA abgebrochen)");
                         self.apply(Event::SigningDeclined);
@@ -850,6 +924,16 @@ impl CoreTask {
             Msg::Refresh => self.on_interaction_changed(),
             Msg::BackendEvent(e) => self.on_backend_event(e),
             Msg::GridReady { doc, page, grid } => self.on_grid_ready(doc, page, grid),
+            Msg::Preanalyzed { doc, result, thumb } => {
+                self.preanalysis.finished(doc);
+                let known = self.state.queue().and_then(|q| q.batch.as_ref()).is_some_and(|b| b.item(doc).is_some());
+                if known {
+                    if let Some(png) = thumb {
+                        lock(&self.shared.thumbs).insert(doc, png);
+                    }
+                    self.apply(Event::Preanalyzed { doc, result });
+                }
+            }
         }
     }
 
@@ -858,10 +942,14 @@ impl CoreTask {
     /// nicht im Speicher zurück.
     fn on_loaded(&mut self, loaded: Loaded, event: Event) {
         let id = loaded.data.id;
-        let current = matches!(
-            &self.state,
-            State::Analyzing { queue } | State::Resuming { queue, doc: None, .. } if queue.current_id() == Some(id)
-        );
+        let current = match &self.state {
+            State::Analyzing { queue } | State::Resuming { queue, doc: None, .. } => queue.current_id() == Some(id),
+            // Stapellauf: Dokument wird geladen
+            State::BatchSigning { queue, run } => {
+                run.phase == pida_workflow::BatchPhase::Loading && queue.current_id() == Some(id)
+            }
+            _ => false,
+        };
         if !current {
             tracing::debug!("Analyse eines verworfenen Dokuments verworfen");
             return;
@@ -963,7 +1051,15 @@ impl CoreTask {
             // Kopie statt `mem::replace`: bricht der Reducer ab, bleibt der bisherige Zustand erhalten
             let t = reduce(self.state.clone(), event, &self.ctx);
             let was_error = matches!(self.state, State::Error { .. });
+            let was_running = matches!(self.state, State::BatchSigning { .. });
             self.state = t.state;
+            // „Jedes Mal fragen“: die Auswahl gilt nur bis zum Ende des Stapellaufs (§8 F12)
+            if was_running
+                && !matches!(self.state, State::BatchSigning { .. })
+                && self.cfg.effective().default_backend().is_none()
+            {
+                self.ws.selection = None;
+            }
             tracing::debug!(state = self.state.name(), effects = t.effects.len(), "Übergang");
             match (&self.state, was_error) {
                 (State::Error { .. }, false) => self.ws.error_at = Some(crate::workspace::rfc3339_now()),
@@ -1084,6 +1180,17 @@ impl CoreTask {
                 self.ws.layouts.remove(id);
             }
             Effect::RememberDirectory(dir) => self.cfg.remember_directory(&dir),
+            // ADR 0004 §3.8: Stapel
+            Effect::Preanalyze(doc) => self.preanalysis.push(doc),
+            Effect::SkipCurrentJob => {
+                // nur den laufenden Auftrag abbrechen – die Sitzung (samt Zugangsdaten) kommt zurück (§8 F10)
+                self.ws.own_cancel = true;
+                lock(&self.shared.sign).job_cancel.cancel();
+            }
+            Effect::DecideBatchOutput { doc, output, on_existing } => {
+                self.effect_decide_batch_output(doc, &output, on_existing);
+            }
+            Effect::NotifyWith(code, params) => self.notify(&code, params),
             Effect::Exit(code) => {
                 self.cancel_session();
                 // erst den Endzustand veröffentlichen (Ergebnisse), dann das Ende melden
@@ -1204,7 +1311,12 @@ impl CoreTask {
     fn session_ctx(&self) -> SessionContext {
         SessionContext {
             language: self.cfg.language(),
-            batch_size: self.state.queue().map(|q| q.len()).unwrap_or(1).max(1),
+            batch_size: match &self.state {
+                State::BatchSigning { run, .. } => run.order.len().max(1),
+                // Arbeitsbereich: ein Dokument je Sitzung
+                _ if self.ws.enabled => 1,
+                s => s.queue().map(|q| q.len()).unwrap_or(1).max(1),
+            },
             cancel: lock(&self.shared.sign).cancel.clone(),
             headless: !self.shared.broker.interactive(),
         }
@@ -1275,8 +1387,18 @@ impl CoreTask {
 
     /// Cache und Schlüssel für das Backend des laufenden Vorgangs (nur mit Opt-in).
     fn certificate_cache(&self) -> Option<(CertificateCache, CertCacheKey)> {
+        let backend = match &self.state {
+            State::Signing { backend, .. } => *backend,
+            State::BatchSigning { run, .. } => run.backend,
+            _ => return None,
+        };
+        self.certificate_cache_for(backend)
+    }
+
+    /// Cache und Schlüssel für ein Signiermittel (nur mit Opt-in).
+    pub(crate) fn certificate_cache_for(&self, backend: BackendId) -> Option<(CertificateCache, CertCacheKey)> {
         let settings = &self.cfg.settings.certificate_cache;
-        let State::Signing { backend, .. } = &self.state else { return None };
+        let backend = &backend;
         if !settings.enabled || !uses_certificate_cache(*backend) {
             return None;
         }
@@ -1335,18 +1457,25 @@ impl CoreTask {
         }
         lock(&self.shared.sign).cert_cache = cache.map(|(c, k)| (c, k, false));
         let shared = self.shared.clone();
-        let (epoch, session, cancel) = {
+        let (epoch, session, cancel, job_cancel) = {
             let mut slot = lock(&shared.sign);
-            (slot.epoch, slot.session.take(), slot.cancel.clone())
+            if slot.job_cancel.is_cancelled() {
+                slot.job_cancel = CancelToken::new();
+            }
+            (slot.epoch, slot.session.take(), slot.cancel.clone(), slot.job_cancel.clone())
         };
         let Some(mut session) = session else {
             self.queue.push_back(Event::BackendFailed(BackendError::Internal("keine Sitzung".into())));
             return;
         };
+        self.ws.own_cancel = false;
         self.spawn_event(Some(epoch), async move {
+            // Stapel: „Dokument überspringen“ während des Lesens bricht nur diesen Schritt ab, die Sitzung
+            // bleibt (ADR 0004 §3.8)
             let r = tokio::select! {
                 biased;
                 _ = cancel.cancelled() => Err(BackendError::Cancelled),
+                _ = job_cancel.cancelled() => Err(BackendError::Cancelled),
                 r = session.certificate() => r,
             };
             if r.is_err() && cancel.is_cancelled() {
@@ -1380,6 +1509,7 @@ impl CoreTask {
         };
         let backend = match &self.state {
             State::Signing { backend, .. } => Some(*backend),
+            State::BatchSigning { run, .. } => Some(run.backend),
             _ => None,
         };
         // „Signatur fortsetzen“: genau einmal wiederherstellen – nur für dieses Dokument, dasselbe
@@ -1394,8 +1524,7 @@ impl CoreTask {
             (true, Some(backend)) if restore.is_none() => {
                 self.resume_offer = None;
                 self.persist_owned = true;
-                let pending =
-                    self.state.queue().map(|q| q.pending.iter().map(|d| d.path.clone()).collect()).unwrap_or_default();
+                let pending = self.persist_pending();
                 let name = self
                     .state
                     .queue()
@@ -1503,8 +1632,26 @@ impl CoreTask {
         });
     }
 
+    /// Wartende Dokumente für „Signatur fortsetzen“: im Stapellauf alle übrigen, noch nicht signierten
+    /// Einträge (fortgesetzt wird nur das unterbrochene Dokument, danach die Übersicht, ADR 0004 §3.8).
+    fn persist_pending(&self) -> Vec<PathBuf> {
+        let Some(queue) = self.state.queue() else { return Vec::new() };
+        match (&self.state, &queue.batch) {
+            (State::BatchSigning { .. }, Some(batch)) => batch
+                .items
+                .iter()
+                .filter(|i| Some(i.doc) != queue.current_id())
+                .filter(|i| !matches!(i.status, pida_workflow::BatchItemStatus::Signed { .. }))
+                .filter_map(|i| queue.find(i.doc).map(|d| d.path.clone()))
+                .collect(),
+            _ => queue.pending.iter().map(|d| d.path.clone()).collect(),
+        }
+    }
+
     /// Backend `sign` (klassisch) bzw. `sign_one` mit eigenem Job-Abbruch (`one`, Arbeitsbereich).
     fn effect_sign(&mut self, one: bool) {
+        // neuer Auftrag: ein später gemeldetes `Cancelled` ist eine Ablehnung, sofern PIDA nicht selbst abbricht
+        self.ws.own_cancel = false;
         let shared = self.shared.clone();
         let name = self.current_doc().map(|d| d.name.clone()).unwrap_or_default();
         let (epoch, session, prepared, chain, caps, cancel, cms_profile, job_cancel) = {
@@ -1902,6 +2049,11 @@ impl CoreTask {
                 }
             }
             UiEvent::OpenSignatureData { request } => self.open_signature_data(request),
+            // Stapellauf: Abbrechen (Esc) = „Stapel abbrechen“ (sicherer Standard, ADR 0004 §3.8)
+            UiEvent::Cancel if matches!(self.state, State::BatchSigning { .. }) => {
+                self.ws.own_cancel = true;
+                self.apply(Event::BatchAbort);
+            }
             UiEvent::Cancel => {
                 // eigener Abbruch: ein folgendes `Cancelled` ist keine Ablehnung (ADR 0004 §3.6)
                 if matches!(self.state, State::Signing { .. }) {
@@ -2016,11 +2168,31 @@ impl CoreTask {
                 self.select_signer(backend, make_default)
             }
             UiEvent::SignWith { backend } if self.ws.enabled => self.sign_with(backend),
+            // ADR 0004 §3.8: Stapel (K2), nur mit Stapelübersicht
+            UiEvent::ShowBatch if self.ctx.batch() => self.apply(Event::ShowBatch),
+            UiEvent::OpenBatchItem { doc } if self.ctx.batch() => self.apply(Event::BatchItemOpened(doc)),
+            UiEvent::BackToBatch if self.ctx.batch() => self.apply(Event::BackToBatch),
+            UiEvent::RemoveFromBatch { doc } if self.ctx.batch() => self.apply(Event::BatchItemRemoved(doc)),
+            UiEvent::StartBatch { backend, docs, output_dir, on_existing } if self.ctx.batch() => {
+                self.start_batch(backend, docs, output_dir, on_existing);
+            }
+            UiEvent::SkipBatchDocument if self.ctx.batch() => {
+                if matches!(self.state, State::BatchSigning { .. }) {
+                    self.ws.own_cancel = true;
+                }
+                self.apply(Event::BatchSkip);
+            }
+            UiEvent::AbortBatch if self.ctx.batch() => {
+                if matches!(self.state, State::BatchSigning { .. }) {
+                    self.ws.own_cancel = true;
+                }
+                self.apply(Event::BatchAbort);
+            }
             // Oberflächensprache (Kopfzeile, Palette): in beiden Modi; schreibgeschützt nur im Speicher
             UiEvent::SetUiLanguage { language } => self.set_ui_language(language),
-            // ADR 0004: Stapel (K2), Prüfmodus/Ersteinrichtung (K4), Zuletzt signiert/sofort wirksam (K3) –
-            // bis dahin ohne Wirkung; im klassischen Ablauf auch die Ereignisse des Arbeitsbereichs.
-            // Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
+            // ADR 0004: Prüfmodus/Ersteinrichtung (K4), Zuletzt signiert/sofort wirksam (K3) – bis dahin ohne
+            // Wirkung; im klassischen Ablauf auch die Ereignisse des Arbeitsbereichs, ohne Stapelübersicht die
+            // des Stapels. Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
             e @ (UiEvent::SetInvisible { .. }
             | UiEvent::UseTarget { .. }
             | UiEvent::InspectPages { .. }
@@ -2061,6 +2233,41 @@ impl CoreTask {
         let block = lock(&self.shared.block).clone();
         let (w, h) = if block.doc == Some(doc.id) { (block.width, block.height) } else { (p.width, p.height) };
         Some(Placement { page_index: view.placement.page_index, x: sticker.left, y: sticker.top, width: w, height: h })
+    }
+
+    /// „Alle signieren (n) mit X“ (ADR 0004 §3.8): Ausgabeziel vor dem Start festlegen (Ordnerwahl nur bei
+    /// „jedes Mal fragen“ bzw. ohne vorhandenen Ordner), aktuelle Optionen, dann der Reducer (Prüfung, eine
+    /// Sitzung).
+    fn start_batch(
+        &mut self,
+        backend: BackendId,
+        docs: Vec<DocId>,
+        output_dir: Option<PathBuf>,
+        on_existing: pida_workflow::ExistingPolicy,
+    ) {
+        let State::BatchOverview { queue } = &self.state else {
+            tracing::debug!(state = self.state.name(), "start_batch nur in der Stapelübersicht");
+            return;
+        };
+        let output = if !self.mobile.platform.is_desktop() {
+            // Mobile: immer in die App-Dokumente (keine Ordnerwahl)
+            Some(pida_workflow::BatchOutput::Configured)
+        } else {
+            match output_dir {
+                Some(dir) if dir.is_dir() => Some(pida_workflow::BatchOutput::Folder(dir)),
+                Some(_) => None,
+                None if self.batch_output_view(queue).needs_folder => None,
+                None => Some(pida_workflow::BatchOutput::Configured),
+            }
+        };
+        let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
+        self.options = self.registry.options(&env);
+        self.ws.signer_options = self.options.clone();
+        // „Jedes Mal fragen“: die Wahl gilt für diesen Lauf (§8 F12)
+        if self.ws.selection.is_none() && self.cfg.effective().default_backend().is_none() {
+            self.ws.selection = Some(Selection { backend: Some(backend), doc: None });
+        }
+        self.apply(Event::BatchStarted { backend, docs, output, on_existing, options: self.options.clone() });
     }
 
     /// Konto-Chip (§3.4): Auswahl für diese Sitzung bzw. dieses Dokument; `make_default` speichert den
@@ -2375,6 +2582,12 @@ impl CoreTask {
             // Arbeitsbereich: keine Hauptleiste Positionieren/Signieren; „Signieren“ nur mit zulässiger Platzierung
             actions.sign = actions.sign && crate::actions::workspace_sign_allowed(&self.state);
         }
+        if self.ctx.batch() {
+            // Stapel (ADR 0004 §3.13): „Alle signieren“ mit mindestens einem signierbaren Eintrag,
+            // „Zur Stapelübersicht“ aus einem Einzeldokument mit weiteren Dokumenten
+            actions.start_batch = crate::actions::batch_start_allowed(&self.state);
+            actions.show_batch = crate::actions::batch_show_allowed(&self.state);
+        }
         let done = self
             .state
             .results()
@@ -2416,7 +2629,7 @@ impl CoreTask {
             // K4 (verify, first_run)
             document: self.document_view(),
             signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
-            batch: None,
+            batch: self.batch_view(),
             verify: None,
             recent: None,
             first_run: None,
@@ -2552,6 +2765,31 @@ impl CoreTask {
                 }
             }
             State::Finished { exit, .. } => StepView::Finished { exit_code: *exit as u8 },
+            // ADR 0004 §3.8: Übersicht (Inhalt in `ViewState::batch`), Lauf als Signierkarte über der Übersicht
+            State::BatchOverview { .. } => StepView::Batch,
+            State::BatchSigning { queue, run } => StepView::Signing {
+                // ohne offene Maske meldet core-api den Fortschritt des Laufs selbst (Dokument k von n); in
+                // der Pause wertet die UI `interaction` nicht aus
+                interaction: match self.shared.broker.current() {
+                    InteractionView::Waiting { .. }
+                        if !matches!(
+                            run.phase,
+                            pida_workflow::BatchPhase::OpeningSession | pida_workflow::BatchPhase::ReadingCertificate
+                        ) =>
+                    {
+                        InteractionView::Waiting {
+                            progress: pida_backend_api::Progress::Document {
+                                index: (run.index + 1).min(run.order.len()),
+                                total: run.order.len(),
+                            },
+                        }
+                    }
+                    other => other,
+                },
+                queue: self.queue_items(),
+                document_leaves_device: self.leaves_device(run.backend),
+                progress: self.batch_progress_view(queue, run),
+            },
         }
     }
 }

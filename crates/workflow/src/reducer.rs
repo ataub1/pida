@@ -9,6 +9,13 @@
 //! [`Context::cli_auto`] mit einem Signiermittel, bei dem das Dokument auf dem Gerät bleibt), Signieren
 //! nur über [`Event::SignRequested`], Abbruch zurück in den Arbeitsbereich, Wiederholen in derselben
 //! Sitzung (Invariante **A1**: `Effect::OpenSession` nur in den Paaren aus ADR 0004 §3.2).
+//!
+//! Mit der Stapelübersicht ([`Context::batch`], ADR 0004 §3.8) kommen `BatchOverview` und `BatchSigning`
+//! hinzu (Modul `batch_run`): ab zwei Dokumenten die Übersicht statt „ein Dokument nach dem anderen“, ein
+//! Lauf mit **einer** Sitzung (`Effect::OpenSession` nur nach `BatchStarted` bzw. „Erneut versuchen“ einer
+//! Sitzungspause), ein aus der Übersicht geöffnetes Dokument kehrt dorthin zurück.
+
+mod batch_run;
 
 use pida_backend_api::{BackendId, ErrorScope};
 use pida_pades::AcceptanceClass;
@@ -52,8 +59,19 @@ pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
         // der Arbeitsbereich hat keine Hauptleiste für Positionieren/Signieren (ADR 0004 §3.2)
         Event::Navigate(_) if ctx.headless => return Transition::stay(state),
         Event::Navigate(Step::Positioning | Step::Signing) if ctx.workspace => return Transition::stay(state),
+        // Stapel: das Ergebnis der Voranalyse gilt in jedem Zustand mit Stapel (ADR 0004 §3.8)
+        Event::Preanalyzed { doc, result } => return batch_run::preanalyzed(state, doc, result, ctx),
         _ => {}
     }
+    // Stapel: Einzeldokument aus der Übersicht kehrt dorthin zurück, „Zur Stapelübersicht“
+    let (state, event) = if ctx.batch() {
+        match batch_run::intercept(state, event, ctx) {
+            Ok(t) => return t,
+            Err(pair) => *pair,
+        }
+    } else {
+        (state, event)
+    };
     match state {
         State::Starting => starting(event, ctx),
         State::Idle { queue } => idle(queue, event),
@@ -67,6 +85,8 @@ pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
         s @ State::Output { .. } => output(s, event, ctx),
         s @ State::Error { .. } => error(s, event, ctx),
         s @ State::Finished { .. } => Transition::stay(s),
+        s @ State::BatchOverview { .. } => batch_run::overview(s, event, ctx),
+        s @ State::BatchSigning { .. } => batch_run::signing(s, event, ctx),
     }
 }
 
@@ -422,7 +442,16 @@ fn workspace_after_analysis(
         }
         _ => None,
     };
-    let edit = WorkspaceEdit::new(fields, qr.clone(), ctx.invisible);
+    let mut edit = WorkspaceEdit::new(fields, qr.clone(), ctx.invisible);
+    // aus der Stapelübersicht geöffnet: Plan des Eintrags übernehmen, „Zurück zum Stapel“ (ADR 0004 §3.8)
+    if ctx.batch()
+        && let Some(plan) = batch_run::opened_plan(&queue, doc.id)
+    {
+        edit.return_to_batch = true;
+        let parked = batch_run::apply_plan(&mut edit, plan.as_ref(), &doc);
+        let auto = edit.auto_free() && !edit.invisible;
+        return to_workspace(queue, doc, parked, edit, auto, Vec::new());
+    }
     if ctx.cli_auto {
         let position = match (&qr, ctx.invisible) {
             (_, true) => PositionChoice::Invisible,
@@ -481,7 +510,7 @@ fn keep_session(ctx: &Context, retry: bool, scope: Option<ErrorScope>) -> Effect
 fn quit(state: State) -> Transition {
     match state {
         s @ State::Finished { .. } => Transition::stay(s),
-        State::Signing { mut queue, .. } => {
+        State::Signing { mut queue, .. } | State::BatchSigning { mut queue, .. } => {
             queue.clear();
             finish_with(ExitCode::Cancelled, queue.done, vec![Effect::CancelSession, Effect::DeletePersisted])
         }
@@ -520,6 +549,14 @@ fn quit(state: State) -> Transition {
 /// Ergebnis-Screen anhängen und – wenn zuletzt gespeichert – sofort weiter (F-89), sonst nur an die
 /// Warteschlange anhängen (Single-Instance).
 fn files_added(state: State, docs: Vec<crate::queue::InputDocument>, ctx: &Context) -> Transition {
+    if ctx.batch() {
+        return batch_run::files_added(state, docs, ctx);
+    }
+    files_added_single(state, docs, ctx)
+}
+
+/// [`files_added`] ohne Stapelübersicht (auch Rückfall der Stapelregeln für Zustände ohne Stapel).
+fn files_added_single(state: State, docs: Vec<crate::queue::InputDocument>, ctx: &Context) -> Transition {
     match state {
         State::Idle { mut queue } => {
             let mut effects = Vec::new();
@@ -592,6 +629,15 @@ fn starting(event: Event, ctx: &Context) -> Transition {
     match event {
         Event::Started { documents } => {
             let mut queue = Queue::default();
+            if ctx.batch() && documents.len() >= 2 {
+                // „Öffnen mit“ mehrerer Dateien beim Start: Stapelübersicht (ADR 0004 §3.8)
+                queue.append(documents);
+                if queue.pending.len() >= 2 {
+                    return batch_run::new_overview(queue, Vec::new());
+                }
+                queue.advance();
+                return start_current(queue, ctx, Vec::new());
+            }
             queue.add(documents);
             start_current(queue, ctx, Vec::new())
         }
@@ -641,12 +687,19 @@ fn resuming(state: State, event: Event, ctx: &Context) -> Transition {
         }
         (Event::BackendsProbed(options), Some(doc)) => {
             let ResumePlan { position, backend } = plan;
+            // Stapel unterbrochen (Mobile, App-Kill): nur dieses Dokument wird fortgesetzt, danach die
+            // Stapelübersicht mit den übrigen (ADR 0004 §3.8)
+            let edit = (ctx.batch() && !queue.pending.is_empty()).then(|| {
+                let mut e = WorkspaceEdit::from_position(&position, ctx.invisible);
+                e.return_to_batch = true;
+                e
+            });
             if options.iter().any(|o| o.id == backend && o.available()) {
-                return choose_backend(queue, doc, position, options, backend, None, ctx, Vec::new());
+                return choose_backend(queue, doc, position, options, backend, edit, ctx, Vec::new());
             }
             // Signiermittel nicht mehr verfügbar (Richtlinie, Keystore entfernt): Auswahl, neu vorbereiten
             let effects = vec![Effect::Notify(MSG_RESUME_BACKEND_UNAVAILABLE.into()), Effect::DeletePersisted];
-            ask_backend(queue, doc, position, options, None, effects)
+            ask_backend(queue, doc, position, options, edit, effects)
         }
         (Event::Cancel, _) => next_doc(queue, DocResult::Cancelled, ctx, vec![Effect::DeletePersisted]),
         (Event::Navigate(Step::Open), _) => discard_all(queue, vec![Effect::DeletePersisted]),
@@ -673,8 +726,9 @@ fn analyzing(queue: Queue, event: Event, ctx: &Context) -> Transition {
                 return fail(State::Analyzing { queue }, error, None, ctx, Vec::new());
             }
             let facts = DocFacts { id: doc, page_count, signed, class, start, new_visible_field_allowed };
-            // Warnung mit Abbruchmöglichkeit (Plan §6.1); ohne Oberfläche nur Hinweis (core-api), weiter
-            if !warnings.is_empty() && !ctx.headless {
+            // Warnung mit Abbruchmöglichkeit (Plan §6.1); ohne Oberfläche nur Hinweis (core-api), weiter. Ein
+            // Stapeleintrag, dessen Warnungen schon bestätigt wurden, fragt nicht erneut (ADR 0004 §3.8)
+            if !warnings.is_empty() && !ctx.headless && !batch_run::reviewed(&queue, doc) {
                 return Transition::stay(State::AnalysisWarning { queue, warnings, doc: facts, placeholder, fields });
             }
             after_analysis(queue, facts, placeholder, fields, ctx)
