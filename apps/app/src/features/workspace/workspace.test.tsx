@@ -333,9 +333,9 @@ describe('Konto-Chip und „Signieren“', () => {
     await user.click(within(menu).getByRole('menuitem', { name: 'Einstellungen …' }));
     expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
     act(() => mock.setView({ ...workspaceView(), settings: settingsView().settings }));
-    // bisheriger Dialog (bis B3): Abschnitt „Signiermittel“ → Tab „Einfach“ mit dem ID-Austria-Konto
-    const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
-    expect(within(dialog).getByRole('tab', { name: /Einfach/ })).toHaveAttribute('aria-selected', 'true');
+    // Einstellungen (B3): Abschnitt „Signiermittel“ mit dem ID-Austria-Konto
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    expect(within(dialog).getByRole('heading', { level: 3, name: 'Signiermittel' })).toBeInTheDocument();
     expect(within(dialog).getByRole('heading', { name: 'ID Austria' })).toBeInTheDocument();
   });
 

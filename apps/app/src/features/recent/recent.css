@@ -1,0 +1,25 @@
+/* „Zuletzt signiert“ (Paket UI-B): Liste und Karte aus `features/start/start.css` (Prototyp), hier nur
+   Entfernen-Knopf und fehlende Dateien. */
+.recent-card {
+  justify-items: stretch;
+}
+.recent-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.recent-entry .recent-item {
+  flex: 1;
+  min-width: 0;
+}
+.recent-remove {
+  flex: none;
+  color: var(--c-text-3);
+}
+.recent-entry.is-missing .recent-name {
+  color: var(--c-text-2);
+}
+.recent-missing {
+  color: var(--c-warning-on-soft);
+}

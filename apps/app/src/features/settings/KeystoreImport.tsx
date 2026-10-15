@@ -1,5 +1,6 @@
 /**
- * Import-Assistent für PKCS#12 (Mobile, Plan §5.2 „Keystore über PKCS#12-Import in die App-Sandbox“):
+ * Import-Assistent für PKCS#12 (Mobile, Plan §5.2 „Keystore über PKCS#12-Import in die App-Sandbox“), im Stil
+ * der neuen Oberfläche (ADR 0004 E3): Dialog mit Kopf, Dateikarte, Passwortfeld und Schalter.
  *
  * 1. Datei wählen – System-Dateiauswahl über das Plugin (`pickMobileFiles`, Dokument-Picker bzw. SAF);
  *    die Shell legt eine Kopie in der Sandbox ab.
@@ -8,16 +9,16 @@
  *    das Passwort, setzt Einstellungen › Keystore und legt das Passwort auf Wunsch im sicheren Speicher
  *    ab (iOS Keychain, Android Keystore). Das Ergebnis kommt als `ViewState.keystore_import`.
  *
- * Fachzustand hält der Kern; hier liegen nur Eingaben (gewählte Datei, Passwort, Häkchen).
+ * Fachzustand hält der Kern; hier liegen nur Eingaben (gewählte Datei, Passwort, Schalter).
  */
 import { useEffect, useState } from 'react';
-import { Form, Input, Label, TextField } from 'react-aria-components';
+import { Form } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { baseName } from '../../core/defaults';
-import { CheckField } from '../../settings/fields';
-import { AccessButton } from '../../ui/controls';
-import { ConfirmDialog } from '../../ui/Dialog';
-import { IconKey } from '../../ui/Icons';
+import { AccessButton, SwitchField, TextInput } from '../../ui/controls';
+import { DialogHeader, ModalShell } from '../../ui/Dialog';
+import { IconCheckCircle, IconFileKey, IconKey } from '../../ui/Icons';
+import './keystore-import.css';
 
 export function KeystoreImportDialog({ onClose }: { onClose: () => void }) {
   const { t, view, bridge, dispatch, toast } = useApp();
@@ -59,55 +60,56 @@ export function KeystoreImportDialog({ onClose }: { onClose: () => void }) {
     onClose();
   };
 
+  const title = t.t('ng-ui-keystore-import-title');
+
   if (result?.ok) {
     return (
-      <ConfirmDialog
-        title={t.t('ng-ui-keystore-import-title')}
-        onCancel={close}
-        actions={<AccessButton msg="ng-ui-keystore-import-done" label={t.t('ng-ui-keystore-import-done')} variant="primary" onPress={close} autoFocus />}
-      >
-        <p role="status">{t.t('ng-keystore-imported', { name: result.file_name })}</p>
-        <p className="hint">{t.t(result.password_stored ? 'ng-ui-keystore-import-stored' : 'ng-ui-keystore-import-not-stored')}</p>
-      </ConfirmDialog>
+      <ModalShell onClose={close} isDismissable={false} role="alertdialog" size="md" className="keystore-import">
+        <DialogHeader title={title} icon={<IconCheckCircle size={20} />} onClose={close} />
+        <div className="keystore-import-body">
+          <p role="status" className="keystore-import-done">
+            {t.t('ng-keystore-imported', { name: result.file_name })}
+          </p>
+          <p className="field-hint">{t.t(result.password_stored ? 'ng-ui-keystore-import-stored' : 'ng-ui-keystore-import-not-stored')}</p>
+        </div>
+        <div className="dialog-actions keystore-import-actions">
+          <AccessButton msg="ng-ui-keystore-import-done" label={t.t('ng-ui-keystore-import-done')} variant="primary" onPress={close} autoFocus />
+        </div>
+      </ModalShell>
     );
   }
 
   return (
-    <ConfirmDialog
-      title={t.t('ng-ui-keystore-import-title')}
-      onCancel={close}
-      actions={
-        <>
-          <AccessButton msg="common-Cancel" variant="quiet" onPress={close} />
-          <AccessButton msg="ng-ui-keystore-import-start" variant="primary" isDisabled={!file || busy} onPress={() => void start()} />
-        </>
-      }
-    >
-      <p className="privacy-lead">
-        <IconKey size={20} /> {t.t('ng-ui-keystore-import-lead')}
-      </p>
-      <div className="actions actions-start">
-        <AccessButton msg="ng-ui-keystore-import-choose" onPress={() => void choose()} autoFocus />
-      </div>
-      {file ? <p data-testid="keystore-import-file">{t.t('ng-ui-keystore-import-file', { name: baseName(file) })}</p> : null}
+    <ModalShell onClose={close} isDismissable={false} role="alertdialog" size="md" className="keystore-import">
+      <DialogHeader title={title} subtitle={t.t('ng-ui-keystore-import-lead')} icon={<IconKey size={20} />} onClose={close} />
       <Form
-        className="form"
+        className="keystore-import-body"
         onSubmit={(e) => {
           e.preventDefault();
           void start();
         }}
       >
-        <TextField className="field" type="password" value={password} onChange={setPassword} isDisabled={!file} autoComplete="off">
-          <Label className="field-label">{t.t('ng-ui-keystore-import-password')}</Label>
-          <Input className="input" />
-        </TextField>
-        <CheckField label={t.t('ng-ui-keystore-import-remember')} isSelected={remember} onChange={setRemember} isDisabled={!file || password === ''} />
+        <div className={`keystore-import-file${file ? ' has-file' : ''}`}>
+          <span className="keystore-import-icon" aria-hidden="true">
+            <IconFileKey size={20} />
+          </span>
+          <span className="keystore-import-name">
+            {file ? <span data-testid="keystore-import-file">{t.t('ng-ui-keystore-import-file', { name: baseName(file) })}</span> : <span className="muted">{t.t('ng-ui-set-keystore-none')}</span>}
+          </span>
+          <AccessButton msg="ng-ui-keystore-import-choose" size="sm" onPress={() => void choose()} autoFocus />
+        </div>
+        <TextInput label={t.t('ng-ui-keystore-import-password')} type="password" value={password} onChange={setPassword} isDisabled={!file} autoComplete="off" />
+        <SwitchField label={t.t('ng-ui-keystore-import-remember')} isSelected={remember} onChange={setRemember} isDisabled={!file || password === ''} />
+        {result && !result.ok ? (
+          <p className="message message-error" role="alert">
+            {t.code(result.code, { name: result.file_name }, 'ng-keystore-import-failed')}
+          </p>
+        ) : null}
       </Form>
-      {result && !result.ok ? (
-        <p className="message message-error" role="alert">
-          {t.code(result.code, { name: result.file_name }, 'ng-keystore-import-failed')}
-        </p>
-      ) : null}
-    </ConfirmDialog>
+      <div className="dialog-actions keystore-import-actions">
+        <AccessButton msg="common-Cancel" variant="quiet" onPress={close} />
+        <AccessButton msg="ng-ui-keystore-import-start" variant="primary" isDisabled={!file || busy} onPress={() => void start()} />
+      </div>
+    </ModalShell>
   );
 }

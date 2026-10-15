@@ -2,7 +2,7 @@
  * Datenschutz ohne Zustimmungsdialog (ADR 0003): Statt eines blockierenden Hinweises vor dem ersten
  * Upload zeigt die Oberfläche beim Signiermittel mit `document_leaves_device` (ID Austria) einen
  * **Kurzhinweis** „Das Dokument wird zum Signieren an A-Trust übermittelt.“ mit „Details“. „Details“ öffnet
- * die Einstellungen beim Tab „Datenschutz“; während des Signierens (Einstellungen gesperrt wie in
+ * die Einstellungen beim Abschnitt „Datenschutz“; während des Signierens (Einstellungen gesperrt wie in
  * PDF-Over) dieselben Angaben als schließbares Fenster.
  *
  * Der vollständige Text ([`PrivacyInfo`]) ist der Datenschutztext aus PDF-Over bzw. – per Richtlinie
@@ -60,7 +60,7 @@ export function PrivacyNote({ id }: { id?: string }) {
   const { t, view, openSettings } = useApp();
   const [open, setOpen] = useState(false);
   const details = () => {
-    // Einstellungen erreichbar (z. B. Signiermittel-Auswahl): dort beim Tab „Datenschutz“
+    // Einstellungen erreichbar (z. B. Signiermittel-Auswahl): dort beim Abschnitt „Datenschutz“
     if (view.main_bar.settings_enabled && !view.settings) openSettings('privacy');
     else setOpen(true);
   };
