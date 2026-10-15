@@ -1,5 +1,7 @@
 /target/
 **/target/
+# eigene Target-Ordner paralleler Pakete (z. B. CARGO_TARGET_DIR=<worktree>/target-ios)
+/target-*/
 /.venv/
 node_modules/
 /reference/

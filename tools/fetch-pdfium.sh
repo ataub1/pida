@@ -22,7 +22,8 @@
 #              ios-simulator-arm64 ios-simulator-x64 android-arm64 android-arm android-x64
 #
 # Umgebung (optional): PDFIUM_DEST (Zielordner, Standard tools/pdfium), PDFIUM_CACHE (Archive,
-# Standard <Ziel>/.downloads), PDFIUM_RELEASE (nur mit --update-lock), PDFIUM_BASE_URL (Spiegel).
+# Standard <Ziel>/.downloads), PDFIUM_RELEASE (nur mit --update-lock), PDFIUM_BASE_URL (Spiegel),
+# PDFIUM_IOS_MIN (Mindest-iOS des xcframework, Standard 16.0 = Plan §5.1; leer = wie die Binaries).
 # Benötigt: bash ≥ 3.2, curl (oder wget), tar, sha256sum/shasum/openssl. Lädt nur über HTTPS.
 set -euo pipefail
 
@@ -232,12 +233,23 @@ build_version() {
 }
 
 # Ein Framework-Slice: pdfium.framework/{pdfium, Info.plist}, install name @rpath/…, ad-hoc signiert.
+# Weicht das Mindest-iOS `minos` von dem der Bibliothek ab, wird LC_BUILD_VERSION neu gesetzt (nur die
+# Kennzeichnung, nicht der Code): pdfium-binaries chromium/8100 baut mit ios_deployment_target 17.0, die
+# Bibliothek importiert aber nur Funktionen aus libSystem, CoreFoundation und CoreGraphics, die es lange vor
+# iOS 16 gibt (`nm -u`, docs/integration/mobile-ios.md §PDFium) – Plan §5.1 verlangt iOS 16.
 make_framework() {
-  local dylib="$1" out="$2" platform="$3" version="$4" minos="$5"
+  local dylib="$1" out="$2" platform="$3" version="$4" minos="$5" vplatform="$6"
+  local f="$out/pdfium.framework/pdfium" src_minos sdk
   mkdir -p "$out/pdfium.framework"
-  cp "$dylib" "$out/pdfium.framework/pdfium"
-  chmod u+w "$out/pdfium.framework/pdfium"
-  install_name_tool -id "@rpath/pdfium.framework/pdfium" "$out/pdfium.framework/pdfium"
+  cp "$dylib" "$f"
+  chmod u+w "$f"
+  install_name_tool -id "@rpath/pdfium.framework/pdfium" "$f"
+  src_minos="$(ios_minos "$f")"
+  if [ -n "$src_minos" ] && [ "$src_minos" != "$minos" ]; then
+    sdk="$(otool -l "$f" | awk '/LC_BUILD_VERSION/ { found = 1 } found && $1 == "sdk" { print $2; exit }')"
+    xcrun vtool -set-build-version "$vplatform" "$minos" "${sdk:-$minos}" -replace -output "$f" "$f" 2>/dev/null \
+      || die "vtool: Mindest-iOS $minos nicht setzbar"
+  fi
   cat >"$out/pdfium.framework/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -260,14 +272,14 @@ PLIST
   codesign --force --sign - --timestamp=none "$out/pdfium.framework" >/dev/null 2>&1 || die "codesign (ad hoc) fehlgeschlagen"
 }
 
-# Mindest-iOS aus LC_BUILD_VERSION der Bibliothek (pdfium-binaries chromium/8100: 17.0).
+# Mindest-iOS aus LC_BUILD_VERSION einer Bibliothek (pdfium-binaries chromium/8100: 17.0).
 ios_minos() {
   otool -l "$1" | awk '/LC_BUILD_VERSION/ { found = 1 } found && $1 == "minos" { print $2; exit }'
 }
 
 if [ "$XCFRAMEWORK" = 1 ]; then
   [ "$(uname -s)" = Darwin ] || die "--xcframework nur unter macOS (xcodebuild, lipo, install_name_tool, codesign)"
-  for tool in xcodebuild lipo install_name_tool codesign otool; do
+  for tool in xcodebuild xcrun lipo install_name_tool codesign otool; do
     command -v "$tool" >/dev/null 2>&1 || die "--xcframework: $tool fehlt (Xcode installieren)"
   done
   device="$DEST/ios-device-arm64/lib/libpdfium.dylib"
@@ -275,14 +287,15 @@ if [ "$XCFRAMEWORK" = 1 ]; then
   sim_x64="$DEST/ios-simulator-x64/lib/libpdfium.dylib"
   for f in "$device" "$sim_arm" "$sim_x64"; do [ -f "$f" ] || die "--xcframework: $f fehlt"; done
   version="$(build_version "$DEST/ios-device-arm64/VERSION")"
-  minos="$(ios_minos "$device")"
+  minos="${PDFIUM_IOS_MIN-16.0}"
+  [ -n "$minos" ] || minos="$(ios_minos "$device")"
   [ -n "$minos" ] || minos=17.0
   work="$DEST/.tmp-xcframework-$$"
   rm -rf "$work"
   mkdir -p "$work/sim"
   lipo -create "$sim_arm" "$sim_x64" -output "$work/sim/libpdfium.dylib"
-  make_framework "$device" "$work/device" iPhoneOS "$version" "$minos"
-  make_framework "$work/sim/libpdfium.dylib" "$work/simulator" iPhoneSimulator "$version" "$minos"
+  make_framework "$device" "$work/device" iPhoneOS "$version" "$minos" ios
+  make_framework "$work/sim/libpdfium.dylib" "$work/simulator" iPhoneSimulator "$version" "$minos" iossim
   xcf="$DEST/apple/PDFium.xcframework"
   rm -rf "$xcf"
   mkdir -p "$DEST/apple"

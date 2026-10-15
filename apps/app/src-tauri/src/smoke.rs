@@ -77,7 +77,7 @@ pub fn ui_ready(app: &AppHandle, shell: &Shell) {
             None => app.try_state::<Shell>().map_or_else(|| "error".to_owned(), |s| step_name(&s.view().step)),
         };
         println!("pdfover-smoke: ok step={step} pdfium={pdfium} webview_ms={webview_ms} core_ms={}", elapsed_ms());
-        app.exit(0);
+        finish(&app, 0);
     });
 }
 
@@ -90,8 +90,19 @@ pub fn arm_watchdog(app: &AppHandle) {
     std::thread::spawn(move || {
         std::thread::sleep(WATCHDOG);
         println!("pdfover-smoke: timeout ui_seen={} after_ms={}", UI_SEEN.load(Ordering::SeqCst), elapsed_ms());
-        app.exit(EXIT_TIMEOUT);
+        finish(&app, EXIT_TIMEOUT);
     });
+}
+
+/// Beendet die App nach der Startprüfung. iOS: tao kennt kein `ControlFlow::Exit` (`app.exit` endet dort
+/// in einer Panik im Run-Loop-Beobachter und damit in `abort`) – deshalb direkt `process::exit`.
+fn finish(app: &AppHandle, code: i32) {
+    if cfg!(target_os = "ios") {
+        use std::io::Write as _;
+        let _ = std::io::stdout().flush();
+        std::process::exit(code);
+    }
+    app.exit(code);
 }
 
 /// Name des Schritts wie im JSON (`open`, `error` …).

@@ -1,0 +1,498 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		197C6332D0E088824B2BC1D6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DA86DC4F186EDE2B43D87D05 /* Assets.xcassets */; };
+		26C78A1E13DAF9B602267AB5 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 88E7B503FBAD680FBF9A337C /* main.mm */; };
+		3CEE5E501E8B5963ADC7EC0C /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 279871A422273B1E86DFD6F8 /* CoreGraphics.framework */; };
+		4AD34FBC468738F0E4E868F2 /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 927F34EE932EA6C1B99E4E49 /* libapp.a */; };
+		4C799AFE4E580DE9AE7FE484 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 43981953B7EDF4F2AC6CFA27 /* assets */; };
+		4F1D05B7015203258FF7363B /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2AB18D3327078C6D6E5B75D0 /* LaunchScreen.storyboard */; };
+		57D45F32B5D986C3796353B9 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6ABCC4D7151F30057F5B4CB0 /* MetalKit.framework */; };
+		76597C8340C7C928BE0B0AC1 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BDBA0AEC4DDA8CAF28E164A1 /* UIKit.framework */; };
+		7CA5F98324402F513C40639F /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CF36DB792EE6F669603B1C /* Security.framework */; };
+		8A775DAF8CC3EAFA37FD86E9 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 55BC334F02AB2A175F9E4D0B /* WebKit.framework */; };
+		B23C6D89E3C497FE13EF53B0 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2AAB9B6394BA8D8F4287B326 /* Metal.framework */; };
+		BAE58873ACA4CC09687F6D26 /* PDFium.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E9E0D36F72752693CCA1FCC1 /* PDFium.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F47D3ABFB7F195BD49D61FE2 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A724E66CED4C6E30266FBF1 /* QuartzCore.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		18E9D8BE45544C877A76A3A8 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				BAE58873ACA4CC09687F6D26 /* PDFium.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		013FE81724460EDEEE9E3EBA /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		040927CFBFC303386425CB8F /* protocol.rs */ = {isa = PBXFileReference; path = protocol.rs; sourceTree = "<group>"; };
+		0B7947751C7D46D4C43891D4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		0CDE625B06F02136520B5B68 /* pdfium.rs */ = {isa = PBXFileReference; path = pdfium.rs; sourceTree = "<group>"; };
+		1A45A24697D2FA9CD691412B /* instance.rs */ = {isa = PBXFileReference; path = instance.rs; sourceTree = "<group>"; };
+		25FD4430B80404317BAA4766 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		279871A422273B1E86DFD6F8 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		27E117A317A02839BD76EE0B /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		2AAB9B6394BA8D8F4287B326 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		2AB18D3327078C6D6E5B75D0 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		3A724E66CED4C6E30266FBF1 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		3D5BDD9041FB89FE627BC0AC /* pdfover-app_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "pdfover-app_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		41756955ED44CD5E499EF444 /* hooks.rs */ = {isa = PBXFileReference; path = hooks.rs; sourceTree = "<group>"; };
+		43981953B7EDF4F2AC6CFA27 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		55BC334F02AB2A175F9E4D0B /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		69135743E0D2B925969B810A /* smoke.rs */ = {isa = PBXFileReference; path = smoke.rs; sourceTree = "<group>"; };
+		6ABCC4D7151F30057F5B4CB0 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		7C60A2A3E00683F852BFB8ED /* files.rs */ = {isa = PBXFileReference; path = files.rs; sourceTree = "<group>"; };
+		81CF36DB792EE6F669603B1C /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		88E7B503FBAD680FBF9A337C /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		921BEFA2EF7219F0FC7A685C /* shell.rs */ = {isa = PBXFileReference; path = shell.rs; sourceTree = "<group>"; };
+		927F34EE932EA6C1B99E4E49 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		B188384624C315C1EFC8C236 /* pdfover-app_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "pdfover-app_iOS.entitlements"; sourceTree = "<group>"; };
+		BDBA0AEC4DDA8CAF28E164A1 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		BF92501DD0B4A7AD9F383648 /* mobile.rs */ = {isa = PBXFileReference; path = mobile.rs; sourceTree = "<group>"; };
+		DA86DC4F186EDE2B43D87D05 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E9E0D36F72752693CCA1FCC1 /* PDFium.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = PDFium.xcframework; path = ../../../../../tools/pdfium/apple/PDFium.xcframework; sourceTree = "<group>"; };
+		EE0BFEA86B4E263D66DD48B6 /* args.rs */ = {isa = PBXFileReference; path = args.rs; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		53EEEC9744F0ED7E4163029F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4AD34FBC468738F0E4E868F2 /* libapp.a in Frameworks */,
+				3CEE5E501E8B5963ADC7EC0C /* CoreGraphics.framework in Frameworks */,
+				B23C6D89E3C497FE13EF53B0 /* Metal.framework in Frameworks */,
+				57D45F32B5D986C3796353B9 /* MetalKit.framework in Frameworks */,
+				F47D3ABFB7F195BD49D61FE2 /* QuartzCore.framework in Frameworks */,
+				7CA5F98324402F513C40639F /* Security.framework in Frameworks */,
+				76597C8340C7C928BE0B0AC1 /* UIKit.framework in Frameworks */,
+				8A775DAF8CC3EAFA37FD86E9 /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0CD3D0E2A3117511409D8C36 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				25FD4430B80404317BAA4766 /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		335C43A522B0B52423E745E6 = {
+			isa = PBXGroup;
+			children = (
+				43981953B7EDF4F2AC6CFA27 /* assets */,
+				DA86DC4F186EDE2B43D87D05 /* Assets.xcassets */,
+				2AB18D3327078C6D6E5B75D0 /* LaunchScreen.storyboard */,
+				739ABAEEB939AE0E792C6BED /* Externals */,
+				69EDC8EDA21FDB0DCAC2B170 /* pdfover-app_iOS */,
+				8C895C7CAEA102C368B6FFAD /* Sources */,
+				B11DDDC2F03AEB41B26D60BC /* src */,
+				5375B1437B25AFA32DB7DBA2 /* Frameworks */,
+				69843187DC24EAD56E978FE2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5375B1437B25AFA32DB7DBA2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				279871A422273B1E86DFD6F8 /* CoreGraphics.framework */,
+				927F34EE932EA6C1B99E4E49 /* libapp.a */,
+				2AAB9B6394BA8D8F4287B326 /* Metal.framework */,
+				6ABCC4D7151F30057F5B4CB0 /* MetalKit.framework */,
+				E9E0D36F72752693CCA1FCC1 /* PDFium.xcframework */,
+				3A724E66CED4C6E30266FBF1 /* QuartzCore.framework */,
+				81CF36DB792EE6F669603B1C /* Security.framework */,
+				BDBA0AEC4DDA8CAF28E164A1 /* UIKit.framework */,
+				55BC334F02AB2A175F9E4D0B /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		54F1154D60CB5D48D73DE634 /* pdfover-app */ = {
+			isa = PBXGroup;
+			children = (
+				88E7B503FBAD680FBF9A337C /* main.mm */,
+				0CD3D0E2A3117511409D8C36 /* bindings */,
+			);
+			path = "pdfover-app";
+			sourceTree = "<group>";
+		};
+		69843187DC24EAD56E978FE2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3D5BDD9041FB89FE627BC0AC /* pdfover-app_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		69EDC8EDA21FDB0DCAC2B170 /* pdfover-app_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				0B7947751C7D46D4C43891D4 /* Info.plist */,
+				B188384624C315C1EFC8C236 /* pdfover-app_iOS.entitlements */,
+			);
+			path = "pdfover-app_iOS";
+			sourceTree = "<group>";
+		};
+		739ABAEEB939AE0E792C6BED /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		8C895C7CAEA102C368B6FFAD /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				54F1154D60CB5D48D73DE634 /* pdfover-app */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		B11DDDC2F03AEB41B26D60BC /* src */ = {
+			isa = PBXGroup;
+			children = (
+				EE0BFEA86B4E263D66DD48B6 /* args.rs */,
+				7C60A2A3E00683F852BFB8ED /* files.rs */,
+				41756955ED44CD5E499EF444 /* hooks.rs */,
+				1A45A24697D2FA9CD691412B /* instance.rs */,
+				013FE81724460EDEEE9E3EBA /* lib.rs */,
+				27E117A317A02839BD76EE0B /* main.rs */,
+				BF92501DD0B4A7AD9F383648 /* mobile.rs */,
+				0CDE625B06F02136520B5B68 /* pdfium.rs */,
+				040927CFBFC303386425CB8F /* protocol.rs */,
+				921BEFA2EF7219F0FC7A685C /* shell.rs */,
+				69135743E0D2B925969B810A /* smoke.rs */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		47B1110800F5E50E72CBF403 /* pdfover-app_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F9CDCE582D002E40895E48BF /* Build configuration list for PBXNativeTarget "pdfover-app_iOS" */;
+			buildPhases = (
+				A3184E4CA67328200B311E25 /* Build Rust Code */,
+				B34BDD302FBD15CDEA3D936C /* Sources */,
+				00A6712E52BB94B3001C3BCC /* Resources */,
+				53EEEC9744F0ED7E4163029F /* Frameworks */,
+				18E9D8BE45544C877A76A3A8 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "pdfover-app_iOS";
+			packageProductDependencies = (
+			);
+			productName = "pdfover-app_iOS";
+			productReference = 3D5BDD9041FB89FE627BC0AC /* pdfover-app_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7E112E9699CF5D1A37BF5FDB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = DA515FB03065267097942580 /* Build configuration list for PBXProject "pdfover-app" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 335C43A522B0B52423E745E6;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 69843187DC24EAD56E978FE2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				47B1110800F5E50E72CBF403 /* pdfover-app_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		00A6712E52BB94B3001C3BCC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				197C6332D0E088824B2BC1D6 /* Assets.xcassets in Resources */,
+				4F1D05B7015203258FF7363B /* LaunchScreen.storyboard in Resources */,
+				4C799AFE4E580DE9AE7FE484 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A3184E4CA67328200B311E25 /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "npm run -- tauri ios xcode-script -v --platform \"${PLATFORM_DISPLAY_NAME:?}\" --sdk-root \"${SDKROOT:?}\" --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration \"${CONFIGURATION:?}\" ${FORCE_COLOR} ${ARCHS:?}\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B34BDD302FBD15CDEA3D936C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				26C78A1E13DAF9B602267AB5 /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		9D05A906486DF57A7B762720 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "pdfover-app_iOS/pdfover-app_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+					"\"../../../../../tools/pdfium/apple\"",
+				);
+				INFOPLIST_FILE = "pdfover-app_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = at.pdf-over-ng;
+				PRODUCT_NAME = "PDF-Over NG";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		A69298E08CEEB2B65200B0BC /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		A89595E9192F0EB09155EF9A /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		FD02548A02256BA3580972D2 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "pdfover-app_iOS/pdfover-app_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+					"\"../../../../../tools/pdfium/apple\"",
+				);
+				INFOPLIST_FILE = "pdfover-app_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = at.pdf-over-ng;
+				PRODUCT_NAME = "PDF-Over NG";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DA515FB03065267097942580 /* Build configuration list for PBXProject "pdfover-app" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A69298E08CEEB2B65200B0BC /* debug */,
+				A89595E9192F0EB09155EF9A /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		F9CDCE582D002E40895E48BF /* Build configuration list for PBXNativeTarget "pdfover-app_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9D05A906486DF57A7B762720 /* debug */,
+				FD02548A02256BA3580972D2 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 7E112E9699CF5D1A37BF5FDB /* Project object */;
+}

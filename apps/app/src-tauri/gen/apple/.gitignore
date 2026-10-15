@@ -1,0 +1,6 @@
+# Build-Ausgaben des Xcode-Projekts (tauri ios build/xcode-script) – das Projekt selbst ist versioniert.
+xcuserdata/
+build/
+Externals/
+.tauri/
+DerivedData/

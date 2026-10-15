@@ -1,7 +1,6 @@
 # Von tauri-build erzeugt (Schemas für Editoren); werden bei jedem Build neu geschrieben.
 /gen/schemas
-# Mobile-Projekte (`tauri android init` / `tauri ios init`): legen M-Android/M-iOS an und versionieren sie
-# (dann diese Zeilen durch die Build-Ausgaben ersetzen, docs/integration/mobile.md §8).
-/gen/apple
+# Mobile-Projekte (`tauri android init` / `tauri ios init`) sind versioniert; ihre Build-Ausgaben ignorieren
+# gen/android/.gitignore bzw. gen/apple/.gitignore (docs/integration/mobile.md §8).
 # Erzeugte Bundle-Ergänzung mit lokalem PDFium-Pfad (scripts/pdfium-config.mjs)
 /pdfium.conf.json
