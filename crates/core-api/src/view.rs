@@ -361,6 +361,10 @@ pub enum StepView {
         result: OutputView,
         /// nächstes Dokument
         next: Option<DocInfo>,
+        /// Zahl der wartenden Dokumente nach diesem (ADR 0004 E1 „Fertig“: „Nächstes Dokument“ mit Anzahl,
+        /// solange `batch_overview` aus ist; Nachtrag 1 im ADR)
+        #[serde(default)]
+        pending: usize,
     },
     /// Fehler
     Error {

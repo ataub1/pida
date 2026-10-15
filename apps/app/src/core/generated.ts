@@ -1161,7 +1161,12 @@ result: OutputView,
 /**
  * nächstes Dokument
  */
-next: DocInfo | null, } | { "step": "error", 
+next: DocInfo | null, 
+/**
+ * Zahl der wartenden Dokumente nach diesem (ADR 0004 E1 „Fertig“: „Nächstes Dokument“ mit Anzahl,
+ * solange `batch_overview` aus ist; Nachtrag 1 im ADR)
+ */
+pending: number, } | { "step": "error", 
 /**
  * Fehlercode (i18n-ID)
  */

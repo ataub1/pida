@@ -1,16 +1,18 @@
 /**
- * „Signatur fortsetzen“ (Mobile, Plan §3.5): Beim letzten Lauf wurde die App während eines
- * Signiervorgangs vom System beendet (z. B. beim Wechsel in die App „ID Austria“). Der Kern hat das
- * vorbereitete Dokument gesichert und bietet es im Schritt „Öffnen“ an; Fortsetzen signiert mit
- * derselben Position und demselben Signiermittel weiter (Anmeldung und Bestätigung erneut),
- * Verwerfen löscht den gesicherten Zustand. Geht das Dokument mit dem Signiermittel an A-Trust
+ * „Signatur fortsetzen“ (Mobile, Plan §3.5; neu gestaltet über der Startansicht, ADR 0004 §2.1): Beim
+ * letzten Lauf wurde die App während eines Signiervorgangs vom System beendet (z. B. beim Wechsel in die
+ * App „ID Austria“). Der Kern hat das vorbereitete Dokument gesichert und bietet es im Schritt „Öffnen“ an;
+ * Fortsetzen signiert mit derselben Position und demselben Signiermittel weiter (Anmeldung und Bestätigung
+ * erneut), Verwerfen löscht den gesicherten Zustand. Geht das Dokument mit dem Signiermittel an A-Trust
  * (`document_leaves_device`, ID Austria), steht der Kurzhinweis mit „Details“ auch hier (ADR 0003):
- * „Fortsetzen“ startet die Sitzung.
+ * „Fortsetzen“ startet die Sitzung – eine ausdrückliche Nutzeraktion (A1).
  */
 import { useState } from 'react';
-import { PrivacyNote } from '../components/Privacy';
-import { AccessButton, ConfirmDialog } from '../components/ui';
 import type { ResumeOfferView } from '../core/types';
+import { PrivacyNote } from '../features/settings';
+import { AccessButton } from '../ui/controls';
+import { ConfirmDialog } from '../ui/Dialog';
+import { IconPhone } from '../ui/Icons';
 import { useApp } from './context';
 
 export function ResumeDialog({ offer }: { offer: ResumeOfferView }) {
@@ -26,9 +28,10 @@ export function ResumeDialog({ offer }: { offer: ResumeOfferView }) {
     // ohne Escape/Abbrechen: Verwerfen löscht den gesicherten Zustand und soll nur ausdrücklich passieren
     <ConfirmDialog
       title={t.t('ng-ui-resume-title')}
+      icon={<IconPhone size={20} />}
       actions={
         <>
-          <AccessButton msg="ng-ui-resume-discard" variant="quiet" isDisabled={busy} onPress={() => void answer(false)} />
+          <AccessButton msg="ng-ui-resume-discard" variant="ghost" isDisabled={busy} onPress={() => void answer(false)} />
           <AccessButton msg="ng-ui-resume-continue" variant="primary" isDisabled={busy} onPress={() => void answer(true)} autoFocus />
         </>
       }

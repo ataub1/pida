@@ -545,7 +545,9 @@ pub fn run() {
                 tracing::warn!("Single-Instance-Socket gehört nicht diesem Konto – Start ohne Single-Instance");
             }
             shell.set_system_language(system_language);
-            // Abnahme der neuen Oberfläche vor dem Merge: `PIDA_UI=workspace` (nur Debug-Builds, ADR 0004 §3.14)
+            // Oberfläche „Arbeitsbereich“ (ADR 0004 §3.14, eingeschaltet im Merge-Commit von A1)
+            shell.update_options(|o| o.workspace_ui = Some(true));
+            // `PIDA_UI=workspace` (nur Debug-Builds) bleibt für die Abnahme späterer Etappen (`workspace,batch`)
             if let Some(workspace) =
                 shell::workspace_ui_from_env(std::env::var("PIDA_UI").ok().as_deref(), cfg!(debug_assertions))
             {

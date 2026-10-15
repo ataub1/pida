@@ -1,97 +1,152 @@
 /**
- * Ablauf Ende-zu-Ende mit dem Mock-Kern (ohne festen Zustand): Öffnen → Positionieren →
- * Signiermittel (Kurzhinweis, kein Zustimmungsdialog) → Anmeldung → App-Bestätigung → Speichern → nächstes Dokument;
- * außerdem Keystore-Ablauf, Abbruch, Einstellungen mit Sprachwechsel und Fokusführung.
+ * Shell und Kernpfad mit dem Mock-Kern (ADR 0004 Abnahme E1 Punkt 1, 5, 6): Datei ablegen → automatisch
+ * platziert → „Signieren“ → Passwort → in der App bestätigen → Fertig, ohne Wechsel der Ansicht bis „Fertig“;
+ * Abbrechen zurück in den Arbeitsbereich mit unveränderter Platzierung; Ablehnung in der App; Netzfehler
+ * mit „Erneut versuchen“ ohne zweite Anmeldung; Keystore; Kopfzeile, Kürzel, Zugriffstasten, Hinweise.
+ * Dazu die Regel aus E0: `App.tsx` importiert nichts direkt aus `settings/**` oder dem Migrationsdialog.
  */
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { defaultSettings } from '../core/defaults';
-import { renderApp } from '../test/render';
-import { DOC, viewOf } from '../test/views';
-import { accessKeyFromEvent, triggerAccessKey } from './App';
+import type { Settings, UiEvent } from '../core/types';
+import { expectNoAxeViolations } from '../test/a11y';
+import { lastEvent, renderApp } from '../test/render';
+import { editActions, viewOf, workspaceView } from '../test/views';
+import { accessKeyFromEvent, mainView, triggerAccessKey } from './App';
+import { buildCommands, buildShortcuts, COMMANDS } from './commands';
+import { translator } from '../i18n/catalog';
 
-describe('Ablauf mit dem Mock-Kern', () => {
-  it('ID Austria (App-Bestätigung), Speichern-Dialog, Batch mit zwei Dokumenten', async () => {
-    const { mock, user } = renderApp();
-    await user.click(await screen.findByRole('button', { name: /Durchsuchen/ }));
-    // Positionieren (letzte Seite, Block bei 50 %/25 %)
-    const block = await screen.findByRole('application', { name: 'Signatur' });
-    await waitFor(() => expect(document.getElementById('screen-heading')).toHaveFocus());
-    expect(screen.getByText('Seite 3 von 3', { selector: '.pager-label' })).toBeInTheDocument();
-    block.focus();
-    await user.keyboard('{ArrowRight}');
-    expect(mock.dispatched.at(-1)).toEqual({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });
-    await user.keyboard('{Enter}');
-    // Signiermittel: Kurzhinweis beim Signiermittel, kein Zustimmungsdialog (ADR 0003)
-    expect(await screen.findByTestId('privacy-note')).toHaveTextContent('an A-Trust übermittelt');
-    await user.click(screen.getByRole('button', { name: /^ID Austria/ }));
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    // Anmeldung (der Signierbereich zeigt den Kurzhinweis weiter)
-    const username = await screen.findByLabelText('Benutzername:');
-    expect(screen.getByTestId('privacy-note')).toHaveTextContent('an A-Trust übermittelt');
-    await user.type(username, 'max.muster');
-    await user.type(screen.getByLabelText('Passwort:'), 'demo-passwort');
-    await user.click(screen.getByRole('checkbox', { name: /Daten merken/ }));
-    await user.click(screen.getByRole('button', { name: 'OK' }));
-    // App-Bestätigung (Long-Poll im Mock manuell abschließen)
-    expect(await screen.findByText(/ID Austria-App/)).toBeInTheDocument();
+/** Einstellungen mit ID Austria als Standard (gemerkter Benutzer). */
+function idAustria(extra: Partial<Settings> = {}): Settings {
+  const s = defaultSettings();
+  return { ...s, backend: { default: 'id_austria' }, id_austria: { ...s.id_austria, username: '+43 660 1234123', remember: true }, output: { ...s.output, folder: '.' }, ...extra };
+}
+
+async function openOne(user: ReturnType<typeof renderApp>['user']) {
+  await user.click(await screen.findByRole('button', { name: 'PDF auswählen' }));
+  return screen.findByRole('application', { name: 'Signaturblock' });
+}
+
+async function login(user: ReturnType<typeof renderApp>['user'], password = 'geheim123') {
+  const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });
+  await user.type(await within(dialog).findByLabelText('Signatur-Passwort'), password);
+  await user.click(within(dialog).getByRole('button', { name: 'Anmelden' }));
+  return dialog;
+}
+
+describe('Kernpfad mit dem Mock-Kern', () => {
+  it('Ablegen → automatisch platziert → Signieren → Passwort → App → Fertig (Ansicht bleibt eingehängt)', async () => {
+    const { mock, user } = renderApp({ settings: idAustria(), pickFilesResult: ['/Users/demo/Dokumente/Vertrag.pdf'] });
+    await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
+    act(() => mock.simulateFileDrag({ type: 'drop', paths: ['/Users/demo/Dokumente/Vertrag.pdf'], x: 1, y: 1 }));
+    const sticker = await screen.findByRole('application', { name: 'Signaturblock' });
+    // automatisch auf freier Fläche der letzten Seite (PDF-AS-Regel) mit Einblendung
+    expect(screen.getByText('Signaturblock automatisch auf freier Fläche platziert')).toBeInTheDocument();
+    expect(screen.getByText(/^Seite 3 · /)).toBeInTheDocument();
+    const workspace = document.querySelector('.workspace');
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    expect(mock.dispatched.filter((e) => e.type === 'sign_with')).toEqual([{ type: 'sign_with', backend: 'atrust_native' }]);
+    const dialog = await login(user);
+    expect(await within(dialog).findByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' })).toBeInTheDocument();
+    // die Seitenansicht ist dieselbe (kein Wechsel der Ansicht)
+    expect(document.querySelector('.workspace')).toBe(workspace);
+    expect(sticker.isConnected).toBe(true);
     act(() => mock.completeConfirmation());
-    // Speichern-Dialog (vorgeschlagene Rückfrage), danach Batch → zweites Dokument
-    await waitFor(() => expect(mock.nativeCalls).toContain('pickSavePath:/Users/demo/Dokumente/Vertrag_signed.pdf'));
-    expect(await screen.findByRole('application', { name: 'Signatur' })).toBeInTheDocument();
-    expect(screen.getByText('Angebot 2026.pdf')).toBeInTheDocument();
-    expect(screen.getByText(/Vertrag_signed\.pdf wurde gespeichert/)).toBeInTheDocument();
-    // zweites Dokument: gemerkter Benutzer → direkt App-Bestätigung (eine Anmeldung je Batch)
-    await user.click(screen.getByRole('button', { name: 'Signieren' }));
-    await user.click(await screen.findByRole('button', { name: /^ID Austria/ }));
-    expect(await screen.findByText(/ID Austria-App/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Signiert' })).toBeInTheDocument();
+    expect(screen.getByText('Vertrag_signed.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Signatur erstellt und geprüft (Selbstprüfung)')).toBeInTheDocument();
+    expect(mock.choices).toEqual({ position: 'auto', backend: 'atrust_native' });
+    // A1: nur ein `sign_with` – keine Sitzung ohne ausdrückliche Aktion
+    expect(mock.dispatched.some((e) => e.type === 'confirm_position' || e.type === 'choose_backend')).toBe(false);
+  });
+
+  it('zweites Dokument: gemerkte Anmeldung → direkt die App-Bestätigung; „Nächstes Dokument“', async () => {
+    const { mock, user } = renderApp({ settings: idAustria(), pickFilesResult: ['/Users/demo/Vertrag.pdf', '/Users/demo/Angebot.pdf'] });
+    await openOne(user);
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });
+    // „Daten merken“ ist vorbelegt (gemerkter Benutzer)
+    expect(within(dialog).getByRole('checkbox', { name: /Daten merken/ })).toBeChecked();
+    await user.type(within(dialog).getByLabelText('Signatur-Passwort'), 'geheim123');
+    await user.click(within(dialog).getByRole('button', { name: 'Anmelden' }));
+    await within(dialog).findByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' });
     act(() => mock.completeConfirmation());
-    expect(await screen.findByRole('heading', { level: 1, name: 'Signatur war erfolgreich' })).toBeInTheDocument();
-    expect(screen.getByText('Angebot 2026_signed.pdf')).toBeInTheDocument();
-    expect(mock.choices).toEqual({ position: 'manual', backend: 'atrust_native' });
+    expect(await screen.findByText('Weiter mit „Angebot.pdf“ · 1 Dokument wartet')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Nächstes Dokument' }));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.getByRole('banner')).toHaveTextContent('Angebot.pdf');
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const second = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });
+    expect(await within(second).findByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' })).toBeInTheDocument();
   });
 
-  it('Keystore mit falschem Passwort, Abbruch zurück zur Auswahl', async () => {
-    const base = defaultSettings();
-    const { mock, user } = renderApp({
-      settings: { ...base, keystore: { ...base.keystore, enabled: true, file: '/Users/demo/id.p12' }, output: { folder: '/Users/demo/out', postfix: '_signed' } },
-      localBkuAvailable: false,
-      pickFilesResult: ['/Users/demo/Vertrag.pdf'],
-    });
-    await user.click(await screen.findByRole('button', { name: /Durchsuchen/ }));
-    await screen.findByRole('application', { name: 'Signatur' });
-    await user.click(screen.getByRole('button', { name: 'Unsichtbar signieren' }));
-    await user.click(await screen.findByRole('button', { name: /^Keystore/ }));
-    const pw = await screen.findByLabelText('Keystore-Passwort eingeben:');
-    await user.type(pw, 'falsch{Enter}');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Keystore-Passwort nicht akzeptiert');
-    await user.click(screen.getByRole('button', { name: 'Abbrechen' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Signiermittel wählen' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /^Keystore/ }));
-    await user.type(await screen.findByLabelText('Keystore-Passwort eingeben:'), 'richtig{Enter}');
-    // Ausgabeordner konfiguriert → automatisch gespeichert
-    expect(await screen.findByRole('heading', { level: 1, name: 'Signatur war erfolgreich' }, { timeout: 3000 })).toBeInTheDocument();
-    expect(mock.choices.position).toBe('invisible');
+  it('Abbrechen → Arbeitsbereich mit unveränderter Platzierung und Hinweis „es wurde nichts signiert“', async () => {
+    const { mock, user } = renderApp({ settings: idAustria(), pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    const sticker = await openOne(user);
+    fireEvent.keyDown(sticker, { key: 'ArrowRight' });
+    await waitFor(() => expect(mock.dispatched.some((e) => e.type === 'nudge_block')).toBe(true));
+    const before = (screen.getByRole('application', { name: 'Signaturblock' }) as HTMLElement).style.left;
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await screen.findByText('Signieren abgebrochen – es wurde nichts signiert.')).toBeInTheDocument();
+    expect((screen.getByRole('application', { name: 'Signaturblock' }) as HTMLElement).style.left).toBe(before);
   });
 
-  it('Einstellungen: Sprache wechseln wirkt sofort nach dem Speichern', async () => {
-    const { user } = renderApp();
-    await user.click(await screen.findByRole('button', { name: 'Konfiguration' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
-    await user.click(within(dialog).getByRole('tab', { name: 'Erweitert' }));
-    await user.click(within(dialog).getByRole('button', { name: /Interface-Sprache/ }));
-    await user.click(await screen.findByRole('option', { name: 'Englisch' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Speichern' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Open document' })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  it('Ablehnung in der App → Fehlerschritt „abgelehnt“, Erneut versuchen ohne neue Anmeldung', async () => {
+    const { user } = renderApp({ settings: idAustria(), signingFlow: 'decline', pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    await openOne(user);
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const dialog = await login(user);
+    expect(await within(dialog).findByRole('heading', { name: 'In der App abgelehnt oder abgelaufen' })).toBeInTheDocument();
+    await expectNoAxeViolations();
+    await user.click(within(dialog).getByRole('button', { name: 'Erneut versuchen' }));
+    expect(await within(dialog).findByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' })).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Signatur-Passwort')).not.toBeInTheDocument();
   });
 
-  it('Fehler beim Öffnen (kein PDF) mit Wiederholen/Abbrechen', async () => {
+  it('A-Trust nicht erreichbar → Fehlerschritt mit Details; Erneut versuchen in derselben Sitzung (keine zweite Login-Maske)', async () => {
+    const { mock, user } = renderApp({ settings: idAustria(), scenario: 'error-atrust' });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const dialog = await login(user);
+    expect(await within(dialog).findByRole('heading', { name: 'Der Signaturdienst ist gerade nicht erreichbar' })).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Erneut versuchen' }));
+    expect(await within(dialog).findByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' })).toBeInTheDocument();
+    expect(mock.dispatched.filter((e) => e.type === 'submit_form' && e.answer.kind === 'login')).toHaveLength(1);
+  });
+
+  it('Keystore mit falschem Passwort, dann richtig; unsichtbar signiert', async () => {
+    const s = defaultSettings();
+    const settings = { ...s, backend: { default: 'keystore' as const }, keystore: { ...s.keystore, enabled: true, file: '/Users/demo/id.p12' }, output: { folder: '/Users/demo/out', postfix: '_signed' } };
+    const { mock, user } = renderApp({ settings, localBkuAvailable: false, pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    await openOne(user);
+    await user.click(screen.getByRole('switch', { name: 'Unsichtbar signieren' }));
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit Keystore' });
+    await user.type(await within(dialog).findByLabelText('Keystore-Passwort'), 'falsch{Enter}');
+    expect(await within(dialog).findByText(/Keystore-Passwort nicht akzeptiert/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText('Keystore-Passwort'), 'richtig{Enter}');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Signiert' }, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText('Gespeichert in /Users/demo/out')).toBeInTheDocument();
+    expect(mock.choices).toEqual({ position: 'invisible', backend: 'keystore' });
+  });
+
+  it('Nicht-PDF: Zustandskarte mit Erneut versuchen/Schließen; zurück zum Start', async () => {
     const { user } = renderApp({ pickFilesResult: ['/Users/demo/bild.png'] });
-    await user.click(await screen.findByRole('button', { name: /Durchsuchen/ }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Dies ist möglicherweise keine PDF-Datei');
-    await user.click(screen.getByRole('button', { name: 'Abbrechen' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Dokument öffnen' })).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'PDF auswählen' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Diese Datei ist kein PDF' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Schließen' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' })).toBeInTheDocument();
+  });
+
+  it('kennwortgeschütztes PDF aus dem Szenario', async () => {
+    renderApp({ scenario: 'error-password' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dieses PDF ist mit einem Kennwort geschützt' })).toBeInTheDocument();
   });
 
   it('Ablehnen eines Ereignisses durch den Kern erscheint als Fehlerhinweis', async () => {
@@ -99,8 +154,67 @@ describe('Ablauf mit dem Mock-Kern', () => {
     mock.dispatch = async () => {
       throw new Error('ng-ui-event-invalid');
     };
-    await user.click(await screen.findByRole('button', { name: /Durchsuchen/ }));
+    await user.click(await screen.findByRole('button', { name: 'PDF auswählen' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('noch nicht unterstützt');
+  });
+});
+
+describe('Kopfzeile und Kürzel', () => {
+  it('Wortmarke ohne „Prototyp“, Dokumentkontext, Prüfen (Platzhalter, gesperrt), DE/EN, Einstellungen', async () => {
+    const { mock, user } = renderApp({ view: workspaceView() });
+    const header = await screen.findByRole('banner');
+    expect(header).not.toHaveTextContent(/Prototyp/i);
+    expect(within(header).getByRole('button', { name: 'PIDA – Startseite' })).toHaveTextContent('PIDA');
+    expect(header).toHaveTextContent('Vertrag.pdf');
+    expect(header).toHaveTextContent('3 Seiten · 214 KB');
+    expect(within(header).getByRole('button', { name: 'Signatur prüfen' })).toBeDisabled();
+    await user.click(within(header).getByRole('radio', { name: 'EN' }));
+    expect(lastEvent(mock)).toEqual({ type: 'set_ui_language', language: 'en' });
+    await user.click(within(header).getByRole('button', { name: 'Einstellungen' }));
+    expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
+    await user.click(within(header).getByRole('button', { name: 'PIDA – Startseite' }));
+    expect(lastEvent(mock)).toEqual({ type: 'navigate', step: 'Open' });
+    await expectNoAxeViolations();
+  });
+
+  it('Sprache wechselt sofort (Mock: set_ui_language), Farbschema lokal', async () => {
+    const { user } = renderApp();
+    await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
+    await user.click(screen.getByRole('radio', { name: 'EN' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'What would you like to sign?' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Colour scheme' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Dark' }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(localStorage.getItem('pida.theme')).toBe('dark');
+  });
+
+  it('⌘/Strg+, öffnet die Einstellungen; Sprunglink zum Inhalt', async () => {
+    const { mock, user } = renderApp({ view: workspaceView() });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    await user.keyboard('{Control>},{/Control}');
+    expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
+    expect(screen.getByRole('link', { name: 'Zum Inhalt springen' })).toHaveAttribute('href', '#main');
+  });
+
+  it('Ansicht je Zustand (klassischer Zustand ohne `document`: Startansicht, keine alten Bildschirme)', () => {
+    const doc = workspaceView();
+    expect(mainView(doc)).toBe('workspace');
+    expect(mainView({ ...doc, document: null })).toBe('start');
+    expect(mainView(viewOf({ step: 'open', queue: [] }))).toBe('start');
+  });
+
+  it('Befehlsliste: alle Befehle des Prototyps mit Freigaben aus `actions`, Kürzel 15/1/50 pt', () => {
+    const t = translator('de');
+    const view = workspaceView();
+    const deps = { view, t, isMac: true, dispatch: async () => true, browse: async () => undefined, requestSign: () => undefined, openSettings: () => undefined, setTheme: () => undefined, setOverlay: () => undefined, openVerify: () => undefined };
+    const cmds = buildCommands(deps);
+    expect(cmds.map((c) => c.id)).toEqual(COMMANDS.map((c) => c.id));
+    expect(cmds.find((c) => c.id === 'sign')).toMatchObject({ label: 'Signieren', keys: ['⌘', '↵'], isDisabled: false });
+    expect(cmds.find((c) => c.id === 'verify')?.isDisabled).toBe(true);
+    expect(cmds.find((c) => c.id === 'signature')?.keywords).toContain('logo');
+    const keys = buildShortcuts(t, false);
+    expect(keys.find((k) => k.id === 'move')?.label).toBe('Signaturblock verschieben (15 pt)');
+    expect(keys.find((k) => k.id === 'move-coarse')?.label).toBe('Grob verschieben (50 pt)');
   });
 });
 
@@ -143,42 +257,52 @@ describe('Zugriffstasten', () => {
     expect(triggerAccessKey('r')).toBe(true);
     expect(document.activeElement?.id).toBe('lang');
     expect(clicked).toBe('');
-    // eindeutige Taste löst aus
     expect(triggerAccessKey('s')).toBe(true);
     expect(clicked).toBe('other');
     document.body.innerHTML = '';
   });
+
+  it('„Signieren“ trägt die Zugriffstaste S; Unterstreichung nur bei gedrückter Alt-Taste', async () => {
+    const { mock } = renderApp({ view: workspaceView() });
+    const sign = await screen.findByRole('button', { name: /^Signieren/ });
+    expect(sign).toHaveAttribute('aria-keyshortcuts', 'Alt+S');
+    expect(document.documentElement.hasAttribute('data-accesskeys')).toBe(false);
+    fireEvent.keyDown(window, { key: 'Alt', altKey: true });
+    expect(document.documentElement.hasAttribute('data-accesskeys')).toBe(true);
+    fireEvent.keyDown(window, { key: 's', code: 'KeyS', altKey: true });
+    fireEvent.keyUp(window, { key: 'Alt' });
+    expect(document.documentElement.hasAttribute('data-accesskeys')).toBe(false);
+    await waitFor(() => expect(mock.dispatched.some((e: UiEvent) => e.type === 'sign_with')).toBe(true));
+  });
 });
 
 describe('Hinweise (Toasts)', () => {
-  it('jede Info hat ihre eigene Frist; neue Hinweise verlängern ältere nicht; Fehler bleiben', async () => {
+  it('Info nach 6 s weg (eigene Frist je Hinweis), Fehler bleiben; Kernhinweise schließt dismiss_notice', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      const { mock } = renderApp({ view: viewOf({ step: 'position', doc: DOC, page: 0, block: { width: 10, height: 10, preview_revision: 0 }, placement: { page_index: 0, x: 0, y: 100, width: 10, height: 10 }, new_page: false, announce: {} }) });
-      await screen.findByRole('heading', { level: 1 });
-      act(() => mock.simulateFileDrag({ type: 'drop', paths: ['/a.pdf'], x: 1, y: 1 }));
-      expect(screen.getAllByRole('status').some((el) => el.textContent?.includes('abgelegt'))).toBe(true);
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5000);
-      });
-      act(() => mock.simulateFileDrag({ type: 'drop', paths: ['/b.pdf'], x: 1, y: 1 }));
+      const view = viewOf({ step: 'open', queue: [] }, { notices: [{ id: 1, code: 'ng-signing-cancelled', params: {} }], actions: editActions() });
+      const { mock } = renderApp({ view });
+      expect(await screen.findByText('Signieren abgebrochen – es wurde nichts signiert.')).toBeInTheDocument();
       vi.spyOn(mock, 'dispatch').mockRejectedValueOnce(new Error('ng-ui-bridge-error'));
-      fireEvent.keyDown(screen.getByRole('application'), { key: 'Enter' });
+      act(() => mock.simulateFileDrag({ type: 'drop', paths: ['/a.pdf'], x: 1, y: 1 }));
       await screen.findByRole('alert');
-      expect(document.querySelectorAll('.toast-info')).toHaveLength(2);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(3500);
+        await vi.advanceTimersByTimeAsync(6100);
       });
-      // erster Hinweis nach 8 s weg, zweiter (3,5 s alt) noch da, Fehler bleibt
-      expect(document.querySelectorAll('.toast-info')).toHaveLength(1);
-      expect(document.querySelectorAll('.toast-error')).toHaveLength(1);
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5000);
-      });
-      expect(document.querySelectorAll('.toast-info')).toHaveLength(0);
+      expect(mock.dispatched.some((e) => e.type === 'dismiss_notice' && e.id === 1)).toBe(true);
       expect(document.querySelectorAll('.toast-error')).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('Regel E0: App.tsx bindet UI-B nur über die stabilen Exporte ein', () => {
+  it('keine direkten Importe aus settings/** oder dem Migrationsdialog', () => {
+    const source = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'App.tsx'), 'utf8');
+    const imports = [...source.matchAll(/from '([^']+)'/g)].map((m) => m[1] ?? '');
+    expect(imports.filter((p) => p.startsWith('../settings/') || p.includes('MigrationDialog') || p.includes('/components/'))).toEqual([]);
+    expect(imports).toContain('../features/settings');
+    expect(imports).toContain('../features/onboarding');
   });
 });

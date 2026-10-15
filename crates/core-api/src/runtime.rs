@@ -1883,6 +1883,20 @@ impl CoreTask {
                 }
             }
             UiEvent::AnswerNotice { request, answer } => {
+                // Arbeitsbereich: „Abbrechen“ in einer Meldung, die nicht von A-Trust stammt (Proxy, HTTP,
+                // Keystore …), ist ein eigener Abbruch – nur die A-Trust-Fehlerseite zählt als Ablehnung
+                // bzw. Zeitablauf (ADR 0004 §3.6); sonst hieße es beim Keystore „In der App abgelehnt“
+                if self.ws.enabled
+                    && answer == pida_backend_api::NoticeAnswer::Cancel
+                    && matches!(self.state, State::Signing { .. })
+                    && matches!(
+                        self.shared.broker.current(),
+                        InteractionView::Notice { request: r, notice } if r == request
+                            && notice.code != pida_backend_api::NoticeCode::AtrustError
+                    )
+                {
+                    self.ws.own_cancel = true;
+                }
                 if !self.shared.broker.answer_notice(request, answer) {
                     tracing::debug!(request, "Antwort ohne offene Meldung");
                 }
@@ -2505,6 +2519,7 @@ impl CoreTask {
                         }),
                     },
                     next: queue.pending.front().map(|d| self.doc_info(d.id)),
+                    pending: queue.pending.len(),
                 }
             }
             State::Error { error, retry, from, .. } => {

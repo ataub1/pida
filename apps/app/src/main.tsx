@@ -1,33 +1,60 @@
 /**
  * Einstieg der Oberfläche: Tauri-Bridge zum Rust-Kern, oder der TS-Mock-Kern bei `VITE_MOCK=1`
- * (`npm run dev:mock`) bzw. außerhalb von Tauri (Browser-Vorschau).
+ * (`npm run dev:mock`) bzw. außerhalb von Tauri (Browser-Vorschau). Design-System (ADR 0004 §4.2):
+ * `styles/tokens.css` → `base.css` → `components.css`; die Ansichten laden ihre eigenen Stile.
  */
+// Design-System zuerst: die Stile der Ansichten (aus den Modulen unten) bauen darauf auf und überschreiben es
+import './styles/tokens.css';
+import './styles/base.css';
+import './styles/components.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { createTauriBridge, inTauri, type Bridge } from './core/bridge';
-import type { MockCore } from './core/mock';
-import './styles.css';
+import { defaultSettings } from './core/defaults';
+import type { MockCore, MockOptions } from './core/mock';
+import type { Settings } from './core/types';
 
 async function bridge(): Promise<Bridge> {
   const forceMock = import.meta.env.VITE_MOCK === '1';
   if (!forceMock && inTauri()) return createTauriBridge();
   // Mock-Kern nur bei Bedarf laden (eigener Chunk, nicht im Startpfad der App).
-  const { MockCore: Mock } = await import('./core/mock');
-  const mock = new Mock(mockOptionsFromUrl(window.location.search));
+  const { MockCore: Mock, MOCK_SCENARIOS } = await import('./core/mock');
+  const mock = new Mock(mockOptionsFromUrl(window.location.search, MOCK_SCENARIOS));
   installBrowserDrop(mock);
   return mock;
 }
 
 /**
- * Browser-Vorschau der Mobile-Oberfläche: `?platform=ios|android` (Teilen/Exportieren, PKCS#12-Import,
- * FIDO2-Hinweis), `&resume=1` (Angebot „Signatur fortsetzen“). Nur der Mock-Kern wertet das aus.
+ * Browser-Vorschau (ADR 0004 §4.8): `?scenario=start|blank|contract|field|signed|batch|verify|
+ * error-password|error-atrust` wie im Prototyp, `&platform=ios|android` (Mobile-Oberfläche), `&flow=app|sms|
+ * qr|fido2|decline|timeout` (Antwort von ID Austria nach der Anmeldung), `&resume=1` (Angebot „Signatur
+ * fortsetzen“), `&lang=en`, `&examples=1` (Beispiele der späteren Etappen). Nur der Mock-Kern wertet das aus.
  */
-function mockOptionsFromUrl(search: string): import('./core/mock').MockOptions {
+function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockOptions {
   const params = new URLSearchParams(search);
   const platform = params.get('platform');
+  const scenario = params.get('scenario') ?? params.get('szenario');
+  const flow = params.get('flow');
+  const lang = params.get('lang');
+  const mobile = platform === 'ios' || platform === 'android';
+  // Demo-Konto wie im Prototyp (frei erfunden): ID Austria als Standard mit gemerktem Benutzer, Keystore
+  // auf dem Desktop; `?ask=1` = „Jedes Mal fragen“ (Konto-Chip ohne Vorauswahl)
+  const base = defaultSettings();
+  const settings: Settings = {
+    ...base,
+    backend: { default: params.get('ask') === '1' ? null : 'id_austria' },
+    id_austria: { ...base.id_austria, username: '+43 660 1234123', remember: true },
+    keystore: mobile ? base.keystore : { ...base.keystore, enabled: true, file: '/Users/demo/Zertifikate/max.p12', alias: 'max', declared_type: 'PKCS12' },
+    output: { ...base.output, folder: '.' },
+  };
   return {
-    platform: platform === 'ios' || platform === 'android' ? platform : 'desktop',
+    settings,
+    platform: mobile ? platform : 'desktop',
+    scenario: scenario && scenarios.includes(scenario) ? (scenario as MockOptions['scenario']) : 'start',
+    signingFlow: flow === 'sms' || flow === 'qr' || flow === 'fido2' || flow === 'decline' || flow === 'timeout' ? flow : 'app',
+    language: lang === 'en' ? 'en' : undefined,
+    examples: params.get('examples') === '1',
     resumeOffer: params.get('resume') === '1' ? { name: 'Vertrag.pdf', backend: 'atrust_native', age_minutes: 4, pending: 1, document_leaves_device: true } : null,
   };
 }

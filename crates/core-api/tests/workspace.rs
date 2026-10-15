@@ -17,8 +17,8 @@ use async_trait::async_trait;
 use common::*;
 use pida_backend_api::{
     BackendError, BackendEvent, BackendId, BackendSession, Capabilities, CertChain, Environment, FormAnswer,
-    FormContext, InteractionBroker, InteractionError, NativeForm, SessionContext, SignJob, SignResult,
-    SignatureBackend,
+    FormContext, InteractionBroker, InteractionError, NativeForm, Notice, NoticeAnswer, NoticeButtons, NoticeCode,
+    NoticeKind, SessionContext, SignJob, SignResult, SignatureBackend,
 };
 use pida_backend_keystore::LoadedKey;
 use pida_cades::{CmsProfile, DigestAlg, RawSigner, SigningTime};
@@ -143,6 +143,8 @@ struct Scripted {
     signs: AtomicUsize,
     /// Fehler der nächsten `sign`-Aufrufe (danach Erfolg)
     failures: Mutex<VecDeque<BackendError>>,
+    /// Meldung beim nächsten `sign` (Wiederholen/Abbrechen; „Abbrechen“ → `Cancelled` wie im A-Trust-Dialog)
+    notice: Mutex<Option<NoticeCode>>,
 }
 
 impl Scripted {
@@ -155,6 +157,7 @@ impl Scripted {
             logins: AtomicUsize::new(0),
             signs: AtomicUsize::new(0),
             failures: Mutex::new(failures.into()),
+            notice: Mutex::new(None),
         })
     }
 }
@@ -226,6 +229,13 @@ impl BackendSession for ScriptedSession {
         let failure = self.backend.failures.lock().unwrap().pop_front();
         if let Some(e) = failure {
             return Err(e);
+        }
+        let notice = self.backend.notice.lock().unwrap().take();
+        if let Some(code) = notice {
+            let notice = Notice { kind: NoticeKind::Error, code, text: None, buttons: NoticeButtons::RetryCancel };
+            if self.ui.notice(notice).await.map_err(interaction)? == NoticeAnswer::Cancel {
+                return Err(BackendError::Cancelled);
+            }
         }
         let form = NativeForm::SmsTan { reference_value: "AB12".into(), ctx: FormContext::default() };
         match self.ui.native_form(form).await.map_err(interaction)? {
@@ -649,6 +659,46 @@ async fn declined_in_the_app_offers_retry_in_the_same_session() {
     assert_eq!(backend.opened.load(Ordering::SeqCst), 2);
 }
 
+/// „Abbrechen“ in einer Meldung während des Signierens: nur eine A-Trust-Fehlerseite gilt als Ablehnung bzw.
+/// Zeitablauf (Fehlerschritt `ng-signing-declined`); jede andere Meldung (HTTP, Proxy, Keystore …) ist ein
+/// eigener Abbruch – zurück in den Arbeitsbereich mit „es wurde nichts signiert“ (ADR 0004 §3.6).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn cancel_in_a_notice_counts_as_declined_only_for_atrust_error_pages() {
+    for (code, declined) in [(NoticeCode::AtrustError, true), (NoticeCode::Http { status: 502 }, false)] {
+        let fx = Fixture::new();
+        let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
+        let (backend, backends) = scripted(vec![]);
+        *backend.notice.lock().unwrap() = Some(code.clone());
+        let overlay = Overlay { input_files: vec![a], ..Overlay::default() };
+        let core = start(&fx, overlay, backends, Some(FakeEngine::new()), false).unwrap();
+        wait_for(&core, "Arbeitsbereich", editing).await;
+        core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
+        login(&core).await;
+        let v = wait_for(&core, "Meldung", |v| {
+            matches!(&v.step, StepView::Signing { interaction: InteractionView::Notice { .. }, .. })
+        })
+        .await;
+        let StepView::Signing { interaction: InteractionView::Notice { request, .. }, .. } = v.step else {
+            unreachable!()
+        };
+        core.dispatch(UiEvent::AnswerNotice { request, answer: NoticeAnswer::Cancel });
+        if declined {
+            wait_for(
+                &core,
+                "abgelehnt",
+                |v| matches!(&v.step, StepView::Error { code, .. } if code == "ng-signing-declined"),
+            )
+            .await;
+        } else {
+            let v = wait_for(&core, "abgebrochen", |v| {
+                editing(v) && v.notices.iter().any(|n| n.code == "ng-signing-cancelled")
+            })
+            .await;
+            assert!(!matches!(v.step, StepView::Error { .. }), "{code:?}: eigener Abbruch ist keine Ablehnung");
+        }
+    }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Ziele, Einschränkungen, vorhandene Signaturen (Abnahme E1 Punkt 4)
 // ------------------------------------------------------------------------------------------------
@@ -914,4 +964,171 @@ async fn overlap_is_unknown_until_the_grid_is_ready() {
     let v =
         wait_for(&core, "Raster", |v| v.document.as_ref().is_some_and(|d| d.check.overlaps_content.is_some())).await;
     assert_eq!(v.document.unwrap().check.for_revision, revision, "neue Projektion mit derselben Revision");
+}
+
+// ------------------------------------------------------------------------------------------------
+// Zustände des echten Kerns für die Oberfläche (Integration K1 × A1, ADR 0004 §6.2 Punkt 4)
+// ------------------------------------------------------------------------------------------------
+
+/// Echte `ViewState`s der Kernpfade für `apps/app/src/app/RealCore.test.tsx`: Die Oberfläche rendert sie und
+/// prüft „ohne Bildschirmwechsel“, Karte, Fehler, Abbruch und „Fertig“ (F3) gegen den echten Vertrag statt
+/// gegen den Mock. Neu schreiben: `PIDA_BLESS=1 cargo test -p pida-core-api --test workspace real_core_views`
+/// (mit `PIDA_PDFIUM_DIR`, dann mit Kacheln, Layout und Startlage der PDF-AS-Regel). Ohne `PIDA_BLESS`
+/// laufen dieselben Abläufe als Test, und die Datei muss sich als `ViewState` lesen lassen.
+const UI_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../apps/app/src/core/fixtures/real-core-views.json");
+
+/// Zustand für die Datei: lokale Pfade und Zeitpunkte ersetzt (stabil, ohne Daten des Rechners).
+fn ui_fixture_state(v: &ViewState, roots: &[(String, &str)]) -> serde_json::Value {
+    fn walk(value: &mut serde_json::Value, roots: &[(String, &str)]) {
+        match value {
+            serde_json::Value::String(s) => {
+                for (from, to) in roots {
+                    if s.contains(from.as_str()) {
+                        *s = s.replace(from.as_str(), to);
+                    }
+                }
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(|i| walk(i, roots)),
+            serde_json::Value::Object(map) => {
+                for (key, item) in map.iter_mut() {
+                    if matches!(key.as_str(), "signing_time" | "occurred_at") && item.is_string() {
+                        *item = serde_json::Value::String("2026-10-15T10:42:17+02:00".into());
+                    } else {
+                        walk(item, roots);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut value = serde_json::to_value(v).expect("ViewState serialisierbar");
+    walk(&mut value, roots);
+    // Sprache der Oberfläche fest auf Deutsch (der Kern nimmt sonst die Systemsprache des Rechners; die
+    // UI-Probe prüft deutsche Texte)
+    value["language"] = serde_json::Value::String("de".into());
+    value
+}
+
+/// Arbeitsbereich mit Blockvorschau und (mit PDFium) Layout und Prüfung; danach die automatische Platzierung
+/// (PDF-AS-Scan) abwarten.
+async fn settled(core: &pida_core_api::Core, pdfium: bool) {
+    wait_for(core, "Arbeitsbereich mit Vorschau und Layout", |v| {
+        editing(v)
+            && v.document.as_ref().is_some_and(|d| {
+                d.block.preview_revision > 0
+                    && (!pdfium || (!d.layout.is_empty() && d.check.overlaps_content.is_some()))
+            })
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(400)).await;
+}
+
+fn signing_form(v: &ViewState, pred: impl Fn(&NativeForm) -> bool) -> bool {
+    matches!(&v.step, StepView::Signing { interaction: InteractionView::Form { form, .. }, .. } if pred(form))
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn real_core_views_for_the_ui() {
+    let pdfium = pdfium_dir().is_some();
+    let mut states: Vec<(String, ViewState)> = Vec::new();
+    let mut roots: Vec<(String, &str)> = Vec::new();
+    let mut add_roots = |fx: &Fixture| {
+        let tmp = fx.tmp.path().to_path_buf();
+        for p in [tmp.clone(), tmp.canonicalize().unwrap_or(tmp)] {
+            roots.push((p.display().to_string(), "/Users/test"));
+        }
+    };
+
+    // 1. Keystore, echte Engine: Arbeitsbereich → Signieren → gespeichert (Abnahme E1 Punkt 1, 7)
+    let fx = Fixture::new();
+    add_roots(&fx);
+    let out = fx.dir("Dokumente");
+    let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "Vertrag.pdf");
+    let core = start(&fx, keystore_overlay(vec![a], &out), None, None, pdfium).expect("Kern");
+    settled(&core, pdfium).await;
+    let v = core.view();
+    assert!(editing(&v), "{:?}", v.step);
+    states.push(("keystore_editing".into(), v));
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    let seen = collect_until(&core, "gespeichert", saved).await;
+    if let Some(v) = seen.iter().rev().find(|v| matches!(v.step, StepView::Signing { .. })) {
+        states.push(("keystore_signing".into(), v.clone()));
+    }
+    let done = seen.last().unwrap().clone();
+    assert!(matches!(&done.step, StepView::Output { result, .. } if result.summary.is_some()));
+    states.push(("keystore_done".into(), done));
+    drop(core);
+
+    // 2. ID-Austria-artig (Skript): Anmeldung → Netzfehler → „Erneut versuchen“ → TAN → gespeichert (Punkt 6)
+    let fx = Fixture::new();
+    add_roots(&fx);
+    let out = fx.dir("Dokumente");
+    let a = copy_pdf(PDF, &fx.dir("in"), "Antrag.pdf");
+    let (_backend, backends) = scripted(vec![BackendError::Network("Verbindung getrennt".into())]);
+    let overlay = Overlay { input_files: vec![a], output: Some(out), ..Overlay::default() };
+    let core = start(&fx, overlay, backends, None, pdfium).expect("Kern");
+    settled(&core, pdfium).await;
+    core.dispatch(UiEvent::SelectSigner { backend: Some(BackendId::AtrustNative), make_default: false });
+    let v = wait_for(&core, "gewählt", |v| v.signers.selected == Some(BackendId::AtrustNative)).await;
+    states.push(("atrust_editing".into(), v));
+    core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
+    let v = wait_for(&core, "Anmeldung", |v| signing_form(v, |f| matches!(f, NativeForm::Login { .. }))).await;
+    states.push(("atrust_login".into(), v));
+    login(&core).await;
+    let v = wait_for(&core, "Netzfehler", |v| matches!(v.step, StepView::Error { .. })).await;
+    states.push(("atrust_network_error".into(), v));
+    core.dispatch(UiEvent::Retry);
+    let v = wait_for(&core, "TAN", |v| signing_form(v, |f| matches!(f, NativeForm::SmsTan { .. }))).await;
+    states.push(("atrust_tan".into(), v));
+    tan(&core).await;
+    let v = wait_for(&core, "gespeichert", saved).await;
+    states.push(("atrust_done".into(), v));
+    drop(core);
+
+    // 3. Abbrechen in der Anmeldung → Arbeitsbereich mit Hinweis „es wurde nichts signiert“
+    let fx = Fixture::new();
+    add_roots(&fx);
+    let a = copy_pdf(PDF, &fx.dir("in"), "Antrag.pdf");
+    let (_backend, backends) = scripted(vec![]);
+    let core =
+        start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, backends, None, pdfium).expect("Kern");
+    settled(&core, pdfium).await;
+    core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
+    form_request(&core, "Anmeldung", |f| matches!(f, NativeForm::Login { .. })).await;
+    core.dispatch(UiEvent::Cancel);
+    let v =
+        wait_for(&core, "abgebrochen", |v| editing(v) && v.notices.iter().any(|n| n.code == "ng-signing-cancelled"))
+            .await;
+    states.push(("atrust_cancelled".into(), v));
+    drop(core);
+
+    // Repository-Pfad (Keystore-Datei) ebenfalls ersetzen
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let repo = repo.canonicalize().unwrap_or(repo);
+    roots.push((repo.display().to_string(), "/Users/test/pida"));
+    let fixture: serde_json::Map<String, serde_json::Value> =
+        states.iter().map(|(name, v)| (name.clone(), ui_fixture_state(v, &roots))).collect();
+    if std::env::var_os("PIDA_BLESS").is_some() {
+        if !pdfium {
+            eprintln!("Hinweis: ohne PIDA_PDFIUM_DIR erzeugt – ohne Layout und PDF-AS-Startlage");
+        }
+        let text = serde_json::to_string_pretty(&fixture).unwrap() + "\n";
+        std::fs::write(UI_FIXTURE, text).expect("Fixture schreiben");
+        return;
+    }
+    let text = std::fs::read_to_string(UI_FIXTURE).expect("Fixture lesen (PIDA_BLESS=1 erzeugt sie)");
+    let stored: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&text).unwrap();
+    // `keystore_signing` kann fehlen, wenn das Signieren zwischen zwei Projektionen fertig wurde
+    let required: Vec<&String> = fixture.keys().filter(|k| *k != "keystore_signing").collect();
+    for name in required {
+        assert!(
+            stored.contains_key(name),
+            "real-core-views.json ohne {name}: PIDA_BLESS=1 cargo test -p pida-core-api --test workspace real_core_views"
+        );
+    }
+    for (name, value) in stored {
+        let _: ViewState = serde_json::from_value(value).unwrap_or_else(|e| {
+            panic!("{name}: real-core-views.json passt nicht mehr zum Vertrag ({e}); mit PIDA_BLESS=1 neu erzeugen")
+        });
+    }
 }

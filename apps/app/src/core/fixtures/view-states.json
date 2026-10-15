@@ -4926,6 +4926,7 @@
       },
       "step": {
         "next": null,
+        "pending": 0,
         "result": {
           "ask_overwrite": null,
           "path": "/Users/demo/Vertrag_signed.pdf",
@@ -5014,6 +5015,7 @@
           ],
           "signed": false
         },
+        "pending": 1,
         "result": {
           "ask_overwrite": null,
           "path": null,
@@ -5087,6 +5089,7 @@
       },
       "step": {
         "next": null,
+        "pending": 0,
         "result": {
           "ask_overwrite": "/Users/demo/Vertrag_signed.pdf",
           "path": null,
@@ -5160,6 +5163,7 @@
       },
       "step": {
         "next": null,
+        "pending": 0,
         "result": {
           "ask_overwrite": null,
           "path": null,
@@ -12911,6 +12915,7 @@
           ],
           "signed": false
         },
+        "pending": 1,
         "result": {
           "ask_overwrite": null,
           "path": "/Users/demo/Dokumente/Vertrag_signed.pdf",
@@ -13231,6 +13236,7 @@
           ],
           "signed": false
         },
+        "pending": 1,
         "result": {
           "ask_overwrite": null,
           "path": "/Users/demo/Dokumente/Vertrag_signed.pdf",

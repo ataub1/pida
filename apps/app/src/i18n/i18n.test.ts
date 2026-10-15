@@ -1,6 +1,7 @@
 /**
- * i18n: Kataloge laden fehlerfrei, die UI-Texte (`ng-ui-*` in `crates/i18n/locales/{de,en}/pida.ftl`)
- * sind in DE und EN vollständig und mit denselben Variablen vorhanden, jede im Quelltext verwendete
+ * i18n: Kataloge laden fehlerfrei, die UI-Texte (`ng-ui-*` in `crates/i18n/locales/{de,en}/pida.ftl`,
+ * `ui-workspace.ftl` und `ui-tools.ftl`, ADR 0004 §4.5) sind in DE und EN vollständig und mit denselben
+ * Variablen vorhanden, kein Katalog teilt eine ID mit einem anderen, jede im Quelltext verwendete
  * Meldungs-ID existiert in beiden Sprachen, Fallback und Link-Markup verhalten sich wie `pida-i18n`.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -8,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FluentResource } from '@fluent/bundle';
 import { describe, expect, it } from 'vitest';
+import { MOCK_SCENARIOS } from '../core/mock/shared';
 import { Translator, catalogs, translator, SOURCES } from './catalog';
 import { parseMarkup, toPlain } from './markup';
 
@@ -35,21 +37,50 @@ function messageIds(text: string): Map<string, Set<string>> {
 }
 
 const uiIds = (text: string) => new Map([...messageIds(text)].filter(([id]) => id.startsWith('ng-ui-')));
-const appDe = uiIds(SOURCES.de.find((s) => s.name === 'de/pida.ftl')?.text ?? '');
-const appEn = uiIds(SOURCES.en.find((s) => s.name === 'en/pida.ftl')?.text ?? '');
+/** Quellen der UI-Texte (ADR 0004 §4.5): pida.ftl (bisherige Oberfläche) und die Kataloge der neuen Oberfläche. */
+const UI_SOURCES = ['pida.ftl', 'ui-workspace.ftl', 'ui-tools.ftl'] as const;
+const source = (lang: 'de' | 'en', file: string) => SOURCES[lang].find((s) => s.name === `${lang}/${file}`)?.text ?? '';
 
 describe('Kataloge', () => {
   it('laden ohne Syntaxfehler und ohne doppelte IDs', () => {
     expect(catalogs().issues).toEqual([]);
   });
 
-  it('UI-Texte (ng-ui-*): gleiche IDs und Variablen in DE und EN, eine Quelle (pida.ftl)', () => {
-    expect([...appDe.keys()].sort()).toEqual([...appEn.keys()].sort());
-    for (const [id, vars] of appDe) {
-      expect(id.startsWith('ng-ui-'), id).toBe(true);
-      expect([...vars].sort(), id).toEqual([...(appEn.get(id) ?? [])].sort());
+  it('UI-Texte (ng-ui-*): Quellen pida.ftl + ui-*.ftl, je Datei gleiche IDs und Variablen in DE und EN', () => {
+    let total = 0;
+    for (const file of UI_SOURCES) {
+      const de = uiIds(source('de', file));
+      const en = uiIds(source('en', file));
+      expect([...de.keys()].sort(), file).toEqual([...en.keys()].sort());
+      for (const [id, vars] of de) {
+        expect(id.startsWith('ng-ui-'), id).toBe(true);
+        expect([...vars].sort(), `${file}: ${id}`).toEqual([...(en.get(id) ?? [])].sort());
+      }
+      total += de.size;
     }
-    expect(appDe.size).toBeGreaterThan(100);
+    expect(total).toBeGreaterThan(200);
+  });
+
+  it('keine doppelten IDs zwischen den Katalogen einer Sprache; ui-*.ftl nur mit eigenen Bereichen', () => {
+    const areas: Record<string, string[]> = {
+      'ui-workspace.ftl': ['shell', 'start', 'ws', 'insp', 'sc', 'fin', 'batch'],
+      'ui-tools.ftl': ['set', 'vf', 'pal', 'sh', 'ob', 'recent'],
+    };
+    for (const lang of ['de', 'en'] as const) {
+      const seen = new Map<string, string>();
+      for (const { name, text } of SOURCES[lang]) {
+        for (const id of messageIds(text).keys()) {
+          expect(seen.get(id), `${name}: ${id}`).toBeUndefined();
+          seen.set(id, name);
+        }
+      }
+      for (const [file, own] of Object.entries(areas)) {
+        for (const id of messageIds(source(lang, file)).keys()) {
+          const area = id.replace(/^ng-ui-/, '').split('-')[0] ?? '';
+          expect(own, `${lang}/${file}: ${id}`).toContain(area);
+        }
+      }
+    }
   });
 
   it('jede im Quelltext verwendete Meldungs-ID existiert in DE und EN', () => {
@@ -64,13 +95,18 @@ describe('Kataloge', () => {
       const text = readFileSync(file, 'utf8');
       for (const m of text.matchAll(/['"`]([A-Za-z_][A-Za-z0-9_]*-[A-Za-z0-9_.-]+)['"`]/g)) {
         const id = m[1] ?? '';
-        // CSS-Klassen und Element-IDs sind keine Meldungs-IDs
-        if (/(className|id|htmlFor|aria-[a-z]+|data-[a-z-]+)=\{?$/.test(text.slice(Math.max(0, (m.index ?? 0) - 16), m.index ?? 0))) continue;
+        // CSS-Klassen, Element-IDs und React-Schlüssel sind keine Meldungs-IDs
+        if (/(className|id|labelId|key|htmlFor|aria-[a-z]+|data-[a-z-]+)=\{?$/.test(text.slice(Math.max(0, (m.index ?? 0) - 16), m.index ?? 0))) continue;
+        // Szenarien des Mock-Kerns (`?scenario=error-password` …) sind keine Meldungs-IDs
+        if ((MOCK_SCENARIOS as readonly string[]).includes(id)) continue;
         if (prefixes.has(id.split('-')[0] ?? '') && !id.includes('${')) used.add(id);
       }
     }
-    // dynamische IDs: Profilnamen
+    // dynamische IDs: Profilnamen, Zonen der Platzierung, Status vorhandener Signaturen, Farbschema
     for (const p of ['SIGNATURBLOCK_SMALL', 'AMTSSIGNATURBLOCK', 'BASE_LOGO', 'INVISIBLE']) used.add(`simple_config-${p}`);
+    for (const v of ['top', 'middle', 'bottom']) for (const h of ['left', 'center', 'right']) used.add(`ng-ui-ws-zone-${v}-${h}`);
+    for (const s of ['valid', 'invalid', 'unknown']) used.add(`ng-ui-insp-status-${s}`);
+    for (const s of ['system', 'light', 'dark']) used.add(`ng-ui-shell-theme-${s}`);
     expect(used.size).toBeGreaterThan(150);
     const missing = [...used].filter((id) => !(de.hasOwn(id) && en.hasOwn(id)));
     expect(missing).toEqual([]);

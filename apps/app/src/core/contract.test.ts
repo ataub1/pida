@@ -366,6 +366,7 @@ const stepView = tagged('step', {
       summary: nullable(signedSummary),
     }),
     next: nullable(docInfo),
+    pending: int,
   },
   error: { code: str, params: record(str), retry: bool, context: errorContext },
   finished: { exit_code: int },

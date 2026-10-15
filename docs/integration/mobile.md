@@ -153,14 +153,14 @@ A-Trust-Verbindung.
 
 - `ViewState.platform.mobile` (`isMobile`) schaltet: Durchsuchen über `mobile_pick_files`; Ergebnis mit
   „Teilen“/„Sichern unter …“ statt „Im Ordner anzeigen“; Einstellungen ohne Ausgabeordner, Proxy,
-  Update-Prüfung und Log-Ordner; Keystore-Tab mit Import-Assistent (`settings/KeystoreImport.tsx`, auch
+  Update-Prüfung und Log-Ordner; Keystore-Tab mit Import-Assistent (`features/settings/KeystoreImport.tsx`, auch
   aus der Signiermittel-Auswahl); „Signatur fortsetzen“-Dialog (`app/ResumeDialog.tsx`, Verwerfen nur
   ausdrücklich); FIDO2 ausgegraut mit Hinweis.
 - Positionieren per Touch: außerhalb des Blocks angetippt steht der Block mittig **über** dem Finger
   (`TOUCH_OFFSET_PT` 12 pt), ein zweiter Finger verschiebt nichts, kurze Haptik (Android), größere
-  Trefferfläche; Zahlenfelder bleiben. Pinch-Zoom ist optional und offen.
+  Trefferfläche; Zahlenfelder gibt es seit 15.10.2026 nicht mehr (D1). Pinch-Zoom ist optional und offen.
 - Safe Areas (`viewport-fit=cover`, `env(safe-area-inset-*)`), Tap-Ziele ≥ 44 px bei `pointer: coarse`,
-  Hauptleiste auf schmalen Telefonen mit Namen nur des aktuellen Schritts.
+  (bis E0: Hauptleiste auf schmalen Telefonen mit Namen nur des aktuellen Schritts; seit E1 ohne Hauptleiste).
 - Capabilities: `capabilities/mobile.json` (`platforms: ["iOS", "android"]`) – Ereignisse, Kern-Bridge,
   `allow-mobile-pick-files`, `opener` nur `https:`/`mailto:`; **kein** Dateidialog, Log-Ordner, Dateimanager,
   keine DevTools. `capabilities/default.json` gilt nur noch für den Desktop.
@@ -168,6 +168,17 @@ A-Trust-Verbindung.
   Satzpunkt bleibt am Link (vorher: `<button>` als atomares Inline-Element, Punkt allein in der nächsten
   Zeile); (b) Live-Region und Felder nennen dieselben Kanten (`linke Kante … von links, Oberkante … von
   unten`; `announce` liefert `top` statt `bottom`).
+
+- **Seit E1 (ADR 0004, „Arbeitsbereich“):** ein Bildschirm statt der Schritte; unter 760 px Inspektor als
+  Bottom-Sheet (eingeklappt: Konto-Chip, „Signieren“ und die Überdeckungswarnung), Miniaturen eingeklappt;
+  Sticker per Touch mit Fingerversatz (Block mittig **über** dem Finger), ein zweiter Finger verschiebt nicht,
+  Doppeltippen setzt den Block, Haptik beim Einrasten; Zahlenfelder gibt es nicht mehr (D1). Signierkarte als
+  Vollbild-Overlay über der Seitenansicht (App-Wechsel zur ID-Austria-App ist kein Abbruch), FIDO2 ausgegraut
+  mit Hinweis; „Fertig“ mit „Öffnen“, „Teilen“, „Sichern unter …“ (kein Ordner), kleinere Vorschau, damit die
+  Aktionen ohne Scrollen sichtbar bleiben; PKCS#12-Import aus dem Menü des Konto-Chips; „Signatur fortsetzen“
+  mit Kurzhinweis bei ID Austria. Nachweise: `src/app/Mobile.test.tsx` (`?platform=ios|android` im Mock),
+  Screenshots `docs/integration/screenshots/stage1/mobil-*.png` (375 × 812 @2x, hell/dunkel). Offen [H]:
+  Simulator/Emulator (Safe Areas, App-Wechsel bei der Bestätigung, Touch-Ziehen auf dem Gerät).
 
 ## 8. Bauen und Prüfen
 
