@@ -4,7 +4,7 @@
 //! Zusatzinstallation): Geräte mit HID-Usage-Page `0xF1D0` (FIDO Alliance), Usage `0x01`.
 //! - Linux: `/sys/class/hidraw/*/device/report_descriptor` auswerten, `/dev/hidrawN` lesen/schreiben
 //!   (ohne `unsafe`; braucht Zugriffsrechte über udev/`uaccess`, unter Flatpak `--device=all`).
-//! - macOS: IOKit-HID-Manager ([`macos`], FFI mit lokalem `allow(unsafe_code)`).
+//! - macOS: IOKit-HID-Manager (Modul `macos`, nur unter macOS übersetzt; FFI mit lokalem `allow(unsafe_code)`).
 //!
 //! Protokoll und Abbruch liegen in [`super::ctap`]. Verlangt der Schlüssel eine PIN, meldet der
 //! Provider [`Fido2Error::PinRequired`]; das Backend fragt sie ab und ruft

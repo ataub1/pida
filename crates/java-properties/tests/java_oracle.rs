@@ -133,7 +133,9 @@ fn matches_java_properties() {
                     assert_eq!(ours.get(k), Some(v), "Fall {i}: Key {k:?} ({case:?})");
                 }
                 let our_store = String::from_utf8_lossy(&ours.store_latin1(&StoreOptions::default())).into_owned();
-                assert_eq!(&our_store, stored, "Fall {i}: store ({case:?})");
+                // Java schreibt mit System.lineSeparator() (Windows: CRLF); unser Default ist LF auf allen Plattformen.
+                let stored = stored.replace("\r\n", "\n");
+                assert_eq!(our_store, stored, "Fall {i}: store ({case:?})");
             }
         }
     }
