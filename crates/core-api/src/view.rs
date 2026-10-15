@@ -5,7 +5,48 @@ use std::path::PathBuf;
 
 use pdfover_backend_api::{BackendId, Capabilities, NativeForm, Notice, NoticeAnswer, Progress, SecretPrompt};
 use pdfover_i18n::Lang;
-use pdfover_workflow::{DocId, MainBarStep, PlaceholderAnswer, Step};
+use pdfover_workflow::{DocId, DocResult, MainBarStep, PlaceholderAnswer, Step};
+
+/// Hinweis ohne Rückfrage (i18n-ID mit Parametern), z. B. `error-PositioningNotPossible`,
+/// `placement.notice.*`, `ng-config-reset-done`. Die UI schließt ihn mit [`UiEvent::DismissNotice`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct NoticeView {
+    /// Kennung
+    pub id: u64,
+    /// Meldungs-ID
+    pub code: String,
+    /// Parameter
+    pub params: BTreeMap<String, String>,
+}
+
+/// Speichern-Dialog (F-83/F-86): Startordner und Namensvorschlag.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SaveDialogView {
+    /// Startordner
+    pub directory: PathBuf,
+    /// vorgeschlagener Dateiname
+    pub file_name: String,
+}
+
+/// Angebot, die Einstellungen aus `~/.pdf-over` zu übernehmen (Plan §7.2, einmalig).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct MigrationOfferView {
+    /// gefundene `PDF-Over.config`
+    pub legacy_file: PathBuf,
+}
+
+/// Abgeschlossenes Dokument (Warteschlangen-Panel, CLI-Ergebnis).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DoneItemView {
+    /// Kennung
+    pub id: DocId,
+    /// Name
+    pub name: String,
+    /// Eingabepfad
+    pub input: PathBuf,
+    /// Ergebnis
+    pub result: DocResult,
+}
 
 /// Dokument (Anzeige).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -123,6 +164,12 @@ pub struct OutputView {
     pub path: Option<PathBuf>,
     /// Speichern fehlgeschlagen/abgebrochen (Knopf „Speichern“, F-86)
     pub save_pending: bool,
+    /// Rückfrage „Datei existiert, überschreiben?“ (F-84) – Antwort über [`UiEvent::ConfirmOverwrite`]
+    #[serde(default)]
+    pub ask_overwrite: Option<PathBuf>,
+    /// Speichern-Dialog öffnen (F-83/F-86) – Antwort über [`UiEvent::Save`]
+    #[serde(default)]
+    pub save_dialog: Option<SaveDialogView>,
 }
 
 /// Hauptleiste.
@@ -144,6 +191,19 @@ pub enum StepView {
     Open {
         /// Warteschlange
         queue: Vec<QueueItemView>,
+    },
+    /// Dokument wird geladen und analysiert (Platzhaltersuche)
+    Loading {
+        /// Warteschlange
+        queue: Vec<QueueItemView>,
+    },
+    /// Warnung der Eingangsanalyse mit Abbruchmöglichkeit (Plan §6.1: `/Perms /UR3`, Hybrid-XFA, Seed
+    /// Values) – Antwort über [`UiEvent::AnswerWarning`]
+    Warning {
+        /// Dokument
+        doc: DocInfo,
+        /// Meldungs-IDs der Warnungen (`pades::Finding::code`)
+        codes: Vec<String>,
     },
     /// Platzhalter-Frage/Feldauswahl
     Placeholder {
@@ -217,6 +277,9 @@ pub struct SettingsView {
     pub keychain_available: bool,
     /// FIDO2 verfügbar
     pub fido2_available: bool,
+    /// Einstellungen werden nicht gespeichert (Altdatei per `-c`, unlesbare Datei)
+    #[serde(default)]
+    pub read_only: bool,
 }
 
 /// Gesamtzustand für die UI.
@@ -230,6 +293,15 @@ pub struct ViewState {
     pub settings: Option<SettingsView>,
     /// UI-Sprache
     pub language: Lang,
+    /// Hinweise ohne Rückfrage (älteste zuerst)
+    #[serde(default)]
+    pub notices: Vec<NoticeView>,
+    /// Import-Angebot aus `~/.pdf-over`
+    #[serde(default)]
+    pub migration: Option<MigrationOfferView>,
+    /// abgeschlossene Dokumente dieser Sitzung
+    #[serde(default)]
+    pub done: Vec<DoneItemView>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -287,6 +359,12 @@ pub enum UiEvent {
     OpenFiles {
         /// Pfade
         paths: Vec<PathBuf>,
+    },
+    /// Antwort auf die Warnung der Analyse ([`StepView::Warning`]): trotzdem signieren bzw. Dokument
+    /// verwerfen
+    AnswerWarning {
+        /// `true` = fortfahren
+        proceed: bool,
     },
     /// Platzhalter-Antwort
     PlaceholderAnswer {
@@ -401,6 +479,18 @@ pub enum UiEvent {
     Foregrounded,
     /// Beenden
     Quit,
+    /// Hinweis schließen
+    DismissNotice {
+        /// Kennung ([`NoticeView::id`])
+        id: u64,
+    },
+    /// Einstellungen aus `~/.pdf-over` übernehmen (Plan §7.2)
+    AcceptMigration {
+        /// Klartext-Passwörter in den Schlüsselbund übernehmen (Zustimmung)
+        store_secrets: bool,
+    },
+    /// Import ablehnen (es wird nicht wieder gefragt)
+    DeclineMigration,
 }
 
 impl std::fmt::Debug for UiEvent {

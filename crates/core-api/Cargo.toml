@@ -8,6 +8,10 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[features]
+# Test-Hilfen (Fake-PAdES-Engine, `testing`-Modul) für die eigenen Tests und die CLI-Tests.
+testing = []
+
 [dependencies]
 pdfover-workflow = { workspace = true }
 pdfover-config = { workspace = true }
@@ -22,6 +26,7 @@ pdfover-backend-api = { workspace = true }
 pdfover-backend-atrust = { workspace = true }
 pdfover-backend-localbku = { workspace = true }
 pdfover-backend-keystore = { workspace = true }
+pdfover-net = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 serde = { workspace = true }
@@ -29,6 +34,20 @@ serde_json = { workspace = true }
 zeroize = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+time = { workspace = true }
+jiff = { workspace = true }
+# Logdatei (nicht blockierend) mit Rotation beim Start (Plan §7.1). MIT. Noch nicht in
+# [workspace.dependencies] – die Integration hebt die Abhängigkeit dorthin (ADR 0001 §4 Regel 2).
+tracing-appender = "=0.2.5"
+
+[dev-dependencies]
+# eigene Test-Hilfen auch für die Integrationstests unter tests/
+pdfover-core-api = { workspace = true, features = ["testing"] }
+pdfover-backend-api = { workspace = true, features = ["testing"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+toml = { workspace = true }
 
 [lints]
 workspace = true
