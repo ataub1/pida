@@ -7,7 +7,7 @@
  *
  * Der vollständige Text ([`PrivacyInfo`]) ist der Datenschutztext aus PDF-Over bzw. – per Richtlinie
  * `privacy_notice_text` – der eigene Text der Organisation, dazu der Hinweis auf das lokale Signieren mit
- * Keystore und Bürgerkarte und der Link zur Datenschutzerklärung von A-Trust.
+ * Keystore und Chipkarte und der Link zur Datenschutzerklärung von A-Trust.
  */
 import { useState } from 'react';
 import { Link } from 'react-aria-components';

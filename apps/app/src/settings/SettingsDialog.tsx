@@ -572,7 +572,7 @@ function Fido2Tab({ draft, update, view }: TabProps) {
 
 /**
  * Datenschutz (ADR 0003): vollständiger Text (PDF-Over bzw. Richtlinie), lokales Signieren mit Keystore und
- * Bürgerkarte, Datenschutzerklärung von A-Trust; dazu der Zertifikats-Cache (früher unter „Erweitert“).
+ * Chipkarte, Datenschutzerklärung von A-Trust; dazu der Zertifikats-Cache (früher unter „Erweitert“).
  */
 function PrivacyTab({ draft, update }: TabProps) {
   const { t } = useApp();

@@ -266,10 +266,10 @@ ng-ui-position-signed-hint = Das Dokument ist bereits signiert; eine neue Seite 
 ng-ui-backend-title = Signiermittel wählen
 ng-ui-backend-hint = Ein Standard-Signiermittel lässt sich in den Einstellungen (Erweitert) festlegen.
 ng-ui-backend-atrust-desc = Signieren mit ID Austria: Bestätigung in der App, per SMS-TAN oder mit FIDO2-Sicherheitsschlüssel.
-ng-ui-backend-local-desc = Signieren mit der Bürgerkarte über eine lokal installierte Bürgerkartenumgebung.
+ng-ui-backend-local-desc = Signieren mit der Chipkarte über eine lokal installierte Chipkarten-Software.
 ng-ui-backend-keystore-desc = Signieren mit einer PKCS#12-Datei (Keystore).
 ng-ui-backend-unavailable = Derzeit nicht verfügbar.
-ng-ui-backend-local-unavailable = Keine lokale Bürgerkartenumgebung gefunden.
+ng-ui-backend-local-unavailable = Keine lokale Chipkarten-Software gefunden.
 ng-ui-backend-keystore-unavailable = Keystore nicht eingerichtet (Einstellungen › Keystore).
 ng-ui-backend-leaves-device = Das Dokument wird zum Signieren an A-Trust übermittelt.
 ng-ui-backend-qes = Qualifizierte Signatur
@@ -583,10 +583,10 @@ ng-ui-position-help-mobile = Tippen Sie auf die gewünschte Stelle oder ziehen S
 ## Datenschutz ohne Zustimmungsdialog (ADR 0003): Kurzhinweis beim Signiermittel, Einstellungen › Datenschutz, CLI
 
 ng-document-leaves-device = Hinweis: Das Dokument wird zum Signieren an A-Trust übermittelt (Datenschutzerklärung von A-Trust: https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
-ng-ui-privacy-statement = Die Software PIDA verarbeitet die für den Signaturvorgang benötigten Daten lokal auf dem installierten Gerät. Der Signaturvorgang mit der Bürgerkarte wird lokal durchgeführt. Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet. Die Speicherdauer sowie weitere Datenschutzinformationen zur ID-Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+ng-ui-privacy-statement = Die Software PIDA verarbeitet die für den Signaturvorgang benötigten Daten lokal auf dem installierten Gerät. Der Signaturvorgang mit der Chipkarte wird lokal durchgeführt. Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet. Die Speicherdauer sowie weitere Datenschutzinformationen zur ID-Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Details zum Datenschutz
-ng-ui-privacy-local = Mit einem Keystore oder der Bürgerkarte (lokale BKU) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
+ng-ui-privacy-local = Mit einem Keystore oder der Chipkarte (lokale BKU) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
 ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.
 ng-ui-certcache-title = Zertifikats-Cache
@@ -595,7 +595,7 @@ ng-ui-certcache-title = Zertifikats-Cache
 ## nie „gültig“ oder „rechtsgültig“. UI-Texte der Pakete stehen in `ui-workspace.ftl` bzw. `ui-tools.ftl`.
 
 ng-signer-unavailable = Das gewählte Signiermittel ist gerade nicht verfügbar. Bitte wählen Sie ein anderes.
-ng-signer-localbku-not-running = Die Bürgerkartenumgebung (lokale BKU) läuft nicht. Starten Sie sie und versuchen Sie es erneut.
+ng-signer-localbku-not-running = Die Chipkarten-Software (lokale BKU) läuft nicht. Starten Sie sie und versuchen Sie es erneut.
 ng-signer-keystore-missing = Es ist kein Keystore eingerichtet oder die Datei fehlt (Einstellungen › Signiermittel).
 ng-signer-keystore-import = Auf diesem Gerät ist noch kein Keystore – importieren Sie eine PKCS#12-Datei.
 ng-signer-policy = Dieses Signiermittel ist von Ihrer Organisation nicht freigegeben.

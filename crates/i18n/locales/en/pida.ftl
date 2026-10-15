@@ -266,10 +266,10 @@ ng-ui-position-signed-hint = The document is already signed; a new page cannot b
 ng-ui-backend-title = Choose signing method
 ng-ui-backend-hint = A default signing method can be set in the settings (Advanced).
 ng-ui-backend-atrust-desc = Sign with ID Austria: confirm in the app, by SMS TAN or with a FIDO2 security key.
-ng-ui-backend-local-desc = Sign with the citizen card via a locally installed citizen card environment.
+ng-ui-backend-local-desc = Sign with the smart card via locally installed smart card software.
 ng-ui-backend-keystore-desc = Sign with a PKCS#12 file (keystore).
 ng-ui-backend-unavailable = Currently not available.
-ng-ui-backend-local-unavailable = No local citizen card environment found.
+ng-ui-backend-local-unavailable = No local smart card software found.
 ng-ui-backend-keystore-unavailable = Keystore not configured (Settings › Keystore).
 ng-ui-backend-leaves-device = The document is sent to A-Trust for signing.
 ng-ui-backend-qes = Qualified signature
@@ -583,10 +583,10 @@ ng-ui-position-help-mobile = Tap the desired place or drag the signature block w
 ## Datenschutz ohne Zustimmungsdialog (ADR 0003): Kurzhinweis beim Signiermittel, Einstellungen › Datenschutz, CLI
 
 ng-document-leaves-device = Note: the document is sent to A-Trust for signing (A-Trust privacy policy: https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
-ng-ui-privacy-statement = The software PIDA processes the data required for the signature process locally on the installed device. The signature process with the citizen card is carried out locally. During the signature process using ID Austria, the PDF document to be signed is sent to the company A-Trust. The storage period and further data protection information for signatures using ID Austria can be found in the data protection declaration of A-Trust at <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+ng-ui-privacy-statement = The software PIDA processes the data required for the signature process locally on the installed device. The signature process with the smart card is carried out locally. During the signature process using ID Austria, the PDF document to be signed is sent to the company A-Trust. The storage period and further data protection information for signatures using ID Austria can be found in the data protection declaration of A-Trust at <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Privacy details
-ng-ui-privacy-local = With a keystore or the citizen card (local citizen card environment) the document is signed on this device and is not uploaded.
+ng-ui-privacy-local = With a keystore or the smart card (local smart card software) the document is signed on this device and is not uploaded.
 ng-ui-privacy-atrust-link = A-Trust privacy policy: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Where your documents go when signing is described in the <a>Privacy</a> section.
 ng-ui-certcache-title = Certificate cache
@@ -595,7 +595,7 @@ ng-ui-certcache-title = Certificate cache
 ## “valid” or “legally valid”. UI texts of the packages live in `ui-workspace.ftl` and `ui-tools.ftl`.
 
 ng-signer-unavailable = The selected signing method is currently not available. Please choose another one.
-ng-signer-localbku-not-running = The citizen card environment (local BKU) is not running. Start it and try again.
+ng-signer-localbku-not-running = The smart card software (local BKU) is not running. Start it and try again.
 ng-signer-keystore-missing = No keystore is set up, or the file is missing (Settings › Signing methods).
 ng-signer-keystore-import = There is no keystore on this device yet – import a PKCS#12 file.
 ng-signer-policy = This signing method is not permitted by your organisation.

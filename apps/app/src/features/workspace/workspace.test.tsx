@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { DocumentView, UiEvent } from '../../core/types';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { emulateMedia, lastEvent, renderApp } from '../../test/render';
-import { documentView, IOS, onMobile, signersView, viewOf, workspaceView } from '../../test/views';
+import { documentView, IOS, onMobile, settingsView, signersView, viewOf, workspaceView } from '../../test/views';
 import { layoutPages, PAGE_GAP, PAGE_PAD } from './placement';
 
 const SCALE = 1.15; // eingepasster Maßstab ohne ResizeObserver (jsdom)
@@ -315,7 +315,7 @@ describe('Konto-Chip und „Signieren“', () => {
     await user.click(await screen.findByRole('button', { name: 'Signiermittel: ID Austria · +43 660 ···123. Wechseln' }));
     const menu = await screen.findByRole('menu');
     expect(within(menu).getByRole('menuitem', { name: /Keystore · max\.p12 · max/ })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /Bürgerkarte/ })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /Chipkarte/ })).toBeInTheDocument();
     await user.click(within(menu).getByRole('menuitem', { name: /Keystore/ }));
     expect(lastEvent(mock)).toEqual({ type: 'select_signer', backend: 'keystore', make_default: false });
     expect(mock.dispatched.some((e) => e.type === 'sign_with')).toBe(false);
@@ -323,6 +323,20 @@ describe('Konto-Chip und „Signieren“', () => {
     await user.click(screen.getByRole('button', { name: /Signiermittel: Keystore/ }));
     await user.click(await screen.findByRole('menuitem', { name: 'Als Standard verwenden' }));
     expect(lastEvent(mock)).toEqual({ type: 'select_signer', backend: 'keystore', make_default: true });
+  });
+
+  it('„Einstellungen …“ im Menü öffnet die Einstellungen beim Abschnitt Signiermittel', async () => {
+    const { mock, user } = renderApp({ view: workspaceView() });
+    await user.click(await screen.findByTestId('signer-chip'));
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).queryByRole('menuitem', { name: /Konten verwalten/ })).not.toBeInTheDocument();
+    await user.click(within(menu).getByRole('menuitem', { name: 'Einstellungen …' }));
+    expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
+    act(() => mock.setView({ ...workspaceView(), settings: settingsView().settings }));
+    // bisheriger Dialog (bis B3): Abschnitt „Signiermittel“ → Tab „Einfach“ mit dem ID-Austria-Konto
+    const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
+    expect(within(dialog).getByRole('tab', { name: /Einfach/ })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('heading', { name: 'ID Austria' })).toBeInTheDocument();
   });
 
   it('ohne Auswahl („Jedes Mal fragen“): „Signieren“ öffnet das Menü, die Wahl dort signiert (sign_with)', async () => {
@@ -342,9 +356,9 @@ describe('Konto-Chip und „Signieren“', () => {
     const options = s.options.map((o) => (o.backend === 'local_bku' ? { ...o, available: false, capabilities: null, unavailable_reason: 'ng-signer-localbku-not-running' } : o));
     const { user } = renderApp({ view: workspaceView(documentView(), { signers: { ...s, options } }) });
     await user.click(await screen.findByTestId('signer-chip'));
-    const item = await screen.findByRole('menuitem', { name: /Bürgerkarte/ });
+    const item = await screen.findByRole('menuitem', { name: /Chipkarte/ });
     expect(item).toHaveAttribute('aria-disabled', 'true');
-    expect(item).toHaveTextContent('Die Bürgerkartenumgebung (lokale BKU) läuft nicht.');
+    expect(item).toHaveTextContent('Die Chipkarten-Software (lokale BKU) läuft nicht.');
   });
 
   it('⌘/Strg+↵ signiert (ausdrückliche Aktion), nicht ohne Freigabe', async () => {

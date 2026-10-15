@@ -219,6 +219,38 @@ fn bug_fixes_are_applied() {
     assert!(de.contains("# unused (in PDF-Over 4.4.x nicht referenziert)\ntanEnter-tries ="));
 }
 
+/// Terminologie (auch in den aus PDF-Over erzeugten Texten, über die Korrekturen des Konverters):
+/// „Chipkarte“/„Chipkarten-Software“ statt „Bürgerkarte“/„Bürgerkartenumgebung“, EN „smart card“ statt
+/// „citizen card“. URLs wie www.buergerkarte.at bleiben.
+#[test]
+fn terminology_uses_smart_card() {
+    let files: Vec<(Lang, String)> = Lang::ALL
+        .into_iter()
+        .flat_map(|lang| {
+            ["pdfover.ftl", "pida.ftl", "ui-workspace.ftl", "ui-tools.ftl"].map(|f| (lang, read(&locale_file(lang, f))))
+        })
+        .collect();
+    let sources: Vec<(Lang, &str)> = files.iter().map(|(l, s)| (*l, s.as_str())).collect();
+    let c = Catalog::from_sources(&sources).unwrap();
+    for lang in Lang::ALL {
+        for id in c.message_ids(lang) {
+            let text = c.format(lang, id, &[]).to_lowercase();
+            for old in ["bürgerkarte", "citizen card", "citizen-card"] {
+                assert!(!text.contains(old), "{lang:?} {id}: {text}");
+            }
+        }
+    }
+    assert_eq!(c.format(Lang::De, "BKU-LOCAL", &[]), "Lokale Chipkarte");
+    assert_eq!(c.format(Lang::En, "BKU-LOCAL", &[]), "Local Smart Card");
+    let de = c.format(Lang::De, "error-LocalBKU", &[]);
+    assert!(de.contains("lokale Chipkarten-Software (BKU)") && de.contains("auf Ihre Chipkarte"), "{de}");
+    assert!(de.contains("www.buergerkarte.at"), "{de}");
+    let en = c.format(Lang::En, "error-LocalBKU", &[]);
+    assert!(en.contains("(smart card software)") && en.contains("your smart card"), "{en}");
+    assert!(c.format(Lang::De, "config-DataProtectionStatement", &[]).contains("mit der Chipkarte"));
+    assert!(c.format(Lang::En, "config-DataProtectionStatement", &[]).contains("with the smart card"));
+}
+
 #[test]
 fn special_values_survive() {
     let c = Catalog::builtin().unwrap();

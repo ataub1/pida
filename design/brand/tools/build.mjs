@@ -2,7 +2,7 @@
 // design/brand/pida-seal.svg und design/brand/pida-app-icon.svg:
 //
 //   design/brand/variants/*.svg            Varianten des App-Symbols (iOS dunkel/getönt, Android, Desktop)
-//   design/brand/favicon.svg               Favicon (übernimmt der Orchestrator nach apps/app/public)
+//   design/brand/favicon.svg               Favicon, dazu als apps/app/public/app-icon.svg (index.html)
 //   design/brand/pida-seal-1024.png        Siegel, transparent
 //   design/brand/pida-seal-sigblock.png    Siegel für den Signaturblock (652 × 684 px = 2 × signatur-logo_de/en.png)
 //   design/brand/pida-app-icon-1024.png    App-Symbol, deckend (ohne Alphakanal)
@@ -223,6 +223,7 @@ function writePng(rel, svg, width, opts) {
 // SVG-Varianten
 for (const [name, svg] of Object.entries(variants)) write(`design/brand/variants/${name}.svg`, svg);
 write('design/brand/favicon.svg', favicon);
+write('apps/app/public/app-icon.svg', favicon);
 
 // Siegel
 const seal1024 = svgDoc('PIDA – Siegel', sealInner.replaceAll('\n', '\n  '), { w: 40, h: 40 });

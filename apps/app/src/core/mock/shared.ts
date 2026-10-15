@@ -35,7 +35,7 @@ export interface MockOptions {
   signingFlow?: MockSigningFlow;
   /** lokale BKU erreichbar */
   localBkuAvailable?: boolean;
-  /** App-Bestätigung bzw. Bürgerkarte schließen sich nach einiger Zeit selbst ab; Tests: `false` */
+  /** App-Bestätigung bzw. Chipkarte schließen sich nach einiger Zeit selbst ab; Tests: `false` */
   autoCompleteApp?: boolean;
   /** Einstellungen beim Start */
   settings?: Settings;

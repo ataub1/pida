@@ -14,7 +14,7 @@ Eigene Werke des Projekts, EUPL-1.2.
 
 ## Erzeugt (nicht von Hand ändern)
 
-`variants/*.svg`, `favicon.svg`, `*.png` hier sowie die Plattform-Symbole unter `apps/app/src-tauri/icons/**`,
+`variants/*.svg`, `favicon.svg` (auch als `apps/app/public/app-icon.svg`), `*.png` hier sowie die Plattform-Symbole unter `apps/app/src-tauri/icons/**`,
 `apps/app/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/`, `apps/app/src-tauri/gen/android/app/src/main/res/`
 und `crates/sigblock/assets/images/pida-seal.png`.
 

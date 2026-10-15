@@ -979,7 +979,7 @@ export class MockCore implements Bridge {
     this.emit();
   }
 
-  /** Long-Poll meldet „bestätigt“ (App/QR) bzw. die Bürgerkartenumgebung ist fertig. */
+  /** Long-Poll meldet „bestätigt“ (App/QR) bzw. die Chipkarten-Software ist fertig. */
   completeConfirmation(): void {
     if (this.flow.stage === 'signing' && this.flow.signing?.completeConfirmation()) this.emit();
   }

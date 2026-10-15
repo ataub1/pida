@@ -11,7 +11,8 @@
 
 AdvancedConfigurationComposite-lblSaveFilePostFix-text = Save File Postfix:
 BKU-KS = Keystore
-BKU-LOCAL = Local Citizen Card
+# angepasst (PIDA): Terminologie der Oberfläche („smart card“, „smart card software“)
+BKU-LOCAL = Local Smart Card
 BKU-MOBILE = ID Austria
 BKU-NONE = no default
 # unused (in PDF-Over 4.4.x nicht referenziert)
@@ -151,7 +152,8 @@ config-AboutText =
 
     Note that components may have different licenses, partly restricting their free use to EUPL-licensed software.
 config-DataProtection = Data Protection Statement
-config-DataProtectionStatement = The software PDF-Over processes the data required for the signature process locally on the installed device. The signature process with the citizen card is carried out locally. During the signature process using ID Austria, the PDF document to be signed is sent to the company A-Trust. The storage period and further data protection information for signatures using ID Austria can be found in the data protection declaration of A-Trust at <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+# angepasst (PIDA): Terminologie der Oberfläche („smart card“, „smart card software“)
+config-DataProtectionStatement = The software PDF-Over processes the data required for the signature process locally on the installed device. The signature process with the smart card is carried out locally. During the signature process using ID Austria, the PDF document to be signed is sent to the company A-Trust. The storage period and further data protection information for signatures using ID Austria can be found in the data protection declaration of A-Trust at <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 config-DataProtectionURL = https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf
 config-FIDO2 = FIDO2
     .accesskey = F
@@ -211,10 +213,11 @@ error-KeyStoreAliasNoKey = Alias { $arg1 } is not a key
 error-KeyStoreFileNotExist = Keystore file { $arg1 } does not exist!
 error-KeyStoreStorePass = Keystore password invalid
 error-KeyStoreKeyPass = Key password invalid
+# angepasst (PIDA): Terminologie der Oberfläche („smart card“, „smart card software“)
 error-LocalBKU =
-    Please check if a local CCE (citizen card environment) is running
+    Please check if a local CCE (smart card software) is running
 
-    You need a CCE to access your citizen card. Further information under www.buergerkarte.at
+    You need a CCE to access your smart card. Further information under www.buergerkarte.at
 error-MayNotBeAPDF = This may not be a PDF file
 error-NoTan = No TAN entered
 # unused (in PDF-Over 4.4.x nicht referenziert)

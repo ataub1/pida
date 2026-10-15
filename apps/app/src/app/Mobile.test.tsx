@@ -106,7 +106,7 @@ describe('Konto-Chip und Signiermittel auf Mobilgeräten', () => {
     await user.click(await screen.findByTestId('signer-chip'));
     const item = await screen.findByRole('menuitem', { name: /ID Austria/ });
     expect(item).toHaveTextContent('Bestätigung in der App „ID Austria“ oder per SMS-TAN');
-    expect(screen.queryByRole('menuitem', { name: /Bürgerkarte/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Chipkarte/ })).not.toBeInTheDocument();
   });
 
   it('Dateiauswahl über das Plugin (Kopien in der Sandbox)', async () => {

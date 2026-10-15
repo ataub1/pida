@@ -573,7 +573,61 @@ const CORRECTIONS: &[Correction] = &[
         },
         reason: "korrigiert: Tippfehler „bittem un“ (docs/analyse/01 §6.2)",
     },
+    // Terminologie der Oberfläche von PIDA: „Chipkarte“ und „Chipkarten-Software“ statt „Bürgerkarte“ und
+    // „Bürgerkartenumgebung“ (EN „smart card“, „smart card software“); URLs wie www.buergerkarte.at bleiben.
+    Correction {
+        lang: Lang::De,
+        fix: Fix::Replace { key: "BKU.LOCAL", from: "Lokale Bürgerkarte", to: "Lokale Chipkarte" },
+        reason: TERM_DE,
+    },
+    Correction {
+        lang: Lang::De,
+        fix: Fix::Replace {
+            key: "config.DataProtectionStatement",
+            from: "mit der Bürgerkarte",
+            to: "mit der Chipkarte",
+        },
+        reason: TERM_DE,
+    },
+    Correction {
+        lang: Lang::De,
+        fix: Fix::Replace {
+            key: "error.LocalBKU",
+            from: "lokale Bürgerkartenumgebung (BKU) läuft\n\nSie benötigen eine BKU, um auf Ihre Bürgerkarte zuzugreifen.",
+            to: "lokale Chipkarten-Software (BKU) läuft\n\nSie benötigen eine BKU, um auf Ihre Chipkarte zuzugreifen.",
+        },
+        reason: TERM_DE,
+    },
+    Correction {
+        lang: Lang::En,
+        fix: Fix::Replace { key: "BKU.LOCAL", from: "Local Citizen Card", to: "Local Smart Card" },
+        reason: TERM_EN,
+    },
+    Correction {
+        lang: Lang::En,
+        fix: Fix::Replace {
+            key: "config.DataProtectionStatement",
+            from: "with the citizen card",
+            to: "with the smart card",
+        },
+        reason: TERM_EN,
+    },
+    Correction {
+        lang: Lang::En,
+        fix: Fix::Replace {
+            key: "error.LocalBKU",
+            from: "a local CCE (citizen card environment) is running\n\nYou need a CCE to access your citizen card.",
+            to: "a local CCE (smart card software) is running\n\nYou need a CCE to access your smart card.",
+        },
+        reason: TERM_EN,
+    },
 ];
+
+/// Kommentar der Terminologie-Korrekturen im erzeugten Katalog (DE; ohne die alten Begriffe, damit eine
+/// Suche nach ihnen in den Katalogen leer bleibt).
+const TERM_DE: &str = "angepasst (PIDA): Terminologie der Oberfläche („Chipkarte“, „Chipkarten-Software“)";
+/// Kommentar der Terminologie-Korrekturen im erzeugten Katalog (EN).
+const TERM_EN: &str = "angepasst (PIDA): Terminologie der Oberfläche („smart card“, „smart card software“)";
 
 /// Ergänzungen fehlender Keys (Sprachstände vollständig, docs/analyse/01 §6.2 „nur in dieser Datei“).
 const SUPPLEMENTS: &[(Lang, &str, &str)] = &[

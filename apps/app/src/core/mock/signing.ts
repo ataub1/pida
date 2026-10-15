@@ -1,7 +1,7 @@
 /**
  * Mock-Kern, Bereich Signieren (UI-A): eine Signiersitzung mit den nativen ID-Austria-Masken (Anmeldung,
  * App-Bestätigung mit Vergleichswert und Countdown, QR-Code, SMS-TAN, FIDO2), Keystore-Passwort und
- * Bürgerkarte, dazu der Fortschritt für den Stepper (`SigningProgressView`, ADR 0004 §3.6).
+ * Chipkarte, dazu der Fortschritt für den Stepper (`SigningProgressView`, ADR 0004 §3.6).
  *
  * Wie im Arbeitsbereich-Modus des Kerns: Abbruch führt zurück zum Arbeitsbereich (Hinweis
  * `ng-signing-cancelled`), Fehler erscheinen als Fehlerschritt mit Herkunft `signing`, „Erneut versuchen“
@@ -264,7 +264,7 @@ export class SigningSession {
     }
   }
 
-  /** Long-Poll meldet „bestätigt“ bzw. Bürgerkarte fertig (Tests, Browser-Vorschau). */
+  /** Long-Poll meldet „bestätigt“ bzw. Chipkarte fertig (Tests, Browser-Vorschau). */
   completeConfirmation(): boolean {
     if (this.stage !== 'confirming') return false;
     if (this.interaction.kind === 'form' || (this.interaction.kind === 'waiting' && this.opts.backend === 'local_bku')) {

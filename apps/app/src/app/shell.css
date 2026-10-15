@@ -67,9 +67,6 @@
 .logo-bg {
   fill: var(--c-logo-bg);
 }
-.logo-fold {
-  fill: var(--c-logo-fold);
-}
 .header-context {
   display: flex;
   flex: 0 1 auto;

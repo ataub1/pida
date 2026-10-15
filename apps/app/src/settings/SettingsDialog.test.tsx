@@ -230,7 +230,7 @@ describe('Einstellungen', () => {
     const panel = within(dialog).getByRole('tabpanel');
     expect(within(panel).getByRole('heading', { name: 'Datenschutzinformation' })).toBeInTheDocument();
     expect(within(panel).getByText(/Die Software PIDA verarbeitet .*Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet/)).toBeInTheDocument();
-    expect(within(panel).getByText(/Mit einem Keystore oder der Bürgerkarte/)).toBeInTheDocument();
+    expect(within(panel).getByText(/Mit einem Keystore oder der Chipkarte/)).toBeInTheDocument();
     // ohne eigenen Text nur ein Link (im Text aus PDF-Over)
     const links = within(panel).getAllByRole('link');
     expect(links).toHaveLength(1);

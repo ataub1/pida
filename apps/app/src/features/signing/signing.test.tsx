@@ -1,7 +1,7 @@
 /**
  * Signierkarte (ADR 0004 §4.4, Abnahme E1 Punkt 6): jeder Zweig aus `InteractionView` bzw.
  * `SigningProgressView` – Anmeldung, App-Bestätigung (Vergleichswert, Countdown, Vorwarnung,
- * Alternativen), QR, SMS-TAN (Vergleichswert abgewiesen), FIDO2 inkl. PIN, Keystore-Passwort, Bürgerkarte,
+ * Alternativen), QR, SMS-TAN (Vergleichswert abgewiesen), FIDO2 inkl. PIN, Keystore-Passwort, Chipkarte,
  * A-Trust-Meldung, Rückfall-Auswahl, Fehler mit Details, „abgelehnt“, Abbruch – je mit axe; die Karte liegt
  * über dem eingehängten Arbeitsbereich.
  */
@@ -162,11 +162,11 @@ describe('Signierkarte: Schritte und Stepper', () => {
     await expectNoAxeViolations();
   });
 
-  it('Bürgerkarte: „PIN in der Bürgerkartenumgebung eingeben“', async () => {
+  it('Chipkarte: „PIN in der Chipkarten-Software eingeben“', async () => {
     renderApp({ view: cardView({ kind: 'waiting', progress: 'Signing' }, { backend: 'local_bku', stage: 'confirming', method: 'card', certificate: 'not_needed' }) });
-    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit Bürgerkarte' });
-    expect(dialog).toHaveTextContent('Stecken Sie Ihre Bürgerkarte in das Lesegerät');
-    expect(within(dialog).getByRole('status')).toHaveTextContent('Warten auf die Bürgerkartenumgebung');
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit Chipkarte' });
+    expect(dialog).toHaveTextContent('Stecken Sie Ihre Chipkarte in das Lesegerät');
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Warten auf die Chipkarten-Software');
     await expectNoAxeViolations();
   });
 

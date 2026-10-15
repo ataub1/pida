@@ -10,7 +10,8 @@
 ### bleiben als Link-Markup im Text (`pida_i18n::markup`).
 
 BKU-KS = Keystore
-BKU-LOCAL = Lokale Bürgerkarte
+# angepasst (PIDA): Terminologie der Oberfläche („Chipkarte“, „Chipkarten-Software“)
+BKU-LOCAL = Lokale Chipkarte
 BKU-MOBILE = ID Austria
 BKU-NONE = Keine Voreinstellung
 # unused (in PDF-Over 4.4.x nicht referenziert)
@@ -141,7 +142,8 @@ config-AboutText =
 
     Beachten Sie, dass Komponenten unter eigenen Lizenzen zur Verfügung gestellt werden, die teilweise nur für EUPL-lizensierte Software zur freien Verwendung vorgesehen sind.
 config-DataProtection = Datenschutzinformation
-config-DataProtectionStatement = Die Software PDF-Over verarbeitet für den Signaturvorgang benötigte Daten lokal auf dem installierten Gerät.  Der Signaturvorgang mit der Bürgerkarte wird lokal durchgeführt.  Beim Signaturvorgang mittels ID-Austria wird das zu signierende PDF Dokument an die Firma A-Trust gesendet.  Die Speicherdauer sowie weitere Datenschutzinformationen zur ID Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+# angepasst (PIDA): Terminologie der Oberfläche („Chipkarte“, „Chipkarten-Software“)
+config-DataProtectionStatement = Die Software PDF-Over verarbeitet für den Signaturvorgang benötigte Daten lokal auf dem installierten Gerät.  Der Signaturvorgang mit der Chipkarte wird lokal durchgeführt.  Beim Signaturvorgang mittels ID-Austria wird das zu signierende PDF Dokument an die Firma A-Trust gesendet.  Die Speicherdauer sowie weitere Datenschutzinformationen zur ID Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 config-DataProtectionURL = https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf
 config-FIDO2 = FIDO2
     .accesskey = F
@@ -212,10 +214,11 @@ error-KeyStoreAliasNoKey = Alias { $arg1 } ist kein Schlüssel
 error-KeyStoreFileNotExist = Keystore-Datei { $arg1 } existiert nicht!
 error-KeyStoreStorePass = Keystore-Passwort nicht akzeptiert
 error-KeyStoreKeyPass = Schlüssel-Passwort nicht akzeptiert
+# angepasst (PIDA): Terminologie der Oberfläche („Chipkarte“, „Chipkarten-Software“)
 error-LocalBKU =
-    Bitte prüfen sie, ob Ihre lokale Bürgerkartenumgebung (BKU) läuft
+    Bitte prüfen sie, ob Ihre lokale Chipkarten-Software (BKU) läuft
 
-    Sie benötigen eine BKU, um auf Ihre Bürgerkarte zuzugreifen. Weitere Informationen unter www.buergerkarte.at
+    Sie benötigen eine BKU, um auf Ihre Chipkarte zuzugreifen. Weitere Informationen unter www.buergerkarte.at
 error-MayNotBeAPDF = Dies ist möglicherweise keine PDF-Datei
 error-NoTan = Keine TAN eingeben
 # unused (in PDF-Over 4.4.x nicht referenziert)
