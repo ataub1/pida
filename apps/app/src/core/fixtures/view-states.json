@@ -3393,6 +3393,7 @@
       "settings": {
         "fido2_available": false,
         "keychain_available": true,
+        "preview_revision": 3,
         "problems": {
           "proxy.host": "ng-ui-problem-required"
         },
@@ -3500,6 +3501,7 @@
       "settings": {
         "fido2_available": true,
         "keychain_available": false,
+        "preview_revision": 0,
         "problems": {},
         "read_only": true,
         "settings": {

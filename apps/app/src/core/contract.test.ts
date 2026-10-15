@@ -208,7 +208,7 @@ const viewState = obj({
   step: stepView,
   main_bar: obj({ steps: arr(obj({ step, active: bool, enabled: bool })), settings_enabled: bool }),
   settings: nullable(
-    obj({ settings, problems: record(str), keychain_available: bool, fido2_available: bool, read_only: bool }),
+    obj({ settings, problems: record(str), keychain_available: bool, fido2_available: bool, read_only: bool, preview_revision: int }),
   ),
   language: lang,
   notices: arr(obj({ id: int, code: str, params: record(str) })),

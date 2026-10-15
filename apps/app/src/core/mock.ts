@@ -426,6 +426,7 @@ export class MockCore implements Bridge {
             keychain_available: this.opts.keychainAvailable,
             fido2_available: this.opts.fido2Available,
             read_only: this.opts.readOnly,
+            preview_revision: this.blockRevision,
           }
         : null,
       language: this.settings.general.ui_language ?? this.lang ?? 'de',

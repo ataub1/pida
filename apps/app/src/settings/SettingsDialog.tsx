@@ -5,7 +5,7 @@
  * erhalten), „Abbrechen“/Escape verwirft (`CloseSettings`). Validierungsprobleme kommen vom Kern
  * (`SettingsView::problems`).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Button,
   Dialog,
@@ -97,7 +97,7 @@ function SimpleTab({ draft, update, view }: TabProps) {
     const note: NoteSetting = text === defaultNote ? { mode: 'default' } : text === '' ? { mode: 'none' } : { mode: 'custom', text };
     update('signature', { note });
   };
-  const previewRev = useMemo(() => Date.now(), []);
+  const previewRev = view.preview_revision;
   const pickEmblem = async () => {
     try {
       const files = await bridge.pickFiles({

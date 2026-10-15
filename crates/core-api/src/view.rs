@@ -304,6 +304,10 @@ pub struct SettingsView {
     /// Einstellungen werden nicht gespeichert (Altdatei per `-c`, unlesbare Datei)
     #[serde(default)]
     pub read_only: bool,
+    /// Revision der Blockvorschau (Cache-Busting für `blockPreviewUrl` im Einstellungsdialog);
+    /// der Kern baut die Vorschau beim Öffnen auch ohne Dokument (A4, Beispielzertifikat) wie PDF-Over
+    #[serde(default)]
+    pub preview_revision: u64,
 }
 
 /// Gesamtzustand für die UI.

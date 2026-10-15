@@ -494,8 +494,14 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     let mut problems = BTreeMap::new();
     problems.insert("proxy.host".to_owned(), "ng-ui-problem-required".to_owned());
     let mut with_settings = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], false));
-    with_settings.settings =
-        Some(SettingsView { settings, problems, keychain_available: true, fido2_available: false, read_only: false });
+    with_settings.settings = Some(SettingsView {
+        settings,
+        problems,
+        keychain_available: true,
+        fido2_available: false,
+        read_only: false,
+        preview_revision: 3,
+    });
     with_settings.language = Lang::En;
     out.push(("settings_open", with_settings));
     let mut defaults = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], false));
@@ -505,6 +511,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         keychain_available: false,
         fido2_available: true,
         read_only: true,
+        preview_revision: 0,
     });
     out.push(("settings_defaults", defaults));
     out

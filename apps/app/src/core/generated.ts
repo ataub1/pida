@@ -1115,7 +1115,12 @@ fido2_available: boolean,
 /**
  * Einstellungen werden nicht gespeichert (Altdatei per `-c`, unlesbare Datei)
  */
-read_only: boolean, };
+read_only: boolean, 
+/**
+ * Revision der Blockvorschau (Cache-Busting für `blockPreviewUrl` im Einstellungsdialog);
+ * der Kern baut die Vorschau beim Öffnen auch ohne Dokument (A4, Beispielzertifikat) wie PDF-Over
+ */
+preview_revision: number, };
 
 /**
  * Gesamtzustand für die UI.

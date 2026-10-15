@@ -108,7 +108,7 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
     { step: 'open', queue: [] },
     {
       language: lang,
-      settings: { settings, problems: {}, keychain_available: true, fido2_available: true, read_only: false, ...extra },
+      settings: { settings, problems: {}, keychain_available: true, fido2_available: true, read_only: false, preview_revision: 0, ...extra },
       main_bar: mainBar(['AE', '', '', ''], false),
     },
   );

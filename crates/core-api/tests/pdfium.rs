@@ -116,8 +116,17 @@ async fn block_preview_without_document_uses_a4() {
         return;
     };
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
-    // ohne Positionierung wurde noch keine Vorschau gebaut
+    // ohne Positionierung und ohne Einstellungen wurde noch keine Vorschau gebaut
     assert!(core.block_preview(1.0).is_err());
+    // Einstellungen öffnen baut die Vorschau (A4, Beispielzertifikat) wie PDF-Over, auch ohne Dokument
+    core.dispatch(UiEvent::OpenSettings);
+    let v = wait_for(&core, "Vorschau in den Einstellungen", |v| {
+        v.settings.as_ref().is_some_and(|s| s.preview_revision > 0)
+    })
+    .await;
+    assert!(v.settings.unwrap().preview_revision > 0);
+    let png = core.block_preview(2.0).expect("Blockvorschau ohne Dokument");
+    assert!(is_png(&png));
 }
 
 /// Minimales PDF mit zwei unterschiedlich breiten Seiten (A4 quer, A4 hoch).

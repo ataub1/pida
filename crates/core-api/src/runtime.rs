@@ -1290,6 +1290,11 @@ impl CoreTask {
             UiEvent::OpenSettings => {
                 if self.state.settings_enabled() || matches!(self.state, State::Error { .. }) {
                     self.settings_view = Some(self.settings_view_for(self.cfg.settings.clone(), BTreeMap::new()));
+                    // Vorschau im Einstellungsdialog auch ohne positioniertes Dokument (PDF-Over zeigt sie immer)
+                    if lock(&self.shared.block).pdf.is_none() {
+                        let doc = self.current_doc().map(|d| d.id);
+                        self.effect_block(doc);
+                    }
                 }
             }
             UiEvent::SaveSettings { settings } => {
@@ -1332,6 +1337,7 @@ impl CoreTask {
             keychain_available: self.cfg.secrets.is_persistent(),
             fido2_available: self.fido2_available,
             read_only: self.cfg.read_only(),
+            preview_revision: 0,
         }
     }
 
@@ -1566,7 +1572,10 @@ impl CoreTask {
         ViewState {
             step,
             main_bar,
-            settings: self.settings_view.clone(),
+            settings: self.settings_view.clone().map(|mut v| {
+                v.preview_revision = lock(&self.shared.block).revision;
+                v
+            }),
             language: self.cfg.language(),
             notices: self.notices.clone(),
             migration: self
