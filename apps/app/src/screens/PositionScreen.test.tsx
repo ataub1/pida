@@ -1,0 +1,202 @@
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { renderApp } from '../test/render';
+import { DOC, positionView } from '../test/views';
+import { clampToPage } from './PositionScreen';
+
+async function block() {
+  return screen.findByRole('application', { name: 'Signatur' });
+}
+
+describe('Positionieren', () => {
+  it('zeigt Seite, Block, Seitenanzeige und Hilfe', async () => {
+    renderApp({ view: positionView() });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Signatur positionieren' })).toBeInTheDocument();
+    const b = await block();
+    expect(b).toHaveAttribute('aria-roledescription', 'verschiebbarer Signaturblock');
+    expect(b).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('img', { name: 'Seite 3 von 3 – Vertrag.pdf' })).toBeInTheDocument();
+    expect(screen.getByText('Seite 3 von 3', { selector: '.pager-label' })).toBeInTheDocument();
+    // Status: 297,64 pt ≈ 105 mm von links; (210,47 − 82) pt ≈ 45 mm von unten
+    expect(document.getElementById('position-status')).toHaveTextContent('Seite 3 von 3, 105 mm von links, 45 mm von unten');
+    expect(b.getAttribute('aria-describedby')).toContain('position-help');
+  });
+
+  it('Pfeiltasten: 15/1/50 pt über NudgeBlock (fein = Shift, grob = Strg/⌘)', async () => {
+    const { mock } = renderApp({ view: positionView() });
+    const b = await block();
+    b.focus();
+    fireEvent.keyDown(b, { key: 'ArrowRight' });
+    fireEvent.keyDown(b, { key: 'ArrowUp', shiftKey: true });
+    fireEvent.keyDown(b, { key: 'ArrowLeft', ctrlKey: true });
+    fireEvent.keyDown(b, { key: 'ArrowDown', metaKey: true });
+    expect(mock.dispatched).toEqual([
+      { type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false },
+      { type: 'nudge_block', dx: 0, dy: 1, fine: true, coarse: false },
+      { type: 'nudge_block', dx: -1, dy: 0, fine: false, coarse: true },
+      { type: 'nudge_block', dx: 0, dy: -1, fine: false, coarse: true },
+    ]);
+  });
+
+  it('Bild↑/↓, Pos1/Ende wechseln die Seite, Enter bestätigt', async () => {
+    const { mock } = renderApp({ view: positionView({ page: 1, placement: { page_index: 1, x: 10, y: 300, width: 232, height: 82 } }) });
+    const b = await block();
+    fireEvent.keyDown(b, { key: 'PageUp' });
+    fireEvent.keyDown(b, { key: 'PageDown' });
+    fireEvent.keyDown(b, { key: 'Home' });
+    fireEvent.keyDown(b, { key: 'End' });
+    fireEvent.keyDown(b, { key: 'Enter' });
+    expect(mock.dispatched).toEqual([
+      { type: 'change_page', page: 0 },
+      { type: 'change_page', page: 2 },
+      { type: 'change_page', page: 0 },
+      { type: 'change_page', page: 2 },
+      { type: 'confirm_position' },
+    ]);
+  });
+
+  it('Seitenknöpfe sind an den Rändern gesperrt', async () => {
+    const { mock, user } = renderApp({ view: positionView() });
+    await block();
+    expect(screen.getByRole('button', { name: 'Nächste Seite' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Vorherige Seite' }));
+    expect(mock.dispatched).toEqual([{ type: 'change_page', page: 1 }]);
+  });
+
+  it('Mausrad blättert (Shift: 5 Seiten)', async () => {
+    const { mock } = renderApp({ view: positionView({ page: 0, placement: { page_index: 0, x: 10, y: 300, width: 232, height: 82 } }) });
+    await block();
+    const stage = document.querySelector('.page-stage') as HTMLElement;
+    const now = vi.spyOn(Date, 'now');
+    now.mockReturnValue(1000);
+    fireEvent.wheel(stage, { deltaY: 120 });
+    now.mockReturnValue(2000);
+    fireEvent.wheel(stage, { deltaY: 120, shiftKey: true });
+    expect(mock.dispatched).toEqual([
+      { type: 'change_page', page: 1 },
+      { type: 'change_page', page: 2 },
+    ]);
+  });
+
+  it('Ziehen mit dem Zeiger sendet MoveBlock (Greifversatz bleibt)', async () => {
+    const { mock } = renderApp({ view: positionView() });
+    const b = await block();
+    const surface = document.querySelector('.page-surface') as HTMLElement;
+    // Fallback-Maßstab ohne Layout: min(560/595.28, 760/841.89) ≈ 0.9027
+    const scale = Math.min(560 / DOC.page_sizes[2]![0], 760 / DOC.page_sizes[2]![1]);
+    surface.getBoundingClientRect = () => ({ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+    const ph = DOC.page_sizes[2]![1];
+    // Block bei x=297.64, Oberkante y=210.47 → 10 pt innerhalb des Blocks greifen
+    const grabX = (297.64 + 10) * scale;
+    const grabY = (ph - 210.47 + 10) * scale;
+    fireEvent.pointerDown(b, { button: 0, pointerId: 1, clientX: grabX, clientY: grabY });
+    fireEvent.pointerMove(surface, { pointerId: 1, clientX: grabX - 100 * scale, clientY: grabY - 50 * scale });
+    fireEvent.pointerUp(surface, { pointerId: 1, clientX: grabX - 100 * scale, clientY: grabY - 50 * scale });
+    await waitFor(() => expect(mock.dispatched.length).toBeGreaterThan(0));
+    const last = mock.dispatched[mock.dispatched.length - 1];
+    expect(last).toMatchObject({ type: 'move_block', page: 2 });
+    if (last?.type !== 'move_block') throw new Error('move_block erwartet');
+    expect(last.x).toBeCloseTo(197.64, 1);
+    expect(last.y).toBeCloseTo(260.47, 1);
+    // vorläufige Lage während des Ziehens sichtbar
+    expect(b).toHaveAttribute('data-dragging');
+  });
+
+  it('Klick neben den Block setzt die linke obere Ecke an den Zeiger (geklemmt)', async () => {
+    const { mock } = renderApp({ view: positionView() });
+    await block();
+    const surface = document.querySelector('.page-surface') as HTMLElement;
+    surface.getBoundingClientRect = () => ({ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(surface, { button: 0, pointerId: 2, clientX: 5000, clientY: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 2, clientX: 5000, clientY: 1 });
+    await waitFor(() => expect(mock.dispatched.length).toBeGreaterThan(0));
+    const last = mock.dispatched[mock.dispatched.length - 1];
+    if (last?.type !== 'move_block') throw new Error('move_block erwartet');
+    expect(last.x).toBeCloseTo(595.28 - 232, 1);
+    expect(last.y).toBeCloseTo(841.89 - 1 / Math.min(560 / 595.28, 760 / 841.89), 0);
+  });
+
+  it('Zahlenfelder in mm und pt senden MoveBlock bzw. ChangePage', async () => {
+    const { mock, user } = renderApp({ view: positionView() });
+    await block();
+    const x = screen.getByRole('textbox', { name: 'X von links (mm)' });
+    expect(x).toHaveValue('105');
+    await user.clear(x);
+    await user.type(x, '20{Enter}');
+    const ev = mock.dispatched[mock.dispatched.length - 1];
+    if (ev?.type !== 'move_block') throw new Error('move_block erwartet');
+    expect(ev.x).toBeCloseTo((20 * 72) / 25.4, 3);
+    expect(ev.y).toBeCloseTo(210.47, 2);
+
+    await user.click(screen.getByRole('radio', { name: 'pt' }));
+    const y = screen.getByRole('textbox', { name: 'Y Oberkante von unten (pt)' });
+    expect(y).toHaveValue('210,5');
+    await user.clear(y);
+    await user.type(y, '400{Enter}');
+    const ev2 = mock.dispatched[mock.dispatched.length - 1];
+    expect(ev2).toEqual({ type: 'move_block', page: 2, x: 297.64, y: 400 });
+
+    const page = screen.getByRole('textbox', { name: 'Seite' });
+    await user.clear(page);
+    await user.type(page, '1{Enter}');
+    expect(mock.dispatched[mock.dispatched.length - 1]).toEqual({ type: 'change_page', page: 0 });
+  });
+
+  it('Neue Seite, Automatisch, Unsichtbar, Signieren', async () => {
+    const { mock, user } = renderApp({ view: positionView() });
+    await block();
+    await user.click(screen.getByRole('button', { name: 'Neue Seite anlegen' }));
+    await user.click(screen.getByRole('button', { name: 'Automatisch' }));
+    await user.click(screen.getByRole('button', { name: 'Unsichtbar signieren' }));
+    await user.click(screen.getByRole('button', { name: 'Signieren' }));
+    expect(mock.dispatched).toEqual([{ type: 'toggle_new_page' }, { type: 'auto_place' }, { type: 'choose_invisible' }, { type: 'confirm_position' }]);
+  });
+
+  it('virtuelle neue Seite und signiertes Dokument', async () => {
+    renderApp({
+      view: positionView({
+        doc: { ...DOC, signed: true },
+        page: 3,
+        new_page: true,
+        placement: { page_index: 3, x: 0, y: 841.89, width: 232, height: 82 },
+      }),
+    });
+    await block();
+    expect(screen.getByRole('img', { name: 'Neue leere Seite' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Neue Seite rückgängig' })).toBeEnabled();
+    expect(screen.getByText('Seite 4 von 4', { selector: '.pager-label' })).toBeInTheDocument();
+    expect(screen.getByText(/bereits signiert/)).toBeInTheDocument();
+  });
+
+  it('Live-Region meldet die neue Position', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { mock } = renderApp({ view: positionView() });
+      await block();
+      act(() => mock.setView(positionView({ placement: { page_index: 2, x: 56.69, y: 200, width: 232, height: 82 }, announce: { left: '20', bottom: '42' } })));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(screen.getByTestId('live-region')).toHaveTextContent('Seite 3 von 3, 20 mm von links, 42 mm von unten');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('englisch: Beschriftungen und Zugriffstasten', async () => {
+    renderApp({ view: positionView({}, 'en') });
+    await screen.findByRole('application', { name: 'Signature' });
+    const sign = screen.getByRole('button', { name: 'Sign' });
+    expect(sign).toHaveAttribute('aria-keyshortcuts', 'Alt+S');
+    const toolbar = document.querySelector('.position-actions') as HTMLElement;
+    expect(within(toolbar).getByRole('button', { name: 'Create new Page' })).toBeInTheDocument();
+  });
+});
+
+describe('clampToPage', () => {
+  it('klemmt wie F-35; Block größer als Seite liegt links/oben an (KR-F11)', () => {
+    expect(clampToPage(-5, 10, 100, 40, 595, 842)).toEqual({ x: 0, y: 40 });
+    expect(clampToPage(600, 900, 100, 40, 595, 842)).toEqual({ x: 495, y: 842 });
+    expect(clampToPage(10, 10, 700, 900, 595, 842)).toEqual({ x: 0, y: 842 });
+  });
+});

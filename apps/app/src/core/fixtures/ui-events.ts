@@ -1,0 +1,73 @@
+/**
+ * Beispiel-Ereignisse aller `UiEvent`-Varianten, **typisiert** (der Compiler prüft sie gegen
+ * `types.ts`). `contract.test.ts` schreibt bzw. vergleicht daraus `ui-events.json`; der Rust-Test
+ * `apps/app/src-tauri/tests/serde_contract.rs` liest diese Datei als `pdfover_core_api::UiEvent`.
+ * Die Zugangsdaten sind Testwerte ohne Bedeutung.
+ */
+import { defaultSettings } from '../defaults';
+import type { Settings, UiEvent } from '../types';
+
+const settings: Settings = {
+  ...defaultSettings(),
+  general: { ui_language: 'en', update_check: false, window_size: { width: 860, height: 900 }, last_source_directory: '/Users/demo' },
+  signature: {
+    profile: 'BASE_LOGO',
+    block_language: 'de',
+    note: { mode: 'custom', text: 'Eigener Hinweis' },
+    pdfa_force: true,
+    auto_position: false,
+    emblem: '/Users/demo/logo.png',
+    logo_only_size_mm: 30.5,
+    cms_profile: 'pades_bb',
+  },
+  keystore: { enabled: true, file: '/Users/demo/keystore.p12', declared_type: 'PKCS12', alias: 'signer', password_storage: 'keychain' },
+  proxy: { mode: 'manual', host: 'proxy.example.invalid', port: 3128, user: 'demo' },
+  privacy: { acknowledged: { atrust_native: 1 } },
+  // unbekannte Einträge (Settings::unknown, flatten) müssen den Rundlauf überstehen
+  'signature.future_key': 'bleibt',
+  future: 42,
+};
+
+export const UI_EVENT_SAMPLES: UiEvent[] = [
+  { type: 'open_files', paths: ['/Users/demo/Vertrag.pdf', 'C:\\Users\\demo\\Angebot.pdf'] },
+  { type: 'placeholder_answer', answer: 'Yes', field_index: 1 },
+  { type: 'move_block', page: 1, x: 100.5, y: 210 },
+  { type: 'nudge_block', dx: -1, dy: 1, fine: true, coarse: false },
+  { type: 'change_page', page: 2 },
+  { type: 'toggle_new_page' },
+  { type: 'auto_place' },
+  { type: 'confirm_position' },
+  { type: 'choose_backend', backend: 'atrust_native' },
+  { type: 'acknowledge_privacy', accepted: true },
+  { type: 'submit_form', request: 1, answer: { kind: 'login', username: '+43664123456789', password: 'geheim-123', remember: true } },
+  { type: 'submit_secret', request: 2, secret: 'geheim-123' },
+  { type: 'answer_notice', request: 3, answer: 'Retry' },
+  { type: 'open_signature_data', request: 4 },
+  { type: 'cancel' },
+  { type: 'retry' },
+  { type: 'save', path: '/Users/demo/Vertrag_signed.pdf' },
+  { type: 'confirm_overwrite', overwrite: false },
+  { type: 'open_result' },
+  { type: 'navigate', step: 'Positioning' },
+  { type: 'open_settings' },
+  { type: 'save_settings', settings },
+  { type: 'close_settings' },
+  { type: 'reset_settings' },
+  { type: 'backgrounded' },
+  { type: 'foregrounded' },
+  { type: 'quit' },
+];
+
+/** Weitere Antworten (alle `FormAnswerView`-Varianten, `save` ohne Pfad, Platzhalter ohne Feld). */
+export const UI_EVENT_EXTRA: UiEvent[] = [
+  { type: 'submit_form', request: 5, answer: { kind: 'tan', tan: '917253' } },
+  { type: 'submit_form', request: 6, answer: { kind: 'switch_to_sms' } },
+  { type: 'submit_form', request: 7, answer: { kind: 'switch_to_fido2' } },
+  { type: 'submit_form', request: 8, answer: { kind: 'start_fido2' } },
+  { type: 'submit_form', request: 9, answer: { kind: 'continue' } },
+  { type: 'save', path: null },
+  { type: 'placeholder_answer', answer: 'Cancel', field_index: null },
+  { type: 'answer_notice', request: 10, answer: 'Ok' },
+  { type: 'navigate', step: 'Open' },
+  { type: 'choose_backend', backend: 'keystore' },
+];

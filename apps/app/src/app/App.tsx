@@ -1,0 +1,292 @@
+/**
+ * Wurzel der Oberfläche: abonniert den `ViewState`, rendert Hauptleiste + Schritt + Einstellungen,
+ * verteilt Drag & Drop, Zugriffstasten (`&`-Mnemonics: Alt+Taste, macOS ⌃⌥+Taste), Tastenkürzel
+ * (Strg/⌘+O, Strg/⌘+,), Fokuswechsel beim Schrittwechsel, Live-Region und Hinweise.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { I18nProvider } from 'react-aria-components';
+import { MainBar } from '../components/MainBar';
+import { Toasts } from '../components/Toasts';
+import type { Bridge, FileDragEvent } from '../core/bridge';
+import { mainBar } from '../core/defaults';
+import { notification, type UiEventExt } from '../core/extensions';
+import type { StepView, ViewState } from '../core/types';
+import { translator } from '../i18n/catalog';
+import { BackendScreen } from '../screens/BackendScreen';
+import { OpenScreen } from '../screens/OpenScreen';
+import { OutputScreen } from '../screens/OutputScreen';
+import { PlaceholderScreen } from '../screens/PlaceholderScreen';
+import { PositionScreen } from '../screens/PositionScreen';
+import { SigningScreen } from '../screens/SigningScreen';
+import { ErrorScreen, FinishedScreen, StartingScreen } from '../screens/StatusScreens';
+import { EMBLEM_DROP_EVENT, SettingsDialog } from '../settings/SettingsDialog';
+import { applyTheme, readTheme } from '../settings/theme';
+import { AppContext, type AppContextValue, type Toast } from './context';
+
+const STARTING: ViewState = {
+  step: { step: 'starting' },
+  main_bar: mainBar(['', '', '', ''], false),
+  settings: null,
+  language: 'de',
+};
+
+const STEP_TITLE: Record<StepView['step'], string> = {
+  starting: 'ng-ui-starting',
+  open: 'ng-ui-open-title',
+  placeholder: 'ng-ui-placeholder-title',
+  position: 'ng-ui-position-title',
+  backend: 'ng-ui-backend-title',
+  signing: 'main-signature',
+  output: 'main-done',
+  error: 'error-Title',
+  finished: 'ng-ui-finished',
+};
+
+const IMAGE_EXT = /\.(png|jpe?g|gif)$/i;
+const INTERACTIVE = 'button, a[href], input, select, textarea, [role="tab"], [role="radio"], [role="checkbox"], [role="button"], [tabindex]:not([tabindex="-1"])';
+
+/** Zugriffstaste aus einem Tastaturereignis (`KeyB` → `b`), plattformgerecht. */
+export function accessKeyFromEvent(e: KeyboardEvent, isMac: boolean): string | null {
+  const modifier = isMac ? e.ctrlKey && e.altKey && !e.metaKey : e.altKey && !e.ctrlKey && !e.metaKey;
+  if (!modifier) return null;
+  const m = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(e.code);
+  if (!m) return null;
+  return (m[1] ?? m[2] ?? '').toLowerCase() || null;
+}
+
+/** Löst eine Zugriffstaste in der obersten Ebene (Dialog bzw. Seite) aus. */
+export function triggerAccessKey(key: string, root: Document = document): boolean {
+  const layers = root.querySelectorAll<HTMLElement>('[data-modal-layer]');
+  const scope: ParentNode = layers.length > 0 ? (layers[layers.length - 1] as HTMLElement) : root;
+  const candidates = Array.from(scope.querySelectorAll<HTMLElement>(`[data-accesskey="${key}"]`));
+  for (const el of candidates) {
+    if (el.closest('[inert], [hidden], [aria-hidden="true"]')) continue;
+    const target = el.closest<HTMLElement>(INTERACTIVE) ?? el.closest<HTMLElement>('.field, .radio-group, fieldset')?.querySelector<HTMLElement>(INTERACTIVE) ?? null;
+    if (!target) continue;
+    if (target.matches(':disabled') || target.getAttribute('aria-disabled') === 'true' || target.hasAttribute('data-disabled')) continue;
+    if (target.matches('input, select, textarea') || target.getAttribute('aria-haspopup')) {
+      target.focus();
+    } else {
+      target.focus();
+      target.click();
+    }
+    return true;
+  }
+  return false;
+}
+
+export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: boolean }) {
+  const [view, setView] = useState<ViewState | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [liveText, setLiveText] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  const toastId = useRef(0);
+  const isMac = isMacProp ?? (typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
+
+  const current = view ?? STARTING;
+  const t = translator(current.language);
+
+  // --- Zustand vom Kern ------------------------------------------------------------------------
+  useEffect(() => {
+    let alive = true;
+    const off = bridge.onState((v) => alive && setView(v));
+    bridge
+      .view()
+      .then((v) => alive && setView((cur) => cur ?? v))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+      off();
+    };
+  }, [bridge]);
+
+  useEffect(() => {
+    applyTheme(readTheme());
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = current.language;
+  }, [current.language]);
+
+  const toast = useCallback((text: string, kind: Toast['kind'] = 'info') => {
+    toastId.current += 1;
+    const id = toastId.current;
+    setToasts((list) => [...list.slice(-3), { id, kind, text }]);
+  }, []);
+  const dismiss = useCallback((id: number) => setToasts((list) => list.filter((x) => x.id !== id)), []);
+
+  const announce = useCallback((text: string) => {
+    setLiveText('');
+    setTimeout(() => setLiveText(text), 30);
+  }, []);
+
+  const dispatch = useCallback(
+    (event: UiEventExt) => {
+      bridge.dispatch(event).catch((e: unknown) => {
+        const code = e instanceof Error ? e.message : 'ng-ui-bridge-error';
+        toast(translator(current.language).code(code, {}, 'ng-ui-bridge-error'), 'error');
+      });
+    },
+    [bridge, toast, current.language],
+  );
+
+  // Hinweise ohne Rückfrage (vorgeschlagene Erweiterung `ViewState::notification`)
+  const note = notification(current);
+  const lastNote = useRef<number | null>(null);
+  useEffect(() => {
+    if (!note || note.id === lastNote.current) return;
+    lastNote.current = note.id;
+    toast(t.code(note.code, note.params, 'ng-ui-error-unknown'));
+  }, [note, t, toast]);
+
+  // --- Dateien öffnen --------------------------------------------------------------------------
+  const browse = useCallback(async () => {
+    try {
+      const paths = await bridge.pickFiles({
+        title: t.t('dataSourceSelection-browse'),
+        multiple: true,
+        filters: [
+          { name: t.t('common-PDFExtension_Description'), extensions: ['pdf'] },
+          { name: t.t('common-AllExtension_Description'), extensions: ['*'] },
+        ],
+      });
+      if (paths && paths.length > 0) dispatch({ type: 'open_files', paths });
+    } catch {
+      toast(t.t('ng-ui-dialog-failed'), 'error');
+    }
+  }, [bridge, dispatch, t, toast]);
+
+  // --- Drag & Drop -----------------------------------------------------------------------------
+  const stepName = current.step.step;
+  const settingsOpen = current.settings !== null;
+  const dropState = useRef({ stepName, settingsOpen });
+  dropState.current = { stepName, settingsOpen };
+  useEffect(() => {
+    return bridge.onFileDrag((e: FileDragEvent) => {
+      if (e.type === 'enter' || e.type === 'over') {
+        setDragActive(true);
+        return;
+      }
+      setDragActive(false);
+      if (e.type !== 'drop' || e.paths.length === 0) return;
+      const { stepName: s, settingsOpen: so } = dropState.current;
+      if (so) {
+        const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(e.x, e.y) : null;
+        const image = e.paths.find((p) => IMAGE_EXT.test(p));
+        if (image && hit?.closest('[data-emblem-drop]')) {
+          window.dispatchEvent(new CustomEvent(EMBLEM_DROP_EVENT, { detail: image }));
+        }
+        return;
+      }
+      if (s === 'open' || s === 'output') {
+        dispatch({ type: 'open_files', paths: e.paths });
+      } else {
+        toast(translator(current.language).t('ng-ui-drop-not-here'));
+      }
+    });
+  }, [bridge, dispatch, toast, current.language]);
+
+  // --- Tastatur --------------------------------------------------------------------------------
+  const keyState = useRef({ current, browse, dispatch });
+  keyState.current = { current, browse, dispatch };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const { current: v, browse: b, dispatch: d } = keyState.current;
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && !e.altKey && !e.shiftKey && e.key === ',') {
+        if (v.main_bar.settings_enabled && !v.settings) {
+          e.preventDefault();
+          d({ type: 'open_settings' });
+        }
+        return;
+      }
+      if (mod && !e.altKey && !e.shiftKey && (e.key === 'o' || e.key === 'O')) {
+        if (!v.settings && v.step.step === 'open') {
+          e.preventDefault();
+          void b();
+        } else if (!v.settings && v.main_bar.steps.find((s) => s.step === 'Open')?.enabled) {
+          e.preventDefault();
+          d({ type: 'navigate', step: 'Open' });
+        }
+        return;
+      }
+      const key = accessKeyFromEvent(e, isMac);
+      if (key && triggerAccessKey(key)) e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isMac]);
+
+  // --- Fokus und Titel beim Schrittwechsel -----------------------------------------------------
+  useEffect(() => {
+    document.title = `PDF-Over NG – ${t.t(STEP_TITLE[stepName])}`;
+  }, [stepName, t]);
+  const firstStep = useRef(true);
+  useEffect(() => {
+    if (firstStep.current) {
+      firstStep.current = false;
+      return;
+    }
+    const id = setTimeout(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && document.body.contains(active)) return;
+      document.getElementById('screen-heading')?.focus();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [stepName]);
+
+  const ctx = useMemo<AppContextValue>(
+    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac }),
+    [bridge, current, dispatch, t, announce, toast, dragActive, isMac],
+  );
+
+  return (
+    <I18nProvider locale={current.language === 'de' ? 'de-AT' : 'en-GB'}>
+      <AppContext.Provider value={ctx}>
+        <div className="app" data-step={stepName} data-drag={dragActive || undefined}>
+          <a className="skip-link" href="#main">
+            {t.t('ng-ui-skip-to-content')}
+          </a>
+          <header className="topbar">
+            <div className="brand" aria-hidden="true">
+              <img src="/app-icon.svg" alt="" width={28} height={28} />
+              <span>PDF-Over NG</span>
+            </div>
+            <MainBar onOpenFiles={() => void browse()} />
+          </header>
+          <main id="main" className="content" tabIndex={-1}>
+            <Screen step={current.step} onBrowse={() => void browse()} />
+          </main>
+          {current.settings ? <SettingsDialog settingsView={current.settings} /> : null}
+          <Toasts toasts={toasts} onDismiss={dismiss} />
+          <div className="visually-hidden" aria-live="polite" aria-atomic="true" data-testid="live-region">
+            {liveText}
+          </div>
+        </div>
+      </AppContext.Provider>
+    </I18nProvider>
+  );
+}
+
+function Screen({ step, onBrowse }: { step: StepView; onBrowse: () => void }) {
+  switch (step.step) {
+    case 'starting':
+      return <StartingScreen />;
+    case 'open':
+      return <OpenScreen queue={step.queue} onBrowse={onBrowse} />;
+    case 'placeholder':
+      return <PlaceholderScreen doc={step.doc} fields={step.fields} qr={step.qr} />;
+    case 'position':
+      return <PositionScreen view={step} />;
+    case 'backend':
+      return <BackendScreen options={step.options} privacyNotice={step.privacy_notice} />;
+    case 'signing':
+      return <SigningScreen interaction={step.interaction} queue={step.queue} />;
+    case 'output':
+      return <OutputScreen step={step} result={step.result} next={step.next} />;
+    case 'error':
+      return <ErrorScreen code={step.code} params={step.params} retry={step.retry} />;
+    case 'finished':
+      return <FinishedScreen exitCode={step.exit_code} />;
+  }
+}

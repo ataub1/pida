@@ -34,6 +34,7 @@ members = [
     "crates/core-api",
     # Anwendungen
     "apps/cli",
+    "apps/app/src-tauri",
     # "apps/app/src-tauri",   # Tauri-2-Shell (Desktop + Mobile); wird erst in der Integration angelegt (ADR 0001 §3)
 ]
 
