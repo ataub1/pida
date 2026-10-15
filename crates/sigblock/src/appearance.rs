@@ -589,8 +589,10 @@ fn push_font(
     fd.set("StemV", Object::Real(t.stem_v));
     fd.set("FontWeight", Object::Real(t.weight));
     fd.set("FontFile2", local(font_file));
-    // PDF-AS entfernt CIDSet nur bei PDF/A-3 (PDFAsTemplateCreator.removeCidSet)
-    if pdfa != PdfaMode::Part3 {
+    // PDF-AS entfernt CIDSet nur bei PDF/A-3 (PDFAsTemplateCreator.removeCidSet). Bei PDF/A-2 verletzt
+    // das Subset-CIDSet ISO 19005-2 6.2.11.4.2-2 (veraPDF); ab Teil 2 ist CIDSet optional, daher bewusst
+    // auch dort weglassen (Kompatibilitätsregister: Korrektur der PDF-AS-Lücke bei PDF/A-2).
+    if !omit_cid_set(pdfa) {
         fd.set("CIDSet", local(cid_set_idx));
     }
     objects.push(Object::Dictionary(fd));
@@ -600,10 +602,15 @@ fn push_font(
     objects.push(flate_stream(ff, &subset)?);
     objects.push(flate_stream(Dictionary::new(), &to_unicode_cmap(&uni))?);
     objects.push(flate_stream(Dictionary::new(), &cid_to_gid)?);
-    if pdfa != PdfaMode::Part3 {
+    if !omit_cid_set(pdfa) {
         objects.push(flate_stream(Dictionary::new(), &cid_set)?);
     }
     Ok(type0)
+}
+
+/// `CIDSet` entfällt ab PDF/A-2 (optional laut ISO 19005-2/-3; ein Subset-CIDSet wäre dort nicht konform).
+fn omit_cid_set(pdfa: PdfaMode) -> bool {
+    matches!(pdfa, PdfaMode::Part2 | PdfaMode::Part3)
 }
 
 // ------------------------------------------------------------------------------------------------

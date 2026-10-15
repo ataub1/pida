@@ -60,7 +60,7 @@ impl CertFields {
 }
 
 /// PDF/A-Behandlung des Blocks (Plan §6.9): Teile 1–3 gleich (eingebettete Fonts), Teil 1 ohne
-/// Alpha, Teil 3 ohne `CIDSet`.
+/// Alpha, Teil 2 und 3 ohne `CIDSet`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
 pub enum PdfaMode {
     /// kein PDF/A

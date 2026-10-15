@@ -5,7 +5,7 @@
 //! - TTF: Breite = `round(advance · 1000 / upem)` (so steht sie im `/W`-Array), Descent =
 //!   `hhea.descender · 1000 / upem` (float); DejaVuSansMono 602, descent −235.84.
 //! - Einbettung als Type0/CIDFontType2-Subset (Identity-H, `/W`, ToUnicode, CIDToGIDMap, CIDSet außer
-//!   bei PDF/A-3) über `skrifa` + `subsetter` (Objekte baut [`crate::Appearance::build`]).
+//!   bei PDF/A-2/-3) über `skrifa` + `subsetter` (Objekte baut [`crate::Appearance::build`]).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
