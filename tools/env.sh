@@ -30,3 +30,24 @@ if [ -d "$PDFOVER_ROOT/.venv" ]; then
 elif [ -d "$PDFOVER_MAIN/.venv" ]; then
   export PATH="$PDFOVER_MAIN/.venv/bin:$PATH"
 fi
+
+# PDFium des Hosts (tools/fetch-pdfium.sh), sofern vorhanden und nicht schon gesetzt.
+if [ -z "${PDFOVER_PDFIUM_DIR:-}" ] && [ -d "$PDFOVER_MAIN/tools/pdfium/mac-arm64/lib" ] && [ "$(uname -sm)" = "Darwin arm64" ]; then
+  export PDFOVER_PDFIUM_DIR="$PDFOVER_MAIN/tools/pdfium/mac-arm64/lib"
+fi
+
+# Mobile-Toolchains (Homebrew): JDK für Gradle, Android-SDK/NDK für Tauri-Android.
+if [ -z "${JAVA_HOME:-}" ] && [ -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]; then
+  export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+fi
+if [ -z "${ANDROID_HOME:-}" ] && [ -d /opt/homebrew/share/android-commandlinetools ]; then
+  export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+fi
+if [ -n "${ANDROID_HOME:-}" ] && [ -z "${NDK_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
+  _pdfover_ndk="$(ls -1 "$ANDROID_HOME/ndk" 2>/dev/null | sort -V | tail -1)"
+  [ -n "$_pdfover_ndk" ] && export NDK_HOME="$ANDROID_HOME/ndk/$_pdfover_ndk"
+  unset _pdfover_ndk
+fi
+if [ -n "${ANDROID_HOME:-}" ]; then
+  export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+fi
