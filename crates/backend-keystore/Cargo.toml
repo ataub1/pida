@@ -25,7 +25,7 @@ tokio = { workspace = true }
 # PBES2 mit PRF HMAC-SHA-1 (`sha1-insecure`, ältere OpenSSL-/Java-Exporte) und mit DES-EDE3-CBC
 # (`3des`). Nur Entschlüsseln; neue Keystores schreibt der Klon nicht. Version muss der von
 # p12-keystore entsprechen (bei einem Update von p12-keystore mitziehen).
-pkcs5 = { version = "=0.8.1", default-features = false, features = ["sha1-insecure", "3des"] }
+pkcs5 = { workspace = true }
 
 [dev-dependencies]
 pdfover-backend-api = { workspace = true, features = ["testing"] }

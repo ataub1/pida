@@ -1,0 +1,46 @@
+# cargo-about 0.9.2: Drittlizenz-Hinweise der Rust-Abhängigkeiten (Plan §2.5, §10.2).
+# Aufruf über tools/third-party-notices.sh (dort auch PDFium, Fonts/AFM und npm).
+#
+# Dieselbe Allowlist wie deny.toml; was hier fehlt, bricht die Erzeugung ab (--fail).
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "BSL-1.0",
+    "OFL-1.1",
+    "Bitstream-Vera",
+]
+
+# Ausgelieferte Ziele (wie deny.toml [graph] targets).
+targets = [
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-apple-ios",
+    "aarch64-apple-ios-sim",
+    "x86_64-apple-ios",
+    "aarch64-linux-android",
+    "armv7-linux-androideabi",
+    "x86_64-linux-android",
+]
+
+# Nur, was im Binary landet: Testabhängigkeiten nicht; Build-Abhängigkeiten (Proc-Macros,
+# Build-Skripte) vorsorglich schon.
+ignore-dev-dependencies = true
+ignore-build-dependencies = false
+
+# Lizenztexte kommen ausschließlich aus den Crate-Quellen (Aufruf mit --offline/--locked).
+
+# Eigene Crates (EUPL-1.2, publish = false) gehören nicht in die Drittlizenzen.
+private = { ignore = true }
+
+# Bekannte Paketierungslücken (Lizenzdateien ohne erkennbaren SPDX-Text), von cargo-about gepflegt.
+workarounds = ["ring", "rustls"]

@@ -1,0 +1,542 @@
+[
+  {
+    "id": "cms-der",
+    "de": "Die Signaturdaten (CMS) sind nicht lesbar.",
+    "en": "The signature data (CMS) cannot be parsed."
+  },
+  {
+    "id": "cms-certificate",
+    "de": "Ein Zertifikat ist nicht lesbar.",
+    "en": "A certificate cannot be read."
+  },
+  {
+    "id": "cms-unsupported-algorithm",
+    "de": "Der Signatur- oder Hashalgorithmus wird nicht unterstützt.",
+    "en": "The signature or hash algorithm is not supported."
+  },
+  {
+    "id": "cms-not-signed-data",
+    "de": "Die Daten sind keine CMS-Signatur (SignedData).",
+    "en": "The data is not a CMS signature (SignedData)."
+  },
+  {
+    "id": "cms-signer-count",
+    "de": "Die Signatur enthält nicht genau einen Unterzeichner.",
+    "en": "The signature does not contain exactly one signer."
+  },
+  {
+    "id": "cms-missing-attribute",
+    "de": "Ein Pflichtattribut der Signatur fehlt.",
+    "en": "A required signature attribute is missing."
+  },
+  {
+    "id": "cms-digest-mismatch",
+    "de": "Die Prüfsumme der Signatur passt nicht zum Dokument.",
+    "en": "The signature digest does not match the document."
+  },
+  {
+    "id": "cms-invalid-signature",
+    "de": "Der Signaturwert ist ungültig.",
+    "en": "The signature value is invalid."
+  },
+  {
+    "id": "cms-signer-certificate-missing",
+    "de": "Das Zertifikat des Unterzeichners fehlt in der Signatur.",
+    "en": "The signer certificate is missing from the signature."
+  },
+  {
+    "id": "cms-signing-certificate-mismatch",
+    "de": "Das Signaturattribut verweist auf ein anderes Zertifikat.",
+    "en": "The signing-certificate attribute refers to a different certificate."
+  },
+  {
+    "id": "cms-unexpected-signer",
+    "de": "Die Signatur wurde mit einem anderen als dem erwarteten Zertifikat erstellt.",
+    "en": "The signature was created with a certificate other than the expected one."
+  },
+  {
+    "id": "cms-key",
+    "de": "Der Schlüssel ist nicht verwendbar.",
+    "en": "The key cannot be used."
+  },
+  {
+    "id": "cms-key-mismatch",
+    "de": "Der private Schlüssel passt nicht zum Zertifikat.",
+    "en": "The private key does not match the certificate."
+  },
+  {
+    "id": "cms-too-large",
+    "de": "Die Signatur ist größer als der reservierte Platz.",
+    "en": "The signature exceeds the reserved space."
+  },
+  {
+    "id": "cms-io",
+    "de": "Lesefehler beim Prüfen der Signatur.",
+    "en": "Read error while verifying the signature."
+  },
+  {
+    "id": "keystore-file-not-found",
+    "de": "Die Keystore-Datei wurde nicht gefunden.",
+    "en": "The keystore file was not found."
+  },
+  {
+    "id": "keystore-wrong-password",
+    "de": "Das Keystore-Passwort ist falsch.",
+    "en": "The keystore password is wrong."
+  },
+  {
+    "id": "keystore-alias-not-found",
+    "de": "Der Alias wurde im Keystore nicht gefunden.",
+    "en": "The alias was not found in the keystore."
+  },
+  {
+    "id": "keystore-not-a-key-entry",
+    "de": "Der Alias ist kein Schlüsseleintrag.",
+    "en": "The alias is not a key entry."
+  },
+  {
+    "id": "keystore-conversion-needed",
+    "de": "Das Keystore-Format (JKS/JCEKS) wird nicht unterstützt – bitte nach PKCS#12 konvertieren.",
+    "en": "The keystore format (JKS/JCEKS) is not supported – please convert it to PKCS#12."
+  },
+  {
+    "id": "keystore-unsupported-pbe",
+    "de": "Die Verschlüsselung des Keystores wird nicht unterstützt – bitte neu exportieren.",
+    "en": "The keystore encryption is not supported – please export it again."
+  },
+  {
+    "id": "keystore-different-key-password",
+    "de": "Der Schlüssel ist mit einem eigenen Passwort geschützt – bitte das PKCS#12 mit einheitlichem Passwort exportieren.",
+    "en": "The key is protected by a separate password – please export the PKCS#12 with a single password."
+  },
+  {
+    "id": "keystore-unsupported-key",
+    "de": "Der Schlüsseltyp wird nicht unterstützt.",
+    "en": "The key type is not supported."
+  },
+  {
+    "id": "keystore-cms",
+    "de": "Zertifikat oder Schlüssel im Keystore sind nicht verwendbar.",
+    "en": "The certificate or key in the keystore cannot be used."
+  },
+  {
+    "id": "keystore-io",
+    "de": "Die Keystore-Datei ist nicht lesbar.",
+    "en": "The keystore file cannot be read."
+  },
+  {
+    "id": "keystore-malformed",
+    "de": "Die Datei ist kein gültiger PKCS#12-Keystore.",
+    "en": "The file is not a valid PKCS#12 keystore."
+  },
+  {
+    "id": "keystore-no-key-entry",
+    "de": "Der Keystore enthält keinen Schlüssel mit Zertifikat.",
+    "en": "The keystore contains no key with a certificate."
+  },
+  {
+    "id": "keystore-alias-required",
+    "de": "Der Keystore enthält mehrere Schlüssel – bitte einen Alias angeben.",
+    "en": "The keystore contains several keys – please specify an alias."
+  },
+  {
+    "id": "keystore-key-mismatch",
+    "de": "Schlüssel und Zertifikat im Keystore passen nicht zusammen.",
+    "en": "The key and certificate in the keystore do not match."
+  },
+  {
+    "id": "ng-config-error-io",
+    "de": "Ein-/Ausgabefehler bei den Einstellungen: { $detail }",
+    "en": "Input/output error in the settings: { $detail }"
+  },
+  {
+    "id": "ng-config-error-parse",
+    "de": "Die Einstellungen sind nicht lesbar: { $detail }",
+    "en": "The settings cannot be read: { $detail }"
+  },
+  {
+    "id": "ng-config-error-serialize",
+    "de": "Die Einstellungen konnten nicht gespeichert werden: { $detail }",
+    "en": "The settings could not be saved: { $detail }"
+  },
+  {
+    "id": "ng-config-error-unsupported-schema",
+    "de": "Die Einstellungen stammen von einer neueren Version (Schema { $found }, unterstützt bis { $supported }).",
+    "en": "The settings were written by a newer version (schema { $found }, supported up to { $supported })."
+  },
+  {
+    "id": "ng-config-error-legacy",
+    "de": "Die PDF-Over-Konfiguration ist nicht lesbar: { $detail }",
+    "en": "The PDF-Over configuration cannot be read: { $detail }"
+  },
+  {
+    "id": "ng-config-error-no-home",
+    "de": "Der Konfigurationsordner kann nicht ermittelt werden.",
+    "en": "The configuration folder cannot be determined."
+  },
+  {
+    "id": "ng-config-error-secret",
+    "de": "Fehler beim Zugriff auf den Schlüsselbund: { $detail }",
+    "en": "Error accessing the keychain: { $detail }"
+  },
+  {
+    "id": "ng-config-file-missing",
+    "de": "Die Konfigurationsdatei „{ $path }“ wurde nicht gefunden.",
+    "en": "The configuration file “{ $path }” was not found."
+  },
+  {
+    "id": "ng-config-reset-done",
+    "de": "Die bisherigen Einstellungen wurden nach „{ $path }“ verschoben.",
+    "en": "The previous settings were moved to “{ $path }”."
+  },
+  {
+    "id": "ng-secrets-not-persistent",
+    "de": "Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Programmende gespeichert.",
+    "en": "No keychain available: passwords are only kept until the program exits."
+  },
+  {
+    "id": "ng-config-legacy-invalid-bku",
+    "de": "BKU: Der Wert „{ $value }“ ist ungültig; es gibt keine Voreinstellung.",
+    "en": "BKU: the value “{ $value }” is invalid; no default is used."
+  },
+  {
+    "id": "ng-config-legacy-invalid-proxy-port",
+    "de": "PROXY_PORT: „{ $value }“ ist keine gültige Zahl und wird ignoriert.",
+    "en": "PROXY_PORT: “{ $value }” is not a valid number and is ignored."
+  },
+  {
+    "id": "ng-config-legacy-proxy-port-out-of-range",
+    "de": "PROXY_PORT: { $value } liegt außerhalb von 1 bis 65535 und wird ignoriert.",
+    "en": "PROXY_PORT: { $value } is outside 1 to 65535 and is ignored."
+  },
+  {
+    "id": "ng-config-legacy-invalid-value",
+    "de": "{ $key }: Der Wert „{ $value }“ ist ungültig; der Standardwert gilt.",
+    "en": "{ $key }: the value “{ $value }” is invalid; the default applies."
+  },
+  {
+    "id": "ng-config-legacy-unknown-locale",
+    "de": "{ $key }: „{ $value }“ ist keine gültige Sprache; die Systemsprache gilt.",
+    "en": "{ $key }: “{ $value }” is not a valid language; the system language applies."
+  },
+  {
+    "id": "ng-config-legacy-unsupported-locale",
+    "de": "{ $key }: Die Sprache „{ $value }“ wird nicht unterstützt; es gilt { $lang }.",
+    "en": "{ $key }: the language “{ $value }” is not supported; { $lang } applies."
+  },
+  {
+    "id": "ng-config-legacy-unknown-profile",
+    "de": "SIGNATURE_PROFILE: „{ $value }“ ist unbekannt; es gilt der Standard-Signaturblock.",
+    "en": "SIGNATURE_PROFILE: “{ $value }” is unknown; the standard signature block applies."
+  },
+  {
+    "id": "ng-config-legacy-unknown-pass-store-type",
+    "de": "KEYSTORE_PASS_STORE_TYPE: „{ $value }“ ist unbekannt; Keystore-Passwörter werden nicht gespeichert.",
+    "en": "KEYSTORE_PASS_STORE_TYPE: “{ $value }” is unknown; keystore passwords are not saved."
+  },
+  {
+    "id": "ng-migrate-offer-title",
+    "de": "Einstellungen von PDF-Over übernehmen?",
+    "en": "Import settings from PDF-Over?"
+  },
+  {
+    "id": "ng-migrate-offer-text",
+    "de": "Es wurden Einstellungen einer früheren PDF-Over-Installation gefunden („{ $path }“). Sollen sie übernommen werden? Die alte Datei bleibt unverändert.",
+    "en": "Settings of a previous PDF-Over installation were found (“{ $path }”). Do you want to import them? The old file remains unchanged."
+  },
+  {
+    "id": "ng-migrate-secrets-consent",
+    "de": "In der alten Konfiguration sind Passwörter im Klartext gespeichert. Sollen sie in den Schlüsselbund des Betriebssystems übernommen werden?",
+    "en": "The old configuration contains passwords in plain text. Do you want to move them to the operating system keychain?"
+  },
+  {
+    "id": "ng-migrate-remove-plaintext",
+    "de": "Die Passwörter stehen weiterhin im Klartext in „{ $path }“. Sie können sie dort entfernen lassen.",
+    "en": "The passwords are still stored in plain text in “{ $path }”. You can have them removed there."
+  },
+  {
+    "id": "ng-migrate-done",
+    "de": "Übernommen: { $imported } Einstellungen; nicht übernommen: { $skipped }.",
+    "en": "Imported: { $imported } settings; not imported: { $skipped }."
+  },
+  {
+    "id": "ng-migrate-undo",
+    "de": "Import rückgängig machen",
+    "en": "Undo import"
+  },
+  {
+    "id": "ng-migrate-key-ignored",
+    "de": "{ $key } wird nicht übernommen (in PDF-Over NG ohne Funktion).",
+    "en": "{ $key } is not imported (no function in PDF-Over NG)."
+  },
+  {
+    "id": "ng-migrate-unknown-key",
+    "de": "Der unbekannte Eintrag { $key } wird ignoriert.",
+    "en": "The unknown entry { $key } is ignored."
+  },
+  {
+    "id": "ng-migrate-path-missing",
+    "de": "{ $key }: Der Pfad „{ $path }“ existiert nicht.",
+    "en": "{ $key }: the path “{ $path }” does not exist."
+  },
+  {
+    "id": "ng-migrate-path-dropped",
+    "de": "{ $key }: Der Pfad „{ $path }“ existiert nicht und wird nicht übernommen.",
+    "en": "{ $key }: the path “{ $path }” does not exist and is not imported."
+  },
+  {
+    "id": "ng-migrate-emblem-unsupported",
+    "de": "EMBLEM: „{ $path }“ ist kein unterstütztes Bild (PNG, JPEG, GIF) und wird nicht übernommen.",
+    "en": "EMBLEM: “{ $path }” is not a supported image (PNG, JPEG, GIF) and is not imported."
+  },
+  {
+    "id": "ng-migrate-emblem-from-cache",
+    "de": "EMBLEM: Das Original „{ $path }“ fehlt; die von PDF-Over zwischengespeicherte Bildmarke wird übernommen.",
+    "en": "EMBLEM: the original “{ $path }” is missing; the emblem cached by PDF-Over is imported."
+  },
+  {
+    "id": "ng-migrate-secret-ignored",
+    "de": "{ $key }: Das Passwort wird nicht übernommen, weil die Speicherart nicht „Permanent“ ist.",
+    "en": "{ $key }: the password is not imported because the storage type is not “permanent”."
+  },
+  {
+    "id": "ng-migrate-secret-no-target",
+    "de": "{ $key }: Das Passwort kann ohne zugehörige Keystore-Datei bzw. Proxy-Host und -Benutzer nicht zugeordnet werden.",
+    "en": "{ $key }: the password cannot be assigned without the matching keystore file or proxy host and user."
+  },
+  {
+    "id": "ng-migrate-signature-field-discarded",
+    "de": "Das in PDF-Over dauerhaft gespeicherte Signaturfeld wird verworfen (B-05); die Auswahl gilt künftig nur für das jeweilige Dokument.",
+    "en": "The signature field permanently stored by PDF-Over is discarded (B-05); the selection now applies to the current document only."
+  },
+  {
+    "id": "ng-migrate-custom-profile",
+    "de": "Eigenes PDF-AS-Profil gefunden: „{ $file }“.",
+    "en": "Custom PDF-AS profile found: “{ $file }”."
+  },
+  {
+    "id": "ng-migrate-note-default",
+    "de": "Der Signaturhinweis entspricht dem Standardtext und folgt künftig Profil und Sprache.",
+    "en": "The signature note equals the default text and will follow profile and language from now on."
+  },
+  {
+    "id": "ng-migrate-placeholder-search-off",
+    "de": "Die Platzhaltersuche war aktiv, aber weder QR-Code- noch Signaturfeld-Suche gewählt; sie bleibt ausgeschaltet.",
+    "en": "Placeholder search was enabled, but neither QR code nor signature field search was selected; it stays disabled."
+  },
+  {
+    "id": "ng-migrate-proxy-without-host",
+    "de": "PROXY_PORT bzw. PROXY_USER ohne PROXY_HOST werden nicht übernommen.",
+    "en": "PROXY_PORT or PROXY_USER without PROXY_HOST are not imported."
+  },
+  {
+    "id": "ng-migrate-keystore-jks",
+    "de": "Keystore-Typ { $value }: JKS- bzw. JCEKS-Keystores müssen vor der Verwendung in PKCS#12 umgewandelt werden.",
+    "en": "Keystore type { $value }: JKS or JCEKS keystores must be converted to PKCS#12 before use."
+  },
+  {
+    "id": "render.library_not_found",
+    "de": "Die PDF-Darstellungsbibliothek (PDFium) wurde nicht gefunden: {details}",
+    "en": "The PDF rendering library (PDFium) could not be found: {details}"
+  },
+  {
+    "id": "render.load_failed",
+    "de": "Das Dokument konnte nicht geladen werden: {details}",
+    "en": "The document could not be loaded: {details}"
+  },
+  {
+    "id": "render.password_required",
+    "de": "Das Dokument ist durch ein Passwort geschützt.",
+    "en": "The document is password protected."
+  },
+  {
+    "id": "render.page_out_of_range",
+    "de": "Seite {page} existiert nicht (das Dokument hat {count} Seiten).",
+    "en": "Page {page} does not exist (the document has {count} pages)."
+  },
+  {
+    "id": "render.failed",
+    "de": "Die Seite konnte nicht dargestellt werden: {details}",
+    "en": "The page could not be rendered: {details}"
+  },
+  {
+    "id": "placement.invalid_position",
+    "de": "Ungültige Positionsangabe: {position}",
+    "en": "Invalid position specification: {position}"
+  },
+  {
+    "id": "placement.no_such_page",
+    "de": "Seite {page} existiert nicht.",
+    "en": "Page {page} does not exist."
+  },
+  {
+    "id": "placement.placeholder_not_found",
+    "de": "Es wurde kein passender Signaturplatzhalter gefunden.",
+    "en": "No matching signature placeholder was found."
+  },
+  {
+    "id": "placement.not_enough_space",
+    "de": "Für den Signaturblock ist nicht genug Platz, und auf bereits signierten Dokumenten darf keine neue Seite angefügt werden.",
+    "en": "There is not enough space for the signature block, and no new page may be added to an already signed document."
+  },
+  {
+    "id": "placement.notice.new_page_not_allowed",
+    "de": "Das Dokument ist bereits signiert – der Signaturblock wurde auf der letzten Seite statt auf einer neuen Seite platziert.",
+    "en": "The document is already signed – the signature block was placed on the last page instead of a new page."
+  },
+  {
+    "id": "placement.notice.overlaps_content",
+    "de": "Der Signaturblock überdeckt Inhalt der Seite.",
+    "en": "The signature block covers page content."
+  },
+  {
+    "id": "placement.notice.overlaps_widget",
+    "de": "Der Signaturblock überdeckt ein vorhandenes Formular- oder Signaturfeld.",
+    "en": "The signature block covers an existing form or signature field."
+  },
+  {
+    "id": "placement.notice.clamped",
+    "de": "Die Position wurde an die Seite angepasst.",
+    "en": "The position was adjusted to fit the page."
+  },
+  {
+    "id": "placement.notice.scan_failed",
+    "de": "Der freie Platz auf der Seite konnte nicht ermittelt werden; der Signaturblock wurde oben auf der Seite platziert.",
+    "en": "The free space on the page could not be determined; the signature block was placed at the top of the page."
+  },
+  {
+    "id": "pdf-xref-repaired",
+    "de": "Der Querverweis des Dokuments ist beschädigt und wurde beim Lesen korrigiert. Das Signieren ist möglich, ändert die Beschädigung aber nicht.",
+    "en": "The document's cross-reference table is damaged and was repaired while reading. Signing is possible but does not fix the damage."
+  },
+  {
+    "id": "pdf-xref-reconstructed",
+    "de": "Der Querverweis des Dokuments fehlt oder ist unlesbar. Das Dokument kann ohne Reparatur nicht signiert werden.",
+    "en": "The document's cross-reference table is missing or unreadable. The document cannot be signed without repair."
+  },
+  {
+    "id": "pdf-tail-garbage",
+    "de": "Nach dem Dateiende-Marker (%%EOF) stehen fremde Daten.",
+    "en": "There is extraneous data after the end-of-file marker (%%EOF)."
+  },
+  {
+    "id": "fido2-unavailable",
+    "de": "FIDO2 ist auf diesem Gerät nicht verfügbar.",
+    "en": "FIDO2 is not available on this device."
+  },
+  {
+    "id": "fido2-cancelled",
+    "de": "Vorgang am Sicherheitsschlüssel abgebrochen.",
+    "en": "The operation was cancelled at the security key."
+  },
+  {
+    "id": "fido2-invalid-options",
+    "de": "Die FIDO2-Anfrage des Signaturdienstes ist nicht lesbar.",
+    "en": "The FIDO2 request from the signature service could not be read."
+  },
+  {
+    "id": "fido2-device",
+    "de": "Fehler am Sicherheitsschlüssel: {detail}",
+    "en": "Security key error: {detail}"
+  },
+  {
+    "id": "fido2-pin-unsupported",
+    "de": "Dieser Sicherheitsschlüssel verlangt eine PIN; die PIN-Eingabe ist auf diesem System noch nicht verfügbar – bitte App oder SMS verwenden.",
+    "en": "This security key requires a PIN; PIN entry is not yet available on this system – please use the app or SMS."
+  },
+  {
+    "id": "fido2-no-credential",
+    "de": "Auf diesem Sicherheitsschlüssel ist keine ID-Austria-Registrierung vorhanden.",
+    "en": "This security key does not hold an ID Austria registration."
+  },
+  {
+    "id": "fido2-timeout",
+    "de": "Zeitüberschreitung: Der Sicherheitsschlüssel wurde nicht berührt.",
+    "en": "Timeout: the security key was not touched."
+  },
+  {
+    "id": "fido2-locked",
+    "de": "Der Sicherheitsschlüssel ist gesperrt.",
+    "en": "The security key is locked."
+  },
+  {
+    "id": "fido2-u2f-only",
+    "de": "Der Sicherheitsschlüssel unterstützt kein FIDO2 (nur U2F).",
+    "en": "The security key does not support FIDO2 (U2F only)."
+  },
+  {
+    "id": "fido2-no-user-verification",
+    "de": "Der Sicherheitsschlüssel kann die Nutzerin nicht verifizieren (keine PIN oder Biometrie eingerichtet).",
+    "en": "The security key cannot verify the user (no PIN or biometrics set up)."
+  },
+  {
+    "id": "fido2-hid-permission",
+    "de": "Kein Zugriff auf den Sicherheitsschlüssel – die udev-Regel (uaccess) für FIDO-Geräte fehlt.",
+    "en": "No access to the security key – the udev rule (uaccess) for FIDO devices is missing."
+  },
+  {
+    "id": "atrust-unknown-page",
+    "de": "Unbekannte Seite des Signaturdienstes ({diagnostic}). Der Vorgang wurde abgebrochen.",
+    "en": "Unknown page of the signature service ({diagnostic}). The operation was cancelled."
+  },
+  {
+    "id": "atrust-signature-data-link-rejected",
+    "de": "Der Link „Signaturdaten anzeigen“ führt nicht zu A-Trust und wird nicht geöffnet.",
+    "en": "The “show signature data” link does not lead to A-Trust and is not opened."
+  },
+  {
+    "id": "sigblock-unknown-profile",
+    "de": "Das Signaturprofil „{ $profile }“ existiert nicht.",
+    "en": "The signature profile “{ $profile }” does not exist."
+  },
+  {
+    "id": "sigblock-profile",
+    "de": "Das Signaturprofil ist fehlerhaft: { $detail }",
+    "en": "The signature profile is invalid: { $detail }"
+  },
+  {
+    "id": "sigblock-unsupported-expression",
+    "de": "Der Ausdruck { $expr } im Signaturprofil wird nicht unterstützt.",
+    "en": "The expression { $expr } in the signature profile is not supported."
+  },
+  {
+    "id": "sigblock-unsupported-date-pattern",
+    "de": "Das Datumsformat „{ $pattern }“ im Signaturprofil wird nicht unterstützt.",
+    "en": "The date format “{ $pattern }” in the signature profile is not supported."
+  },
+  {
+    "id": "sigblock-font",
+    "de": "Die Schrift für den Signaturblock konnte nicht geladen werden: { $detail }",
+    "en": "The signature block font could not be loaded: { $detail }"
+  },
+  {
+    "id": "sigblock-missing-glyph",
+    "de": "Das Zeichen „{ $char }“ ist in der Schrift des Signaturblocks nicht verfügbar.",
+    "en": "The character “{ $char }” is not available in the signature block font."
+  },
+  {
+    "id": "sigblock-image",
+    "de": "Die Bildmarke konnte nicht gelesen werden (unterstützt: PNG, JPEG, GIF).",
+    "en": "The signature logo could not be read (supported: PNG, JPEG, GIF)."
+  },
+  {
+    "id": "sigblock-missing-resource",
+    "de": "Eine Ressource des Signaturprofils fehlt: { $detail }",
+    "en": "A resource of the signature profile is missing: { $detail }"
+  },
+  {
+    "id": "sigblock-pdf",
+    "de": "Das Erscheinungsbild der Signatur konnte nicht erzeugt werden.",
+    "en": "The signature appearance could not be created."
+  },
+  {
+    "id": "sigblock-io",
+    "de": "Fehler beim Lesen der Signaturblock-Konfiguration.",
+    "en": "Error reading the signature block configuration."
+  },
+  {
+    "id": "sigblock-chars-replaced",
+    "de": "Einige Zeichen sind in der Schrift des Signaturblocks nicht verfügbar und wurden durch „?“ ersetzt: { $chars }",
+    "en": "Some characters are not available in the signature block font and were replaced by “?”: { $chars }"
+  }
+]

@@ -11,6 +11,7 @@ use crate::{CmsError, Result};
 
 /// Universal-Tags (eine Oktette, Klasse universal).
 pub(crate) mod tag {
+    #![allow(dead_code, reason = "vollständige Tag-Tabelle (X.690); nicht jede Konstante wird genutzt")]
     pub const BOOLEAN: u8 = 0x01;
     pub const INTEGER: u8 = 0x02;
     pub const BIT_STRING: u8 = 0x03;
@@ -166,6 +167,7 @@ pub(crate) struct Tlv<'a> {
 
 impl<'a> Tlv<'a> {
     /// Konstruierter Typ?
+    #[allow(dead_code, reason = "Teil der TLV-Leser-API, derzeit ohne Aufrufer")]
     pub fn is_constructed(&self) -> bool {
         self.tag & 0x20 != 0
     }

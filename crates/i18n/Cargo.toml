@@ -16,5 +16,9 @@ unic-langid = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+# tests/code_catalog.rs liest testdata/i18n/wave1-message-ids.json
+serde_json = { workspace = true }
+
 [lints]
 workspace = true

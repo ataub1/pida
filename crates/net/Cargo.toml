@@ -23,20 +23,17 @@ zeroize = { workspace = true }
 serde = { workspace = true }
 time = { workspace = true }
 tracing = { workspace = true }
-# Paket D: Charset-Dekodierung von Antwortkörpern (`Response::text`). Bereits über reqwest/charset im
-# Graph (Cargo.lock), Lizenz (Apache-2.0 OR MIT) AND BSD-3-Clause; die Integration hebt die Version in
-# den Workspace.
-encoding_rs = "=0.8.42"
-# Paket D: nur für `hyper::ext::ReasonPhrase` (nicht-kanonische Reason-Phrase für
-# `atrusterror.http_generic`). Bereits über reqwest mit genau diesen Features im Graph, MIT.
-hyper = { version = "=1.12.0", default-features = false, features = ["http1", "client"] }
+# Charset-Dekodierung von Antwortkörpern (`Response::text`). Lizenz (Apache-2.0 OR MIT) AND BSD-3-Clause.
+encoding_rs = { workspace = true }
+# Nur für `hyper::ext::ReasonPhrase` (nicht-kanonische Reason-Phrase für `atrusterror.http_generic`), MIT.
+hyper = { workspace = true }
 
 [dev-dependencies]
 pdfover-net = { path = ".", features = ["testing"] }
 tempfile = { workspace = true }
 # Nur Tests: TLS-Server mit selbstsigniertem Zertifikat (Ablehnung durch den OS-Truststore).
-# Bereits über hyper-rustls im Graph (MIT/Apache-2.0); Provider ring statt aws-lc-rs.
-tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
+# MIT/Apache-2.0; Provider ring statt aws-lc-rs.
+tokio-rustls = { workspace = true }
 tokio = { workspace = true, features = ["net", "io-util", "rt-multi-thread", "macros", "time"] }
 
 [lints]
