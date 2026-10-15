@@ -983,11 +983,13 @@ async fn certificate_cache_without_opt_in_stores_nothing() {
     assert!(!fx.paths.certificate_cache_dir().exists(), "ohne Opt-in kein Cache-Ordner");
 }
 
-/// ADR 0004, Etappe E0: Die Ereignisse der neuen Oberfläche „Arbeitsbereich“ sind Vertrag, aber noch ohne
-/// Wirkung – der Kern bleibt im Zustand, öffnet **keine** Sitzung (A1, auch nicht mit `sign_with`) und
-/// liefert die neuen Felder mit Standardwerten; die Freigaben (`actions`) folgen dem Zustand.
+/// ADR 0004: Im **klassischen** Ablauf (ohne `workspace_ui`) bleiben die Ereignisse der neuen Oberfläche
+/// ohne Wirkung, ebenso die Ereignisse späterer Etappen (Stapel K2, Zuletzt signiert/sofort wirksam K3,
+/// Prüfmodus/Ersteinrichtung K4) – der Kern bleibt im Zustand, öffnet **keine** Sitzung (A1, auch nicht mit
+/// `sign_with`) und liefert die neuen Felder mit Standardwerten; die Freigaben (`actions`) folgen dem
+/// Zustand. Nur `set_ui_language` (Kopfzeile, K1) wirkt in beiden Modi.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn workspace_events_are_ignored_until_implemented() {
+async fn classic_mode_ignores_workspace_and_later_stage_events() {
     use pida_core_api::{PlacementTarget, SignersView};
     let fx = Fixture::new();
     let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
@@ -1041,7 +1043,6 @@ async fn workspace_events_are_ignored_until_implemented() {
             changes: [("signature.profile".to_owned(), serde_json::json!("AMTSSIGNATURBLOCK"))].into(),
             revision: 1,
         },
-        UiEvent::SetUiLanguage { language: Some(pida_i18n::Lang::En) },
         UiEvent::UpdateFirstRun {
             default_backend: Some(pida_config::BackendChoice::IdAustria),
             profile: pida_config::SignatureProfile::Amtssignaturblock,
@@ -1062,6 +1063,12 @@ async fn workspace_events_are_ignored_until_implemented() {
     assert!(after.verify.is_none() && after.recent.is_none() && after.first_run.is_none());
     let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap_or_default();
     assert!(!saved.contains("AMTSSIGNATURBLOCK"), "apply_settings/update_first_run speichern noch nichts");
+    // Oberflächensprache aus der Kopfzeile: sofort wirksam und gespeichert
+    let other = if language == pida_i18n::Lang::En { pida_i18n::Lang::De } else { pida_i18n::Lang::En };
+    core.dispatch(UiEvent::SetUiLanguage { language: Some(other) });
+    wait_for(&core, "Sprache", |v| v.language == other).await;
+    let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap_or_default();
+    assert!(saved.contains("ui_language"), "{saved}");
     core.dispatch(UiEvent::Quit);
     assert_eq!(core.wait_finished().await, ExitCode::Cancelled);
 }

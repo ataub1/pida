@@ -233,6 +233,11 @@ impl Registry {
         }
     }
 
+    /// Fest vorgegebene Backends (Tests, Einbettung)?
+    pub(crate) fn is_fixed(&self) -> bool {
+        self.fixed.is_some()
+    }
+
     /// Alle registrierten Backends.
     pub(crate) fn all(&self) -> Vec<Arc<dyn SignatureBackend>> {
         if let Some(fixed) = &self.fixed {

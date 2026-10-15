@@ -178,6 +178,14 @@ pub struct ExistingSignature {
     pub status_code: Option<String>,
     /// Signatur deckt die ganze Datei ab (letzte Revision)
     pub covers_whole_file: bool,
+    /// CN des Signerzertifikats (additiv, ADR 0004 §3.3; nur bei kryptografisch geprüfter Signatur aus
+    /// demselben `verify_detached`). Nicht serialisiert (Personendaten, Regel 9).
+    #[serde(skip)]
+    pub signer_cn: Option<String>,
+    /// `signing-time` des CMS (additiv, ADR 0004 §3.3; Angabe des Signierenden, kein geprüfter
+    /// Zeitstempel). Nicht serialisiert wie `contents`.
+    #[serde(skip)]
+    pub signing_time: Option<time::OffsetDateTime>,
 }
 
 impl std::fmt::Debug for ExistingSignature {
@@ -192,6 +200,8 @@ impl std::fmt::Debug for ExistingSignature {
             .field("status", &self.status)
             .field("status_code", &self.status_code)
             .field("covers_whole_file", &self.covers_whole_file)
+            .field("signer_cn", &self.signer_cn.as_ref().map(|_| "<redigiert>"))
+            .field("signing_time", &self.signing_time)
             .finish()
     }
 }
@@ -479,10 +489,13 @@ pub fn analyze(src: &SourcePdf) -> Result<DocReport, PadesError> {
                 status: PriorStatus::Invalid,
                 status_code: Some(SIGNATURE_DICTIONARY_UNREADABLE.into()),
                 covers_whole_file: false,
+                signer_cn: None,
+                signing_time: None,
             });
             continue;
         };
-        let (status, status_code) = sigs::signature_status(src.bytes(), &info);
+        let check = sigs::signature_check(src.bytes(), &info);
+        let (status, status_code) = (check.status, check.code);
         let end = info.covered_end();
         beyond_eof |= end.is_some_and(|e| e > src.len());
         let covers_revision = end.and_then(|e| revision_ending_at(src, e));
@@ -497,6 +510,8 @@ pub fn analyze(src: &SourcePdf) -> Result<DocReport, PadesError> {
             status,
             status_code,
             covers_whole_file,
+            signer_cn: check.signer_cn,
+            signing_time: check.signing_time,
         });
     }
     let signed = !signatures.is_empty();
@@ -691,8 +706,11 @@ mod tests {
             status: PriorStatus::Valid,
             status_code: None,
             covers_whole_file: false,
+            signer_cn: Some("Erika Musterfrau".into()),
+            signing_time: None,
         };
         let d = format!("{s:?}");
+        assert!(!d.contains("Musterfrau"), "{d}");
         assert!(!d.contains("Mustermann") && !d.contains("geheim"), "{d}");
         let json = serde_json::to_string(&s).unwrap();
         assert!(!json.contains("contents"), "{json}");

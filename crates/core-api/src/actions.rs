@@ -6,7 +6,7 @@
 //! `sign` und `edit_placement` folgen der Regel aus §3.13 (Positionieren); K1 verfeinert `sign` um
 //! „Platzierung zulässig“.
 
-use pida_workflow::{State, Step};
+use pida_workflow::{State, Step, Target};
 
 use crate::view::ActionsView;
 
@@ -27,6 +27,21 @@ pub(crate) fn actions_for(state: &State, settings_enabled: bool) -> ActionsView 
     }
 }
 
+/// Arbeitsbereich: ist „Signieren“ mit der aktuellen Platzierung zulässig (ADR 0004 §3.13)? Nicht bei einem
+/// neuen sichtbaren Feld auf einem DocMDP-zertifizierten Dokument (nur vorhandene Felder oder unsichtbar)
+/// und nicht bei einem Ziel, das es nicht gibt.
+pub(crate) fn workspace_sign_allowed(state: &State) -> bool {
+    let State::Positioning { doc, edit: Some(e), .. } = state else { return true };
+    if e.invisible {
+        return true;
+    }
+    match e.target {
+        Target::Field(i) => i < e.fields.len(),
+        Target::Qr => e.qr.is_some() && doc.new_visible_field_allowed,
+        Target::Free => doc.new_visible_field_allowed,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -37,14 +52,22 @@ mod tests {
     };
 
     fn facts() -> DocFacts {
-        DocFacts { id: DocId(1), page_count: 1, signed: false, class: AcceptanceClass::K1Regular, start: None }
+        DocFacts {
+            id: DocId(1),
+            page_count: 1,
+            signed: false,
+            class: AcceptanceClass::K1Regular,
+            start: None,
+            new_visible_field_allowed: true,
+        }
     }
 
     /// Tabelle Zustand → Freigaben (ADR 0004 §3.17 „Tabellentest Zustand → Freigaben“).
     #[test]
     fn actions_follow_the_state() {
         let q = Queue::default;
-        let positioning = State::Positioning { queue: q(), page: 0, placement: None, new_page: false, doc: facts() };
+        let positioning =
+            State::Positioning { queue: q(), page: 0, placement: None, new_page: false, doc: facts(), edit: None };
         let signing = State::Signing {
             queue: q(),
             position: PositionChoice::Auto,
@@ -52,6 +75,7 @@ mod tests {
             phase: SigningPhase::Signing,
             doc: facts(),
             flow: SignFlow::default(),
+            edit: None,
         };
         let resuming = State::Resuming {
             queue: q(),
@@ -65,6 +89,7 @@ mod tests {
             doc: facts(),
             position: PositionChoice::Auto,
             backend: BackendId::Keystore,
+            edit: None,
         };
         let error = State::Error {
             queue: q(),
@@ -96,5 +121,38 @@ mod tests {
             assert!(!a.start_batch && !a.show_batch && !a.verify, "erst ab K2/K4: {}", state.name());
             assert!(!actions_for(&state, false).settings);
         }
+    }
+
+    /// Arbeitsbereich: „Signieren“ nur mit zulässiger Platzierung (DocMDP: nur vorhandene Felder oder
+    /// unsichtbar; Ziel muss existieren).
+    #[test]
+    fn workspace_sign_needs_an_allowed_placement() {
+        use pida_workflow::{Target, WorkspaceEdit};
+        let field = pida_placement::EmptyFieldCandidate {
+            qualified_name: "Sig1".into(),
+            field_id: (5, 0),
+            widget_id: (5, 0),
+            page_index: Some(0),
+            rect: pida_pdf_cos::Rect { llx: 0.0, lly: 0.0, urx: 100.0, ury: 40.0 },
+        };
+        let state = |certified: bool, target: Target, invisible: bool| {
+            let mut edit = WorkspaceEdit::new(vec![field.clone()], None, invisible);
+            edit.target = target;
+            let doc = DocFacts { new_visible_field_allowed: !certified, ..facts() };
+            State::Positioning {
+                queue: Queue::default(),
+                page: 0,
+                placement: None,
+                new_page: false,
+                doc,
+                edit: Some(edit),
+            }
+        };
+        assert!(workspace_sign_allowed(&state(false, Target::Free, false)));
+        assert!(!workspace_sign_allowed(&state(true, Target::Free, false)), "DocMDP: kein neues sichtbares Feld");
+        assert!(workspace_sign_allowed(&state(true, Target::Field(0), false)), "vorhandenes Feld");
+        assert!(workspace_sign_allowed(&state(true, Target::Free, true)), "unsichtbar");
+        assert!(!workspace_sign_allowed(&state(false, Target::Field(3), false)), "Feld fehlt");
+        assert!(!workspace_sign_allowed(&state(false, Target::Qr, false)), "kein QR-Platzhalter");
     }
 }

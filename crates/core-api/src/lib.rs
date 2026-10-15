@@ -87,10 +87,22 @@
 //! [`StepView::Batch`]; [`OutputView::summary`]; `SettingsView::{applied_revision, examples}`;
 //! [`MigrationOfferView::items`] sowie 23 neue [`UiEvent`]s (`set_invisible` … `offer_migration`).
 //! Gemeinsame Typen von Reducer und Bridge liegen in `pida-workflow` (`PlacementOrigin`, `ExistingPolicy`,
-//! `BatchOutput`). Bis zur Umsetzung in K1–K4 liefert der Kern Standardwerte (`None`/leer; nur
-//! [`ViewState::actions`] ist schon aus dem Zustand berechnet) und ignoriert die neuen Ereignisse mit
-//! einem Debug-Log – keines öffnet eine Sitzung (Invariante A1). Klassischer Ablauf und CLI bleiben
-//! unverändert.
+//! `BatchOutput`). Klassischer Ablauf und CLI bleiben unverändert.
+//!
+//! **Umgesetzt (K1, Etappe E1)** mit [`CoreOptions::workspace_ui`] (Shell: `PIDA_UI=workspace` in
+//! Debug-Builds): Arbeitsbereich-Modus des Reducers (`Context::workspace`, Startargument-Automatik
+//! `cli_auto`), Invariante A1 (eine Sitzung nur nach `sign_with`, Rückfall-Wahl, „Signatur fortsetzen“,
+//! „Erneut versuchen“ bzw. D-06 mit einem Signiermittel ohne `document_leaves_device`),
+//! [`ViewState::document`] (Sticker, Felder, QR, vorhandene Signaturen, Einschränkungen, Layout aus dem
+//! Belegungsraster, Live-Prüfung), `set_invisible`, `use_target`, `inspect_pages`, automatische
+//! Startplatzierung (PDF-AS-Regel), [`ViewState::signers`] mit `select_signer`, `sign_with`,
+//! `StepView::Signing::progress`, `StepView::Error::context`, Abbruch zurück in den Arbeitsbereich
+//! (`ng-signing-cancelled`), Ablehnung in der App (`ng-signing-declined`), Wiederholen in derselben Sitzung
+//! (`sign_one`, `ReleaseDocument`), [`OutputView::summary`] und `set_ui_language` (beide Modi). Stapel (K2),
+//! „Zuletzt signiert“ und „sofort wirksam“ (K3), Prüfmodus und Ersteinrichtung (K4) liefern weiter
+//! Standardwerte und ignorieren ihre Ereignisse mit einem Debug-Log – keines öffnet eine Sitzung.
+//! Im klassischen Ablauf (ohne `workspace_ui`) bleiben auch die Ereignisse des Arbeitsbereichs ohne
+//! Wirkung.
 //!
 //! Ownership: **Integration**.
 
@@ -111,6 +123,7 @@ pub mod tools;
 #[cfg(feature = "ts")]
 pub mod ts;
 mod view;
+mod workspace;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -244,6 +257,11 @@ pub struct CoreOptions {
     /// Ausgabeordner, wenn weder Overlay noch Einstellung einen nennen (Mobile: App-Dokumente, dann ohne
     /// Speichern-Dialog; Teilen/Exportieren im Ergebnis-Screen). `None` = Speichern-Dialog (Desktop).
     pub default_output_dir: Option<PathBuf>,
+    /// Oberfläche „Arbeitsbereich“ (ADR 0004 §3.2): keine Platzhalterfrage, keine automatische
+    /// Backend-Wahl, „Signieren mit X“ (`sign_with`) als einziger Weg zur Sitzung (Invariante A1), Abbruch
+    /// zurück zum Arbeitsbereich. `None` = `false` (CLI, Tests, klassische UI); ohne Oberfläche
+    /// (`headless`) nie.
+    pub workspace_ui: Option<bool>,
 }
 
 impl Default for CoreOptions {
@@ -267,6 +285,7 @@ impl Default for CoreOptions {
             tile_cache_bytes: 64 * 1024 * 1024,
             persist_prepared: None,
             default_output_dir: None,
+            workspace_ui: None,
         }
     }
 }
@@ -300,6 +319,7 @@ impl std::fmt::Debug for CoreOptions {
             .field("shell", &self.shell.is_some())
             .field("init_logging", &self.init_logging)
             .field("persist_prepared", &self.persist_prepared)
+            .field("workspace_ui", &self.workspace_ui)
             .finish_non_exhaustive()
     }
 }
@@ -469,6 +489,7 @@ impl Core {
             startup,
             fido2_available,
             mobile,
+            options.workspace_ui.unwrap_or(false),
         );
         handle.spawn(task.run(rx));
         Ok(Core { tx, view_rx, finished_rx, shared, runtime, _log: Mutex::new(log) })

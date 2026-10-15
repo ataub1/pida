@@ -33,6 +33,7 @@ pub fn facts(id: u64, page_count: usize) -> DocFacts {
         signed: false,
         class: AcceptanceClass::K1Regular,
         start: Some(start_placement(page_count)),
+        new_visible_field_allowed: true,
     }
 }
 
@@ -45,6 +46,8 @@ pub fn analyzed(id: u64, page_count: usize, placeholder: Option<PlaceholderFound
         page_count,
         start: Some(start_placement(page_count)),
         warnings: Vec::new(),
+        fields: Vec::new(),
+        new_visible_field_allowed: true,
     }
 }
 
@@ -148,7 +151,7 @@ pub fn run(state: State, events: impl IntoIterator<Item = Event>, ctx: &Context)
 
 pub fn signing(ids: &[u64], phase: SigningPhase, backend: BackendId, position: PositionChoice) -> State {
     let flow = SignFlow { needs_certificate: true, min_reserve: None };
-    State::Signing { queue: queue(ids), position, backend, phase, doc: facts(ids[0], 3), flow }
+    State::Signing { queue: queue(ids), position, backend, phase, doc: facts(ids[0], 3), flow, edit: None }
 }
 
 pub fn output_state(ids: &[u64]) -> State {
@@ -159,6 +162,7 @@ pub fn output_state(ids: &[u64]) -> State {
         doc: facts(ids[0], 3),
         position: PositionChoice::Auto,
         backend: BackendId::Keystore,
+        edit: None,
     }
 }
 
@@ -171,6 +175,7 @@ pub fn choosing(ids: &[u64], position: PositionChoice, auto_choice: bool) -> Sta
         doc: facts(ids[0], 3),
         auto_choice,
         sign_requested: false,
+        edit: None,
     }
 }
 
@@ -183,6 +188,7 @@ pub fn choosing_after_sign(ids: &[u64], position: PositionChoice) -> State {
         doc: facts(ids[0], 3),
         auto_choice: true,
         sign_requested: true,
+        edit: None,
     }
 }
 
@@ -200,5 +206,6 @@ pub fn positioning(ids: &[u64]) -> State {
         placement: Some(start_placement(3)),
         new_page: false,
         doc: facts(ids[0], 3),
+        edit: None,
     }
 }

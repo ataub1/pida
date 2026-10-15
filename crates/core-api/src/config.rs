@@ -147,6 +147,9 @@ impl ConfigState {
             skip_finish: eff.skip_finish(),
             headless,
             output_postfix: self.settings.output.postfix.clone(),
+            // setzt der Kern-Task (`CoreOptions::workspace_ui`, Startargumente)
+            workspace: false,
+            cli_auto: false,
         }
     }
 

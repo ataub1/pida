@@ -291,10 +291,39 @@ impl Shell {
         }
     }
 
+    /// Ausgabe des Dokuments `doc` für „Im Ordner zeigen“ (ADR 0004 §3.14) – nur Pfade, die der Kern
+    /// geschrieben hat: das gespeicherte Ergebnis des aktuellen Schritts bzw. ein signiertes Dokument der
+    /// Ergebnisliste (`done`). Ohne `doc` wie [`Shell::output_path`].
+    pub fn output_path_for(&self, doc: Option<pida_workflow::DocId>) -> Option<PathBuf> {
+        let Some(doc) = doc else { return self.output_path() };
+        let view = self.view();
+        if let StepView::Output { result, .. } = &view.step
+            && view.document.as_ref().is_some_and(|d| d.doc.id == doc)
+            && let Some(path) = &result.path
+        {
+            return Some(path.clone());
+        }
+        view.done.iter().find(|d| d.id == doc).and_then(|d| match &d.result {
+            pida_workflow::DocResult::Signed { output } => Some(output.path.clone()),
+            _ => None,
+        })
+    }
+
     /// Log-Ordner (Über-Dialog „Logs anzeigen“); ohne Konfiguration keiner.
     pub fn log_dir(&self) -> Option<PathBuf> {
         self.config.as_ref().map(|c| c.paths.log_dir.clone())
     }
+}
+
+/// Oberfläche „Arbeitsbereich“ für die Abnahme vor dem Merge (ADR 0004 §3.14): `PIDA_UI=workspace` (bzw.
+/// `workspace,batch`) schaltet in **Debug-Builds** `CoreOptions::workspace_ui` ein; in Release-Builds ohne
+/// Wirkung (dort setzt der Merge-Commit von A1 den Schalter). Liefert `None`, wenn nichts zu setzen ist.
+pub fn workspace_ui_from_env(value: Option<&str>, debug_build: bool) -> Option<bool> {
+    if !debug_build {
+        return None;
+    }
+    let value = value?;
+    value.split(',').map(str::trim).any(|p| p.eq_ignore_ascii_case("workspace")).then_some(true)
 }
 
 /// Ergebnis von [`Shell::dispatch_json`].
@@ -439,6 +468,26 @@ mod tests {
         assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "move_block", "page": "x" })), Err(EVENT_INVALID));
         assert_eq!(shell.render("/../x", None).status(), 404);
         assert_eq!(shell.render("/page/a/0", None).status(), 400);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// `PIDA_UI` nur in Debug-Builds (ADR 0004 §3.14).
+    #[test]
+    fn workspace_ui_switch_from_the_environment() {
+        assert_eq!(workspace_ui_from_env(Some("workspace"), true), Some(true));
+        assert_eq!(workspace_ui_from_env(Some("workspace,batch"), true), Some(true));
+        assert_eq!(workspace_ui_from_env(Some(" Workspace "), true), Some(true));
+        assert_eq!(workspace_ui_from_env(Some("classic"), true), None);
+        assert_eq!(workspace_ui_from_env(None, true), None);
+        assert_eq!(workspace_ui_from_env(Some("workspace"), false), None, "Release: ohne Wirkung");
+    }
+
+    /// „Im Ordner zeigen“ mit Dokument: nur Pfade, die der Kern geschrieben hat.
+    #[test]
+    fn reveal_output_only_for_written_documents() {
+        let (shell, root) = test_shell();
+        assert_eq!(shell.output_path_for(None), None);
+        assert_eq!(shell.output_path_for(Some(pida_workflow::DocId(1))), None, "ohne Kern bzw. Ergebnis nichts");
         let _ = std::fs::remove_dir_all(root);
     }
 

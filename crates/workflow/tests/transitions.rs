@@ -210,6 +210,7 @@ fn placeholder_choice_is_per_document_b04_b05() {
         doc: facts(1, 1),
         position: PositionChoice::Placeholder(qr()),
         backend: BackendId::Keystore,
+        edit: None,
     };
     let t = step(s, Event::Saved(output_info(1)), &ctx);
     let t = step(t.state, analyzed(2, 1, None, false), &ctx);
@@ -227,6 +228,8 @@ fn analysis_warning_can_be_accepted_or_aborts() {
         page_count: 3,
         start: Some(start_placement(3)),
         warnings: vec!["pdf-usage-rights".into()],
+        fields: Vec::new(),
+        new_visible_field_allowed: true,
     };
     let warned = |id| warned_with(id, None);
     let t = step(State::Analyzing { queue: queue(&[1, 2]) }, warned(1), &gui());
@@ -266,6 +269,8 @@ fn rejected_document_shows_error_without_retry() {
         page_count: 1,
         start: None,
         warnings: Vec::new(),
+        fields: Vec::new(),
+        new_visible_field_allowed: true,
     };
     let t = step(s, ev, &gui());
     let State::Error { error, retry, .. } = &t.state else { panic!() };
@@ -326,6 +331,8 @@ fn no_start_placement_means_automatic_position() {
         page_count: 2,
         start: None,
         warnings: Vec::new(),
+        fields: Vec::new(),
+        new_visible_field_allowed: true,
     };
     let t = step(s, ev, &gui());
     assert!(matches!(&t.state, State::ChoosingBackend { position: PositionChoice::Auto, .. }));
@@ -383,7 +390,7 @@ fn new_page_toggle_and_undo() {
 fn new_page_on_signed_documents_falls_back_to_last_page_with_notice() {
     let State::Positioning { queue, page, placement, doc, .. } = positioning(&[1]) else { unreachable!() };
     let doc = pida_workflow::DocFacts { signed: true, ..doc };
-    let s = State::Positioning { queue, page, placement, new_page: false, doc };
+    let s = State::Positioning { queue, page, placement, new_page: false, doc, edit: None };
     // „Neue Seite“ bleibt auf der letzten Seite (PDF-AS, docs/analyse/04 §4.5) – mit Hinweis
     let t = step(s.clone(), Event::NewPageToggled, &gui());
     assert_eq!(t.effects, vec![Effect::Notify("placement.notice.new_page_not_allowed".into())]);
@@ -914,6 +921,7 @@ fn resign_same_document_f91() {
         doc,
         position: PositionChoice::Manual(p),
         backend,
+        edit: None,
     };
     let t = step(s.clone(), Event::Navigate(Step::Positioning), &gui());
     assert!(matches!(&t.state, State::Positioning { placement: Some(pp), .. } if *pp == p));
@@ -977,9 +985,9 @@ fn quit_after_saving_keeps_the_saved_document_signed() {
     // gespeichert, weitere Dokumente warten: das gespeicherte bleibt „signiert“, die wartenden gelten als
     // abgebrochen
     let t = step(output_state(&[1]), Event::Saved(output_info(1)), &gui());
-    let State::Output { mut queue, saved, decision, doc, position, backend } = t.state else { panic!() };
+    let State::Output { mut queue, saved, decision, doc, position, backend, edit } = t.state else { panic!() };
     queue.add([pida_workflow::InputDocument::new(DocId(2), "/in/doc2.pdf")]);
-    let s = State::Output { queue, saved, decision, doc, position, backend };
+    let s = State::Output { queue, saved, decision, doc, position, backend, edit };
     let q = step(s, Event::Quit, &gui());
     assert_eq!(q.state.exit_code(), Some(ExitCode::Cancelled));
     let results = q.state.results();

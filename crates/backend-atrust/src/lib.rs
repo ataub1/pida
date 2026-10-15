@@ -33,6 +33,12 @@
 //! PDF-Over `SigningState`). SL-`ErrorResponse` 6000/6001 → `Cancelled`, sonst
 //! [`BackendError::SecurityLayer`].
 //!
+//! **Ein Dokument je Aufruf** (`BackendSession::sign_one`, ADR 0004 §3.8; Arbeitsbereich und Stapel): HTTP
+//! 407/413/sonstige ohne eigene Meldung als spezifischer Fehler; weder der Job-Abbruch („Dokument
+//! überspringen“) noch SL 6000/6001 löschen die Zugangsdaten der Sitzung (§8 F10) – gelöscht werden sie
+//! bei `cancel`, nach einer A-Trust-Fehlerseite, nach abgelehnter Anmeldung und beim Abbruch in der
+//! QR-/App-Maske.
+//!
 //! Ownership: Paket **D**.
 
 mod dialog;
@@ -47,9 +53,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use pida_backend_api::{
-    BackendError, BackendId, BackendSession, Capabilities, CertChain, CertNeed, Environment, FactorSet, Interaction,
-    InteractionBroker, Qualification, ServerNeed, SessionContext, SignInput, SignJob, SignOutput, SignResult,
-    SignatureBackend,
+    BackendError, BackendId, BackendSession, CancelToken, Capabilities, CertChain, CertNeed, Environment, FactorSet,
+    Interaction, InteractionBroker, Qualification, ServerNeed, SessionContext, SignInput, SignJob, SignOutput,
+    SignResult, SignatureBackend,
 };
 use pida_net::{NetConfig, Url};
 use zeroize::Zeroizing;
@@ -339,6 +345,30 @@ impl BackendSession for AtrustSession {
     async fn sign(&mut self, jobs: Vec<SignJob>) -> Result<Vec<SignResult>, BackendError> {
         let result = self.inner.sign(&mut self.credentials, &mut self.loop_guard, jobs).await;
         self.after(result)
+    }
+
+    /// Ein Dokument (Arbeitsbereich und Stapel, ADR 0004 §3.8). Anders als [`BackendSession::sign`]:
+    ///
+    /// - weder ein Job-Abbruch (`job_cancel`, „Dokument überspringen“) noch `Cancelled` aus SL 6000/6001
+    ///   (Ablehnung bzw. Zeitablauf in der App) löschen die Zugangsdaten der Sitzung – die nächste
+    ///   Bestätigung braucht keine neue Anmeldung (§8 F10). Gelöscht werden sie wie bisher bei
+    ///   [`BackendSession::cancel`] (Sitzungsabbruch, F-72), nach einer A-Trust-Fehlerseite, nach einer
+    ///   abgelehnten Anmeldung und beim Abbruch in der QR-/App-Maske (`dialog.rs`);
+    /// - HTTP 407/413/sonstige erscheinen **ohne** eigene Meldung als [`BackendError::ProxyAuthRequired`],
+    ///   [`BackendError::DocumentTooLarge`] bzw. [`BackendError::Http`];
+    /// - der laufende SL-Request wird beim Job-Abbruch gedroppt (A-Trust erfährt davon nichts, §1.2);
+    ///   Loop-Guard und FIDO2-Vorgabe gelten für die ganze Sitzung weiter.
+    async fn sign_one(&mut self, job: SignJob, job_cancel: CancelToken) -> Result<SignResult, BackendError> {
+        if job_cancel.is_cancelled() {
+            return Err(BackendError::Cancelled);
+        }
+        self.inner.set_quiet_fatal(true);
+        let result = tokio::select! {
+            r = self.inner.sign(&mut self.credentials, &mut self.loop_guard, vec![job]) => r,
+            () = job_cancel.cancelled() => Err(BackendError::Cancelled),
+        };
+        self.inner.set_quiet_fatal(false);
+        result?.into_iter().next().ok_or_else(|| BackendError::Internal("sign lieferte kein Ergebnis".into()))
     }
 
     async fn cancel(&mut self) {

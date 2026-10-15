@@ -114,6 +114,91 @@ pub enum PlacementOrigin {
     Qr,
 }
 
+/// Ziel der Platzierung im Arbeitsbereich (ADR 0004 §3.3; Gegenstück der Bridge:
+/// `pida_core_api::PlacementTarget`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum Target {
+    /// frei platziert (Lage in `State::Positioning::placement`)
+    Free,
+    /// leeres Signaturfeld (Index in [`WorkspaceEdit::fields`])
+    Field(usize),
+    /// QR-Platzhalter ([`WorkspaceEdit::qr`])
+    Qr,
+}
+
+/// Lage beim Verlassen der Positionierung („Signieren“): damit Abbruch und Fehler-„Schließen“ den
+/// Arbeitsbereich **unverändert** wiederherstellen (ADR 0004 §3.6), auch wenn ein Feld, ein
+/// QR-Platzhalter oder „unsichtbar“ signiert wurde.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ParkedPlacement {
+    /// angezeigte Seite
+    pub page: usize,
+    /// freie Lage (`None` = keine Vorschau)
+    pub placement: Option<Placement>,
+    /// virtuelle neue Seite
+    pub new_page: bool,
+}
+
+/// Bearbeitungszustand des Dokuments im Arbeitsbereich-Modus (ADR 0004 §3.3, nur mit
+/// [`Context::workspace`]). Wandert durch `Signing`, `ChoosingBackend` (Rückfall/Startargument-
+/// Automatik), `Error` und `Output` mit.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WorkspaceEdit {
+    /// Ziel
+    pub target: Target,
+    /// Herkunft der Lage
+    pub origin: PlacementOrigin,
+    /// unsichtbar signieren (nur dieses Dokument; beim unsichtbaren Profil immer)
+    pub invisible: bool,
+    /// leere, nicht gesperrte Signaturfelder (aus [`Event::Analyzed::fields`]) – nur angeboten, nie
+    /// automatisch benutzt (§8 F2)
+    pub fields: Vec<EmptyFieldCandidate>,
+    /// QR-Platzhalter (nur mit Platzhaltersuche, `kind = marker`)
+    pub qr: Option<QrPlaceholder>,
+    /// aus der Stapelübersicht geöffnet (ADR 0004 §3.8, ab K2)
+    #[serde(default)]
+    pub return_to_batch: bool,
+    /// Lage beim „Signieren“ (gesetzt beim Verlassen von `Positioning`)
+    #[serde(default)]
+    pub parked: Option<ParkedPlacement>,
+}
+
+impl WorkspaceEdit {
+    /// Start nach der Analyse: frei mit automatischer Platzierung bzw. im QR-Platzhalter.
+    pub fn new(fields: Vec<EmptyFieldCandidate>, qr: Option<QrPlaceholder>, invisible: bool) -> WorkspaceEdit {
+        let (target, origin) =
+            if qr.is_some() { (Target::Qr, PlacementOrigin::Qr) } else { (Target::Free, PlacementOrigin::Auto) };
+        WorkspaceEdit { target, origin, invisible, fields, qr, return_to_batch: false, parked: None }
+    }
+
+    /// Bearbeitungszustand zu einer festen Position (Rückfall ohne Analyseergebnis, z. B. nach „Signatur
+    /// fortsetzen“).
+    pub fn from_position(position: &PositionChoice, invisible: bool) -> WorkspaceEdit {
+        let mut edit = WorkspaceEdit::new(Vec::new(), None, invisible);
+        match position {
+            PositionChoice::Invisible => edit.invisible = true,
+            PositionChoice::Manual(_) => edit.origin = PlacementOrigin::User,
+            PositionChoice::Placeholder(qr) => {
+                edit.qr = Some(qr.clone());
+                edit.target = Target::Qr;
+                edit.origin = PlacementOrigin::Qr;
+            }
+            PositionChoice::Field(f) => {
+                edit.fields = vec![f.clone()];
+                edit.target = Target::Field(0);
+                edit.origin = PlacementOrigin::Field;
+            }
+            PositionChoice::Auto => {}
+        }
+        edit
+    }
+
+    /// Automatische Platzierung ausstehend bzw. maßgeblich (frei, `origin == Auto`)?
+    pub fn auto_free(&self) -> bool {
+        self.target == Target::Free && self.origin == PlacementOrigin::Auto
+    }
+}
+
 /// Umgang mit bereits vorhandenen Zieldateien im Stapellauf (ADR 0004 §3.8, §3.0 Regel 9). Standard im
 /// Startdialog: „Beide behalten“ (§8 F11).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -377,6 +462,14 @@ pub struct Context {
     pub headless: bool,
     /// Postfix der Ausgabedatei (`SAVE_FILE_POSTFIX`, Standard `_signed`) für den Speichern-Dialog (F-86)
     pub output_postfix: String,
+    /// Arbeitsbereich-Modus (ADR 0004 §3.2, aus `CoreOptions::workspace_ui`, nie zusammen mit `headless`):
+    /// keine Platzhalterfrage, keine automatische Backend-Wahl, Abbruch zurück zum Arbeitsbereich;
+    /// eine Sitzung öffnet nur nach den Paaren der Invariante A1
+    pub workspace: bool,
+    /// Startargument-Automatik der GUI (D-06): Overlay mit `-b` **und** (`-a` oder `-v`). Dann gilt im
+    /// Arbeitsbereich-Modus der klassische automatische Weg – aber nur für Signiermittel ohne
+    /// `document_leaves_device`
+    pub cli_auto: bool,
 }
 
 impl Default for Context {
@@ -390,6 +483,8 @@ impl Default for Context {
             skip_finish: false,
             headless: false,
             output_postfix: "_signed".into(),
+            workspace: false,
+            cli_auto: false,
         }
     }
 }
@@ -408,6 +503,14 @@ pub struct DocFacts {
     /// Startposition der manuellen Positionierung (letzte Seite, 50 %/25 %, F-32/F-33);
     /// `None` = keine Vorschau möglich
     pub start: Option<Placement>,
+    /// Neues sichtbares Signaturfeld erlaubt (`DocReport::allows_new_visible_field`; DocMDP → `false`,
+    /// ADR 0004 §3.3)
+    #[serde(default = "yes")]
+    pub new_visible_field_allowed: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl DocFacts {
@@ -450,6 +553,22 @@ pub struct ResumePlan {
     /// Signiermittel des unterbrochenen Vorgangs
     pub backend: BackendId,
 }
+
+/// Meldungs-ID (ADR 0004 §3.6): Signieren abgebrochen, zurück im Arbeitsbereich – „Es wurde nichts
+/// signiert.“
+pub const MSG_SIGNING_CANCELLED: &str = "ng-signing-cancelled";
+/// Meldungs-ID (ADR 0004 §3.6): in der App abgelehnt oder abgelaufen (`Event::SigningDeclined`).
+pub const MSG_SIGNING_DECLINED: &str = "ng-signing-declined";
+/// Meldungs-ID (ADR 0004 §3.5): Das gewählte Signiermittel ist nicht verfügbar.
+pub const MSG_SIGNER_UNAVAILABLE: &str = "ng-signer-unavailable";
+/// Meldungs-ID (ADR 0004 §3.3): bereits signiert – keine neue Seite.
+pub const MSG_CONSTRAINT_SIGNED: &str = "ng-constraint-signed";
+/// Meldungs-ID (ADR 0004 §3.3): DocMDP-zertifiziert – nur vorhandene Felder oder unsichtbar.
+pub const MSG_CONSTRAINT_CERTIFIED: &str = "ng-constraint-certified";
+/// Meldungs-ID (ADR 0004 §3.3): Profil unsichtbar – kein sichtbarer Block.
+pub const MSG_CONSTRAINT_INVISIBLE_PROFILE: &str = "ng-constraint-invisible-profile";
+/// Meldungs-ID: gewähltes Signaturfeld gibt es nicht bzw. ist gesperrt (ADR 0004 §3.3 `TargetChosen`).
+pub const MSG_FIELD_LOCKED: &str = "ng-field-locked";
 
 /// Meldungs-ID: Das Signiermittel des fortgesetzten Vorgangs ist nicht mehr verfügbar; die Auswahl
 /// wird gezeigt und das Dokument neu vorbereitet.
@@ -497,6 +616,9 @@ pub enum State {
         doc: DocFacts,
         /// Fund der Platzhaltersuche (gilt nach „Fortfahren“)
         placeholder: Option<PlaceholderFound>,
+        /// leere Signaturfelder (Arbeitsbereich, gilt nach „Fortfahren“)
+        #[serde(default)]
+        fields: Vec<EmptyFieldCandidate>,
     },
     /// Frage „Platzhalter verwenden?“ bzw. Feldauswahl
     PlaceholderQuestion {
@@ -519,6 +641,9 @@ pub enum State {
         new_page: bool,
         /// Dokument
         doc: DocFacts,
+        /// Bearbeitungszustand (nur im Arbeitsbereich-Modus, ADR 0004 §3.3)
+        #[serde(default)]
+        edit: Option<WorkspaceEdit>,
     },
     /// Backend-Auswahl
     ChoosingBackend {
@@ -539,6 +664,9 @@ pub enum State {
         /// mit dem Kurzhinweis – nie ohne Nutzeraktion zu A-Trust (Autostart-Befund F-54, ADR 0003).
         #[serde(default)]
         sign_requested: bool,
+        /// Bearbeitungszustand (Arbeitsbereich: Rückfall bzw. Startargument-Automatik)
+        #[serde(default)]
+        edit: Option<WorkspaceEdit>,
     },
     /// Signieren
     Signing {
@@ -554,6 +682,9 @@ pub enum State {
         doc: DocFacts,
         /// Ablaufdaten
         flow: SignFlow,
+        /// Bearbeitungszustand (Arbeitsbereich: Abbruch stellt ihn wieder her)
+        #[serde(default)]
+        edit: Option<WorkspaceEdit>,
     },
     /// Ergebnis
     Output {
@@ -569,6 +700,9 @@ pub enum State {
         position: PositionChoice,
         /// verwendetes Backend
         backend: BackendId,
+        /// Bearbeitungszustand (Arbeitsbereich: „Fertig“ zeigt die signierte Seite)
+        #[serde(default)]
+        edit: Option<WorkspaceEdit>,
     },
     /// Fehler mit Wiederholmöglichkeit
     Error {
@@ -785,6 +919,11 @@ pub enum Event {
         start: Option<Placement>,
         /// Warnungen mit Abbruchmöglichkeit (`pades::Finding::warning`, Codes)
         warnings: Vec<String>,
+        /// alle leeren, nicht gesperrten Signaturfelder unabhängig von `placeholder.kind` (Arbeitsbereich;
+        /// der klassische Ablauf ignoriert sie)
+        fields: Vec<EmptyFieldCandidate>,
+        /// neues sichtbares Feld erlaubt (`DocReport::allows_new_visible_field`)
+        new_visible_field_allowed: bool,
     },
     /// Analyse/Laden fehlgeschlagen
     AnalysisFailed {
@@ -887,6 +1026,26 @@ pub enum Event {
     Foregrounded,
     /// Beenden
     Quit,
+    // --- ADR 0004: Arbeitsbereich-Modus (neue Varianten am Ende)
+    /// Schalter „Unsichtbar signieren“ (nur dieses Dokument)
+    InvisibleSet(bool),
+    /// „Ins Feld setzen“ / QR-Platzhalter / „Frei platzieren“ (Index von core-api geprüft)
+    TargetChosen(Target),
+    /// Ergebnis von [`Effect::AutoPlace`] (`page_index == Seitenzahl` = neue Seite) → `origin = Auto`
+    AutoPlaced(Placement),
+    /// Blockgröße geändert (Einstellungen, Seitenwechsel): die von core-api geklemmte Lage; Herkunft und
+    /// Ziel bleiben, bei `origin == Auto` wird neu automatisch platziert
+    BlockResized(Placement),
+    /// „Signieren mit X“ (`UiEvent::SignWith`): ausdrückliche Nutzeraktion mit den aktuellen Optionen
+    SignRequested {
+        /// Signiermittel
+        backend: BackendId,
+        /// aktuelle Optionen (Fähigkeiten, Verfügbarkeit)
+        options: Vec<BackendOption>,
+    },
+    /// `BackendError::Cancelled`, das core-api **nicht** selbst ausgelöst hat (SL 6000/6001, „Abbrechen“
+    /// in einer A-Trust-Meldung; ADR 0004 §3.6)
+    SigningDeclined,
 }
 
 /// Effekt, den `pida-core-api` ausführt.
@@ -956,6 +1115,16 @@ pub enum Effect {
     RememberDirectory(PathBuf),
     /// Programmende
     Exit(ExitCode),
+    // --- ADR 0004 (neue Varianten am Ende)
+    /// automatische Platzierung (PDF-AS-Regel über `plan::build_plan` mit `PositionChoice::Auto`) →
+    /// [`Event::AutoPlaced`]
+    AutoPlace(DocId),
+    /// Backend `sign_one`: genau ein Job mit eigenem Job-Abbruch (Arbeitsbereich; `Sign` bleibt für den
+    /// klassischen Ablauf)
+    SignDocument,
+    /// vorbereitetes Dokument, Attribute und Ergebnis verwerfen, Sitzung und Kette behalten (Wiederholen
+    /// ohne neue Anmeldung, ADR 0004 §3.6)
+    ReleaseDocument,
 }
 
 /// Ergebnis eines Reducer-Schritts.

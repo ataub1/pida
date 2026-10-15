@@ -135,11 +135,12 @@ fn open_log_dir(app: AppHandle, shell: State<'_, Shell>) -> Result<(), String> {
     app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
-/// Zeigt die Ergebnisdatei im Dateimanager – nur die Datei des aktuellen Ergebnis-Schritts.
+/// Zeigt die Ergebnisdatei im Dateimanager – nur Dateien, die der Kern geschrieben hat: ohne `doc` die des
+/// aktuellen Ergebnis-Schritts, mit `doc` die Ausgabe dieses Dokuments (ADR 0004 §3.14).
 #[tauri::command]
-fn reveal_output(app: AppHandle, shell: State<'_, Shell>) -> Result<(), String> {
+fn reveal_output(app: AppHandle, shell: State<'_, Shell>, doc: Option<pida_workflow::DocId>) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
-    let path = shell.output_path().ok_or_else(|| "ng-ui-open-failed".to_owned())?;
+    let path = shell.output_path_for(doc).ok_or_else(|| "ng-ui-open-failed".to_owned())?;
     app.opener().reveal_item_in_dir(path).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
@@ -544,6 +545,13 @@ pub fn run() {
                 tracing::warn!("Single-Instance-Socket gehört nicht diesem Konto – Start ohne Single-Instance");
             }
             shell.set_system_language(system_language);
+            // Abnahme der neuen Oberfläche vor dem Merge: `PIDA_UI=workspace` (nur Debug-Builds, ADR 0004 §3.14)
+            if let Some(workspace) =
+                shell::workspace_ui_from_env(std::env::var("PIDA_UI").ok().as_deref(), cfg!(debug_assertions))
+            {
+                tracing::info!("Oberfläche „Arbeitsbereich“ (PIDA_UI)");
+                shell.update_options(|o| o.workspace_ui = Some(workspace));
+            }
             shell.set_hooks(Arc::new(hooks::TauriHooks::new(handle.clone())));
             #[cfg(mobile)]
             {
