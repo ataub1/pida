@@ -50,6 +50,7 @@ Rust-API (`PdfoverMobileExt::pdfover_mobile()` auf `AppHandle`):
 | `secure_store_set(key, value)` | `secureStoreSet` | `{ key, value }` | `{}` | ersetzt vorhandene Werte |
 | `secure_store_delete(key)` | `secureStoreDelete` | `{ key }` | `{}` | fehlender Eintrag ist kein Fehler |
 | `share_file(path, mime)` | `shareFile` | `{ path, mimeType }` | `{}` sobald gezeigt | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI + `FLAG_GRANT_READ_URI_PERMISSION` |
+| `open_file(path, mime)` (M-Android) | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | QuickLook (offen; bis dahin fällt die Shell unter iOS auf `opener` zurück) / `ACTION_VIEW` mit `FileProvider`-URI an eine fremde PDF-App – Ergebnis „Öffnen“ (`ShellHooks::open_path`), docs/integration/mobile-android.md §3 |
 | `export_file(path, name, mime)` → `bool` | `exportFile` | `{ path, fileName, mimeType }` | `{ saved }` | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT` + Kopie |
 | `import_file(kind, multiple, dest)` → Dateien | `importFile` | `{ kind: "pdf"\|"pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; **Bytes** nach `destination` kopieren |
 | `take_pending_open_documents(urls, dest)` → Dateien | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | vorgemerkte Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE`) **und** die übergebenen URLs (Security-Scoped `file://`, `content://`) nach `destination` kopieren, Warteschlange leeren |
@@ -144,7 +145,7 @@ Start aus `ndk-context`, das tao beim Anlegen der Activity setzt (`tls::init_pla
 `unsafe` mit begründeten SAFETY-Kommentaren). Zusätzlich muss die Kotlin-Komponente ins APK
 (Aufgabe M-Android): Maven-Repository
 `https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/` und
-`implementation("rustls:rustls-platform-verifier:<Version von rustls-platform-verifier-android aus Cargo.lock, derzeit 0.2.0>")`;
+`implementation("org.rustls:rustls-platform-verifier:<Version von rustls-platform-verifier-android aus Cargo.lock, derzeit 0.2.0>")` (Gruppe `org.rustls`, nicht `rustls` wie in der README des Crates; umgesetzt in M-Android);
 die Proguard-Regel liefert `android/consumer-rules.pro`. Ohne Komponente scheitert die erste
 A-Trust-Verbindung.
 
@@ -227,7 +228,8 @@ Testdaten (`testdata/pdf`, `testdata/keystores`, Passwort `test`), kein Netzverk
 5. QuickLook für „Öffnen“ des Ergebnisses (`opener` öffnet auf iOS keine Pfade) – ggf. `ShellHooks::open_path`
    über das Plugin (Vertrag mit M0/Integration abstimmen).
 
-**M-Android** (Dateien: `apps/app/plugins/pdfover-mobile/android/**`, `apps/app/src-tauri/gen/android/**`):
+**M-Android** (Dateien: `apps/app/plugins/pdfover-mobile/android/**`, `apps/app/src-tauri/gen/android/**`) –
+**umgesetzt** (15.10.2026), Stand, Nachweise und Befunde: docs/integration/mobile-android.md:
 
 1. `tauri android init`; Projekt versionieren; `jniLibs` aus `tools/pdfium/android/jniLibs` einbinden
    (`sourceSets.main.jniLibs.srcDirs`), `minSdk 28`.

@@ -23,6 +23,7 @@
 //! | `secureStoreSet` | `{ key, value }` | `{}` | wie oben (ersetzt einen vorhandenen Wert) |
 //! | `secureStoreDelete` | `{ key }` | `{}` | wie oben (fehlender Eintrag ist kein Fehler) |
 //! | `shareFile` | `{ path, mimeType }` | `{}` sobald das Share-Sheet gezeigt wird | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI und `FLAG_GRANT_READ_URI_PERMISSION` |
+//! | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | Android: `ACTION_VIEW` mit `FileProvider`-URI (ohne die App selbst); iOS: QuickLook – bis dahin fehlt die Methode, die Shell fällt auf `opener` zurück |
 //! | `exportFile` | `{ path, fileName, mimeType }` | `{ saved: bool }` nach der Wahl | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT`, dann Bytes kopieren |
 //! | `importFile` | `{ kind: "pdf" \| "pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; Inhalt nach `destination` kopieren (Security-Scoped bzw. `ContentResolver`) |
 //! | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | eingegangene Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE` `application/pdf`) **und** die übergebenen URLs (Security-Scoped `file://` bzw. `content://`) nach `destination` kopieren; die Warteschlange danach leeren |
@@ -174,6 +175,13 @@ impl PdfoverMobile {
         Ok(())
     }
 
+    /// Zeigt eine Datei in einer anderen App an (Ergebnis „Öffnen“, F-87).
+    pub fn open_file(&self, path: &Path, mime_type: &str) -> Result<()> {
+        let payload = serde_json::json!({ "path": path, "mimeType": mime_type });
+        self.native.call("openFile", payload)?;
+        Ok(())
+    }
+
     /// Exportiert eine Datei („Sichern unter“); `Ok(false)` = abgebrochen.
     pub fn export_file(&self, path: &Path, file_name: &str, mime_type: &str) -> Result<bool> {
         let payload = serde_json::json!({ "path": path, "fileName": file_name, "mimeType": mime_type });
@@ -311,6 +319,18 @@ mod tests {
         let calls = f.calls.lock().unwrap();
         assert_eq!(calls[2], ("secureStoreSet".to_owned(), serde_json::json!({ "key": "a", "value": "neu" })));
         assert_eq!(calls[3].0, "secureStoreDelete");
+    }
+
+    #[test]
+    fn open_file_contract() {
+        let (m, f) = fake(|_, _| Ok(serde_json::Value::Null));
+        m.open_file(Path::new("/docs/a_signed.pdf"), "application/pdf").unwrap();
+        assert_eq!(
+            f.calls.lock().unwrap()[0],
+            ("openFile".to_owned(), serde_json::json!({ "path": "/docs/a_signed.pdf", "mimeType": "application/pdf" }))
+        );
+        let (m, _) = fake(|_, _| Err(Error::from_native_code(Some("no-app"))));
+        assert_eq!(m.open_file(Path::new("/a.pdf"), "application/pdf").unwrap_err(), Error::Native("no-app".into()));
     }
 
     #[test]

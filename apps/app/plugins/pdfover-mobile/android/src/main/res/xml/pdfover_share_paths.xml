@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- „Teilen“ (shareFile): nur signierte Dokumente im Ausgabeordner der App
+     (getExternalFilesDir(DIRECTORY_DOCUMENTS) = Tauri `document_dir`, CoreOptions::default_output_dir). -->
+<paths>
+    <external-files-path name="documents" path="Documents/" />
+</paths>

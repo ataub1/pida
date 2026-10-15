@@ -12,7 +12,7 @@
 //! Zusätzlich muss die Kotlin-Komponente `org.rustls.platformverifier` im APK sein (Aufgabe M-Android,
 //! docs/integration/mobile.md): Maven-Repository
 //! `https://github.com/rustls/rustls-platform-verifier/raw/maven-archive/android-release-support/maven/`,
-//! Abhängigkeit `rustls:rustls-platform-verifier` in **genau** der Version des Crates
+//! Abhängigkeit `org.rustls:rustls-platform-verifier` in **genau** der Version des Crates
 //! `rustls-platform-verifier-android` aus `Cargo.lock` (derzeit 0.2.0); die Proguard-Regel steht schon in
 //! `android/consumer-rules.pro`. Auf anderen Plattformen ist [`init_platform_verifier`] ein No-op.
 
