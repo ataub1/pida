@@ -4,8 +4,10 @@
 //! einen simulierten Authenticator getestet.
 //!
 //! Nicht enthalten (offener Punkt): `clientPIN`/PIN-Protokoll. Verlangt ein Authenticator eine
-//! PIN, meldet [`get_assertion`] [`Fido2Error::Device`] mit Hinweis (Windows erledigt die PIN über
-//! `webauthn.dll` selbst).
+//! PIN, meldet [`get_assertion`] [`Fido2Error::PinRequired`] (Code `fido2-pin-required`; Windows
+//! erledigt die PIN über `webauthn.dll` selbst). Der Weg zur PIN steht bereit
+//! (`SecretKind::Fido2Pin`, `Fido2Provider::get_assertion_with_pin`), der HID-Provider meldet aber
+//! noch `supports_pin() == false`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -54,6 +56,8 @@ pub mod status {
     pub const USER_ACTION_TIMEOUT: u8 = 0x2f;
     /// Nutzerin hat abgelehnt
     pub const OPERATION_DENIED: u8 = 0x27;
+    /// PIN falsch
+    pub const PIN_INVALID: u8 = 0x31;
     /// PIN gesperrt
     pub const PIN_BLOCKED: u8 = 0x32;
     /// PIN erforderlich
@@ -491,9 +495,10 @@ fn map_status(code: u8) -> Fido2Error {
         status::USER_ACTION_TIMEOUT | status::ACTION_TIMEOUT => {
             Fido2Error::Device("Zeitüberschreitung: Sicherheitsschlüssel wurde nicht berührt".into())
         }
-        status::PIN_REQUIRED => Fido2Error::Device(
-            "Dieser Sicherheitsschlüssel verlangt eine PIN; die PIN-Eingabe ist auf diesem System noch nicht verfügbar – bitte App oder SMS verwenden".into(),
-        ),
+        // Code `fido2-pin-required`; ohne PIN-Unterstützung des Providers zeigt das Backend den
+        // Hinweis „bitte App oder SMS verwenden“ (Welle 2)
+        status::PIN_REQUIRED => Fido2Error::PinRequired,
+        status::PIN_INVALID => Fido2Error::PinInvalid,
         status::PIN_BLOCKED | status::UV_BLOCKED => Fido2Error::Device("Sicherheitsschlüssel ist gesperrt".into()),
         other => Fido2Error::Device(format!("CTAP2-Status 0x{other:02x}")),
     }
@@ -864,7 +869,8 @@ mod tests {
         let sim = SimDevice::new(SimConfig { uv: None, client_pin: Some(true), ..SimConfig::default() });
         let mut dev = CtapHidDevice::init(sim, [9; 8]).unwrap();
         let e = get_assertion(&mut dev, &options(UserVerification::Required, 1), origin, &cancel).unwrap_err();
-        assert!(matches!(&e, Fido2Error::Device(m) if m.contains("PIN")), "{e:?}");
+        assert_eq!(e, Fido2Error::PinRequired);
+        assert_eq!(e.code(), "fido2-pin-required");
         // nichts eingerichtet
         let sim = SimDevice::new(SimConfig { uv: None, client_pin: None, ..SimConfig::default() });
         let mut dev = CtapHidDevice::init(sim, [9; 8]).unwrap();

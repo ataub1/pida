@@ -19,6 +19,9 @@
 //! | HTTP 407/413/sonstige, Verbindungsfehler | [`InteractionBroker::notice`] (OK → Abbruch) |
 //! | „Signaturdaten anzeigen“ (F-68) | [`FormContext::signature_data_url`] + [`InteractionBroker::open_external`] |
 //! | Keystore-Passwörter (`KSState`) | [`InteractionBroker::secret`] mit [`SecretKind`] |
+//! | FIDO2-PIN (CTAP2 `clientPIN`, macOS/Linux) | [`InteractionBroker::secret`] mit [`SecretKind::Fido2Pin`] |
+//! | FIDO2-Fehler mit Code | [`FormProblem::Fido2Error`] (`code` = `fido2-…`) |
+//! | Keystore-Fehler mit Untercode | [`BackendError::KeystoreDetail`] / [`BackendError::detail_code`] |
 //! | Warten („Signature creation in progress…“) | [`InteractionBroker::progress`] |
 //!
 //! Abbruch: Jede Methode liefert [`InteractionError::Cancelled`], wenn die Nutzerin abbricht oder

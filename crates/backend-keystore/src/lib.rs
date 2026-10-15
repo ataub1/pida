@@ -187,7 +187,7 @@ impl From<KeystoreError> for BackendError {
             KeystoreError::ConversionNeeded(f) => {
                 BackendError::UnsupportedKeystoreFormat { format: format!("{f:?}").to_uppercase() }
             }
-            other => BackendError::Keystore(other.to_string()),
+            other => BackendError::KeystoreDetail { code: other.code().to_string(), message: other.to_string() },
         }
     }
 }
@@ -1082,7 +1082,10 @@ mod tests {
             BackendError::from(KeystoreError::ConversionNeeded(KeystoreFormat::Jceks)),
             BackendError::UnsupportedKeystoreFormat { format: "JCEKS".into() }
         );
-        assert!(matches!(BackendError::from(KeystoreError::DifferentKeyPassword), BackendError::Keystore(_)));
+        assert!(matches!(
+            BackendError::from(KeystoreError::DifferentKeyPassword),
+            BackendError::KeystoreDetail { ref code, .. } if code == "keystore-different-key-password"
+        ));
     }
 
     #[test]

@@ -1,0 +1,54 @@
+//! Diagnose (nicht Teil der Prüfung): signiert `PDFOVER_DEBUG_FILE` sichtbar und zeigt die
+//! Signaturfelder vor/nach sowie das Ergebnis der Selbstprüfung.
+//! `PDFOVER_DEBUG_FILE=<pdf> cargo test -p pdfover-pades --test debug_file -- --ignored --nocapture`
+
+mod common;
+
+use common::*;
+use pdfover_cades::CmsProfile;
+use pdfover_pades::{CheckContext, FieldTarget, analyze};
+use pdfover_pdf_cos::{Limits, SourcePdf};
+
+#[test]
+#[ignore]
+fn debug_file() {
+    let Some(path) = std::env::var_os("PDFOVER_DEBUG_FILE") else { return };
+    let src = open(std::path::Path::new(&path));
+    let report = analyze(&src).unwrap();
+    eprintln!("Bericht: {:?} Felder {:?}", report.findings, report.fields);
+    let mut signer = KeystoreSigner::open("test-ecp256");
+    let chain = signer.chain.clone();
+    let (prepared, planned) = prepare_with(
+        &src,
+        &report,
+        "SIGNATURBLOCK_SMALL_DE",
+        &chain.signer,
+        &chain,
+        CmsProfile::PdfasCompat,
+        FieldTarget::New { name: None },
+    )
+    .unwrap();
+    eprintln!("Plan: {:?}", planned.plan);
+    eprintln!("Prepared: {prepared:?}");
+    let signed = signer.sign(prepared).unwrap();
+    let out = SourcePdf::open(signed.bytes(), &Limits::default()).unwrap();
+    eprintln!("Felder nachher: {:?}", out.signature_fields());
+    eprintln!("Quelle: health {:?} revisions {:?} prev {}", src.xref_health(), src.revisions(), src.prev_offset());
+    eprintln!("Ausgabe: health {:?} revisions {:?}", out.xref_health(), out.revisions());
+    if let Some(n) = std::env::var("PDFOVER_DEBUG_OBJ").ok().and_then(|v| v.parse::<u32>().ok()) {
+        eprintln!("Objekt {n} vorher: {:?}", src.get_object((n, 0)));
+        eprintln!("Objekt {n} nachher: {:?}", out.get_object((n, 0)));
+        eprintln!("Lage nachher: {:?}", out.object_locations().into_iter().find(|(id, _)| id.0 == n));
+        eprintln!("Lage vorher: {:?}", src.object_locations().into_iter().find(|(id, _)| id.0 == n));
+    }
+    let cat = out.catalog_id().unwrap();
+    eprintln!("Katalog {cat:?} Lage {:?}", out.object_locations().into_iter().find(|(id, _)| *id == cat));
+    eprintln!(
+        "Katalog nachher: {:?}",
+        out.catalog().map(|c| c.iter().map(|(k, _)| String::from_utf8_lossy(k).into_owned()).collect::<Vec<_>>())
+    );
+    eprintln!("Check: {:?}", signed.self_check(&CheckContext { source: &src, expected_signer: None, renderer: None }));
+    if let Some(keep) = std::env::var_os("PDFOVER_KEEP") {
+        std::fs::write(std::path::PathBuf::from(keep).join("debug-signed.pdf"), signed.bytes()).unwrap();
+    }
+}

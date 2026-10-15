@@ -156,5 +156,5 @@ async fn oversized_file_is_rejected_without_reading_it_completely() {
     cfg.store_password = Some(Zeroizing::new("test".into()));
     let b = KeystoreBackend::new(cfg);
     let e = b.open(ctx(CancelToken::new()), Arc::new(CancelOnSecret(CancelToken::new()))).await.err().unwrap();
-    assert!(matches!(&e, BackendError::Keystore(m) if m.contains("MiB")), "{e:?}");
+    assert!(matches!(&e, BackendError::KeystoreDetail { message: m, .. } if m.contains("MiB")), "{e:?}");
 }

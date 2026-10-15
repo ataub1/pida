@@ -595,6 +595,23 @@ pub struct AcroFormInfo {
     pub has_da: bool,
 }
 
+/// Lage eines Objekts laut zusammengeführtem Querverweis (neueste Revision gewinnt).
+///
+/// Additiv (Welle 2, `pdfover-pades`): Grundlage der Whitelist-Prüfung I6, die die Objekte eines
+/// Increments unabhängig vom Writer aus dem Querverweis der Ausgabe bestimmt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum ObjectLocation {
+    /// Objekt steht an diesem **absoluten** Offset der Datei (Offset-Basis eingerechnet).
+    Offset(u64),
+    /// Objekt liegt in einem Object Stream.
+    InStream {
+        /// Objektnummer des Object Streams
+        stream: u32,
+        /// Index im Object Stream
+        index: u32,
+    },
+}
+
 /// Element eines Pfads innerhalb eines Objekts (Dictionary-Schlüssel bzw. Array-Index).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathSegment {
@@ -1428,6 +1445,57 @@ impl SourcePdf {
     /// Grenzen, mit denen das Dokument geöffnet wurde.
     pub fn limits(&self) -> &Limits {
         &self.limits
+    }
+
+    /// Lage aller benutzten Objekte laut zusammengeführtem Querverweis (neueste Revision gewinnt),
+    /// nach Objektnummer sortiert; freie Einträge fehlen. Bei Object Streams hat die ID immer
+    /// Generation 0.
+    ///
+    /// Additiv (Welle 2): `pdfover-pades` bestimmt damit die Objekte eines Increments (Invariante
+    /// I6) – Objekte mit Offset ≥ Länge des Originals bzw. in einem neuen Object Stream.
+    pub fn object_locations(&self) -> Vec<(ObjectId, ObjectLocation)> {
+        self.xref
+            .iter()
+            .filter_map(|(&num, e)| match *e {
+                xref::Entry::InUse { offset, generation } => {
+                    Some(((num, generation), ObjectLocation::Offset(offset.saturating_add(self.offset_base))))
+                }
+                xref::Entry::Compressed { stream, index } => {
+                    Some(((num, 0), ObjectLocation::InStream { stream, index }))
+                }
+                xref::Entry::Free => None,
+            })
+            .collect()
+    }
+
+    /// `/Location`-Werte der Signaturdictionaries aller **signierten** Signaturfelder in
+    /// Feldreihenfolge (ohne Duplikate) – das sind bei PDF-AS die Ressourcennamen benutzter
+    /// QR-Platzhalter (`placement::PlaceholderQuery::used_names`, docs/analyse/04 §5.2).
+    ///
+    /// Additiv (Welle 2, Wunsch aus Paket F): `SigField` trägt die Werte nicht. Fehlende oder
+    /// nicht lesbare Signaturdictionaries werden übersprungen.
+    pub fn signature_locations(&self) -> Result<Vec<String>> {
+        let mut out: Vec<String> = Vec::new();
+        for f in self.signature_fields()?.iter().filter(|f| f.signed) {
+            let value = match f.value_id {
+                Some(id) => self.get_object(id).ok(),
+                None => self
+                    .get_object(f.field_id)
+                    .ok()
+                    .and_then(|o| o.as_dict().ok())
+                    .and_then(|d| d.get(b"V").ok())
+                    .and_then(|v| self.resolve(v).ok()),
+            };
+            let Some(Object::Dictionary(sig)) = value else { continue };
+            let Some(loc) = sig.get(b"Location").ok().and_then(|o| self.resolve(o).ok()).and_then(decode_text_string)
+            else {
+                continue;
+            };
+            if !out.contains(&loc) {
+                out.push(loc);
+            }
+        }
+        Ok(out)
     }
 
     /// Originalschreibweise der Reals eines Objekts (siehe [`RealLiterals`]); leer, wenn das

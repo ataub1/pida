@@ -442,11 +442,103 @@ async fn fido2_error_then_switch_to_sms() {
     assert!(matches!(&f[1], NativeForm::Fido2 { in_progress: true, .. }));
     match &f[2] {
         NativeForm::Fido2 { in_progress: false, ctx } => {
-            assert!(matches!(&ctx.problem, Some(FormProblem::Fido2Failed(m)) if m.contains("Token entfernt")));
+            assert!(
+                matches!(&ctx.problem, Some(FormProblem::Fido2Error { code, detail }) if code == "fido2-device" && detail.contains("Token entfernt"))
+            );
         }
         other => panic!("{other:?}"),
     }
     assert!(matches!(&f[3], NativeForm::SmsTan { .. }));
+}
+
+/// Provider mit PIN-Unterstützung (Welle 2): protokolliert die übergebenen PINs.
+#[derive(Debug)]
+struct PinFido2 {
+    inner: Arc<FakeFido2>,
+    pins: std::sync::Mutex<Vec<Option<String>>>,
+}
+
+impl pdfover_backend_atrust::Fido2Provider for PinFido2 {
+    fn is_available(&self) -> bool {
+        true
+    }
+    fn get_assertion(
+        &self,
+        request: &pdfover_backend_atrust::Fido2Request,
+        parent: Option<pdfover_backend_api::WindowHandle>,
+    ) -> Result<pdfover_backend_atrust::Fido2Assertion, Fido2Error> {
+        self.get_assertion_with_pin(request, parent, None)
+    }
+    fn cancel(&self) {
+        self.inner.cancel();
+    }
+    fn supports_pin(&self) -> bool {
+        true
+    }
+    fn get_assertion_with_pin(
+        &self,
+        request: &pdfover_backend_atrust::Fido2Request,
+        parent: Option<pdfover_backend_api::WindowHandle>,
+        pin: Option<&str>,
+    ) -> Result<pdfover_backend_atrust::Fido2Assertion, Fido2Error> {
+        self.pins.lock().unwrap().push(pin.map(str::to_string));
+        self.inner.get_assertion(request, parent)
+    }
+}
+
+#[tokio::test]
+async fn fido2_pin_required_asks_for_pin_and_retries() {
+    let server = MockServer::start(fido_server(false)).await;
+    let provider = Arc::new(PinFido2 {
+        inner: FakeFido2::new(vec![Err(Fido2Error::PinRequired), Ok(FakeFido2::assertion())]),
+        pins: std::sync::Mutex::new(Vec::new()),
+    });
+    let backend = backend(&server, |c| c.fido2 = Some(provider.clone()));
+    let broker = Arc::new(ScriptedBroker::new([
+        login_reply(PASSWORD, false),
+        ScriptedReply::Pending,
+        ScriptedReply::Secret("1234".into()),
+        ScriptedReply::Pending,
+    ]));
+    let mut session = open(&backend, &broker).await;
+    session.certificate().await.unwrap();
+    assert_eq!(*provider.pins.lock().unwrap(), vec![None, Some("1234".to_string())]);
+    let prompt = broker
+        .calls()
+        .into_iter()
+        .find_map(|c| match c {
+            BrokerCall::Secret(p) => Some(p),
+            _ => None,
+        })
+        .expect("PIN-Abfrage");
+    assert_eq!(prompt.kind, pdfover_backend_api::SecretKind::Fido2Pin);
+    assert!(!prompt.retry);
+    assert!(server.requests().iter().any(|r| is(r, "POST", "fido.aspx")));
+}
+
+#[tokio::test]
+async fn fido2_pin_required_without_pin_support_shows_coded_hint() {
+    let server = MockServer::start(fido_server(false)).await;
+    let provider = FakeFido2::new(vec![Err(Fido2Error::PinRequired)]);
+    let backend = backend(&server, |c| c.fido2 = Some(provider.clone()));
+    let broker = Arc::new(ScriptedBroker::new([
+        login_reply(PASSWORD, false),
+        ScriptedReply::Pending,
+        ScriptedReply::Form(FormAnswer::SwitchToSms),
+        tan("777777"),
+    ]));
+    let mut session = open(&backend, &broker).await;
+    session.certificate().await.unwrap();
+    let f = forms(&broker);
+    match &f[2] {
+        NativeForm::Fido2 { in_progress: false, ctx } => {
+            let p = ctx.problem.as_ref().unwrap();
+            assert_eq!(p.code(), Some("fido2-pin-unsupported"));
+            assert!(matches!(p, FormProblem::Fido2Error { detail, .. } if detail.contains("App oder SMS")));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert!(!broker.calls().iter().any(|c| matches!(c, BrokerCall::Secret(_))), "keine PIN-Abfrage");
 }
 
 #[tokio::test]
@@ -488,7 +580,11 @@ async fn fido2_unavailable_offers_sms_only() {
     match &f[2] {
         NativeForm::Fido2 { in_progress: false, ctx } => {
             assert!(!ctx.fido2_visible);
-            assert!(matches!(ctx.problem, Some(FormProblem::Fido2Failed(_))));
+            assert!(
+                matches!(&ctx.problem, Some(FormProblem::Fido2Error { code, .. }) if code == "fido2-unavailable"),
+                "{:?}",
+                ctx.problem
+            );
         }
         other => panic!("{other:?}"),
     }
@@ -1570,7 +1666,11 @@ async fn security_key_plugged_in_later_can_be_used_after_retry() {
     match &f[1] {
         NativeForm::Fido2 { in_progress: false, ctx } => {
             assert!(ctx.fido2_visible, "Plattform kann FIDO2, der Knopf bleibt sichtbar");
-            assert!(matches!(ctx.problem, Some(FormProblem::Fido2Failed(_))));
+            assert!(
+                matches!(&ctx.problem, Some(FormProblem::Fido2Error { code, .. }) if code == "fido2-unavailable"),
+                "{:?}",
+                ctx.problem
+            );
         }
         other => panic!("{other:?}"),
     }
