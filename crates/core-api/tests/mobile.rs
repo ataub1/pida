@@ -253,6 +253,9 @@ async fn app_kill_offers_resume_and_restores_the_prepared_document() {
     assert_eq!(offer.backend, BackendId::AtrustNative);
     assert_eq!(offer.pending, 1);
     assert!(offer.age_minutes <= 1);
+    // Kurzhinweis „wird an A-Trust übermittelt“ beim Angebot; erst „Fortsetzen“ öffnet die Sitzung (ADR 0003)
+    assert!(offer.document_leaves_device);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "vor „Fortsetzen“ keine Sitzung");
     core.dispatch(UiEvent::ResumeSignature);
     // ohne Positionierung: Sitzung neu (Anmeldung, Passwort nie gespeichert), Zertifikat, dann wiederherstellen
     login(&core).await;

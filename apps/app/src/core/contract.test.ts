@@ -213,7 +213,7 @@ const viewState = obj({
   migration: nullable(obj({ legacy_file: str, plaintext_secrets: bool })),
   done: arr(obj({ id: int, name: str, input: str, result: docResult })),
   platform: obj({ os: lit('windows', 'macos', 'linux', 'ios', 'android'), mobile: bool }),
-  resume: nullable(obj({ name: str, backend: backendId, age_minutes: int, pending: int })),
+  resume: nullable(obj({ name: str, backend: backendId, age_minutes: int, pending: int, document_leaves_device: bool })),
   keystore_import: nullable(obj({ file_name: str, ok: bool, code: str, password_stored: bool })),
   privacy_text: nullable(str),
 });

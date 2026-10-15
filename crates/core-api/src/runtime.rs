@@ -322,6 +322,8 @@ pub(crate) struct CoreTask {
     backgrounded: bool,
     /// gespeicherter, noch nicht angenommener Vorgang („Signatur fortsetzen“)
     resume_offer: Option<resume::Persisted>,
+    /// beim Angebot ermittelt: Das Dokument verlässt mit dessen Signiermittel das Gerät (Kurzhinweis)
+    resume_offer_leaves_device: bool,
     /// angenommener Vorgang: Dokument und Zustand für die Wiederherstellung beim nächsten `Prepare`
     resume_active: Option<(DocId, resume::Persisted)>,
     /// der Ordner des persistierten Zustands gehört dem laufenden Vorgang (sonst hält er ein noch nicht
@@ -366,6 +368,7 @@ impl CoreTask {
             mobile,
             backgrounded: false,
             resume_offer: None,
+            resume_offer_leaves_device: false,
             resume_active: None,
             persist_owned: false,
             keystore_import: None,
@@ -387,6 +390,13 @@ impl CoreTask {
             resume::Loaded::Nothing => {}
             resume::Loaded::Offer(p) => {
                 tracing::info!("unterbrochener Signiervorgang gefunden – „Signatur fortsetzen“ wird angeboten");
+                // Kurzhinweis beim Angebot (ADR 0003): Capability des gespeicherten Signiermittels
+                let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
+                self.resume_offer_leaves_device = self
+                    .registry
+                    .get(p.record.backend)
+                    .and_then(|b| b.capabilities(&env))
+                    .is_some_and(|c| c.document_leaves_device);
                 self.resume_offer = Some(*p);
             }
             resume::Loaded::Expired => {
@@ -1979,6 +1989,7 @@ impl CoreTask {
                     backend: p.record.backend,
                     age_minutes: p.age_minutes(SystemTime::now()),
                     pending: u32::try_from(p.record.pending.len()).unwrap_or(u32::MAX),
+                    document_leaves_device: self.resume_offer_leaves_device,
                 }
             }),
             keystore_import: self.keystore_import.clone(),

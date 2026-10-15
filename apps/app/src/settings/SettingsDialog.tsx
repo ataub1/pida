@@ -655,6 +655,17 @@ export function SettingsDialog({ settingsView, initialTab = 'simple' }: { settin
   const [draft, setDraft] = useState<Settings>(() => structuredClone(settingsView.settings));
   const [tab, setTab] = useState<Key>(initialTab);
   const [confirmReset, setConfirmReset] = useState(false);
+  // Die Tableiste läuft auf schmalen Bildschirmen (Mobile) quer: Öffnen bei einem späteren Tab (z. B.
+  // „Datenschutz“ aus dem Kurzhinweis) bzw. der Verweis aus „Über“ macht den gewählten Tab sichtbar
+  const tabListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // nach dem Einblenden des Dialogs (Layout und Fokus stehen erst dann fest)
+    const frame = requestAnimationFrame(() => {
+      const selected = tabListRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+      selected?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab]);
   const update: Update = (section, patch) => setDraft((d) => withSection(d, section, patch));
 
   // Arbeitskopie nachführen, wenn der Kern andere Einstellungen meldet, während der Dialog offen ist
@@ -761,7 +772,7 @@ export function SettingsDialog({ settingsView, initialTab = 'simple' }: { settin
             </div>
           ) : null}
           <Tabs className="tabs" selectedKey={tab} onSelectionChange={setTab}>
-            <TabList className="tab-list" aria-label={t.t('main-configuration')}>
+            <TabList ref={tabListRef} className="tab-list" aria-label={t.t('main-configuration')}>
               {tabs.map((x) => {
                 const key = t.accessKey(x.msg);
                 return (

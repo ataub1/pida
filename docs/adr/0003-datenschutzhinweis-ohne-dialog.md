@@ -13,7 +13,9 @@
    wird zum Signieren an A-Trust übermittelt.“ mit dem Link „Details“:
    - in der Signiermittel-Auswahl unter der Karte von ID Austria (Keystore und lokale BKU: kein Hinweis),
    - im Signierbereich, solange ID Austria läuft (`StepView::Signing::document_leaves_device`) – auch wenn
-     das Signiermittel ohne Auswahl startete (F-53/F-54 nach „Signieren“).
+     das Signiermittel ohne Auswahl startete (F-53/F-54 nach „Signieren“),
+   - im Angebot „Signatur fortsetzen“ (Mobile), wenn der unterbrochene Vorgang ID Austria nutzt
+     (`ResumeOfferView::document_leaves_device`) – „Fortsetzen“ startet die Sitzung.
    „Details“ öffnet die Einstellungen beim Tab „Datenschutz“. Während des Signierens sind die Einstellungen
    wie in PDF-Over gesperrt; dort zeigt „Details“ dieselben Angaben als schließbares Fenster.
 2. **Einstellungen › Datenschutz.** Neuer Tab vor „Über“ mit dem bisherigen Datenschutztext aus PDF-Over
@@ -62,9 +64,14 @@
   ohne „Signieren“ weder über F-54 noch über F-53 (auch nicht bei erneuter Prüfung); nach „Signieren“ bzw.
   „Unsichtbar signieren“ startet F-54; eingeschalteter, fehlender Keystore verhindert F-54 weiter; CLI:
   einzeiliger Hinweis; Fortsetzen ohne Zustimmung.
+- Property-Test (`crates/workflow/tests/props.rs`, `id_austria_session_only_after_explicit_user_action`):
+  beliebige Ereignisfolgen und Einstellungen (Standard-Signiermittel, automatische Position, unsichtbares
+  Profil, Platzhalter) – eine Sitzung bei ID Austria öffnet nur nach Wahl in der Auswahl, „Wiederholen“,
+  „Signatur fortsetzen“ oder der automatischen Wahl nach „Signieren“/„Unsichtbar signieren“.
 - Kern (`crates/core-api/tests/flow.rs`, `mobile.rs`, `pdfium.rs`): Auswahl statt Autostart, keine Sitzung vor
   der Wahl, Kurzhinweis-Flag im Signierbereich, alte `settings.toml` mit Zustimmungsfeld, Richtlinientext.
 - Einstellungen (`crates/config/tests/settings_roundtrip.rs`): ausgemusterter Eintrag lädt und verschwindet.
 - CLI (`apps/cli/src/lib.rs`): `-b MOBILE` im Terminal – eine Info-Zeile, keine Rückfrage.
 - Oberfläche (`BackendScreen`, `SigningScreen`, `SettingsDialog`, `App`, `Mobile`): kein Dialog, Kurzhinweis
-  bei ID Austria und nicht beim Keystore, „Details“ öffnet Einstellungen › Datenschutz, Tab mit Link.
+  bei ID Austria und nicht beim Keystore, „Details“ öffnet Einstellungen › Datenschutz, Tab mit Link;
+  Kurzhinweis im Angebot „Signatur fortsetzen“ (nur bei ID Austria).

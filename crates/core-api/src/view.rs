@@ -194,6 +194,10 @@ pub struct ResumeOfferView {
     pub age_minutes: u32,
     /// weitere Dokumente des unterbrochenen Batches
     pub pending: u32,
+    /// Das Dokument verlässt mit diesem Signiermittel das Gerät (`document_leaves_device`, z. B. ID Austria):
+    /// Kurzhinweis „wird an A-Trust übermittelt“ beim Angebot – „Fortsetzen“ startet die Sitzung (ADR 0003)
+    #[serde(default)]
+    pub document_leaves_device: bool,
 }
 
 /// Ergebnis des PKCS#12-Imports in die App-Sandbox (Mobile, Import-Assistent; Plan §5.2) – schließen

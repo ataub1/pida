@@ -235,7 +235,8 @@ max_batch: number,
  */
 login_once_per_batch: boolean, 
 /**
- * Dokument verlässt das Gerät → Pflicht-Datenschutzhinweis vor dem ersten Upload
+ * Dokument verlässt das Gerät (z. B. ID Austria → A-Trust): nicht blockierender Kurzhinweis beim
+ * Signiermittel; die automatische Wahl startet es nur nach „Signieren“ (ADR 0003)
  */
 document_leaves_device: boolean, 
 /**
@@ -942,7 +943,12 @@ age_minutes: number,
 /**
  * weitere Dokumente des unterbrochenen Batches
  */
-pending: number, };
+pending: number, 
+/**
+ * Das Dokument verlässt mit diesem Signiermittel das Gerät (`document_leaves_device`, z. B. ID Austria):
+ * Kurzhinweis „wird an A-Trust übermittelt“ beim Angebot – „Fortsetzen“ startet die Sitzung (ADR 0003)
+ */
+document_leaves_device: boolean, };
 
 /**
  * Ergebnis des PKCS#12-Imports in die App-Sandbox (Mobile, Import-Assistent; Plan §5.2) – schließen

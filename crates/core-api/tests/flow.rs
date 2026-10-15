@@ -274,6 +274,42 @@ async fn headless_interactive_id_austria_shows_a_one_line_notice() {
     assert_eq!(core.wait_finished().await, ExitCode::Cancelled);
 }
 
+/// GUI-Start mit `-b MOBILE` (Overlay → Standard-Signiermittel, F-53) und automatischer Position: ID Austria
+/// startet nicht von selbst – die Auswahl erscheint, erst die Wahl dort öffnet die Sitzung (Autostart-Befund
+/// F-54, ADR 0003).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn gui_start_with_b_mobile_waits_for_the_choice() {
+    let fx = Fixture::new();
+    fx.write_settings("[signature]\nauto_position = true\n");
+    let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let overlay =
+        Overlay { input_files: vec![a], backend: Some(pida_config::BackendChoice::IdAustria), ..Overlay::default() };
+    let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options } if !options.is_empty())).await;
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert!(matches!(core.view().step, StepView::Backend { .. }), "{:?}", core.view().step);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung ohne Nutzeraktion");
+    let cli_notice =
+        |v: &pida_core_api::ViewState| v.notices.iter().any(|n| n.code == pida_workflow::MSG_DOCUMENT_LEAVES_DEVICE);
+    assert!(!cli_notice(&core.view()), "die Oberfläche zeigt den Kurzhinweis selbst, nicht den CLI-Hinweis");
+    choose_id_austria(&core).await;
+    let v = wait_for(&core, "Login", |v| {
+        matches!(
+            &v.step,
+            StepView::Signing { interaction: InteractionView::Form { form: NativeForm::Login { .. }, .. }, .. }
+        )
+    })
+    .await;
+    assert!(matches!(v.step, StepView::Signing { document_leaves_device: true, .. }));
+    assert!(!cli_notice(&v));
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1);
+    core.dispatch(UiEvent::Quit);
+    assert_eq!(core.wait_finished().await, ExitCode::Cancelled);
+}
+
 /// Eigener Datenschutztext per Richtlinie erreicht die Oberfläche (Einstellungen › Datenschutz); ohne
 /// Richtlinie gilt der Text aus PDF-Over.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

@@ -539,6 +539,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         backend: BackendId::AtrustNative,
         age_minutes: 3,
         pending: 1,
+        document_leaves_device: true,
     });
     out.push(("mobile_resume_offer", resume));
     let mut imported = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
