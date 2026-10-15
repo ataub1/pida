@@ -8,3 +8,4 @@ dist/
 *.log
 /out/
 /tools/pdfium/
+/.claude/
