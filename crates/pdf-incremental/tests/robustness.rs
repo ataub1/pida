@@ -5,8 +5,8 @@ mod common;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use pdfover_pdf_cos::{Limits, Object, SourcePdf};
-use pdfover_pdf_incremental::{IncError, IncrementBuilder, IncrementOptions, RESERVE_MIN_MODEL_A, XrefFormat};
+use pida_pdf_cos::{Limits, Object, SourcePdf};
+use pida_pdf_incremental::{IncError, IncrementBuilder, IncrementOptions, RESERVE_MIN_MODEL_A, XrefFormat};
 
 /// Einfaches Dokument mit frei wählbarem Trailer-Zusatz (klassische Tabelle).
 fn simple_with_trailer(extra: &str) -> Vec<u8> {
@@ -61,8 +61,8 @@ fn object_number_space_exhausted_is_an_error() {
 /// verboten; gelingt das Increment, gelten I1 (Präfix) und I2 (ByteRange).
 #[test]
 fn mutated_inputs_never_break_the_writer() {
-    let iters: usize = std::env::var("PDFOVER_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
-    let mut state: u64 = std::env::var("PDFOVER_FUZZ_SEED").ok().and_then(|v| v.parse().ok()).unwrap_or(0xC0FF_EE11);
+    let iters: usize = std::env::var("PIDA_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+    let mut state: u64 = std::env::var("PIDA_FUZZ_SEED").ok().and_then(|v| v.parse().ok()).unwrap_or(0xC0FF_EE11);
     let mut next = move || {
         state ^= state << 13;
         state ^= state >> 7;

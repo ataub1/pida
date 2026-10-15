@@ -1,6 +1,6 @@
 //! Gemeinsame Hilfen für den Golden-Vergleich gegen PDF-AS 4.4.2 (`tests/golden_pdfas442.rs`):
 //! Manifest-Strukturen (`testdata/golden/pdfas-4.4.2`, erzeugt von `tools/golden/run-pdfas.sh`),
-//! Nachbau eines Falls mit `pdfover-sigblock` und ein Content-Stream-Parser mit demselben
+//! Nachbau eines Falls mit `pida-sigblock` und ein Content-Stream-Parser mit demselben
 //! Operationsmodell wie `tools/golden/extract.py`.
 #![allow(dead_code)]
 
@@ -8,8 +8,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use pdfover_pdf_cos::Object;
-use pdfover_sigblock::{
+use pida_pdf_cos::Object;
+use pida_sigblock::{
     Appearance, BuildOptions, CertFields, Emblem, FontProvider, PdfaMode, Profile, ProfileOverrides, ProfileStore,
     SigBlockInput,
 };
@@ -253,7 +253,7 @@ pub fn rotation_of(m: Option<&Vec<f32>>) -> i32 {
 }
 
 // ------------------------------------------------------------------------------------------------
-// Nachbau mit pdfover-sigblock
+// Nachbau mit pida-sigblock
 // ------------------------------------------------------------------------------------------------
 
 /// Zertifikatsfelder des Test-Zertifikats `testdata/keystores/test-rsa2048.crt.pem`
@@ -582,7 +582,7 @@ pub fn local<'a>(app: &'a Appearance, o: &'a Object) -> &'a Object {
     }
 }
 
-fn dict_of<'a>(app: &'a Appearance, o: &'a Object) -> Option<&'a pdfover_pdf_cos::Dictionary> {
+fn dict_of<'a>(app: &'a Appearance, o: &'a Object) -> Option<&'a pida_pdf_cos::Dictionary> {
     match local(app, o) {
         Object::Dictionary(d) => Some(d),
         Object::Stream(s) => Some(&s.dict),

@@ -14,7 +14,7 @@ pub struct RdnAttr {
     pub oid: String,
     /// Gebräuchlicher Kurzname (`CN`, `O`, `C`, `title`, `SERIALNUMBER` …), falls bekannt.
     /// Die Alias-Regeln für Profile (`title` **und** `T`, linkester Eintrag gewinnt) wendet
-    /// `pdfover-sigblock` an (Plan §6.5 Kompatibilitätsregister).
+    /// `pida-sigblock` an (Plan §6.5 Kompatibilitätsregister).
     pub short_name: Option<String>,
     /// Wert als Text (UTF8String, PrintableString, IA5String, TeletexString, BMPString).
     pub value: String,

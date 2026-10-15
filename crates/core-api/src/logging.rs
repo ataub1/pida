@@ -1,7 +1,7 @@
 //! Logdatei mit Rotation (Plan §7.1: ≤ 2 MB, ohne Secrets und Dokumentinhalte; analyse/05 §3.2).
 //!
-//! `pdfover-config` liefert Ordner, Dateinamen und Rotation ([`Paths::rotate_logs`],
-//! [`pdfover_config::paths::LOG_MAX_FILE_BYTES`] × [`pdfover_config::paths::LOG_KEEP`]); hier wird die
+//! `pida-config` liefert Ordner, Dateinamen und Rotation ([`Paths::rotate_logs`],
+//! [`pida_config::paths::LOG_MAX_FILE_BYTES`] × [`pida_config::paths::LOG_KEEP`]); hier wird die
 //! Datei beim Start **und während des Laufs** rotiert (sobald sie die Größe erreicht, damit auch eine
 //! lange laufende Sitzung mit Debug-Stufe die Obergrenze einhält) und über `tracing-appender` (nicht
 //! blockierend) beschrieben. Die Shell bzw. die CLI ruft [`init`] einmal je Prozess auf; ist bereits
@@ -9,8 +9,8 @@
 
 use std::io::Write;
 
-use pdfover_config::Paths;
-use pdfover_config::paths::{LOG_KEEP, LOG_MAX_FILE_BYTES};
+use pida_config::Paths;
+use pida_config::paths::{LOG_KEEP, LOG_MAX_FILE_BYTES};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -33,7 +33,7 @@ impl std::fmt::Debug for LogGuard {
 /// Optionen.
 #[derive(Debug, Clone)]
 pub struct LogOptions {
-    /// Stufe bzw. Filter (`warn`, `info`, `pdfover=debug` …); `RUST_LOG` hat Vorrang
+    /// Stufe bzw. Filter (`warn`, `info`, `pida=debug` …); `RUST_LOG` hat Vorrang
     pub level: String,
     /// zusätzlich auf stderr (CLI)
     pub stderr: bool,
@@ -151,7 +151,7 @@ pub fn init(paths: &Paths, opts: &LogOptions) -> LogGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_config::paths::LOG_FILE;
+    use pida_config::paths::LOG_FILE;
 
     /// Lange Sitzung: die Datei rotiert auch während des Laufs; insgesamt höchstens
     /// `(LOG_KEEP + 1) × LOG_MAX_FILE_BYTES` (+ ein Eintrag) – Plan §7.1 (≤ 2 MB).

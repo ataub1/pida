@@ -1,4 +1,4 @@
-// PDF-Over NG, Paket B – erzeugt Java-spezifische Test-Keystores (nur von make-testdata.sh aufgerufen).
+// PIDA, Paket B – erzeugt Java-spezifische Test-Keystores (nur von make-testdata.sh aufgerufen).
 // NUR FÜR TESTS: alle Schlüssel stammen aus testdata/keystores bzw. testdata/cades, Passwort "test".
 //
 //   java [-Dkeystore.pkcs12.…] GenKeystores.java <testdata-Verzeichnis> <Ausgabeverzeichnis> <modus>

@@ -1,7 +1,7 @@
-# Abnahme der Desktop-App (PDF-Over NG, Welle 3)
+# Abnahme der Desktop-App (PIDA, Welle 3)
 
 Gegenstand: `apps/app` – Oberfläche (React 19, React Aria Components, Vite) und Tauri-2.12-Shell
-(`apps/app/src-tauri`, Crate `pdfover-app`) um den Rust-Kern `pdfover-core-api`. Dieses Dokument hält
+(`apps/app/src-tauri`, Crate `pida-app`) um den Rust-Kern `pida-core-api`. Dieses Dokument hält
 fest, was automatisch nachgewiesen ist, und enthält die Checkliste für die **manuelle Prüfung** durch
 den Auftraggeber (Bildschirme, Tastatur, Drag & Drop, ID Austria mit Testkonto).
 
@@ -13,24 +13,24 @@ PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft di
 | Nr. | Prüfung | Befehl | Ergebnis |
 |---|---|---|---|
 | N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review) |
-| N-02 | Shell-Crate | `cargo test -p pdfover-app` | grün: 40 Tests nach dem Review (Startargumente, Kernstart/Fehlerschritt, Shell-Funktionen, Startprüfung, Custom Protocol, Dateien, frühe Dokumente/Single-Instance-Socket, PDFium-Auflösung, Sicherheitskonfiguration, Serde-Vertrag) |
-| N-03 | Vertrag Kern ↔ UI | `cargo test -p pdfover-core-api --test ts_bindings` | grün: `generated.ts` entspricht den Rust-Typen (ts-rs 12.0.1) |
-| N-04 | Debug-Bundle mit PDFium und Drittlizenzen | `npm run notices && PDFOVER_PDFIUM_DIR=… npm run bundle:mac:debug` | `PDF-Over NG.app` **121,3 MiB** (Binary 112 MiB unoptimiert mit Debug-Infos, `Contents/Frameworks/libpdfium.dylib` 7,0 MiB, `Contents/Resources/THIRD-PARTY-NOTICES.md` + `RUST-STD-COPYRIGHT.html`) |
-| N-05 | Release-Bundle | `PDFOVER_PDFIUM_DIR=… CI=true npm run bundle:mac:release` | `PDF-Over NG.app` **28,6 MiB** (Binary 19 MiB), `PDF-Over NG_0.1.0_aarch64.dmg` **12,1 MiB** – unter dem Größen-Gate ≤ 25 MB je Installer (Plan §9.1) |
-| N-06 | Startprüfung Debug-Bundle (3 Läufe) | `PDFOVER_SMOKE=1 HOME="$(mktemp -d)" "…/debug/bundle/macos/PDF-Over NG.app/Contents/MacOS/pdf-over-ng"` | `pdfover-smoke: ok step=open pdfium=true`, WebView + Kern bereit nach **471 ms (kalt) bzw. 371–380 ms (warm)**, Prozessende nach 1,7 s bzw. 0,4 s |
+| N-02 | Shell-Crate | `cargo test -p pida-app` | grün: 40 Tests nach dem Review (Startargumente, Kernstart/Fehlerschritt, Shell-Funktionen, Startprüfung, Custom Protocol, Dateien, frühe Dokumente/Single-Instance-Socket, PDFium-Auflösung, Sicherheitskonfiguration, Serde-Vertrag) |
+| N-03 | Vertrag Kern ↔ UI | `cargo test -p pida-core-api --test ts_bindings` | grün: `generated.ts` entspricht den Rust-Typen (ts-rs 12.0.1) |
+| N-04 | Debug-Bundle mit PDFium und Drittlizenzen | `npm run notices && PIDA_PDFIUM_DIR=… npm run bundle:mac:debug` | `PIDA.app` **121,3 MiB** (Binary 112 MiB unoptimiert mit Debug-Infos, `Contents/Frameworks/libpdfium.dylib` 7,0 MiB, `Contents/Resources/THIRD-PARTY-NOTICES.md` + `RUST-STD-COPYRIGHT.html`) |
+| N-05 | Release-Bundle | `PIDA_PDFIUM_DIR=… CI=true npm run bundle:mac:release` | `PIDA.app` **28,6 MiB** (Binary 19 MiB), `PIDA_0.1.0_aarch64.dmg` **12,1 MiB** – unter dem Größen-Gate ≤ 25 MB je Installer (Plan §9.1) |
+| N-06 | Startprüfung Debug-Bundle (3 Läufe) | `PIDA_SMOKE=1 HOME="$(mktemp -d)" "…/debug/bundle/macos/PIDA.app/Contents/MacOS/pida"` | `pida-smoke: ok step=open pdfium=true`, WebView + Kern bereit nach **471 ms (kalt) bzw. 371–380 ms (warm)**, Prozessende nach 1,7 s bzw. 0,4 s |
 | N-07 | Startprüfung Release-Bundle (3 Läufe) | wie N-06 mit `…/release/bundle/…` | `ok step=open pdfium=true`, WebView + Kern bereit nach **447 ms (kalt) bzw. 342 ms (warm)**, Prozessende nach 0,35–0,78 s |
-| N-08 | Startargumente im Bundle | `… pdf-over-ng <testdata/pdf/generated/simple-xref-table.pdf> -a` | `ok step=backend` (Dokument geladen, automatische Position, weiter zur Signiermittel-Auswahl) |
-| N-09 | Ungültige Startargumente | `… pdf-over-ng /gibt/es/nicht.pdf` bzw. `-b FALSCH` | `ok step=error` (Fehlerschritt `error-FileNotExist` bzw. `error-CmdLineArgs`, Kern startet nicht) |
-| N-10 | Hilfe/Version ohne Fenster | `… pdf-over-ng -h`, `--version` | zweisprachige Hilfe (Systemsprache) bzw. `PDF-Over NG 0.1.0` auf stdout, Ende ohne Fenster |
+| N-08 | Startargumente im Bundle | `… pida <testdata/pdf/generated/simple-xref-table.pdf> -a` | `ok step=backend` (Dokument geladen, automatische Position, weiter zur Signiermittel-Auswahl) |
+| N-09 | Ungültige Startargumente | `… pida /gibt/es/nicht.pdf` bzw. `-b FALSCH` | `ok step=error` (Fehlerschritt `error-FileNotExist` bzw. `error-CmdLineArgs`, Kern startet nicht) |
+| N-10 | Hilfe/Version ohne Fenster | `… pida -h`, `--version` | zweisprachige Hilfe (Systemsprache) bzw. `PIDA 0.1.0` auf stdout, Ende ohne Fenster |
 | N-11 | Lizenz-Gate | `cargo deny --locked check`, `node tools/npm-licenses.mjs apps/app/package-lock.json` | grün (begründete Ausnahmen in `deny.toml`/`tools/npm-licenses.mjs`) |
-| N-12 | „Öffnen mit“ beim Kaltstart (Review) | `open -n -W -a "…/PDF-Over NG.app" --env PDFOVER_SMOKE=1 --env HOME=<leer> --stdout <datei> doc.pdf` | `ok step=position` (Dokument geöffnet); der Stand vor dem Review (58e072b) lieferte `step=open` – das Dokument ging verloren, weil `RunEvent::Opened` vor `setup` kam |
-| N-13 | Fremder Single-Instance-Socket (Review) | Datei `/tmp/at_pdf_over_ng_si.sock` anlegen, App starten | `ok step=open`, Log: Warnung „Start ohne Single-Instance“; die App sendet nichts an den Pfad |
-| N-14 | Zertifikats-Cache mit echter Engine (Review) | `cargo test -p pdfover-core-api --test real_pades` | Treffer ohne InfoboxRead, qpdf/pyHanko intakt, Signer = Testzertifikat; abweichendes Zertifikat → `ng-certcache-mismatch` (`cms-unexpected-signer`), nichts gespeichert, „Wiederholen“ signiert gültig |
-| N-15 | Startargumente (Review) | `… pdf-over-ng "file://…/a%20b.pdf"`, `--log-level warn` | `ok step=position` bzw. nur Warnungen im Log |
+| N-12 | „Öffnen mit“ beim Kaltstart (Review) | `open -n -W -a "…/PIDA.app" --env PIDA_SMOKE=1 --env HOME=<leer> --stdout <datei> doc.pdf` | `ok step=position` (Dokument geöffnet); der Stand vor dem Review (58e072b) lieferte `step=open` – das Dokument ging verloren, weil `RunEvent::Opened` vor `setup` kam |
+| N-13 | Fremder Single-Instance-Socket (Review) | Datei `/tmp/at_pida_si.sock` anlegen, App starten | `ok step=open`, Log: Warnung „Start ohne Single-Instance“; die App sendet nichts an den Pfad |
+| N-14 | Zertifikats-Cache mit echter Engine (Review) | `cargo test -p pida-core-api --test real_pades` | Treffer ohne InfoboxRead, qpdf/pyHanko intakt, Signer = Testzertifikat; abweichendes Zertifikat → `ng-certcache-mismatch` (`cms-unexpected-signer`), nichts gespeichert, „Wiederholen“ signiert gültig |
+| N-15 | Startargumente (Review) | `… pida "file://…/a%20b.pdf"`, `--log-level warn` | `ok step=position` bzw. nur Warnungen im Log |
 
 Hinweise zur Messung:
 
-- Die **Startprüfung** (`PDFOVER_SMOKE=1`, `apps/app/src-tauri/src/smoke.rs`) beendet die App, sobald die
+- Die **Startprüfung** (`PIDA_SMOKE=1`, `apps/app/src-tauri/src/smoke.rs`) beendet die App, sobald die
   Oberfläche über IPC den ersten ViewState abgefragt hat (WebView, JavaScript-Bundle und IPC laufen) und
   der Kern einen Schritt außer `starting` meldet. `webview_ms`/`core_ms` messen ab Prozessstart; `pdfium`
   sagt, ob die mitgelieferte Bibliothek gebunden wurde. Ohne Antwort binnen 60 s endet die App mit
@@ -40,7 +40,7 @@ Hinweise zur Messung:
   ein und wartet dabei ohne Freigabe „Automation → Finder“ unbegrenzt. In CI und Terminal-Sitzungen
   `CI=true` setzen (Tauri überspringt dann die Finder-Gestaltung); auf einem Arbeitsplatz mit Freigabe
   geht es ohne.
-- Ein Release-Build lädt PDFium **nie** aus `PDFOVER_PDFIUM_DIR` oder Systempfaden, nur aus dem Bundle
+- Ein Release-Build lädt PDFium **nie** aus `PIDA_PDFIUM_DIR` oder Systempfaden, nur aus dem Bundle
   (ADR 0060 §1; fehlt sie dort, nennt die Shell dem Kern den Ordner der Binary – dann ohne Vorschau,
   `apps/app/src-tauri/src/pdfium.rs::resolve`); N-07 belegt, dass die Bibliothek im Bundle gefunden wird.
 - Signieren und Codesignatur/Notarisierung sind nicht Teil dieser Abnahme (Signier-Secrets beim
@@ -50,7 +50,7 @@ Hinweise zur Messung:
 ## 2. Manuelle Prüfung – Checkliste
 
 Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres Testprofil
-(`HOME=$(mktemp -d) open -n "PDF-Over NG.app"` bzw. neues macOS-Benutzerkonto), Test-PDFs aus
+(`HOME=$(mktemp -d) open -n "PIDA.app"` bzw. neues macOS-Benutzerkonto), Test-PDFs aus
 `testdata/` (u. a. `pdf/generated/simple-xref-table.pdf`, QR-Platzhalter
 `pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf`), Test-Keystore `testdata/keystores/test-rsa2048.p12`
 (Passwort `test`, NUR TEST). Ergebnis je Zeile: ✓ / ✗ mit Notiz und ggf. Log
@@ -61,7 +61,7 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | Nr. | Prüfschritt | Erwartung |
 |---|---|---|
 | S-01 | App starten (leeres Profil) | Schritt „Öffnen“, Hauptleiste Öffnen aktiv, Positionieren/Signieren/Ende gesperrt; Sprache = Systemsprache (DE/EN) |
-| S-02 | Altkonfiguration `~/.pdf-over/PDF-Over.config` vorhanden, noch keine NG-Einstellungen | Migrationsassistent: Übernehmen / Nicht übernehmen; mit Klartext-Passwörtern zusätzlich die Frage nach dem Schlüsselbund; „Nicht übernehmen“ fragt nicht wieder |
+| S-02 | Altkonfiguration `~/.pdf-over/PDF-Over.config` vorhanden, noch keine PIDA-Einstellungen | Migrationsassistent: Übernehmen / Nicht übernehmen; mit Klartext-Passwörtern zusätzlich die Frage nach dem Schlüsselbund; „Nicht übernehmen“ fragt nicht wieder |
 | S-03 | „Durchsuchen“ (⌘O) → PDF wählen | Laden/Analyse mit Abbrechen, danach Positionieren mit gerenderter Seite und Blockvorschau |
 | S-04 | PDF mit Nutzungsrechten (`/Perms /UR3`), Hybrid-XFA bzw. unerfüllbaren Seed Values | Schritt „Hinweis zum Dokument“ mit Liste; „Trotzdem signieren“ geht weiter, „Dokument verwerfen“ zurück zu Öffnen |
 | S-05 | PDF mit leeren Signaturfeldern bzw. QR-Platzhalter | Frage „Platzhalter verwenden?“ (Ja/Nein/Abbrechen), bei mehreren Feldern Auswahl |
@@ -100,15 +100,15 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | D-01 | PDF(s) auf das Fenster ziehen (Schritt Öffnen bzw. Ergebnis) | Dokumente kommen in die Warteschlange; Hervorhebung während des Ziehens |
 | D-02 | PDF in einem anderen Schritt ablegen | Hinweis „hier nicht möglich“, nichts passiert |
 | D-03 | Bild auf das Bildmarken-Feld in den Einstellungen ziehen | Bildmarke übernommen |
-| D-04 | Finder: „Öffnen mit › PDF-Over NG“ bzw. PDF auf das Dock-Symbol (App läuft nicht) | App startet mit dem Dokument |
+| D-04 | Finder: „Öffnen mit › PIDA“ bzw. PDF auf das Dock-Symbol (App läuft nicht) | App startet mit dem Dokument |
 | D-05 | wie D-04, App läuft bereits | Dokument geht an die laufende Instanz, Fenster kommt nach vorn (keine zweite Instanz) |
-| D-05a | macOS, zweites Benutzerkonto: dort läuft PDF-Over NG bzw. `/tmp/at_pdf_over_ng_si.sock` gehört dem anderen Konto; App im eigenen Konto starten | App startet normal (ohne Single-Instance, Warnung im Log); keine Startargumente an das andere Konto |
-| D-05b | Linux: Start über den Desktop-Eintrag mit Datei-URL (`pdf-over-ng file:///…/a%20b.pdf`) | Dokument wird geöffnet (Datei-URL = Pfad) |
-| D-06 | Terminal: `pdf-over-ng -b KS -ks test-rsa2048.p12 -kspass test -a -s -o <ordner> a.pdf b.pdf` | beide Dokumente ohne Rückfragen signiert, App endet nach dem letzten Speichern (`-s`) |
-| D-07 | `pdf-over-ng -v true a.pdf`, `-e logo.png`, `-n 0664…`, `-proxy host -proxyport 8080` | unsichtbar; Bildmarke; Benutzername vorbelegt (`+43664…`); Proxy nur für diese Sitzung (nicht gespeichert) |
-| D-08 | `pdf-over-ng fehlt.pdf`, `pdf-over-ng -b FALSCH`, `pdf-over-ng --headless` | Fehlerschritt ohne Wiederholen (`error-FileNotExist`, `error-CmdLineArgs`, `ng-ui-args-cli-only`), Abbrechen beendet; Passwörter erscheinen nie in der Anzeige oder im Log |
-| D-09 | `pdf-over-ng -h` | Hilfe auf stdout, kein Fenster |
-| D-10 | `pdf-over-ng --log-level debug` | ausführlicheres Log (Vorrang vor `PDFOVER_LOG`), weiterhin ohne Passwörter/Dokumentinhalte |
+| D-05a | macOS, zweites Benutzerkonto: dort läuft PIDA bzw. `/tmp/at_pida_si.sock` gehört dem anderen Konto; App im eigenen Konto starten | App startet normal (ohne Single-Instance, Warnung im Log); keine Startargumente an das andere Konto |
+| D-05b | Linux: Start über den Desktop-Eintrag mit Datei-URL (`pida file:///…/a%20b.pdf`) | Dokument wird geöffnet (Datei-URL = Pfad) |
+| D-06 | Terminal: `pida -b KS -ks test-rsa2048.p12 -kspass test -a -s -o <ordner> a.pdf b.pdf` | beide Dokumente ohne Rückfragen signiert, App endet nach dem letzten Speichern (`-s`) |
+| D-07 | `pida -v true a.pdf`, `-e logo.png`, `-n 0664…`, `-proxy host -proxyport 8080` | unsichtbar; Bildmarke; Benutzername vorbelegt (`+43664…`); Proxy nur für diese Sitzung (nicht gespeichert) |
+| D-08 | `pida fehlt.pdf`, `pida -b FALSCH`, `pida --headless` | Fehlerschritt ohne Wiederholen (`error-FileNotExist`, `error-CmdLineArgs`, `ng-ui-args-cli-only`), Abbrechen beendet; Passwörter erscheinen nie in der Anzeige oder im Log |
+| D-09 | `pida -h` | Hilfe auf stdout, kein Fenster |
+| D-10 | `pida --log-level debug` | ausführlicheres Log (Vorrang vor `PIDA_LOG`), weiterhin ohne Passwörter/Dokumentinhalte |
 
 ### 2.4 ID Austria mit Testkonto (nur durch den Auftraggeber)
 
@@ -144,7 +144,7 @@ oder Logs. Vorab Datenschutzhinweis bestätigen.
 - Keine Codesignatur/Notarisierung, kein Updater, kein Release-Workflow (Plan §9.3/§9.4).
 - CTAP2-clientPIN (FIDO2 mit PIN) im HID-Provider fehlt (Welle 2, Paket I1).
 - Mobile (iOS/Android): Fundament M0 steht (Kern-Lebenszyklus mit „Signatur fortsetzen“, Shell
-  `cfg(mobile)`, Plugin `pdfover-mobile` mit leeren nativen Seiten, Oberfläche); native Seiten, Projekte
+  `cfg(mobile)`, Plugin `pida-mobile` mit leeren nativen Seiten, Oberfläche); native Seiten, Projekte
   und Start im Simulator/Emulator folgen mit M-iOS/M-Android (docs/integration/mobile.md).
 - Positionsanzeige (Befund aus der Abnahme): Live-Region und Felder nennen jetzt dieselben Kanten
   („linke Kante … von links, Oberkante … von unten“); Link im Datenschutzhinweis ist ein Inline-Link, der

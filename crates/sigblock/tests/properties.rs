@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use pdfover_sigblock::layout::break_string;
-use pdfover_sigblock::{CertFields, FontProvider, FontSpec, LoadedFont, SigBlockInput, Std14, expr};
+use pida_sigblock::layout::break_string;
+use pida_sigblock::{CertFields, FontProvider, FontSpec, LoadedFont, SigBlockInput, Std14, expr};
 use proptest::prelude::*;
 
 fn width(font: &LoadedFont, s: &str, size: f32) -> f32 {
@@ -113,8 +113,8 @@ proptest! {
         size in r"-?[0-9]{1,2}",
         width in -10.0f32..800.0,
     ) {
-        use pdfover_java_properties::Properties;
-        use pdfover_sigblock::{Appearance, BuildOptions, BuiltinResources, PdfaMode, ProfileStore};
+        use pida_java_properties::Properties;
+        use pida_sigblock::{Appearance, BuildOptions, BuiltinResources, PdfaMode, ProfileStore};
         let mut props = Properties::new();
         let font = format!("HELVETICA,{size},BOLD");
         let mut entries = vec![
@@ -141,7 +141,7 @@ proptest! {
         let opts = BuildOptions { width, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
         let p = store.get("T").unwrap();
         if let Ok(a) = Appearance::build(p, &input, &opts, &FontProvider::builtin(), &**store.resources()) {
-            let pdfover_pdf_cos::Object::Stream(inner) = &a.objects[a.inner] else { panic!() };
+            let pida_pdf_cos::Object::Stream(inner) = &a.objects[a.inner] else { panic!() };
             let text = String::from_utf8_lossy(&inner.content);
             prop_assert!(!text.contains("NaN") && !text.contains("inf"), "{}", text);
             prop_assert!(a.width.is_finite() && a.height.is_finite());

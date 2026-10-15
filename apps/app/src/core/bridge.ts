@@ -3,15 +3,15 @@
  *
  * Die Oberfläche hält **keinen Fachzustand**: Sie projiziert den `ViewState` und sendet `UiEvent`s.
  * Zwei Implementierungen: `TauriBridge` (hier; Commands `core_view`/`core_dispatch`, Ereignis
- * `pdfover:view`, Custom Protocol `pdfover-render://`) und der TS-Mock-Kern (`mock.ts`, für
+ * `pida:view`, Custom Protocol `pida-render://`) und der TS-Mock-Kern (`mock.ts`, für
  * `VITE_MOCK=1`, Browser-Vorschau und Tests).
  */
 import type { DocId, UiEvent, ViewState } from './types';
 
-/** Name des Ereignisses mit dem aktuellen ViewState (`pdfover_app_lib::VIEW_EVENT`). */
-export const VIEW_EVENT = 'pdfover:view';
-/** Schema des Custom Protocols (`pdfover_app_lib::protocol::SCHEME`). */
-export const RENDER_SCHEME = 'pdfover-render';
+/** Name des Ereignisses mit dem aktuellen ViewState (`pida_app_lib::VIEW_EVENT`). */
+export const VIEW_EVENT = 'pida:view';
+/** Schema des Custom Protocols (`pida_app_lib::protocol::SCHEME`). */
+export const RENDER_SCHEME = 'pida-render';
 
 /** Dateifilter eines Dialogs. */
 export interface FileFilter {
@@ -58,7 +58,7 @@ export interface PlatformServices {
   /** Ordnerdialog; `null` = abgebrochen. */
   pickDirectory(options: { title: string; defaultPath?: string | null }): Promise<string | null>;
   /**
-   * Mobile: System-Dateiauswahl über das Plugin `pdfover-mobile` (Dokument-Picker bzw. SAF); die Dateien
+   * Mobile: System-Dateiauswahl über das Plugin `pida-mobile` (Dokument-Picker bzw. SAF); die Dateien
    * liegen danach als Kopien in der App-Sandbox. `[]` = abgebrochen. Fehler tragen einen Code
    * (`ng-mobile-not-implemented`, `ng-mobile-unsupported` …).
    */

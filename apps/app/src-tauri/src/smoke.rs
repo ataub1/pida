@@ -1,4 +1,4 @@
-//! Startprüfung der gebauten App (`PDFOVER_SMOKE=1`), z. B. in der CI oder bei der Abnahme
+//! Startprüfung der gebauten App (`PIDA_SMOKE=1`), z. B. in der CI oder bei der Abnahme
 //! (docs/integration/app-abnahme.md): belegt, dass **Kern und WebView** hochfahren, ohne dass jemand
 //! klickt.
 //!
@@ -7,11 +7,11 @@
 //! außer `starting` meldet, gibt eine Zeile
 //!
 //! ```text
-//! pdfover-smoke: ok step=open pdfium=true webview_ms=412 core_ms=415
+//! pida-smoke: ok step=open pdfium=true webview_ms=412 core_ms=415
 //! ```
 //!
 //! auf stdout aus und beendet die App mit Exit-Code 0. Kommt binnen [`WATCHDOG`] keine Abfrage der
-//! Oberfläche bzw. kein bereiter Kern, endet sie mit Exit-Code 3 (`pdfover-smoke: timeout …`).
+//! Oberfläche bzw. kein bereiter Kern, endet sie mit Exit-Code 3 (`pida-smoke: timeout …`).
 //!
 //! Die Variable kann die App nur beenden; sie liest oder schreibt nichts zusätzlich. Für die
 //! Startprüfung `HOME` (bzw. `APPDATA`) auf einen leeren Ordner setzen, damit keine Nutzerdaten
@@ -21,13 +21,13 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use pdfover_core_api::StepView;
+use pida_core_api::StepView;
 use tauri::{AppHandle, Manager};
 
 use crate::shell::Shell;
 
 /// Umgebungsvariable der Startprüfung.
-pub const ENV_SMOKE: &str = "PDFOVER_SMOKE";
+pub const ENV_SMOKE: &str = "PIDA_SMOKE";
 /// Höchstdauer bis zur ersten Abfrage der Oberfläche und einem bereiten Kern.
 pub const WATCHDOG: Duration = Duration::from_secs(60);
 /// Exit-Code bei Zeitüberschreitung.
@@ -76,7 +76,7 @@ pub fn ui_ready(app: &AppHandle, shell: &Shell) {
             // ohne Kern (Fehlerschritt): die Oberfläche läuft trotzdem – Ergebnis „error“
             None => app.try_state::<Shell>().map_or_else(|| "error".to_owned(), |s| step_name(&s.view().step)),
         };
-        println!("pdfover-smoke: ok step={step} pdfium={pdfium} webview_ms={webview_ms} core_ms={}", elapsed_ms());
+        println!("pida-smoke: ok step={step} pdfium={pdfium} webview_ms={webview_ms} core_ms={}", elapsed_ms());
         finish(&app, 0);
     });
 }
@@ -89,7 +89,7 @@ pub fn arm_watchdog(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(WATCHDOG);
-        println!("pdfover-smoke: timeout ui_seen={} after_ms={}", UI_SEEN.load(Ordering::SeqCst), elapsed_ms());
+        println!("pida-smoke: timeout ui_seen={} after_ms={}", UI_SEEN.load(Ordering::SeqCst), elapsed_ms());
         finish(&app, EXIT_TIMEOUT);
     });
 }

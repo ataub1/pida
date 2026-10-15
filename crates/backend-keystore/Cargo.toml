@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-backend-keystore"
+name = "pida-backend-keystore"
 description = "PKCS#12-Keystore-Backend (Modell A), JKS/JCEKS-Erkennung mit Konvertierungshinweis, Passwort-Speicherarten (Paket B)"
 version.workspace = true
 edition.workspace = true
@@ -9,8 +9,8 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
-pdfover-backend-api = { workspace = true }
-pdfover-cades = { workspace = true }
+pida-backend-api = { workspace = true }
+pida-cades = { workspace = true }
 p12-keystore = { workspace = true }
 # Vorprüfung der PFX-Struktur ohne Passwort (gepinnte Generation 0.7, ADR 0001 §5.2)
 der = { workspace = true }
@@ -28,7 +28,7 @@ tokio = { workspace = true }
 pkcs5 = { workspace = true }
 
 [dev-dependencies]
-pdfover-backend-api = { workspace = true, features = ["testing"] }
+pida-backend-api = { workspace = true, features = ["testing"] }
 tokio = { workspace = true, features = ["rt", "macros", "time"] }
 tempfile = { workspace = true }
 time = { workspace = true }

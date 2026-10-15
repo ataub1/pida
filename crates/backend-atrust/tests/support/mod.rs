@@ -6,14 +6,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use base64::Engine as _;
-use pdfover_backend_api::testing::MemoryDocument;
-use pdfover_backend_api::{CancelToken, DocumentJob, ExcludedByteRange, SessionContext, SignJob, WindowHandle};
-use pdfover_backend_atrust::poll::PollConfig;
-use pdfover_backend_atrust::{
-    AtrustConfig, AtrustNativeBackend, Fido2Assertion, Fido2Error, Fido2Provider, Fido2Request,
-};
-use pdfover_net::testing::{MockResponse, MockServer};
-use pdfover_net::{NetConfig, ProxyConfig};
+use pida_backend_api::testing::MemoryDocument;
+use pida_backend_api::{CancelToken, DocumentJob, ExcludedByteRange, SessionContext, SignJob, WindowHandle};
+use pida_backend_atrust::poll::PollConfig;
+use pida_backend_atrust::{AtrustConfig, AtrustNativeBackend, Fido2Assertion, Fido2Error, Fido2Provider, Fido2Request};
+use pida_net::testing::{MockResponse, MockServer};
+use pida_net::{NetConfig, ProxyConfig};
 
 /// Pfadpräfix des SL-Endpunkts.
 pub const BASE: &str = "/mobile/https-security-layer-request/";
@@ -132,38 +130,38 @@ pub fn document() -> (Vec<u8>, SignJob) {
 
 /// Broker, der jede Maske erst nach `delay` beantwortet (Nebenläufigkeit mit dem Long-Poll).
 pub struct SlowBroker {
-    pub inner: pdfover_backend_api::testing::ScriptedBroker,
+    pub inner: pida_backend_api::testing::ScriptedBroker,
     pub delay: Duration,
 }
 
 #[async_trait::async_trait]
-impl pdfover_backend_api::InteractionBroker for SlowBroker {
+impl pida_backend_api::InteractionBroker for SlowBroker {
     async fn native_form(
         &self,
-        form: pdfover_backend_api::NativeForm,
-    ) -> Result<pdfover_backend_api::FormAnswer, pdfover_backend_api::InteractionError> {
+        form: pida_backend_api::NativeForm,
+    ) -> Result<pida_backend_api::FormAnswer, pida_backend_api::InteractionError> {
         tokio::time::sleep(self.delay).await;
         self.inner.native_form(form).await
     }
     async fn secret(
         &self,
-        prompt: pdfover_backend_api::SecretPrompt,
-    ) -> Result<zeroize::Zeroizing<String>, pdfover_backend_api::InteractionError> {
+        prompt: pida_backend_api::SecretPrompt,
+    ) -> Result<zeroize::Zeroizing<String>, pida_backend_api::InteractionError> {
         self.inner.secret(prompt).await
     }
     async fn notice(
         &self,
-        notice: pdfover_backend_api::Notice,
-    ) -> Result<pdfover_backend_api::NoticeAnswer, pdfover_backend_api::InteractionError> {
+        notice: pida_backend_api::Notice,
+    ) -> Result<pida_backend_api::NoticeAnswer, pida_backend_api::InteractionError> {
         self.inner.notice(notice).await
     }
-    fn progress(&self, progress: pdfover_backend_api::Progress) {
+    fn progress(&self, progress: pida_backend_api::Progress) {
         self.inner.progress(progress)
     }
-    fn event(&self, event: pdfover_backend_api::BackendEvent) {
+    fn event(&self, event: pida_backend_api::BackendEvent) {
         self.inner.event(event)
     }
-    fn open_external(&self, url: &str) -> Result<(), pdfover_backend_api::InteractionError> {
+    fn open_external(&self, url: &str) -> Result<(), pida_backend_api::InteractionError> {
         self.inner.open_external(url)
     }
 }

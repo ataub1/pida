@@ -6,10 +6,10 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use pdfover_backend_api::{BackendError, BackendId, Capabilities, CertNeed};
-use pdfover_config::BackendChoice;
-use pdfover_pades::{AcceptanceClass, InvariantViolation, OutputInfo};
-use pdfover_placement::{EmptyFieldCandidate, Placement, QrPlaceholder};
+use pida_backend_api::{BackendError, BackendId, Capabilities, CertNeed};
+use pida_config::BackendChoice;
+use pida_pades::{AcceptanceClass, InvariantViolation, OutputInfo};
+use pida_placement::{EmptyFieldCandidate, Placement, QrPlaceholder};
 
 use crate::output::{ExitCode, OutputDecision};
 use crate::queue::{DocId, DocOutcome, InputDocument, Queue};
@@ -156,7 +156,7 @@ pub enum WorkflowError {
     /// Invariante verletzt – nichts gespeichert
     #[error("Selbstprüfung fehlgeschlagen: {0}")]
     Invariant(#[cfg_attr(feature = "ts", ts(as = "crate::ts_mirror::InvariantViolation"))] InvariantViolation),
-    /// CMS größer als die Reserve – nichts gespeichert (`pdfover_pades::FinishError::CmsTooLarge`)
+    /// CMS größer als die Reserve – nichts gespeichert (`pida_pades::FinishError::CmsTooLarge`)
     #[error("Signatur zu groß: {needed} Bytes, Reserve {reserve}")]
     CmsTooLarge {
         /// benötigt
@@ -390,7 +390,7 @@ impl SignFlow {
 /// Persistierter Signiervorgang, der fortgesetzt werden soll (Mobile-Lebenszyklus, Plan §3.5: die App
 /// wurde vom System beendet, während die Nutzerin in der App „ID Austria“ bestätigte). Position und
 /// Signiermittel stehen fest; das vorbereitete Dokument (`pades::Prepared::persist`) stellt
-/// `pdfover-core-api` beim Effekt [`Effect::Prepare`] wieder her.
+/// `pida-core-api` beim Effekt [`Effect::Prepare`] wieder her.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ResumePlan {
     /// Position des vorbereiteten Dokuments
@@ -559,7 +559,7 @@ impl State {
     }
 
     /// Einstellungen sind ein Overlay ohne eigenen Zustand (F-101 ohne Re-Entry): ob sie offen sind,
-    /// hält `pdfover-core-api` (`ViewState::settings`); der Reducer sieht nur
+    /// hält `pida-core-api` (`ViewState::settings`); der Reducer sieht nur
     /// [`Event::SettingsChanged`]. Liefert deshalb immer `false`.
     pub fn settings_open(&self) -> bool {
         false
@@ -774,7 +774,7 @@ pub enum Event {
     NewPageToggled,
     /// Position bestätigt („Signieren“/Enter)
     PositionConfirmed,
-    /// „Unsichtbar signieren“ im Positionierungsschritt (NG-Ergänzung): dieses Dokument ohne
+    /// „Unsichtbar signieren“ im Positionierungsschritt (PIDA-Ergänzung): dieses Dokument ohne
     /// sichtbaren Block signieren ([`PositionChoice::Invisible`]); das Profil bleibt unverändert
     InvisibleChosen,
     /// Backends geprüft
@@ -848,7 +848,7 @@ pub enum Event {
     Quit,
 }
 
-/// Effekt, den `pdfover-core-api` ausführt.
+/// Effekt, den `pida-core-api` ausführt.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
     /// Dokument laden, `analyze`, Platzhalter suchen

@@ -4,9 +4,9 @@
 
 use std::collections::BTreeSet;
 
-use pdfover_config::migrate::SHIPPED_PDFAS_FILES;
-use pdfover_config::{Effective, NoteSetting, Overlay, Settings, SignatureProfile};
-use pdfover_i18n::Lang;
+use pida_config::migrate::SHIPPED_PDFAS_FILES;
+use pida_config::{Effective, NoteSetting, Overlay, Settings, SignatureProfile};
+use pida_i18n::Lang;
 
 fn expected(profile: SignatureProfile, lang: Lang, note: bool, pdfa: bool) -> String {
     let l = if lang == Lang::En { "EN" } else { "DE" };

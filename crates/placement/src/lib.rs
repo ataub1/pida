@@ -1,15 +1,15 @@
-//! `pdfover-placement` – Koordinatenmodell und Positionierung (Plan §6.7, §6.8;
+//! `pida-placement` – Koordinatenmodell und Positionierung (Plan §6.7, §6.8;
 //! docs/analyse/04 §4–§5).
 //!
 //! Alle Funktionen arbeiten auf **Datenstrukturen** (`PageInfo`, `SigField`, `ImageInvocation` aus
-//! `pdfover-pdf-cos`; `Renderer` aus `pdfover-render`), damit Paket F unabhängig von Paket A testen
+//! `pida-pdf-cos`; `Renderer` aus `pida-render`), damit Paket F unabhängig von Paket A testen
 //! kann (ADR 0001 §5.3).
 //!
 //! # Ablauf
 //!
 //! 1. [`TablePos::parse`] und [`TablePos::merge`] (Request-Position über Profil-`pos`),
 //! 2. [`resolve_width`] (Seite, x, Breite – vor dem Layout),
-//! 3. Layout in `pdfover-sigblock` (Blockhöhe),
+//! 3. Layout in `pida-sigblock` (Blockhöhe),
 //! 4. [`resolve_position`] bzw. [`auto_place`] (Rasterscan, neue Seite, Hinweise),
 //! 5. [`widget_rect`] und [`appearance_rotation`] für das Widget.
 //!
@@ -27,14 +27,14 @@
 //! | KR-F04 | Rasterscan gedrehter Seiten im ungedrehten Bildformat `(int) w × (int) h` mit Startzeile `(int) h − 1 − f` (Inhalt teils außerhalb, nicht gelöschte Pixel zählen als Inhalt; Golden PDF-AS 4.4.2: A4 mit `/Rotate 90/270` und `f:80` ⇒ immer neue Seite, Querformat-MediaBox mit `/Rotate 90/270` ⇒ immer die Startzeile, `/Rotate 180` mit Breitenanteil > ½ ⇒ neue Seite) | korrigiert: Scan im gedrehten (sichtbaren) Raum; [`CompatMode::PdfasQuirks`] bildet das Rasterbild nach (Java2D-Pixelregel, Startzeile); Rest: PDF-AS sieht bei 90°/270° nur die linken `(int) w` Spalten | `auto_position_on_rotated_pages_scans_visible_space`, `forced_color_on_rotated_page_scans_visible_orientation`, `pdfas_rotated_scan_like_pdfas`, `golden_pdfas442` |
 //! | KR-F05 | ungültige Platzhalterposition (x/y < 0, w < 1) bricht die ganze Suche ab | nur dieser Platzhalter wird übersprungen | `find_placeholders_in_generated_document` (Seite 5) |
 //! | KR-F06 | Rasterscan färbt auch Widgets und Annotationen um | Annotationen (ohne Widgets) werden umgefärbt; Widgets zeichnet PDFium (`FPDF_FFLDraw`) in Originalfarben – sie zählen trotzdem als Inhalt | `forced_color_includes_widgets_and_annotations` (render) |
-//! | KR-F07 | QR-Dekodierung mit ZXing auf `getImage()` (Masken angewandt) | `rxing` auf das Bildobjekt von `pdfover-render`, seit Welle 3 ebenfalls mit angewandter Maske (`/SMask`, `/Mask`; Bilder bis 4 MP; transparente Pixel gelten wie bei ZXing als weiß); ohne Treffer zweiter Versuch 2× vergrößert, weil `rxing` Module um 2 px schlechter erkennt als ZXing | `next_unused_placeholder_like_pdfas`, `decode_generated_qr_codes`, `transparent_qr_placeholders_are_decoded_with_their_mask` |
+//! | KR-F07 | QR-Dekodierung mit ZXing auf `getImage()` (Masken angewandt) | `rxing` auf das Bildobjekt von `pida-render`, seit Welle 3 ebenfalls mit angewandter Maske (`/SMask`, `/Mask`; Bilder bis 4 MP; transparente Pixel gelten wie bei ZXing als weiß); ohne Treffer zweiter Versuch 2× vergrößert, weil `rxing` Module um 2 px schlechter erkennt als ZXing | `next_unused_placeholder_like_pdfas`, `decode_generated_qr_codes`, `transparent_qr_placeholders_are_decoded_with_their_mask` |
 //! | KR-F08 | leere Signaturfelder nur auf oberster Ebene, ohne Sperrprüfung | auch hierarchische Felder; `ReadOnly`/`LockedContents` werden nicht angeboten | `empty_fields_filtering`, `empty_fields_like_pdfas` |
 //! | KR-F09 | `x:NaN`, `w:Infinity` usw. werden akzeptiert | abgelehnt ([`PlacementError::InvalidPosition`]) | `parse_rejects_non_finite_numbers` |
-//! | KR-F10 | Rasterscan mit Java2D (exakter Pixelvergleich, Seite 1:1 auf `(int) w × (int) h`) | PDFium mit Kantenglättungs-Toleranz [`SCAN_TOLERANCE`]; `pdfover-render` bildet die Seite seit Welle 3 ebenfalls 1:1 auf `(int) w × (int) h` ab (vorher auf `round(w) × round(h)` gestreckt: bei Seitenhöhen mit Nachkommaanteil ≥ 0,5 genau 1 pt tiefer). Golden PDF-AS 4.4.2: alle Auto-Positionen exakt außer Haarlinien knapp über einer Pixelgrenze als unterster Inhalt (PDFium zeichnet Linien mindestens 1 px breit, Java2D mit der echten Breite; Eingabe `presigned`: 1 pt tiefer, Plan §8.2 ±1 pt) | `pdfas_positions_match_golden`, `tolerance_ignores_faint_antialiasing`, `golden_pdfas442` |
+//! | KR-F10 | Rasterscan mit Java2D (exakter Pixelvergleich, Seite 1:1 auf `(int) w × (int) h`) | PDFium mit Kantenglättungs-Toleranz [`SCAN_TOLERANCE`]; `pida-render` bildet die Seite seit Welle 3 ebenfalls 1:1 auf `(int) w × (int) h` ab (vorher auf `round(w) × round(h)` gestreckt: bei Seitenhöhen mit Nachkommaanteil ≥ 0,5 genau 1 pt tiefer). Golden PDF-AS 4.4.2: alle Auto-Positionen exakt außer Haarlinien knapp über einer Pixelgrenze als unterster Inhalt (PDFium zeichnet Linien mindestens 1 px breit, Java2D mit der echten Breite; Eingabe `presigned`: 1 pt tiefer, Plan §8.2 ±1 pt) | `pdfas_positions_match_golden`, `tolerance_ignores_faint_antialiasing`, `golden_pdfas442` |
 //! | KR-F11 | UI-Klemmung bei Block größer als Seite liefert `x < 0` bzw. `y < h` | Block liegt links bzw. oben an | `clamp_block_like_f35` |
-//! | KR-F12 | QR-Suche dekodiert jedes Bild (`getImage()`) ohne Obergrenze | der Renderer dekodiert je Seite höchstens [`pdfover_render::MAX_IMAGE_PIXELS_PER_PAGE`] Pixel (kleinste Bilder zuerst, jedes ≤ [`pdfover_render::MAX_PIXELS`]); größere Bilder werden nicht auf QR-Codes geprüft (Schutz gegen Dekompressionsbomben) | `image_objects_stay_within_the_pixel_budget` (render) |
+//! | KR-F12 | QR-Suche dekodiert jedes Bild (`getImage()`) ohne Obergrenze | der Renderer dekodiert je Seite höchstens [`pida_render::MAX_IMAGE_PIXELS_PER_PAGE`] Pixel (kleinste Bilder zuerst, jedes ≤ [`pida_render::MAX_PIXELS`]); größere Bilder werden nicht auf QR-Codes geprüft (Schutz gegen Dekompressionsbomben) | `image_objects_stay_within_the_pixel_budget` (render) |
 //!
-//! Ownership: Paket **F** (zusammen mit `pdfover-render`).
+//! Ownership: Paket **F** (zusammen mit `pida-render`).
 
 pub mod coords;
 pub mod placeholder;
@@ -94,7 +94,7 @@ pub enum PlacementError {
     NotEnoughSpace,
     /// Renderer-Fehler (Rasterscan, Bildobjekte).
     #[error(transparent)]
-    Render(#[from] pdfover_render::RenderError),
+    Render(#[from] pida_render::RenderError),
 }
 
 impl PlacementError {

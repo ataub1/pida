@@ -533,7 +533,7 @@ pub fn resolve_value(
 
 /// `/Name` des Signaturdictionarys wie PDF-AS: aufgelöster Wert `value.SIG_SUBJECT` des Profils
 /// (inkl. `default.*`-Fallback und Laufzeit-Overlays); `None`, wenn das Profil keinen Wert hat.
-/// Die Integration (`pdfover-pades::SignPlan::name`) nutzt diese Funktion statt die Alias-Regeln
+/// Die Integration (`pida-pades::SignPlan::name`) nutzt diese Funktion statt die Alias-Regeln
 /// nachzubauen.
 pub fn signer_name(profile: &Profile, input: &SigBlockInput) -> Result<Option<String>> {
     let ctx = ExprContext::from_input(input);

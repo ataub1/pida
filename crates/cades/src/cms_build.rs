@@ -206,7 +206,7 @@ impl RawSignature {
 
 /// Lokaler Signierer über einen Hash (Keystore; später CSC über einen Adapter).
 ///
-/// Vertrag (ADR 0001 §8, gilt auch für `pdfover_backend_api::DigestJob`): Der Kern wählt das
+/// Vertrag (ADR 0001 §8, gilt auch für `pida_backend_api::DigestJob`): Der Kern wählt das
 /// Hashverfahren mit [`select_algorithm`] aus dem Zertifikat, hasht damit die ByteRange-Daten
 /// (message-digest) **und** die SignedAttributes. [`RawSigner::sign_digest`] signiert mit genau dem
 /// Verfahren von `digest.alg` (RSA: DigestInfo dieses Verfahrens; ECDSA: Hash direkt) und liefert

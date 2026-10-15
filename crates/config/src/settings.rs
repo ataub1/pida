@@ -1,7 +1,7 @@
 //! Neues Settings-Schema (TOML, versioniert; Plan §7.1).
 //!
 //! ```toml
-//! # PDF-Over NG – Einstellungen
+//! # PIDA – Einstellungen
 //! schema_version = 1
 //!
 //! [general]
@@ -38,7 +38,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use pdfover_i18n::{Catalog, Lang};
+use pida_i18n::{Catalog, Lang};
 
 use crate::{ConfigError, Result};
 
@@ -224,7 +224,7 @@ impl Default for SignatureSettings {
     }
 }
 
-/// CMS-Profil der lokal erzeugten Signaturen (Abbildung auf `pdfover_cades::CmsProfile` im Workflow).
+/// CMS-Profil der lokal erzeugten Signaturen (Abbildung auf `pida_cades::CmsProfile` im Workflow).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CmsProfileChoice {
@@ -462,7 +462,7 @@ pub enum LoadOutcome {
 static TMP_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// Kopfzeile der geschriebenen Datei.
-const FILE_HEADER: &str = "# PDF-Over NG – Einstellungen. Unbekannte Einträge bleiben beim Speichern erhalten.\n\n";
+const FILE_HEADER: &str = "# PIDA – Einstellungen. Unbekannte Einträge bleiben beim Speichern erhalten.\n\n";
 
 impl Settings {
     /// Liest die TOML-Datei.

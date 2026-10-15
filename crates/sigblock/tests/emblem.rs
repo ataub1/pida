@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use pdfover_sigblock::{Emblem, MAX_EMBLEM_HEIGHT, MAX_EMBLEM_WIDTH};
+use pida_sigblock::{Emblem, MAX_EMBLEM_HEIGHT, MAX_EMBLEM_WIDTH};
 
 fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/sigblock/images").join(name)).unwrap()

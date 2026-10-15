@@ -4,8 +4,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use pdfover_java_properties::Properties;
-use pdfover_sigblock::{
+use pida_java_properties::Properties;
+use pida_sigblock::{
     BuiltinResources, CellSpec, HAlign, PDFOVER_PROFILE_IDS, ProfileOverrides, ProfileStore, SigBlockError, Std14,
     VAlign, fonts::FontSpec,
 };

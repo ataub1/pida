@@ -1,9 +1,9 @@
 //! Positionsstring, Merge, `resolve_width`/`resolve_position` (mit Test-Scanner), Widget-Rect und
 //! Rasterscan-Hilfen – ohne PDFium.
 
-use pdfover_pdf_cos::{PageInfo, Rect, Rotation, SigField, SigWidget};
-use pdfover_placement::*;
-use pdfover_render::{ForcedColorOptions, ImageObject, PageSize, RenderError, Renderer, RgbaImage};
+use pida_pdf_cos::{PageInfo, Rect, Rotation, SigField, SigWidget};
+use pida_placement::*;
+use pida_render::{ForcedColorOptions, ImageObject, PageSize, RenderError, Renderer, RgbaImage};
 use proptest::prelude::*;
 
 fn page(index: usize, media: [f32; 4], crop: Option<[f32; 4]>, rotation: Rotation) -> PageInfo {
@@ -687,17 +687,17 @@ impl Renderer for FakeRenderer {
     fn page_count(&self) -> usize {
         1
     }
-    fn page_size(&self, page: usize) -> pdfover_render::Result<PageSize> {
+    fn page_size(&self, page: usize) -> pida_render::Result<PageSize> {
         if page == 0 { Ok(self.size) } else { Err(RenderError::PageOutOfRange { page, count: 1 }) }
     }
-    fn render_page(&self, _page: usize, _scale: f32) -> pdfover_render::Result<RgbaImage> {
+    fn render_page(&self, _page: usize, _scale: f32) -> pida_render::Result<RgbaImage> {
         Err(RenderError::Render("nicht benötigt".into()))
     }
-    fn render_forced_color(&self, page: usize, _opts: &ForcedColorOptions) -> pdfover_render::Result<RgbaImage> {
+    fn render_forced_color(&self, page: usize, _opts: &ForcedColorOptions) -> pida_render::Result<RgbaImage> {
         self.page_size(page)?;
         Ok(self.raster.clone())
     }
-    fn image_objects(&self, _page: usize) -> pdfover_render::Result<Vec<ImageObject>> {
+    fn image_objects(&self, _page: usize) -> pida_render::Result<Vec<ImageObject>> {
         Ok(vec![])
     }
 }

@@ -1,7 +1,7 @@
 //! Vollständigkeit der Kataloge für die stabilen Codes der Crates (ADR 0001 Regel 11, Plan §7.5).
 //!
 //! - Jeder Code, den der Quelltext eines Crates liefert, steht in `locales/de` **und** `locales/en`
-//!   (`pdfover-ng.ftl`) mit denselben Variablen. Gefunden werden die Codes über einen kleinen
+//!   (`pida.ftl`) mit denselben Variablen. Gefunden werden die Codes über einen kleinen
 //!   Rust-Lexer (Strings, Kommentare, Attribute, `#[cfg(test)]`-Module) in `crates/*/src` und
 //!   `apps/*/src` bzw. `apps/*/src-tauri/src`:
 //!   - alle String-Literale in `fn code(…)`/`fn message_id(…)` und in `const NOTICE_*: &str`,
@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use fluent_syntax::ast;
-use pdfover_i18n::{ArgValue, BUILTIN_SOURCES, Catalog, Lang, fluent_id_for_java_key};
+use pida_i18n::{ArgValue, BUILTIN_SOURCES, Catalog, Lang, fluent_id_for_java_key};
 
 const WORKSPACE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../..");
 const WAVE1_IDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/i18n/wave1-message-ids.json");
@@ -27,7 +27,7 @@ const WAVE2_IDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/integra
 /// Literale, die wie Codes aussehen, aber keine Meldungen sind (mit Fundstelle).
 const NOT_MESSAGE_CODES: &[(&str, &str)] = &[
     ("atrust-native", "config::certcache – Backend-Kennung im Cache-Schlüssel"),
-    ("pdf-over-ng", "config::paths – Ordnername unter Linux"),
+    ("pida", "config::paths – Ordnername unter Linux"),
 ];
 
 // --- Quelltexte -----------------------------------------------------------------------------------
@@ -629,8 +629,8 @@ fn translate_call_ids(src: &str) -> Vec<(usize, String)> {
 fn translate_call_matcher() {
     let src = r#"
         let a = t!(Lang::De, "output-success_message");
-        let b = pdfover_i18n::translate(lang, "error-SLError", &[]);
-        let c = pdfover_i18n::t!(lang, "ng-config-file-missing", path = p);
+        let b = pida_i18n::translate(lang, "error-SLError", &[]);
+        let c = pida_i18n::t!(lang, "ng-config-file-missing", path = p);
         assert!(x, "kein Aufruf");
         sprint!(lang, "auch kein Aufruf");
         let d = t!(f(lang), "verschachtelt-ignoriert");

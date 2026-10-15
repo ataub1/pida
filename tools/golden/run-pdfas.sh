@@ -9,9 +9,9 @@
 #                neu erzeugen, ohne PDF-AS erneut aufzurufen
 #
 # Umgebung (optional):
-#   PDFOVER_JAVA           Java ≥ 17 (Default /opt/homebrew/opt/openjdk@21/bin/java) – nur Orakel
-#   PDFOVER_GOLDEN_CACHE   Download-/Arbeitsordner (Default target/golden, nicht versioniert)
-#   PDFOVER_REFERENCE      Referenzquellen (pdfas-config wird nur gelesen und kopiert)
+#   PIDA_JAVA           Java ≥ 17 (Default /opt/homebrew/opt/openjdk@21/bin/java) – nur Orakel
+#   PIDA_GOLDEN_CACHE   Download-/Arbeitsordner (Default target/golden, nicht versioniert)
+#   PIDA_REFERENCE      Referenzquellen (pdfas-config wird nur gelesen und kopiert)
 #
 # Netz: nur der einmalige Download der PDF-AS-CLI von apps.egiz.gv.at (Prüfsumme fest).
 # Die Tests (cargo test) lesen ausschließlich testdata/golden/ und brauchen weder Java noch Netz.
@@ -31,10 +31,10 @@ PDFAS_URL="https://apps.egiz.gv.at/releases/pdf-as/release/${PDFAS_VERSION}/${PD
 # 0c6bec14f1269a0f36a81d32ffa5f1509b717cefeea5660398baa30099b96f65) und wird nicht verwendet.
 PDFAS_SHA256="09c37cc004f14537e5d0d3d83e44687a833119a5903dd03b6de5d9d907e18eee"
 
-JAVA="${PDFOVER_JAVA:-/opt/homebrew/opt/openjdk@21/bin/java}"
-CACHE="${PDFOVER_GOLDEN_CACHE:-$ROOT/target/golden}"
+JAVA="${PIDA_JAVA:-/opt/homebrew/opt/openjdk@21/bin/java}"
+CACHE="${PIDA_GOLDEN_CACHE:-$ROOT/target/golden}"
 OUT="$ROOT/testdata/golden/pdfas-${PDFAS_VERSION}"
-CONFIG="$PDFOVER_REFERENCE/pdfas-config"
+CONFIG="$PIDA_REFERENCE/pdfas-config"
 KEYSTORE="$ROOT/testdata/keystores/test-rsa2048.p12"
 TRUST="$ROOT/testdata/keystores/test-rsa2048.crt.pem"
 
@@ -56,7 +56,7 @@ need() { command -v "$1" >/dev/null 2>&1 || { echo "fehlt: $1" >&2; exit 1; }; }
 need qpdf
 need python3
 need curl
-[ -x "$JAVA" ] || { echo "Java nicht gefunden: $JAVA (PDFOVER_JAVA setzen)" >&2; exit 1; }
+[ -x "$JAVA" ] || { echo "Java nicht gefunden: $JAVA (PIDA_JAVA setzen)" >&2; exit 1; }
 [ -d "$CONFIG/cfg" ] || { echo "pdfas-config fehlt: $CONFIG" >&2; exit 1; }
 python3 -c "import pyhanko, PIL" 2>/dev/null || { echo "pyHanko/Pillow fehlen (.venv)" >&2; exit 1; }
 

@@ -6,17 +6,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use pdfover_backend_api::testing::{BrokerCall, MemoryDocument, ScriptedBroker, ScriptedReply};
-use pdfover_backend_api::{
+use pida_backend_api::testing::{BrokerCall, MemoryDocument, ScriptedBroker, ScriptedReply};
+use pida_backend_api::{
     BackendError, BackendEvent, BackendId, BackendSession, CancelToken, CertNeed, DigestJob, DocumentJob, Environment,
     ExcludedByteRange, FormAnswer, Interaction, InteractionBroker, InteractionError, NativeForm, Notice, NoticeAnswer,
     NoticeButtons, NoticeCode, Progress, SecretKind, SecretPrompt, SessionContext, SignInput, SignJob, SignOutput,
     SignResult, SignatureBackend,
 };
-use pdfover_backend_keystore::{
+use pida_backend_keystore::{
     KeystoreBackend, KeystoreConfig, MemoryPasswordCache, NoPasswordCache, PasswordCache, PasswordKind, PasswordStorage,
 };
-use pdfover_cades::{
+use pida_cades::{
     AssembleOptions, CmsProfile, DigestAlg, Expect, ExpectedSigner, SignatureAlg, SignedAttrsBuilder, SigningTime,
     assemble, verify_detached, verify_raw,
 };
@@ -72,7 +72,7 @@ fn capabilities_model_a() {
     assert!(!c.document_leaves_device);
     assert_eq!(c.cms_reserve, None);
     // auch headless/mobil verfügbar (Passwort über Overlay)
-    for platform in [pdfover_backend_api::Platform::Ios, pdfover_backend_api::Platform::Android] {
+    for platform in [pida_backend_api::Platform::Ios, pida_backend_api::Platform::Android] {
         assert!(b.capabilities(&Environment { platform, headless: true, ..env_configured() }).is_some());
     }
 }
@@ -461,7 +461,7 @@ async fn model_a_flow_through_backend_session() {
     cfg.store_password = Some(Zeroizing::new("test".into()));
     let mut s = KeystoreBackend::new(cfg).open(ctx(false), Arc::new(ScriptedBroker::new([]))).await.unwrap();
     let chain = s.certificate().await.unwrap();
-    let alg = pdfover_cades::select_algorithm(&chain.signer.key_type().unwrap()).unwrap().digest();
+    let alg = pida_cades::select_algorithm(&chain.signer.key_type().unwrap()).unwrap().digest();
     assert_eq!(alg, DigestAlg::Sha512);
     let content = b"ByteRange-Daten (NUR TEST)".repeat(50);
     for profile in [CmsProfile::PdfasCompat, CmsProfile::PadesBB] {

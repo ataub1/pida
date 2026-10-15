@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use pdfover_cades::{CertChain, Certificate, LocalSigner};
+use pida_cades::{CertChain, Certificate, LocalSigner};
 
 pub fn testdata(rel: &str) -> PathBuf {
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata")).join(rel)

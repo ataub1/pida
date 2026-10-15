@@ -2,10 +2,10 @@
 //!
 //! [`typescript_bindings`] liefert den Inhalt von `apps/app/src/core/generated.ts`; der Test
 //! `tests/ts_bindings.rs` bricht bei jeder Abweichung ab (neu schreiben mit
-//! `PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings`). `view.rs` bleibt damit die
+//! `PIDA_BLESS=1 cargo test -p pida-core-api --test ts_bindings`). `view.rs` bleibt damit die
 //! einzige Quelle des Vertrags Kern ↔ Oberfläche.
 //!
-//! Typen aus Crates außerhalb der Bridge (`pdfover-config::Settings`, `pdfover-placement::Placement`)
+//! Typen aus Crates außerhalb der Bridge (`pida-config::Settings`, `pida-placement::Placement`)
 //! können `ts_rs::TS` wegen der Orphan-Regel nicht erhalten; für sie stehen hier **Spiegel**, die über
 //! `#[ts(as = …)]` eingesetzt werden. Gegen Abweichungen sichern ab:
 //! - die vollständige Abbildung `From<&Original>` ohne `..` (ein neues Feld oder eine neue Variante
@@ -18,13 +18,13 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use ts_rs::{Config, TS};
 
-use pdfover_i18n::Lang;
+use pida_i18n::Lang;
 
 // ------------------------------------------------------------------------------------------------
-// Spiegel: pdfover-placement
+// Spiegel: pida-placement
 // ------------------------------------------------------------------------------------------------
 
-/// Spiegel von `pdfover_placement::Placement` (PAGE_ABS, linke obere Ecke, y = Oberkante von unten, pt).
+/// Spiegel von `pida_placement::Placement` (PAGE_ABS, linke obere Ecke, y = Oberkante von unten, pt).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
 pub struct Placement {
     /// 0-basierter Seitenindex; `== Seitenzahl` = virtuelle neue Seite
@@ -39,18 +39,18 @@ pub struct Placement {
     pub height: f32,
 }
 
-impl From<&pdfover_placement::Placement> for Placement {
-    fn from(v: &pdfover_placement::Placement) -> Self {
-        let pdfover_placement::Placement { page_index, x, y, width, height } = *v;
+impl From<&pida_placement::Placement> for Placement {
+    fn from(v: &pida_placement::Placement) -> Self {
+        let pida_placement::Placement { page_index, x, y, width, height } = *v;
         Placement { page_index, x, y, width, height }
     }
 }
 
 // ------------------------------------------------------------------------------------------------
-// Spiegel: pdfover-config (Settings-Schema, Plan §7.1)
+// Spiegel: pida-config (Settings-Schema, Plan §7.1)
 // ------------------------------------------------------------------------------------------------
 
-/// Spiegel von `pdfover_config::SignatureProfile`.
+/// Spiegel von `pida_config::SignatureProfile`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SignatureProfile {
@@ -64,7 +64,7 @@ pub enum SignatureProfile {
     Invisible,
 }
 
-/// Spiegel von `pdfover_config::NoteSetting`.
+/// Spiegel von `pida_config::NoteSetting`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(tag = "mode", content = "text", rename_all = "snake_case")]
 pub enum NoteSetting {
@@ -76,7 +76,7 @@ pub enum NoteSetting {
     Custom(String),
 }
 
-/// Spiegel von `pdfover_config::WindowSize`.
+/// Spiegel von `pida_config::WindowSize`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct WindowSize {
     /// Breite
@@ -85,7 +85,7 @@ pub struct WindowSize {
     pub height: u32,
 }
 
-/// Spiegel von `pdfover_config::GeneralSettings`.
+/// Spiegel von `pida_config::GeneralSettings`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct GeneralSettings {
     /// UI-Sprache (`None` = System)
@@ -98,7 +98,7 @@ pub struct GeneralSettings {
     pub last_source_directory: Option<PathBuf>,
 }
 
-/// Spiegel von `pdfover_config::CmsProfileChoice`.
+/// Spiegel von `pida_config::CmsProfileChoice`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum CmsProfileChoice {
@@ -108,7 +108,7 @@ pub enum CmsProfileChoice {
     PadesBb,
 }
 
-/// Spiegel von `pdfover_config::SignatureSettings`.
+/// Spiegel von `pida_config::SignatureSettings`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct SignatureSettings {
     /// Profil
@@ -129,7 +129,7 @@ pub struct SignatureSettings {
     pub cms_profile: CmsProfileChoice,
 }
 
-/// Spiegel von `pdfover_config::PlaceholderKind`.
+/// Spiegel von `pida_config::PlaceholderKind`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum PlaceholderKind {
@@ -139,7 +139,7 @@ pub enum PlaceholderKind {
     Marker,
 }
 
-/// Spiegel von `pdfover_config::PlaceholderSettings`.
+/// Spiegel von `pida_config::PlaceholderSettings`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct PlaceholderSettings {
     /// Suche aktiv
@@ -148,7 +148,7 @@ pub struct PlaceholderSettings {
     pub kind: PlaceholderKind,
 }
 
-/// Spiegel von `pdfover_config::BackendChoice`.
+/// Spiegel von `pida_config::BackendChoice`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum BackendChoice {
@@ -160,14 +160,14 @@ pub enum BackendChoice {
     Keystore,
 }
 
-/// Spiegel von `pdfover_config::BackendSettings`.
+/// Spiegel von `pida_config::BackendSettings`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct BackendSettings {
     /// Standard-Signiermittel
     pub default: Option<BackendChoice>,
 }
 
-/// Spiegel von `pdfover_config::IdAustriaSettings` (das Passwort wird nie persistiert).
+/// Spiegel von `pida_config::IdAustriaSettings` (das Passwort wird nie persistiert).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct IdAustriaSettings {
     /// Benutzername/Telefonnummer
@@ -178,7 +178,7 @@ pub struct IdAustriaSettings {
     pub fido2_default: bool,
 }
 
-/// Spiegel von `pdfover_config::PasswordStorage`.
+/// Spiegel von `pida_config::PasswordStorage`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum PasswordStorage {
@@ -190,7 +190,7 @@ pub enum PasswordStorage {
     Keychain,
 }
 
-/// Spiegel von `pdfover_config::KeystoreSettings`.
+/// Spiegel von `pida_config::KeystoreSettings`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct KeystoreSettings {
     /// aktiviert
@@ -205,7 +205,7 @@ pub struct KeystoreSettings {
     pub password_storage: PasswordStorage,
 }
 
-/// Spiegel von `pdfover_config::OutputSettings`.
+/// Spiegel von `pida_config::OutputSettings`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct OutputSettings {
     /// Ausgabeordner
@@ -214,7 +214,7 @@ pub struct OutputSettings {
     pub postfix: String,
 }
 
-/// Spiegel von `pdfover_config::ProxyMode`.
+/// Spiegel von `pida_config::ProxyMode`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum ProxyMode {
@@ -226,7 +226,7 @@ pub enum ProxyMode {
     Manual,
 }
 
-/// Spiegel von `pdfover_config::ProxySettings`.
+/// Spiegel von `pida_config::ProxySettings`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct ProxySettings {
     /// Modus
@@ -239,14 +239,14 @@ pub struct ProxySettings {
     pub user: Option<String>,
 }
 
-/// Spiegel von `pdfover_config::PrivacySettings`.
+/// Spiegel von `pida_config::PrivacySettings`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct PrivacySettings {
     /// bestätigte Textversion je Backend
     pub acknowledged: BTreeMap<String, u32>,
 }
 
-/// Spiegel von `pdfover_config::CertificateCacheSettings`.
+/// Spiegel von `pida_config::CertificateCacheSettings`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CertificateCacheSettings {
     /// Opt-in
@@ -259,7 +259,7 @@ pub struct CertificateCacheSettings {
 #[ts(type = "unknown")]
 pub struct UnknownValue(pub serde_json::Value);
 
-/// Spiegel von `pdfover_config::Settings`. Unbekannte Einträge (`Settings::unknown`, `flatten`) stehen
+/// Spiegel von `pida_config::Settings`. Unbekannte Einträge (`Settings::unknown`, `flatten`) stehen
 /// auf oberster Ebene und gehen beim Speichern unverändert zurück.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct Settings {
@@ -290,9 +290,9 @@ pub struct Settings {
     pub unknown: BTreeMap<String, UnknownValue>,
 }
 
-impl From<&pdfover_config::Settings> for Settings {
-    fn from(v: &pdfover_config::Settings) -> Self {
-        use pdfover_config as c;
+impl From<&pida_config::Settings> for Settings {
+    fn from(v: &pida_config::Settings) -> Self {
+        use pida_config as c;
         let c::Settings {
             schema_version,
             general,
@@ -401,11 +401,11 @@ impl From<&pdfover_config::Settings> for Settings {
     }
 }
 
-fn backend_choice(v: pdfover_config::BackendChoice) -> BackendChoice {
+fn backend_choice(v: pida_config::BackendChoice) -> BackendChoice {
     match v {
-        pdfover_config::BackendChoice::IdAustria => BackendChoice::IdAustria,
-        pdfover_config::BackendChoice::LocalBku => BackendChoice::LocalBku,
-        pdfover_config::BackendChoice::Keystore => BackendChoice::Keystore,
+        pida_config::BackendChoice::IdAustria => BackendChoice::IdAustria,
+        pida_config::BackendChoice::LocalBku => BackendChoice::LocalBku,
+        pida_config::BackendChoice::Keystore => BackendChoice::Keystore,
     }
 }
 
@@ -417,7 +417,7 @@ fn backend_choice(v: pdfover_config::BackendChoice) -> BackendChoice {
 pub const HEADER: &str = "\
 // Automatisch erzeugt aus den Rust-Typen der Bridge (crates/core-api/src/view.rs und abhängige
 // Crates) mit ts-rs – NICHT VON HAND ÄNDERN.
-// Neu erzeugen: PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings
+// Neu erzeugen: PIDA_BLESS=1 cargo test -p pida-core-api --test ts_bindings
 //
 // Abbildung (serde_json): Option<T> → T | null, PathBuf → string, u64/usize → number,
 // Enums ohne serde-Attribut extern getaggt ({ \"Variante\": … } bzw. \"Variante\"),
@@ -454,14 +454,14 @@ macro_rules! declare_all {
 /// Inhalt von `apps/app/src/core/generated.ts` und die Namen aller deklarierten Typen.
 pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
     use crate::view::*;
-    use pdfover_backend_api as b;
-    use pdfover_workflow as w;
+    use pida_backend_api as b;
+    use pida_workflow as w;
     let cfg = config();
     let mut out = String::from(HEADER);
     let names = declare_all!(
         &cfg,
         &mut out,
-        // pdfover-i18n, pdfover-workflow
+        // pida-i18n, pida-workflow
         Lang,
         w::DocId,
         w::Step,
@@ -473,7 +473,7 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         w::ts_mirror::OutputInfo,
         w::WorkflowError,
         w::DocResult,
-        // pdfover-backend-api
+        // pida-backend-api
         b::BackendId,
         b::ts_mirror::DigestAlg,
         b::SignInput,
@@ -496,9 +496,9 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         b::Notice,
         b::NoticeAnswer,
         b::Progress,
-        // pdfover-placement
+        // pida-placement
         Placement,
-        // pdfover-config
+        // pida-config
         SignatureProfile,
         NoteSetting,
         WindowSize,
@@ -518,7 +518,7 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         PrivacySettings,
         CertificateCacheSettings,
         Settings,
-        // pdfover-core-api (view.rs)
+        // pida-core-api (view.rs)
         NoticeView,
         SaveDialogView,
         MigrationOfferView,
@@ -561,13 +561,13 @@ mod tests {
 
     #[test]
     fn placement_mirror_serializes_like_the_original() {
-        let p = pdfover_placement::Placement { page_index: 3, x: 1.5, y: 700.0, width: 230.0, height: 49.0 };
+        let p = pida_placement::Placement { page_index: 3, x: 1.5, y: 700.0, width: 230.0, height: 49.0 };
         same(&p, &Placement::from(&p));
     }
 
     #[test]
     fn settings_mirror_serializes_like_the_original() {
-        use pdfover_config as c;
+        use pida_config as c;
         let mut s = c::Settings::default();
         same(&s, &Settings::from(&s));
         // alle Varianten und optionalen Werte belegt, dazu unbekannte Einträge (flatten)

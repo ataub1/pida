@@ -103,4 +103,4 @@ enthält Zertifikats-Personendaten, Regel 9); `Encryptor` und `DecodedImage` ebe
 - Bilddekodierung: Speicherbedarf bis etwa 3 × `Breite·Höhe·4` Byte innerhalb von
   `max_decoded_stream`; mobile Aufrufer sollten kleinere `Limits` übergeben.
 - Mutations-Fuzzing läuft in der CI nur kurz (6 Mutationen je Datei); längere Läufe mit
-  `PDFOVER_FUZZ_ITERS=<n>` (Review: 455 000 Mutationen in zwei Läufen ohne Panic/Abbruch, Release-Build).
+  `PIDA_FUZZ_ITERS=<n>` (Review: 455 000 Mutationen in zwei Läufen ohne Panic/Abbruch, Release-Build).

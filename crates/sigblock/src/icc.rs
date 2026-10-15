@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 const TRC_POINTS: usize = 1024;
 
 /// Beschreibung (`desc`).
-const DESCRIPTION: &str = "sRGB (IEC 61966-2-1), PDF-Over NG";
+const DESCRIPTION: &str = "sRGB (IEC 61966-2-1), PIDA";
 /// Hinweis (`cprt`): aus Normwerten berechnet, frei verwendbar.
 const COPYRIGHT: &str = "No copyright, use freely";
 

@@ -1,11 +1,11 @@
-//! Integrationstests für `PdfiumBackend`/`PdfiumRenderer` (nur mit `PDFOVER_PDFIUM_DIR`).
+//! Integrationstests für `PdfiumBackend`/`PdfiumRenderer` (nur mit `PIDA_PDFIUM_DIR`).
 
 mod common;
 
 use std::sync::Arc;
 
 use common::{PageSpec, PdfBuilder, build_doc, count, read, single_page};
-use pdfover_render::{
+use pida_render::{
     ForcedColorOptions, MAX_IMAGE_PIXELS_PER_PAGE, MAX_PIXELS, RenderBackend, RenderError, Renderer, RgbaImage,
     encode_png,
 };
@@ -32,13 +32,13 @@ fn rgb_2x2(b: &mut PdfBuilder) -> u32 {
 #[test]
 fn bind_is_idempotent_and_describes_build() {
     let backend = require_pdfium!();
-    let again = pdfover_render::PdfiumBackend::bind(None).expect("zweite Bindung liefert dieselbe");
+    let again = pida_render::PdfiumBackend::bind(None).expect("zweite Bindung liefert dieselbe");
     assert_eq!(backend.library_path(), again.library_path());
     let d = backend.describe();
     assert!(d.starts_with("PDFium"), "{d}");
     assert!(d.contains("8100"), "Build aus VERSION erwartet: {d}");
     // Auch ein falsches Verzeichnis liefert nach erfolgreicher Bindung die bestehende Bindung.
-    let other = pdfover_render::PdfiumBackend::bind(Some(std::path::Path::new("/gibt/es/nicht"))).unwrap();
+    let other = pida_render::PdfiumBackend::bind(Some(std::path::Path::new("/gibt/es/nicht"))).unwrap();
     assert_eq!(other.library_path(), backend.library_path());
 }
 

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile",
-  "description": "Minimale Berechtigungen des Hauptfensters (iOS/Android): Ereignisse empfangen (ViewState), Kern-Bridge, Dateiauswahl über das Mobile-Plugin (Kopie in die Sandbox), Links (https/mailto). Kein Dateidialog, kein Log-Ordner, kein Dateimanager; das Plugin pdfover-mobile hat keine Befehle für die Oberfläche (sicherer Speicher, Teilen und Exportieren laufen über den Kern).",
+  "description": "Minimale Berechtigungen des Hauptfensters (iOS/Android): Ereignisse empfangen (ViewState), Kern-Bridge, Dateiauswahl über das Mobile-Plugin (Kopie in die Sandbox), Links (https/mailto). Kein Dateidialog, kein Log-Ordner, kein Dateimanager; das Plugin pida-mobile hat keine Befehle für die Oberfläche (sicherer Speicher, Teilen und Exportieren laufen über den Kern).",
   "platforms": ["iOS", "android"],
   "windows": ["main"],
   "permissions": [

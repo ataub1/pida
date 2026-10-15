@@ -157,7 +157,7 @@ impl std::fmt::Debug for Layout {
     }
 }
 
-/// Layout mit fester Breite `width` (aus `pdfover-placement`).
+/// Layout mit fester Breite `width` (aus `pida-placement`).
 pub fn layout(
     profile: &Profile,
     input: &SigBlockInput,

@@ -3,7 +3,7 @@
  *
  * Er spielt den Ablauf von PDF-Over nach (docs/analyse/01 §3–§4: Öffnen → Platzhalter →
  * Positionieren → Signiermittel → ID-Austria-Masken bzw. Keystore → Ergebnis), liefert `ViewState`s im
- * serde-Format von `pdfover-core-api` und simuliert die nativen Dienste (Dialoge, Drag & Drop). Er ist
+ * serde-Format von `pida-core-api` und simuliert die nativen Dienste (Dialoge, Drag & Drop). Er ist
  * **kein** Ersatz für die Fachlogik des Rust-Kerns: Regeln sind nur so weit nachgebaut, wie die
  * Oberfläche sie zum Bedienen und Testen braucht. Keine echten Zugangsdaten, kein Netz.
  */

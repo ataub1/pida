@@ -282,7 +282,7 @@
   },
   {
     "type": "import_keystore",
-    "path": "/data/user/0/at.pdf_over_ng/cache/import/k.p12",
+    "path": "/data/user/0/at.pida/cache/import/k.p12",
     "password": null,
     "remember": false
   }

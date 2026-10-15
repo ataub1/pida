@@ -9,7 +9,7 @@ aus dem Golden-Lauf und den Ergebnissen der Rust-Golden-Tests; die Tabellen nich
 | Baustein | Inhalt |
 |---|---|
 | `tools/golden/run-pdfas.sh` | Lädt die **offizielle PDF-AS-4.4.2-CLI** (`apps.egiz.gv.at/releases/pdf-as/release/4.4.2/pdf-as-cli-4.4.2.zip`, SHA-256 fest im Skript, Cache `target/golden/`), erzeugt die Eingaben, signiert alle Fälle und schreibt die Manifeste. Optionen `--only <regex>`, `--jobs N`, `--keep-work`, `--reextract`. |
-| Signieren | CLI `pdf-as-cli -m sign -c ks -ksf testdata/keystores/test-rsa2048.p12 -ksa test-rsa2048 …` (Keystore-Option, RSA-Test-PKCS#12, feste Zertifikatsdaten), Konfiguration = Kopie von `$PDFOVER_REFERENCE/pdfas-config` je Variante, JVM mit `-Duser.timezone=Europe/Vienna`. |
+| Signieren | CLI `pdf-as-cli -m sign -c ks -ksf testdata/keystores/test-rsa2048.p12 -ksa test-rsa2048 …` (Keystore-Option, RSA-Test-PKCS#12, feste Zertifikatsdaten), Konfiguration = Kopie von `$PIDA_REFERENCE/pdfas-config` je Variante, JVM mit `-Duser.timezone=Europe/Vienna`. |
 | PDF-Over-Overrides | wie `PdfAs4Signer.prepare`: `value.SIG_LABEL` (Bildmarke), `value.SIG_NOTE` (Hinweis), bei `BASE_LOGO` `table.main.Style.padding=0`, `pos=w:<tw>;f:0`, `table.main.Style.imagescaletofit=<tw>;<th>` (aus Emblemgröße und `targetLogoSize`, Default 23 mm) – als Zeilen am Ende der Profildatei der Konfigurationskopie. |
 | QR-Platzhalter | `tools/golden/PlaceholderSign.java`: dieselbe Signatur wie `Main.perform_sign`, zusätzlich wie PDF-Over `setPlaceHolderSearchEnabled(true)`, `placeholder_mode=1`, Platzhalter-ID 1 bzw. 200. Die CLI selbst kann die Platzhaltersuche nicht einschalten (`SignParameter.isPlaceHolderSearchEnabled()` ist dort immer `false`). QR-Module mit ZXing aus der CLI-Distribution (`MakeQr.java`). |
 | Eingaben (`make_inputs.py`, deterministisch) | `a4` (595,32 × 841,92), `a4-landscape`, `a4-rot90/180/270` (`/Rotate`), `a4-cropbox` (CropBox ≠ MediaBox, Ursprung 40/60), `content-half`/`content-full` (viel Inhalt: Auto-Position darunter bzw. neue Seite), `two-pages` (letzte Seite A5 quer), `presigned` (von PDF-AS vorsigniert), `qr`/`qr-id200` (Platzhalter 300 × 60 px auf 225 × 45 pt); für den Rasterscan gedrehter Seiten (KR-F04) außerdem `landscape-rot90/270` (Querformat-MediaBox mit `/Rotate`), `wide-rot180` (Breite 595,8), `a4-rot270-low` und `rot90-842-low` (Inhalt nur nahe dem unteren Rand) sowie `half-rot90` (Höhe 841,5, leer). Seiteninhalt nur aus Rechtecken, damit der Rasterscan nicht von der Schriftrasterung abhängt. Bildmarken: breit (RGB), hoch (Graustufen), RGBA mit Transparenz, JPEG, indiziert mit `tRNS`. |
@@ -28,7 +28,7 @@ aus dem Golden-Lauf und den Ergebnissen der Rust-Golden-Tests; die Tabellen nich
 | Orakel je Ausgabe | pyHanko intact + valid + trusted und `qpdf --check` ohne Befund: 729 von 729 |
 | signierte Referenz-PDFs im Repository | 84 (übrige Fälle nur als Manifest) |
 
-Tests (lesen nur `testdata/golden/`, kein Java, kein Netz; PDFium-Teile nur mit `PDFOVER_PDFIUM_DIR`):
+Tests (lesen nur `testdata/golden/`, kein Java, kein Netz; PDFium-Teile nur mit `PIDA_PDFIUM_DIR`):
 
 - `crates/sigblock/tests/golden_pdfas442.rs`: `index_covers_all_profiles_and_oracles_pass`,
   `blocks_match_pdfas_442` (Struktur ±0,01 pt), `content_bytes_identical_with_quirks`,
@@ -40,13 +40,13 @@ Tests (lesen nur `testdata/golden/`, kein Java, kein Netz; PDFium-Teile nur mit 
   `corrected_mode_deviates_only_where_documented`, `invisible_profile_has_empty_rect`.
 
 Neu erzeugen: `bash tools/golden/run-pdfas.sh` (etwa 5 Minuten bei 8 parallelen JVMs), danach die
-Golden-Tests mit `PDFOVER_GOLDEN_REPORT_DIR=target/golden/report` und
+Golden-Tests mit `PIDA_GOLDEN_REPORT_DIR=target/golden/report` und
 `python3 tools/golden/report.py --golden testdata/golden/pdfas-4.4.2 --reports target/golden/report
 --out docs/integration/golden-report.md`.
 
 ## 2. Signaturblock
 
-Nachbau je Fall mit `pdfover-sigblock`: eingebaute Profile, PDF-Over-Overrides
+Nachbau je Fall mit `pida-sigblock`: eingebaute Profile, PDF-Over-Overrides
 (`ProfileOverrides`, bei BASE_LOGO `ProfileOverrides::base_logo`), Testzertifikat, `SIG_DATE` aus
 dem Block, Breite = von PDF-AS berechnete feste Tabellenbreite, Rotation aus der Holder-`/Matrix`,
 PDF/A-Profile mit `PdfaMode::Part1`. Verglichen werden Blockmaße (`/BBox` von Holder und
@@ -76,7 +76,7 @@ ist der Content-Stream des Inner-Forms in allen Fällen außer SB-G1 **byte-glei
 `/DeviceRGB cs … sc`, Zahlenformat, Literal-/Hex-Strings mit CIDs), ebenso `/TU` und der
 Holder-Inhalt. Alle verbleibenden Unterschiede betreffen Bildmarken und sind dokumentiert:
 
-| ID | Thema | PDF-AS 4.4.2 (Golden-Befund) | PDF-Over NG | sichtbar? |
+| ID | Thema | PDF-AS 4.4.2 (Golden-Befund) | PIDA | sichtbar? |
 |---|---|---|---|---|
 | SB-G1 | Logo > 120 mm (BASE_LOGO, Register „120-mm-Grenze“) | PDF-Over klemmt `targetLogoSize` nur in der Vorschau; beim Signieren mit 150 mm ⇒ Block 425 pt | Klemmung auch beim Signieren (120 mm ⇒ 340 pt), Vorschau = Ergebnis | ja (gewollt) |
 | SB-G2 | voll deckender Alphakanal (z. B. `amtsignatur-logo_demo.png`, RGBA mit Alpha 255) | `LosslessFactory` schreibt immer eine SMask (lauter 255) | keine SMask (`Emblem::has_alpha` = „hat Transparenz“) | nein (pixelgleich) |
@@ -128,7 +128,7 @@ bis auf SB-G5), SB-G5 (≤ 1 Stufe), SB-G1 (andere Blockgröße, Quote 100 %).
 
 ## 3. Positionierung
 
-Nachgerechnet mit `pdfover-placement` (Seiten, Felder und Bildaufrufe über `pdfover-pdf-cos` –
+Nachgerechnet mit `pida-placement` (Seiten, Felder und Bildaufrufe über `pida-pdf-cos` –
 Gegentest zum lopdf-Mini-COS der übrigen Placement-Tests): `TablePos::merge` aus Request-Position
 und Profil-`pos` (aus dem PDF-AS-Log), `resolve_width`, `resolve_position` (Rasterscan mit PDFium),
 `widget_rect_with`, `appearance_rotation`, `new_page_geometry`, QR-Platzhalter mit
@@ -187,7 +187,7 @@ stimmen im Quirk-Modus in allen Fällen; Ausnahme KR-F03 (keine Quirk-Nachbildun
 Platzhalterauswahl). Im korrigierten Modus weichen nur die Register-Fälle ab, und zwar genau in der
 dokumentierten Form (der Test prüft die korrigierten Werte):
 
-| ID | Thema | PDF-AS 4.4.2 | PDF-Over NG (Corrected) | Fälle |
+| ID | Thema | PDF-AS 4.4.2 | PIDA (Corrected) | Fälle |
 |---|---|---|---|---|
 | KR-F01 | AMTS-Breite bei manuellem `x` ohne `w` (Register „AMTS-Breite“) | `w = pw − 2x` (A4, x = 100 ⇒ 395,32) | `w = pw − 100` wie bei Auto-Position und in der Vorschau | AMTS × manuell |
 | KR-F02 | CropBox ≠ MediaBox (Register „CropBox-Offset“) | Rect ohne CropBox-Ursprung; neue Seite mit CropBox-Maßen der alten Seite | Rect relativ zur CropBox (+40/+60); neue Seite mit MediaBox-Geometrie (700 × 1000 ⇒ y = 980) | alle `a4-cropbox` |
@@ -208,7 +208,7 @@ Fassung: 22 Fälle abweichend, danach 0; der Review ergänzte die Eingaben `land
 jetzt in keinem. Rest (inhaltsabhängig): PDF-AS sieht bei 90°/270° nur die linken `(int) w` Spalten
 der sichtbaren Seite. Register-Einträge
 KR-F04/KR-F10 in der Crate-Doku präzisiert: Die 1-pt-Abweichung aus Welle 1 kommt von der
-Rasterabbildung in `pdfover-render`, nicht von der Glyphenrasterung (gemessen: ein 7 pt hoher Balken
+Rasterabbildung in `pida-render`, nicht von der Glyphenrasterung (gemessen: ein 7 pt hoher Balken
 mit Kanten auf Pixelgrenzen belegt bei A4 hoch 8 Zeilen, bei A4 quer – 595,32 ⇒ 595 px, gestaucht –
 7 Zeilen).
 
@@ -229,12 +229,12 @@ mit Kanten auf Pixelgrenzen belegt bei A4 hoch 8 Zeilen, bei A4 quer – 595,32 
 
 ## 5. Offene Punkte und Schnittstellenwünsche
 
-- **pdfover-render (Integration/Paket F):** `render_forced_color` bildet die Seite auf
+- **pida-render (Integration/Paket F):** `render_forced_color` bildet die Seite auf
   `round(w) × round(h)` ab (`FPDF_RenderPageBitmapWithColorScheme_Start` mit gerundeter Fläche) statt
   1:1 wie Java2D; dadurch liegt die Auto-Position bei A4 (841,92 pt) genau 1 pt tiefer als bei
   PDF-AS (KR-F10, innerhalb Plan §8.2). Exakt würde es mit einer Abbildung ohne Streckung (Bitmap
   `(int) w × (int) h`, Seitenfläche `w × h` über eine Matrix statt einer gerundeten Fläche).
-- **pdfover-sigblock `Emblem`:** Farbtyp der Quelle (Graustufen, indiziert, Alphakanal vorhanden)
+- **pida-sigblock `Emblem`:** Farbtyp der Quelle (Graustufen, indiziert, Alphakanal vorhanden)
   fehlt; damit wären SB-G2 bis SB-G4 im Quirk-Modus exakt nachbildbar (SB-G4: sRGB-OETF).
 - **Platzhalterauswahl:** kein Quirk-Modus für KR-F03 (`PlaceholderQuery` hat keinen `CompatMode`);
   bewusst korrigiert.

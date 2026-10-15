@@ -16,7 +16,7 @@ nicht im Repository.
 | `keystores/test-ecp256.p12` | ECDSA P-256, PBES2/AES-256-CBC | openssl |
 | `keystores/test-ecp384-title.p12` | ECDSA P-384 mit Titel-RDN `title=Dipl.-Ing. (NUR TEST)` (Golden-Test `subject.title`, SHA-256 bei P-384) | openssl |
 | `keystores/test-rsa2048-legacy-3des.p12` | derselbe RSA-Schlüssel, Legacy-PBE `pbeWithSHA1And3-KeyTripleDES-CBC`, MAC SHA-1 | openssl |
-| `keystores/*.crt.pem`, `*.crt.der` | die Zertifikate einzeln (z. B. für `pdfover_cades::Certificate::from_der`) | openssl |
+| `keystores/*.crt.pem`, `*.crt.der` | die Zertifikate einzeln (z. B. für `pida_cades::Certificate::from_der`) | openssl |
 | `pdf/pdfas/<modul>/…` | alle PDFs aus `reference/pdf-as-4/*/src/test/resources` (Rotation, QR-Platzhalter, Signaturfelder, bereits signiert 1–3×, `enc_own.pdf` mit Owner-Passwort) | PDF-AS 4.4.2, EUPL |
 | `pdf/pdfas-suites/<SUITE>/` | PDF-AS-Testsuiten `public_pdfbox2` (`POS_*`, `PDFA_*`): `example.pdf`, `config.properties`, `example_ref.png` (visuelles Orakel, Plan §8.2) | PDF-AS 4.4.2, EUPL |
 | `pdf/generated/simple-xref-table.pdf` | klassische xref-Tabelle | qpdf |

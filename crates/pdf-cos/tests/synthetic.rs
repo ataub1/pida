@@ -1,12 +1,10 @@
-//! Synthetische Randfälle für `pdfover-pdf-cos` (Plan §6.1 K1/K2/K5, §7.7; analyse/03 §4.5,
+//! Synthetische Randfälle für `pida-pdf-cos` (Plan §6.1 K1/K2/K5, §7.7; analyse/03 §4.5,
 //! analyse/04 §4.6/§5.1). Die PDFs werden im Test byteweise gebaut.
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
 
-use pdfover_pdf_cos::{
-    CosError, Limits, Object, PathSegment, Rect, Rotation, SourcePdf, TailKind, XrefHealth, XrefKind,
-};
+use pida_pdf_cos::{CosError, Limits, Object, PathSegment, Rect, Rotation, SourcePdf, TailKind, XrefHealth, XrefKind};
 
 /// Minimaler PDF-Bauer: Objekte, klassische xref-Abschnitte, xref-Streams, Increments.
 struct Pdf {
@@ -430,7 +428,7 @@ fn image_invocations_with_forms_inline_images_and_cycles() {
         (flat[0].resource_name.as_str(), flat[0].ctm, flat[0].order),
         ("Im1", [2.0, 0.0, 0.0, 2.0, 10.0, 10.0], 0)
     );
-    assert_eq!((flat[1].ctm, flat[1].order), (pdfover_pdf_cos::IDENTITY, 1));
+    assert_eq!((flat[1].ctm, flat[1].order), (pida_pdf_cos::IDENTITY, 1));
     assert_eq!((flat[0].pixel_width, flat[0].pixel_height, flat[0].xobject_id), (4, 3, Some((5, 0))));
     let deep = s.image_invocations(0, true).unwrap();
     assert_eq!(deep.len(), 3);

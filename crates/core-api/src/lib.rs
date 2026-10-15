@@ -1,4 +1,4 @@
-//! `pdfover-core-api` – Fassade des Kerns für Shell (Tauri 2), CLI und Plan-B-Shell
+//! `pida-core-api` – Fassade des Kerns für Shell (Tauri 2), CLI und Plan-B-Shell
 //! (uniffi-tauglich, ohne Tauri-Abhängigkeit; Plan §2.5, §3.4).
 //!
 //! Die UI hält **keinen Fachzustand**: Sie projiziert nur [`ViewState`] und sendet [`UiEvent`].
@@ -11,7 +11,7 @@
 //!   bindet PDFium, registriert die Backends (ID Austria Szenario A, lokale BKU mit
 //!   Erreichbarkeits-Polling 5 s/30 s auf dem Desktop, PKCS#12-Keystore mit Schlüsselbund-Adapter)
 //!   und startet den Kern-Task (Tokio).
-//! - Der Kern-Task wendet den Reducer aus `pdfover-workflow` an und führt die Effekte aus: Dokument
+//! - Der Kern-Task wendet den Reducer aus `pida-workflow` an und führt die Effekte aus: Dokument
 //!   laden und analysieren, Platzhaltersuche, Seitenkacheln (LRU), Blockvorschau aus dem echten
 //!   Appearance-Objekt, Signierplan, Backend-Sitzung mit [`InteractionView`]s als Kanal zur UI,
 //!   `finish`, Selbstprüfung, Ausgabe.
@@ -28,7 +28,7 @@
 //! | `loading` | Dokument wird geladen/analysiert | `cancel`, `navigate{open}` |
 //! | `warning` | Warnung der Analyse (`codes`, z. B. `pdf-usage-rights`) mit Abbruchmöglichkeit | `answer_warning{proceed}`, `cancel` |
 //! | `placeholder` | „Platzhalter verwenden?“ (Felder bzw. QR) | `placeholder_answer{answer, field_index}` |
-//! | `position` | Seite (`pdfover-render://` → [`Core::page_tile`]), Block ([`Core::block_preview`], `preview_revision`), `announce` | `move_block`, `nudge_block`, `change_page`, `toggle_new_page`, `auto_place`, `confirm_position`, `choose_invisible` |
+//! | `position` | Seite (`pida-render://` → [`Core::page_tile`]), Block ([`Core::block_preview`], `preview_revision`), `announce` | `move_block`, `nudge_block`, `change_page`, `toggle_new_page`, `auto_place`, `confirm_position`, `choose_invisible` |
 //! | `backend` | Optionen; `privacy_notice` = Datenschutzhinweis | `choose_backend`, `acknowledge_privacy{accepted}` |
 //! | `signing` | `interaction`: `waiting`/`form`/`secret`/`notice` | `submit_form`, `submit_secret`, `answer_notice`, `open_signature_data`, `cancel` |
 //! | `output` | Ergebnis; `ask_overwrite` = Rückfrage, `save_dialog` = Speichern-Dialog öffnen, `save_pending` = Knopf „Speichern“ | `confirm_overwrite`, `save{path}` (`null` = Dialog abgebrochen bzw. Knopf), `open_result`, `share_result`/`export_result` (Mobile), `navigate` |
@@ -58,7 +58,7 @@
 //!   Teilen/Exportieren über [`ShellHooks::share_path`]/[`ShellHooks::export_path`].
 //! - **Signiermittel:** keine lokale BKU; FIDO2 nur mit Hinweis `ng-fido2-unavailable-mobile`
 //!   (`BackendOptionView::notes`); PKCS#12 nur nach Import in die Sandbox (`import_keystore`).
-//! - **Secrets:** die Shell setzt [`CoreOptions::secret_store`] auf `pdfover_config::ShellSecretStore`
+//! - **Secrets:** die Shell setzt [`CoreOptions::secret_store`] auf `pida_config::ShellSecretStore`
 //!   (Keychain bzw. Android Keystore); das ID-Austria-Passwort wird nie persistiert.
 //!
 //! # Vertrag Kern ↔ Oberfläche (Welle 3)
@@ -109,11 +109,11 @@ pub use view::{
     ViewState,
 };
 
-use pdfover_backend_api::{Platform, SignatureBackend};
-use pdfover_config::{Overlay, Paths, Policy, SecretStore};
-use pdfover_i18n::Lang;
-use pdfover_render::RenderBackend;
-use pdfover_workflow::{DocId, ExitCode};
+use pida_backend_api::{Platform, SignatureBackend};
+use pida_config::{Overlay, Paths, Policy, SecretStore};
+use pida_i18n::Lang;
+use pida_render::RenderBackend;
+use pida_workflow::{DocId, ExitCode};
 use tokio::sync::{mpsc, watch};
 
 use crate::runtime::{CoreTask, Msg, Shared};
@@ -123,10 +123,10 @@ use crate::runtime::{CoreTask, Msg, Shared};
 pub enum CoreError {
     /// Konfiguration
     #[error(transparent)]
-    Config(#[from] pdfover_config::ConfigError),
+    Config(#[from] pida_config::ConfigError),
     /// Renderer
     #[error(transparent)]
-    Render(#[from] pdfover_render::RenderError),
+    Render(#[from] pida_render::RenderError),
     /// Dokument unbekannt
     #[error("Dokument {0:?} unbekannt")]
     UnknownDocument(DocId),
@@ -173,7 +173,7 @@ pub struct CoreConfig {
     /// ohne UI (CLI `--headless`)
     pub headless: bool,
     /// Plattform-FIDO2 (nur Desktop; von der Shell bzw. aus `backend-atrust`-Features)
-    pub fido2: Option<Arc<dyn pdfover_backend_atrust::Fido2Provider>>,
+    pub fido2: Option<Arc<dyn pida_backend_atrust::Fido2Provider>>,
     /// App-Version (User-Agent der lokalen BKU, Über-Dialog)
     pub app_version: String,
 }
@@ -184,7 +184,7 @@ pub struct CoreOptions {
     /// Backends dürfen über den Broker fragen (Masken, Passwörter, Meldungen). `None` = `!headless`.
     /// Die CLI mit Terminal setzt `Some(true)` trotz `headless` (Terminal-Broker).
     pub interactive: Option<bool>,
-    /// PAdES-Engine (Standard: `pdfover-pades`)
+    /// PAdES-Engine (Standard: `pida-pades`)
     pub engine: Option<Arc<dyn engine::PadesEngine>>,
     /// fest vorgegebene Backends statt der Registrierung (Tests, Einbettung)
     pub backends: Option<Vec<Arc<dyn SignatureBackend>>>,
@@ -257,7 +257,7 @@ impl CoreOptions {
             init_logging: false,
             detect_legacy_dir: false,
             probe_local_bku: false,
-            secret_store: Some(Arc::new(pdfover_config::MemorySecretStore::default())),
+            secret_store: Some(Arc::new(pida_config::MemorySecretStore::default())),
             ..CoreOptions::default()
         }
     }
@@ -281,9 +281,9 @@ impl std::fmt::Debug for CoreOptions {
 }
 
 /// FIDO2-Authenticator der Plattform (nur mit den Features `fido2-windows`/`fido2-hid` von
-/// `pdfover-backend-atrust`; sonst `None`, z. B. Mobile).
-pub fn platform_fido2() -> Option<Arc<dyn pdfover_backend_atrust::Fido2Provider>> {
-    pdfover_backend_atrust::fido2::platform_provider()
+/// `pida-backend-atrust`; sonst `None`, z. B. Mobile).
+pub fn platform_fido2() -> Option<Arc<dyn pida_backend_atrust::Fido2Provider>> {
+    pida_backend_atrust::fido2::platform_provider()
 }
 
 /// Der Kern (ein Prozess, eine Instanz; Single-Instance übernimmt die Shell).
@@ -305,7 +305,7 @@ impl std::fmt::Debug for Core {
 fn initial_view(lang: Lang, platform: Platform) -> ViewState {
     ViewState {
         step: StepView::Starting,
-        main_bar: MainBarView { steps: pdfover_workflow::State::Starting.main_bar().to_vec(), settings_enabled: false },
+        main_bar: MainBarView { steps: pida_workflow::State::Starting.main_bar().to_vec(), settings_enabled: false },
         settings: None,
         language: lang,
         notices: Vec::new(),
@@ -330,7 +330,7 @@ impl Core {
             Err(_) => {
                 let rt = tokio::runtime::Builder::new_multi_thread()
                     .enable_all()
-                    .thread_name("pdfover-core")
+                    .thread_name("pida-core")
                     .build()
                     .map_err(|e| CoreError::Runtime(e.to_string()))?;
                 let h = rt.handle().clone();
@@ -361,7 +361,7 @@ impl Core {
             },
             None => None,
         };
-        let secrets = options.secret_store.clone().unwrap_or_else(pdfover_config::platform_secret_store);
+        let secrets = options.secret_store.clone().unwrap_or_else(pida_config::platform_secret_store);
         let legacy_dir =
             options.legacy_dir.clone().or_else(|| if options.detect_legacy_dir { Paths::legacy_dir() } else { None });
         let (cfg, startup) = config::ConfigState::load(
@@ -375,7 +375,7 @@ impl Core {
 
         let render: Option<Arc<dyn RenderBackend>> = match options.render.clone() {
             Some(r) => Some(r),
-            None if options.use_pdfium => match pdfover_render::PdfiumBackend::bind(config.pdfium_dir.as_deref()) {
+            None if options.use_pdfium => match pida_render::PdfiumBackend::bind(config.pdfium_dir.as_deref()) {
                 Ok(b) => Some(Arc::new(b)),
                 Err(e) => {
                     tracing::warn!(
@@ -387,7 +387,7 @@ impl Core {
             },
             None => None,
         };
-        let profiles = match pdfover_sigblock::ProfileStore::builtin() {
+        let profiles = match pida_sigblock::ProfileStore::builtin() {
             Ok(p) => Some(Arc::new(p)),
             Err(e) => {
                 tracing::error!(code = e.code(), "Signaturprofile nicht ladbar");
@@ -405,7 +405,7 @@ impl Core {
             render,
             engine: options.engine.clone().unwrap_or_else(engine::default_engine),
             profiles,
-            fonts: Arc::new(pdfover_sigblock::FontProvider::builtin()),
+            fonts: Arc::new(pida_sigblock::FontProvider::builtin()),
             block: Mutex::new(runtime::BlockInfo::default()),
             broker,
             sign: Mutex::new(runtime::SignSlot::default()),
@@ -459,14 +459,14 @@ impl Core {
         self.view_rx.borrow().clone()
     }
 
-    /// PNG einer Seitenkachel (Custom Protocol `pdfover-render://`); `page == Seitenzahl` liefert die
+    /// PNG einer Seitenkachel (Custom Protocol `pida-render://`); `page == Seitenzahl` liefert die
     /// weiße virtuelle neue Seite.
     pub fn page_tile(&self, doc: DocId, page: usize, scale: f32) -> Result<Vec<u8>, CoreError> {
         let render = self
             .shared
             .render
             .as_ref()
-            .ok_or(pdfover_render::RenderError::LibraryNotFound("PDFium nicht gebunden".into()))?;
+            .ok_or(pida_render::RenderError::LibraryNotFound("PDFium nicht gebunden".into()))?;
         if scale.is_finite() && scale > 0.0 {
             *self.shared.tile_scale.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = scale;
         }
@@ -482,7 +482,7 @@ impl Core {
             .shared
             .render
             .as_ref()
-            .ok_or(pdfover_render::RenderError::LibraryNotFound("PDFium nicht gebunden".into()))?;
+            .ok_or(pida_render::RenderError::LibraryNotFound("PDFium nicht gebunden".into()))?;
         let pdf = self
             .shared
             .block
@@ -494,7 +494,7 @@ impl Core {
         let scale = if scale.is_finite() && scale > 0.0 { scale.min(16.0) } else { 1.0 };
         let renderer = render.open(pdf, None)?;
         let image = renderer.render_page(0, scale)?;
-        Ok(pdfover_render::encode_png(&image)?)
+        Ok(pida_render::encode_png(&image)?)
     }
 
     /// Wartet bis `Finished` (CLI) und liefert den Exit-Code.

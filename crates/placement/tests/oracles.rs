@@ -74,7 +74,7 @@ fn lopdf_helper_reads_the_generated_structures() {
     let qr = common::load(&docs[0].1);
     let pages = common::pages(&qr);
     assert_eq!(pages.len(), 2);
-    assert_eq!(pages[1].rotation, pdfover_pdf_cos::Rotation::R90);
+    assert_eq!(pages[1].rotation, pida_pdf_cos::Rotation::R90);
     assert_eq!(pages[1].visible_size(), (800.0, 570.0));
     let flat = common::image_invocations(&qr, 0, false);
     assert_eq!(flat.len(), 1);

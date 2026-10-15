@@ -3,8 +3,8 @@
 
 mod common;
 
-use pdfover_pdf_cos::Rect;
-use pdfover_placement::{
+use pida_pdf_cos::Rect;
+use pida_placement::{
     Coord, PlaceholderMode, PlaceholderQuery, QrPlaceholder, ResolvedPosition, TablePos, find_empty_sig_fields,
     find_qr_placeholders, select_placeholder, widget_rect,
 };
@@ -13,7 +13,7 @@ const DIR: &str = "pdf/pdfas/pdf-as-pdfbox-2";
 
 struct Doc {
     bytes: Vec<u8>,
-    lopdf: pdfover_pdf_cos::lopdf::Document,
+    lopdf: pida_pdf_cos::lopdf::Document,
 }
 
 fn doc(rel: &str) -> Doc {
@@ -22,14 +22,14 @@ fn doc(rel: &str) -> Doc {
     Doc { bytes, lopdf }
 }
 
-fn placeholders(backend: &pdfover_render::PdfiumBackend, d: &Doc) -> Vec<QrPlaceholder> {
+fn placeholders(backend: &pida_render::PdfiumBackend, d: &Doc) -> Vec<QrPlaceholder> {
     let renderer = common::open(backend, &d.bytes);
     let pages = common::pages(&d.lopdf);
     find_qr_placeholders(renderer.as_ref(), &pages, &common::all_invocations(&d.lopdf, false)).unwrap()
 }
 
 /// `SignatureFieldsAndPlaceHolderExtractor.getNextUnusedSignaturePlaceHolder`: id 1, SORTED.
-fn next_unused(backend: &pdfover_render::PdfiumBackend, rel: &str) -> Option<String> {
+fn next_unused(backend: &pida_render::PdfiumBackend, rel: &str) -> Option<String> {
     let d = doc(rel);
     let found = placeholders(backend, &d);
     let query = PlaceholderQuery {
@@ -93,7 +93,7 @@ fn web_sample_with_field_and_qr() {
 
 /// Widget-Rect der Signatur mit `/Location == name` im signierten Dokument.
 fn signed_widget_rect(d: &Doc, location: &str) -> Rect {
-    use pdfover_pdf_cos::lopdf::Object;
+    use pida_pdf_cos::lopdf::Object;
     for f in common::sig_fields(&d.lopdf).iter().filter(|f| f.signed) {
         let field = d.lopdf.get_dictionary(f.field_id).unwrap();
         let v = match field.get(b"V").unwrap() {

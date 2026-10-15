@@ -1,4 +1,4 @@
-// Orakel für pdfover-config (nur Tests, kein Teil des Produkts).
+// Orakel für pida-config (nur Tests, kein Teil des Produkts).
 //
 // Nachbau der Lese-Regeln von PDF-Over 4.4.x (ConfigurationManager.loadFromDisk,
 // ConfigurationDataInMemory, MobileBKUValidator.normalizeMobileNumber, LocaleSerializer) mit den
@@ -6,7 +6,7 @@
 // Double.parseDouble, Locale.getAvailableLocales). Existenzprüfungen von Dateien entfallen.
 //
 // Aufruf: java LegacyOracle.java [--latin1|--utf8] <datei>...   (Standard: --latin1 wie PDF-Over;
-//         --utf8 liest über einen UTF-8-Reader und entfernt ein BOM, wie die Heuristik von PDF-Over NG)
+//         --utf8 liest über einen UTF-8-Reader und entfernt ein BOM, wie die Heuristik von PIDA)
 //         java LegacyOracle.java --locales                       (verfügbare Locales, eine je Zeile)
 // Ausgabe je Datei: "FILE\t<pfad>", dann "RAW\t<key>\t<wert>" und "VAL\t<name>\t<wert>".
 // Werte ASCII-escaped (Backslash, Tab, Zeilenumbruch, Nicht-ASCII als Backslash-u-XXXX); fehlend = <null>.

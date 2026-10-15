@@ -6,9 +6,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use pdfover_config::{BackendChoice, LegacyConfig, LegacyNote, PasswordStorage};
-use pdfover_i18n::Lang;
-use pdfover_java_properties::{Encoding, Properties, StoreOptions};
+use pida_config::{BackendChoice, LegacyConfig, LegacyNote, PasswordStorage};
+use pida_i18n::Lang;
+use pida_java_properties::{Encoding, Properties, StoreOptions};
 
 const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/config");
 

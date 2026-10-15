@@ -1,6 +1,6 @@
 // Automatisch erzeugt aus den Rust-Typen der Bridge (crates/core-api/src/view.rs und abhängige
 // Crates) mit ts-rs – NICHT VON HAND ÄNDERN.
-// Neu erzeugen: PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings
+// Neu erzeugen: PIDA_BLESS=1 cargo test -p pida-core-api --test ts_bindings
 //
 // Abbildung (serde_json): Option<T> → T | null, PathBuf → string, u64/usize → number,
 // Enums ohne serde-Attribut extern getaggt ({ "Variante": … } bzw. "Variante"),
@@ -44,17 +44,17 @@ enabled: boolean, };
 export type PlaceholderAnswer = "Yes" | "No" | "Cancel";
 
 /**
- * Spiegel von `pdfover_pades::AcceptanceClass`.
+ * Spiegel von `pida_pades::AcceptanceClass`.
  */
 export type AcceptanceClass = "K1Regular" | "K2Repairable" | "K3Encrypted" | "K4Restricted" | "K5Rejected";
 
 /**
- * Spiegel von `pdfover_pades::Invariant`.
+ * Spiegel von `pida_pades::Invariant`.
  */
 export type Invariant = "I1Prefix" | "I2ByteRange" | "I3Cms" | "I4PriorSignatures" | "I5Reparse" | "I6AllowedChanges";
 
 /**
- * Spiegel von `pdfover_pades::InvariantViolation`.
+ * Spiegel von `pida_pades::InvariantViolation`.
  */
 export type InvariantViolation = { 
 /**
@@ -67,7 +67,7 @@ invariant: Invariant,
 detail: string, };
 
 /**
- * Spiegel von `pdfover_pades::OutputInfo`.
+ * Spiegel von `pida_pades::OutputInfo`.
  */
 export type OutputInfo = { 
 /**
@@ -139,7 +139,7 @@ error: WorkflowError, };
 export type BackendId = "atrust_native" | "atrust_browser" | "csc" | "local_bku" | "keystore" | "wallet";
 
 /**
- * Spiegel von `pdfover_cades::DigestAlg`.
+ * Spiegel von `pida_cades::DigestAlg`.
  */
 export type DigestAlg = "Sha1" | "Sha256" | "Sha384" | "Sha512";
 
@@ -445,7 +445,7 @@ index: number,
 total: number, } } | "Done";
 
 /**
- * Spiegel von `pdfover_placement::Placement` (PAGE_ABS, linke obere Ecke, y = Oberkante von unten, pt).
+ * Spiegel von `pida_placement::Placement` (PAGE_ABS, linke obere Ecke, y = Oberkante von unten, pt).
  */
 export type Placement = { 
 /**
@@ -470,17 +470,17 @@ width: number,
 height: number, };
 
 /**
- * Spiegel von `pdfover_config::SignatureProfile`.
+ * Spiegel von `pida_config::SignatureProfile`.
  */
 export type SignatureProfile = "SIGNATURBLOCK_SMALL" | "AMTSSIGNATURBLOCK" | "BASE_LOGO" | "INVISIBLE";
 
 /**
- * Spiegel von `pdfover_config::NoteSetting`.
+ * Spiegel von `pida_config::NoteSetting`.
  */
 export type NoteSetting = { "mode": "default" } | { "mode": "none" } | { "mode": "custom", "text": string };
 
 /**
- * Spiegel von `pdfover_config::WindowSize`.
+ * Spiegel von `pida_config::WindowSize`.
  */
 export type WindowSize = { 
 /**
@@ -493,7 +493,7 @@ width: number,
 height: number, };
 
 /**
- * Spiegel von `pdfover_config::GeneralSettings`.
+ * Spiegel von `pida_config::GeneralSettings`.
  */
 export type GeneralSettings = { 
 /**
@@ -514,12 +514,12 @@ window_size: WindowSize | null,
 last_source_directory: string | null, };
 
 /**
- * Spiegel von `pdfover_config::CmsProfileChoice`.
+ * Spiegel von `pida_config::CmsProfileChoice`.
  */
 export type CmsProfileChoice = "pdfas_compat" | "pades_bb";
 
 /**
- * Spiegel von `pdfover_config::SignatureSettings`.
+ * Spiegel von `pida_config::SignatureSettings`.
  */
 export type SignatureSettings = { 
 /**
@@ -556,12 +556,12 @@ logo_only_size_mm: number,
 cms_profile: CmsProfileChoice, };
 
 /**
- * Spiegel von `pdfover_config::PlaceholderKind`.
+ * Spiegel von `pida_config::PlaceholderKind`.
  */
 export type PlaceholderKind = "fields" | "marker";
 
 /**
- * Spiegel von `pdfover_config::PlaceholderSettings`.
+ * Spiegel von `pida_config::PlaceholderSettings`.
  */
 export type PlaceholderSettings = { 
 /**
@@ -574,12 +574,12 @@ search: boolean,
 kind: PlaceholderKind, };
 
 /**
- * Spiegel von `pdfover_config::BackendChoice`.
+ * Spiegel von `pida_config::BackendChoice`.
  */
 export type BackendChoice = "id_austria" | "local_bku" | "keystore";
 
 /**
- * Spiegel von `pdfover_config::BackendSettings`.
+ * Spiegel von `pida_config::BackendSettings`.
  */
 export type BackendSettings = { 
 /**
@@ -588,7 +588,7 @@ export type BackendSettings = {
 default: BackendChoice | null, };
 
 /**
- * Spiegel von `pdfover_config::IdAustriaSettings` (das Passwort wird nie persistiert).
+ * Spiegel von `pida_config::IdAustriaSettings` (das Passwort wird nie persistiert).
  */
 export type IdAustriaSettings = { 
 /**
@@ -605,12 +605,12 @@ remember: boolean,
 fido2_default: boolean, };
 
 /**
- * Spiegel von `pdfover_config::PasswordStorage`.
+ * Spiegel von `pida_config::PasswordStorage`.
  */
 export type PasswordStorage = "none" | "memory" | "keychain";
 
 /**
- * Spiegel von `pdfover_config::KeystoreSettings`.
+ * Spiegel von `pida_config::KeystoreSettings`.
  */
 export type KeystoreSettings = { 
 /**
@@ -635,7 +635,7 @@ alias: string | null,
 password_storage: PasswordStorage, };
 
 /**
- * Spiegel von `pdfover_config::OutputSettings`.
+ * Spiegel von `pida_config::OutputSettings`.
  */
 export type OutputSettings = { 
 /**
@@ -648,12 +648,12 @@ folder: string | null,
 postfix: string, };
 
 /**
- * Spiegel von `pdfover_config::ProxyMode`.
+ * Spiegel von `pida_config::ProxyMode`.
  */
 export type ProxyMode = "system" | "none" | "manual";
 
 /**
- * Spiegel von `pdfover_config::ProxySettings`.
+ * Spiegel von `pida_config::ProxySettings`.
  */
 export type ProxySettings = { 
 /**
@@ -674,7 +674,7 @@ port: number | null,
 user: string | null, };
 
 /**
- * Spiegel von `pdfover_config::PrivacySettings`.
+ * Spiegel von `pida_config::PrivacySettings`.
  */
 export type PrivacySettings = { 
 /**
@@ -683,7 +683,7 @@ export type PrivacySettings = {
 acknowledged: { [key in string]: number }, };
 
 /**
- * Spiegel von `pdfover_config::CertificateCacheSettings`.
+ * Spiegel von `pida_config::CertificateCacheSettings`.
  */
 export type CertificateCacheSettings = { 
 /**
@@ -692,7 +692,7 @@ export type CertificateCacheSettings = {
 enabled: boolean, };
 
 /**
- * Spiegel von `pdfover_config::Settings`. Unbekannte Einträge (`Settings::unknown`, `flatten`) stehen
+ * Spiegel von `pida_config::Settings`. Unbekannte Einträge (`Settings::unknown`, `flatten`) stehen
  * auf oberster Ebene und gehen beim Speichern unverändert zurück.
  */
 export type Settings = { 
@@ -1167,7 +1167,7 @@ exit_code: number, };
  */
 export type SettingsView = { 
 /**
- * Einstellungen (Schema `pdfover-config`)
+ * Einstellungen (Schema `pida-config`)
  */
 settings: Settings, 
 /**

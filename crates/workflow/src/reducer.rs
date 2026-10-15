@@ -4,9 +4,9 @@
 //! Crate-Doku ([`crate`]). Ereignisse, die im aktuellen Zustand keine Bedeutung haben (z. B. ein
 //! verspätetes Ergebnis eines abgebrochenen Effekts), lassen den Zustand unverändert.
 
-use pdfover_backend_api::BackendId;
-use pdfover_pades::AcceptanceClass;
-use pdfover_placement::Placement;
+use pida_backend_api::BackendId;
+use pida_pades::AcceptanceClass;
+use pida_placement::Placement;
 
 use crate::output::{ExitCode, OutputDecision, save_dialog};
 use crate::queue::{DocResult, Queue};
@@ -584,7 +584,7 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 stay(queue, page, placement, false, doc, effects)
             } else if !doc.new_page_allowed() {
                 // wie PDF-Over: „Neue Seite“ auf einem signierten Dokument landet auf der letzten Seite
-                // (docs/analyse/04 §4.5); NG zeigt dazu einen Hinweis
+                // (docs/analyse/04 §4.5); PIDA zeigt dazu einen Hinweis
                 let last = n.saturating_sub(1);
                 let placement = placement.map(|p| Placement { page_index: last, ..p });
                 let mut effects = vec![Effect::Notify(MSG_NEW_PAGE_NOT_ALLOWED.into())];

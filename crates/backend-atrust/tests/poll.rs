@@ -4,10 +4,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use pdfover_backend_api::CancelToken;
-use pdfover_backend_atrust::poll::{MIN_POLL_INTERVAL, PollConfig, PollInfo, PollOutcome, run};
-use pdfover_net::testing::{MockResponse, MockServer};
-use pdfover_net::{HttpClient, NetConfig, ProxyConfig, Purpose};
+use pida_backend_api::CancelToken;
+use pida_backend_atrust::poll::{MIN_POLL_INTERVAL, PollConfig, PollInfo, PollOutcome, run};
+use pida_net::testing::{MockResponse, MockServer};
+use pida_net::{HttpClient, NetConfig, ProxyConfig, Purpose};
 
 fn client(timeout: Option<Duration>) -> HttpClient {
     let cfg = NetConfig { proxy: ProxyConfig::None, request_timeout: timeout, ..NetConfig::default() };
@@ -106,7 +106,7 @@ async fn network_error_backs_off_then_reloads() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     drop(listener);
-    let info = PollInfo { url: pdfover_net::Url::parse(&format!("http://{addr}/poll")).unwrap(), token: "t".into() };
+    let info = PollInfo { url: pida_net::Url::parse(&format!("http://{addr}/poll")).unwrap(), token: "t".into() };
     let started = Instant::now();
     assert_eq!(run(&client(None), &info, cfg(10_000, 200), &CancelToken::new()).await, PollOutcome::Reload);
     assert!(started.elapsed() >= Duration::from_millis(200));

@@ -1,7 +1,7 @@
-//! `pdfover-backend-atrust` – ID Austria über A-Trust, **Szenario A** (Standard in v1).
+//! `pida-backend-atrust` – ID Austria über A-Trust, **Szenario A** (Standard in v1).
 //!
 //! Portiert die Spezifikation aus docs/analyse/02 §3 (PDF-Over `MobileBKUConnector`/`ATrustParser`):
-//! - je SL-Request ein neuer [`pdfover_net::HttpClient`] mit leerem Cookie-Jar,
+//! - je SL-Request ein neuer [`pida_net::HttpClient`] mit leerem Cookie-Jar,
 //! - nur 301/302 werden verfolgt, immer als GET; `Refresh`-Header und `<meta http-equiv=refresh>`,
 //! - genau ein Formular, genau ein Block ([`page::PageBlock`]) in der Dispatcher-Reihenfolge
 //!   FIDO2-Default → AutoSkip → Interstitial → Error → Login → SMS-TAN → QR → App-2FA → FIDO2,
@@ -24,7 +24,7 @@
 //!   `https://service.a-trust.at`, Ergebnis-JSON exakt nach docs/analyse/02 §3.8).
 //!
 //! **Fehler und Meldungen:** HTTP 407/413/sonstige zeigt das Backend selbst als
-//! [`pdfover_backend_api::Notice`] (OK) und liefert danach [`BackendError::Cancelled`] – wie
+//! [`pida_backend_api::Notice`] (OK) und liefert danach [`BackendError::Cancelled`] – wie
 //! PDF-Over, das nach dem Dialog kommentarlos zur Auswahl zurückkehrt. Kann der Broker keine
 //! Meldung zeigen (`InteractionError::Unsupported`), kommt der spezifische Fehler
 //! ([`BackendError::ProxyAuthRequired`], [`BackendError::DocumentTooLarge`],
@@ -46,12 +46,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendError, BackendId, BackendSession, Capabilities, CertChain, CertNeed, Environment, FactorSet, Interaction,
     InteractionBroker, Qualification, ServerNeed, SessionContext, SignInput, SignJob, SignOutput, SignResult,
     SignatureBackend,
 };
-use pdfover_net::{NetConfig, Url};
+use pida_net::{NetConfig, Url};
 use zeroize::Zeroizing;
 
 pub use fido2::{Fido2Assertion, Fido2Error, Fido2Provider, Fido2Request};
@@ -65,7 +65,7 @@ pub const WEBAUTHN_ORIGIN: &str = "https://service.a-trust.at";
 /// Empfohlene `/Contents`-Reserve für Modell B (Plan §6.2, 16 KiB).
 pub const CMS_RESERVE: usize = 16 * 1024;
 
-/// „Signaturdaten anzeigen“ (F-68, R10): öffnet `url` aus [`pdfover_backend_api::FormContext::signature_data_url`]
+/// „Signaturdaten anzeigen“ (F-68, R10): öffnet `url` aus [`pida_backend_api::FormContext::signature_data_url`]
 /// im Systembrowser über [`InteractionBroker::open_external`] – nur `https://` zu A-Trust bzw. zum
 /// konfigurierten Endpunkt (ADR 0001 §8.6). Der Browser hat keine Sitzungs-Cookies (wie PDF-Over).
 pub fn open_signature_data(ui: &dyn InteractionBroker, url: &str, endpoint: &Url) -> Result<(), BackendError> {
@@ -74,8 +74,8 @@ pub fn open_signature_data(ui: &dyn InteractionBroker, url: &str, endpoint: &Url
         return Err(BackendError::Protocol("Link „Signaturdaten“ führt nicht zu A-Trust".into()));
     }
     ui.open_external(parsed.as_str()).map_err(|e| match e {
-        pdfover_backend_api::InteractionError::Cancelled => BackendError::Cancelled,
-        pdfover_backend_api::InteractionError::Unsupported => {
+        pida_backend_api::InteractionError::Cancelled => BackendError::Cancelled,
+        pida_backend_api::InteractionError::Unsupported => {
             BackendError::Unavailable("Systembrowser nicht verfügbar".into())
         }
     })

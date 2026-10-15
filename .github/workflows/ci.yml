@@ -1,4 +1,4 @@
-# PDF-Over NG – CI (Plan §8.7, §2.5/§10.2; ADR 0001 §4, ADR 0060 §1; docs/entwicklung.md „CI“)
+# PIDA – CI (Plan §8.7, §2.5/§10.2; ADR 0001 §4, ADR 0060 §1; docs/entwicklung.md „CI“)
 #
 # Jobs:
 #   fmt      rustfmt, shellcheck der Werkzeuge in tools/ (blockierend)
@@ -11,7 +11,7 @@
 #   mobile   cargo check für iOS und Android (blockierend für die lokal verifizierten Crates)
 #   app      Tauri-Frontend apps/app (npm ci, Lizenzprüfung, build, test) – nur wenn apps/app/package.json existiert
 #   bundle   Matrix ubuntu/macOS/Windows: Tauri-Debug-Bundle mit PDFium (und Drittlizenz-Hinweisen auf
-#            Linux/macOS), Größe in der Zusammenfassung, Startprüfung PDFOVER_SMOKE=1 (Kern + WebView),
+#            Linux/macOS), Größe in der Zusammenfassung, Startprüfung PIDA_SMOKE=1 (Kern + WebView),
 #            Bundle als Artefakt
 #
 # Actions sind auf Commit-SHAs gepinnt (Kommentar = Release-Tag); Toolchain und Werkzeuge exakt versioniert.
@@ -44,7 +44,7 @@ env:
   # pades, pdf-cos, sigblock, placement (Test golden_pdfas442), backend-keystore: je eine bekannte
   # dead_code-Warnung (docs/entwicklung.md §5; Welle 3 Track T2). workflow, core-api, cli und die
   # Tauri-Shell sind seit Welle 3 streng geprüft. Ziel ist eine leere Liste.
-  CLIPPY_LENIENT: "pdfover-pades pdfover-pdf-cos pdfover-sigblock pdfover-placement pdfover-backend-keystore"
+  CLIPPY_LENIENT: "pida-pades pida-pdf-cos pida-sigblock pida-placement pida-backend-keystore"
   CARGO_DENY_VERSION: "0.20.2"
   CARGO_ABOUT_VERSION: "0.9.2"
   NODE_VERSION: "22"
@@ -104,7 +104,7 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # --- PDFium (ADR 0060 §1): SHA-256 aus tools/pdfium.lock, PDFOVER_PDFIUM_DIR über GITHUB_ENV ---
+      # --- PDFium (ADR 0060 §1): SHA-256 aus tools/pdfium.lock, PIDA_PDFIUM_DIR über GITHUB_ENV ---
       - name: PDFium-Cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -131,7 +131,7 @@ jobs:
           PY: ${{ steps.python.outputs.python-path }}
         run: |
           "$PY" -m pip install --disable-pip-version-check -r tools/python-oracles.txt
-          echo "PDFOVER_PYTHON=$PY" >> "$GITHUB_ENV"
+          echo "PIDA_PYTHON=$PY" >> "$GITHUB_ENV"
       - name: Java 21 (nur Test-Orakel)
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -187,7 +187,7 @@ jobs:
       - name: cargo check
         run: cargo check --workspace --all-targets --locked
       - name: cargo check ohne PDFium (Traits genügen, ADR 0001 §8.1)
-        run: cargo check -p pdfover-render -p pdfover-placement -p pdfover-pades --no-default-features --all-targets --locked
+        run: cargo check -p pida-render -p pida-placement -p pida-pades --no-default-features --all-targets --locked
       - name: cargo clippy (-D warnings)
         run: |
           excludes=()
@@ -201,9 +201,9 @@ jobs:
           for c in $CLIPPY_LENIENT; do packages+=(-p "$c"); done
           cargo clippy "${packages[@]}" --no-deps --all-targets --locked
       - name: FIDO2 (${{ matrix.fido2 }}) – clippy
-        run: cargo clippy -p pdfover-backend-atrust --features ${{ matrix.fido2 }} --no-deps --all-targets --locked -- -D warnings
+        run: cargo clippy -p pida-backend-atrust --features ${{ matrix.fido2 }} --no-deps --all-targets --locked -- -D warnings
       - name: FIDO2 (${{ matrix.fido2 }}) – test
-        run: cargo test -p pdfover-backend-atrust --features ${{ matrix.fido2 }} --locked
+        run: cargo test -p pida-backend-atrust --features ${{ matrix.fido2 }} --locked
       - name: cargo test
         run: cargo test --workspace --locked
       - name: Doc-Build (rustdoc -D warnings)
@@ -279,23 +279,23 @@ jobs:
         include:
           # Lokal verifiziert (docs/entwicklung.md „Cross-Checks“): seit Welle 3 auch config/workflow/core-api
           # (keyring nur für Desktop-Targets; auf iOS/Android setzt die Mobile-Shell den SecretStore); seit der
-          # Mobile-Welle (M0) auch die Tauri-Shell samt Plugin pdfover-mobile (kompiliert dessen Swift-Paket).
+          # Mobile-Welle (M0) auch die Tauri-Shell samt Plugin pida-mobile (kompiliert dessen Swift-Paket).
           - os: macos-latest
             target: aarch64-apple-ios
             crates: >-
-              pdfover-java-properties pdfover-i18n pdfover-pdf-cos pdfover-pdf-incremental pdfover-cades
-              pdfover-sigblock pdfover-placement pdfover-render pdfover-sl12 pdfover-backend-api pdfover-net
-              pdfover-backend-keystore pdfover-backend-localbku pdfover-backend-atrust pdfover-pades
-              pdfover-config pdfover-workflow pdfover-core-api pdfover-app tauri-plugin-pdfover-mobile
+              pida-java-properties pida-i18n pida-pdf-cos pida-pdf-incremental pida-cades
+              pida-sigblock pida-placement pida-render pida-sl12 pida-backend-api pida-net
+              pida-backend-keystore pida-backend-localbku pida-backend-atrust pida-pades
+              pida-config pida-workflow pida-core-api pida-app tauri-plugin-pida-mobile
           # Mit NDK (Schritt unten, C-Compiler für ring) lokal verifiziert (M0, NDK 29): alle Crates bis zur
-          # Tauri-Shell samt Plugin pdfover-mobile (Android-Teil: rustls-platform-verifier über JNI).
+          # Tauri-Shell samt Plugin pida-mobile (Android-Teil: rustls-platform-verifier über JNI).
           - os: ubuntu-latest
             target: aarch64-linux-android
             crates: >-
-              pdfover-java-properties pdfover-i18n pdfover-pdf-cos pdfover-pdf-incremental pdfover-cades
-              pdfover-sigblock pdfover-placement pdfover-render pdfover-sl12 pdfover-backend-api pdfover-config
-              pdfover-backend-keystore pdfover-pades pdfover-workflow pdfover-net pdfover-backend-localbku
-              pdfover-backend-atrust pdfover-core-api pdfover-app tauri-plugin-pdfover-mobile
+              pida-java-properties pida-i18n pida-pdf-cos pida-pdf-incremental pida-cades
+              pida-sigblock pida-placement pida-render pida-sl12 pida-backend-api pida-config
+              pida-backend-keystore pida-pades pida-workflow pida-net pida-backend-localbku
+              pida-backend-atrust pida-core-api pida-app tauri-plugin-pida-mobile
     defaults:
       run:
         shell: bash
@@ -466,22 +466,22 @@ jobs:
             du -sh target/debug/bundle/*/* 2>/dev/null || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Startprüfung (Kern + WebView, PDFOVER_SMOKE=1)
+      - name: Startprüfung (Kern + WebView, PIDA_SMOKE=1)
         # macOS lokal nachgewiesen (docs/integration/app-abnahme.md); Linux/Windows zunächst informativ
         continue-on-error: ${{ runner.os != 'macOS' }}
         timeout-minutes: 3
         env:
-          PDFOVER_SMOKE: "1"
+          PIDA_SMOKE: "1"
         run: |
           home="$(mktemp -d)"
           case "$RUNNER_OS" in
-            Linux) HOME="$home" xvfb-run -a target/debug/pdf-over-ng ;;
-            macOS) HOME="$home" "target/debug/bundle/macos/PDF-Over NG.app/Contents/MacOS/pdf-over-ng" ;;
-            Windows) APPDATA="$home" LOCALAPPDATA="$home" target/debug/pdf-over-ng.exe ;;
+            Linux) HOME="$home" xvfb-run -a target/debug/pida ;;
+            macOS) HOME="$home" "target/debug/bundle/macos/PIDA.app/Contents/MacOS/pida" ;;
+            Windows) APPDATA="$home" LOCALAPPDATA="$home" target/debug/pida.exe ;;
           esac | tee smoke.txt
-          grep -q '^pdfover-smoke: ok' smoke.txt
+          grep -q '^pida-smoke: ok' smoke.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: pdf-over-ng-debug-${{ matrix.os }}
+          name: pida-debug-${{ matrix.os }}
           path: target/debug/bundle/
           if-no-files-found: error

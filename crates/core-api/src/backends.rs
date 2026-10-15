@@ -5,15 +5,15 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use pdfover_backend_api::{BackendId, Environment, Platform, SignatureBackend};
-use pdfover_backend_atrust::{AtrustConfig, AtrustNativeBackend, Fido2Provider};
-use pdfover_backend_keystore::{
+use pida_backend_api::{BackendId, Environment, Platform, SignatureBackend};
+use pida_backend_atrust::{AtrustConfig, AtrustNativeBackend, Fido2Provider};
+use pida_backend_keystore::{
     KeystoreBackend, KeystoreConfig, MemoryPasswordCache, NoPasswordCache, PasswordCache, PasswordKind, PasswordStorage,
 };
-use pdfover_backend_localbku::{Availability, LocalBkuBackend, LocalBkuConfig};
-use pdfover_config::{ProxyMode, SecretId, SecretStore};
-use pdfover_net::{NetConfig, ProxyAuth, ProxyConfig};
-use pdfover_workflow::BackendOption;
+use pida_backend_localbku::{Availability, LocalBkuBackend, LocalBkuConfig};
+use pida_config::{ProxyMode, SecretId, SecretStore};
+use pida_net::{NetConfig, ProxyAuth, ProxyConfig};
+use pida_workflow::BackendOption;
 use zeroize::Zeroizing;
 
 use crate::config::ConfigState;
@@ -67,11 +67,11 @@ impl PasswordCache for SecretStoreCache {
 }
 
 /// Speicherart der Konfiguration → Keystore-Speicherart.
-pub fn password_storage(p: pdfover_config::PasswordStorage) -> PasswordStorage {
+pub fn password_storage(p: pida_config::PasswordStorage) -> PasswordStorage {
     match p {
-        pdfover_config::PasswordStorage::None => PasswordStorage::None,
-        pdfover_config::PasswordStorage::Memory => PasswordStorage::Memory,
-        pdfover_config::PasswordStorage::Keychain => PasswordStorage::Keychain,
+        pida_config::PasswordStorage::None => PasswordStorage::None,
+        pida_config::PasswordStorage::Memory => PasswordStorage::Memory,
+        pida_config::PasswordStorage::Keychain => PasswordStorage::Keychain,
     }
 }
 
@@ -273,8 +273,7 @@ impl Registry {
         // direkt prüfen (Loopback, kurzer Timeout), damit `-b LOCAL` nicht am Zeitpunkt scheitert.
         let localbku_reachable = self.availability.as_ref().is_some_and(|a| {
             a.is_available() || {
-                let addr: std::net::SocketAddr =
-                    pdfover_backend_localbku::PROBE_ADDR.parse().expect("konstante Adresse");
+                let addr: std::net::SocketAddr = pida_backend_localbku::PROBE_ADDR.parse().expect("konstante Adresse");
                 std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(300)).is_ok()
             }
         });
@@ -304,7 +303,7 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_config::{MemorySecretStore, Overlay, Paths};
+    use pida_config::{MemorySecretStore, Overlay, Paths};
 
     #[test]
     fn secret_store_cache_roundtrip() {
@@ -327,8 +326,8 @@ mod tests {
         for n in ["0664 1234567", "0043 664 1234567", "+43664123", "103011234567", "user", "  0699 99 ", "0000664", ""]
         {
             assert_eq!(
-                pdfover_config::normalize_mobile_number(n),
-                pdfover_backend_atrust::validate::normalize_phone_number(n),
+                pida_config::normalize_mobile_number(n),
+                pida_backend_atrust::validate::normalize_phone_number(n),
                 "{n:?}"
             );
         }
@@ -336,8 +335,8 @@ mod tests {
 
     #[test]
     fn storage_mapping() {
-        assert_eq!(password_storage(pdfover_config::PasswordStorage::Keychain), PasswordStorage::Keychain);
-        assert_eq!(password_storage(pdfover_config::PasswordStorage::None), PasswordStorage::None);
+        assert_eq!(password_storage(pida_config::PasswordStorage::Keychain), PasswordStorage::Keychain);
+        assert_eq!(password_storage(pida_config::PasswordStorage::None), PasswordStorage::None);
     }
 
     #[tokio::test]

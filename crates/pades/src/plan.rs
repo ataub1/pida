@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use pdfover_cades::CmsProfile;
-use pdfover_pdf_cos::{ObjectId, Rect};
-use pdfover_sigblock::Appearance;
+use pida_cades::CmsProfile;
+use pida_pdf_cos::{ObjectId, Rect};
+use pida_sigblock::Appearance;
 use time::OffsetDateTime;
 
 /// Reserve für `/Contents`.
@@ -35,13 +35,13 @@ impl Reserve {
 /// Sichtbarer Block auf einer Seite.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockPlacement {
-    /// Erscheinungsbild (aus `pdfover-sigblock`)
+    /// Erscheinungsbild (aus `pida-sigblock`)
     pub appearance: Arc<Appearance>,
     /// 0-basierte Seite (bei `new_page` = Index der neuen Seite)
     pub page_index: usize,
     /// neue Seite anhängen (gleiche MediaBox und `/Rotate` wie die letzte)
     pub new_page: bool,
-    /// Widget-`/Rect` (aus `pdfover_placement::widget_rect`)
+    /// Widget-`/Rect` (aus `pida_placement::widget_rect`)
     pub rect: Rect,
 }
 

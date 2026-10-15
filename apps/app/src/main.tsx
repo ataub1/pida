@@ -68,6 +68,6 @@ if (root) {
       );
     })
     .catch(() => {
-      root.textContent = 'PDF-Over NG: Die Oberfläche konnte nicht gestartet werden. / The user interface could not be started.';
+      root.textContent = 'PIDA: Die Oberfläche konnte nicht gestartet werden. / The user interface could not be started.';
     });
 }

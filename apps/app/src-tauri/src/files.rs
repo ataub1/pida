@@ -1,7 +1,7 @@
 //! Dateien aus Startargumenten, „Öffnen mit“/„Senden an“ (zweite Instanz) und Datei-URLs.
 //!
 //! Die Shell übernimmt nur **vorhandene Dateien** (F-12) und reicht sie als
-//! [`pdfover_core_api::UiEvent::OpenFiles`] an den Kern; die Prüfung auf PDF macht der Kern.
+//! [`pida_core_api::UiEvent::OpenFiles`] an den Kern; die Prüfung auf PDF macht der Kern.
 //! Die vollständige PDF-Over-Argumentsemantik (`-c`, `-b`, `-o` …) wertet die CLI aus; die GUI
 //! übernimmt hier nur Dokumente (`-i <datei>` und freie Tokens wie bei PDF-Over: „unbekanntes Token =
 //! Datei“, docs/analyse/01 §5.1).
@@ -101,7 +101,7 @@ mod tests {
     use super::*;
 
     fn fixture() -> (PathBuf, PathBuf, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("pdfover-app-files-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pida-app-files-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("Temp-Ordner");
         let a = dir.join("a.pdf");
         let b = dir.join("b c.pdf");

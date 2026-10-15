@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PDF-Over NG, Paket B – erzeugt die Testdaten für pdfover-cades unter testdata/cades/.
+# PIDA, Paket B – erzeugt die Testdaten für pida-cades unter testdata/cades/.
 #
 #   testdata/cades/make-testdata.sh           # fehlende Dateien erzeugen
 #   testdata/cades/make-testdata.sh --force   # alles neu (neue Schlüssel!)

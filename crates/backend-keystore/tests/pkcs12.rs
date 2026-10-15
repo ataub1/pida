@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use pdfover_backend_keystore::{KeystoreError, KeystoreFormat, LoadedKey, list_aliases};
-use pdfover_cades::{
+use pida_backend_keystore::{KeystoreError, KeystoreFormat, LoadedKey, list_aliases};
+use pida_cades::{
     CmsProfile, DigestAlg, EcCurve, Expect, ExpectedSigner, KeyType, RawSigner, SignatureAlg, SigningTime,
     sign_detached, verify_detached, verify_raw,
 };
@@ -26,7 +26,7 @@ fn open(rel: &str, pw: &str, alias: Option<&str>) -> Result<LoadedKey, KeystoreE
 /// Signiert und prüft eine Rohsignatur (Selbstprüfung).
 fn sign_check(key: &LoadedKey) {
     let alg = key.algorithm().digest();
-    let d = alg.digest(b"PDF-Over NG Keystore-Test");
+    let d = alg.digest(b"PIDA Keystore-Test");
     let sig = key.sign_digest(&d).unwrap();
     assert_eq!(sig.alg, key.algorithm());
     verify_raw(&key.chain().signer, &d, &sig).unwrap();
@@ -212,12 +212,12 @@ fn java_formats_need_conversion() {
         ("backend-keystore/java-rsa2048.jceks", KeystoreFormat::Jceks),
     ] {
         let bytes = read(rel);
-        assert_eq!(pdfover_backend_keystore::detect_format(&bytes), fmt);
+        assert_eq!(pida_backend_keystore::detect_format(&bytes), fmt);
         assert!(
             matches!(LoadedKey::open_pkcs12(&bytes, "test", None), Err(KeystoreError::ConversionNeeded(f)) if f == fmt)
         );
         assert!(matches!(list_aliases(&bytes, "test"), Err(KeystoreError::ConversionNeeded(_))));
-        let hint = pdfover_backend_keystore::conversion_hint(fmt, &td(rel)).unwrap();
+        let hint = pida_backend_keystore::conversion_hint(fmt, &td(rel)).unwrap();
         assert!(hint.contains("-deststoretype PKCS12"));
     }
 }
@@ -234,10 +234,7 @@ fn unsupported_keys_and_mismatch() {
     ));
     // Zertifikatsseitig: Schlüsseltypen werden erkannt
     let kt = |n: &str| {
-        pdfover_cades::Certificate::from_der(&read(&format!("backend-keystore/{n}.crt.der")))
-            .unwrap()
-            .key_type()
-            .unwrap()
+        pida_cades::Certificate::from_der(&read(&format!("backend-keystore/{n}.crt.der"))).unwrap().key_type().unwrap()
     };
     assert_eq!(kt("brainpoolP256r1"), KeyType::Ec { curve: EcCurve::BrainpoolP256r1 });
     assert_eq!(kt("ed25519"), KeyType::Other("Ed25519".into()));

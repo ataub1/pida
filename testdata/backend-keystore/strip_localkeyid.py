@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""NUR TEST – PDF-Over NG, Paket B (Review-Zusatz).
+"""NUR TEST – PIDA, Paket B (Review-Zusatz).
 
 Entfernt die localKeyID-Attribute aus einem *unverschlüsselten* PKCS#12 (``openssl pkcs12 -export
 -keypbe NONE -certpbe NONE``) und berechnet den MAC (HMAC-SHA-256, PKCS#12-KDF nach RFC 7292 B.2,

@@ -1,4 +1,4 @@
-//! Test-Bausteine: Fake-PAdES-Engine (aus `pdfover_core_api::testing`), Fake-Backend im Stil von
+//! Test-Bausteine: Fake-PAdES-Engine (aus `pida_core_api::testing`), Fake-Backend im Stil von
 //! Szenario A (Masken über den Broker des Kerns), Warte-Helfer.
 #![allow(dead_code)]
 
@@ -8,17 +8,17 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendError, BackendEvent, BackendId, BackendSession, Capabilities, CertChain, CertNeed, Environment, FactorSet,
     FormAnswer, FormContext, Interaction, InteractionBroker, InteractionError, NativeForm, Qualification, ServerNeed,
     SessionContext, SignInput, SignJob, SignOutput, SignResult, SignatureBackend,
 };
-use pdfover_backend_keystore::LoadedKey;
-use pdfover_cades::{CmsProfile, DigestAlg, RawSigner, SigningTime};
-use pdfover_config::{Overlay, Paths};
+use pida_backend_keystore::LoadedKey;
+use pida_cades::{CmsProfile, DigestAlg, RawSigner, SigningTime};
+use pida_config::{Overlay, Paths};
 #[allow(unused_imports)]
-pub use pdfover_core_api::testing::{FakeEngine, verify_fake_output};
-use pdfover_core_api::{Core, CoreConfig, CoreOptions, ViewState};
+pub use pida_core_api::testing::{FakeEngine, verify_fake_output};
+use pida_core_api::{Core, CoreConfig, CoreOptions, ViewState};
 use time::OffsetDateTime;
 
 pub const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata");
@@ -158,7 +158,7 @@ impl BackendSession for FakeAtrustSession {
             let mut content = bytes[..r.from as usize].to_vec();
             content.extend_from_slice(&bytes[r.to as usize + 1..]);
             let digest = DigestAlg::Sha256.digest(&content);
-            let cms = pdfover_cades::sign_detached(
+            let cms = pida_cades::sign_detached(
                 self.backend.key.as_ref() as &dyn RawSigner,
                 &digest,
                 CmsProfile::PdfasCompat,
@@ -227,7 +227,7 @@ impl Fixture {
         CoreConfig {
             paths: self.paths.clone(),
             overlay,
-            platform: pdfover_backend_api::Platform::Linux,
+            platform: pida_backend_api::Platform::Linux,
             pdfium_dir: None,
             headless,
             fido2: None,

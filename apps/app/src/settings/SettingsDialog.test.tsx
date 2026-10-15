@@ -17,7 +17,7 @@ describe('Einstellungen', () => {
     renderApp({ view: settingsView() });
     const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
     const tabs = within(dialog).getAllByRole('tab').map((t) => t.textContent);
-    expect(tabs).toEqual(['Einfach', 'Erweitert', 'FIDO2', 'Über PDF-Over NG']);
+    expect(tabs).toEqual(['Einfach', 'Erweitert', 'FIDO2', 'Über PIDA']);
     expect(within(dialog).getByRole('tab', { name: 'Einfach' })).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -223,7 +223,7 @@ describe('Einstellungen', () => {
   it('Über: Version, Lizenz- und Datenschutzlinks, Logs anzeigen', async () => {
     const { mock, user } = renderApp({ view: settingsView() });
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('tab', { name: 'Über PDF-Over NG' }));
+    await user.click(within(dialog).getByRole('tab', { name: 'Über PIDA' }));
     expect(await within(dialog).findByText('Version 0.1.0')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('link', { name: /software@egiz\.gv\.at/ }));
     expect(mock.openedUrls).toEqual(['mailto:software@egiz.gv.at']);
@@ -310,6 +310,6 @@ describe('Einstellungen', () => {
     await user.click(within(dialog).getByRole('button', { name: /Darstellung/ }));
     await user.click(await screen.findByRole('option', { name: 'Dunkel' }));
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
-    expect(localStorage.getItem('pdfover-ng.theme')).toBe('dark');
+    expect(localStorage.getItem('pida.theme')).toBe('dark');
   });
 });

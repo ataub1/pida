@@ -3,10 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfover_cades::CmsProfile;
-use pdfover_pades::{CheckContext, DocReport, PlanOptions, PlannedSignature, SignedPdf, prepare};
-use pdfover_pdf_cos::{Limits, SourcePdf};
-use pdfover_placement::visible_block_rect;
+use pida_cades::CmsProfile;
+use pida_pades::{CheckContext, DocReport, PlanOptions, PlannedSignature, SignedPdf, prepare};
+use pida_pdf_cos::{Limits, SourcePdf};
+use pida_placement::visible_block_rect;
 
 use super::{
     KeystoreSigner, Look, Oracles, PyhankoSig, check_output, evaluate_pyhanko, open_renderer, plan_for, pyhanko_batch,
@@ -72,7 +72,7 @@ pub fn run_case(
             return o;
         }
     };
-    let report = match pdfover_pades::analyze(&src) {
+    let report = match pida_pades::analyze(&src) {
         Ok(r) => r,
         Err(e) => {
             o.problems.push(format!("analyze: {e}"));
@@ -80,7 +80,7 @@ pub fn run_case(
         }
     };
     o.prior = report.signatures.len();
-    let mut opts = PlanOptions::new(pdfover_pades::local_signing_time());
+    let mut opts = PlanOptions::new(pida_pades::local_signing_time());
     opts.cms_profile = cms;
     adjust(&mut opts, &report, &src);
     let renderer = open_renderer(&src);
@@ -118,22 +118,22 @@ pub fn run_case(
     }
     let out = work.join(format!("{name}.pdf"));
     std::fs::write(&out, signed.bytes()).unwrap();
-    if let Some(keep) = std::env::var_os("PDFOVER_KEEP") {
+    if let Some(keep) = std::env::var_os("PIDA_KEEP") {
         let _ = std::fs::copy(&out, PathBuf::from(keep).join(format!("{name}.pdf")));
     }
     let look = match (&planned.position, &planned.plan.visibility) {
         (Some(rp), _) => {
             Some(Look::Visible { page: rp.page_index, rect: visible_block_rect(rp), new_page: rp.new_page })
         }
-        (None, pdfover_pades::Visibility::Invisible) => Some(Look::Invisible { page: 0 }),
+        (None, pida_pades::Visibility::Invisible) => Some(Look::Invisible { page: 0 }),
         // vorhandenes Feld: Widget-Rect (Benutzerraum) → sichtbarer Raum, nur bei ungedrehter Seite
-        (None, pdfover_pades::Visibility::Visible(bp)) => {
-            src.pages().get(bp.page_index).filter(|p| p.rotation == pdfover_pdf_cos::Rotation::R0).map(|p| {
+        (None, pida_pades::Visibility::Visible(bp)) => {
+            src.pages().get(bp.page_index).filter(|p| p.rotation == pida_pdf_cos::Rotation::R0).map(|p| {
                 let c = p.crop_box.normalized();
                 let r = bp.rect.normalized();
                 Look::Visible {
                     page: bp.page_index,
-                    rect: pdfover_pdf_cos::Rect::new(r.llx - c.llx, r.lly - c.lly, r.urx - c.llx, r.ury - c.lly),
+                    rect: pida_pdf_cos::Rect::new(r.llx - c.llx, r.lly - c.lly, r.urx - c.llx, r.ury - c.lly),
                     new_page: false,
                 }
             })

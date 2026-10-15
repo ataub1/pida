@@ -1,7 +1,7 @@
 //! Koordinatenräume PAGE_ABS/PAGE_REL/IMAGE/SCREEN (PDF-Over `SignaturePanel`).
 
-use pdfover_pdf_cos::{PageInfo, Rect, Rotation};
-use pdfover_placement::{
+use pida_pdf_cos::{PageInfo, Rect, Rotation};
+use pida_placement::{
     CoordSpace, KEYBOARD_COARSE_STEP_PT, KEYBOARD_FINE_STEP_PT, KEYBOARD_STEP_PT, KeyStep, PageTransform, Point,
     ScreenGeometry,
 };

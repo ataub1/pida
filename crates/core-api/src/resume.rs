@@ -9,7 +9,7 @@
 //! |---|---|
 //! | `resume.json` | [`ResumeRecord`]: Name, Signiermittel, Position, wartende Dokumente, Prüfsummen, Zeitpunkt |
 //! | `document/<Dateiname>` | Kopie des Originals (Eingabe beim Fortsetzen; der Dateiname bestimmt den Ausgabenamen) |
-//! | `pdfover-prepared-….pdf` + `.json` | `pades::Prepared::persist` (Platzhalter-PDF und Begleitdatei) |
+//! | `pida-prepared-….pdf` + `.json` | `pades::Prepared::persist` (Platzhalter-PDF und Begleitdatei) |
 //!
 //! Beim nächsten Start bietet der Kern „Signatur fortsetzen“ an ([`crate::ResumeOfferView`]); danach
 //! lädt der Workflow das Dokument (`State::Resuming`), öffnet die Sitzung des gespeicherten
@@ -21,11 +21,11 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use pdfover_backend_api::BackendId;
-use pdfover_cades::DigestAlg;
-use pdfover_pades::PreparedHandle;
-use pdfover_pdf_cos::SourcePdf;
-use pdfover_workflow::PositionChoice;
+use pida_backend_api::BackendId;
+use pida_cades::DigestAlg;
+use pida_pades::PreparedHandle;
+use pida_pdf_cos::SourcePdf;
+use pida_workflow::PositionChoice;
 
 use crate::engine::{PadesEngine, PreparedDoc};
 
@@ -256,8 +256,8 @@ pub(crate) fn delete(dir: &Path) {
 mod tests {
     use super::*;
     use crate::testing::FakeEngine;
-    use pdfover_pades::{Reserve, SignPlan};
-    use pdfover_placement::Placement;
+    use pida_pades::{Reserve, SignPlan};
+    use pida_placement::Placement;
 
     const PDF: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/pdf/generated/simple-xref-table.pdf");
 
@@ -268,7 +268,7 @@ mod tests {
     }
 
     fn open(bytes: &[u8]) -> SourcePdf {
-        SourcePdf::open(bytes.to_vec(), &pdfover_pdf_cos::Limits::default()).expect("PDF")
+        SourcePdf::open(bytes.to_vec(), &pida_pdf_cos::Limits::default()).expect("PDF")
     }
 
     fn position() -> PositionChoice {

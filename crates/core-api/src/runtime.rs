@@ -9,18 +9,18 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendError, BackendEvent, BackendId, BackendSession, CancelToken, Capabilities, CertChain, DigestJob,
     DocumentJob, DocumentSource, ExcludedByteRange, Platform, SessionContext, SignInput, SignJob, SignResult,
 };
-use pdfover_cades::{Expect, ExpectedSigner, SignedAttrs, SignedAttrsBuilder, SigningTime};
-use pdfover_config::{CertCacheKey, CertificateCache, Effective, Overlay, Policy, Settings};
-use pdfover_i18n::Lang;
-use pdfover_pades::{CheckContext, FinishError, Invariant, InvariantViolation, OutputTarget, PadesError, Reserve};
-use pdfover_placement::{PageTransform, Placement, Point, ScreenGeometry};
-use pdfover_render::RenderBackend;
-use pdfover_sigblock::{FontProvider, ProfileStore};
-use pdfover_workflow::{
+use pida_cades::{Expect, ExpectedSigner, SignedAttrs, SignedAttrsBuilder, SigningTime};
+use pida_config::{CertCacheKey, CertificateCache, Effective, Overlay, Policy, Settings};
+use pida_i18n::Lang;
+use pida_pades::{CheckContext, FinishError, Invariant, InvariantViolation, OutputTarget, PadesError, Reserve};
+use pida_placement::{PageTransform, Placement, Point, ScreenGeometry};
+use pida_render::RenderBackend;
+use pida_sigblock::{FontProvider, ProfileStore};
+use pida_workflow::{
     BackendOption, Context, DocId, Effect, Event, ExitCode, FsProbe, InputDocument, OutputDecision, PositionChoice,
     ResumePlan, State, Step, WorkflowError, chosen_path, decide_output, reduce, resolve_without_dialog,
 };
@@ -154,7 +154,7 @@ pub(crate) struct SignSlot {
     prepared: Option<Box<dyn PreparedDoc>>,
     /// CMS-Profil des Plans (Modell A: die SignedAttributes müssen mit genau diesem Profil gebaut werden,
     /// auch wenn sich die Einstellungen zwischen `prepare` und `sign` ändern)
-    cms_profile: Option<pdfover_cades::CmsProfile>,
+    cms_profile: Option<pida_cades::CmsProfile>,
     attrs: Option<SignedAttrs>,
     result: Option<SignResult>,
     signed: Option<Arc<dyn SignedDoc>>,
@@ -232,8 +232,7 @@ impl Shared {
         )
         .map_err(|e| e.code())?;
         let a4 = [plan::a4_page()];
-        let pages: &[pdfover_pdf_cos::PageInfo] =
-            doc.map(|d| d.pages.as_slice()).filter(|p| !p.is_empty()).unwrap_or(&a4);
+        let pages: &[pida_pdf_cos::PageInfo] = doc.map(|d| d.pages.as_slice()).filter(|p| !p.is_empty()).unwrap_or(&a4);
         let geom = plan::block_geometry(&spec, pages, page, store, &self.fonts).map_err(|e| e.code())?;
         let pdf = if spec.visible() {
             let app = spec.build(geom.width, 0, store, &self.fonts).map_err(|e| e.code())?;
@@ -464,8 +463,8 @@ impl CoreTask {
         {
             let alias = self.cfg.settings.keystore.alias.clone().unwrap_or_default();
             let secrets = self.cfg.secrets.as_ref();
-            let moved = migrate_secret(secrets, &old, &new, pdfover_config::SecretId::keystore_store)
-                + migrate_secret(secrets, &old, &new, |p| pdfover_config::SecretId::keystore_key(p, &alias));
+            let moved = migrate_secret(secrets, &old, &new, pida_config::SecretId::keystore_store)
+                + migrate_secret(secrets, &old, &new, |p| pida_config::SecretId::keystore_key(p, &alias));
             tracing::info!(secrets = moved, "importierter Keystore nach Umzug der Sandbox neu zugeordnet");
             self.cfg.settings.keystore.file = Some(new);
             changed = true;
@@ -527,17 +526,17 @@ impl CoreTask {
             return Err(MSG_KEYSTORE_IMPORT_UNREADABLE.into());
         }
         let bytes = std::fs::read(path).map_err(|_| MSG_KEYSTORE_IMPORT_UNREADABLE.to_owned())?;
-        match pdfover_backend_keystore::detect_format(&bytes) {
-            pdfover_backend_keystore::KeystoreFormat::Pkcs12 => {}
-            pdfover_backend_keystore::KeystoreFormat::Jks | pdfover_backend_keystore::KeystoreFormat::Jceks => {
+        match pida_backend_keystore::detect_format(&bytes) {
+            pida_backend_keystore::KeystoreFormat::Pkcs12 => {}
+            pida_backend_keystore::KeystoreFormat::Jks | pida_backend_keystore::KeystoreFormat::Jceks => {
                 return Err("keystore-conversion-needed".into());
             }
-            pdfover_backend_keystore::KeystoreFormat::Unknown => return Err(MSG_KEYSTORE_IMPORT_FORMAT.into()),
+            pida_backend_keystore::KeystoreFormat::Unknown => return Err(MSG_KEYSTORE_IMPORT_FORMAT.into()),
         }
         // Passwort prüfen (falls angegeben); bei genau einem Schlüssel wird dessen Alias übernommen
         let mut alias = None;
         if let Some(pw) = &password {
-            let entries = pdfover_backend_keystore::list_aliases(&bytes, pw).map_err(|e| e.code().to_owned())?;
+            let entries = pida_backend_keystore::list_aliases(&bytes, pw).map_err(|e| e.code().to_owned())?;
             let keys: Vec<_> = entries.into_iter().filter(|e| e.is_key_entry).collect();
             if keys.is_empty() {
                 return Err("keystore-no-key-entry".into());
@@ -556,9 +555,9 @@ impl CoreTask {
             && old.parent() == Some(dir.as_path())
         {
             let _ = std::fs::remove_file(&old);
-            let _ = self.cfg.secrets.delete(&pdfover_config::SecretId::keystore_store(&old));
+            let _ = self.cfg.secrets.delete(&pida_config::SecretId::keystore_store(&old));
             let old_alias = self.cfg.settings.keystore.alias.clone().unwrap_or_default();
-            let _ = self.cfg.secrets.delete(&pdfover_config::SecretId::keystore_key(&old, &old_alias));
+            let _ = self.cfg.secrets.delete(&pida_config::SecretId::keystore_key(&old, &old_alias));
         }
         let mut stored = false;
         if let (true, Some(pw)) = (remember, &password)
@@ -566,10 +565,10 @@ impl CoreTask {
         {
             let a = alias.clone().unwrap_or_default();
             let secrets = [
-                (pdfover_config::SecretId::keystore_store(&target), pw.clone()),
-                (pdfover_config::SecretId::keystore_key(&target, &a), pw.clone()),
+                (pida_config::SecretId::keystore_store(&target), pw.clone()),
+                (pida_config::SecretId::keystore_key(&target, &a), pw.clone()),
             ];
-            match pdfover_config::secrets::store_all(self.cfg.secrets.as_ref(), &secrets) {
+            match pida_config::secrets::store_all(self.cfg.secrets.as_ref(), &secrets) {
                 Ok(_) => stored = true,
                 Err(e) => tracing::warn!(id = e.message_id(), "Keystore-Passwort nicht im sicheren Speicher"),
             }
@@ -580,9 +579,9 @@ impl CoreTask {
         ks.declared_type = Some("PKCS12".into());
         ks.alias = alias;
         if stored {
-            ks.password_storage = pdfover_config::PasswordStorage::Keychain;
-        } else if ks.password_storage == pdfover_config::PasswordStorage::Keychain {
-            ks.password_storage = pdfover_config::PasswordStorage::Memory;
+            ks.password_storage = pida_config::PasswordStorage::Keychain;
+        } else if ks.password_storage == pida_config::PasswordStorage::Keychain {
+            ks.password_storage = pida_config::PasswordStorage::Memory;
         }
         if let Err(e) = self.cfg.save() {
             tracing::warn!(id = e.message_id(), "Einstellungen nach dem Import nicht gespeichert");
@@ -614,14 +613,14 @@ impl CoreTask {
         // beim Lesen der Altdatei darf das gerade verarbeitete Ereignis nicht verwerfen und sich nicht
         // bei jedem weiteren Ereignis wiederholen (dann: ohne Rückfrage zu Passwörtern)
         let probe = std::panic::catch_unwind(|| {
-            pdfover_config::LegacyConfig::load(&file)
+            pida_config::LegacyConfig::load(&file)
                 .map(|legacy| {
-                    let ctx = pdfover_config::MigrationContext {
+                    let ctx = pida_config::MigrationContext {
                         legacy_dir,
                         system_language: Lang::system(),
                         check_paths: false,
                     };
-                    !pdfover_config::migrate(&legacy, &ctx).report.secrets_found.is_empty()
+                    !pida_config::migrate(&legacy, &ctx).report.secrets_found.is_empty()
                 })
                 .unwrap_or(false)
         });
@@ -685,7 +684,7 @@ impl CoreTask {
             self.shared.docs.remove(d.id);
         }
         if queue.current.is_some() {
-            queue.finish_current(pdfover_workflow::DocResult::Failed { error: error.clone() });
+            queue.finish_current(pida_workflow::DocResult::Failed { error: error.clone() });
         }
         queue.clear();
         if self.headless {
@@ -772,8 +771,8 @@ impl CoreTask {
                     .into_iter()
                     .map(|(k, v)| {
                         let v = match v {
-                            pdfover_i18n::ArgValue::Str(s) => s,
-                            pdfover_i18n::ArgValue::Num(n) => n.to_string(),
+                            pida_i18n::ArgValue::Str(s) => s,
+                            pida_i18n::ArgValue::Num(n) => n.to_string(),
                         };
                         (k.to_owned(), v)
                     })
@@ -786,7 +785,7 @@ impl CoreTask {
         self.relocate_sandbox_files();
         self.registry.configure(&self.cfg);
         // Schlüsselbund gewünscht, aber nicht verfügbar (z. B. Linux ohne Secret Service): Hinweis
-        if self.cfg.settings.keystore.password_storage == pdfover_config::PasswordStorage::Keychain
+        if self.cfg.settings.keystore.password_storage == pida_config::PasswordStorage::Keychain
             && !self.cfg.secrets.is_persistent()
         {
             self.notify("ng-secrets-not-persistent", BTreeMap::new());
@@ -1046,7 +1045,7 @@ impl CoreTask {
         let page = if p.page_index < doc.pages.len() {
             doc.pages[p.page_index].clone()
         } else {
-            pdfover_placement::new_page_geometry(doc.pages.last()?)
+            pida_placement::new_page_geometry(doc.pages.last()?)
         };
         let t = PageTransform::new(&page, ScreenGeometry::identity());
         let pt = t.clamp_block(Point { x: p.x, y: p.y }, p.width, p.height);
@@ -1073,7 +1072,7 @@ impl CoreTask {
             return;
         };
         let ctx = self.session_ctx();
-        let broker: Arc<dyn pdfover_backend_api::InteractionBroker> = self.shared.broker.clone();
+        let broker: Arc<dyn pida_backend_api::InteractionBroker> = self.shared.broker.clone();
         let shared = self.shared.clone();
         self.spawn_event(Some(epoch), async move {
             let cancel = ctx.cancel.clone();
@@ -1088,7 +1087,7 @@ impl CoreTask {
                     if slot.epoch == epoch {
                         slot.session = Some(session);
                     }
-                    Event::PhaseCompleted(pdfover_workflow::SigningPhase::OpeningSession)
+                    Event::PhaseCompleted(pida_workflow::SigningPhase::OpeningSession)
                 }
                 Err(e) => Event::BackendFailed(e),
             }
@@ -1102,7 +1101,7 @@ impl CoreTask {
         if !settings.enabled || !uses_certificate_cache(*backend) {
             return None;
         }
-        let account = self.cfg.effective().username().map(pdfover_config::normalize_mobile_number).unwrap_or_default();
+        let account = self.cfg.effective().username().map(pida_config::normalize_mobile_number).unwrap_or_default();
         Some((CertificateCache::new(&self.cfg.paths, settings), CertCacheKey::new(backend.as_str(), account)))
     }
 
@@ -1116,7 +1115,7 @@ impl CoreTask {
                 return None;
             }
         };
-        match pdfover_cades::Certificate::from_der(&der) {
+        match pida_cades::Certificate::from_der(&der) {
             Ok(cert) if cert.is_valid_at(time::OffsetDateTime::now_utc()) => Some(CertChain::new(cert)),
             _ => {
                 tracing::info!("Zertifikat im Cache ungültig oder abgelaufen – wird neu gelesen");
@@ -1138,7 +1137,7 @@ impl CoreTask {
             slot.chain = Some(chain);
             slot.cert_cache = Some((cache.clone(), key.clone(), true));
             drop(slot);
-            self.queue.push_back(Event::PhaseCompleted(pdfover_workflow::SigningPhase::ReadingCertificate));
+            self.queue.push_back(Event::PhaseCompleted(pida_workflow::SigningPhase::ReadingCertificate));
             return;
         }
         lock(&self.shared.sign).cert_cache = cache.map(|(c, k)| (c, k, false));
@@ -1168,7 +1167,7 @@ impl CoreTask {
             match r {
                 Ok(chain) => {
                     slot.chain = Some(chain);
-                    Event::PhaseCompleted(pdfover_workflow::SigningPhase::ReadingCertificate)
+                    Event::PhaseCompleted(pida_workflow::SigningPhase::ReadingCertificate)
                 }
                 Err(e) => Event::BackendFailed(e),
             }
@@ -1360,7 +1359,7 @@ impl CoreTask {
                 Ok(mut results) if results.len() == 1 => {
                     slot.result = results.pop();
                     slot.attrs = attrs;
-                    Event::PhaseCompleted(pdfover_workflow::SigningPhase::Signing)
+                    Event::PhaseCompleted(pida_workflow::SigningPhase::Signing)
                 }
                 Ok(results) => Event::BackendFailed(BackendError::Internal(format!(
                     "{} Ergebnisse für einen Auftrag",
@@ -1452,7 +1451,7 @@ impl CoreTask {
                 return Event::BackendFailed(BackendError::Cancelled);
             }
             slot.signed = Some(Arc::from(signed));
-            Event::PhaseCompleted(pdfover_workflow::SigningPhase::Finishing)
+            Event::PhaseCompleted(pida_workflow::SigningPhase::Finishing)
         });
     }
 
@@ -1599,11 +1598,11 @@ impl CoreTask {
             UiEvent::NudgeBlock { dx, dy, fine, coarse } => {
                 if let State::Positioning { placement: Some(p), .. } = &self.state {
                     let step = if coarse {
-                        pdfover_placement::KEYBOARD_COARSE_STEP_PT
+                        pida_placement::KEYBOARD_COARSE_STEP_PT
                     } else if fine {
-                        pdfover_placement::KEYBOARD_FINE_STEP_PT
+                        pida_placement::KEYBOARD_FINE_STEP_PT
                     } else {
-                        pdfover_placement::KEYBOARD_STEP_PT
+                        pida_placement::KEYBOARD_STEP_PT
                     };
                     let moved = Placement { x: p.x + dx as f32 * step, y: p.y + dy as f32 * step, ..*p };
                     if let Some(c) = self.clamp(&moved) {
@@ -1763,14 +1762,13 @@ impl CoreTask {
     fn accept_migration(&mut self, store_secrets: bool) {
         let Some(file) = self.cfg.migration_offer.take() else { return };
         let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
-        let result = pdfover_config::LegacyConfig::load(&file).map(|legacy| {
-            let ctx =
-                pdfover_config::MigrationContext { legacy_dir, system_language: Lang::system(), check_paths: true };
-            pdfover_config::migrate(&legacy, &ctx)
+        let result = pida_config::LegacyConfig::load(&file).map(|legacy| {
+            let ctx = pida_config::MigrationContext { legacy_dir, system_language: Lang::system(), check_paths: true };
+            pida_config::migrate(&legacy, &ctx)
         });
         let applied = result.and_then(|r| {
-            let opts = pdfover_config::ApplyOptions { store_secrets, ..pdfover_config::ApplyOptions::default() };
-            pdfover_config::apply_migration(&r, &self.cfg.paths, self.cfg.secrets.as_ref(), &opts).map(|a| (r, a))
+            let opts = pida_config::ApplyOptions { store_secrets, ..pida_config::ApplyOptions::default() };
+            pida_config::apply_migration(&r, &self.cfg.paths, self.cfg.secrets.as_ref(), &opts).map(|a| (r, a))
         });
         match applied {
             Ok((r, _)) => {
@@ -1798,9 +1796,9 @@ impl CoreTask {
             .registry
             .atrust()
             .map(|a| a.config().endpoint.clone())
-            .or_else(|| pdfover_net::Url::parse(pdfover_backend_atrust::PROD_ENDPOINT).ok());
+            .or_else(|| pida_net::Url::parse(pida_backend_atrust::PROD_ENDPOINT).ok());
         let Some(endpoint) = endpoint else { return };
-        if let Err(e) = pdfover_backend_atrust::open_signature_data(self.shared.broker.as_ref(), &url, &endpoint) {
+        if let Err(e) = pida_backend_atrust::open_signature_data(self.shared.broker.as_ref(), &url, &endpoint) {
             tracing::warn!(code = e.code(), "Signaturdaten nicht geöffnet");
             self.notify("atrust-signature-data-link-rejected", BTreeMap::new());
         }
@@ -1863,7 +1861,7 @@ impl CoreTask {
         match event {
             BackendEvent::LoginSucceeded { username, remember } => {
                 if remember {
-                    let normalized = pdfover_backend_atrust::validate::normalize_phone_number(&username);
+                    let normalized = pida_backend_atrust::validate::normalize_phone_number(&username);
                     let s = &mut self.cfg.settings.id_austria;
                     if s.username.as_deref() != Some(normalized.as_str()) || !s.remember {
                         s.username = Some(normalized);
@@ -2006,11 +2004,11 @@ impl CoreTask {
             }
             State::PlaceholderQuestion { found, doc, .. } => {
                 let (fields, qr) = match found {
-                    pdfover_workflow::PlaceholderFound::Fields(f) => (
+                    pida_workflow::PlaceholderFound::Fields(f) => (
                         f.iter().map(|c| FieldInfo { name: c.qualified_name.clone(), page: c.page_index }).collect(),
                         None,
                     ),
-                    pdfover_workflow::PlaceholderFound::Qr(q) => {
+                    pida_workflow::PlaceholderFound::Qr(q) => {
                         (Vec::new(), Some(QrInfo { page: q.page_index, id: q.payload.id.clone() }))
                     }
                 };
@@ -2090,11 +2088,11 @@ impl CoreTask {
                     && let Some(file) = self.cfg.effective().keystore_file()
                 {
                     let format = match detail.as_str() {
-                        "JKS" => pdfover_backend_keystore::KeystoreFormat::Jks,
-                        "JCEKS" => pdfover_backend_keystore::KeystoreFormat::Jceks,
-                        _ => pdfover_backend_keystore::KeystoreFormat::Unknown,
+                        "JKS" => pida_backend_keystore::KeystoreFormat::Jks,
+                        "JCEKS" => pida_backend_keystore::KeystoreFormat::Jceks,
+                        _ => pida_backend_keystore::KeystoreFormat::Unknown,
                     };
-                    if let Some(hint) = pdfover_backend_keystore::conversion_hint(format, file) {
+                    if let Some(hint) = pida_backend_keystore::conversion_hint(format, file) {
                         params.insert("hint".into(), hint);
                     }
                 }
@@ -2151,7 +2149,7 @@ fn store_prepared(
     shared: &Shared,
     epoch: u64,
     prepared: Box<dyn PreparedDoc>,
-    cms_profile: pdfover_cades::CmsProfile,
+    cms_profile: pida_cades::CmsProfile,
 ) -> Event {
     let mut slot = lock(&shared.sign);
     if slot.epoch != epoch {
@@ -2159,7 +2157,7 @@ fn store_prepared(
     }
     slot.prepared = Some(prepared);
     slot.cms_profile = Some(cms_profile);
-    Event::PhaseCompleted(pdfover_workflow::SigningPhase::Preparing)
+    Event::PhaseCompleted(pida_workflow::SigningPhase::Preparing)
 }
 
 /// Entfernt die Kopie `source` der Dateiauswahl, wenn sie im Cache der App liegt (nie das Ziel `kept`, nie
@@ -2194,10 +2192,10 @@ fn relocated(old: &Path, dir: &Path) -> Option<PathBuf> {
 /// und wurde beim Speichern kanonisiert: unter iOS ist `/var` ein Symlink auf `/private/var`, deshalb
 /// beide Schreibweisen. Liefert die Anzahl übertragener Secrets.
 fn migrate_secret(
-    secrets: &dyn pdfover_config::SecretStore,
+    secrets: &dyn pida_config::SecretStore,
     old: &Path,
     new: &Path,
-    id: impl Fn(&Path) -> pdfover_config::SecretId,
+    id: impl Fn(&Path) -> pida_config::SecretId,
 ) -> usize {
     let mut candidates = vec![old.to_path_buf()];
     if let Ok(rest) = old.strip_prefix("/var") {
@@ -2271,17 +2269,16 @@ fn prepare_error(code: &str, detail: &str) -> WorkflowError {
 fn pades_error(e: &PadesError) -> WorkflowError {
     match e {
         PadesError::Rejected(_) => WorkflowError::Rejected {
-            class: pdfover_pades::AcceptanceClass::K5Rejected,
+            class: pida_pades::AcceptanceClass::K5Rejected,
             code: "ng-document-rejected".into(),
         },
         PadesError::FieldAlreadySigned(_) => WorkflowError::Rejected {
-            class: pdfover_pades::AcceptanceClass::K4Restricted,
+            class: pida_pades::AcceptanceClass::K4Restricted,
             code: "ng-field-already-signed".into(),
         },
-        PadesError::FieldLocked(_) => WorkflowError::Rejected {
-            class: pdfover_pades::AcceptanceClass::K4Restricted,
-            code: "ng-field-locked".into(),
-        },
+        PadesError::FieldLocked(_) => {
+            WorkflowError::Rejected { class: pida_pades::AcceptanceClass::K4Restricted, code: "ng-field-locked".into() }
+        }
         PadesError::CertificateNotValid => prepare_error("ng-certificate-not-valid", ""),
         PadesError::SigBlock(s) => prepare_error(s.code(), &s.to_string()),
         PadesError::Cms(c) => prepare_error(c.code(), &c.to_string()),
@@ -2294,11 +2291,11 @@ fn pades_error(e: &PadesError) -> WorkflowError {
 fn digest_job(
     prepared: &dyn PreparedDoc,
     chain: &CertChain,
-    profile: pdfover_cades::CmsProfile,
+    profile: pida_cades::CmsProfile,
     name: &str,
-) -> Result<(DigestJob, SignedAttrs), pdfover_cades::CmsError> {
+) -> Result<(DigestJob, SignedAttrs), pida_cades::CmsError> {
     let key = chain.signer.key_type()?;
-    let alg = pdfover_cades::select_algorithm(&key)?.digest();
+    let alg = pida_cades::select_algorithm(&key)?.digest();
     let message_digest = prepared.digest(alg);
     let attrs = SignedAttrsBuilder::new(profile, &message_digest, &chain.signer, SigningTime(prepared.signing_time()))
         .build()?;
@@ -2377,7 +2374,7 @@ impl DocData {
     pub(crate) fn with_renderer_opt<T>(
         &self,
         backend: Option<&dyn RenderBackend>,
-        f: impl FnOnce(Option<&dyn pdfover_render::Renderer>) -> T,
+        f: impl FnOnce(Option<&dyn pida_render::Renderer>) -> T,
     ) -> T {
         match backend {
             Some(b) => {

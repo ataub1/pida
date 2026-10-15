@@ -24,7 +24,7 @@ use std::sync::Mutex;
 use crate::shell::MAX_PENDING_DOCUMENTS;
 
 /// Kennung der App (`identifier` in `tauri.conf.json`; Test `identifier_matches_tauri_conf`).
-pub const IDENTIFIER: &str = "at.pdf-over-ng";
+pub const IDENTIFIER: &str = "at.pida";
 
 /// Dokumente, die vor dem Anlegen der [`Shell`](crate::shell::Shell) eintreffen (Tauri-State, vor `build` registriert).
 ///
@@ -148,7 +148,7 @@ mod tests {
         let conf: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
         assert_eq!(conf["identifier"], IDENTIFIER);
-        assert_eq!(macos_socket_path(IDENTIFIER), PathBuf::from("/tmp/at_pdf_over_ng_si.sock"));
+        assert_eq!(macos_socket_path(IDENTIFIER), PathBuf::from("/tmp/at_pida_si.sock"));
     }
 
     #[test]
@@ -184,7 +184,7 @@ mod tests {
     fn only_own_sockets_are_trusted() {
         use std::os::unix::fs::MetadataExt;
         // kurzer Pfad (Unix-Sockets: höchstens ~100 Zeichen)
-        let dir = PathBuf::from(format!("/tmp/pdfover-si-{}", std::process::id()));
+        let dir = PathBuf::from(format!("/tmp/pida-si-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("Ordner");
         let uid = std::fs::metadata(&dir).expect("Metadaten").uid();

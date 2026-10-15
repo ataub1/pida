@@ -6,13 +6,13 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use pdfover_backend_api::BackendId;
-use pdfover_config::{
+use pida_backend_api::BackendId;
+use pida_config::{
     ConfigError, ConfigSource, Effective, LoadOutcome, MemorySecretStore, Overlay, Paths, PlaceholderKind, Policy,
     ProxyMode, SecretStore, Settings, SignatureProfile, load_config_source_with_secrets, resolve_config_file,
 };
-use pdfover_i18n::Lang;
-use pdfover_workflow::Context;
+use pida_i18n::Lang;
+use pida_workflow::Context;
 
 /// Version des Datenschutzhinweises; eine neue Textversion verlangt eine neue Bestätigung.
 pub const PRIVACY_TEXT_VERSION: u32 = 1;
@@ -91,7 +91,7 @@ impl ConfigState {
                 LoadOutcome::Loaded(s) => (*s, Some(file)),
                 LoadOutcome::Missing => {
                     if offer_migration {
-                        migration_offer = pdfover_config::import_offer(&paths, legacy_dir.as_deref());
+                        migration_offer = pida_config::import_offer(&paths, legacy_dir.as_deref());
                     }
                     (Settings::default(), Some(file))
                 }
@@ -170,7 +170,7 @@ impl ConfigState {
     /// Erlaubte Backends laut Richtlinie (`None` = alle).
     pub(crate) fn allowed_backends(&self) -> Option<Vec<BackendId>> {
         let allowed = self.policy.as_ref()?.allowed_backends.as_ref()?;
-        Some(allowed.iter().map(|c| pdfover_workflow::backend_for_choice(*c)).collect())
+        Some(allowed.iter().map(|c| pida_workflow::backend_for_choice(*c)).collect())
     }
 
     /// Ausgabeziel (Overlay vor Einstellung).
@@ -213,7 +213,7 @@ pub(crate) fn validate(settings: &Settings) -> (BTreeMap<String, String>, bool) 
         problems.insert("keystore.file".into(), "error-KeyStoreFileNotExist".into());
     }
     let size = settings.signature.logo_only_size_mm;
-    if !(size.is_finite() && size > 0.0 && size <= pdfover_sigblock::profile::MAX_LOGO_SIZE_MM) {
+    if !(size.is_finite() && size > 0.0 && size <= pida_sigblock::profile::MAX_LOGO_SIZE_MM) {
         problems.insert("signature.logo_only_size_mm".into(), "ng-settings-invalid-logo-size".into());
     }
     if let Some(dir) = &settings.output.folder

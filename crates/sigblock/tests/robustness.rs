@@ -5,9 +5,9 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use pdfover_java_properties::Properties;
-use pdfover_pdf_cos::Object;
-use pdfover_sigblock::{
+use pida_java_properties::Properties;
+use pida_pdf_cos::Object;
+use pida_sigblock::{
     Appearance, BuildOptions, BuiltinResources, CertFields, Emblem, FontProvider, PdfaMode, ProfileOverrides,
     ProfileStore, SigBlockError, SigBlockInput, layout,
 };
@@ -35,12 +35,12 @@ fn custom(extra: &[(&str, &str)]) -> ProfileStore {
     ProfileStore::from_properties(&props, Arc::new(BuiltinResources::default())).unwrap()
 }
 
-fn build(s: &ProfileStore, inp: &SigBlockInput, width: f32) -> pdfover_sigblock::Result<Appearance> {
+fn build(s: &ProfileStore, inp: &SigBlockInput, width: f32) -> pida_sigblock::Result<Appearance> {
     let opts = BuildOptions { width, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
     Appearance::build(s.get("T").unwrap(), inp, &opts, &FontProvider::builtin(), &**s.resources())
 }
 
-fn lay(s: &ProfileStore, inp: &SigBlockInput, width: f32) -> pdfover_sigblock::Result<pdfover_sigblock::Layout> {
+fn lay(s: &ProfileStore, inp: &SigBlockInput, width: f32) -> pida_sigblock::Result<pida_sigblock::Layout> {
     layout::layout(s.get("T").unwrap(), inp, width, &FontProvider::builtin(), &**s.resources())
 }
 
@@ -233,7 +233,7 @@ fn profile_debug_redacts_note_override() {
 /// nicht darstellbares Zeichen ersetzt (DejaVu hat keinen Glyph für U+000D).
 #[test]
 fn windows_line_endings_in_note() {
-    use pdfover_sigblock::layout::CellContent;
+    use pida_sigblock::layout::CellContent;
     let s = ProfileStore::builtin().unwrap();
     let p = s.get("SIGNATURBLOCK_SMALL_DE_NOTE").unwrap();
     let mut inp = input();

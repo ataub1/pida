@@ -75,7 +75,7 @@ fn random_boundary() -> String {
         }
         *word = hasher.finish();
     }
-    format!("----PDFOverNG{:016x}{:016x}", words[0], words[1])
+    format!("----PIDA{:016x}{:016x}", words[0], words[1])
 }
 
 #[cfg(test)]

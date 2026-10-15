@@ -1,27 +1,27 @@
 /**
  * Fluent-Kataloge der Oberfläche (Plan §7.5): **dieselben Dateien** wie Kern und CLI
- * (`crates/i18n/locales/{de,en}/pdfover.ftl` und `pdfover-ng.ftl`, zur Build-Zeit eingebunden). Die
- * UI-Texte (IDs `ng-ui-*`) stehen in `pdfover-ng.ftl` – eine Quelle für alle Oberflächen.
+ * (`crates/i18n/locales/{de,en}/pdfover.ftl` und `pida.ftl`, zur Build-Zeit eingebunden). Die
+ * UI-Texte (IDs `ng-ui-*`) stehen in `pida.ftl` – eine Quelle für alle Oberflächen.
  *
- * Semantik wie `pdfover_i18n::Catalog::format`: gewählte Sprache → DE → EN → `!id!`; Zugriffstasten
+ * Semantik wie `pida_i18n::Catalog::format`: gewählte Sprache → DE → EN → `!id!`; Zugriffstasten
  * (`.accesskey`) ohne Sprach-Fallback; keine Unicode-Isolationszeichen.
  */
 import { FluentBundle, FluentResource, type FluentVariable } from '@fluent/bundle';
 import type { Lang } from '../core/types';
 import deCore from '@locales/de/pdfover.ftl?raw';
-import deNg from '@locales/de/pdfover-ng.ftl?raw';
+import deNg from '@locales/de/pida.ftl?raw';
 import enCore from '@locales/en/pdfover.ftl?raw';
-import enNg from '@locales/en/pdfover-ng.ftl?raw';
+import enNg from '@locales/en/pida.ftl?raw';
 
 /** Quellen je Sprache (Reihenfolge: erzeugter Katalog, eigene Texte inkl. UI-Texte `ng-ui-*`). */
 export const SOURCES: Record<Lang, { name: string; text: string }[]> = {
   de: [
     { name: 'de/pdfover.ftl', text: deCore },
-    { name: 'de/pdfover-ng.ftl', text: deNg },
+    { name: 'de/pida.ftl', text: deNg },
   ],
   en: [
     { name: 'en/pdfover.ftl', text: enCore },
-    { name: 'en/pdfover-ng.ftl', text: enNg },
+    { name: 'en/pida.ftl', text: enNg },
   ],
 };
 

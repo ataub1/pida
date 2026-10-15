@@ -1,4 +1,4 @@
-//! `pdfover-cades` – CMS/CAdES für PAdES (Plan §2.1, §6.10; docs/analyse/03 §5).
+//! `pida-cades` – CMS/CAdES für PAdES (Plan §2.1, §6.10; docs/analyse/03 §5).
 //!
 //! - [`SignedAttrsBuilder`]: SignedAttributes **DER-genau selbst gebaut** (SET OF sortiert) für die
 //!   Profile [`CmsProfile::PdfasCompat`] und [`CmsProfile::PadesBB`].
@@ -8,7 +8,7 @@
 //!   docs/analyse/03 §5.2): genau ein SignerInfo, message-digest, Signaturwert,
 //!   signing-certificate(-v2), Fingerprint gleich dem erwarteten Zertifikat (Invariante I3/I4).
 //! - [`Certificate`], [`CertChain`], [`DigestAlg`], [`SignatureAlg`], [`RawSigner`]: gemeinsame
-//!   Krypto-Typen für `pdfover-backend-api` und alle Backends.
+//!   Krypto-Typen für `pida-backend-api` und alle Backends.
 //!
 //! RustCrypto-Generation: `cms` 0.2 / `der` 0.7 / `x509-cert` 0.2 / `spki` 0.7 (gepinnt, Plan §2.5).
 //! Diese Typen erscheinen nur hinter [`Certificate::x509`] in der öffentlichen API.
@@ -25,7 +25,7 @@
 //! gelesen (`der_util`): Signiert und geprüft wird immer über die **Originalbytes** der
 //! SignedAttributes.
 //!
-//! Ownership: Paket **B** (zusammen mit `pdfover-backend-keystore`).
+//! Ownership: Paket **B** (zusammen mit `pida-backend-keystore`).
 
 mod cert;
 mod cms_build;

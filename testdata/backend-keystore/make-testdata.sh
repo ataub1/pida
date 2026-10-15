@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PDF-Over NG, Paket B – erzeugt die Test-Keystores für pdfover-backend-keystore unter
+# PIDA, Paket B – erzeugt die Test-Keystores für pida-backend-keystore unter
 # testdata/backend-keystore/ (Varianten der Verschlüsselung, Java-Formate, Fehlerfälle).
 #
 #   testdata/backend-keystore/make-testdata.sh           # fehlende Dateien erzeugen

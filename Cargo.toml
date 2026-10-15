@@ -1,4 +1,4 @@
-# PDF-Over NG – Cargo-Workspace
+# PIDA – Cargo-Workspace
 #
 # Verbindliche Grundlage: docs/00-architektur-und-umsetzungsplan.md (§2 Stack/Pinning, §3 Architektur)
 # und docs/adr/0001-workspace-und-schnittstellen.md (Crate-Graph, Ownership, Regeln für die parallele Arbeit).
@@ -36,7 +36,7 @@ members = [
     # Anwendungen
     "apps/cli",
     "apps/app/src-tauri",   # Tauri-2-Shell (Desktop und Mobile), ADR 0001 §3
-    "apps/app/plugins/pdfover-mobile",   # Mobile-Plugin der Shell (Swift/Kotlin: M-iOS/M-Android)
+    "apps/app/plugins/pida-mobile",   # Mobile-Plugin der Shell (Swift/Kotlin: M-iOS/M-Android)
 ]
 
 [workspace.package]
@@ -46,36 +46,36 @@ edition = "2024"
 # (lopdf 0.45, image 0.25, time 0.3.55, keyring 4); eine niedrigere MSRV wird erst nach CI-Nachweis gesenkt.
 rust-version = "1.99"
 license = "EUPL-1.2"
-authors = ["PDF-Over NG contributors"]
-repository = "https://example.invalid/pdf-over-ng"
+authors = ["PIDA contributors"]
+repository = "https://example.invalid/pida"
 publish = false
 
 [workspace.dependencies]
 # --- interne Crates -------------------------------------------------------------------------------
-pdfover-java-properties = { path = "crates/java-properties" }
-pdfover-i18n = { path = "crates/i18n" }
-pdfover-pdf-cos = { path = "crates/pdf-cos" }
-pdfover-pdf-incremental = { path = "crates/pdf-incremental" }
-pdfover-cades = { path = "crates/cades" }
-pdfover-sigblock = { path = "crates/sigblock" }
-pdfover-pades = { path = "crates/pades" }
-pdfover-placement = { path = "crates/placement" }
+pida-java-properties = { path = "crates/java-properties" }
+pida-i18n = { path = "crates/i18n" }
+pida-pdf-cos = { path = "crates/pdf-cos" }
+pida-pdf-incremental = { path = "crates/pdf-incremental" }
+pida-cades = { path = "crates/cades" }
+pida-sigblock = { path = "crates/sigblock" }
+pida-pades = { path = "crates/pades" }
+pida-placement = { path = "crates/placement" }
 # Ohne Default-Features: Abhängige nutzen nur die Traits; `features = ["pdfium"]` nur dort, wo
 # `PdfiumBackend` konstruiert wird (core-api, Tauri-Shell). ADR 0001 §8.
-pdfover-render = { path = "crates/render", default-features = false }
-pdfover-backend-api = { path = "crates/backend-api" }
-pdfover-sl12 = { path = "crates/sl12" }
-pdfover-backend-atrust = { path = "crates/backend-atrust" }
-pdfover-backend-localbku = { path = "crates/backend-localbku" }
-pdfover-backend-keystore = { path = "crates/backend-keystore" }
-pdfover-net = { path = "crates/net" }
-pdfover-workflow = { path = "crates/workflow" }
-pdfover-config = { path = "crates/config" }
-pdfover-core-api = { path = "crates/core-api" }
+pida-render = { path = "crates/render", default-features = false }
+pida-backend-api = { path = "crates/backend-api" }
+pida-sl12 = { path = "crates/sl12" }
+pida-backend-atrust = { path = "crates/backend-atrust" }
+pida-backend-localbku = { path = "crates/backend-localbku" }
+pida-backend-keystore = { path = "crates/backend-keystore" }
+pida-net = { path = "crates/net" }
+pida-workflow = { path = "crates/workflow" }
+pida-config = { path = "crates/config" }
+pida-core-api = { path = "crates/core-api" }
 # Argument-Parser von PDF-Over (auch für die GUI-Shell); `features = ["run"]` = Ablauf der CLI.
-pdfover-cli = { path = "apps/cli", default-features = false }
+pida-cli = { path = "apps/cli", default-features = false }
 # Mobile-Plugin der Tauri-Shell (sicherer Speicher, Teilen/Exportieren, Import, eingehende Dokumente).
-tauri-plugin-pdfover-mobile = { path = "apps/app/plugins/pdfover-mobile" }
+tauri-plugin-pida-mobile = { path = "apps/app/plugins/pida-mobile" }
 
 # --- PDF ------------------------------------------------------------------------------------------
 # Plan §2.1/§2.5: lopdf 0.45.x nur als Parser/Objektmodell (gekapselt in pdf-cos); kein rayon/chrono-clock,
@@ -169,7 +169,7 @@ rpassword = "=7.5.4"
 # Tauri 2.12.x exakt gepinnt (Plan §2.1/§2.5); Apache-2.0 OR MIT.
 tauri = { version = "=2.12.4", features = [] }
 tauri-build = { version = "=2.7.3", features = [] }
-# Build-Skript eigener Tauri-Plugins (apps/app/plugins/pdfover-mobile); Version wie im Graph der Plugins.
+# Build-Skript eigener Tauri-Plugins (apps/app/plugins/pida-mobile); Version wie im Graph der Plugins.
 tauri-plugin = { version = "=2.7.2", features = ["build"] }
 tauri-plugin-dialog = "=2.8.3"
 tauri-plugin-opener = "=2.7.2"

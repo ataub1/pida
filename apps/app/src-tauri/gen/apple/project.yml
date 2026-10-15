@@ -1,6 +1,6 @@
-name: pdfover-app
+name: pida-app
 options:
-  bundleIdPrefix: at.pdf-over-ng
+  bundleIdPrefix: at.pida
   deploymentTarget:
     iOS: 16.0
 fileGroups: [../../src]
@@ -10,8 +10,8 @@ configs:
 settingGroups:
   app:
     base:
-      PRODUCT_NAME: PDF-Over NG
-      PRODUCT_BUNDLE_IDENTIFIER: at.pdf-over-ng
+      PRODUCT_NAME: PIDA
+      PRODUCT_BUNDLE_IDENTIFIER: at.pida
 targetTemplates:
   app:
     type: application
@@ -24,7 +24,7 @@ targetTemplates:
     settings:
       groups: [app]
 targets:
-  pdfover-app_iOS:
+  pida-app_iOS:
     type: application
     platform: iOS
     sources:
@@ -36,13 +36,13 @@ targets:
       # via LIBRARY_SEARCH_PATHS, never bundled as resources.
       - path: Externals
         excludes: ["**/*.a"]
-      - path: pdfover-app_iOS
+      - path: pida-app_iOS
       - path: assets
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
     info:
-      path: pdfover-app_iOS/Info.plist
+      path: pida-app_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
@@ -58,8 +58,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 1.0.0
         CFBundleVersion: "1.0.0"
-        # --- PDF-Over NG (M-iOS, docs/integration/mobile-ios.md) ---
-        CFBundleDisplayName: PDF-Over NG
+        # --- PIDA (M-iOS, docs/integration/mobile-ios.md) ---
+        CFBundleDisplayName: PIDA
         # „Öffnen in“/Teilen für PDF (Rang Alternate: nie Standard-App für PDF)
         CFBundleDocumentTypes:
           - CFBundleTypeName: PDF
@@ -74,7 +74,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # ATS ohne Ausnahmen (nur HTTPS; keine lokale BKU), kein Face ID, keine Kamera/Fotos
     entitlements:
-      path: pdfover-app_iOS/pdfover-app_iOS.entitlements
+      path: pida-app_iOS/pida-app_iOS.entitlements
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
@@ -93,7 +93,7 @@ targets:
       - framework: libapp.a
         embed: false
       # PDFium (tools/fetch-pdfium.sh --xcframework): nur einbetten und signieren, nicht linken –
-      # pdfover-render lädt Frameworks/pdfium.framework/pdfium zur Laufzeit (dlopen)
+      # pida-render lädt Frameworks/pdfium.framework/pdfium zur Laufzeit (dlopen)
       - framework: ../../../../../tools/pdfium/apple/PDFium.xcframework
         link: false
         embed: true

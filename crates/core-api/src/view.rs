@@ -3,11 +3,9 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use pdfover_backend_api::{
-    BackendId, Capabilities, NativeForm, Notice, NoticeAnswer, Platform, Progress, SecretPrompt,
-};
-use pdfover_i18n::Lang;
-use pdfover_workflow::{DocId, DocResult, MainBarStep, PlaceholderAnswer, Step};
+use pida_backend_api::{BackendId, Capabilities, NativeForm, Notice, NoticeAnswer, Platform, Progress, SecretPrompt};
+use pida_i18n::Lang;
+use pida_workflow::{DocId, DocResult, MainBarStep, PlaceholderAnswer, Step};
 
 /// Hinweis ohne Rückfrage (i18n-ID mit Parametern), z. B. `error-PositioningNotPossible`,
 /// `placement.notice.*`, `ng-config-reset-done`. Die UI schließt ihn mit [`UiEvent::DismissNotice`].
@@ -329,7 +327,7 @@ pub enum StepView {
         block: BlockView,
         /// Position (PAGE_ABS, linke obere Ecke)
         #[cfg_attr(feature = "ts", ts(as = "crate::ts::Placement"))]
-        placement: pdfover_placement::Placement,
+        placement: pida_placement::Placement,
         /// virtuelle neue Seite
         new_page: bool,
         /// Parameter des Live-Region-Texts `ng-ui-position-announce`: `page`, `pages`, `left` (mm der
@@ -377,9 +375,9 @@ pub enum StepView {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SettingsView {
-    /// Einstellungen (Schema `pdfover-config`)
+    /// Einstellungen (Schema `pida-config`)
     #[cfg_attr(feature = "ts", ts(as = "crate::ts::Settings"))]
-    pub settings: pdfover_config::Settings,
+    pub settings: pida_config::Settings,
     /// Validierungsprobleme je Feld: Schlüssel = TOML-Punktpfad des Felds (`proxy.host`,
     /// `output.folder`, `keystore.file` …), Wert = i18n-ID
     pub problems: BTreeMap<String, String>,
@@ -531,7 +529,7 @@ pub enum UiEvent {
     /// Position bestätigen
     ConfirmPosition,
     /// „Unsichtbar signieren“ im Positionierungsschritt: dieses Dokument ohne sichtbaren Block
-    /// (`PositionChoice::Invisible`, NG-Ergänzung; das Profil bleibt unverändert)
+    /// (`PositionChoice::Invisible`, PIDA-Ergänzung; das Profil bleibt unverändert)
     ChooseInvisible,
     /// Backend wählen
     ChooseBackend {
@@ -601,7 +599,7 @@ pub enum UiEvent {
     SaveSettings {
         /// neue Einstellungen
         #[cfg_attr(feature = "ts", ts(as = "crate::ts::Settings"))]
-        settings: Box<pdfover_config::Settings>,
+        settings: Box<pida_config::Settings>,
     },
     /// Einstellungen schließen (verwerfen)
     CloseSettings,

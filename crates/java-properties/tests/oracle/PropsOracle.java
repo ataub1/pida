@@ -1,4 +1,4 @@
-// Orakel für pdfover-java-properties (nur Tests): liest Fälle aus einer Datei (Trenner: Zeile
+// Orakel für pida-java-properties (nur Tests): liest Fälle aus einer Datei (Trenner: Zeile
 // "=====CASE=====", Inhalt Latin-1-Bytes), lädt jeden mit Properties.load(InputStream) und gibt die
 // Einträge in Einfügereihenfolge des JDK nicht wieder (Hashtable), sondern sortiert aus.
 // Aufruf: java PropsOracle.java <fälle-datei>

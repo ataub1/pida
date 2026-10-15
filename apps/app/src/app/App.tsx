@@ -250,7 +250,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
 
   // --- Fokus und Titel beim Schrittwechsel -----------------------------------------------------
   useEffect(() => {
-    document.title = `PDF-Over NG – ${t.t(STEP_TITLE[stepName])}`;
+    document.title = `PIDA – ${t.t(STEP_TITLE[stepName])}`;
   }, [stepName, t]);
   const firstStep = useRef(true);
   useEffect(() => {
@@ -281,7 +281,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           <header className="topbar">
             <div className="brand" aria-hidden="true">
               <img src="/app-icon.svg" alt="" width={28} height={28} />
-              <span>PDF-Over NG</span>
+              <span>PIDA</span>
             </div>
             <MainBar onOpenFiles={() => void browse()} />
           </header>

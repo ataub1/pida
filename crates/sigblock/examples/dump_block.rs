@@ -1,10 +1,10 @@
 //! Entwicklerwerkzeug: Layout und Content-Stream eines Profils ausgeben.
 //!
-//! `cargo run -p pdfover-sigblock --example dump_block -- SIGNATURBLOCK_SMALL_DE 230 [out.pdf]`
+//! `cargo run -p pida-sigblock --example dump_block -- SIGNATURBLOCK_SMALL_DE 230 [out.pdf]`
 
-use pdfover_pdf_cos::Object;
-use pdfover_sigblock::layout::{CellContent, LaidOutTable};
-use pdfover_sigblock::{Appearance, BuildOptions, CertFields, FontProvider, PdfaMode, ProfileStore, SigBlockInput};
+use pida_pdf_cos::Object;
+use pida_sigblock::layout::{CellContent, LaidOutTable};
+use pida_sigblock::{Appearance, BuildOptions, CertFields, FontProvider, PdfaMode, ProfileStore, SigBlockInput};
 
 fn dump(t: &LaidOutTable, indent: usize) {
     let pad = " ".repeat(indent);

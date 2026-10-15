@@ -8,11 +8,11 @@ use std::collections::{BTreeSet, HashMap};
 use std::io::Write as _;
 use std::sync::Arc;
 
-use pdfover_pdf_cos::{
+use pida_pdf_cos::{
     Dictionary, Object, ObjectId, PageInfo, Rect, SigField, SourcePdf, Stream, StringFormat, encode_text_string,
 };
-use pdfover_pdf_incremental::{Increment, IncrementBuilder, IncrementOptions, SignatureDictSpec, format_pdf_date};
-use pdfover_sigblock::Appearance;
+use pida_pdf_incremental::{Increment, IncrementBuilder, IncrementOptions, SignatureDictSpec, format_pdf_date};
+use pida_sigblock::Appearance;
 
 use crate::analyze::{FIELD_PREFIX, next_field_number};
 use crate::plan::{FieldTarget, SignPlan, Visibility};
@@ -333,7 +333,7 @@ pub(crate) fn build(src: &SourcePdf, plan: &SignPlan, reserve: usize) -> Result<
                     catalog.get(b"Pages").map_err(|_| PadesError::InvalidPlan("Katalog ohne /Pages".into()))?,
                 )
                 .ok_or_else(|| PadesError::InvalidPlan("/Pages ist keine Referenz".into()))?;
-                let last = src.pages().last().ok_or(PadesError::Cos(pdfover_pdf_cos::CosError::NoPages))?;
+                let last = src.pages().last().ok_or(PadesError::Cos(pida_pdf_cos::CosError::NoPages))?;
                 let mut page = Dictionary::new();
                 page.set("Type", name("Page"));
                 page.set("MediaBox", media_box_of(src, last));

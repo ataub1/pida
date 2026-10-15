@@ -1,4 +1,9 @@
-# Entwicklung – PDF-Over NG
+# Entwicklung – PIDA
+
+> Name: **PIDA** (PDF · ID · Austria), bis 15.10.2026 Arbeitstitel „PDF-Over NG“ – siehe
+> [ADR 0002](adr/0002-name-pida.md). Die Umbenennung ist das Skript `tools/rename-to-pida.py`
+> (`--dry-run`, `--check`, `--regenerate`); nach Zusammenführungen mit Ständen unter dem alten Namen
+> erneut ausführen (ADR 0002 §5).
 
 Praktische Anleitung für Setup, Tests, CI, Lizenzen und Releases. Verbindlich bleiben
 [Plan](00-architektur-und-umsetzungsplan.md) und [ADR 0001](adr/0001-workspace-und-schnittstellen.md);
@@ -7,11 +12,11 @@ dieses Dokument beschreibt, *wie* man damit arbeitet. Stand: 15.10.2026 (Welle 3
 ## 1. Schnellstart
 
 ```sh
-source tools/env.sh                          # rustup, .venv (pyHanko), PDFOVER_REFERENCE – auch in Worktrees
-eval "$(tools/fetch-pdfium.sh --print-env)"  # PDFium chromium/8100 laden, PDFOVER_PDFIUM_DIR setzen
+source tools/env.sh                          # rustup, .venv (pyHanko), PIDA_REFERENCE – auch in Worktrees
+eval "$(tools/fetch-pdfium.sh --print-env)"  # PDFium chromium/8100 laden, PIDA_PDFIUM_DIR setzen
 cargo check --workspace --all-targets --locked
 cargo test --workspace --locked
-cargo run -p pdfover-cli -- --help
+cargo run -p pida-cli -- --help
 ```
 
 Unter Windows (PowerShell): `Invoke-Expression (tools\fetch-pdfium.ps1 -PrintEnv)`, danach dieselben
@@ -33,14 +38,14 @@ Unter Windows (PowerShell): `Invoke-Expression (tools\fetch-pdfium.ps1 -PrintEnv
 | Node | 22 (npm, Lockfile) | Tauri-Frontend `apps/app` | `brew install node@22` |
 | Xcode | 27 | iOS-Ziele, ring für iOS | App Store |
 
-**`tools/env.sh`** setzt `PATH` (rustup keg-only, `~/.cargo/bin`, `.venv/bin`), `PDFOVER_ROOT`,
-`PDFOVER_MAIN` (Hauptcheckout, auch aus einem `git worktree`) und `PDFOVER_REFERENCE` (Referenzquellen,
+**`tools/env.sh`** setzt `PATH` (rustup keg-only, `~/.cargo/bin`, `.venv/bin`), `PIDA_ROOT`,
+`PIDA_MAIN` (Hauptcheckout, auch aus einem `git worktree`) und `PIDA_REFERENCE` (Referenzquellen,
 nur lesen; Tests lesen nie daraus). Lehnt eine Sandbox `source tools/env.sh` ab, genügen die
 gleichwertigen Exporte:
 
 ```sh
 export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:<hauptcheckout>/.venv/bin:$PATH"
-export PDFOVER_REFERENCE="<hauptcheckout>/reference"
+export PIDA_REFERENCE="<hauptcheckout>/reference"
 ```
 
 **Umgebungsvariablen der Tests** (alle optional; ohne Werkzeug/Variable überspringen sich Tests mit
@@ -48,12 +53,12 @@ einer Meldung auf stderr):
 
 | Variable | Wirkung |
 |---|---|
-| `PDFOVER_PDFIUM_DIR` | Verzeichnis mit `libpdfium.dylib`/`.so` bzw. `pdfium.dll` (sonst PDFium-Tests übersprungen) |
-| `PDFOVER_PYTHON` | Python mit pyHanko (sonst `python3` neben `pyhanko`, dann `python3` im PATH) |
-| `PDFOVER_I18N_BLESS=1` | erzeugt `crates/i18n/locales/*/pdfover.ftl` neu (`--test catalogs`) |
-| `PDFOVER_UPDATE_RESULTS=1`, `PDFOVER_E2E_OUT=<dir>` | `testdata/pdf-incremental/RESULTS.md` aktualisieren bzw. Ausgaben behalten |
-| `PDFOVER_FUZZ_ITERS`, `PDFOVER_FUZZ_SEED`, `PDFOVER_FUZZ_FILE`, `PDFOVER_FUZZ_TRACE` | längere/gezielte Robustheitsläufe (pdf-cos, pdf-incremental) |
-| `PDFOVER_TEST_KEYCHAIN=1` | Test gegen den echten Schlüsselbund (config) |
+| `PIDA_PDFIUM_DIR` | Verzeichnis mit `libpdfium.dylib`/`.so` bzw. `pdfium.dll` (sonst PDFium-Tests übersprungen) |
+| `PIDA_PYTHON` | Python mit pyHanko (sonst `python3` neben `pyhanko`, dann `python3` im PATH) |
+| `PIDA_I18N_BLESS=1` | erzeugt `crates/i18n/locales/*/pdfover.ftl` neu (`--test catalogs`) |
+| `PIDA_UPDATE_RESULTS=1`, `PIDA_E2E_OUT=<dir>` | `testdata/pdf-incremental/RESULTS.md` aktualisieren bzw. Ausgaben behalten |
+| `PIDA_FUZZ_ITERS`, `PIDA_FUZZ_SEED`, `PIDA_FUZZ_FILE`, `PIDA_FUZZ_TRACE` | längere/gezielte Robustheitsläufe (pdf-cos, pdf-incremental) |
+| `PIDA_TEST_KEYCHAIN=1` | Test gegen den echten Schlüsselbund (config) |
 
 Grundregeln für Tests (ADR 0001 §4 Regel 6): kein Netzverkehr, keine echten Zugangsdaten, Testdaten
 nur aus `testdata/` bzw. Crate-Assets.
@@ -70,7 +75,7 @@ nur aus `testdata/` bzw. Crate-Assets.
   Hash, verwerfen abweichende Archive, lehnen Archive mit absoluten oder `..`-Pfaden ab und laden
   nichts neu, solange die entpackte Version zum Lock passt. Die Bibliothek liegt in `lib/`, unter
   Windows in `bin/` (`pdfium.dll`). `--print-dir`, `--print-env`, `--github-env` liefern
-  `PDFOVER_PDFIUM_DIR`.
+  `PIDA_PDFIUM_DIR`.
 - Neue Release: `PDFIUM_RELEASE=chromium/<n> tools/fetch-pdfium.sh --update-lock --all`, Hashes gegen
   die Release-Seite bzw. `gh attestation verify <archiv> --repo bblanchon/pdfium-binaries` abgleichen,
   dann `pdfium-render`/`pdfium_latest` (Root-`Cargo.toml`) und ADR 0060 nachziehen.
@@ -81,9 +86,9 @@ nur aus `testdata/` bzw. Crate-Assets.
 
 ```sh
 cargo check --workspace --all-targets --locked
-cargo check -p pdfover-render -p pdfover-placement -p pdfover-pades --no-default-features --all-targets --locked
-cargo test --workspace --locked                     # mit PDFOVER_PDFIUM_DIR und Orakeln im PATH
-cargo test -p pdfover-backend-atrust --features fido2-hid      # macOS/Linux (fido2-windows unter Windows)
+cargo check -p pida-render -p pida-placement -p pida-pades --no-default-features --all-targets --locked
+cargo test --workspace --locked                     # mit PIDA_PDFIUM_DIR und Orakeln im PATH
+cargo test -p pida-backend-atrust --features fido2-hid      # macOS/Linux (fido2-windows unter Windows)
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 tools/cross-clippy.sh x86_64-pc-windows-msvc        # CI-Clippy für Windows/Linux lokal nachstellen (§9)
 ```
@@ -98,41 +103,41 @@ tools/cross-clippy.sh x86_64-pc-windows-msvc        # CI-Clippy für Windows/Lin
 
 ```sh
 npm ci && npm run build && npm test           # Oberfläche (tsc strict, Vite, Vitest)
-cargo test -p pdfover-app                     # Shell: Startargumente, Kernstart, Protokoll, Sicherheitskonfiguration
+cargo test -p pida-app                     # Shell: Startargumente, Kernstart, Protokoll, Sicherheitskonfiguration
 npm run notices                               # THIRD-PARTY-NOTICES nach target/notices (für das Bundle)
-PDFOVER_PDFIUM_DIR=… npm run bundle:mac:debug     # .app (Debug) mit libpdfium.dylib und Hinweisen
-PDFOVER_PDFIUM_DIR=… npm run bundle:mac:release   # .app + .dmg (Release); verlangt PDFium und Hinweise
-PDFOVER_PDFIUM_DIR=… npm run bundle:debug         # Debug-Bundles der Plattform (alle Formate)
-PDFOVER_SMOKE=1 HOME="$(mktemp -d)" "../../target/debug/bundle/macos/PDF-Over NG.app/Contents/MacOS/pdf-over-ng"
+PIDA_PDFIUM_DIR=… npm run bundle:mac:debug     # .app (Debug) mit libpdfium.dylib und Hinweisen
+PIDA_PDFIUM_DIR=… npm run bundle:mac:release   # .app + .dmg (Release); verlangt PDFium und Hinweise
+PIDA_PDFIUM_DIR=… npm run bundle:debug         # Debug-Bundles der Plattform (alle Formate)
+PIDA_SMOKE=1 HOME="$(mktemp -d)" "../../target/debug/bundle/macos/PIDA.app/Contents/MacOS/pida"
 ```
 
 - `scripts/bundle-config.mjs` erzeugt die Tauri-Ergänzung `src-tauri/bundle.conf.json` (nicht
-  versioniert): PDFium aus `PDFOVER_PDFIUM_DIR` (macOS `Contents/Frameworks`, sonst Ressourcen `pdfium/`)
-  und die Hinweise aus `PDFOVER_NOTICES_DIR` (Standard `target/notices`) als Ressourcen; mit
+  versioniert): PDFium aus `PIDA_PDFIUM_DIR` (macOS `Contents/Frameworks`, sonst Ressourcen `pdfium/`)
+  und die Hinweise aus `PIDA_NOTICES_DIR` (Standard `target/notices`) als Ressourcen; mit
   `--require-pdfium`/`--require-notices` bricht es ab, wenn etwas fehlt (Release, CI).
-- **Startprüfung** `PDFOVER_SMOKE=1`: Die App beendet sich, sobald die Oberfläche den ersten ViewState
-  abgefragt hat und der Kern bereit ist, und schreibt `pdfover-smoke: ok step=… pdfium=… webview_ms=…
+- **Startprüfung** `PIDA_SMOKE=1`: Die App beendet sich, sobald die Oberfläche den ersten ViewState
+  abgefragt hat und der Kern bereit ist, und schreibt `pida-smoke: ok step=… pdfium=… webview_ms=…
   core_ms=…` auf stdout (Exit 0; ohne Antwort binnen 60 s Exit 3). `HOME` (Windows: `APPDATA`,
   `LOCALAPPDATA`) auf einen leeren Ordner setzen – die App legt sonst Log und Fensterzustand im echten
   Benutzerprofil an.
 - **Bridge-Typen**: `crates/core-api/src/view.rs` ist die einzige Quelle; `apps/app/src/core/generated.ts`
-  entsteht mit ts-rs 12.0.1 (`PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings`), der Test
+  entsteht mit ts-rs 12.0.1 (`PIDA_BLESS=1 cargo test -p pida-core-api --test ts_bindings`), der Test
   schlägt bei jeder Abweichung fehl. Fremde Typen (Settings, Placement, pades) haben Spiegel mit
   vollständiger `From`-Abbildung und Serialisierungstest (`core-api/src/ts.rs`, `workflow/src/ts_mirror.rs`,
   `backend-api/src/ts_mirror.rs`, Feature `ts`). Beispiel-JSON beider Richtungen:
-  `PDFOVER_BLESS=1 cargo test -p pdfover-app --test serde_contract` bzw.
-  `PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts`.
+  `PIDA_BLESS=1 cargo test -p pida-app --test serde_contract` bzw.
+  `PIDA_BLESS=1 npx vitest run src/core/contract.test.ts`.
 
-### Isolierte bzw. portable Profile (`PDFOVER_HOME`)
+### Isolierte bzw. portable Profile (`PIDA_HOME`)
 
-Ist `PDFOVER_HOME` gesetzt, legen App und CLI Einstellungen, Daten, Cache, Logs und Temp-Dateien unter
-`$PDFOVER_HOME/{config,data,cache,logs,tmp}` ab und suchen die PDF-Over-Altkonfiguration in
-`$PDFOVER_HOME/.pdf-over`. Das isoliert Tests auf allen Plattformen – unter Windows lassen sich die
+Ist `PIDA_HOME` gesetzt, legen App und CLI Einstellungen, Daten, Cache, Logs und Temp-Dateien unter
+`$PIDA_HOME/{config,data,cache,logs,tmp}` ab und suchen die PDF-Over-Altkonfiguration in
+`$PIDA_HOME/.pdf-over`. Das isoliert Tests auf allen Plattformen – unter Windows lassen sich die
 Profilordner über `HOME`/`APPDATA` nicht umlenken (Known-Folder-API) – und erlaubt eine portable
 Installation (z. B. auf einem USB-Stick).
 
 ```bash
-PDFOVER_HOME="$(mktemp -d)" target/release/pdfover-cli profiles
+PIDA_HOME="$(mktemp -d)" target/release/pida-cli profiles
 ```
 
 ## 5. Lints und Formatierung
@@ -150,11 +155,11 @@ PDFOVER_HOME="$(mktemp -d)" target/release/pdfover-cli profiles
   `--no-deps` ist nötig, weil `-D warnings` sonst auch für mitübersetzte Workspace-Abhängigkeiten gilt.
   Lokal gleichwertig:
   `cargo clippy --workspace --exclude <je Eintrag aus CLIPPY_LENIENT> --no-deps --all-targets --locked -- -D warnings`.
-- `CLIPPY_LENIENT` (Stand Welle 3): `pdfover-pades`, `pdfover-pdf-cos`, `pdfover-sigblock`,
-  `pdfover-placement`, `pdfover-backend-keystore` wegen je einer `dead_code`-Warnung in fremder Ownership:
+- `CLIPPY_LENIENT` (Stand Welle 3): `pida-pades`, `pida-pdf-cos`, `pida-sigblock`,
+  `pida-placement`, `pida-backend-keystore` wegen je einer `dead_code`-Warnung in fremder Ownership:
   `crates/pades/src/signed.rs:149` (Feld `written`), `crates/pdf-cos/src/lexer.rs:459` (Feld `end`),
   `crates/sigblock/src/fonts.rs:169` (Feld `scaling`), `crates/placement/tests/golden_pdfas442.rs:78`
-  (Feld `profile`), `crates/backend-keystore/tests/backend.rs:30` (Funktion `copy_to`). `pdfover-workflow`, `pdfover-core-api`, `pdfover-cli` und `pdfover-app` sind seit
+  (Feld `profile`), `crates/backend-keystore/tests/backend.rs:30` (Funktion `copy_to`). `pida-workflow`, `pida-core-api`, `pida-cli` und `pida-app` sind seit
   Welle 3 streng geprüft. Behebung: entfernen oder mit `#[allow(dead_code, reason = "…")]` begründen,
   dann das Crate aus der Liste streichen. Ziel ist eine leere Liste.
 
@@ -221,21 +226,21 @@ Einordnung (CI-Job `deny`).
 
 ## 7. i18n: Codes und Kataloge
 
-- Kataloge: `crates/i18n/locales/<de|en>/pdfover.ftl` (erzeugt, nie von Hand) und `pdfover-ng.ftl`
+- Kataloge: `crates/i18n/locales/<de|en>/pdfover.ftl` (erzeugt, nie von Hand) und `pida.ftl`
   (von Hand; ADR 0050).
 - Stabile Codes der Crates (`BackendError::code`, `CmsError::code`, `KeystoreError::code`,
   `Fido2Error::code`, `SigBlockError::code`, `RenderError::code`, `PlacementError::code`,
   `PlacementNotice::code`, `pades::Finding::code`, `ConfigError::message_id`, `LegacyWarning::code` …)
-  stehen in `pdfover-ng.ftl` unter **ihrem Code als ID**; Codes mit Punkt (`render.failed`) werden mit
-  `pdfover_i18n::fluent_id_for_java_key` abgebildet (`render-failed`). Variablen heißen wie die Felder
+  stehen in `pida.ftl` unter **ihrem Code als ID**; Codes mit Punkt (`render.failed`) werden mit
+  `pida_i18n::fluent_id_for_java_key` abgebildet (`render-failed`). Variablen heißen wie die Felder
   der Variante (`$detail` für Freitext, `$status`, `$code` …).
 - `NoticeCode::code()`/`FormProblem::code()` (backend-api) liefern die Katalog-ID jeder Variante; der
   Test `notice_and_form_variants_have_codes` verlangt eine Abbildung je Variante ohne `_ =>`.
 - **Eine Quelle für alle Oberflächen**: Kern, CLI (`apps/cli/src/text.rs`, keine eigenen Texte mehr) und
   UI (`apps/app/src/i18n`, Texte `ng-ui-*`) lesen dieselben Dateien. Die Welle-2-Liste
   (`docs/integration/wave2-message-ids.json`) prüft `wave2_message_ids_are_in_catalog`.
-- Neuer Code: im Crate einführen, DE- und EN-Text mit denselben Variablen in beide `pdfover-ng.ftl`
-  eintragen, `cargo test -p pdfover-i18n` ausführen. Der Test `code_catalog` findet jeden Code im
+- Neuer Code: im Crate einführen, DE- und EN-Text mit denselben Variablen in beide `pida.ftl`
+  eintragen, `cargo test -p pida-i18n` ausführen. Der Test `code_catalog` findet jeden Code im
   Quelltext (`fn code`/`fn message_id`, `NOTICE_*`, Literale der Familien `ng-`, `cms-`, `keystore-`,
   `backend-`, `fido2-`, `atrust-`, `sigblock-`, `pdf-`, `pades-`, `workflow-`, `core-`, `render.`,
   `placement.` …) und prüft DE/EN, gleiche Variablen, die Welle-1-Liste
@@ -251,7 +256,7 @@ Einordnung (CI-Job `deny`).
 | `notices` | `tools/third-party-notices.sh`, Artefakt `THIRD-PARTY-NOTICES` (`.md` + `RUST-STD-COPYRIGHT.html`) | ja |
 | `mobile` | `cargo check` für `aarch64-apple-ios` und `aarch64-linux-android` (NDK des Runners) | verifizierte Crates ja, ganzer Workspace informativ |
 | `app` | nur wenn `apps/app/package.json` existiert: Lockfile-Pflicht, npm-Lizenzprüfung, `npm ci`, `lint`/`build`/`test` (falls vorhanden) | ja |
-| `bundle` (ubuntu, macOS, Windows) | Tauri-Debug-Bundle mit PDFium (`deb`/`app`/`nsis`), Hinweise auf Linux/macOS, Größe in der Zusammenfassung, Startprüfung `PDFOVER_SMOKE=1` (Linux mit `xvfb-run`), Bundle als Artefakt | ja; Startprüfung nur unter macOS blockierend |
+| `bundle` (ubuntu, macOS, Windows) | Tauri-Debug-Bundle mit PDFium (`deb`/`app`/`nsis`), Hinweise auf Linux/macOS, Größe in der Zusammenfassung, Startprüfung `PIDA_SMOKE=1` (Linux mit `xvfb-run`), Bundle als Artefakt | ja; Startprüfung nur unter macOS blockierend |
 
 Caching: `Swatinem/rust-cache` (Speichern nur auf `main`), PDFium, pip, npm. Actions sind auf
 Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lokal
@@ -265,9 +270,9 @@ Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lok
 |---|---|
 | `x86_64-pc-windows-msvc` | ok: java-properties, i18n, pdf-cos, pdf-incremental, cades, sigblock, placement, render, sl12, backend-api, config, backend-keystore, pades, workflow. Fehlschlag nur am C-Build von `ring` (kein MSVC/Windows-SDK auf macOS): net, backend-localbku, backend-atrust (`fido2-windows`), core-api, cli → CI `windows-latest` |
 | `x86_64-unknown-linux-gnu` | wie Windows: alle reinen Rust-Crates ok, `ring`-abhängige nur nativ (CI `ubuntu-latest`) |
-| `aarch64-apple-ios` | ok: alle Crates außer cli (ring baut mit Xcode). Seit Welle 3 bindet `pdfover-config` `keyring` nur auf Desktop-Zielen ein (unter iOS verlangte `apple-native-keyring-store` 1.0.2 das Feature `protected`); auf Mobile liefert `platform_secret_store` den Platzhalter `MobileSecretStorePlaceholder`, bis die Mobile-Shell ihren Speicher setzt. Behoben in Welle 2: `time` ohne `local-offset` |
+| `aarch64-apple-ios` | ok: alle Crates außer cli (ring baut mit Xcode). Seit Welle 3 bindet `pida-config` `keyring` nur auf Desktop-Zielen ein (unter iOS verlangte `apple-native-keyring-store` 1.0.2 das Feature `protected`); auf Mobile liefert `platform_secret_store` den Platzhalter `MobileSecretStorePlaceholder`, bis die Mobile-Shell ihren Speicher setzt. Behoben in Welle 2: `time` ohne `local-offset` |
 | `aarch64-linux-android` | ok: alle reinen Rust-Crates inkl. config/workflow; `ring`-abhängige brauchen das NDK (`CC_aarch64_linux_android`), CI-Job `mobile` setzt es |
-| Mobile-Welle M0 (Shell) | ok: `cargo check`/`clippy -D warnings` für `pdfover-app` und `tauri-plugin-pdfover-mobile` auf `aarch64-apple-ios`, `aarch64-apple-ios-sim` (kompiliert das Swift-Paket des Plugins) und `aarch64-linux-android` (NDK 29.0.14206865, `CC_/AR_/CARGO_TARGET_…_LINKER` auf `aarch64-linux-android24-clang`); Bauen, Plugin-Vertrag und Aufgaben: docs/integration/mobile.md |
+| Mobile-Welle M0 (Shell) | ok: `cargo check`/`clippy -D warnings` für `pida-app` und `tauri-plugin-pida-mobile` auf `aarch64-apple-ios`, `aarch64-apple-ios-sim` (kompiliert das Swift-Paket des Plugins) und `aarch64-linux-android` (NDK 29.0.14206865, `CC_/AR_/CARGO_TARGET_…_LINKER` auf `aarch64-linux-android24-clang`); Bauen, Plugin-Vertrag und Aufgaben: docs/integration/mobile.md |
 
 **Clippy für Fremdziele** (`tools/cross-clippy.sh <ziel>`, Review Welle 2): stellt die blockierenden
 Clippy-Schritte des Jobs `build` (strikt ohne `CLIPPY_LENIENT` aus `ci.yml`, dazu FIDO2 mit
@@ -278,7 +283,7 @@ atrust, core-api und cli geprüft werden. Ergebnis 15.10.2026: beide Ziele grün
 begründetem `allow` versehen wurde – ohne das wäre `clippy -D warnings` auf `windows-latest` rot gewesen.
 Tests und Linken bleiben der nativen CI vorbehalten.
 
-Seit Welle 3 gehört die Tauri-Shell (`pdfover-app`) zum Workspace: Für `x86_64-pc-windows-msvc` braucht
+Seit Welle 3 gehört die Tauri-Shell (`pida-app`) zum Workspace: Für `x86_64-pc-windows-msvc` braucht
 ihr Build-Skript den Ressourcen-Compiler `llvm-rc` (`brew install llvm` bzw. für die reine Typprüfung ein
 Platzhalter, der eine leere `.res` schreibt) – damit ist der Windows-Lauf am 15.10.2026 grün, einschließlich
 des `cfg(windows)`-Codes der Shell (Elternfenster für Windows Hello). Für `x86_64-unknown-linux-gnu`
@@ -294,7 +299,7 @@ Noch kein Release-Workflow; die Bausteine stehen fest:
 
 1. **Version** in `[workspace.package] version` (SemVer), Tag `vX.Y.Z` auf `main`; Changelog-Eintrag.
 2. **Build** je Plattform mit `--release --locked` (Profil: `lto = "thin"`, `codegen-units = 1`,
-   `strip = "symbols"`): CLI `pdfover-cli` und Tauri-Bundles (`apps/app`, Tauri-CLI 2.12.x: NSIS/MSI,
+   `strip = "symbols"`): CLI `pida-cli` und Tauri-Bundles (`apps/app`, Tauri-CLI 2.12.x: NSIS/MSI,
    DMG Universal, deb/rpm/Flatpak, iOS/Android) – Plan §9.1.
 3. **PDFium beilegen**: `tools/fetch-pdfium.sh <plattform>` (Hash aus `tools/pdfium.lock`); `lib/`
    bzw. `bin/` neben die Binary, macOS `Frameworks/`, iOS als xcframework (ADR 0060 §1).

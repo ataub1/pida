@@ -1,7 +1,7 @@
 //! Konverter `messages*.properties` → Fluent (Plan §7.5, docs/analyse/01 §6.3).
 //!
 //! Regeln:
-//! 1. Java-Properties-Syntax über `pdfover-java-properties` (Escapes `\:`, `\!`, `\n`, `\\`, `\uXXXX`).
+//! 1. Java-Properties-Syntax über `pida-java-properties` (Escapes `\:`, `\!`, `\n`, `\\`, `\uXXXX`).
 //!    Die Bytes werden wie von `PropertyResourceBundle` (Java ≥ 9) gelesen: UTF-8, bei ungültigem UTF-8
 //!    ISO-8859-1.
 //! 2. `&`-Mnemonic entfernen und als Attribut `.accesskey` ablegen (`&&` = literales `&`; ein `&` vor
@@ -29,7 +29,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 
 use fluent_syntax::ast;
-use pdfover_java_properties::Properties;
+use pida_java_properties::Properties;
 
 use crate::{Lang, fluent_id_for_java_key};
 
@@ -481,7 +481,7 @@ pub fn compare_ftl(base: &str, other: &str) -> Result<Vec<String>, ConvertError>
 
 /// Keys, die PDF-Over 4.4.x nicht referenziert (Literal-Suche im Java-Code plus dynamisch gebildete
 /// Keys `BKU.*`, `simple_config.<Profil>`, `config.UpdateStatus.*`; docs/analyse/01 §6.2). Sie bleiben im
-/// Katalog (PDF-Over NG nutzt einige davon, z. B. `tanEnter.tries`), werden aber markiert.
+/// Katalog (PIDA nutzt einige davon, z. B. `tanEnter.tries`), werden aber markiert.
 pub const PDFOVER_UNUSED_KEYS: &[&str] = &[
     "BKUSelectionComposite.btnMobile.text",
     "PlaceholderSelectionGui.lblNewLabel.text",
@@ -726,7 +726,7 @@ pub fn prepare_pdfover_messages(bytes: &[u8], lang: Lang) -> Result<PreparedMess
     for (l, key, value) in SUPPLEMENTS {
         if *l == lang && !props.contains_key(key) {
             props.insert(*key, *value);
-            comments.push(((*key).to_owned(), "ergänzt (PDF-Over NG): fehlte in dieser Sprache".to_owned()));
+            comments.push(((*key).to_owned(), "ergänzt (PIDA): fehlte in dieser Sprache".to_owned()));
         }
     }
     Ok(PreparedMessages { props, key_comments: comments, warnings })
@@ -739,16 +739,16 @@ pub fn pdfover_header(lang: Lang) -> String {
         Lang::En => ("englischer", "messages.properties"),
     };
     format!(
-        "PDF-Over NG – {name} Katalog (EUPL-1.2)\n\
+        "PIDA – {name} Katalog (EUPL-1.2)\n\
          \n\
-         Erzeugt mit `pdfover_i18n::convert::convert_pdfover_messages` aus `{file}` von PDF-Over\n\
+         Erzeugt mit `pida_i18n::convert::convert_pdfover_messages` aus `{file}` von PDF-Over\n\
          (A-SIT, EUPL). NICHT von Hand bearbeiten: Korrekturen gehören in die Tabellen des Konverters,\n\
-         eigene Texte von PDF-Over NG in `pdfover-ng.ftl`. Neu erzeugen:\n\
-         PDFOVER_I18N_BLESS=1 cargo test -p pdfover-i18n --test catalogs\n\
+         eigene Texte von PIDA in `pida.ftl`. Neu erzeugen:\n\
+         PIDA_I18N_BLESS=1 cargo test -p pida-i18n --test catalogs\n\
          \n\
          Konventionen: Fluent-ID = Java-Key mit „-“ statt „.“; `&`-Mnemonic → `.accesskey`;\n\
          `%s`/`%d` → `{{ $arg1 }}`, `{{ $arg2 }}` … in Reihenfolge; `<a>…</a>` bzw. `<a href=\"…\">…</a>`\n\
-         bleiben als Link-Markup im Text (`pdfover_i18n::markup`)."
+         bleiben als Link-Markup im Text (`pida_i18n::markup`)."
     )
 }
 

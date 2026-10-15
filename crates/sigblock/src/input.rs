@@ -9,8 +9,8 @@ use crate::emblem::Emblem;
 
 /// Zertifikatsfelder für die Profilvariablen `subject.X`, `issuer.X`, `sn`.
 ///
-/// Wird von der Integration aus `pdfover_cades::Certificate` befüllt (Attributname = Kurzname
-/// wie `CN`, `O`, `C`, `title` bzw. OID). `pdfover-sigblock` wendet die Alias-Regeln an:
+/// Wird von der Integration aus `pida_cades::Certificate` befüllt (Attributname = Kurzname
+/// wie `CN`, `O`, `C`, `title` bzw. OID). `pida-sigblock` wendet die Alias-Regeln an:
 /// Titel-RDN (2.5.4.12) unter `title` **und** `T`; bei Mehrfachvorkommen gewinnt der linkeste
 /// Eintrag (Plan §6.5 Kompatibilitätsregister).
 /// `Debug` zeigt nur die Attributnamen (Personendaten, ADR 0001 §4 Regel 9).
@@ -46,7 +46,7 @@ impl CertFields {
         let subject = vec![("C".to_string(), "AT".to_string()), ("CN".to_string(), "Max Mustermann".to_string())];
         let issuer = vec![
             ("C".to_string(), "AT".to_string()),
-            ("O".to_string(), "PDF-Over NG".to_string()),
+            ("O".to_string(), "PIDA".to_string()),
             ("CN".to_string(), "Beispiel-Zertifikat (nur Vorschau)".to_string()),
         ];
         CertFields {
@@ -54,7 +54,7 @@ impl CertFields {
             issuer,
             serial_decimal: "1234567890".to_string(),
             subject_dn: "CN=Max Mustermann,C=AT".to_string(),
-            issuer_dn: "CN=Beispiel-Zertifikat (nur Vorschau),O=PDF-Over NG,C=AT".to_string(),
+            issuer_dn: "CN=Beispiel-Zertifikat (nur Vorschau),O=PIDA,C=AT".to_string(),
         }
     }
 }

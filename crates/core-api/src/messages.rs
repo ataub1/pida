@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use pdfover_backend_api::{FormProblem, Notice, NoticeCode, Progress};
+use pida_backend_api::{FormProblem, Notice, NoticeCode, Progress};
 
 fn one(k: &str, v: impl Into<String>) -> BTreeMap<String, String> {
     let mut m = BTreeMap::new();
@@ -70,7 +70,7 @@ pub fn progress_message(p: &Progress) -> (String, BTreeMap<String, String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_backend_api::{NoticeButtons, NoticeKind};
+    use pida_backend_api::{NoticeButtons, NoticeKind};
 
     #[test]
     fn notices_map_to_pdf_over_dialogs() {

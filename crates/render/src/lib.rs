@@ -1,4 +1,4 @@
-//! `pdfover-render` – ein Renderer für alles (Plan §2.1, §6.6–§6.8).
+//! `pida-render` – ein Renderer für alles (Plan §2.1, §6.6–§6.8).
 //!
 //! Vorschau, Blockvorschau (Mini-PDF aus dem echten Appearance-Objekt), Rasterscan der
 //! Auto-Positionierung (Forced-Color-Rendering) und QR-Bilddekodierung laufen über **einen**
@@ -11,7 +11,7 @@
 //!
 //! Feature `pdfium` (Default): `PdfiumBackend`/`PdfiumRenderer`. Andere Crates hängen ohne
 //! Default-Features von diesem Crate ab und nutzen nur die Traits (ADR 0001 §8); so lassen sich
-//! `pdfover-placement` und `pdfover-pades` ohne `pdfium-render` bauen und mit eigenen
+//! `pida-placement` und `pida-pades` ohne `pdfium-render` bauen und mit eigenen
 //! Test-Renderern prüfen.
 //!
 //! # PDFium bereitstellen (ADR 0060)
@@ -19,7 +19,7 @@
 //! Gebunden wird der Build **chromium/8100** der `pdfium-binaries` (API-Stand von
 //! `pdfium-render` 0.9.4: `pdfium_7881`). `PdfiumBackend::bind(None)` sucht in dieser Reihenfolge:
 //!
-//! 1. Verzeichnis aus der Umgebungsvariable [`ENV_PDFIUM_DIR`] (`PDFOVER_PDFIUM_DIR`), z. B.
+//! 1. Verzeichnis aus der Umgebungsvariable [`ENV_PDFIUM_DIR`] (`PIDA_PDFIUM_DIR`), z. B.
 //!    `tools/pdfium/mac-arm64/lib` im Hauptcheckout,
 //! 2. neben der laufenden Binary (bei macOS-Bundles zusätzlich `../Frameworks` und
 //!    `../Resources`, unter iOS `Frameworks` des App-Bundles),
@@ -43,7 +43,7 @@
 //! Mit `bind(Some(dir))` wird ausschließlich `dir` verwendet. Findet sich nichts, liefert
 //! `bind` [`RenderError::LibraryNotFound`] mit allen durchsuchten Orten. Die Bibliothek wird
 //! **einmal je Prozess** gebunden; weitere `bind`-Aufrufe liefern dieselbe Bindung.
-//! Tests, die PDFium brauchen, prüfen `PDFOVER_PDFIUM_DIR` und werden sonst übersprungen
+//! Tests, die PDFium brauchen, prüfen `PIDA_PDFIUM_DIR` und werden sonst übersprungen
 //! (ADR 0001 Regel 6).
 //!
 //! # Threads
@@ -54,7 +54,7 @@
 //! rendern, schließen) nie verzahnt laufen. `PdfiumBackend` ist `Send + Sync` und kann aus
 //! beliebig vielen Threads benutzt werden; ein `PdfiumRenderer` ist `Send`.
 //!
-//! Ownership: Paket **F** (zusammen mit `pdfover-placement`).
+//! Ownership: Paket **F** (zusammen mit `pida-placement`).
 
 use std::sync::Arc;
 
@@ -67,7 +67,7 @@ mod pdfium;
 pub use pdfium::{PdfiumBackend, PdfiumRenderer};
 
 /// Umgebungsvariable mit dem Verzeichnis der PDFium-Bibliothek (Tests, Entwicklung).
-pub const ENV_PDFIUM_DIR: &str = "PDFOVER_PDFIUM_DIR";
+pub const ENV_PDFIUM_DIR: &str = "PIDA_PDFIUM_DIR";
 
 /// iOS: Binary des PDFium-Frameworks relativ zu `Frameworks` des App-Bundles (install name
 /// `@rpath/pdfium.framework/pdfium`, `tools/fetch-pdfium.sh --xcframework`).
@@ -275,7 +275,7 @@ impl ForcedColorOptions {
 
 /// Bildobjekt einer Seite (für QR-Platzhalter, Plan §6.8).
 ///
-/// **Zuordnung zu `pdfover_pdf_cos::ImageInvocation`** (ADR 0001 §8, verbindlich für Paket A und F):
+/// **Zuordnung zu `pida_pdf_cos::ImageInvocation`** (ADR 0001 §8, verbindlich für Paket A und F):
 /// PDFium zählt auch Inline-Bilder (`BI … EI`) als Bildobjekte, `pdf-cos` nur `Do`-Aufrufe von
 /// Bild-XObjects. Die Zuordnung erfolgt deshalb **primär über die Matrix** (gleiche Seite,
 /// komponentenweise Abweichung ≤ 0,01), `order` dient nur als Tie-Breaker bei gleicher Matrix.
@@ -328,7 +328,7 @@ pub trait Renderer: Send {
     /// Rendert eine Seite mit ersetzten Farben (`FPDF_RenderPageBitmapWithColorScheme_Start`).
     /// Raster [`ForcedColorOptions::raster_size`]; die Seite liegt ohne Streckung im Maßstab
     /// `dpi/72` an der sichtbaren linken oberen Ecke, der Rest rechts und unten fällt weg – wie
-    /// Java2D bei PDF-AS (seit Welle 3, Register KR-F10 in `pdfover-placement`).
+    /// Java2D bei PDF-AS (seit Welle 3, Register KR-F10 in `pida-placement`).
     fn render_forced_color(&self, page: usize, opts: &ForcedColorOptions) -> Result<RgbaImage>;
 
     /// Alle Bildobjekte der Seite mit Matrix und dekodiertem Bild (Speicherbudget siehe
@@ -345,7 +345,7 @@ pub trait RenderBackend: Send + Sync {
     fn describe(&self) -> String;
 }
 
-/// Kodiert ein [`RgbaImage`] als PNG (für das Custom Protocol `pdfover-render://` der Shell).
+/// Kodiert ein [`RgbaImage`] als PNG (für das Custom Protocol `pida-render://` der Shell).
 pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>> {
     if image.is_empty() {
         return Err(RenderError::Render("leeres Bild kann nicht als PNG kodiert werden".into()));

@@ -54,7 +54,7 @@ pub enum BackendError {
     #[error("Keystore: {0}")]
     Keystore(String),
     /// Keystore-Fehler mit stabilem Untercode (additiv, Welle 2): `code` =
-    /// `pdfover_backend_keystore::KeystoreError::code` (`keystore-different-key-password`,
+    /// `pida_backend_keystore::KeystoreError::code` (`keystore-different-key-password`,
     /// `keystore-unsupported-pbe`, …) für die Übersetzung, `message` nur für Diagnose (ohne
     /// Pfade, Regel 9). [`BackendError::code`] bleibt `backend-keystore`, den Untercode liefert
     /// [`BackendError::detail_code`].

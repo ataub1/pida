@@ -14,7 +14,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use pdfover_backend_api::WindowHandle;
+use pida_backend_api::WindowHandle;
 
 use super::ctap::{CtapHidDevice, HidConnection, get_assertion_with_pin, random_nonce};
 use super::{AssertionOptions, Fido2Assertion, Fido2Error, Fido2Provider, Fido2Request};

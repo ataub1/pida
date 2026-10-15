@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-// Vite/Vitest-Konfiguration der Oberfläche von PDF-Over NG.
+// Vite/Vitest-Konfiguration der Oberfläche von PIDA.
 //
 // - Die Fluent-Kataloge kommen zur Build-Zeit aus `crates/i18n/locales/{de,en}/*.ftl` (eine Textquelle
 //   für Kern, CLI und UI, Plan §7.5) über den Alias `@locales` und `?raw`.

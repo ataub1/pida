@@ -8,13 +8,13 @@
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendError, BackendEvent, CertChain, Certificate, FormAnswer, FormContext, FormProblem, InteractionBroker,
     InteractionError, NativeForm, Notice, NoticeAnswer, NoticeButtons, NoticeCode, NoticeKind, Progress, QrImage,
     SecretKind, SecretPrompt, SessionContext, SignJob, SignResult,
 };
-use pdfover_net::{Body, FormPart, HttpClient, NetError, Purpose, Request, Response, Url};
-use pdfover_sl12::{CreateCmsRequest, DocumentContent, HttpBody, PartOrder, SlRequest, SlResponse};
+use pida_net::{Body, FormPart, HttpClient, NetError, Purpose, Request, Response, Url};
+use pida_sl12::{CreateCmsRequest, DocumentContent, HttpBody, PartOrder, SlRequest, SlResponse};
 use zeroize::Zeroizing;
 
 use crate::page::{self, PageBlock, ParsedPage, SubmitButton};
@@ -70,7 +70,7 @@ pub(crate) struct Dialog {
 impl std::fmt::Debug for Dialog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Dialog")
-            .field("endpoint", &pdfover_net::redact_url(&self.config.endpoint))
+            .field("endpoint", &pida_net::redact_url(&self.config.endpoint))
             .field("fido2_available", &self.fido2_available)
             .field("remember", &self.remember)
             .field("fido2_default_pending", &self.fido2_default_pending)
@@ -114,7 +114,7 @@ fn net_to_backend(error: NetError) -> BackendError {
 }
 
 fn resolve(base: &Url, href: &str) -> Result<Url, BackendError> {
-    pdfover_net::resolve(base, href).map_err(net_to_backend)
+    pida_net::resolve(base, href).map_err(net_to_backend)
 }
 
 /// Erster `<meta http-equiv="refresh">` (Attributwert ohne Groß-/Kleinschreibung) → `content`.
@@ -242,7 +242,7 @@ impl Dialog {
             drop(job); // `DocumentJob::source` nicht über den Request hinaus halten (ADR 0001 §8.5)
             let request = SlRequest::CreateCmsSignature(CreateCmsRequest::new(
                 DocumentContent::Upload,
-                pdfover_sl12::ExcludedByteRange { from: range.from, to: range.to },
+                pida_sl12::ExcludedByteRange { from: range.from, to: range.to },
             ));
             self.ui.progress(Progress::Signing);
             match self.handle_sl_request(credentials, guard, &request, Some(data)).await? {
@@ -281,7 +281,7 @@ impl Dialog {
     ) -> Result<SlResponse, BackendError> {
         self.ui.progress(Progress::Connecting);
         let client = HttpClient::new(&self.config.net, Purpose::AtrustSession).map_err(net_to_backend)?;
-        let body = pdfover_sl12::http_body(request, upload.as_deref(), PartOrder::FileFirst);
+        let body = pida_sl12::http_body(request, upload.as_deref(), PartOrder::FileFirst);
         drop(upload);
         let mut next = Request::post(self.config.endpoint.clone(), to_net_body(body));
         let mut login = LoginState::default();
@@ -292,7 +292,7 @@ impl Dialog {
                         self.ui.event(BackendEvent::ServerTime(date));
                     }
                     let text = response.text();
-                    return pdfover_sl12::parse_response(text.as_bytes())
+                    return pida_sl12::parse_response(text.as_bytes())
                         .map_err(|e| BackendError::Protocol(format!("SL-Antwort nicht lesbar: {e}")));
                 }
                 Reply::Page(page, page_url) => {
@@ -318,7 +318,7 @@ impl Dialog {
                 tracing::warn!("zu viele Weiterleitungen – Abbruch");
                 return Err(BackendError::LoopDetected);
             }
-            tracing::debug!(method = request.method.as_str(), url = %pdfover_net::redact_url(&request.url), "A-Trust-Request");
+            tracing::debug!(method = request.method.as_str(), url = %pida_net::redact_url(&request.url), "A-Trust-Request");
             // Basis für relative Ziele ist die URI des auslösenden Requests (Körper nicht kopieren)
             let url = request.url.clone();
             let response = match self.cancellable(client.execute(request)).await? {
@@ -352,7 +352,7 @@ impl Dialog {
                 }
             }
             if let Some(refresh) = response.header("refresh") {
-                let target = pdfover_net::parse_refresh(refresh)
+                let target = pida_net::parse_refresh(refresh)
                     .ok_or_else(|| BackendError::Protocol("ungültiger Refresh-Header".into()))?;
                 request = Request::get(resolve(&url, &target)?);
                 continue;
@@ -367,7 +367,7 @@ impl Dialog {
                 if let Some(content) = meta_refresh_content(&html)
                     && !content.is_empty()
                 {
-                    let target = pdfover_net::parse_refresh(&content)
+                    let target = pida_net::parse_refresh(&content)
                         .ok_or_else(|| BackendError::Protocol("ungültiges meta refresh".into()))?;
                     request = Request::get(resolve(&url, &target)?);
                     continue;
@@ -931,7 +931,7 @@ fn kind(response: &SlResponse) -> &'static str {
 }
 
 /// SL-`ErrorResponse` → Fehler (6000/6001 = Nutzerabbruch, docs/analyse/02 §2.6).
-pub(crate) fn sl_error(e: pdfover_sl12::ErrorResponse) -> BackendError {
+pub(crate) fn sl_error(e: pida_sl12::ErrorResponse) -> BackendError {
     if e.is_user_cancel() {
         BackendError::Cancelled
     } else {
@@ -999,10 +999,10 @@ mod tests {
 
     #[test]
     fn sl_errors() {
-        assert_eq!(sl_error(pdfover_sl12::ErrorResponse { code: 6001, info: "x".into() }), BackendError::Cancelled);
-        assert_eq!(sl_error(pdfover_sl12::ErrorResponse { code: 6000, info: "x".into() }), BackendError::Cancelled);
+        assert_eq!(sl_error(pida_sl12::ErrorResponse { code: 6001, info: "x".into() }), BackendError::Cancelled);
+        assert_eq!(sl_error(pida_sl12::ErrorResponse { code: 6000, info: "x".into() }), BackendError::Cancelled);
         assert_eq!(
-            sl_error(pdfover_sl12::ErrorResponse { code: 1501, info: "y".into() }),
+            sl_error(pida_sl12::ErrorResponse { code: 1501, info: "y".into() }),
             BackendError::SecurityLayer { code: 1501, info: "y".into() }
         );
     }

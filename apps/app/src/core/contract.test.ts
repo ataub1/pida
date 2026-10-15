@@ -1,7 +1,7 @@
 /**
  * Vertragstest Oberfläche ↔ Kern (serde-Format):
  * - `fixtures/view-states.json` wird vom Rust-Test `apps/app/src-tauri/tests/serde_contract.rs` aus
- *   echten `pdfover_core_api::ViewState`-Werten erzeugt; hier wird jede Probe gegen ein Laufzeit-Schema
+ *   echten `pida_core_api::ViewState`-Werten erzeugt; hier wird jede Probe gegen ein Laufzeit-Schema
  *   geprüft, dessen Typ der Compiler mit `ViewState` aus `types.ts` gleichsetzt.
  * - `fixtures/ui-events.json` entsteht aus den typisierten TS-Beispielen; Rust liest sie als `UiEvent`.
  */
@@ -367,7 +367,7 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
   it('ui-events.json ist aktuell (für den Rust-Test)', () => {
     const text = `${JSON.stringify(samples, null, 2)}\n`;
     const file = fixtureUrl("ui-events.json");
-    if (process.env.PDFOVER_BLESS) writeFileSync(file, text);
+    if (process.env.PIDA_BLESS) writeFileSync(file, text);
     expect(readFileSync(file, "utf8")).toBe(text);
   });
 });

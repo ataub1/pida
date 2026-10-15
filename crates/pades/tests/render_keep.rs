@@ -1,18 +1,18 @@
-//! Hilfe zur Sichtprüfung (nicht Teil der Prüfung): rendert alle PDFs in `PDFOVER_KEEP` mit PDFium
+//! Hilfe zur Sichtprüfung (nicht Teil der Prüfung): rendert alle PDFs in `PIDA_KEEP` mit PDFium
 //! als PNG (alle Seiten, 1 px = 1 pt). Aufruf:
-//! `PDFOVER_KEEP=<dir> cargo test -p pdfover-pades --test render_keep -- --ignored`.
+//! `PIDA_KEEP=<dir> cargo test -p pida-pades --test render_keep -- --ignored`.
 
 mod common;
 
 use std::sync::Arc;
 
-use pdfover_render::{RenderBackend, encode_png};
+use pida_render::{RenderBackend, encode_png};
 
 #[test]
 #[ignore]
 fn render_kept_outputs() {
-    let (Some(dir), Some(backend)) = (std::env::var_os("PDFOVER_KEEP"), common::pdfium()) else {
-        eprintln!("PDFOVER_KEEP oder PDFium fehlt");
+    let (Some(dir), Some(backend)) = (std::env::var_os("PIDA_KEEP"), common::pdfium()) else {
+        eprintln!("PIDA_KEEP oder PDFium fehlt");
         return;
     };
     let dir = std::path::PathBuf::from(dir);

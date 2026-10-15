@@ -1,13 +1,13 @@
-//! Tabellentests: jeder Übergang aus docs/analyse/01 §3.4 (und die NG-Ergänzungen aus Plan §3.5,
+//! Tabellentests: jeder Übergang aus docs/analyse/01 §3.4 (und die PIDA-Ergänzungen aus Plan §3.5,
 //! §6.2, ADR 0001 §8.8) als eigener Fall.
 
 mod common;
 
 use common::*;
-use pdfover_backend_api::{BackendError, BackendId};
-use pdfover_config::BackendChoice;
-use pdfover_pades::{AcceptanceClass, Invariant, InvariantViolation};
-use pdfover_workflow::{
+use pida_backend_api::{BackendError, BackendId};
+use pida_config::BackendChoice;
+use pida_pades::{AcceptanceClass, Invariant, InvariantViolation};
+use pida_workflow::{
     Context, DocId, DocResult, Effect, Event, ExitCode, OutputDecision, PlaceholderAnswer, PlaceholderFound,
     PositionChoice, Queue, RetryTarget, SigningPhase, State, Step, WorkflowError, grown_reserve,
 };
@@ -335,7 +335,7 @@ fn no_start_placement_means_automatic_position() {
 #[test]
 fn user_confirms_position() {
     let mut s = positioning(&[1]);
-    let p = pdfover_placement::Placement { page_index: 0, x: 10.0, y: 300.0, width: 230.0, height: 49.0 };
+    let p = pida_placement::Placement { page_index: 0, x: 10.0, y: 300.0, width: 230.0, height: 49.0 };
     s = step(s, Event::PlacementChanged(p), &gui()).state;
     let State::Positioning { page, .. } = &s else { panic!() };
     assert_eq!(*page, 0);
@@ -382,7 +382,7 @@ fn new_page_toggle_and_undo() {
 #[test]
 fn new_page_on_signed_documents_falls_back_to_last_page_with_notice() {
     let State::Positioning { queue, page, placement, doc, .. } = positioning(&[1]) else { unreachable!() };
-    let doc = pdfover_workflow::DocFacts { signed: true, ..doc };
+    let doc = pida_workflow::DocFacts { signed: true, ..doc };
     let s = State::Positioning { queue, page, placement, new_page: false, doc };
     // „Neue Seite“ bleibt auf der letzten Seite (PDF-AS, docs/analyse/04 §4.5) – mit Hinweis
     let t = step(s.clone(), Event::NewPageToggled, &gui());
@@ -390,10 +390,10 @@ fn new_page_on_signed_documents_falls_back_to_last_page_with_notice() {
     let State::Positioning { new_page: false, page: 2, placement: Some(p), .. } = &t.state else { panic!("{t:?}") };
     assert_eq!(p.page_index, 2);
     // eine Platzierung auf der virtuellen Seite landet mit denselben Koordinaten auf der letzten Seite
-    let p = pdfover_placement::Placement { page_index: 3, x: 1.0, y: 100.0, width: 10.0, height: 10.0 };
+    let p = pida_placement::Placement { page_index: 3, x: 1.0, y: 100.0, width: 10.0, height: 10.0 };
     let t = step(s.clone(), Event::PlacementChanged(p), &gui());
     let State::Positioning { page: 2, placement: Some(moved), new_page: false, .. } = &t.state else { panic!("{t:?}") };
-    assert_eq!(*moved, pdfover_placement::Placement { page_index: 2, ..p });
+    assert_eq!(*moved, pida_placement::Placement { page_index: 2, ..p });
     assert_eq!(t.effects, vec![Effect::Notify("placement.notice.new_page_not_allowed".into())]);
     // von einer anderen Seite aus: letzte Seite rendern und Vorschau neu bauen
     let s0 = step(s, Event::PageChanged(0), &gui()).state;
@@ -439,7 +439,7 @@ fn settings_change_rebuilds_block_preview() {
 
 #[test]
 fn position_is_kept_when_returning_f43() {
-    let p = pdfover_placement::Placement { page_index: 1, x: 50.0, y: 400.0, width: 230.0, height: 49.0 };
+    let p = pida_placement::Placement { page_index: 1, x: 50.0, y: 400.0, width: 230.0, height: 49.0 };
     let s = choosing(&[1], PositionChoice::Manual(p), false);
     let t = step(s, Event::Navigate(Step::Positioning), &gui());
     let State::Positioning { page, placement, .. } = &t.state else { panic!() };
@@ -840,7 +840,7 @@ fn batch_continues_after_failed_save_via_save_button_b14() {
 
 #[test]
 fn resign_same_document_f91() {
-    let p = pdfover_placement::Placement { page_index: 0, x: 1.0, y: 100.0, width: 230.0, height: 49.0 };
+    let p = pida_placement::Placement { page_index: 0, x: 1.0, y: 100.0, width: 230.0, height: 49.0 };
     let State::Output { queue, doc, backend, .. } = output_state(&[1]) else { unreachable!() };
     let s = State::Output {
         queue,
@@ -913,7 +913,7 @@ fn quit_after_saving_keeps_the_saved_document_signed() {
     // abgebrochen
     let t = step(output_state(&[1]), Event::Saved(output_info(1)), &gui());
     let State::Output { mut queue, saved, decision, doc, position, backend } = t.state else { panic!() };
-    queue.add([pdfover_workflow::InputDocument::new(DocId(2), "/in/doc2.pdf")]);
+    queue.add([pida_workflow::InputDocument::new(DocId(2), "/in/doc2.pdf")]);
     let s = State::Output { queue, saved, decision, doc, position, backend };
     let q = step(s, Event::Quit, &gui());
     assert_eq!(q.state.exit_code(), Some(ExitCode::Cancelled));

@@ -4,12 +4,12 @@ use std::io::{Read, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use pdfover_cades::{
+use pida_cades::{
     AlgorithmPolicy, AssembleOptions, CertChain, Certificate, CmsError, CmsProfile, Digest, DigestAlg, Expect,
     ExpectedSigner, RawSignature, SignedAttrs, assemble, estimate_cms_len, select_algorithm, verify_detached,
 };
-use pdfover_pdf_cos::{ObjectId, SourcePdf, TailKind, XrefHealth};
-use pdfover_pdf_incremental::{
+use pida_pdf_cos::{ObjectId, SourcePdf, TailKind, XrefHealth};
+use pida_pdf_incremental::{
     ByteRange, ExcludedRange, Increment, RESERVE_MAX, RESERVE_MIN_MODEL_A, RESERVE_MODEL_B, WrittenKind,
 };
 use time::OffsetDateTime;
@@ -346,7 +346,7 @@ impl Prepared {
         let pdf = self.placeholder_pdf();
         let sha = DigestAlg::Sha256.digest(&pdf);
         let hex_sha = sha.to_hex();
-        let path = dir.join(format!("pdfover-prepared-{}.pdf", &hex_sha[..16]));
+        let path = dir.join(format!("pida-prepared-{}.pdf", &hex_sha[..16]));
         let state = PersistedState {
             format: PERSIST_FORMAT,
             original_len: self.original.len() as u64,
@@ -422,7 +422,7 @@ impl Prepared {
             .to_offset(offset);
         // `/M` steht im Klartext, wenn das Dokument nicht verschlüsselt ist
         if src.encryption().is_none() {
-            let m = format!("/M ({})", pdfover_pdf_incremental::format_pdf_date(signing_time));
+            let m = format!("/M ({})", pida_pdf_incremental::format_pdf_date(signing_time));
             if !increment.bytes.windows(m.len()).any(|w| w == m.as_bytes()) {
                 return Err(invalid("Signierzeitpunkt passt nicht zu /M"));
             }
@@ -457,7 +457,7 @@ impl Prepared {
     /// (`cms-unexpected-signer`). Ohne Zertifikat aus `prepare` gilt `expect.signer`. `cms` darf
     /// mit `0x00` aufgefüllt sein.
     pub fn finish_cms(self, cms: &[u8], expect: &Expect) -> Result<SignedPdf, FinishError> {
-        let der = pdfover_cades::trim_contents_padding(cms)?;
+        let der = pida_cades::trim_contents_padding(cms)?;
         let reserve = self.reserve();
         if der.len() > reserve {
             return Err(FinishError::CmsTooLarge { needed: der.len(), reserve });

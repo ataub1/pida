@@ -5,9 +5,9 @@
 mod common;
 
 use common::*;
-use pdfover_pades::{AcceptanceClass, FieldTarget, PadesError, SignPlan, analyze, codes, empty_fields, prepare};
-use pdfover_pdf_cos::{Dictionary, Limits, Object, SourcePdf, StringFormat};
-use pdfover_pdf_incremental::{IncrementBuilder, IncrementOptions};
+use pida_pades::{AcceptanceClass, FieldTarget, PadesError, SignPlan, analyze, codes, empty_fields, prepare};
+use pida_pdf_cos::{Dictionary, Limits, Object, SourcePdf, StringFormat};
+use pida_pdf_incremental::{IncrementBuilder, IncrementOptions};
 
 fn name(s: &str) -> Object {
     Object::Name(s.as_bytes().to_vec())
@@ -84,7 +84,7 @@ fn with_fields(src: &SourcePdf, fields: Vec<Dictionary>, extra_acro: &[(&str, Ob
     })
 }
 
-fn codes_of(r: &pdfover_pades::DocReport) -> Vec<String> {
+fn codes_of(r: &pida_pades::DocReport) -> Vec<String> {
     r.findings.iter().map(|f| f.code.clone()).collect()
 }
 
@@ -115,7 +115,7 @@ fn docmdp_levels() {
         assert_eq!(r.doc_mdp.map(|d| d.permission), Some(p as u8));
         assert!(codes_of(&r).contains(&code.to_string()), "{:?}", r.findings);
         assert_eq!(r.class, class);
-        let plan = SignPlan::invisible(pdfover_pades::local_signing_time());
+        let plan = SignPlan::invisible(pida_pades::local_signing_time());
         match (p, prepare(&doc, &plan, None)) {
             (1, Err(PadesError::Rejected(c))) => assert_eq!(c, codes::DOCMDP_P1),
             (1, other) => panic!("P=1 nicht abgelehnt: {other:?}"),
@@ -158,7 +158,7 @@ fn lock_marks_fields_read_only_and_prepare_refuses_them() {
             widget_id: locked.widgets[0].id,
             qualified_name: locked.qualified_name.clone(),
         },
-        ..SignPlan::invisible(pdfover_pades::local_signing_time())
+        ..SignPlan::invisible(pida_pades::local_signing_time())
     };
     assert!(matches!(prepare(&doc, &plan, None), Err(PadesError::FieldLocked(_))));
     // das signierte Feld selbst ist kein Ziel
@@ -200,15 +200,15 @@ fn xfa_usage_rights_and_need_appearances() {
     let src = base();
     let xfa = with_fields(&src, vec![], &[("XFA", Object::Array(vec![])), ("NeedAppearances", Object::Boolean(true))]);
     let r = analyze(&xfa).unwrap();
-    assert_eq!(r.xfa, pdfover_pades::XfaKind::Hybrid);
+    assert_eq!(r.xfa, pida_pades::XfaKind::Hybrid);
     assert!(r.need_appearances);
     assert!(codes_of(&r).contains(&codes::XFA_HYBRID.to_string()));
     assert!(r.warnings().any(|f| f.code == codes::XFA_HYBRID));
 
     let dynamic = derive(&src, |_, c| c.set("NeedsRendering", Object::Boolean(true)));
     let r = analyze(&dynamic).unwrap();
-    assert_eq!((r.xfa, r.class), (pdfover_pades::XfaKind::Dynamic, AcceptanceClass::K5Rejected));
-    let plan = SignPlan::invisible(pdfover_pades::local_signing_time());
+    assert_eq!((r.xfa, r.class), (pida_pades::XfaKind::Dynamic, AcceptanceClass::K5Rejected));
+    let plan = SignPlan::invisible(pida_pades::local_signing_time());
     assert!(matches!(prepare(&dynamic, &plan, None), Err(PadesError::Rejected(c)) if c == codes::XFA_DYNAMIC));
 
     let ur = derive(&src, |_, c| {
@@ -227,7 +227,7 @@ fn garbage_after_eof_is_k2() {
     bytes.extend_from_slice(b"\nDas ist kein PDF-Inhalt, sondern Fremdinhalt.\n");
     let src = SourcePdf::open(bytes, &Limits::default()).unwrap();
     let r = analyze(&src).unwrap();
-    assert_eq!(r.tail, pdfover_pdf_cos::TailKind::Garbage);
+    assert_eq!(r.tail, pida_pdf_cos::TailKind::Garbage);
     assert!(codes_of(&r).contains(&codes::TAIL_GARBAGE.to_string()));
     assert_eq!(r.class, AcceptanceClass::K2Repairable);
     // K2 braucht eine Zustimmung (Plan §6.1)
@@ -241,12 +241,12 @@ fn field_numbering_continues_after_existing_names() {
         with_fields(&src, vec![sig_field("PDF-AS Signatur7", None, &[]), sig_field("Signature1", None, &[])], &[]);
     let r = analyze(&doc).unwrap();
     assert_eq!(r.next_field_number, 8);
-    let p = prepare(&doc, &SignPlan::invisible(pdfover_pades::local_signing_time()), None).unwrap();
+    let p = prepare(&doc, &SignPlan::invisible(pida_pades::local_signing_time()), None).unwrap();
     assert_eq!(p.field_name(), "PDF-AS Signatur8");
     // expliziter, bereits vergebener Name
     let plan = SignPlan {
         field: FieldTarget::New { name: Some("Signature1".into()) },
-        ..SignPlan::invisible(pdfover_pades::local_signing_time())
+        ..SignPlan::invisible(pida_pades::local_signing_time())
     };
     assert!(matches!(prepare(&doc, &plan, None), Err(PadesError::InvalidPlan(_))));
 }

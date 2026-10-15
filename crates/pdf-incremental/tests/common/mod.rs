@@ -1,4 +1,4 @@
-//! Gemeinsame Test-Hilfen für `pdfover-pdf-incremental`: Korpus, externe Orakel (qpdf, openssl,
+//! Gemeinsame Test-Hilfen für `pida-pdf-incremental`: Korpus, externe Orakel (qpdf, openssl,
 //! pyHanko) und ein Dummy-Signaturdictionary mit leerem Widget (Struktur wie PDF-AS, analyse/03 §4.4).
 //!
 //! Externe Werkzeuge sind optional: fehlen sie, überspringen die Tests die jeweilige Prüfung und
@@ -8,10 +8,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use pdfover_pdf_cos::{Dictionary, Object, ObjectId, SigField, SourcePdf, Stream, StringFormat};
-use pdfover_pdf_incremental::{
-    Increment, IncrementBuilder, IncrementOptions, Result, SignatureDictSpec, format_pdf_date,
-};
+use pida_pdf_cos::{Dictionary, Object, ObjectId, SigField, SourcePdf, Stream, StringFormat};
+use pida_pdf_incremental::{Increment, IncrementBuilder, IncrementOptions, Result, SignatureDictSpec, format_pdf_date};
 
 /// Wurzel der gemeinsamen Testdaten.
 pub fn testdata() -> PathBuf {
@@ -68,10 +66,10 @@ pub fn which(cmd: &str) -> Option<PathBuf> {
     None
 }
 
-/// Python mit pyHanko: `PDFOVER_PYTHON`, sonst `python3` neben `pyhanko`, sonst `python3` im PATH.
+/// Python mit pyHanko: `PIDA_PYTHON`, sonst `python3` neben `pyhanko`, sonst `python3` im PATH.
 pub fn pyhanko_python() -> Option<PathBuf> {
     let mut candidates = Vec::new();
-    if let Some(p) = std::env::var_os("PDFOVER_PYTHON") {
+    if let Some(p) = std::env::var_os("PIDA_PYTHON") {
         candidates.push(PathBuf::from(p));
     }
     if let Some(ph) = which("pyhanko")

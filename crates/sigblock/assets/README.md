@@ -1,4 +1,4 @@
-# Eingebettete PDF-AS-Konfiguration (`pdfover-sigblock`)
+# Eingebettete PDF-AS-Konfiguration (`pida-sigblock`)
 
 Übernommen aus `reference/pdfas-config` (PDF-Over `PDFASConfig.zip`, PDF-AS 4, EUPL) und per
 `include_bytes!` in `src/assets.rs` eingebettet (`BuiltinResources`, `ProfileStore::builtin`).

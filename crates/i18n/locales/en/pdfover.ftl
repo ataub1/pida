@@ -1,13 +1,13 @@
-### PDF-Over NG – englischer Katalog (EUPL-1.2)
+### PIDA – englischer Katalog (EUPL-1.2)
 ###
-### Erzeugt mit `pdfover_i18n::convert::convert_pdfover_messages` aus `messages.properties` von PDF-Over
+### Erzeugt mit `pida_i18n::convert::convert_pdfover_messages` aus `messages.properties` von PDF-Over
 ### (A-SIT, EUPL). NICHT von Hand bearbeiten: Korrekturen gehören in die Tabellen des Konverters,
-### eigene Texte von PDF-Over NG in `pdfover-ng.ftl`. Neu erzeugen:
-### PDFOVER_I18N_BLESS=1 cargo test -p pdfover-i18n --test catalogs
+### eigene Texte von PIDA in `pida.ftl`. Neu erzeugen:
+### PIDA_I18N_BLESS=1 cargo test -p pida-i18n --test catalogs
 ###
 ### Konventionen: Fluent-ID = Java-Key mit „-“ statt „.“; `&`-Mnemonic → `.accesskey`;
 ### `%s`/`%d` → `{ $arg1 }`, `{ $arg2 }` … in Reihenfolge; `<a>…</a>` bzw. `<a href="…">…</a>`
-### bleiben als Link-Markup im Text (`pdfover_i18n::markup`).
+### bleiben als Link-Markup im Text (`pida_i18n::markup`).
 
 AdvancedConfigurationComposite-lblSaveFilePostFix-text = Save File Postfix:
 BKU-KS = Keystore
@@ -385,7 +385,7 @@ atrusterror-message =
     a-trust.at reports:
     { $arg1 }
 # unused (in PDF-Over 4.4.x nicht referenziert)
-# ergänzt (PDF-Over NG): fehlte in dieser Sprache
+# ergänzt (PIDA): fehlte in dieser Sprache
 tanEnter-APPTAN =
     Please open the ID Austria app
     TAN:

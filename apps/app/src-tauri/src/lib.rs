@@ -1,15 +1,15 @@
-//! `pdfover-app` – Tauri-2-Shell von PDF-Over NG (Desktop und Mobile; Mobile-Teil: [`mobile`],
+//! `pida-app` – Tauri-2-Shell von PIDA (Desktop und Mobile; Mobile-Teil: [`mobile`],
 //! docs/integration/mobile.md).
 //!
-//! Die Shell ist **dünn** (Plan §3.1): Sie startet `pdfover-core-api`, leitet den [`ViewState`] als
-//! Ereignis [`VIEW_EVENT`] an das Fenster, nimmt [`pdfover_core_api::UiEvent`]s über den Command
+//! Die Shell ist **dünn** (Plan §3.1): Sie startet `pida-core-api`, leitet den [`ViewState`] als
+//! Ereignis [`VIEW_EVENT`] an das Fenster, nimmt [`pida_core_api::UiEvent`]s über den Command
 //! `core_dispatch` entgegen und liefert Seitenkacheln und die Blockvorschau über das Custom Protocol
-//! `pdfover-render://` ([`protocol`]). Fachlogik liegt nur im Kern; die Oberfläche (React, React Aria
+//! `pida-render://` ([`protocol`]). Fachlogik liegt nur im Kern; die Oberfläche (React, React Aria
 //! Components) projiziert nur den Zustand.
 //!
 //! Plattformintegration:
 //! - **Startargumente** mit der vollständigen PDF-Over-Semantik ([`args`], derselbe Parser wie
-//!   `pdfover-cli`): `-i -o -b -n -p -ks… -proxy… -e -a -s -c -v` als Overlay des Kerns; ungültige
+//!   `pida-cli`): `-i -o -b -n -p -ks… -proxy… -e -a -s -c -v` als Overlay des Kerns; ungültige
 //!   Argumente zeigen den Fehlerschritt (`error-CmdLineArgs`), `-h` gibt die Hilfe aus.
 //! - **Single-Instance** (Desktop): eine zweite Instanz übergibt ihre Dokumente an die erste (F-13,
 //!   [`args::second_instance_documents`]); unter macOS nur mit eigenem Socket ([`instance`]).
@@ -23,12 +23,12 @@
 //! - **Drag & Drop** über die Fenster-Ereignisse von Tauri (Oberfläche: `onDragDropEvent`).
 //! - **Fensterzustand** (Plugin `window-state`), Dialoge (`dialog`, nur Desktop), Öffnen im System
 //!   (`opener`).
-//! - Logs: Datei im Log-Ordner der Plattform ([`pdfover_config::Paths`]) über
-//!   `pdfover_core_api::logging` (rotierend auch während des Laufs), ohne Secrets und Dokumentinhalte
-//!   (Regel 9); Filter über `--log-level`, sonst `PDFOVER_LOG`.
+//! - Logs: Datei im Log-Ordner der Plattform ([`pida_config::Paths`]) über
+//!   `pida_core_api::logging` (rotierend auch während des Laufs), ohne Secrets und Dokumentinhalte
+//!   (Regel 9); Filter über `--log-level`, sonst `PIDA_LOG`.
 //! - **Kernfehler**: Startfehler und Paniken erscheinen als Fehlerschritt `ng-ui-core-unavailable`, ein
 //!   unerwartet beendeter Kern-Task als [`CORE_STOPPED`] – jeweils mit „Wiederholen“ (Neustart des Kerns).
-//! - **Startprüfung** (`PDFOVER_SMOKE=1`): beendet die App, sobald die Oberfläche den ersten
+//! - **Startprüfung** (`PIDA_SMOKE=1`): beendet die App, sobald die Oberfläche den ersten
 //!   ViewState abgefragt hat und der Kern bereit ist; gibt die Startzeiten auf stdout aus ([`smoke`]).
 //! - **Beenden** (Fenster schließen, ⌘Q): läuft über den Kern (`UiEvent::Quit` → `Finished`), damit
 //!   laufende Dialoge abgebrochen (F-73) und Einstellungen gesichert werden (F-105); antwortet der Kern
@@ -68,10 +68,10 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use pdfover_backend_api::Platform;
-use pdfover_config::{Overlay, Paths};
-use pdfover_core_api::{CoreConfig, ViewState};
-use pdfover_i18n::Lang;
+use pida_backend_api::Platform;
+use pida_config::{Overlay, Paths};
+use pida_core_api::{CoreConfig, ViewState};
+use pida_i18n::Lang;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use args::GuiArgs;
@@ -82,7 +82,7 @@ use shell::{DispatchOutcome, Shell, Started};
 pub const CORE_STOPPED: &str = "ng-core-stopped";
 
 /// Name des Ereignisses mit dem jeweils aktuellen [`ViewState`].
-pub const VIEW_EVENT: &str = "pdfover:view";
+pub const VIEW_EVENT: &str = "pida:view";
 
 /// Wartezeit auf `Finished` nach einem Beenden-Wunsch, bevor die App ohne Kern endet.
 pub const QUIT_GRACE: Duration = Duration::from_secs(5);
@@ -165,7 +165,7 @@ fn open_notices(app: AppHandle) -> Result<(), String> {
 /// Hintergrund (die native Seite darf nicht vom Hauptthread aus blockierend gerufen werden).
 #[tauri::command]
 async fn mobile_pick_files(app: AppHandle, kind: String, multiple: bool) -> Result<Vec<String>, String> {
-    use tauri_plugin_pdfover_mobile::{ImportKind, PdfoverMobileExt};
+    use tauri_plugin_pida_mobile::{ImportKind, PidaMobileExt};
     let kind = match kind.as_str() {
         "pdf" => ImportKind::Pdf,
         "pkcs12" => ImportKind::Pkcs12,
@@ -173,7 +173,7 @@ async fn mobile_pick_files(app: AppHandle, kind: String, multiple: bool) -> Resu
     };
     let dest = app.path().app_cache_dir().map_err(|_| "ng-ui-open-failed".to_owned())?.join(mobile::IMPORT_DIR);
     std::fs::create_dir_all(&dest).map_err(|_| "ng-ui-open-failed".to_owned())?;
-    let plugin = app.pdfover_mobile();
+    let plugin = app.pida_mobile();
     let files = tauri::async_runtime::spawn_blocking(move || plugin.import_file(kind, multiple, &dest))
         .await
         .map_err(|_| "ng-ui-open-failed".to_owned())?
@@ -199,7 +199,7 @@ fn start_core(app: &AppHandle, shell: &Shell) {
                 loop {
                     let view = rx.borrow_and_update().clone();
                     let finished = match &view.step {
-                        pdfover_core_api::StepView::Finished { exit_code } => Some(i32::from(*exit_code)),
+                        pida_core_api::StepView::Finished { exit_code } => Some(i32::from(*exit_code)),
                         _ => None,
                     };
                     let _ = app.emit(VIEW_EVENT, &view);
@@ -265,7 +265,7 @@ fn quit_via_core(app: &AppHandle) -> bool {
     }
 }
 
-fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pdfover_config::ConfigError> {
+fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pida_config::ConfigError> {
     let paths = platform_paths(app)?;
     let exe = std::env::current_exe().ok();
     let pdfium_dir = if cfg!(mobile) {
@@ -289,10 +289,10 @@ fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pdfover_
 
 /// Pfade: Desktop plattformüblich, Mobile die App-Sandbox (`app_data_dir` gesichert, `app_cache_dir`
 /// darf das System leeren).
-fn platform_paths(app: &AppHandle) -> Result<Paths, pdfover_config::ConfigError> {
+fn platform_paths(app: &AppHandle) -> Result<Paths, pida_config::ConfigError> {
     if cfg!(mobile) {
-        let data = app.path().app_data_dir().map_err(|_| pdfover_config::ConfigError::NoHomeDirectory)?;
-        let cache = app.path().app_cache_dir().map_err(|_| pdfover_config::ConfigError::NoHomeDirectory)?;
+        let data = app.path().app_data_dir().map_err(|_| pida_config::ConfigError::NoHomeDirectory)?;
+        let cache = app.path().app_cache_dir().map_err(|_| pida_config::ConfigError::NoHomeDirectory)?;
         Ok(Paths::sandbox(&data, &cache))
     } else {
         Paths::platform()
@@ -303,7 +303,7 @@ fn platform_paths(app: &AppHandle) -> Result<Paths, pdfover_config::ConfigError>
 /// Altkonfiguration, keine lokale BKU).
 #[cfg(mobile)]
 fn mobile_options(app: &AppHandle, shell: &Shell) {
-    use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
+    use tauri_plugin_pida_mobile::PidaMobileExt;
     // iOS: `Documents` (in der Dateien-App sichtbar, UIFileSharingEnabled). Android: `filesDir/Documents`
     // statt `getExternalFilesDir(DOCUMENTS)` (Tauri `document_dir`) – den lesen unter Android 9/10 alle
     // Apps mit Speicher-Berechtigung mit; Teilen/„Sichern unter“ geben das Dokument gezielt weiter.
@@ -312,7 +312,7 @@ fn mobile_options(app: &AppHandle, shell: &Shell) {
     } else {
         app.path().document_dir().ok()
     };
-    let secrets = mobile::secret_store(app.pdfover_mobile());
+    let secrets = mobile::secret_store(app.pida_mobile());
     shell.update_options(move |o| {
         o.secret_store = Some(secrets);
         o.default_output_dir = documents;
@@ -353,7 +353,7 @@ fn purge_stale_copies(app: &AppHandle) {
 /// Hintergrund (Dateizugriff, native Seite; Ereignisse kommen auf dem Hauptthread).
 #[cfg(mobile)]
 fn take_pending_documents(app: &AppHandle, urls: Vec<url::Url>) {
-    use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
+    use tauri_plugin_pida_mobile::PidaMobileExt;
     let Ok(cache) = app.path().app_cache_dir() else { return };
     let inbox = cache.join(mobile::INBOX_DIR);
     let app = app.clone();
@@ -361,11 +361,10 @@ fn take_pending_documents(app: &AppHandle, urls: Vec<url::Url>) {
         let ingested = mobile::ingest_urls(&urls, &inbox);
         let mut docs = ingested.files;
         if std::fs::create_dir_all(&inbox).is_ok() {
-            match app.pdfover_mobile().take_pending_open_documents(&ingested.unresolved, &inbox) {
+            match app.pida_mobile().take_pending_open_documents(&ingested.unresolved, &inbox) {
                 Ok(files) => docs.extend(files.into_iter().map(|f| f.path)),
                 Err(e) => {
-                    if !ingested.unresolved.is_empty()
-                        || !matches!(e, tauri_plugin_pdfover_mobile::Error::NotImplemented)
+                    if !ingested.unresolved.is_empty() || !matches!(e, tauri_plugin_pida_mobile::Error::NotImplemented)
                     {
                         tracing::warn!(code = e.code(), "eingehende Dokumente der Plattform nicht abgeholt");
                     }
@@ -380,34 +379,34 @@ fn take_pending_documents(app: &AppHandle, urls: Vec<url::Url>) {
 }
 
 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
-fn fido2_provider() -> Option<Arc<dyn pdfover_backend_atrust::Fido2Provider>> {
-    pdfover_backend_atrust::fido2::platform_provider()
+fn fido2_provider() -> Option<Arc<dyn pida_backend_atrust::Fido2Provider>> {
+    pida_backend_atrust::fido2::platform_provider()
 }
 
 #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
-fn fido2_provider() -> Option<Arc<dyn pdfover_backend_atrust::Fido2Provider>> {
+fn fido2_provider() -> Option<Arc<dyn pida_backend_atrust::Fido2Provider>> {
     None
 }
 
 /// Hält den Schreib-Thread der Logdatei bis zum Programmende (beim Drop wird geleert).
-struct LogState(Mutex<Option<pdfover_core_api::logging::LogGuard>>);
+struct LogState(Mutex<Option<pida_core_api::logging::LogGuard>>);
 
 /// Logdatei im Log-Ordner der Plattform (rotierend, Plan §7.1); Filter aus `--log-level`, sonst
-/// `PDFOVER_LOG`, sonst `info`. In Debug-Builds zusätzlich stderr.
-fn init_logging(paths: &Paths, log_level: Option<String>) -> pdfover_core_api::logging::LogGuard {
+/// `PIDA_LOG`, sonst `info`. In Debug-Builds zusätzlich stderr.
+fn init_logging(paths: &Paths, log_level: Option<String>) -> pida_core_api::logging::LogGuard {
     let level = log_level
-        .or_else(|| std::env::var("PDFOVER_LOG").ok().filter(|l| !l.trim().is_empty()))
+        .or_else(|| std::env::var("PIDA_LOG").ok().filter(|l| !l.trim().is_empty()))
         .unwrap_or_else(|| "info".into());
-    pdfover_core_api::logging::init(
+    pida_core_api::logging::init(
         paths,
-        &pdfover_core_api::logging::LogOptions { level, stderr: cfg!(debug_assertions), file: true },
+        &pida_core_api::logging::LogOptions { level, stderr: cfg!(debug_assertions), file: true },
     )
 }
 
 /// Logs nur auf stderr (ohne Konfiguration kein Log-Ordner).
 fn init_logging_stderr() {
     use tracing_subscriber::EnvFilter;
-    let filter = EnvFilter::try_from_env("PDFOVER_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_env("PIDA_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
     let _ = tracing_subscriber::fmt().with_env_filter(filter).with_ansi(false).with_writer(std::io::stderr).try_init();
 }
 
@@ -486,14 +485,14 @@ pub fn run() {
     };
 
     // Datei-/Speichern-Dialoge nur auf dem Desktop (Mobile: Dokument-Picker bzw. SAF über
-    // `pdfover-mobile`); das Plugin ist dort gar nicht im Binary (Cargo.toml, iOS: ohne Photos/PhotosUI).
+    // `pida-mobile`); das Plugin ist dort gar nicht im Binary (Cargo.toml, iOS: ohne Photos/PhotosUI).
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
     let app = builder
         .plugin(tauri_plugin_opener::init())
         // Mobile: native Seite (Swift/Kotlin); Desktop: ohne Funktion. Keine Befehle für die WebView.
-        .plugin(tauri_plugin_pdfover_mobile::init())
+        .plugin(tauri_plugin_pida_mobile::init())
         .register_asynchronous_uri_scheme_protocol(protocol::SCHEME, |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_owned();
@@ -540,7 +539,7 @@ pub fn run() {
                     Shell::without_config(&e.to_string())
                 }
             };
-            tracing::info!(version = %handle.package_info().version, "PDF-Over NG startet");
+            tracing::info!(version = %handle.package_info().version, "PIDA startet");
             if cfg!(desktop) && !single_instance {
                 tracing::warn!("Single-Instance-Socket gehört nicht diesem Konto – Start ohne Single-Instance");
             }

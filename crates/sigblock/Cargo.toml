@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-sigblock"
+name = "pida-sigblock"
 description = "Signaturblock: PDF-AS-Profile (IR), Ausdrücke, f32-Layout, Fonts, Emblem, Appearance-XObjects (Paket C)"
 version.workspace = true
 edition.workspace = true
@@ -9,8 +9,8 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
-pdfover-pdf-cos = { workspace = true }
-pdfover-java-properties = { workspace = true }
+pida-pdf-cos = { workspace = true }
+pida-java-properties = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 serde = { workspace = true }
@@ -29,7 +29,7 @@ sha2 = { workspace = true }
 [dev-dependencies]
 time = { workspace = true }
 tempfile = { workspace = true }
-# Pixelvergleich (tests/render.rs, nur mit PDFOVER_PDFIUM_DIR)
+# Pixelvergleich (tests/render.rs, nur mit PIDA_PDFIUM_DIR)
 pdfium-render = { workspace = true }
 proptest = { workspace = true }
 # Manifeste des PDF-AS-4.4.2-Golden-Laufs (tests/golden_pdfas442.rs, Paket I5)

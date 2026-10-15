@@ -1,14 +1,14 @@
-# PDF-Over NG – App (Tauri 2)
+# PIDA – App (Tauri 2)
 
-Oberfläche und Shell von PDF-Over NG: **React 19 + TypeScript (strict) + React Aria Components**
-(Vite) im System-WebView, **Tauri 2.12** als dünne Shell um den Rust-Kern `pdfover-core-api`
+Oberfläche und Shell von PIDA: **React 19 + TypeScript (strict) + React Aria Components**
+(Vite) im System-WebView, **Tauri 2.12** als dünne Shell um den Rust-Kern `pida-core-api`
 (Plan §2, §3.1; ADR 0001). Fachlogik liegt ausschließlich im Kern: Die Oberfläche projiziert den
 `ViewState` und sendet `UiEvent`s.
 
 | Teil | Ort |
 |---|---|
 | Bridge-Typen: **erzeugt** aus `crates/core-api/src/view.rs` (ts-rs; einzige Quelle des Vertrags) | `src/core/generated.ts` (über `src/core/types.ts`) |
-| Bridge zu Tauri (`core_view`, `core_dispatch`, Ereignis `pdfover:view`, `pdfover-render://`) | `src/core/bridge.ts` |
+| Bridge zu Tauri (`core_view`, `core_dispatch`, Ereignis `pida:view`, `pida-render://`) | `src/core/bridge.ts` |
 | TS-Mock-Kern (Ablauf wie PDF-Over, für `VITE_MOCK=1`, Browser und Tests) | `src/core/mock.ts` |
 | Fluent-Kataloge (zur Build-Zeit aus `crates/i18n/locales/{de,en}/*.ftl`, auch die UI-Texte `ng-ui-*`) | `src/i18n/` |
 | Schritte, Masken, Einstellungen | `src/screens/`, `src/settings/` |
@@ -25,28 +25,28 @@ npm run build          # tsc (strict) + Vite → dist/
 npm test               # Vitest + Testing Library (jsdom)
 npm run tauri dev      # App mit Rust-Kern (Vite-Dev-Server + cargo)
 npm run notices        # THIRD-PARTY-NOTICES nach ../../target/notices (cargo-about, PDFium, npm)
-PDFOVER_PDFIUM_DIR=… npm run bundle:mac:debug    # macOS-.app (Debug) mit libpdfium.dylib + Hinweisen
-PDFOVER_PDFIUM_DIR=… npm run bundle:mac:release  # .app + .dmg (Release), verlangt PDFium und Hinweise
-PDFOVER_SMOKE=1 HOME="$(mktemp -d)" "../../target/debug/bundle/macos/PDF-Over NG.app/Contents/MacOS/pdf-over-ng"
+PIDA_PDFIUM_DIR=… npm run bundle:mac:debug    # macOS-.app (Debug) mit libpdfium.dylib + Hinweisen
+PIDA_PDFIUM_DIR=… npm run bundle:mac:release  # .app + .dmg (Release), verlangt PDFium und Hinweise
+PIDA_SMOKE=1 HOME="$(mktemp -d)" "../../target/debug/bundle/macos/PIDA.app/Contents/MacOS/pida"
 ```
 
 Startargumente wie PDF-Over (`-i -o -b -n -p -ks -kstype -kspass -ksalias -kskeypass -proxy -proxyport
 -proxyuser -proxypass -e -a -s -c -v`, freie Tokens = Dokumente), ausgewertet mit dem Parser von
-`pdfover-cli` (`src-tauri/src/args.rs`); `-h` gibt die Hilfe aus, ungültige Argumente zeigen den
+`pida-cli` (`src-tauri/src/args.rs`); `-h` gibt die Hilfe aus, ungültige Argumente zeigen den
 Fehlerschritt. Abnahme-Checkliste: `docs/integration/app-abnahme.md`.
 
-Rust-Seite: `cargo check -p pdfover-app`, `cargo test -p pdfover-app` (Vertragstest
+Rust-Seite: `cargo check -p pida-app`, `cargo test -p pida-app` (Vertragstest
 `tests/serde_contract.rs`). Typen und Vertragsdateien neu schreiben:
 
 ```sh
-PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings     # Rust-Typen → src/core/generated.ts
-PDFOVER_BLESS=1 cargo test -p pdfover-app --test serde_contract   # Rust → src/core/fixtures/view-states.json
-PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src/core/fixtures/ui-events.json
+PIDA_BLESS=1 cargo test -p pida-core-api --test ts_bindings     # Rust-Typen → src/core/generated.ts
+PIDA_BLESS=1 cargo test -p pida-app --test serde_contract   # Rust → src/core/fixtures/view-states.json
+PIDA_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src/core/fixtures/ui-events.json
 ```
 
 ## Laufzeit
 
-- **PDFium** wird gesucht in `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**), neben der Binary, in
+- **PDFium** wird gesucht in `PIDA_PDFIUM_DIR` (**nur Debug-Builds**), neben der Binary, in
   `../Frameworks` (macOS-Bundle) und im Ressourcenordner (`pdfium/`). Ohne Treffer entscheidet in
   Debug-Builds der Kern; ein Release-Build lädt nie aus der Umgebung oder Systempfaden (dann ohne
   Vorschau, automatische Position; `src/pdfium.rs`).
@@ -61,8 +61,8 @@ PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src
   Passwörtern) – „Öffnen mit“/Dock übergibt dort ohnehin LaunchServices (`src/instance.rs`).
 - **Beenden** (Fenster schließen, ⌘Q) läuft über den Kern (`UiEvent::Quit` → `Finished`): laufende
   Dialoge werden abgebrochen (F-73), Einstellungen gesichert (F-105); spätestens nach 5 s endet die App.
-- **Logs**: Log-Ordner der Plattform (`pdfover_config::Paths`), rotierend (`pdfover_core_api::logging`);
-  Filter über `--log-level`, sonst `PDFOVER_LOG`.
+- **Logs**: Log-Ordner der Plattform (`pida_config::Paths`), rotierend (`pida_core_api::logging`);
+  Filter über `--log-level`, sonst `PIDA_LOG`.
   Keine Passwörter, TANs oder Dokumentinhalte (ADR 0001 Regel 9).
 - **Sicherheit**: CSP `default-src 'self'`, minimale Capabilities (`capabilities/default.json`: nur
   Ereignisse empfangen, eigene Commands, Datei-/Speichern-Dialog, Links; kein `core:default`),

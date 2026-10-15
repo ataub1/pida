@@ -1,4 +1,4 @@
-//! `pdfover-sigblock` – sichtbarer Signaturblock, maßgleich zu PDF-AS 4.4.2 (Plan §6.5;
+//! `pida-sigblock` – sichtbarer Signaturblock, maßgleich zu PDF-AS 4.4.2 (Plan §6.5;
 //! docs/analyse/04 §2–§3, §7; docs/analyse/03 §4.7).
 //!
 //! Pipeline:
@@ -18,7 +18,7 @@
 //!
 //! Die 12 von PDF-Over erzeugbaren Profil-IDs: `SIGNATURBLOCK_SMALL_{DE|EN}[_NOTE][_PDFA]`,
 //! `AMTSSIGNATURBLOCK_{DE|EN}_RECOMMENDED`, `BASE_LOGO`, `INVISIBLE` (Ableitung in
-//! `pdfover_config::SignatureProfile::pdfas_profile_id`).
+//! `pida_config::SignatureProfile::pdfas_profile_id`).
 //!
 //! Ownership: Paket **C**. Profile, Fonts (DejaVu, Bitstream-Vera-Lizenz) und Bildmarken werden aus
 //! `reference/pdfas-config` nach `crates/sigblock/assets/` übernommen (EUPL; `arial.ttf` nicht) und
@@ -31,7 +31,7 @@
 //! - Rechenbeispiele aus docs/analyse/04 §3.8 (`tests/layout.rs`, ±0,01 pt).
 //! - Golden-Vergleich gegen von PDF-AS signierte Referenz-PDFs (`tests/golden.rs`): Tokenstrom des
 //!   Inner-Forms gleich; mit `pdfas_quirks` für das aktuelle Format byte-gleich; Pixelvergleich per
-//!   PDFium (`tests/render.rs`, nur mit `PDFOVER_PDFIUM_DIR`). Ergebnisse:
+//!   PDFium (`tests/render.rs`, nur mit `PIDA_PDFIUM_DIR`). Ergebnisse:
 //!   `testdata/sigblock/RESULTS.md`.
 //!
 //! # Kompatibilitätsregister (Abweichungen nur ohne `SigBlockInput::pdfas_quirks`)
@@ -63,7 +63,7 @@
 //! Geometrie, Texte, Fonts und Linien gleich (±0,01 pt), mit `pdfas_quirks` Content-Stream
 //! byte-gleich, Bilder (Farbraum, Samples, SMask) bis auf SB-G5 (JPEG-Dekoder) gleich. Alle
 //! PNG-/GIF-Farbtypen prüft zusätzlich das PDF-AS-Orakel `appearance::tests::pdfas_lossless_factory_oracle`
-//! (mit `PDFOVER_PDFAS_LIB`, PDF-AS 4.4.2 + PDFBox 2.0.34 unter Java 21). Abweichungen
+//! (mit `PIDA_PDFAS_LIB`, PDF-AS 4.4.2 + PDFBox 2.0.34 unter Java 21). Abweichungen
 //! im Standardmodus nur in den Zeilen SB-G1 … SB-G6. Ob der Standardmodus korrigiert bleibt
 //! (SB-G3, SB-G4, SB-G6), entscheidet der Auftraggeber; Default: korrigiert. [`Appearance::to_standalone_pdf`]
 //! zeichnet über das Holder-Form und ist mit PDFium pixelgleich zum Widget der PDF-AS-Ausgabe.

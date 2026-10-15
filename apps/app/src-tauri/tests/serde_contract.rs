@@ -1,9 +1,9 @@
-//! Serde-Vertrag zwischen `pdfover-core-api` (Rust) und der Oberfläche (TypeScript).
+//! Serde-Vertrag zwischen `pida-core-api` (Rust) und der Oberfläche (TypeScript).
 //!
 //! 1. **Rust → TS:** Beispiel-`ViewState`s für alle Varianten (Schritte, Interaktionen, Masken, Meldungen,
 //!    Fortschritt, Formularprobleme, Einstellungen mit unbekannten Einträgen) werden serialisiert und mit
 //!    `apps/app/src/core/fixtures/view-states.json` verglichen. Die Oberfläche prüft dieselbe Datei gegen
-//!    ihre Typen (`src/core/contract.test.ts`). Neu schreiben: `PDFOVER_BLESS=1 cargo test -p pdfover-app
+//!    ihre Typen (`src/core/contract.test.ts`). Neu schreiben: `PIDA_BLESS=1 cargo test -p pida-app
 //!    --test serde_contract`.
 //! 2. **TS → Rust:** Die in TypeScript typisierten Beispiel-Ereignisse
 //!    (`src/core/fixtures/ui-events.ts` → `ui-events.json`) müssen sich als [`UiEvent`] lesen lassen und
@@ -12,21 +12,21 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendId, Capabilities, CertNeed, DigestAlg, FactorSet, FormContext, FormProblem, Interaction, NativeForm, Notice,
     NoticeButtons, NoticeCode, NoticeKind, Progress, QrImage, Qualification, SecretKind, SecretPrompt, ServerNeed,
     SignInput, SignOutput,
 };
-use pdfover_config::{NoteSetting, Settings};
-use pdfover_core_api::{
+use pida_config::{NoteSetting, Settings};
+use pida_core_api::{
     BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, InteractionView, KeystoreImportView, MainBarView,
     MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView, PrivacyNoticeView, QrInfo, QueueItemView,
     ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
 };
-use pdfover_i18n::Lang;
-use pdfover_pades::{AcceptanceClass, OutputInfo};
-use pdfover_placement::Placement;
-use pdfover_workflow::{DocId, DocResult, MainBarStep, Step, WorkflowError};
+use pida_i18n::Lang;
+use pida_pades::{AcceptanceClass, OutputInfo};
+use pida_placement::Placement;
+use pida_workflow::{DocId, DocResult, MainBarStep, Step, WorkflowError};
 
 const VIEW_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/core/fixtures/view-states.json");
 const EVENT_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/core/fixtures/ui-events.json");
@@ -581,16 +581,15 @@ fn to_fixture() -> serde_json::Value {
 fn view_states_match_the_typescript_fixture() {
     let actual = to_fixture();
     let text = serde_json::to_string_pretty(&actual).expect("json") + "\n";
-    if std::env::var_os("PDFOVER_BLESS").is_some() {
+    if std::env::var_os("PIDA_BLESS").is_some() {
         std::fs::write(VIEW_FIXTURE, &text).expect("Fixture schreiben");
     }
-    let expected: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(VIEW_FIXTURE).expect("Fixture lesen (PDFOVER_BLESS=1 erzeugt sie)"),
-    )
-    .expect("Fixture ist JSON");
+    let expected: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(VIEW_FIXTURE).expect("Fixture lesen (PIDA_BLESS=1 erzeugt sie)"))
+            .expect("Fixture ist JSON");
     assert_eq!(
         actual, expected,
-        "view-states.json ist veraltet: PDFOVER_BLESS=1 cargo test -p pdfover-app --test serde_contract"
+        "view-states.json ist veraltet: PIDA_BLESS=1 cargo test -p pida-app --test serde_contract"
     );
 }
 

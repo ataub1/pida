@@ -5,24 +5,24 @@ import { MockCore } from './mock';
 
 describe('Bridge-Hilfen', () => {
   it('Custom Protocol je Plattform wie convertFileSrc', () => {
-    expect(renderBase('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit')).toBe('pdfover-render://localhost/');
-    expect(renderBase('Mozilla/5.0 (X11; Linux x86_64)')).toBe('pdfover-render://localhost/');
-    expect(renderBase('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140')).toBe('http://pdfover-render.localhost/');
-    expect(renderBase('Mozilla/5.0 (Linux; Android 15)')).toBe('http://pdfover-render.localhost/');
+    expect(renderBase('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit')).toBe('pida-render://localhost/');
+    expect(renderBase('Mozilla/5.0 (X11; Linux x86_64)')).toBe('pida-render://localhost/');
+    expect(renderBase('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140')).toBe('http://pida-render.localhost/');
+    expect(renderBase('Mozilla/5.0 (Linux; Android 15)')).toBe('http://pida-render.localhost/');
   });
 
   it('Basis-URL kommt aus convertFileSrc der Tauri-Laufzeit, sonst aus dem User-Agent', () => {
     const tauriWindows = (path: string, protocol: string) => `https://${protocol}.localhost/${encodeURIComponent(path)}`;
     const tauriMac = (path: string, protocol: string) => `${protocol}://localhost/${encodeURIComponent(path)}`;
-    expect(resolveRenderBase(tauriWindows, 'Macintosh')).toBe('https://pdfover-render.localhost/');
-    expect(resolveRenderBase(tauriMac, 'Windows NT 10.0')).toBe('pdfover-render://localhost/');
-    expect(resolveRenderBase(null, 'Windows NT 10.0')).toBe('http://pdfover-render.localhost/');
+    expect(resolveRenderBase(tauriWindows, 'Macintosh')).toBe('https://pida-render.localhost/');
+    expect(resolveRenderBase(tauriMac, 'Windows NT 10.0')).toBe('pida-render://localhost/');
+    expect(resolveRenderBase(null, 'Windows NT 10.0')).toBe('http://pida-render.localhost/');
     expect(
       resolveRenderBase(() => {
         throw new Error('ohne Tauri');
       }, 'X11; Linux'),
-    ).toBe('pdfover-render://localhost/');
-    expect(resolveRenderBase(() => 'asset://localhost/', 'X11; Linux')).toBe('pdfover-render://localhost/');
+    ).toBe('pida-render://localhost/');
+    expect(resolveRenderBase(() => 'asset://localhost/', 'X11; Linux')).toBe('pida-render://localhost/');
   });
 
   it('Pfade für Kacheln und Blockvorschau (Maßstab gerundet und begrenzt)', () => {

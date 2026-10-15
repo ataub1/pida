@@ -1,4 +1,4 @@
-//! Gemeinsame Test-Hilfen für `pdfover-pdf-cos`.
+//! Gemeinsame Test-Hilfen für `pida-pdf-cos`.
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};

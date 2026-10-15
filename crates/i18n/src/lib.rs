@@ -1,10 +1,10 @@
-//! `pdfover-i18n` – eine Textquelle für UI, CLI und Fehlermeldungen (Plan §2.1, §7.5).
+//! `pida-i18n` – eine Textquelle für UI, CLI und Fehlermeldungen (Plan §2.1, §7.5).
 //!
 //! - Kataloge in Fluent, im Binary eingebettet; die UI nutzt dieselben `.ftl`-Dateien über
 //!   `@fluent/bundle`:
 //!   - `locales/{de,en}/pdfover.ftl`: **erzeugt** aus `messages*.properties` von PDF-Over
 //!     ([`convert::convert_pdfover_messages`], nie von Hand bearbeiten),
-//!   - `locales/{de,en}/pdfover-ng.ftl`: eigene Texte von PDF-Over NG (Präfix `ng-`; neue Meldungs-IDs
+//!   - `locales/{de,en}/pida.ftl`: eigene Texte von PIDA (Präfix `ng-`; neue Meldungs-IDs
 //!     anderer Pakete trägt die Integration hier ein, ADR 0001 Regel 11).
 //! - Sprachen DE und EN; Fallback-Kette UI-Sprache → System ([`Lang::system`]) → DE (wie PDF-Over,
 //!   docs/analyse/01 §6.1). Fehlt eine Nachricht in der gewählten Sprache, gilt DE, danach EN, danach
@@ -15,7 +15,7 @@
 //!   `%s`/`%d`, `<a>`-Markup; B-09 behoben), als Werkzeug und Test.
 //! - [`markup`]: Link-Markup `<a>…</a>` in Segmente bzw. Klartext (CLI).
 //!
-//! Ownership: Paket **E** (zusammen mit `pdfover-config` und `pdfover-java-properties`).
+//! Ownership: Paket **E** (zusammen mit `pida-config` und `pida-java-properties`).
 
 pub mod convert;
 pub mod markup;
@@ -177,9 +177,9 @@ pub enum I18nError {
 /// Eingebettete Quellen je Sprache (Reihenfolge: erzeugter PDF-Over-Katalog, eigene Texte).
 pub const BUILTIN_SOURCES: &[(Lang, &str, &str)] = &[
     (Lang::De, "de/pdfover.ftl", include_str!("../locales/de/pdfover.ftl")),
-    (Lang::De, "de/pdfover-ng.ftl", include_str!("../locales/de/pdfover-ng.ftl")),
+    (Lang::De, "de/pida.ftl", include_str!("../locales/de/pida.ftl")),
     (Lang::En, "en/pdfover.ftl", include_str!("../locales/en/pdfover.ftl")),
-    (Lang::En, "en/pdfover-ng.ftl", include_str!("../locales/en/pdfover-ng.ftl")),
+    (Lang::En, "en/pida.ftl", include_str!("../locales/en/pida.ftl")),
 ];
 
 /// Übersetzungskatalog (thread-sicher, `concurrent::FluentBundle` je Sprache).
@@ -196,7 +196,7 @@ impl std::fmt::Debug for Catalog {
 }
 
 impl Catalog {
-    /// Eingebettete Kataloge `locales/<lang>/pdfover.ftl` und `locales/<lang>/pdfover-ng.ftl`.
+    /// Eingebettete Kataloge `locales/<lang>/pdfover.ftl` und `locales/<lang>/pida.ftl`.
     pub fn builtin() -> Result<Catalog, I18nError> {
         let sources: Vec<(Lang, &str)> = BUILTIN_SOURCES.iter().map(|(l, _, s)| (*l, *s)).collect();
         Catalog::from_sources(&sources)
@@ -320,7 +320,7 @@ pub fn translate(lang: Lang, id: &str, args: &[(&str, ArgValue)]) -> String {
 /// Übersetzungsmakro über den globalen Katalog.
 ///
 /// ```
-/// use pdfover_i18n::{Lang, t};
+/// use pida_i18n::{Lang, t};
 /// assert_eq!(t!(Lang::De, "output-success_message"), "Signatur war erfolgreich");
 /// assert_eq!(
 ///     t!(Lang::En, "error-SLError", arg1 = 6002u32, arg2 = "Abbruch"),

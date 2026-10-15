@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-pades"
+name = "pida-pades"
 description = "PAdES-Kern: Analyse (K1–K5), SignPlan, Zweiphasenmodell Prepared, Selbstprüfung I1–I6 (Integration)"
 version.workspace = true
 edition.workspace = true
@@ -9,14 +9,14 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
-pdfover-pdf-cos = { workspace = true }
-pdfover-pdf-incremental = { workspace = true }
-pdfover-cades = { workspace = true }
-pdfover-sigblock = { workspace = true }
-pdfover-render = { workspace = true }
+pida-pdf-cos = { workspace = true }
+pida-pdf-incremental = { workspace = true }
+pida-cades = { workspace = true }
+pida-sigblock = { workspace = true }
+pida-render = { workspace = true }
 # Welle 2 (I1): Positionierung, QR-Platzhalter und leere Felder für den Signierplan
 # (`plan_signature`, `find_placeholder`); kein Zyklus (placement hängt nur von pdf-cos/render ab).
-pdfover-placement = { workspace = true }
+pida-placement = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 serde = { workspace = true }
@@ -32,9 +32,9 @@ hex = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 # Ende-zu-Ende: PDFium als Renderer (Rasterscan, I5, Pixelprüfung), Keystore-Backend (Modell A)
-pdfover-render = { workspace = true, features = ["pdfium"] }
-pdfover-backend-api = { workspace = true, features = ["testing"] }
-pdfover-backend-keystore = { workspace = true }
+pida-render = { workspace = true, features = ["pdfium"] }
+pida-backend-api = { workspace = true, features = ["testing"] }
+pida-backend-keystore = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros"] }
 zeroize = { workspace = true }
 async-trait = { workspace = true }

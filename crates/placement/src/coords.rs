@@ -1,6 +1,6 @@
 //! Koordinatenräume (PDF-Over `SignaturePanel.U`, docs/analyse/04 §4.7).
 
-use pdfover_pdf_cos::PageInfo;
+use pida_pdf_cos::PageInfo;
 
 use crate::{KEYBOARD_COARSE_STEP_PT, KEYBOARD_FINE_STEP_PT, KEYBOARD_STEP_PT};
 

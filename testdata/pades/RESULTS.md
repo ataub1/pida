@@ -1,21 +1,21 @@
 # pades – Ergebnisse Ende-zu-Ende (Welle 2, Paket I1)
 
-Signier-Pipeline von `pdfover-pades` (Ersatz für PDF-AS `sign`) gegen den Korpus `testdata/pdf/`
+Signier-Pipeline von `pida-pades` (Ersatz für PDF-AS `sign`) gegen den Korpus `testdata/pdf/`
 mit externen Orakeln. Die Abschnitte unten erzeugen die Tests selbst; aktualisieren mit
 
 ```sh
-PDFOVER_UPDATE_RESULTS=1 PDFOVER_PDFIUM_DIR=<pdfium/lib> cargo test -p pdfover-pades --test e2e_corpus --test e2e_matrix --test e2e_flows
+PIDA_UPDATE_RESULTS=1 PIDA_PDFIUM_DIR=<pdfium/lib> cargo test -p pida-pades --test e2e_corpus --test e2e_matrix --test e2e_flows
 ```
 
-Ohne `PDFOVER_UPDATE_RESULTS` landen die Tabellen nur unter `$CARGO_TARGET_TMPDIR/pades-results-*.md`.
+Ohne `PIDA_UPDATE_RESULTS` landen die Tabellen nur unter `$CARGO_TARGET_TMPDIR/pades-results-*.md`.
 Fehlt ein Werkzeug (qpdf, openssl, pyHanko in `.venv`, PDFium), wird die jeweilige Prüfung übersprungen
 und in der Spalte mit `–` vermerkt.
 
 **Ablauf je Fall (Modell A):** `SourcePdf::open` → `analyze` (Annahmeklasse K1–K5; K5 → `prepare`
 lehnt mit dem Befund-Code ab) → `plan_signature` (Profil aus `ProfileStore::builtin`, Breite/Position
-über `pdfover-placement` mit PDFium-Rasterscan, Widget-Rect, Rotation, QR-Platzhalter, PDF/A-Modus,
+über `pida-placement` mit PDFium-Rasterscan, Widget-Rect, Rotation, QR-Platzhalter, PDF/A-Modus,
 PDF/UA) → `prepare` (Increment über `pdf-incremental`, Reserve `estimate_cms_len` + 1 KiB) →
-`KeystoreSession::sign` (`pdfover-backend-keystore`, Testschlüssel `testdata/keystores`, ADR 0001
+`KeystoreSession::sign` (`pida-backend-keystore`, Testschlüssel `testdata/keystores`, ADR 0001
 §8.3: Hash der ByteRange-Daten → SignedAttrs → Hash → Rohsignatur) → `finish_raw` (`assemble` mit
 demselben CMS-Profil, I3-Prüfung) → `SignedPdf::self_check` (I1–I6, mit PDFium) → Orakel.
 
@@ -79,7 +79,7 @@ weiterhin vereinzelt fail-safe (die Ausgabe erbt die Beschädigung; qpdf liest s
 <!-- abschnitt:korpus -->
 ## Korpus (Modell A, Keystore-Backend)
 
-Erzeugt von `cargo test -p pdfover-pades --test e2e_corpus`. Je Datei rotieren Schlüssel (RSA-2048, P-256, P-384), Profil (`INVISIBLE`, `SIGNATURBLOCK_SMALL_DE`, `SIGNATURBLOCK_SMALL_EN_NOTE`, `AMTSSIGNATURBLOCK_DE_RECOMMENDED`; PDF/A-Eingaben `SIGNATURBLOCK_SMALL_DE_PDFA`) und CMS-Profil (`pdfas-compat`, `pades-b-b`). Ablauf: `analyze` → `plan_signature` (PDFium-Rasterscan) → `prepare` → `KeystoreSession::sign` (Modell A) → `finish_raw` → `self_check` (I1–I6, PDFium) → Orakel.
+Erzeugt von `cargo test -p pida-pades --test e2e_corpus`. Je Datei rotieren Schlüssel (RSA-2048, P-256, P-384), Profil (`INVISIBLE`, `SIGNATURBLOCK_SMALL_DE`, `SIGNATURBLOCK_SMALL_EN_NOTE`, `AMTSSIGNATURBLOCK_DE_RECOMMENDED`; PDF/A-Eingaben `SIGNATURBLOCK_SMALL_DE_PDFA`) und CMS-Profil (`pdfas-compat`, `pades-b-b`). Ablauf: `analyze` → `plan_signature` (PDFium-Rasterscan) → `prepare` → `KeystoreSession::sign` (Modell A) → `finish_raw` → `self_check` (I1–I6, PDFium) → Orakel.
 
 Spalten: *qpdf* = `qpdf --check` ohne neue Befunde; *openssl* = `openssl cms -verify -noverify` über die ByteRange-Daten; *Bild* = PDFium-Render vorher/nachher (Block mit Inhalt im erwarteten Rechteck, außerhalb keine Änderung; unsichtbar: Seite unverändert); *Neue Signatur* = pyHanko Integrität / Gültigkeit / Abdeckung (Vertrauensanker = Testzertifikate); *Vorsignaturen* = pyHanko-Änderungsstufe vorher → nachher; *Hinweise* = `prepare`-/Positionierungshinweise.
 
@@ -156,7 +156,7 @@ Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf 
 <!-- abschnitt:ablaeufe -->
 ## Abläufe (Mehrfachsignatur, QR-Platzhalter, vorhandene Felder, Modell B)
 
-Erzeugt von `cargo test -p pdfover-pades --test e2e_flows`. Jeder Schritt verwendet die Ausgabe des vorigen als Eingabe; *Vorsignaturen* zeigt die pyHanko-Änderungsstufe der älteren Signaturen vorher → nachher. Modell B: Die Fake-BKU erhält das Blackout-PDF und die ExcludedByteRange über `DocumentSource` (wie der Workflow-Adapter), prüft die genullte Lücke, signiert die Bytes außerhalb mit `openssl cms -sign -binary -nosmimecap -cades -md sha256` und liefert `SignResult::Cms`; `finish_cms` prüft I3 gegen das von `certificate()` gemeldete Zertifikat, die Reserve ist 16 KiB.
+Erzeugt von `cargo test -p pida-pades --test e2e_flows`. Jeder Schritt verwendet die Ausgabe des vorigen als Eingabe; *Vorsignaturen* zeigt die pyHanko-Änderungsstufe der älteren Signaturen vorher → nachher. Modell B: Die Fake-BKU erhält das Blackout-PDF und die ExcludedByteRange über `DocumentSource` (wie der Workflow-Adapter), prüft die genullte Lücke, signiert die Bytes außerhalb mit `openssl cms -sign -binary -nosmimecap -cades -md sha256` und liefert `SignResult::Cms`; `finish_cms` prüft I3 gegen das von `certificate()` gemeldete Zertifikat, die Reserve ist 16 KiB.
 
 Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf version 12.4.2; pyHanko 0.37.0; PDFium chromium/8100.
 
@@ -210,7 +210,7 @@ Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf 
 <!-- abschnitt:matrix -->
 ## Matrix (Modell A, Keystore-Backend)
 
-Erzeugt von `cargo test -p pdfover-pades --test e2e_matrix`: `simple.pdf` × 3 Schlüssel × 5 Profile × 2 CMS-Profile, PDF/A-1b-Eingabe × 3 Schlüssel × `SIGNATURBLOCK_SMALL_DE_PDFA` × 2 CMS-Profile, alle 12 PDF-Over-Profil-IDs (BASE_LOGO mit dem Laufzeit-Overlay 23 mm). Orakel und Spalten wie im Korpus.
+Erzeugt von `cargo test -p pida-pades --test e2e_matrix`: `simple.pdf` × 3 Schlüssel × 5 Profile × 2 CMS-Profile, PDF/A-1b-Eingabe × 3 Schlüssel × `SIGNATURBLOCK_SMALL_DE_PDFA` × 2 CMS-Profile, alle 12 PDF-Over-Profil-IDs (BASE_LOGO mit dem Laufzeit-Overlay 23 mm). Orakel und Spalten wie im Korpus.
 
 Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf version 12.4.2; pyHanko 0.37.0; PDFium chromium/8100.
 

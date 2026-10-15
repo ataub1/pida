@@ -1,13 +1,13 @@
 //! Verwaltete Richtlinien (nur lesend, Plan §7.1): Windows Registry/`%ProgramData%`, macOS Managed
-//! Preferences, Linux `/etc/pdf-over-ng/policy.toml`, iOS/Android Managed App Configuration
+//! Preferences, Linux `/etc/pida/policy.toml`, iOS/Android Managed App Configuration
 //! (dort liefert die Shell die Werte als TOML/JSON).
 //!
 //! Dateibasiert liest [`Policy::load_system`]:
-//! - Windows: `%ProgramData%\PDF-Over NG\policy.toml` (Registry `HKLM\Software\Policies\…` liest die
+//! - Windows: `%ProgramData%\PIDA\policy.toml` (Registry `HKLM\Software\Policies\…` liest die
 //!   Shell und übergibt sie über [`Policy::from_toml`]/[`Policy::from_json`]),
-//! - macOS: `/Library/Application Support/at.pdf-over-ng/policy.toml` (Managed Preferences aus
+//! - macOS: `/Library/Application Support/at.pida/policy.toml` (Managed Preferences aus
 //!   Configuration Profiles liefert die Shell),
-//! - Linux/BSD: `/etc/pdf-over-ng/policy.toml`,
+//! - Linux/BSD: `/etc/pida/policy.toml`,
 //! - iOS/Android: keine Datei (Managed App Configuration über die Shell).
 //!
 //! Die Richtlinie gewinnt immer ([`crate::Effective`]); unbekannte Keys werden ignoriert. Bewusst gibt

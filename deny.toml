@@ -7,7 +7,7 @@
 # mit Begründung; neue Ausnahmen nur per Review.
 
 [graph]
-# Nur die Zielplattformen, die PDF-Over NG ausliefert (Plan §5, §8.7). Abhängigkeiten anderer
+# Nur die Zielplattformen, die PIDA ausliefert (Plan §5, §8.7). Abhängigkeiten anderer
 # Plattformen (WASI, Redox, …) werden damit nicht bewertet, die ausgelieferten dagegen vollständig.
 targets = [
     "x86_64-pc-windows-msvc",
@@ -41,7 +41,7 @@ yanked = "deny"
 unmaintained = "all"
 unsound = "all"
 ignore = [
-    # Marvin (Timing-Seitenkanal beim RSA-*Entschlüsseln*). PDF-Over NG signiert nur lokal und
+    # Marvin (Timing-Seitenkanal beim RSA-*Entschlüsseln*). PIDA signiert nur lokal und
     # entschlüsselt nie mit RSA (Plan §2.1, ADR 0001 §7). Bei einer rsa-Version mit Fix wird gehoben.
     { id = "RUSTSEC-2023-0071", reason = "nur lokales Signieren, kein RSA-Entschlüsseln (Plan §2.1)" },
     # proc-macro-error 1.0 „unmaintained“: nur Build-Zeit (Proc-Macro von glib-macros 0.18 → gtk-rs
@@ -49,7 +49,7 @@ ignore = [
     # (gtk4/glib ≥ 0.20) gehoben.
     { id = "RUSTSEC-2024-0370", reason = "nur Build-Zeit (glib-macros 0.18 über Tauri), nur Linux" },
     # glib 0.18 `VariantStrIter` unsound: Tauri (wry/tao/muda) zieht gtk-rs 0.18 unter Linux; weder
-    # PDF-Over NG noch Tauri iterieren GVariant-String-Arrays. Fix erst ab glib 0.20 (Tauri-Update).
+    # PIDA noch Tauri iterieren GVariant-String-Arrays. Fix erst ab glib 0.20 (Tauri-Update).
     { id = "RUSTSEC-2024-0429", reason = "gtk-rs 0.18 über Tauri, nur Linux, VariantStrIter ungenutzt" },
 ]
 

@@ -1,4 +1,4 @@
-# Python-Testorakel für PDF-Over NG (nur Tests/QA, nie im Produkt; docs/entwicklung.md).
+# Python-Testorakel für PIDA (nur Tests/QA, nie im Produkt; docs/entwicklung.md).
 #   python3 -m venv .venv && .venv/bin/pip install -r tools/python-oracles.txt
 # Versionen wie in der lokalen Referenzumgebung (15.10.2026); Tests überspringen sich ohne sie.
 pyhanko==0.37.0

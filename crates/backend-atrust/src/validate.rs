@@ -1,7 +1,7 @@
 //! Eingabeprüfungen der Masken (docs/analyse/01 §4.6.1/§4.6.2). Die UI ruft sie über den Kern auf
 //! (keine Fachlogik in TypeScript, Plan §2.2).
 
-use pdfover_backend_api::FormProblem;
+use pida_backend_api::FormProblem;
 
 /// Mindestlänge des Passworts (`MobileBKUValidator.java:88`).
 pub const PASSWORD_MIN_LEN: usize = 5;

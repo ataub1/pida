@@ -1,8 +1,8 @@
-//! `pdfover-sl12` – Security Layer 1.2 (gemeinsam für A-Trust Szenario A und lokale BKU).
+//! `pida-sl12` – Security Layer 1.2 (gemeinsam für A-Trust Szenario A und lokale BKU).
 //!
 //! Spezifikation: docs/analyse/02 §2 (Strukturen, Fehler, Transportvarianten), §8 (Konstanten),
 //! docs/analyse/03 §6.2. Reiner XML/Binding-Code ohne Netz – [`HttpBody`] beschreibt den
-//! Request-Körper, `pdfover-net` überträgt ihn.
+//! Request-Körper, `pida-net` überträgt ihn.
 //!
 //! **Serialisierung:** [`SlRequest::to_xml`] erzeugt Byte für Byte die Ausgabe des JAXB-Marshallers
 //! von PDF-AS 4.4.2 (`SLMarschaller`: `JAXB_FORMATTED_OUTPUT`, UTF-8, jaxb-runtime 2.3.3): SL-Namespace
@@ -224,7 +224,7 @@ impl SlRequest {
     }
 }
 
-/// Teil eines Multipart-Bodys (übernimmt `pdfover-net::FormPart`). `Debug` nur mit Länge.
+/// Teil eines Multipart-Bodys (übernimmt `pida-net::FormPart`). `Debug` nur mit Länge.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Part {
     /// Feldname

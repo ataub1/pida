@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | angenommen (14.10.2026) |
-| **Kontext** | Umsetzung von `pdfover-cades` und `pdfover-backend-keystore` (ADR 0001 §4, §8.3; Plan §4.9, §6.10; analyse/03 §5, analyse/02 §5) |
+| **Kontext** | Umsetzung von `pida-cades` und `pida-backend-keystore` (ADR 0001 §4, §8.3; Plan §4.9, §6.10; analyse/03 §5, analyse/02 §5) |
 
 ## 1. Eigenes DER statt `cms`-Builder
 

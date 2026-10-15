@@ -2,16 +2,16 @@
 //! `prepare` → `finish_raw` → `self_check`. Erwartet wird **kein Panic** (Fehler sind erlaubt);
 //! gelingt das Signieren, muss die Selbstprüfung bestehen oder eine Verletzung melden.
 //!
-//! Standard: 25 Mutationen je Datei; mehr mit `PDFOVER_FUZZ_ITERS=<n>`, anderer Startwert mit
-//! `PDFOVER_FUZZ_SEED=<u64>`.
+//! Standard: 25 Mutationen je Datei; mehr mit `PIDA_FUZZ_ITERS=<n>`, anderer Startwert mit
+//! `PIDA_FUZZ_SEED=<u64>`.
 
 mod common;
 
 use common::*;
-use pdfover_backend_keystore::LoadedKey;
-use pdfover_cades::{RawSigner, SignedAttrsBuilder, SigningTime};
-use pdfover_pades::{CheckContext, PlanOptions, SignPlan, analyze, prepare, reject_open_error};
-use pdfover_pdf_cos::{Limits, SourcePdf};
+use pida_backend_keystore::LoadedKey;
+use pida_cades::{RawSigner, SignedAttrsBuilder, SigningTime};
+use pida_pades::{CheckContext, PlanOptions, SignPlan, analyze, prepare, reject_open_error};
+use pida_pdf_cos::{Limits, SourcePdf};
 
 const FILES: [&str; 7] = [
     "pdf/pdfas/pdf-as-legacy/simple.pdf",
@@ -91,10 +91,10 @@ fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) -> bool {
     if let Err(v) =
         signed.self_check(&CheckContext { source: src, expected_signer: Some(&chain.signer), renderer: None })
     {
-        if std::env::var_os("PDFOVER_FUZZ_VERBOSE").is_some() {
+        if std::env::var_os("PIDA_FUZZ_VERBOSE").is_some() {
             eprintln!("Verletzung ({:?}): {v}", src.xref_health());
         }
-        if let Some(dir) = std::env::var_os("PDFOVER_FUZZ_DUMP") {
+        if let Some(dir) = std::env::var_os("PIDA_FUZZ_DUMP") {
             let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
             let name = format!("{n}-{:?}-{:?}.pdf", src.xref_health(), v.invariant);
             let _ = std::fs::write(std::path::PathBuf::from(dir).join(name), src.bytes());
@@ -103,7 +103,7 @@ fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) -> bool {
         // auch I5 nicht: Querverweiseinträge, die auf ein anderes Objekt zeigen, korrigiert
         // `pdf-cos` beim Öffnen von Quelle **und** Ausgabe gleich (`testdata/pades/
         // repro-xref-misassigned.pdf`).
-        assert!(src.xref_health() != pdfover_pdf_cos::XrefHealth::Intact, "Selbstprüfung bei intaktem Original: {v}");
+        assert!(src.xref_health() != pida_pdf_cos::XrefHealth::Intact, "Selbstprüfung bei intaktem Original: {v}");
     }
     true
 }
@@ -112,10 +112,10 @@ fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) -> bool {
 /// Selbstprüfung bestehen.
 fn sign_both(src: &SourcePdf, key: &LoadedKey) {
     let report = analyze(src).unwrap();
-    let opts = PlanOptions::new(pdfover_pades::local_signing_time());
+    let opts = PlanOptions::new(pida_pades::local_signing_time());
     let planned = plan_for(src, &report, "SIGNATURBLOCK_SMALL_DE", &key.chain().signer, &opts, None).unwrap();
     assert!(sign(src, &planned.plan, key), "sichtbar vorbereitet");
-    assert!(sign(src, &SignPlan::invisible(pdfover_pades::local_signing_time()), key), "unsichtbar vorbereitet");
+    assert!(sign(src, &SignPlan::invisible(pida_pades::local_signing_time()), key), "unsichtbar vorbereitet");
 }
 
 fn test_key() -> LoadedKey {
@@ -135,7 +135,7 @@ fn misassigned_xref_entries_fail_safe() {
     sign_both(&src, &key);
     // ausdrücklich: auch die Selbstprüfung besteht (unabhängig von der Einstufung der Quelle)
     let chain = key.chain().clone();
-    let prepared = prepare(&src, &SignPlan::invisible(pdfover_pades::local_signing_time()), Some(&chain)).unwrap();
+    let prepared = prepare(&src, &SignPlan::invisible(pida_pades::local_signing_time()), Some(&chain)).unwrap();
     let alg = key.algorithm().digest();
     let attrs = SignedAttrsBuilder::new(
         prepared.cms_profile(),
@@ -175,7 +175,7 @@ fn known_mutations_with_intact_xref_sign_cleanly() {
         let pos = data.windows(from.len()).position(|w| w == from).unwrap_or_else(|| panic!("{rel}: Muster fehlt"));
         data[pos..pos + to.len()].copy_from_slice(to);
         let src = SourcePdf::open(data, &Limits::default()).unwrap();
-        assert_eq!(src.xref_health(), pdfover_pdf_cos::XrefHealth::Intact, "{rel}");
+        assert_eq!(src.xref_health(), pida_pdf_cos::XrefHealth::Intact, "{rel}");
         sign_both(&src, &key);
     }
     // `/ByteRange` der PDF-AS-Vorsignatur reicht über das Dateiende: vor `prepare` abgelehnt
@@ -186,10 +186,10 @@ fn known_mutations_with_intact_xref_sign_cleanly() {
     data[pos..pos + from.len()].copy_from_slice(b"/ByteRange [0 184508 192702 42395]");
     let src = SourcePdf::open(data, &Limits::default()).unwrap();
     let report = analyze(&src).unwrap();
-    assert!(report.has_finding(pdfover_pades::codes::PRIOR_SIGNATURE_BEYOND_EOF), "{:?}", report.findings);
-    let invisible = SignPlan::invisible(pdfover_pades::local_signing_time());
+    assert!(report.has_finding(pida_pades::codes::PRIOR_SIGNATURE_BEYOND_EOF), "{:?}", report.findings);
+    let invisible = SignPlan::invisible(pida_pades::local_signing_time());
     match prepare(&src, &invisible, Some(key.chain())) {
-        Err(pdfover_pades::PadesError::Rejected(c)) => assert_eq!(c, pdfover_pades::codes::PRIOR_SIGNATURE_BEYOND_EOF),
+        Err(pida_pades::PadesError::Rejected(c)) => assert_eq!(c, pida_pades::codes::PRIOR_SIGNATURE_BEYOND_EOF),
         Err(e) => panic!("{e}"),
         Ok(_) => panic!("Vorsignatur über das Dateiende darf nicht signiert werden"),
     }
@@ -207,22 +207,21 @@ fn known_mutations_with_intact_xref_sign_cleanly() {
         &Limits::default(),
     )
     .unwrap();
-    let mut b =
-        pdfover_pdf_incremental::IncrementBuilder::new(&base, pdfover_pdf_incremental::IncrementOptions::default());
+    let mut b = pida_pdf_incremental::IncrementBuilder::new(&base, pida_pdf_incremental::IncrementOptions::default());
     let mut catalog = base.catalog().unwrap().clone();
-    catalog.set("AcroForm", pdfover_pdf_cos::Object::Integer(62));
-    b.update_object(base.catalog_id().unwrap(), pdfover_pdf_cos::Object::Dictionary(catalog)).unwrap();
+    catalog.set("AcroForm", pida_pdf_cos::Object::Integer(62));
+    b.update_object(base.catalog_id().unwrap(), pida_pdf_cos::Object::Dictionary(catalog)).unwrap();
     let derived = SourcePdf::open(b.build().unwrap().to_vec(base.bytes()), &Limits::default()).unwrap();
-    assert_eq!(derived.xref_health(), pdfover_pdf_cos::XrefHealth::Intact);
+    assert_eq!(derived.xref_health(), pida_pdf_cos::XrefHealth::Intact);
     sign_both(&derived, &key);
 }
 
 #[test]
 fn mutated_inputs_do_not_panic() {
-    let iters: usize = std::env::var("PDFOVER_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(25);
+    let iters: usize = std::env::var("PIDA_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(25);
     let key = test_key();
     let seed =
-        std::env::var("PDFOVER_FUZZ_SEED").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0x5eed_1234_abcd_ef01);
+        std::env::var("PIDA_FUZZ_SEED").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0x5eed_1234_abcd_ef01);
     let mut rng = Rng(seed.max(1));
     let mut signed = 0usize;
     for rel in FILES {
@@ -239,9 +238,9 @@ fn mutated_inputs_do_not_panic() {
                     }
                 };
                 let Ok(report) = analyze(&src) else { return false };
-                let _ = pdfover_pades::empty_fields(&report);
-                let _ = sign(&src, &SignPlan::invisible(pdfover_pades::local_signing_time()), &key);
-                let opts = PlanOptions::new(pdfover_pades::local_signing_time());
+                let _ = pida_pades::empty_fields(&report);
+                let _ = sign(&src, &SignPlan::invisible(pida_pades::local_signing_time()), &key);
+                let opts = PlanOptions::new(pida_pades::local_signing_time());
                 if let Ok(planned) = plan_for(&src, &report, "SIGNATURBLOCK_SMALL_DE", &key.chain().signer, &opts, None)
                 {
                     let _ = sign(&src, &planned.plan, &key);

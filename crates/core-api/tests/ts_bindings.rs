@@ -1,8 +1,8 @@
 //! Vertrag Kern ↔ Oberfläche: Die TypeScript-Typen in `apps/app/src/core/generated.ts` entsprechen
-//! genau den Rust-Typen der Bridge (`pdfover_core_api::ts::typescript_bindings`, ts-rs).
+//! genau den Rust-Typen der Bridge (`pida_core_api::ts::typescript_bindings`, ts-rs).
 //!
 //! Weicht die Datei ab (Rust-Typ geändert, Datei von Hand bearbeitet), schlägt der Test fehl.
-//! Neu erzeugen: `PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings`.
+//! Neu erzeugen: `PIDA_BLESS=1 cargo test -p pida-core-api --test ts_bindings`.
 
 use std::collections::BTreeSet;
 
@@ -10,8 +10,8 @@ const GENERATED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../apps/app/src
 
 #[test]
 fn generated_typescript_matches_rust_types() {
-    let expected = pdfover_core_api::ts::typescript_bindings();
-    if std::env::var_os("PDFOVER_BLESS").is_some() {
+    let expected = pida_core_api::ts::typescript_bindings();
+    if std::env::var_os("PIDA_BLESS").is_some() {
         std::fs::write(GENERATED, &expected).expect("generated.ts schreiben");
         return;
     }
@@ -24,7 +24,7 @@ fn generated_typescript_matches_rust_types() {
             .map_or_else(|| "Länge".to_owned(), |n| format!("Zeile {}", n + 1));
         panic!(
             "apps/app/src/core/generated.ts weicht von den Rust-Typen ab (erste Abweichung: {first}). \
-             Neu erzeugen: PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings"
+             Neu erzeugen: PIDA_BLESS=1 cargo test -p pida-core-api --test ts_bindings"
         );
     }
 }
@@ -32,7 +32,7 @@ fn generated_typescript_matches_rust_types() {
 /// Jeder Typname, den eine Deklaration verwendet, ist selbst deklariert (keine vergessenen Typen).
 #[test]
 fn every_referenced_type_is_declared() {
-    let (text, names) = pdfover_core_api::ts::typescript_bindings_with_names();
+    let (text, names) = pida_core_api::ts::typescript_bindings_with_names();
     let declared: BTreeSet<&str> = names.iter().map(String::as_str).collect();
     assert_eq!(declared.len(), names.len(), "doppelte Typnamen: {names:?}");
     const BUILTIN: &[&str] = &["Array", "Record", "Partial"];

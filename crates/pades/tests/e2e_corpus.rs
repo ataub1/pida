@@ -10,7 +10,7 @@
 //! zuvor vollständige höchstens `FORM_FILLING`).
 //!
 //! Fehlende Werkzeuge überspringen die jeweilige Prüfung. Ergebnis:
-//! `$CARGO_TARGET_TMPDIR/pades-results-korpus.md`, mit `PDFOVER_UPDATE_RESULTS=1` auch
+//! `$CARGO_TARGET_TMPDIR/pades-results-korpus.md`, mit `PIDA_UPDATE_RESULTS=1` auch
 //! `testdata/pades/RESULTS.md`.
 
 mod common;
@@ -18,12 +18,12 @@ mod common;
 use std::path::PathBuf;
 
 use common::*;
-use pdfover_cades::CmsProfile;
-use pdfover_pades::{
+use pida_cades::CmsProfile;
+use pida_pades::{
     AcceptanceClass, CheckContext, FieldTarget, PadesError, SignPlan, analyze, prepare, reject_open_error,
 };
-use pdfover_pdf_cos::{Limits, SourcePdf, XrefKind};
-use pdfover_placement::visible_block_rect;
+use pida_pdf_cos::{Limits, SourcePdf, XrefKind};
+use pida_placement::visible_block_rect;
 
 const PROFILES: [&str; 4] =
     ["INVISIBLE", "SIGNATURBLOCK_SMALL_DE", "SIGNATURBLOCK_SMALL_EN_NOTE", "AMTSSIGNATURBLOCK_DE_RECOMMENDED"];
@@ -127,7 +127,7 @@ fn corpus_model_a() {
             // K5: prepare muss ablehnen
             let code = report.findings.iter().find(|f| f.class == AcceptanceClass::K5Rejected).unwrap().code.clone();
             let chain = signers[i % 3].chain.clone();
-            match prepare(&src, &SignPlan::invisible(pdfover_pades::local_signing_time()), Some(&chain)) {
+            match prepare(&src, &SignPlan::invisible(pida_pades::local_signing_time()), Some(&chain)) {
                 Err(PadesError::Rejected(c)) if c == code => row.result = format!("abgelehnt ({code})"),
                 other => row.problems.push(format!("K5 nicht abgelehnt: {other:?}")),
             }
@@ -173,8 +173,8 @@ fn corpus_model_a() {
         std::fs::create_dir_all(&dir).unwrap();
         let out = dir.join("signed.pdf");
         std::fs::write(&out, signed.bytes()).unwrap();
-        // zur Sichtprüfung: PDFOVER_KEEP=<verzeichnis>
-        if let Some(keep) = std::env::var_os("PDFOVER_KEEP") {
+        // zur Sichtprüfung: PIDA_KEEP=<verzeichnis>
+        if let Some(keep) = std::env::var_os("PIDA_KEEP") {
             let _ = std::fs::copy(&out, PathBuf::from(keep).join(format!("{i:03}-{}", name.replace('/', "_"))));
         }
         let look = match &planned.position {
@@ -222,7 +222,7 @@ fn corpus_model_a() {
     let ok = rows.iter().filter(|r| r.problems.is_empty()).count();
     let mut md = String::new();
     md.push_str("## Korpus (Modell A, Keystore-Backend)\n\n");
-    md.push_str("Erzeugt von `cargo test -p pdfover-pades --test e2e_corpus`. Je Datei rotieren Schlüssel (RSA-2048, P-256, P-384), Profil (`INVISIBLE`, `SIGNATURBLOCK_SMALL_DE`, `SIGNATURBLOCK_SMALL_EN_NOTE`, `AMTSSIGNATURBLOCK_DE_RECOMMENDED`; PDF/A-Eingaben `SIGNATURBLOCK_SMALL_DE_PDFA`) und CMS-Profil (`pdfas-compat`, `pades-b-b`). Ablauf: `analyze` → `plan_signature` (PDFium-Rasterscan) → `prepare` → `KeystoreSession::sign` (Modell A) → `finish_raw` → `self_check` (I1–I6, PDFium) → Orakel.\n\n");
+    md.push_str("Erzeugt von `cargo test -p pida-pades --test e2e_corpus`. Je Datei rotieren Schlüssel (RSA-2048, P-256, P-384), Profil (`INVISIBLE`, `SIGNATURBLOCK_SMALL_DE`, `SIGNATURBLOCK_SMALL_EN_NOTE`, `AMTSSIGNATURBLOCK_DE_RECOMMENDED`; PDF/A-Eingaben `SIGNATURBLOCK_SMALL_DE_PDFA`) und CMS-Profil (`pdfas-compat`, `pades-b-b`). Ablauf: `analyze` → `plan_signature` (PDFium-Rasterscan) → `prepare` → `KeystoreSession::sign` (Modell A) → `finish_raw` → `self_check` (I1–I6, PDFium) → Orakel.\n\n");
     md.push_str("Spalten: *qpdf* = `qpdf --check` ohne neue Befunde; *openssl* = `openssl cms -verify -noverify` über die ByteRange-Daten; *Bild* = PDFium-Render vorher/nachher (Block mit Inhalt im erwarteten Rechteck, außerhalb keine Änderung; unsichtbar: Seite unverändert); *Neue Signatur* = pyHanko Integrität / Gültigkeit / Abdeckung (Vertrauensanker = Testzertifikate); *Vorsignaturen* = pyHanko-Änderungsstufe vorher → nachher; *Hinweise* = `prepare`-/Positionierungshinweise.\n\n");
     md.push_str(&format!("Werkzeuge: {}.\n\n", or.versions()));
     md.push_str(&format!("**{ok} von {} Dateien bestanden.**\n\n", rows.len()));

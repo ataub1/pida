@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# PDF-Over NG – PDFium-Binaries (bblanchon/pdfium-binaries) laden, per SHA-256 prüfen und entpacken.
+# PIDA – PDFium-Binaries (bblanchon/pdfium-binaries) laden, per SHA-256 prüfen und entpacken.
 #
 #   tools/fetch-pdfium.sh                      # Plattform dieses Rechners
 #   tools/fetch-pdfium.sh linux-x64 win-x64    # bestimmte Plattformen
 #   tools/fetch-pdfium.sh --all                # alle Plattformen aus tools/pdfium.lock
 #   tools/fetch-pdfium.sh --print-dir          # laden (falls nötig), Bibliotheksverzeichnis auf stdout
-#   eval "$(tools/fetch-pdfium.sh --print-env)"   # laden und PDFOVER_PDFIUM_DIR in der Shell setzen
-#   tools/fetch-pdfium.sh --github-env         # CI: PDFOVER_PDFIUM_DIR nach $GITHUB_ENV schreiben
+#   eval "$(tools/fetch-pdfium.sh --print-env)"   # laden und PIDA_PDFIUM_DIR in der Shell setzen
+#   tools/fetch-pdfium.sh --github-env         # CI: PIDA_PDFIUM_DIR nach $GITHUB_ENV schreiben
 #   tools/fetch-pdfium.sh --xcframework        # iOS: <Ziel>/apple/PDFium.xcframework (Gerät + Simulator)
 #   tools/fetch-pdfium.sh --jnilibs            # Android: <Ziel>/android/jniLibs/<abi>/libpdfium.so
 #   PDFIUM_RELEASE=chromium/<n> tools/fetch-pdfium.sh --update-lock --all   # neue Release einpflegen
@@ -364,11 +364,11 @@ fi
 FIRST_DIR="$DEST/$FIRST/$(lib_subdir "$FIRST")"
 case "$MODE" in
   print-dir) echo "$FIRST_DIR" ;;
-  print-env) printf 'export PDFOVER_PDFIUM_DIR=%q\n' "$FIRST_DIR" ;;
+  print-env) printf 'export PIDA_PDFIUM_DIR=%q\n' "$FIRST_DIR" ;;
   *) ;;
 esac
 if [ "$GITHUB_ENV_OUT" = 1 ]; then
   [ -n "${GITHUB_ENV:-}" ] || die "--github-env: GITHUB_ENV ist nicht gesetzt"
-  echo "PDFOVER_PDFIUM_DIR=$FIRST_DIR" >>"$GITHUB_ENV"
-  log "PDFOVER_PDFIUM_DIR=$FIRST_DIR → \$GITHUB_ENV"
+  echo "PIDA_PDFIUM_DIR=$FIRST_DIR" >>"$GITHUB_ENV"
+  log "PIDA_PDFIUM_DIR=$FIRST_DIR → \$GITHUB_ENV"
 fi

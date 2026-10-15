@@ -2,9 +2,9 @@
 
 mod support;
 
-use pdfover_backend_atrust::page::{PageBlock, PageError, SubmitButton, classify, diagnostic};
-use pdfover_backend_atrust::selectors::SelectorSet;
-use pdfover_net::Url;
+use pida_backend_atrust::page::{PageBlock, PageError, SubmitButton, classify, diagnostic};
+use pida_backend_atrust::selectors::SelectorSet;
+use pida_net::Url;
 use support::{error_buttons, fixture};
 
 fn url(path: &str) -> Url {
@@ -331,7 +331,7 @@ fn updated_selector_file_without_code_change() {
     let html = fixture("sms.html", &[("SID", "1"), ("REF", "AB12")]).replace("id=\"input_tan\"", "id=\"tanInput\"");
     let old = SelectorSet::builtin();
     assert!(classify(&url("sms.aspx"), &html, &old).is_err());
-    let mut json: serde_json::Value = serde_json::from_str(pdfover_backend_atrust::selectors::BUILTIN_JSON).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(pida_backend_atrust::selectors::BUILTIN_JSON).unwrap();
     json["version"] = 2.into();
     json["ids"]["input_tan"] = "#tanInput".into();
     let new = SelectorSet::from_json_validated(&json.to_string()).unwrap();

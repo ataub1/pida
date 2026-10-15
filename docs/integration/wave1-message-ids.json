@@ -266,8 +266,8 @@
   },
   {
     "id": "ng-migrate-key-ignored",
-    "de": "{ $key } wird nicht übernommen (in PDF-Over NG ohne Funktion).",
-    "en": "{ $key } is not imported (no function in PDF-Over NG)."
+    "de": "{ $key } wird nicht übernommen (in PIDA ohne Funktion).",
+    "en": "{ $key } is not imported (no function in PIDA)."
   },
   {
     "id": "ng-migrate-unknown-key",

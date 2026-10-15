@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- PDF-Over NG – Manifest der Android-App (Paket M-Android, docs/integration/mobile-android.md).
+<!-- PIDA – Manifest der Android-App (Paket M-Android, docs/integration/mobile-android.md).
      Plan §5.2/§5.3/§7.7: Dokumente nur über Intents VIEW/SEND/SEND_MULTIPLE application/pdf (content://)
      und die System-Dateiauswahl (SAF), kein Klartext-HTTP, keine Sicherung der App-Daten (Secrets),
-     keine Speicher-Berechtigungen. Den FileProvider für „Teilen“ bringt das Plugin pdfover-mobile mit. -->
+     keine Speicher-Berechtigungen. Den FileProvider für „Teilen“ bringt das Plugin pida-mobile mit. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- A-Trust (ID Austria), Zeitstempel/Updates nur über HTTPS -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -13,7 +13,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
-        android:theme="@style/Theme.pdfover_app"
+        android:theme="@style/Theme.pida_app"
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -37,7 +37,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="application/pdf" />
             </intent-filter>
-            <!-- „Teilen“ an PDF-Over NG (ein oder mehrere PDFs) -->
+            <!-- „Teilen“ an PIDA (ein oder mehrere PDFs) -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />

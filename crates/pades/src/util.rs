@@ -1,6 +1,6 @@
 //! Kleine Hilfen für Objekte und Redaktion.
 
-use pdfover_pdf_cos::{Object, ObjectId, SourcePdf, StringFormat};
+use pida_pdf_cos::{Object, ObjectId, SourcePdf, StringFormat};
 
 /// Name-Objekt.
 pub(crate) fn name(s: &str) -> Object {
@@ -42,13 +42,13 @@ pub(crate) fn same(a: &Object, b: &Object) -> bool {
 }
 
 /// Dictionaries ohne Reihenfolge vergleichen ([`same`]).
-pub(crate) fn same_dict(a: &pdfover_pdf_cos::Dictionary, b: &pdfover_pdf_cos::Dictionary) -> bool {
+pub(crate) fn same_dict(a: &pida_pdf_cos::Dictionary, b: &pida_pdf_cos::Dictionary) -> bool {
     a.len() == b.len() && a.iter().all(|(k, v)| b.get(k).is_ok_and(|w| same(v, w)))
 }
 
 /// Schlüssel, deren Werte sich zwischen `old` und `new` unterscheiden (inkl. hinzugekommener
 /// und entfernter Schlüssel), als Text für Diagnosen (nur Schlüsselnamen, Regel 9).
-pub(crate) fn changed_keys(old: &pdfover_pdf_cos::Dictionary, new: &pdfover_pdf_cos::Dictionary) -> Vec<Vec<u8>> {
+pub(crate) fn changed_keys(old: &pida_pdf_cos::Dictionary, new: &pida_pdf_cos::Dictionary) -> Vec<Vec<u8>> {
     let mut out = Vec::new();
     for (k, v) in old.iter() {
         match new.get(k) {
@@ -85,7 +85,7 @@ pub(crate) fn key_text(k: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_pdf_cos::{Dictionary, Stream};
+    use pida_pdf_cos::{Dictionary, Stream};
 
     #[test]
     fn semantic_equality() {

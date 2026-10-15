@@ -1,5 +1,10 @@
 # PDF-Over NG – Architektur- und Umsetzungsplan
 
+> **Hinweis (15.10.2026): Arbeitstitel PDF-Over NG heißt seit 15.10.2026 PIDA** (PDF · ID · Austria),
+> siehe [ADR 0002](adr/0002-name-pida.md). Dieser Plan ist ein historisches Dokument und bleibt sonst
+> unverändert: Namen wie `pdfover-<crate>`, `pdfover-cli`, `pdf-over-ng`, `at.pdf-over-ng` und
+> `PDFOVER_*` lauten heute `pida-<crate>`, `pida-cli`, `pida`, `at.pida` und `PIDA_*`.
+
 | | |
 |---|---|
 | **Stand** | 14.10.2026, Version 1.0 (final zur Entscheidung) |

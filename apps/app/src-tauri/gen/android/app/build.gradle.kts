@@ -1,4 +1,4 @@
-// PDF-Over NG – Android-App (EUPL-1.2). Erzeugt mit `tauri android init` (Tauri 2.12), angepasst für
+// PIDA – Android-App (EUPL-1.2). Erzeugt mit `tauri android init` (Tauri 2.12), angepasst für
 // Paket M-Android: docs/integration/mobile-android.md.
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -18,28 +18,28 @@ val tauriProperties = Properties().apply {
 
 // PDFium (bblanchon/pdfium-binaries chromium/8100, SHA-256 in tools/pdfium.lock): `tools/fetch-pdfium.sh
 // --jnilibs` legt libpdfium.so je ABI unter tools/pdfium/android/jniLibs ab. Der Kern lädt sie zur
-// Laufzeit mit dlopen("libpdfium.so") aus nativeLibraryDir. Anderer Ordner: -Ppdfover.pdfiumJniLibs=<pfad>.
-val pdfiumJniLibs: File = (findProperty("pdfover.pdfiumJniLibs") as String?)?.let { file(it) }
+// Laufzeit mit dlopen("libpdfium.so") aus nativeLibraryDir. Anderer Ordner: -Ppida.pdfiumJniLibs=<pfad>.
+val pdfiumJniLibs: File = (findProperty("pida.pdfiumJniLibs") as String?)?.let { file(it) }
     ?: rootDir.resolve("../../../../../tools/pdfium/android/jniLibs")
 if (!pdfiumJniLibs.resolve("arm64-v8a/libpdfium.so").isFile) {
     logger.warn(
-        "PDF-Over NG: PDFium fehlt unter $pdfiumJniLibs (tools/fetch-pdfium.sh --jnilibs) – " +
+        "PIDA: PDFium fehlt unter $pdfiumJniLibs (tools/fetch-pdfium.sh --jnilibs) – " +
             "die App startet dann ohne Vorschau (automatische Position)."
     )
 }
 
 // Klartext-HTTP (Plan §7.7): nie im Release; im Debug-Build nur für `tauri android dev` (Dev-Server
-// im LAN) mit PDFOVER_ANDROID_DEV_CLEARTEXT=1.
-val devCleartext = System.getenv("PDFOVER_ANDROID_DEV_CLEARTEXT") == "1"
+// im LAN) mit PIDA_ANDROID_DEV_CLEARTEXT=1.
+val devCleartext = System.getenv("PIDA_ANDROID_DEV_CLEARTEXT") == "1"
 
 android {
     // compileSdk 36: die Tauri-API-Bibliothek (.tauri/tauri-api) verlangt 36; Zielplattform bleibt 35.
     compileSdk = 36
-    namespace = "at.pdf_over_ng"
+    namespace = "at.pida"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        // Kennung at.pdf-over-ng: „-“ ist im Android-Paketnamen unzulässig → at.pdf_over_ng (Tauri).
-        applicationId = "at.pdf_over_ng"
+        // Kennung at.pida = Android-Paket (Tauri; ohne „-“, das dort unzulässig wäre).
+        applicationId = "at.pida"
         // Plan §5.1/E-15: Android 9 (API 28)
         minSdk = 28
         targetSdk = 35

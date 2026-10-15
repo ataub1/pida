@@ -5,7 +5,7 @@ use std::io::Write as _;
 use std::process::{Command, Stdio};
 
 use base64::Engine as _;
-use pdfover_sl12::*;
+use pida_sl12::*;
 
 fn testdata(rel: &str) -> Vec<u8> {
     let path = format!("{}/../../testdata/sl12/{rel}", env!("CARGO_MANIFEST_DIR"));

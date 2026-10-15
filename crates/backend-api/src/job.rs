@@ -3,7 +3,7 @@
 use std::io::Read;
 use std::sync::Arc;
 
-use pdfover_cades::{CertChain, Certificate, DigestAlg, RawSignature};
+use pida_cades::{CertChain, Certificate, DigestAlg, RawSignature};
 
 /// `ExcludedByteRange` (Offset von `<` bis Offset von `>`, beide inklusive).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -15,7 +15,7 @@ pub struct ExcludedByteRange {
 }
 
 /// Vorbereitetes Dokument für Modell B. Implementiert vom Workflow als Adapter um
-/// `pdfover_pades::Prepared` (das nach `prepare()` unveränderlich ist, WYSIWYS).
+/// `pida_pades::Prepared` (das nach `prepare()` unveränderlich ist, WYSIWYS).
 pub trait DocumentSource: Send + Sync + std::fmt::Debug {
     /// Anzeigename (Dateiname) für Masken und Kopfzeile.
     fn display_name(&self) -> &str;
@@ -45,7 +45,7 @@ pub trait DocumentSource: Send + Sync + std::fmt::Debug {
 /// Modell-B-Auftrag.
 ///
 /// Backends dürfen [`DocumentJob::source`] nicht über das Ende von `BackendSession::sign` hinaus
-/// halten: Der Kern übernimmt danach das zugrunde liegende `pdfover_pades::Prepared` wieder
+/// halten: Der Kern übernimmt danach das zugrunde liegende `pida_pades::Prepared` wieder
 /// exklusiv (`finish_cms(self, …)`).
 #[derive(Debug, Clone)]
 pub struct DocumentJob {
@@ -58,8 +58,8 @@ pub struct DocumentJob {
 
 /// Modell-A-Auftrag (Hash über die SignedAttributes).
 ///
-/// Vertrag (ADR 0001 §8, wie `pdfover_cades::RawSigner`): Der Kern wählt `alg` mit
-/// `pdfover_cades::select_algorithm(&chain.signer.key_type()?)` aus dem Zertifikat von
+/// Vertrag (ADR 0001 §8, wie `pida_cades::RawSigner`): Der Kern wählt `alg` mit
+/// `pida_cades::select_algorithm(&chain.signer.key_type()?)` aus dem Zertifikat von
 /// `BackendSession::certificate` und hasht damit ByteRange-Daten und SignedAttributes. Das Backend
 /// signiert **genau mit `alg`**; das Ergebnis [`SignResult::Raw`] trägt `signature.alg` mit
 /// `signature.alg.digest() == alg` und die Kette, deren Signer gleich dem vorab gelieferten

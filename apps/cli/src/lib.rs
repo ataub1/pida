@@ -1,4 +1,4 @@
-//! `pdfover-cli` – Kommandozeile von PDF-Over NG (Plan §7.4; docs/analyse/01 §5), als Bibliothek
+//! `pida-cli` – Kommandozeile von PIDA (Plan §7.4; docs/analyse/01 §5), als Bibliothek
 //! auch der Argument-Parser der GUI (`apps/app/src-tauri`, Feature `run` aus): dieselbe
 //! PDF-Over-Semantik ([`parse`], [`to_overlay`], [`overlay::inputs`]) für beide Oberflächen.
 //!
@@ -16,11 +16,11 @@
 //! ergibt einen klaren Fehler. Neu: Subcommands, `--headless`, `--json`, `--kspass-stdin`,
 //! `--kspass-env`.
 //!
-//! Ausführung ([`run`]): Signieren läuft über `pdfover-core-api` ohne grafische Oberfläche; die CLI
+//! Ausführung ([`run`]): Signieren läuft über `pida-core-api` ohne grafische Oberfläche; die CLI
 //! beantwortet Masken und Passwortabfragen im Terminal ([`session`]). Ohne Terminal bzw. mit
 //! `--headless` gibt es keine Rückfragen (Keystore mit Passwort aus `-kspass`, `--kspass-stdin`,
 //! `--kspass-env`; lokale BKU). Die Hilfe (`-h`, `-?`, `--help`) erscheint in der Systemsprache
-//! (DE/EN, [`text::help`]). Exit-Codes nach Plan §7.4 (`pdfover_workflow::ExitCode`).
+//! (DE/EN, [`text::help`]). Exit-Codes nach Plan §7.4 (`pida_workflow::ExitCode`).
 
 #[cfg(feature = "run")]
 mod commands;
@@ -236,7 +236,7 @@ pub enum Command {
 
 /// Kommandozeile.
 #[derive(Debug, Clone, PartialEq, Eq, Parser)]
-#[command(name = "pdfover-cli", version, about = "PDF-Over NG – PDF-Dokumente elektronisch signieren")]
+#[command(name = "pida-cli", display_name = "PIDA", version, about = "PIDA – PDF-Signatur mit ID Austria")]
 pub struct Cli {
     /// PDF-Over-Optionen
     #[command(flatten)]
@@ -264,7 +264,7 @@ pub enum CliError {
 /// die eindeutig verneinenden Werte; alles andere bleibt „unsichtbar“, damit vorhandene Skripte
 /// (`-v x`, `-v 1`) unverändert funktionieren.
 fn parse_invisible(s: &str) -> Result<bool, String> {
-    Ok(pdfover_config::overlay::invisible_from_cli_value(s))
+    Ok(pida_config::overlay::invisible_from_cli_value(s))
 }
 
 /// Übersetzt PDF-Over-Argumente in eine clap-verständliche Form (Werte immer als `--opt=WERT`,
@@ -360,7 +360,7 @@ where
 /// Overlay aus den Argumenten (nie persistiert): `-n` normalisiert (`0…` → `+43…`), `-b NONE` = keine
 /// Vorgabe, `-v` nach B-07. Prüfungen (`-p` 5–200, `-kskeypass` = `-kspass`, Dateien vorhanden)
 /// macht [`overlay::check`], Passwörter aus `--kspass-stdin`/`--kspass-env` [`overlay::keystore_password`].
-pub fn to_overlay(cli: &Cli) -> pdfover_config::Overlay {
+pub fn to_overlay(cli: &Cli) -> pida_config::Overlay {
     overlay::to_overlay(cli)
 }
 
@@ -371,16 +371,16 @@ pub fn wants_help(normalized: &[OsString]) -> bool {
 
 /// Führt die Kommandozeile aus.
 #[cfg(feature = "run")]
-pub fn run(config_file: Option<PathBuf>, cli: Cli) -> pdfover_workflow::ExitCode {
+pub fn run(config_file: Option<PathBuf>, cli: Cli) -> pida_workflow::ExitCode {
     let env =
-        session::RunEnv { term: Arc::new(term::Tty), paths: None, options: pdfover_core_api::CoreOptions::default() };
+        session::RunEnv { term: Arc::new(term::Tty), paths: None, options: pida_core_api::CoreOptions::default() };
     run_with(config_file, cli, env)
 }
 
 /// Wie [`run`] mit vorgegebener Umgebung (Tests).
 #[cfg(feature = "run")]
-pub fn run_with(config_file: Option<PathBuf>, cli: Cli, env: session::RunEnv) -> pdfover_workflow::ExitCode {
-    let lang = pdfover_i18n::Lang::system();
+pub fn run_with(config_file: Option<PathBuf>, cli: Cli, env: session::RunEnv) -> pida_workflow::ExitCode {
+    let lang = pida_i18n::Lang::system();
     let json = cli.modern.json;
     match &cli.command {
         Some(Command::Profiles) => commands::profiles(env.term.as_ref(), json),
@@ -400,7 +400,7 @@ mod tests {
     use super::*;
 
     fn p(args: &[&str]) -> Cli {
-        let mut v = vec!["pdfover-cli"];
+        let mut v = vec!["pida-cli"];
         v.extend_from_slice(args);
         parse(v).expect("parse").1
     }
@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn bku_is_case_sensitive() {
-        assert!(parse(["pdfover-cli", "-b", "mobile"]).is_err());
+        assert!(parse(["pida-cli", "-b", "mobile"]).is_err());
         assert_eq!(p(&["-b", "MOBILE"]).legacy.bku, Some(LegacyBku::Mobile));
     }
 
@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn two_phase_config() {
-        let (cfg, cli) = parse(["pdfover-cli", "x.pdf", "-c", "other.config"]).unwrap();
+        let (cfg, cli) = parse(["pida-cli", "x.pdf", "-c", "other.config"]).unwrap();
         assert_eq!(cfg, Some(PathBuf::from("other.config")));
         assert_eq!(cli.legacy.input, vec![PathBuf::from("x.pdf")]);
     }
@@ -456,11 +456,11 @@ mod tests {
 
     #[test]
     fn question_mark_is_help() {
-        let n = normalize_args(["pdfover-cli", "-?"]);
+        let n = normalize_args(["pida-cli", "-?"]);
         assert_eq!(n[1], OsString::from("--help"));
         assert!(wants_help(&n));
-        assert!(wants_help(&normalize_args(["pdfover-cli", "x.pdf", "-h"])));
-        assert!(!wants_help(&normalize_args(["pdfover-cli", "x.pdf"])));
+        assert!(wants_help(&normalize_args(["pida-cli", "x.pdf", "-h"])));
+        assert!(!wants_help(&normalize_args(["pida-cli", "x.pdf"])));
     }
 }
 
@@ -469,9 +469,9 @@ mod tests {
 mod run_tests {
     use std::path::Path;
 
-    use pdfover_core_api::CoreOptions;
-    use pdfover_core_api::testing::{FakeEngine, verify_fake_output};
-    use pdfover_workflow::ExitCode;
+    use pida_core_api::CoreOptions;
+    use pida_core_api::testing::{FakeEngine, verify_fake_output};
+    use pida_workflow::ExitCode;
 
     use super::*;
     use crate::session::RunEnv;
@@ -485,7 +485,7 @@ mod run_tests {
 
     impl Fx {
         fn new() -> Fx {
-            pdfover_i18n::Lang::set_system(Some(pdfover_i18n::Lang::De));
+            pida_i18n::Lang::set_system(Some(pida_i18n::Lang::De));
             Fx { tmp: tempfile::tempdir().unwrap() }
         }
 
@@ -498,12 +498,12 @@ mod run_tests {
         }
 
         fn run(&self, args: &[&str], term: Arc<Scripted>) -> ExitCode {
-            let mut v = vec!["pdfover-cli"];
+            let mut v = vec!["pida-cli"];
             v.extend_from_slice(args);
             let (config_file, cli) = parse(v).expect("parse");
             let env = RunEnv {
                 term,
-                paths: Some(pdfover_config::Paths::under(&self.tmp.path().join("app"))),
+                paths: Some(pida_config::Paths::under(&self.tmp.path().join("app"))),
                 options: CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() },
             };
             run_with(config_file, cli, env)
@@ -661,7 +661,7 @@ mod run_tests {
         assert!(term.stdout().contains("Probelauf"), "{}", term.stdout());
         let term = Arc::new(Scripted::new(false, &[]));
         assert_eq!(fx.run(&["migrate", "--from", legacy.to_str().unwrap()], term.clone()), ExitCode::Success);
-        let s = pdfover_config::Settings::from_toml(&std::fs::read_to_string(&settings).unwrap()).unwrap();
+        let s = pida_config::Settings::from_toml(&std::fs::read_to_string(&settings).unwrap()).unwrap();
         assert_eq!(s.id_austria.username.as_deref(), Some("+436641234567"));
         let term = Arc::new(Scripted::new(false, &[]));
         let empty = fx.tmp.path().join("leer");

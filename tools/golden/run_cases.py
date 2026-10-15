@@ -2,7 +2,7 @@
 """Fallmatrix und Ausführung des PDF-AS-4.4.2-Golden-Laufs (Plan §8.2). Einstieg: run-pdfas.sh.
 
 Je Fall wird PDF-AS so aufgerufen, wie PDF-Over es täte:
-- Profil-ID (alle 12 aus pdfover_sigblock::PDFOVER_PROFILE_IDS), Positionsstring wie PDF-Over
+- Profil-ID (alle 12 aus pida_sigblock::PDFOVER_PROFILE_IDS), Positionsstring wie PDF-Over
   (`p:auto;x:auto;y:auto`, `p:%d;x:%f;y:%f`, …) bzw. weitere PDF-AS-Positionsstrings,
 - Laufzeit-Overrides von PDF-Over (`PdfAs4Signer.prepare`) als Zeilen am Ende der Profildatei einer
   Konfigurationskopie: `value.SIG_LABEL` (Bildmarke), `value.SIG_NOTE` (Hinweis), bei BASE_LOGO

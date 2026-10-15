@@ -16,7 +16,7 @@ describe('Öffnen', () => {
     expect(within(nav).getByRole('button', { name: 'Öffnen' })).toHaveAttribute('aria-current', 'step');
     expect(within(nav).getByRole('button', { name: 'Positionierung' })).toBeDisabled();
     expect(within(nav).getByRole('button', { name: 'Fertig' })).toBeDisabled();
-    expect(document.title).toBe('PDF-Over NG – Dokument öffnen');
+    expect(document.title).toBe('PIDA – Dokument öffnen');
   });
 
   it('Durchsuchen öffnet den Dateidialog (Mehrfachauswahl) und sendet open_files', async () => {

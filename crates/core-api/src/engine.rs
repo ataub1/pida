@@ -1,21 +1,21 @@
-//! Naht zur PAdES-Engine (`pdfover-pades`).
+//! Naht zur PAdES-Engine (`pida-pades`).
 //!
 //! Der Kern ruft `pades` ausschließlich über [`PadesEngine`], [`PreparedDoc`] und [`SignedDoc`] auf.
-//! [`RealPades`] leitet 1:1 an `pdfover_pades` weiter; Tests setzen eine Fake-Engine ein
+//! [`RealPades`] leitet 1:1 an `pida_pades` weiter; Tests setzen eine Fake-Engine ein
 //! ([`crate::CoreOptions::engine`]), damit der ganze Ablauf (Backends, Broker, Ausgabe) ohne die
-//! echte Engine prüfbar ist. Die Typen an der Naht sind die von `pdfover-pades` (`DocReport`,
+//! echte Engine prüfbar ist. Die Typen an der Naht sind die von `pida-pades` (`DocReport`,
 //! `SignPlan`, `FinishError`, `InvariantViolation`, …) – die Fake-Engine baut sie selbst.
 
 use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 
-use pdfover_cades::{CertChain, Digest, DigestAlg, Expect, RawSignature, SignedAttrs};
-use pdfover_pades::{
+use pida_cades::{CertChain, Digest, DigestAlg, Expect, RawSignature, SignedAttrs};
+use pida_pades::{
     CheckContext, CheckReport, DocReport, ExcludedRange, FinishError, InvariantViolation, OutputInfo, OutputTarget,
     PadesError, Prepared, PreparedHandle, SignPlan, SignedPdf,
 };
-use pdfover_pdf_cos::SourcePdf;
+use pida_pdf_cos::SourcePdf;
 use time::OffsetDateTime;
 
 /// PAdES-Engine.
@@ -64,7 +64,7 @@ pub trait PreparedDoc: Send + Sync + std::fmt::Debug {
     ) -> Result<Box<dyn SignedDoc>, FinishError>;
     /// CMS-Profil, mit dem vorbereitet wurde (Modell A: die SignedAttributes müssen es verwenden);
     /// `None` = unbekannt (Kern nimmt das der Einstellungen).
-    fn cms_profile(&self) -> Option<pdfover_cades::CmsProfile> {
+    fn cms_profile(&self) -> Option<pida_cades::CmsProfile> {
         None
     }
     /// Sichert den Zustand in `dir` (App-Sandbox, Rechte 0600) für „Signatur fortsetzen“ nach einem
@@ -89,13 +89,13 @@ pub trait SignedDoc: Send + Sync + std::fmt::Debug {
     }
 }
 
-/// Die echte Engine (`pdfover-pades`).
+/// Die echte Engine (`pida-pades`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RealPades;
 
 impl PadesEngine for RealPades {
     fn analyze(&self, src: &SourcePdf) -> Result<DocReport, PadesError> {
-        pdfover_pades::analyze(src)
+        pida_pades::analyze(src)
     }
 
     fn prepare(
@@ -104,7 +104,7 @@ impl PadesEngine for RealPades {
         plan: &SignPlan,
         cert: Option<&CertChain>,
     ) -> Result<Box<dyn PreparedDoc>, PadesError> {
-        Ok(Box::new(pdfover_pades::prepare(src, plan, cert)?))
+        Ok(Box::new(pida_pades::prepare(src, plan, cert)?))
     }
 
     fn restore(&self, handle: &PreparedHandle, src: &SourcePdf) -> Result<Box<dyn PreparedDoc>, PadesError> {
@@ -142,7 +142,7 @@ impl PreparedDoc for Prepared {
     ) -> Result<Box<dyn SignedDoc>, FinishError> {
         Ok(Box::new(Prepared::finish_raw(*self, attrs, signature, chain)?))
     }
-    fn cms_profile(&self) -> Option<pdfover_cades::CmsProfile> {
+    fn cms_profile(&self) -> Option<pida_cades::CmsProfile> {
         Some(Prepared::cms_profile(self))
     }
     fn persist(&self, dir: &Path) -> Result<PreparedHandle, PadesError> {

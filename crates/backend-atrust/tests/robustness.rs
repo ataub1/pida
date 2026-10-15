@@ -3,13 +3,13 @@
 
 mod support;
 
-use pdfover_backend_atrust::fido2::{AssertionOptions, result_json};
-use pdfover_backend_atrust::page::{PageBlock, classify, diagnostic};
-use pdfover_backend_atrust::poll::{parse_poll_response, parse_poll_script};
-use pdfover_backend_atrust::selectors::SelectorSet;
-use pdfover_backend_atrust::validate::{normalize_phone_number, validate_password, validate_tan};
-use pdfover_backend_atrust::{Fido2Assertion, WEBAUTHN_ORIGIN};
-use pdfover_net::Url;
+use pida_backend_atrust::fido2::{AssertionOptions, result_json};
+use pida_backend_atrust::page::{PageBlock, classify, diagnostic};
+use pida_backend_atrust::poll::{parse_poll_response, parse_poll_script};
+use pida_backend_atrust::selectors::SelectorSet;
+use pida_backend_atrust::validate::{normalize_phone_number, validate_password, validate_tan};
+use pida_backend_atrust::{Fido2Assertion, WEBAUTHN_ORIGIN};
+use pida_net::Url;
 use support::fixture;
 
 /// Deterministischer Pseudozufall (xorshift64).

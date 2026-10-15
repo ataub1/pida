@@ -9,26 +9,26 @@
 //!    [`ProfileOverrides::base_logo`]),
 //! 3. Breite über [`resolve_width`] (Profil-`pos` mit der Anfrage gemischt, KR-F01), Höhe aus dem
 //!    Layout, Position über [`resolve_position`] (Rasterscan mit PDFium, sonst „leere Seite“),
-//! 4. Widget-`/Rect` und Rotation, `/Name` über [`pdfover_sigblock::expr::signer_name`].
+//! 4. Widget-`/Rect` und Rotation, `/Name` über [`pida_sigblock::expr::signer_name`].
 
 use std::path::Path;
 use std::sync::Arc;
 
-use pdfover_cades::{CertChain, Certificate, CmsProfile};
-use pdfover_config::{CmsProfileChoice, Effective};
-use pdfover_i18n::Lang;
-use pdfover_pades::{BlockPlacement, DocReport, FieldTarget, PdfaId, Reserve, SignPlan, Visibility};
-use pdfover_pdf_cos::{PageInfo, Rect, Rotation};
-use pdfover_placement::{
+use pida_cades::{CertChain, Certificate, CmsProfile};
+use pida_config::{CmsProfileChoice, Effective};
+use pida_i18n::Lang;
+use pida_pades::{BlockPlacement, DocReport, FieldTarget, PdfaId, Reserve, SignPlan, Visibility};
+use pida_pdf_cos::{PageInfo, Rect, Rotation};
+use pida_placement::{
     BlockGeometry, CompatMode, FreeSpaceScanner, Placement, PositionContext, RasterScanner, ResolvedPosition, TablePos,
     WidthDecision, appearance_rotation, default_start_placement, resolve_position, resolve_width, widget_rect,
 };
-use pdfover_render::{ForcedColorOptions, Renderer};
-use pdfover_sigblock::{
+use pida_render::{ForcedColorOptions, Renderer};
+use pida_sigblock::{
     Appearance, BuildOptions, CertFields, Emblem, FontProvider, PdfaMode, Profile, ProfileOverrides, ProfileStore,
     SigBlockInput,
 };
-use pdfover_workflow::PositionChoice;
+use pida_workflow::PositionChoice;
 use time::OffsetDateTime;
 
 /// Fehler beim Bauen des Blocks bzw. Plans (stabiler Code für i18n).
@@ -36,10 +36,10 @@ use time::OffsetDateTime;
 pub enum PlanError {
     /// Signaturblock
     #[error(transparent)]
-    SigBlock(#[from] pdfover_sigblock::SigBlockError),
+    SigBlock(#[from] pida_sigblock::SigBlockError),
     /// Positionierung
     #[error(transparent)]
-    Placement(#[from] pdfover_placement::PlacementError),
+    Placement(#[from] pida_placement::PlacementError),
     /// Dokument ohne Seiten
     #[error("Dokument ohne Seiten")]
     NoPages,
@@ -67,7 +67,7 @@ pub fn local_now() -> OffsetDateTime {
 
 /// Zertifikatsfelder für den Block (Kurzname der AVA, sonst OID).
 pub fn cert_fields(cert: &Certificate) -> CertFields {
-    let avas = |rdns: Vec<pdfover_cades::RdnAttr>| -> Vec<(String, String)> {
+    let avas = |rdns: Vec<pida_cades::RdnAttr>| -> Vec<(String, String)> {
         rdns.into_iter().map(|a| (a.short_name.unwrap_or(a.oid), a.value)).collect()
     };
     CertFields {
@@ -198,7 +198,7 @@ pub const NOTICE_PLACEHOLDER_PROFILE_UNKNOWN: &str = "ng-placeholder-profile-unk
 ///   Hinweis `SIG_NOTE`): PDF-Over setzt sie je Profil-ID, für das Platzhalter-Profil gelten sie nicht
 ///   (bei `BASE_LOGO` bleibt die Bildmarke, sonst wäre der Block leer);
 /// - unbekannte ID → angefragtes Profil und Hinweis [`NOTICE_PLACEHOLDER_PROFILE_UNKNOWN`]
-///   (PDF-AS bräche mit einem Profilfehler ab; NG signiert wie eingestellt und sagt es).
+///   (PDF-AS bräche mit einem Profilfehler ab; PIDA signiert wie eingestellt und sagt es).
 ///
 /// Liefert den Block und ggf. den Hinweis.
 pub fn placeholder_block_spec(
@@ -310,7 +310,7 @@ pub fn a4_page() -> PageInfo {
 struct EmptyPages;
 
 impl FreeSpaceScanner for EmptyPages {
-    fn lowest_content(&mut self, _page_index: usize, _footer: f32) -> pdfover_placement::Result<f32> {
+    fn lowest_content(&mut self, _page_index: usize, _footer: f32) -> pida_placement::Result<f32> {
         Ok(0.0)
     }
 }
@@ -390,7 +390,7 @@ pub fn build_plan(inp: PlanInput<'_>) -> Result<BuiltPlan, PlanError> {
         Some(chain) => {
             let mut input = spec.input.clone();
             input.cert = cert_fields(&chain.signer);
-            pdfover_sigblock::expr::signer_name(&spec.profile, &input)?
+            pida_sigblock::expr::signer_name(&spec.profile, &input)?
         }
         None => None,
     };
@@ -481,7 +481,7 @@ pub fn build_plan(inp: PlanInput<'_>) -> Result<BuiltPlan, PlanError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_config::{Overlay, Settings, SignatureProfile};
+    use pida_config::{Overlay, Settings, SignatureProfile};
 
     fn store() -> ProfileStore {
         ProfileStore::builtin().expect("eingebaute Profile")
@@ -509,7 +509,7 @@ mod tests {
         s.signature.block_language = Some(Lang::De);
         let o = Overlay::default();
         assert_eq!(spec(&s, &o).profile_id, "SIGNATURBLOCK_SMALL_DE_NOTE");
-        s.signature.note = pdfover_config::NoteSetting::None;
+        s.signature.note = pida_config::NoteSetting::None;
         assert_eq!(spec(&s, &o).profile_id, "SIGNATURBLOCK_SMALL_DE");
         let o = Overlay { invisible: Some(true), ..Overlay::default() };
         let sp = spec(&s, &o);
@@ -584,7 +584,7 @@ mod tests {
     #[test]
     fn small_block_geometry_matches_pdfas() {
         let mut s = Settings::default();
-        s.signature.note = pdfover_config::NoteSetting::None;
+        s.signature.note = pida_config::NoteSetting::None;
         s.signature.block_language = Some(Lang::De);
         let sp = spec(&s, &Overlay::default());
         let pages = [a4_page()];

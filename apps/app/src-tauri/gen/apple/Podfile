@@ -1,13 +1,13 @@
 # Uncomment the next line to define a global platform for your project
 
-target 'pdfover-app_iOS' do
+target 'pida-app_iOS' do
 platform :ios, '16.0'
-  # Pods for pdfover-app_iOS
+  # Pods for pida-app_iOS
 end
 
-target 'pdfover-app_macOS' do
+target 'pida-app_macOS' do
 platform :osx, '11.0'
-  # Pods for pdfover-app_macOS
+  # Pods for pida-app_macOS
 end
 
 # Delete the deployment target for iOS and macOS, causing it to be inherited from the Podfile

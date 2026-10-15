@@ -4,10 +4,10 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use pdfover_cades::{AlgorithmPolicy, Certificate, DigestAlg, Expect, ExpectedSigner, verify_detached};
-use pdfover_pdf_cos::{Limits, ObjectId, SourcePdf};
-use pdfover_pdf_incremental::{ByteRange, WrittenKind};
-use pdfover_render::RenderBackend;
+use pida_cades::{AlgorithmPolicy, Certificate, DigestAlg, Expect, ExpectedSigner, verify_detached};
+use pida_pdf_cos::{Limits, ObjectId, SourcePdf};
+use pida_pdf_incremental::{ByteRange, WrittenKind};
+use pida_render::RenderBackend;
 
 use crate::PadesError;
 use crate::prepared::PreparedMeta;
@@ -442,7 +442,7 @@ pub(crate) fn temp_path(path: &Path) -> PathBuf {
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "ausgabe".into());
-    path.with_file_name(format!(".{name}.{}-{nanos}-{n}.pdfover-tmp", std::process::id()))
+    path.with_file_name(format!(".{name}.{}-{nanos}-{n}.pida-tmp", std::process::id()))
 }
 
 /// `fsync` des Verzeichnisses nach dem Umbenennen (Unix; sonst ohne Wirkung).

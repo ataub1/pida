@@ -11,8 +11,8 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfover_i18n::{ArgValue, Catalog, Lang};
-use pdfover_java_properties::{Encoding, Properties, StoreOptions};
+use pida_i18n::{ArgValue, Catalog, Lang};
+use pida_java_properties::{Encoding, Properties, StoreOptions};
 
 use crate::settings::{BackendChoice, PasswordStorage, SignatureProfile};
 use crate::{ConfigError, Result, java};

@@ -9,8 +9,8 @@
 mod common;
 
 use common::{BlockPx, block_pt, detect_blocks, load, load_png_luma, read, testdata};
-use pdfover_pdf_cos::Rect;
-use pdfover_placement::{
+use pida_pdf_cos::Rect;
+use pida_placement::{
     CompatMode, FreeSpaceScanner, PositionContext, ResolvedPosition, TablePos, auto_place, resolve_position,
     resolve_width, widget_rect,
 };
@@ -46,7 +46,7 @@ fn manifest() -> Manifest {
 }
 
 struct Input {
-    pages: Vec<pdfover_pdf_cos::PageInfo>,
+    pages: Vec<pida_pdf_cos::PageInfo>,
     signed: bool,
     bytes: Vec<u8>,
 }
@@ -64,7 +64,7 @@ fn position(case: &Case) -> TablePos {
 }
 
 /// Sichtbare Höhe der Seite, auf der der Block landet (neue Seite = Maße der letzten).
-fn target_height(case: &Case, pages: &[pdfover_pdf_cos::PageInfo]) -> f32 {
+fn target_height(case: &Case, pages: &[pida_pdf_cos::PageInfo]) -> f32 {
     let page = &pages[case.page.min(pages.len()) - 1];
     page.visible_size().1
 }
@@ -205,7 +205,7 @@ fn pdfas_positions_match_golden() {
 struct NoScan;
 
 impl FreeSpaceScanner for NoScan {
-    fn lowest_content(&mut self, page_index: usize, _footer: f32) -> pdfover_placement::Result<f32> {
+    fn lowest_content(&mut self, page_index: usize, _footer: f32) -> pida_placement::Result<f32> {
         panic!("Freiraumsuche auf Seite {page_index} unerwartet");
     }
 }

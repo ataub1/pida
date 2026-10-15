@@ -2,10 +2,10 @@
 //!
 //! Gemeinsame Basis für drei Pakete, deshalb bereits im Fundament **vollständig implementiert**
 //! (ADR 0001 §5.1):
-//! - `pdfover-config`: `PDF-Over.config` (docs/analyse/05 §1.3, §1.9),
-//! - `pdfover-sigblock`: PDF-AS-Profile `cfg/config.properties` + `profiles/*.properties`
+//! - `pida-config`: `PDF-Over.config` (docs/analyse/05 §1.3, §1.9),
+//! - `pida-sigblock`: PDF-AS-Profile `cfg/config.properties` + `profiles/*.properties`
 //!   (docs/analyse/04 §2.1),
-//! - `pdfover-i18n`: Konverter für `messages*.properties` (docs/analyse/01 §6.3).
+//! - `pida-i18n`: Konverter für `messages*.properties` (docs/analyse/01 §6.3).
 //!
 //! Semantik wie JDK 21:
 //! - [`Properties::load_latin1`] entspricht `Properties.load(InputStream)` (jedes Byte ist ein Zeichen

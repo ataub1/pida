@@ -14,7 +14,7 @@
 //! Element-Texte folgen jsoup `ownText()` (direkte Textknoten, Leerraum zusammengefasst, `<br>` als
 //! Leerzeichen, getrimmt).
 
-use pdfover_net::Url;
+use pida_net::Url;
 use scraper::{ElementRef, Html, Node, Selector};
 
 use crate::poll::{PollInfo, parse_poll_script_named};
@@ -124,7 +124,7 @@ impl std::fmt::Debug for PageBlock {
             }
             PageBlock::QrCode { reference_value, image_url, poll } => d
                 .field("reference_value", reference_value)
-                .field("image_url", &pdfover_net::redact_url(image_url))
+                .field("image_url", &pida_net::redact_url(image_url))
                 .field("poll", poll),
             PageBlock::WaitingForApp2Fa { reference_value, poll } => {
                 d.field("reference_value", reference_value).field("poll", poll)
@@ -313,7 +313,7 @@ fn effective_base(doc: &Html, request_url: &Url) -> Url {
         .next()
         .and_then(|b| b.attr("href"))
         .filter(|h| !h.trim().is_empty())
-        .and_then(|h| pdfover_net::resolve(request_url, h).ok())
+        .and_then(|h| pida_net::resolve(request_url, h).ok())
         .unwrap_or_else(|| request_url.clone())
 }
 
@@ -361,7 +361,7 @@ impl<'a> Ctx<'a> {
         Ok(self
             .first(css)?
             .and_then(|e| e.attr("href"))
-            .and_then(|h| pdfover_net::resolve(&self.base, h).ok())
+            .and_then(|h| pida_net::resolve(&self.base, h).ok())
             .filter(|u| matches!(u.scheme(), "http" | "https")))
     }
 
@@ -474,10 +474,8 @@ impl<'a> Ctx<'a> {
         let ids = &self.c.set.ids;
         let Some(image) = self.first(&ids.qr_image)? else { return Ok(None) };
         let Some(reference) = self.first(&ids.reference_value)? else { return Ok(None) };
-        let Some(image_url) = image
-            .attr("src")
-            .filter(|s| !s.trim().is_empty())
-            .and_then(|src| pdfover_net::resolve(&self.base, src).ok())
+        let Some(image_url) =
+            image.attr("src").filter(|s| !s.trim().is_empty()).and_then(|src| pida_net::resolve(&self.base, src).ok())
         else {
             return Ok(None);
         };
@@ -532,7 +530,7 @@ pub fn classify(base_url: &Url, html: &str, selectors: &SelectorSet) -> Result<P
     }
     let form = forms[0];
     let form_action = match form.attr("action") {
-        Some(action) => pdfover_net::resolve(&base, action).map_err(|e| PageError::InvalidUrl(e.to_string()))?,
+        Some(action) => pida_net::resolve(&base, action).map_err(|e| PageError::InvalidUrl(e.to_string()))?,
         None => base.clone(),
     };
 

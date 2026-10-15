@@ -42,7 +42,7 @@ pub enum FormProblem {
     /// Text von A-Trust
     Atrust(String),
     /// FIDO2 fehlgeschlagen, mit stabilem Code für die Übersetzung (additiv, Welle 2): `code` =
-    /// `pdfover_backend_atrust::Fido2Error::code` (`fido2-unavailable`, `fido2-device`,
+    /// `pida_backend_atrust::Fido2Error::code` (`fido2-unavailable`, `fido2-device`,
     /// `fido2-invalid-options`, `fido2-pin-required`, `fido2-pin-invalid`, …), `detail` nur für
     /// Diagnose (ohne Personendaten). Backends melden FIDO2-Fehler mit dieser Variante;
     /// [`FormProblem::Fido2Failed`] bleibt für Altaufrufer.
@@ -203,7 +203,7 @@ pub enum SecretKind {
     ProxyPassword,
     /// PIN eines FIDO2-Sicherheitsschlüssels (CTAP2 `clientPIN`, macOS/Linux; unter Windows fragt
     /// `webauthn.dll` selbst). Additiv (Welle 2); die PIN lebt nur im RAM und wird dem
-    /// `pdfover_backend_atrust::Fido2Provider` über `get_assertion_with_pin` übergeben.
+    /// `pida_backend_atrust::Fido2Provider` über `get_assertion_with_pin` übergeben.
     Fido2Pin,
 }
 
@@ -399,7 +399,7 @@ pub struct CallbackData {
 
 /// Brücke vom Backend zur Oberfläche (Tauri-Shell, CLI, Tests).
 ///
-/// Implementiert von `pdfover-core-api` (projiziert in `ViewState`) bzw. der CLI.
+/// Implementiert von `pida-core-api` (projiziert in `ViewState`) bzw. der CLI.
 #[async_trait]
 pub trait InteractionBroker: Send + Sync {
     /// Zeigt eine native Maske und wartet auf die Antwort.

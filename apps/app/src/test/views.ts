@@ -1,4 +1,4 @@
-/** Bausteine für Test-Zustände (serde-Format wie `pdfover-core-api`). */
+/** Bausteine für Test-Zustände (serde-Format wie `pida-core-api`). */
 import { defaultSettings, mainBar } from '../core/defaults';
 import type {
   BackendOptionView,

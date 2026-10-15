@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 
-use pdfover_pades::SignedPdf;
-use pdfover_render::{PdfiumBackend, RenderBackend};
+use pida_pades::SignedPdf;
+use pida_render::{PdfiumBackend, RenderBackend};
 
 use super::{PyhankoSig, modification_rank, openssl_verify, pdfium, pyhanko_python, qpdf_check, testdata, which};
 
@@ -75,7 +75,7 @@ impl Oracles {
 #[derive(Debug, Clone, Copy)]
 pub enum Look {
     /// Block im sichtbaren Rechteck (PAGE_ABS, pt) der Seite `page`; `new_page` = Seite neu.
-    Visible { page: usize, rect: pdfover_pdf_cos::Rect, new_page: bool },
+    Visible { page: usize, rect: pida_pdf_cos::Rect, new_page: bool },
     /// keine sichtbare Änderung auf `page`
     Invisible { page: usize },
 }
@@ -264,12 +264,12 @@ pub fn evaluate_pyhanko(
 }
 
 /// Schreibt einen Abschnitt nach `$CARGO_TARGET_TMPDIR/pades-results-<abschnitt>.md`; mit
-/// `PDFOVER_UPDATE_RESULTS=1` wird der Abschnitt in `testdata/pades/RESULTS.md` ersetzt.
+/// `PIDA_UPDATE_RESULTS=1` wird der Abschnitt in `testdata/pades/RESULTS.md` ersetzt.
 pub fn write_results_section(section: &str, body: &str) {
     let tmp = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("pades-results-{section}.md"));
     let _ = std::fs::write(&tmp, body);
     eprintln!("Ergebnis: {}", tmp.display());
-    if std::env::var_os("PDFOVER_UPDATE_RESULTS").is_none() {
+    if std::env::var_os("PIDA_UPDATE_RESULTS").is_none() {
         return;
     }
     let path = testdata().join("pades/RESULTS.md");

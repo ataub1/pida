@@ -10,7 +10,7 @@ mod common;
 use cms::content_info::ContentInfo;
 use cms::signed_data::SignedData;
 use der::{Decode, Encode};
-use pdfover_cades::{
+use pida_cades::{
     AlgorithmPolicy, AssembleOptions, CertChain, CmsError, CmsProfile, DigestAlg, EcCurve, Expect, ExpectedSigner,
     KeyType, RawSignature, SignatureAlg, SignedAttrsBuilder, SigningTime, assemble, estimate_cms_len, parse_cms,
     trim_contents_padding, verify_detached,

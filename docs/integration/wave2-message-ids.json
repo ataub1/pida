@@ -476,13 +476,13 @@
   },
   {
     "id": "ng-cli-help-title",
-    "de": "PDF-Over NG – PDF-Dokumente elektronisch signieren",
-    "en": "PDF-Over NG – sign PDF documents electronically"
+    "de": "PIDA – PDF-Signatur mit ID Austria",
+    "en": "PIDA – PDF signing with ID Austria"
   },
   {
     "id": "ng-cli-help-usage",
-    "de": "Aufruf: pdfover-cli [Optionen] [Dateien …] | pdfover-cli <Befehl> [Optionen]",
-    "en": "Usage: pdfover-cli [options] [files …] | pdfover-cli <command> [options]"
+    "de": "Aufruf: pida-cli [Optionen] [Dateien …] | pida-cli <Befehl> [Optionen]",
+    "en": "Usage: pida-cli [options] [files …] | pida-cli <command> [options]"
   },
   {
     "id": "ng-cli-help-options",
@@ -561,8 +561,8 @@
   },
   {
     "id": "ng-cli-no-input",
-    "de": "Kein Dokument angegeben (Hilfe: pdfover-cli -h).",
-    "en": "No document given (help: pdfover-cli -h)."
+    "de": "Kein Dokument angegeben (Hilfe: pida-cli -h).",
+    "en": "No document given (help: pida-cli -h)."
   },
   {
     "id": "ng-cli-keypass-mismatch",
@@ -706,8 +706,8 @@
   },
   {
     "id": "ng-cli-unknown-profile",
-    "de": "Profil { $id } existiert nicht (Liste: pdfover-cli profiles).",
-    "en": "Profile { $id } does not exist (list: pdfover-cli profiles)."
+    "de": "Profil { $id } existiert nicht (Liste: pida-cli profiles).",
+    "en": "Profile { $id } does not exist (list: pida-cli profiles)."
   },
   {
     "id": "ng-ui-yes",
@@ -761,13 +761,13 @@
   },
   {
     "id": "ng-ui-starting",
-    "de": "PDF-Over NG wird gestartet",
-    "en": "PDF-Over NG is starting"
+    "de": "PIDA wird gestartet",
+    "en": "PIDA is starting"
   },
   {
     "id": "ng-ui-finished",
-    "de": "PDF-Over NG wurde beendet.",
-    "en": "PDF-Over NG has exited."
+    "de": "PIDA wurde beendet.",
+    "en": "PIDA has exited."
   },
   {
     "id": "ng-ui-finished-code",

@@ -6,7 +6,7 @@
 
 use std::io::Write as _;
 
-use pdfover_pdf_cos::{CryptTarget, Dictionary, Encryptor, Object, ObjectId, PathSegment, RealLiterals, StringFormat};
+use pida_pdf_cos::{CryptTarget, Dictionary, Encryptor, Object, ObjectId, PathSegment, RealLiterals, StringFormat};
 
 use crate::{IncError, Result};
 
@@ -206,7 +206,7 @@ pub(crate) fn encrypt_object(obj: &mut Object, id: ObjectId, enc: &Encryptor, de
     if depth > MAX_DEPTH {
         return Err(IncError::Serialize("Objekt zu tief verschachtelt".into()));
     }
-    let map = |e: pdfover_pdf_cos::CosError| IncError::Encryption(e.to_string());
+    let map = |e: pida_pdf_cos::CosError| IncError::Encryption(e.to_string());
     match obj {
         Object::String(bytes, format) => {
             *bytes = enc.encrypt(id, bytes, CryptTarget::String).map_err(map)?;
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn stream_must_be_indirect() {
-        let s = Object::Stream(pdfover_pdf_cos::Stream::new(Dictionary::new(), vec![]));
+        let s = Object::Stream(pida_pdf_cos::Stream::new(Dictionary::new(), vec![]));
         assert!(write_direct(&mut Vec::new(), &Object::Array(vec![s]), 0).is_err());
     }
 }

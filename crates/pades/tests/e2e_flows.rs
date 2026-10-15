@@ -15,23 +15,23 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use common::*;
-use pdfover_backend_api::testing::ScriptedBroker;
-use pdfover_backend_api::{
+use pida_backend_api::testing::ScriptedBroker;
+use pida_backend_api::{
     BackendSession, CancelToken, DocumentJob, InteractionBroker, SessionContext, SignJob, SignResult, SignatureBackend,
 };
-use pdfover_cades::{CmsError, CmsProfile, DigestAlg, Expect, ExpectedSigner};
-use pdfover_pades::{
+use pida_cades::{CmsError, CmsProfile, DigestAlg, Expect, ExpectedSigner};
+use pida_pades::{
     CheckContext, FieldTarget, FinishError, Invariant, OutputTarget, PadesError, Prepared, Reserve, Visibility,
     analyze, empty_fields, find_placeholder, prepare,
 };
-use pdfover_pdf_cos::{Limits, Object, SourcePdf};
-use pdfover_placement::PlaceholderMode;
+use pida_pdf_cos::{Limits, Object, SourcePdf};
+use pida_placement::PlaceholderMode;
 
 fn ctx() -> SessionContext {
     SessionContext { language: Default::default(), batch_size: 1, cancel: CancelToken::new(), headless: false }
 }
 
-fn noop(_: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &SourcePdf) {}
+fn noop(_: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &SourcePdf) {}
 
 /// Signaturdictionary-Eintrag eines Felds in der Ausgabe.
 fn sig_value(src: &SourcePdf, field_name: &str, key: &[u8]) -> Option<Object> {
@@ -104,13 +104,12 @@ fn flows() {
         for step in 0..3 {
             let chosen: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
             let c2 = Arc::clone(&chosen);
-            let adjust =
-                move |opts: &mut pdfover_pades::PlanOptions, report: &pdfover_pades::DocReport, src: &SourcePdf| {
-                    let renderer = open_renderer(src).expect("PDFium für die Platzhaltersuche");
-                    let p = find_placeholder(src, report, &*renderer, None, PlaceholderMode::Lenient).unwrap();
-                    *c2.lock().unwrap() = p.as_ref().map(|p| p.resource_name.clone());
-                    opts.placeholder = p;
-                };
+            let adjust = move |opts: &mut pida_pades::PlanOptions, report: &pida_pades::DocReport, src: &SourcePdf| {
+                let renderer = open_renderer(src).expect("PDFium für die Platzhaltersuche");
+                let p = find_placeholder(src, report, &*renderer, None, PlaceholderMode::Lenient).unwrap();
+                *c2.lock().unwrap() = p.as_ref().map(|p| p.resource_name.clone());
+                opts.placeholder = p;
+            };
             if or.pdfium.is_none() {
                 break;
             }
@@ -131,7 +130,7 @@ fn flows() {
             if let Some(s) = &o.signed {
                 bytes = s.bytes();
                 let out = SourcePdf::open(bytes.clone(), &Limits::default()).unwrap();
-                let loc = sig_value(&out, &o.field, b"Location").and_then(|l| pdfover_pdf_cos::decode_text_string(&l));
+                let loc = sig_value(&out, &o.field, b"Location").and_then(|l| pida_pdf_cos::decode_text_string(&l));
                 assert_eq!(loc, name, "Schritt {step}: /Location = Platzhaltername");
                 if let Some(n) = &name {
                     assert!(!used.contains(n), "Platzhalter {n} doppelt benutzt");
@@ -162,7 +161,7 @@ fn flows() {
                 qualified_name: cand.qualified_name.clone(),
             };
             let t2 = target.clone();
-            let adjust = move |opts: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &SourcePdf| {
+            let adjust = move |opts: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &SourcePdf| {
                 opts.field = t2.clone();
             };
             let label = format!("`manySignFields.pdf` Feld {} ({profile}, {})", step + 1, KEYS[step].0);
@@ -262,7 +261,7 @@ fn flows() {
         pyhanko_all(&or, outcomes, &trust);
     }
     let mut md = String::from("## Abläufe (Mehrfachsignatur, QR-Platzhalter, vorhandene Felder, Modell B)\n\n");
-    md.push_str("Erzeugt von `cargo test -p pdfover-pades --test e2e_flows`. Jeder Schritt verwendet die Ausgabe des vorigen als Eingabe; *Vorsignaturen* zeigt die pyHanko-Änderungsstufe der älteren Signaturen vorher → nachher. Modell B: Die Fake-BKU erhält das Blackout-PDF und die ExcludedByteRange über `DocumentSource` (wie der Workflow-Adapter), prüft die genullte Lücke, signiert die Bytes außerhalb mit `openssl cms -sign -binary -nosmimecap -cades -md sha256` und liefert `SignResult::Cms`; `finish_cms` prüft I3 gegen das von `certificate()` gemeldete Zertifikat, die Reserve ist 16 KiB.\n\n");
+    md.push_str("Erzeugt von `cargo test -p pida-pades --test e2e_flows`. Jeder Schritt verwendet die Ausgabe des vorigen als Eingabe; *Vorsignaturen* zeigt die pyHanko-Änderungsstufe der älteren Signaturen vorher → nachher. Modell B: Die Fake-BKU erhält das Blackout-PDF und die ExcludedByteRange über `DocumentSource` (wie der Workflow-Adapter), prüft die genullte Lücke, signiert die Bytes außerhalb mit `openssl cms -sign -binary -nosmimecap -cades -md sha256` und liefert `SignResult::Cms`; `finish_cms` prüft I3 gegen das von `certificate()` gemeldete Zertifikat, die Reserve ist 16 KiB.\n\n");
     md.push_str(&format!("Werkzeuge: {}.\n\n", or.versions()));
     for (title, outcomes) in &sections {
         let ok = outcomes.iter().filter(|o| o.problems.is_empty()).count();
@@ -290,8 +289,8 @@ fn cms_too_large_then_retry_with_suggested_reserve() {
     let mut session = rt.block_on(bku.open(ctx(), broker)).unwrap();
     let chain = rt.block_on(session.certificate()).unwrap();
     let attempt =
-        |reserve: Reserve, session: &mut Box<dyn BackendSession>| -> Result<pdfover_pades::SignedPdf, FinishError> {
-            let mut opts = pdfover_pades::PlanOptions::new(pdfover_pades::local_signing_time());
+        |reserve: Reserve, session: &mut Box<dyn BackendSession>| -> Result<pida_pades::SignedPdf, FinishError> {
+            let mut opts = pida_pades::PlanOptions::new(pida_pades::local_signing_time());
             opts.reserve = reserve;
             let planned = plan_for(&src, &report, "INVISIBLE", &chain.signer, &opts, None).unwrap();
             let prepared = prepare(&src, &planned.plan, Some(&chain)).unwrap();
@@ -329,11 +328,11 @@ fn finish_cms_rejects_wrong_signer_and_digest() {
 
     // CMS über andere Daten
     let bku = FakeBku::from_p12("test-ecp256", work.path()).unwrap();
-    let cert = pdfover_cades::Certificate::from_pem(&std::fs::read_to_string(&bku.cert_pem).unwrap()).unwrap();
-    let chain = pdfover_cades::CertChain::new(cert.clone());
-    let opts = pdfover_pades::PlanOptions {
+    let cert = pida_cades::Certificate::from_pem(&std::fs::read_to_string(&bku.cert_pem).unwrap()).unwrap();
+    let chain = pida_cades::CertChain::new(cert.clone());
+    let opts = pida_pades::PlanOptions {
         reserve: Reserve::ModelB,
-        ..pdfover_pades::PlanOptions::new(pdfover_pades::local_signing_time())
+        ..pida_pades::PlanOptions::new(pida_pades::local_signing_time())
     };
     let planned = plan_for(&src, &report, "INVISIBLE", &cert, &opts, None).unwrap();
     let prepared = prepare(&src, &planned.plan, Some(&chain)).unwrap();
@@ -443,7 +442,7 @@ fn write_atomically_respects_overwrite() {
     let src = open(&testdata().join("pdf/pdfas/pdf-as-legacy/simple.pdf"));
     let mut signer = KeystoreSigner::open("test-ecp256");
     let chain = signer.chain.clone();
-    let plan = pdfover_pades::SignPlan::invisible(pdfover_pades::local_signing_time());
+    let plan = pida_pades::SignPlan::invisible(pida_pades::local_signing_time());
     let signed = signer.sign(prepare(&src, &plan, Some(&chain)).unwrap()).unwrap();
     let target = dir.path().join("out.pdf");
     // ohne bzw. nach fehlgeschlagener Selbstprüfung wird nichts geschrieben
@@ -472,7 +471,7 @@ fn write_atomically_respects_overwrite() {
     signed.write_atomically(&OutputTarget { path: fresh.clone(), overwrite: false }).unwrap();
     let names: Vec<String> =
         std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
-    assert!(names.iter().all(|n| !n.contains("pdfover-tmp")), "{names:?}");
+    assert!(names.iter().all(|n| !n.contains("pida-tmp")), "{names:?}");
 }
 
 /// Selbstprüfung erkennt falsches Original (I1) und falschen erwarteten Signer (I3).
@@ -481,7 +480,7 @@ fn self_check_detects_wrong_source_and_signer() {
     let src = open(&testdata().join("pdf/pdfas/pdf-as-legacy/simple.pdf"));
     let mut signer = KeystoreSigner::open("test-rsa2048");
     let chain = signer.chain.clone();
-    let plan = pdfover_pades::SignPlan::invisible(pdfover_pades::local_signing_time());
+    let plan = pida_pades::SignPlan::invisible(pida_pades::local_signing_time());
     let signed = signer.sign(prepare(&src, &plan, Some(&chain)).unwrap()).unwrap();
     let other = open(&testdata().join("pdf/generated/simple-xref-table.pdf"));
     let v = signed.self_check(&CheckContext { source: &other, expected_signer: None, renderer: None }).unwrap_err();
@@ -492,7 +491,7 @@ fn self_check_detects_wrong_source_and_signer() {
     assert_eq!(v.invariant, Invariant::I3Cms);
     assert_eq!(v.invariant.code(), "pades-invariant-i3");
     let ok = signed.self_check(&CheckContext { source: &src, expected_signer: None, renderer: None }).unwrap();
-    assert_eq!(ok.warnings, vec![pdfover_pades::WARNING_I5_WITHOUT_PDFIUM.to_string()]);
+    assert_eq!(ok.warnings, vec![pida_pades::WARNING_I5_WITHOUT_PDFIUM.to_string()]);
 }
 
 /// Neue Seite auf einem signierten Dokument und Zertifikat außerhalb der Gültigkeit.
@@ -502,10 +501,10 @@ fn new_page_on_signed_document_and_expired_certificate_are_refused() {
     let report = analyze(&src).unwrap();
     assert!(report.is_signed());
     let signer = KeystoreSigner::open("test-rsa2048");
-    let mut opts = pdfover_pades::PlanOptions::new(pdfover_pades::local_signing_time());
-    opts.position = pdfover_placement::TablePos::parse("p:new").unwrap();
+    let mut opts = pida_pades::PlanOptions::new(pida_pades::local_signing_time());
+    opts.position = pida_placement::TablePos::parse("p:new").unwrap();
     let planned = plan_for(&src, &report, "SIGNATURBLOCK_SMALL_DE", &signer.chain.signer, &opts, None).unwrap();
-    assert!(planned.notices.contains(&pdfover_placement::PlacementNotice::NewPageNotAllowed));
+    assert!(planned.notices.contains(&pida_placement::PlacementNotice::NewPageNotAllowed));
     let mut plan = planned.plan.clone();
     let Visibility::Visible(bp) = &mut plan.visibility else { panic!() };
     bp.new_page = true;
@@ -549,7 +548,7 @@ fn pdfua_structure_is_extended() {
     let root = out.resolve(catalog.get(b"StructTreeRoot").unwrap()).unwrap().as_dict().unwrap();
     assert_eq!(out.resolve(root.get(b"ParentTreeNextKey").unwrap()).unwrap().as_i64().unwrap(), key + 1);
     // ParentTree: Schlüssel → StructElem → OBJR → Widget
-    fn find(src: &SourcePdf, node: &pdfover_pdf_cos::Dictionary, key: i64) -> Option<Object> {
+    fn find(src: &SourcePdf, node: &pida_pdf_cos::Dictionary, key: i64) -> Option<Object> {
         if let Ok(nums) = node.get(b"Nums") {
             let a = src.resolve(nums).ok()?.as_array().ok()?;
             for pair in a.chunks(2) {

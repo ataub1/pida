@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use pdfover_net::testing::{MockResponse, MockServer};
-use pdfover_net::{Body, FormPart, HttpClient, NetConfig, NetError, ProxyAuth, ProxyConfig, Purpose, Request, Url};
+use pida_net::testing::{MockResponse, MockServer};
+use pida_net::{Body, FormPart, HttpClient, NetConfig, NetError, ProxyAuth, ProxyConfig, Purpose, Request, Url};
 use zeroize::Zeroizing;
 
 fn direct() -> NetConfig {
@@ -79,8 +79,8 @@ async fn user_agent_and_custom_headers() {
     HttpClient::new(&custom, Purpose::LocalBku).unwrap().get(&server.url("/x"), &[]).await.unwrap();
     let reqs = server.requests();
     assert_eq!(reqs[0].header("authorization"), Some("Bearer TOKEN"));
-    assert_eq!(reqs[0].header("user-agent"), Some(pdfover_net::DEFAULT_USER_AGENT));
-    assert!(reqs[0].header("user-agent").unwrap().starts_with("PDF-Over NG v"));
+    assert_eq!(reqs[0].header("user-agent"), Some(pida_net::DEFAULT_USER_AGENT));
+    assert!(reqs[0].header("user-agent").unwrap().starts_with("PIDA v"));
     assert_eq!(reqs[1].header("user-agent"), Some("Test-UA/1"));
 }
 
@@ -139,7 +139,7 @@ async fn status_reason_headers_and_text() {
     assert_eq!(r.text(), "Grüße");
     assert_eq!(r.mime().as_deref(), Some("text/html"));
     assert_eq!(r.header("REFRESH"), Some("0; URL=/weiter"));
-    assert_eq!(pdfover_net::parse_refresh(r.header("refresh").unwrap()).as_deref(), Some("/weiter"));
+    assert_eq!(pida_net::parse_refresh(r.header("refresh").unwrap()).as_deref(), Some("/weiter"));
     assert_eq!(r.date().unwrap().unix_timestamp(), 1_791_972_000);
     assert!(r.headers.iter().all(|(k, _)| k.chars().all(|c| !c.is_ascii_uppercase())));
 }
@@ -240,9 +240,9 @@ async fn connect_tunnel_407_is_reported() {
 async fn tcp_probe_open_and_closed() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    assert!(pdfover_net::tcp_probe(addr, Duration::from_secs(1)).await);
+    assert!(pida_net::tcp_probe(addr, Duration::from_secs(1)).await);
     drop(listener);
-    assert!(!pdfover_net::tcp_probe(addr, Duration::from_secs(1)).await);
+    assert!(!pida_net::tcp_probe(addr, Duration::from_secs(1)).await);
 }
 
 #[tokio::test]

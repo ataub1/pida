@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use pdfover_sigblock::layout::{CellContent, LaidOutCell, LaidOutTable, TextRole};
-use pdfover_sigblock::{
+use pida_sigblock::layout::{CellContent, LaidOutCell, LaidOutTable, TextRole};
+use pida_sigblock::{
     CertFields, Emblem, FontProvider, HAlign, Layout, PdfaMode, Profile, ProfileOverrides, ProfileStore, SigBlockError,
     SigBlockInput, VAlign, fonts::FontSpec, layout,
 };
@@ -88,12 +88,11 @@ fn small_profiles_match_analysis() {
 /// Detail `SIGNATURBLOCK_SMALL_DE` (analyse/04 §3.8): Baselines = Startpunkt des `Td`.
 #[test]
 fn small_de_detail_positions() {
-    use pdfover_pdf_cos::Object;
+    use pida_pdf_cos::Object;
     let s = store();
     let p = s.get("SIGNATURBLOCK_SMALL_DE").unwrap();
-    let opts = pdfover_sigblock::BuildOptions { width: 230.0, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
-    let app =
-        pdfover_sigblock::Appearance::build(p, &input(), &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
+    let opts = pida_sigblock::BuildOptions { width: 230.0, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
+    let app = pida_sigblock::Appearance::build(p, &input(), &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
     let Object::Stream(inner) = &app.objects[app.inner] else { panic!() };
     let text = String::from_utf8_lossy(&inner.content).to_string();
     let tds: Vec<(f32, f32)> = text
@@ -318,7 +317,7 @@ fn width_errors_and_invalid_profiles() {
         .get_mut("info")
         .unwrap()
         .rows
-        .push(pdfover_sigblock::Row(vec![pdfover_sigblock::CellSpec::SubTable("info".into())]));
+        .push(pida_sigblock::Row(vec![pida_sigblock::CellSpec::SubTable("info".into())]));
     assert!(matches!(layout::layout(&cyc, &input(), 230.0, &fonts, &**s.resources()), Err(SigBlockError::Profile(_))));
     // ColsWidth mit Summe 0
     let mut zero = p.clone();
@@ -352,8 +351,8 @@ fn width_errors_and_invalid_profiles() {
 /// (border 0, Rest geerbt); Erwartungswerte von Hand nach analyse/04 §3.4/§3.5 berechnet.
 #[test]
 fn custom_profile_alignments_and_colspan() {
-    use pdfover_java_properties::Properties;
-    use pdfover_pdf_cos::Object;
+    use pida_java_properties::Properties;
+    use pida_pdf_cos::Object;
     let mut props = Properties::new();
     for (k, v) in [
         ("sig_obj.types.T", "on"),
@@ -378,7 +377,7 @@ fn custom_profile_alignments_and_colspan() {
     ] {
         props.insert(k, v);
     }
-    let s = ProfileStore::from_properties(&props, Arc::new(pdfover_sigblock::BuiltinResources::default())).unwrap();
+    let s = ProfileStore::from_properties(&props, Arc::new(pida_sigblock::BuiltinResources::default())).unwrap();
     let p = s.get("T").unwrap();
     let l = lay(p, &input(), 200.0);
     assert_eq!((l.width, l.height), (200.0, 68.0));
@@ -393,9 +392,8 @@ fn custom_profile_alignments_and_colspan() {
     assert_eq!(info.padding, 2.0, "padding geerbt");
     assert_eq!(info.row_heights, vec![52.0], "auf Zeilenhöhe gestreckt");
 
-    let opts = pdfover_sigblock::BuildOptions { width: 200.0, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
-    let app =
-        pdfover_sigblock::Appearance::build(p, &input(), &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
+    let opts = pida_sigblock::BuildOptions { width: 200.0, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
+    let app = pida_sigblock::Appearance::build(p, &input(), &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
     let Object::Stream(inner) = &app.objects[app.inner] else { panic!() };
     let text = String::from_utf8_lossy(&inner.content).to_string();
     let nums = |l: &str| -> Vec<f32> { l.split(' ').filter_map(|n| n.parse().ok()).collect() };

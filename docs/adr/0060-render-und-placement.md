@@ -3,13 +3,13 @@
 | | |
 |---|---|
 | **Status** | angenommen (14.10.2026, Paket F) |
-| **Kontext** | `pdfover-render`, `pdfover-placement`; Plan §6.6–§6.8, analyse/04 §4–§6, ADR 0001 §8.1/§8.2 |
+| **Kontext** | `pida-render`, `pida-placement`; Plan §6.6–§6.8, analyse/04 §4–§6, ADR 0001 §8.1/§8.2 |
 
 ## 1. PDFium bereitstellen
 
 - Gebunden wird **pdfium-binaries chromium/8100** (API-Stand `pdfium-render` 0.9.4 = `pdfium_7881`),
   dynamisch per `PdfiumBackend::bind`.
-- Suchreihenfolge ohne Angabe: `PDFOVER_PDFIUM_DIR` → Verzeichnis der Binary (macOS-Bundle zusätzlich
+- Suchreihenfolge ohne Angabe: `PIDA_PDFIUM_DIR` → Verzeichnis der Binary (macOS-Bundle zusätzlich
   `../Frameworks`, `../Resources`, iOS `Frameworks`) → Systempfad. Mit `bind(Some(dir))` nur `dir`.
   Fehler: `RenderError::LibraryNotFound` mit allen durchsuchten Orten.
 - **Systempfad ohne Arbeitsverzeichnis (CWE-427, Review 14.10.2026):** Unter macOS (`dlopen` mit
@@ -23,10 +23,10 @@
 - Die Bindung gilt **einmal je Prozess** (globale Bindung in `pdfium-render`); weitere Aufrufe liefern
   sie erneut. `describe()` liest `BUILD=` aus der `VERSION`-Datei des Pakets („PDFium chromium/8100 (…)“).
 - Entwicklung: `tools/pdfium/<plattform>/lib` im Hauptcheckout (nicht versioniert). Tests prüfen
-  `PDFOVER_PDFIUM_DIR` und überspringen sich ohne Variable. **CI (Integration):** Release
+  `PIDA_PDFIUM_DIR` und überspringen sich ohne Variable. **CI (Integration):** Release
   `chromium/8100` von `bblanchon/pdfium-binaries` je Plattform laden, entpacken und
-  `PDFOVER_PDFIUM_DIR=<…>/lib` setzen; der Schritt „cargo check ohne PDFium“ baut
-  `pdfover-render --no-default-features` (die PDFium-Testziele haben `required-features`).
+  `PIDA_PDFIUM_DIR=<…>/lib` setzen; der Schritt „cargo check ohne PDFium“ baut
+  `pida-render --no-default-features` (die PDFium-Testziele haben `required-features`).
 
 ## 2. Threads
 
@@ -96,7 +96,7 @@ fremdem Thread).
 `x:auto` überschreibt beim Merge keinen festen Profilwert, `getFooterLine`). `resolve_width` /
 `resolve_position` sind ein Nachbau von `Positioning.adjustSignatureTableandCalculatePosition`
 (inklusive der Eigenheit „`p:<n>` ohne Platz ⇒ letzte Seite“). Abweichungen stehen im
-Kompatibilitätsregister der Crate-Doku (`pdfover_placement`, KR-F01 … KR-F11); `CompatMode::PdfasQuirks`
+Kompatibilitätsregister der Crate-Doku (`pida_placement`, KR-F01 … KR-F11); `CompatMode::PdfasQuirks`
 reproduziert KR-F01/KR-F02 für Golden-Tests.
 
 ## 6. Golden-Tests

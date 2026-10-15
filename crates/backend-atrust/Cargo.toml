@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-backend-atrust"
+name = "pida-backend-atrust"
 description = "ID Austria über A-Trust, Szenario A: nativer SL-1.2-HTTPS-Ablauf, Seitenklassifikation, Long-Poll, FIDO2 (Paket D)"
 version.workspace = true
 edition.workspace = true
@@ -18,10 +18,10 @@ fido2-windows = []
 fido2-hid = []
 
 [dependencies]
-pdfover-backend-api = { workspace = true }
-pdfover-cades = { workspace = true }
-pdfover-sl12 = { workspace = true }
-pdfover-net = { workspace = true }
+pida-backend-api = { workspace = true }
+pida-cades = { workspace = true }
+pida-sl12 = { workspace = true }
+pida-net = { workspace = true }
 scraper = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -46,8 +46,8 @@ cbc = "=0.2.1"
 hmac = "=0.12.1"
 
 [dev-dependencies]
-pdfover-backend-api = { workspace = true, features = ["testing"] }
-pdfover-net = { workspace = true, features = ["testing"] }
+pida-backend-api = { workspace = true, features = ["testing"] }
+pida-net = { workspace = true, features = ["testing"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 serde_json = { workspace = true }
 

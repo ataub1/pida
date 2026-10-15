@@ -1,6 +1,6 @@
 /**
  * Bridge-Typen der Oberfläche. **Einzige Quelle** ist `crates/core-api/src/view.rs`: Die Typen werden
- * mit ts-rs nach `generated.ts` erzeugt (`PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test
+ * mit ts-rs nach `generated.ts` erzeugt (`PIDA_BLESS=1 cargo test -p pida-core-api --test
  * ts_bindings`) und hier nur weitergereicht; der Rust-Test bricht ab, sobald `generated.ts` nicht
  * mehr zu den Rust-Typen passt. Hier stehen nur abgeleitete Hilfstypen und -funktionen.
  *

@@ -8,11 +8,11 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use common::*;
-use pdfover_backend_api::{BackendId, NativeForm, SignatureBackend};
-use pdfover_config::{Overlay, Settings};
-use pdfover_core_api::{CoreOptions, FormAnswerView, InteractionView, StepView, UiEvent};
-use pdfover_pades::{AcceptanceClass, FieldTarget, Reserve, Visibility};
-use pdfover_workflow::{DocResult, ExitCode, PlaceholderAnswer};
+use pida_backend_api::{BackendId, NativeForm, SignatureBackend};
+use pida_config::{Overlay, Settings};
+use pida_core_api::{CoreOptions, FormAnswerView, InteractionView, StepView, UiEvent};
+use pida_pades::{AcceptanceClass, FieldTarget, Reserve, Visibility};
+use pida_workflow::{DocResult, ExitCode, PlaceholderAnswer};
 use zeroize::Zeroizing;
 
 const PDF: &str = "pdf/generated/simple-xref-table.pdf";
@@ -22,7 +22,7 @@ fn keystore_overlay(inputs: Vec<std::path::PathBuf>) -> Overlay {
         input_files: inputs,
         keystore_file: Some(testdata("keystores/test-rsa2048.p12")),
         keystore_store_password: Some(Zeroizing::new("test".into())),
-        backend: Some(pdfover_config::BackendChoice::Keystore),
+        backend: Some(pida_config::BackendChoice::Keystore),
         ..Overlay::default()
     }
 }
@@ -186,7 +186,7 @@ async fn gui_model_b_with_forms_privacy_and_save_dialog() {
     verify_fake_output(&target, &std::fs::read(&a).unwrap());
     // Bestätigung des Datenschutzhinweises und Benutzername (normalisiert, „Merken“) gespeichert
     let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
-    assert_eq!(saved.privacy.acknowledged.get("atrust_native"), Some(&pdfover_core_api::PRIVACY_TEXT_VERSION));
+    assert_eq!(saved.privacy.acknowledged.get("atrust_native"), Some(&pida_core_api::PRIVACY_TEXT_VERSION));
     assert_eq!(saved.id_austria.username.as_deref(), Some("+436641234567"));
     assert!(saved.id_austria.remember);
     // Hinweis „Signaturdaten“ ohne Shell
@@ -196,7 +196,7 @@ async fn gui_model_b_with_forms_privacy_and_save_dialog() {
     assert_eq!(plan.reserve, Reserve::ModelB);
     assert!(plan.name.is_some());
     // F-91: dasselbe Dokument erneut signieren → Auswahl erzwungen (F-55)
-    core.dispatch(UiEvent::Navigate { step: pdfover_workflow::Step::Signing });
+    core.dispatch(UiEvent::Navigate { step: pida_workflow::Step::Signing });
     wait_for(
         &core,
         "Auswahl",
@@ -359,7 +359,7 @@ async fn placeholder_fields_question_per_signature() {
     let a = copy_pdf("pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf", &input, "fields.pdf");
     let engine = FakeEngine::new();
     let mut overlay = keystore_overlay(vec![a]);
-    overlay.backend = Some(pdfover_config::BackendChoice::Keystore);
+    overlay.backend = Some(pida_config::BackendChoice::Keystore);
     let core = fx.start(overlay, false, options(&engine));
     let v = wait_for(&core, "Platzhalterfrage", |v| matches!(v.step, StepView::Placeholder { .. })).await;
     let StepView::Placeholder { fields, qr, .. } = v.step else { unreachable!() };
@@ -388,7 +388,7 @@ async fn settings_overlay_roundtrip_keeps_unknown_keys() {
     assert!(!v.main_bar.settings_enabled, "Hauptleiste im Einstellungs-Overlay aus");
     // JSON-Rundlauf über die Bridge
     let json = serde_json::to_string(&v).unwrap();
-    let back: pdfover_core_api::ViewState = serde_json::from_str(&json).unwrap();
+    let back: pida_core_api::ViewState = serde_json::from_str(&json).unwrap();
     let mut settings = back.settings.unwrap().settings;
     assert_eq!(settings.unknown.len(), 2, "{:?}", settings.unknown);
     settings.output.postfix = "_sig".into();
@@ -451,14 +451,14 @@ async fn unreadable_settings_headless_explain_and_end() {
 fn missing_config_file_fails_start() {
     let fx = Fixture::new();
     let overlay = Overlay { config_file: Some("fehlt.config".into()), ..Overlay::default() };
-    let err = pdfover_core_api::Core::new_with(fx.config(overlay, true), CoreOptions::isolated()).unwrap_err();
+    let err = pida_core_api::Core::new_with(fx.config(overlay, true), CoreOptions::isolated()).unwrap_err();
     assert_eq!(err.message_id(), "ng-config-file-missing");
 }
 
 #[test]
 fn core_without_runtime_owns_one() {
     let fx = Fixture::new();
-    let core = pdfover_core_api::Core::new_with(fx.config(Overlay::default(), false), CoreOptions::isolated()).unwrap();
+    let core = pida_core_api::Core::new_with(fx.config(Overlay::default(), false), CoreOptions::isolated()).unwrap();
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     rt.block_on(async {
         wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
@@ -498,7 +498,7 @@ async fn gui_keystore_password_prompt_with_retry() {
     overlay.auto_position = true;
     overlay.output = Some(out.clone());
     let core = fx.start(overlay, false, options(&engine));
-    let secret = |retry: bool| move |v: &pdfover_core_api::ViewState| matches!(&v.step, StepView::Signing { interaction: InteractionView::Secret { prompt, .. }, .. } if prompt.retry == retry);
+    let secret = |retry: bool| move |v: &pida_core_api::ViewState| matches!(&v.step, StepView::Signing { interaction: InteractionView::Secret { prompt, .. }, .. } if prompt.retry == retry);
     let v = wait_for(&core, "Passwort", secret(false)).await;
     let StepView::Signing { interaction: InteractionView::Secret { request, prompt }, .. } = v.step else {
         unreachable!()
@@ -586,7 +586,7 @@ async fn open_files_ignores_missing_and_navigation_discards() {
     // ohne PDFium: keine Vorschau → automatische Position mit Hinweis → Auswahl
     let v = wait_for(&core, "Auswahl", |v| matches!(v.step, StepView::Backend { .. })).await;
     assert!(v.main_bar.steps[1].enabled, "Positionierung klickbar");
-    core.dispatch(UiEvent::Navigate { step: pdfover_workflow::Step::Open });
+    core.dispatch(UiEvent::Navigate { step: pida_workflow::Step::Open });
     let v = wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
     assert_eq!(v.done.len(), 2);
     assert!(v.done.iter().all(|d| d.result == DocResult::Cancelled));
@@ -606,7 +606,7 @@ async fn discarded_document_is_not_kept_after_late_analysis() {
     let core = fx.start(Overlay { input_files: vec![a], ..Overlay::default() }, false, options(&engine));
     wait_for(&core, "Laden", |v| matches!(v.step, StepView::Loading { .. })).await;
     // Hauptleiste „Öffnen“, während die Analyse noch läuft
-    core.dispatch(UiEvent::Navigate { step: pdfover_workflow::Step::Open });
+    core.dispatch(UiEvent::Navigate { step: pida_workflow::Step::Open });
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;
     assert_eq!(core.open_document_count(), 0, "verworfenes Dokument im Speicher");
@@ -735,7 +735,7 @@ async fn analysis_warning_asks_before_signing() {
     let input = fx.dir("in");
     let a = copy_pdf(PDF, &input, "a.pdf");
     let engine = FakeEngine::new();
-    engine.findings.lock().unwrap().push(pdfover_pades::Finding {
+    engine.findings.lock().unwrap().push(pida_pades::Finding {
         code: "pdf-usage-rights".into(),
         class: AcceptanceClass::K1Regular,
         warning: true,
@@ -771,11 +771,11 @@ async fn analysis_warning_asks_before_signing() {
 const CACHE_SETTINGS: &str = "[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n\
 [id_austria]\nusername = \"+436641234567\"\n[certificate_cache]\nenabled = true\n";
 
-fn cache_key() -> pdfover_config::CertCacheKey {
-    pdfover_config::CertCacheKey::new("atrust_native", "+436641234567")
+fn cache_key() -> pida_config::CertCacheKey {
+    pida_config::CertCacheKey::new("atrust_native", "+436641234567")
 }
 
-async fn answer_tan(core: &pdfover_core_api::Core) {
+async fn answer_tan(core: &pida_core_api::Core) {
     let v = wait_for(core, "TAN", |v| {
         matches!(
             &v.step,
@@ -791,7 +791,7 @@ async fn answer_tan(core: &pdfover_core_api::Core) {
 async fn certificate_cache_skips_the_certificate_request() {
     let fx = Fixture::new();
     fx.write_settings(CACHE_SETTINGS);
-    let cache = pdfover_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
+    let cache = pida_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
     cache.put(&cache_key(), &std::fs::read(testdata("keystores/test-rsa2048.crt.der")).unwrap()).unwrap();
     let input = fx.dir("in");
     let out = fx.dir("out");
@@ -815,7 +815,7 @@ async fn certificate_cache_skips_the_certificate_request() {
 async fn certificate_cache_mismatch_discards_result_and_rereads() {
     let fx = Fixture::new();
     fx.write_settings(CACHE_SETTINGS);
-    let cache = pdfover_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
+    let cache = pida_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
     // im Cache ein anderes Zertifikat (z. B. vor der Erneuerung)
     let other = std::fs::read(testdata("keystores/test-ecp256.crt.der")).unwrap();
     cache.put(&cache_key(), &other).unwrap();

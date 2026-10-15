@@ -1,5 +1,5 @@
 /**
- * Standardwerte wie in Rust (`pdfover_config::Settings::default()`, docs/analyse/01 §3.5) und kleine
+ * Standardwerte wie in Rust (`pida_config::Settings::default()`, docs/analyse/01 §3.5) und kleine
  * Hilfen zur unveränderlichen Bearbeitung der Einstellungen.
  */
 import type { MainBarStep, MainBarView, Settings, Step } from './types';

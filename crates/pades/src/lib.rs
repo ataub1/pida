@@ -1,4 +1,4 @@
-//! `pdfover-pades` – PAdES-Signatur-Engine (Plan §3.6, §6; docs/analyse/03).
+//! `pida-pades` – PAdES-Signatur-Engine (Plan §3.6, §6; docs/analyse/03).
 //!
 //! Ablauf: [`analyze`] → Annahmeklasse K1–K5 → [`SignPlan`] (Profil, Position, Feld; bequem über
 //! [`plan_signature`]) → ggf. Zertifikat vom Backend → [`prepare`] → Backend `sign` →
@@ -17,7 +17,7 @@
 //! | Signaturdictionary `/Type /Sig /Filter /SubFilter /M [/Location] [/Name] /Reason /Contents /ByteRange` | neu (serialisiert von `pdf-incremental`) |
 //! | Feld + Widget `/FT /Sig /Type /Annot /Subtype /Widget /F 132 /T /V /P /Rect /AP /TU [/StructParent]` | neu (Feldname `PDF-AS Signatur<n>`) |
 //! | vorhandenes leeres Feld: `/V` angehängt, Widget `/AP` ersetzt, `/F` \|= 4, `/Rect` bleibt | fortgeschrieben (Widget in `/Kids` eigenständig) |
-//! | Appearance (Holder, Inner `FRM1`, Fonts, Bilder) aus `pdfover-sigblock` | neu |
+//! | Appearance (Holder, Inner `FRM1`, Fonts, Bilder) aus `pida-sigblock` | neu |
 //! | AcroForm: neu direkt im Katalog (`/Fields /SigFlags 3 /DR /DA`), sonst fortgeschrieben | Katalog bzw. AcroForm |
 //! | Seite: `/Annots` (direkt; indirektes Array wird selbst fortgeschrieben), ggf. `/Tabs /S` | fortgeschrieben |
 //! | neue Seite (gleiche MediaBox/`/Rotate` wie die letzte), `/Pages` mit `/Kids`/`/Count` | neu/fortgeschrieben |
@@ -96,23 +96,23 @@ pub use signed::{
     WARNING_I5_WITHOUT_PDFIUM,
 };
 
-pub use pdfover_pdf_incremental::{ByteRange, ExcludedRange};
+pub use pida_pdf_incremental::{ByteRange, ExcludedRange};
 
 /// Fehler der Engine. `Debug` zeigt Feldnamen nur als Länge (Dokumentinhalt, Regel 9).
 #[derive(thiserror::Error)]
 pub enum PadesError {
     /// Leser
     #[error(transparent)]
-    Cos(#[from] pdfover_pdf_cos::CosError),
+    Cos(#[from] pida_pdf_cos::CosError),
     /// Writer
     #[error(transparent)]
-    Incremental(#[from] pdfover_pdf_incremental::IncError),
+    Incremental(#[from] pida_pdf_incremental::IncError),
     /// CMS
     #[error(transparent)]
-    Cms(#[from] pdfover_cades::CmsError),
+    Cms(#[from] pida_cades::CmsError),
     /// Signaturblock
     #[error(transparent)]
-    SigBlock(#[from] pdfover_sigblock::SigBlockError),
+    SigBlock(#[from] pida_sigblock::SigBlockError),
     /// Eingabe abgelehnt (K5 oder Rechte; CLI-Exit 3). Inhalt = stabiler Befund-Code
     /// ([`codes`]), z. B. `pdf-permissions`.
     #[error("Dokument kann nicht signiert werden: {0}")]
@@ -131,7 +131,7 @@ pub enum PadesError {
     Io(#[from] std::io::Error),
     /// Positionierung (Positionsstring, Seite, Platz, Renderer).
     #[error(transparent)]
-    Placement(#[from] pdfover_placement::PlacementError),
+    Placement(#[from] pida_placement::PlacementError),
     /// Zielfeld existiert nicht (mehr) bzw. ist kein Signaturfeld.
     #[error("Signaturfeld nicht gefunden")]
     FieldNotFound,
@@ -219,10 +219,10 @@ pub enum FinishError {
     },
     /// CMS-Prüfung (I3) fehlgeschlagen.
     #[error(transparent)]
-    Cms(#[from] pdfover_cades::CmsError),
+    Cms(#[from] pida_cades::CmsError),
     /// Writer.
     #[error(transparent)]
-    Incremental(#[from] pdfover_pdf_incremental::IncError),
+    Incremental(#[from] pida_pdf_incremental::IncError),
 }
 
 impl FinishError {
@@ -268,7 +268,7 @@ mod tests {
         let e = FinishError::CmsTooLarge { needed: 5000, reserve: 4096 };
         assert_eq!(e.code(), "cms-too-large");
         assert_eq!(e.suggested_reserve(), Some(6144));
-        assert_eq!(FinishError::Cms(pdfover_cades::CmsError::DigestMismatch).code(), "cms-digest-mismatch");
+        assert_eq!(FinishError::Cms(pida_cades::CmsError::DigestMismatch).code(), "cms-digest-mismatch");
     }
 
     #[test]

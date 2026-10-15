@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-java-properties"
+name = "pida-java-properties"
 description = "Bit-kompatibler Leser/Schreiber für java.util.Properties (ISO-8859-1, \\u-Escapes, Fortsetzungszeilen)"
 version.workspace = true
 edition.workspace = true

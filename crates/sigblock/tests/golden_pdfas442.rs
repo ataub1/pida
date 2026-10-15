@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 
 use pdfas442::*;
-use pdfover_sigblock::PDFOVER_PROFILE_IDS;
+use pida_sigblock::PDFOVER_PROFILE_IDS;
 
 /// Ergebnis eines Falls.
 #[derive(Debug, Default, Clone, serde::Serialize)]
@@ -59,18 +59,18 @@ fn known_deviation(case: &CaseInfo, aspect: &str) -> Option<&'static str> {
     let em = case.emblem.as_deref().unwrap_or("");
     let pdfa = is_pdfa_profile(case);
     match aspect {
-        // SB-G1 120-mm-Grenze: PDF-Over klemmt targetLogoSize nur in der Vorschau, PDF-Over NG
+        // SB-G1 120-mm-Grenze: PDF-Over klemmt targetLogoSize nur in der Vorschau, PIDA
         // auch beim Signieren (ProfileOverrides::base_logo, Register „Logo-Größe > 120 mm“).
         _ if case.profile == "BASE_LOGO" && case.base_logo_mm.is_some_and(|mm| mm > 120.0) => {
             Some("SB-G1 120-mm-Grenze: Logo auch beim Signieren auf 120 mm geklemmt")
         }
         // SB-G3 indizierte Transparenz (PNG-Palette mit tRNS, GIF): PDF-AS verwirft sie
-        // (`hasAlpha` ohne Alpha-Raster), PDF-Over NG behält sie als SMask.
+        // (`hasAlpha` ohne Alpha-Raster), PIDA behält sie als SMask.
         "image-smask" | "pixels" if em == "emblem-indexed.png" && !pdfa => {
             Some("SB-G3 indizierte Transparenz bleibt als SMask erhalten")
         }
         // SB-G4 Graustufen-Bildmarken: PDF-AS schreibt DeviceGray mit Java-Umrechnung linear →
-        // sRGB (aufgehellt, z. B. 20 → 79); PDF-Over NG übernimmt die Originalwerte (DeviceRGB).
+        // sRGB (aufgehellt, z. B. 20 → 79); PIDA übernimmt die Originalwerte (DeviceRGB).
         "image-colorspace" | "image-samples" | "pixels" if em == "emblem-tall.png" && !pdfa => {
             Some("SB-G4 Graustufen-Bildmarke ohne Java-Aufhellung, DeviceRGB")
         }
@@ -249,7 +249,7 @@ fn check_case(m: &Manifest) -> Outcome {
             (None, None) => {}
             (Some(a), Some(b)) if a.sha256 == *b => {}
             // SB-G2: PDFBox (LosslessFactory) schreibt für jeden Alphakanal eine SMask, auch wenn
-            // er voll deckend ist (z. B. amtsignatur-logo_demo.png); PDF-Over NG lässt sie weg
+            // er voll deckend ist (z. B. amtsignatur-logo_demo.png); PIDA lässt sie weg
             // (Emblem::has_alpha = „hat Transparenz“), pixelgleich.
             (Some(a), None) if a.sha256 == opaque_smask_sha(a.width, a.height) => {
                 if !o.expected.iter().any(|(k, _)| k == "image-smask") {
@@ -280,7 +280,7 @@ fn run_parallel<T: Send>(cases: &[IndexCase], f: impl Fn(&IndexCase) -> T + Sync
 }
 
 fn write_report(name: &str, value: &impl serde::Serialize) {
-    if let Some(dir) = std::env::var_os("PDFOVER_GOLDEN_REPORT_DIR") {
+    if let Some(dir) = std::env::var_os("PIDA_GOLDEN_REPORT_DIR") {
         let dir = std::path::PathBuf::from(dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(name), serde_json::to_vec_pretty(value).unwrap()).unwrap();
@@ -428,10 +428,10 @@ mod pixels {
     use std::collections::HashMap;
 
     use pdfium_render::prelude::*;
-    use pdfover_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
+    use pida_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
 
     pub fn pdfium() -> Option<Pdfium> {
-        let dir = std::env::var("PDFOVER_PDFIUM_DIR").ok().filter(|d| !d.is_empty())?;
+        let dir = std::env::var("PIDA_PDFIUM_DIR").ok().filter(|d| !d.is_empty())?;
         match Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&dir)) {
             Ok(b) => Some(Pdfium::new(b)),
             Err(e) => {
@@ -536,7 +536,7 @@ mod pixels {
     }
 
     /// Eigener Block über denselben Weg wie [`pdfas_block`] (Seite → Holder → Inner-Form).
-    pub fn own_block(app: &pdfover_sigblock::Appearance) -> Vec<u8> {
+    pub fn own_block(app: &pida_sigblock::Appearance) -> Vec<u8> {
         let mut doc = lopdf::Document::with_version("1.7");
         let mut next = 1u32;
         let m = app.materialize(&mut || {
@@ -615,7 +615,7 @@ mod pixels {
         (bmp.width() as usize, bmp.height() as usize, bmp.as_raw_bytes())
     }
 
-    /// Diagnose: BGRA-Bitmap als PNG (nur mit `PDFOVER_GOLDEN_DEBUG_DIR`).
+    /// Diagnose: BGRA-Bitmap als PNG (nur mit `PIDA_GOLDEN_DEBUG_DIR`).
     pub fn write_png(path: &std::path::Path, img: &(usize, usize, Vec<u8>)) {
         let f = std::fs::File::create(path).unwrap();
         let mut enc = png::Encoder::new(std::io::BufWriter::new(f), img.0 as u32, img.1 as u32);
@@ -674,12 +674,12 @@ struct PixelOutcome {
 #[test]
 fn pixels_match_pdfas_442() {
     let Some(pdfium) = pixels::pdfium() else {
-        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – Pixelvergleich übersprungen");
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – Pixelvergleich übersprungen");
         return;
     };
     let cases: Vec<IndexCase> = visible_cases().into_iter().filter(|c| c.pdf.is_some()).collect();
     assert!(cases.len() >= 60, "zu wenige signierte Referenz-PDFs: {}", cases.len());
-    let debug = std::env::var_os("PDFOVER_GOLDEN_DEBUG_DIR").map(std::path::PathBuf::from);
+    let debug = std::env::var_os("PIDA_GOLDEN_DEBUG_DIR").map(std::path::PathBuf::from);
     let mut outcomes = Vec::new();
     for c in &cases {
         let m = manifest(&c.id);
@@ -818,7 +818,7 @@ fn content_bytes_identical_with_quirks() {
         if tu != app.tu_text {
             errs.push(format!("/TU {tu:?} vs {:?}", app.tu_text));
         }
-        let pdfover_pdf_cos::Object::Stream(hs) = &app.objects[app.holder] else { unreachable!() };
+        let pida_pdf_cos::Object::Stream(hs) = &app.objects[app.holder] else { unreachable!() };
         let hc = String::from_utf8_lossy(&hs.content).to_string();
         if hc != holder.content {
             errs.push(format!("Holder-Inhalt {:?} vs {hc:?}", holder.content));
@@ -853,7 +853,7 @@ fn content_bytes_identical_with_quirks() {
 }
 
 /// Register Q10 (`/TU`) im Standardmodus: PDF-AS schreibt nur die Texte der äußersten Tabelle
-/// (SMALL ohne Hinweis und BASE_LOGO: leer), PDF-Over NG alle Texte in Leserichtung. Geprüft wird
+/// (SMALL ohne Hinweis und BASE_LOGO: leer), PIDA alle Texte in Leserichtung. Geprüft wird
 /// die dokumentierte Form: Die PDF-AS-Zeilen sind in derselben Reihenfolge im eigenen `/TU`
 /// enthalten; ein leeres PDF-AS-`/TU` ist im Standardmodus nur bei Blöcken ohne Text erlaubt.
 #[test]

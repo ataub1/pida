@@ -1,4 +1,4 @@
-//! Ende-zu-Ende mit der echten PAdES-Engine (`pdfover-pades`, Paket I1) und externen Orakeln
+//! Ende-zu-Ende mit der echten PAdES-Engine (`pida-pades`, Paket I1) und externen Orakeln
 //! (qpdf, pyHanko, openssl; ohne Werkzeug überspringt sich das jeweilige Orakel). Seit Welle 3 laufen
 //! die Tests im Standardlauf; die Abläufe selbst prüfen zusätzlich `tests/flow.rs` mit der Fake-Engine.
 
@@ -10,10 +10,10 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use common::*;
-use pdfover_backend_api::{NativeForm, SignatureBackend};
-use pdfover_config::Overlay;
-use pdfover_core_api::{CoreOptions, FormAnswerView, InteractionView, StepView, UiEvent};
-use pdfover_workflow::{DocResult, ExitCode};
+use pida_backend_api::{NativeForm, SignatureBackend};
+use pida_config::Overlay;
+use pida_core_api::{CoreOptions, FormAnswerView, InteractionView, StepView, UiEvent};
+use pida_workflow::{DocResult, ExitCode};
 use zeroize::Zeroizing;
 
 fn tool(name: &str) -> bool {
@@ -27,15 +27,15 @@ fn sign_headless(fx: &Fixture, rel: &str, invisible: bool) -> std::path::PathBuf
         input_files: vec![a],
         keystore_file: Some(testdata("keystores/test-rsa2048.p12")),
         keystore_store_password: Some(Zeroizing::new("test".into())),
-        backend: Some(pdfover_config::BackendChoice::Keystore),
+        backend: Some(pida_config::BackendChoice::Keystore),
         invisible: Some(invisible),
         ..Overlay::default()
     };
     let mut cfg = fx.config(overlay, true);
-    cfg.pdfium_dir = std::env::var_os("PDFOVER_PDFIUM_DIR").map(Into::into);
+    cfg.pdfium_dir = std::env::var_os("PIDA_PDFIUM_DIR").map(Into::into);
     let opts =
         CoreOptions { interactive: Some(false), use_pdfium: cfg.pdfium_dir.is_some(), ..CoreOptions::isolated() };
-    let core = pdfover_core_api::Core::new_with(cfg, opts).unwrap();
+    let core = pida_core_api::Core::new_with(cfg, opts).unwrap();
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     let code = rt.block_on(core.wait_finished());
     assert_eq!(code, ExitCode::Success, "{:#?}", core.view());
@@ -84,11 +84,11 @@ fn real_engine_keystore_invisible_xref_stream() {
 const CACHE_SETTINGS: &str = "[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n\
 [id_austria]\nusername = \"+436641234567\"\n[certificate_cache]\nenabled = true\n";
 
-fn cache_key() -> pdfover_config::CertCacheKey {
-    pdfover_config::CertCacheKey::new("atrust_native", "+436641234567")
+fn cache_key() -> pida_config::CertCacheKey {
+    pida_config::CertCacheKey::new("atrust_native", "+436641234567")
 }
 
-async fn submit_tan(core: &pdfover_core_api::Core) {
+async fn submit_tan(core: &pida_core_api::Core) {
     let v = wait_for(core, "TAN", |v| {
         matches!(
             &v.step,
@@ -100,7 +100,7 @@ async fn submit_tan(core: &pdfover_core_api::Core) {
     core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
 }
 
-async fn submit_login(core: &pdfover_core_api::Core) {
+async fn submit_login(core: &pida_core_api::Core) {
     let v = wait_for(core, "Login", |v| {
         matches!(
             &v.step,
@@ -128,19 +128,19 @@ fn pyhanko_signer(out: &std::path::Path) -> Option<String> {
     Some(String::from_utf8_lossy(&o.stdout).into_owned())
 }
 
-fn start_cached(fx: &Fixture, out: &std::path::Path, cached: &str) -> (pdfover_core_api::Core, Arc<FakeAtrust>) {
+fn start_cached(fx: &Fixture, out: &std::path::Path, cached: &str) -> (pida_core_api::Core, Arc<FakeAtrust>) {
     fx.write_settings(CACHE_SETTINGS);
-    let cache = pdfover_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
+    let cache = pida_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
     cache.put(&cache_key(), &std::fs::read(testdata(cached)).unwrap()).unwrap();
     let a = copy_pdf("pdf/generated/simple-xref-table.pdf", &fx.dir("in"), "a.pdf");
     let fake = FakeAtrust::new();
     let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
     let overlay = Overlay { input_files: vec![a], output: Some(out.to_path_buf()), ..Overlay::default() };
     let mut cfg = fx.config(overlay, false);
-    cfg.pdfium_dir = std::env::var_os("PDFOVER_PDFIUM_DIR").map(Into::into);
+    cfg.pdfium_dir = std::env::var_os("PIDA_PDFIUM_DIR").map(Into::into);
     let opts =
         CoreOptions { backends: Some(backends), use_pdfium: cfg.pdfium_dir.is_some(), ..CoreOptions::isolated() };
-    (pdfover_core_api::Core::new_with(cfg, opts).unwrap(), fake)
+    (pida_core_api::Core::new_with(cfg, opts).unwrap(), fake)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -172,7 +172,7 @@ async fn real_engine_certificate_cache_mismatch_is_caught_and_retried() {
     assert_eq!((code.as_str(), retry), ("ng-certcache-mismatch", true), "{params:?}");
     assert_eq!(params.get("detail").map(String::as_str), Some("cms-unexpected-signer"));
     assert!(!out.join("a_signed.pdf").exists(), "nichts gespeichert");
-    let cache = pdfover_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
+    let cache = pida_config::CertificateCache::with_dir(fx.paths.certificate_cache_dir(), true);
     assert_eq!(cache.get(&cache_key()).unwrap(), None, "Eintrag gelöscht");
     // Wiederholen: Zertifikat neu lesen (Anmeldung), Block neu bauen, erneute Bestätigung
     core.dispatch(UiEvent::Retry);

@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "PDF-Over NG",
-  "identifier": "at.pdf-over-ng",
-  "mainBinaryName": "pdf-over-ng",
+  "productName": "PIDA",
+  "identifier": "at.pida",
+  "mainBinaryName": "pida",
   "build": {
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "PDF-Over NG",
+        "title": "PIDA",
         "width": 860,
         "height": 900,
         "minWidth": 360,
@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: pdfover-render: http://pdfover-render.localhost https://pdfover-render.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: pida-render: http://pida-render.localhost https://pida-render.localhost; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
       "freezePrototype": true
     }
   },
@@ -33,9 +33,9 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
-    "shortDescription": "PDF-Dokumente elektronisch signieren",
-    "longDescription": "PDF-Over NG signiert PDF-Dokumente mit ID Austria, Bürgerkarte oder PKCS#12-Keystore (PAdES).",
-    "copyright": "PDF-Over NG contributors, EUPL-1.2",
+    "shortDescription": "PIDA – PDF-Signatur mit ID Austria",
+    "longDescription": "PIDA (PDF · ID · Austria) signiert PDF-Dokumente mit ID Austria, Bürgerkarte oder PKCS#12-Keystore (PAdES).",
+    "copyright": "PIDA contributors, EUPL-1.2",
     "license": "EUPL-1.2",
     "icon": [
       "icons/32x32.png",

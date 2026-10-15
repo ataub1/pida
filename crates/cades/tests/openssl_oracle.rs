@@ -10,7 +10,7 @@ mod common;
 use std::path::Path;
 use std::process::Command;
 
-use pdfover_cades::{
+use pida_cades::{
     AlgorithmPolicy, AssembleOptions, CertChain, Certificate, CmsError, CmsProfile, DigestAlg, Expect, ExpectedSigner,
     LocalSigner, RawSigner, SignatureAlg, SignedAttrsBuilder, SigningTime, assemble, sign_detached, verify_detached,
 };
@@ -22,7 +22,7 @@ fn now() -> SigningTime {
     SigningTime(OffsetDateTime::now_utc())
 }
 
-fn verify(cms: &[u8], content: &[u8], expect: &Expect) -> pdfover_cades::Result<pdfover_cades::CmsReport> {
+fn verify(cms: &[u8], content: &[u8], expect: &Expect) -> pida_cades::Result<pida_cades::CmsReport> {
     verify_detached(cms, &mut &content[..], expect)
 }
 

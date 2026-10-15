@@ -1,15 +1,15 @@
 //! Werkzeug: konvertiert eine `messages*.properties` von PDF-Over nach Fluent.
 //!
 //! ```text
-//! cargo run -p pdfover-i18n --example convert_messages -- <de|en> <messages.properties> [<ausgabe.ftl>]
+//! cargo run -p pida-i18n --example convert_messages -- <de|en> <messages.properties> [<ausgabe.ftl>]
 //! ```
 //! Ohne Ausgabedatei wird das FTL auf stdout geschrieben; Warnungen gehen nach stderr.
-//! Für die eingebetteten Kataloge siehe `tests/catalogs.rs` (`PDFOVER_I18N_BLESS=1`).
+//! Für die eingebetteten Kataloge siehe `tests/catalogs.rs` (`PIDA_I18N_BLESS=1`).
 
 use std::process::ExitCode;
 
-use pdfover_i18n::Lang;
-use pdfover_i18n::convert::convert_pdfover_messages;
+use pida_i18n::Lang;
+use pida_i18n::convert::convert_pdfover_messages;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();

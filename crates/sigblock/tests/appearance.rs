@@ -6,8 +6,8 @@ use std::io::Read;
 use std::process::Command;
 use std::sync::Arc;
 
-use pdfover_pdf_cos::{Dictionary, Object, lopdf};
-use pdfover_sigblock::{
+use pida_pdf_cos::{Dictionary, Object, lopdf};
+use pida_sigblock::{
     Appearance, BuildOptions, CertFields, Emblem, FontProvider, LOCAL_GENERATION, PdfaMode, ProfileStore,
     SigBlockInput, expr,
 };
@@ -312,7 +312,7 @@ fn pdfa_uses_icc_based_srgb() {
 
 #[test]
 fn pdfa_colored_background_uses_icc_color_space() {
-    use pdfover_java_properties::Properties;
+    use pida_java_properties::Properties;
     let mut props = Properties::new();
     for (k, v) in [
         ("sig_obj.types.T", "on"),
@@ -324,7 +324,7 @@ fn pdfa_colored_background_uses_icc_color_space() {
     ] {
         props.insert(k, v);
     }
-    let s = ProfileStore::from_properties(&props, Arc::new(pdfover_sigblock::BuiltinResources::default())).unwrap();
+    let s = ProfileStore::from_properties(&props, Arc::new(pida_sigblock::BuiltinResources::default())).unwrap();
     let opts = BuildOptions { width: 100.0, rotation: 0, pdfa: PdfaMode::Part1, preview_only: false };
     let a =
         Appearance::build(s.get("T").unwrap(), &input(), &opts, &FontProvider::builtin(), &**s.resources()).unwrap();
@@ -449,12 +449,12 @@ fn materialize_replaces_all_local_references() {
 #[test]
 fn all_pdfover_profiles_build() {
     let s = ProfileStore::builtin().unwrap();
-    for id in pdfover_sigblock::PDFOVER_PROFILE_IDS {
+    for id in pida_sigblock::PDFOVER_PROFILE_IDS {
         let mut p = s.get(id).unwrap().clone();
         let width = if id.starts_with("AMTS") {
             495.0
         } else if id == "BASE_LOGO" {
-            let ov = pdfover_sigblock::ProfileOverrides::base_logo(None, (326, 342), 23.0);
+            let ov = pida_sigblock::ProfileOverrides::base_logo(None, (326, 342), 23.0);
             p = p.with_overrides(&ov);
             62.117_935
         } else {
@@ -499,7 +499,7 @@ fn debug_output_redacts_personal_data() {
         next += 1;
         (next, 0)
     });
-    let ov = pdfover_sigblock::ProfileOverrides { sig_note: inp.note.clone(), ..Default::default() };
+    let ov = pida_sigblock::ProfileOverrides { sig_note: inp.note.clone(), ..Default::default() };
     let d = format!("{a:?} {:?} {inp:?} {:?} {m:?} {ov:?}", a.layout, expr::ExprContext::from_input(&inp));
     for secret in ["Erika", "Geheim", "Vertraulich", "GZ-4711"] {
         assert!(!d.contains(secret), "{secret} in Debug-Ausgabe: {d}");

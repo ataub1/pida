@@ -1,4 +1,4 @@
-//! Tests der fertigen Binary (`pdfover-cli`): Hilfe zweisprachig, Quirks der PDF-Over-Argumente,
+//! Tests der fertigen Binary (`pida-cli`): Hilfe zweisprachig, Quirks der PDF-Over-Argumente,
 //! Exit-Codes, Subcommands, `--json`. Jeder Aufruf läuft mit eigenem `HOME` (Konfiguration,
 //! Logdatei, `~/.pdf-over` isoliert) und ohne Terminal (keine Rückfragen).
 
@@ -21,11 +21,11 @@ impl Home {
     }
 
     fn cmd(&self, lang: &str, args: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_pdfover-cli"))
+        Command::new(env!("CARGO_BIN_EXE_pida-cli"))
             .args(args)
             .env("HOME", self.path())
-            // Windows: Profilordner nur über PDFOVER_HOME umlenkbar (Known-Folder-API)
-            .env("PDFOVER_HOME", self.path())
+            // Windows: Profilordner nur über PIDA_HOME umlenkbar (Known-Folder-API)
+            .env("PIDA_HOME", self.path())
             .env("XDG_CONFIG_HOME", self.path().join(".config"))
             .env("XDG_DATA_HOME", self.path().join(".local/share"))
             .env("XDG_STATE_HOME", self.path().join(".local/state"))
@@ -80,6 +80,7 @@ fn version() {
     let o = h.cmd(EN, &["--version"]);
     assert_eq!(o.status.code(), Some(0));
     assert!(stdout(&o).contains(env!("CARGO_PKG_VERSION")));
+    assert!(stdout(&o).starts_with("PIDA "), "{}", stdout(&o));
 }
 
 #[test]
@@ -107,9 +108,9 @@ fn usage_errors_exit_2() {
     assert_eq!(o.status.code(), Some(2));
     assert!(stderr(&o).contains("PKCS#12"), "{}", stderr(&o));
     // fehlende Umgebungsvariable
-    let o = h.cmd(EN, &["--kspass-env", "PDFOVER_NICHT_GESETZT_4711", a]);
+    let o = h.cmd(EN, &["--kspass-env", "PIDA_NICHT_GESETZT_4711", a]);
     assert_eq!(o.status.code(), Some(2));
-    assert!(stderr(&o).contains("PDFOVER_NICHT_GESETZT_4711"));
+    assert!(stderr(&o).contains("PIDA_NICHT_GESETZT_4711"));
     // -c fehlt → Fehler statt Werksreset
     let o = h.cmd(DE, &["-c", "fehlt.config", a]);
     assert_eq!(o.status.code(), Some(2));
@@ -152,12 +153,12 @@ fn render_block_pdf_and_png() {
     }
     let o = h.cmd(EN, &["render-block", "--profile", "UNBEKANNT", out.to_str().unwrap()]);
     assert_eq!(o.status.code(), Some(2));
-    if let Some(dir) = std::env::var_os("PDFOVER_PDFIUM_DIR") {
+    if let Some(dir) = std::env::var_os("PIDA_PDFIUM_DIR") {
         let png = h.path().join("block.png");
-        let o = Command::new(env!("CARGO_BIN_EXE_pdfover-cli"))
+        let o = Command::new(env!("CARGO_BIN_EXE_pida-cli"))
             .args(["render-block", "--profile", "AMTSSIGNATURBLOCK_EN_RECOMMENDED", png.to_str().unwrap()])
             .env("HOME", h.path())
-            .env("PDFOVER_PDFIUM_DIR", dir)
+            .env("PIDA_PDFIUM_DIR", dir)
             .stdin(Stdio::null())
             .output()
             .unwrap();
@@ -184,7 +185,7 @@ fn verify_signed_unsigned_and_broken() {
     assert_eq!(h.cmd(EN, &["verify", broken.to_str().unwrap()]).status.code(), Some(3));
     if tool("openssl") {
         // Gegenprobe: dieselbe Datei mit openssl cms ist nicht Teil der CLI; der Verifier ist in
-        // pdfover-cades gegen openssl geprüft.
+        // pida-cades gegen openssl geprüft.
     }
 }
 

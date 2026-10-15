@@ -3,11 +3,11 @@
 //!
 //! | Zweck | Windows | macOS | Linux/BSD |
 //! |---|---|---|---|
-//! | Konfiguration | `%APPDATA%\PDF-Over NG\config` | `~/Library/Application Support/at.pdf-over-ng` | `$XDG_CONFIG_HOME/pdf-over-ng` |
-//! | Daten (Bildmarke, Zertifikats-Cache) | `%APPDATA%\PDF-Over NG\data` | wie Konfiguration | `$XDG_DATA_HOME/pdf-over-ng` |
-//! | Cache | `%LOCALAPPDATA%\PDF-Over NG\cache` | `~/Library/Caches/at.pdf-over-ng` | `$XDG_CACHE_HOME/pdf-over-ng` |
-//! | Logs | `%LOCALAPPDATA%\PDF-Over NG\data\logs` | `~/Library/Logs/at.pdf-over-ng` | `$XDG_STATE_HOME/pdf-over-ng/logs` |
-//! | Temp (privat, 0700) | `%LOCALAPPDATA%\PDF-Over NG\data\tmp` | `…/at.pdf-over-ng/tmp` | `$XDG_DATA_HOME/pdf-over-ng/tmp` |
+//! | Konfiguration | `%APPDATA%\PIDA\config` | `~/Library/Application Support/at.pida` | `$XDG_CONFIG_HOME/pida` |
+//! | Daten (Bildmarke, Zertifikats-Cache) | `%APPDATA%\PIDA\data` | wie Konfiguration | `$XDG_DATA_HOME/pida` |
+//! | Cache | `%LOCALAPPDATA%\PIDA\cache` | `~/Library/Caches/at.pida` | `$XDG_CACHE_HOME/pida` |
+//! | Logs | `%LOCALAPPDATA%\PIDA\data\logs` | `~/Library/Logs/at.pida` | `$XDG_STATE_HOME/pida/logs` |
+//! | Temp (privat, 0700) | `%LOCALAPPDATA%\PIDA\data\tmp` | `…/at.pida/tmp` | `$XDG_DATA_HOME/pida/tmp` |
 //!
 //! Mobile (iOS/Android) und portable Installationen übergeben ihre Sandbox-Ordner
 //! ([`Paths::sandbox`], [`Paths::under`]).
@@ -25,22 +25,22 @@ pub const LEGACY_DIR: &str = ".pdf-over";
 /// Name der Altdatei.
 pub const LEGACY_CONFIG_FILE: &str = "PDF-Over.config";
 /// Anzeigename bzw. Ordnername unter Windows.
-pub const APP_NAME: &str = "PDF-Over NG";
+pub const APP_NAME: &str = "PIDA";
 /// Ordnername unter macOS (Bundle-ID-Form).
-pub const MACOS_APP_DIR: &str = "at.pdf-over-ng";
-/// Ordnername unter Linux/BSD (wie `/etc/pdf-over-ng/policy.toml`).
-pub const UNIX_APP_DIR: &str = "pdf-over-ng";
+pub const MACOS_APP_DIR: &str = "at.pida";
+/// Ordnername unter Linux/BSD (wie `/etc/pida/policy.toml`).
+pub const UNIX_APP_DIR: &str = "pida";
 /// Name der Logdatei im Log-Ordner.
-pub const LOG_FILE: &str = "pdf-over-ng.log";
+pub const LOG_FILE: &str = "pida.log";
 /// Größe, ab der die Logdatei rotiert wird (4 Dateien à 512 KiB ≤ 2 MB, Plan §7.1).
 pub const LOG_MAX_FILE_BYTES: u64 = 512 * 1024;
 /// Anzahl aufbewahrter rotierter Logdateien (`.1` … `.3`).
 pub const LOG_KEEP: u32 = 3;
 
 /// Umgebungsvariable für eine portable bzw. isolierte Installation: Ist sie gesetzt, liegen
-/// Einstellungen, Daten, Cache, Logs und Temp-Dateien unter `$PDFOVER_HOME/{config,data,cache,logs,tmp}`,
-/// und die PDF-Over-Altkonfiguration wird in `$PDFOVER_HOME/.pdf-over` gesucht.
-pub const HOME_ENV: &str = "PDFOVER_HOME";
+/// Einstellungen, Daten, Cache, Logs und Temp-Dateien unter `$PIDA_HOME/{config,data,cache,logs,tmp}`,
+/// und die PDF-Over-Altkonfiguration wird in `$PIDA_HOME/.pdf-over` gesucht.
+pub const HOME_ENV: &str = "PIDA_HOME";
 
 fn home_override() -> Option<PathBuf> {
     home_override_from(std::env::var_os(HOME_ENV))
@@ -70,7 +70,7 @@ pub struct Paths {
 impl Paths {
     /// Pfade der Plattform (`directories::ProjectDirs` mit den Ordnernamen aus der Tabelle oben).
     ///
-    /// Ist [`HOME_ENV`] (`PDFOVER_HOME`) gesetzt, liegen alle Ordner darunter ([`Paths::under`]) –
+    /// Ist [`HOME_ENV`] (`PIDA_HOME`) gesetzt, liegen alle Ordner darunter ([`Paths::under`]) –
     /// portable Installation bzw. isolierte Tests. Unter Windows lassen sich die Profilordner sonst
     /// nicht umlenken (Known-Folder-API statt `APPDATA`/`HOME`).
     pub fn platform() -> Result<Paths> {
@@ -264,7 +264,7 @@ mod tests {
         for d in all {
             assert!(d.is_absolute(), "{}", d.display());
             let s = d.to_string_lossy().to_lowercase();
-            assert!(s.contains("pdf-over-ng") || s.contains("pdf-over ng"), "{s}");
+            assert!(s.contains("pida"), "{s}");
             assert!(!s.contains(".pdf-over/"), "nicht der Altordner: {s}");
         }
         assert_ne!(p.cache_dir, p.config_dir);
@@ -279,7 +279,7 @@ mod tests {
         assert_eq!(s.cache_dir, PathBuf::from("/app/cache"));
         assert_eq!(s.temp_dir, PathBuf::from("/app/data/tmp"));
         let u = Paths::under(Path::new("/r"));
-        assert_eq!(u.log_file(), PathBuf::from("/r/logs/pdf-over-ng.log"));
+        assert_eq!(u.log_file(), PathBuf::from("/r/logs/pida.log"));
         assert_eq!(u.certificate_cache_dir(), PathBuf::from("/r/data/certificates"));
     }
 
@@ -335,9 +335,9 @@ mod tests {
             p.rotate_logs(10, 2).unwrap();
         }
         assert!(!log.exists());
-        assert_eq!(std::fs::read_to_string(p.log_dir.join("pdf-over-ng.log.1")).unwrap(), "runde 3 ....");
-        assert_eq!(std::fs::read_to_string(p.log_dir.join("pdf-over-ng.log.2")).unwrap(), "runde 2 ....");
-        assert!(!p.log_dir.join("pdf-over-ng.log.3").exists());
+        assert_eq!(std::fs::read_to_string(p.log_dir.join("pida.log.1")).unwrap(), "runde 3 ....");
+        assert_eq!(std::fs::read_to_string(p.log_dir.join("pida.log.2")).unwrap(), "runde 2 ....");
+        assert!(!p.log_dir.join("pida.log.3").exists());
         std::fs::write(&log, "klein").unwrap();
         p.rotate_logs(10, 2).unwrap();
         assert!(log.exists());

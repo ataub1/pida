@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfover_config::{BackendChoice, Overlay};
+use pida_config::{BackendChoice, Overlay};
 use zeroize::Zeroizing;
 
 #[cfg(feature = "run")]
@@ -44,7 +44,7 @@ pub fn to_overlay(cli: &Cli) -> Overlay {
         input_files: l.input.clone(),
         output: l.output.clone(),
         backend: backend(l.bku),
-        username: l.number.as_deref().map(pdfover_config::normalize_mobile_number),
+        username: l.number.as_deref().map(pida_config::normalize_mobile_number),
         password: pw(&l.password),
         keystore_file: l.keystore.clone(),
         keystore_type: l.keystore_type.clone(),
@@ -69,7 +69,7 @@ pub fn check(cli: &Cli) -> Result<(), ArgError> {
     let l = &cli.legacy;
     let missing = |p: &Path| ArgError::new("error-FileNotExist", vec![("arg1", p.display().to_string())]);
     if let Some(p) = &l.password
-        && let Some(id) = pdfover_config::overlay::password_problem(p)
+        && let Some(id) = pida_config::overlay::password_problem(p)
     {
         return Err(ArgError::new(id, vec![]));
     }
@@ -109,7 +109,7 @@ pub fn keystore_password(cli: &Cli, term: &dyn Terminal) -> Result<Option<Zeroiz
         };
     }
     if cli.modern.kspass_stdin {
-        let prompt = crate::text::tr(pdfover_i18n::Lang::system(), "ng-cli-password", &[]);
+        let prompt = crate::text::tr(pida_i18n::Lang::system(), "ng-cli-password", &[]);
         return match term.secret(&prompt) {
             Some(p) => Ok(Some(p)),
             None => Err(ArgError::new("ng-cli-stdin-failed", vec![("detail", "EOF".into())])),
@@ -209,7 +209,7 @@ mod tests {
     use crate::parse;
 
     fn cli(args: &[&str]) -> Cli {
-        let mut v = vec!["pdfover-cli"];
+        let mut v = vec!["pida-cli"];
         v.extend_from_slice(args);
         parse(v).expect("parse").1
     }
@@ -268,7 +268,7 @@ mod tests {
         let term = crate::term::Scripted::new(false, &["vom-stdin"]);
         assert_eq!(keystore_password(&cli(&["-kspass", "a"]), &term).unwrap().unwrap().as_str(), "a");
         assert_eq!(keystore_password(&cli(&["--kspass-stdin"]), &term).unwrap().unwrap().as_str(), "vom-stdin");
-        let e = keystore_password(&cli(&["--kspass-env", "PDFOVER_TEST_GIBT_ES_NICHT_42"]), &term).unwrap_err();
+        let e = keystore_password(&cli(&["--kspass-env", "PIDA_TEST_GIBT_ES_NICHT_42"]), &term).unwrap_err();
         assert_eq!(e.id, "ng-cli-kspass-env-missing");
         assert!(keystore_password(&cli(&[]), &term).unwrap().is_none());
         let empty = crate::term::Scripted::new(false, &[]);

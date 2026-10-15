@@ -16,8 +16,8 @@
 
 use std::time::Duration;
 
-use pdfover_backend_api::CancelToken;
-use pdfover_net::{HttpClient, NetError, Request, Url};
+use pida_backend_api::CancelToken;
+use pida_net::{HttpClient, NetError, Request, Url};
 
 /// Mindestabstand zweier Polls (nur wirksam, wenn der Server nicht hält).
 pub const MIN_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -34,7 +34,7 @@ pub struct PollInfo {
 
 impl std::fmt::Debug for PollInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PollInfo").field("url", &pdfover_net::redact_url(&self.url)).field("token", &"***").finish()
+        f.debug_struct("PollInfo").field("url", &pida_net::redact_url(&self.url)).field("token", &"***").finish()
     }
 }
 
@@ -52,7 +52,7 @@ pub(crate) fn parse_poll_script_named(function: &str, script: &str, base: &Url) 
     let token_start = mid + 4;
     let end = token_start + script[token_start..].find("\");")?;
     let token = &script[token_start..end];
-    let url = pdfover_net::resolve(base, url).ok()?;
+    let url = pida_net::resolve(base, url).ok()?;
     Some(PollInfo { url, token: token.to_owned() })
 }
 

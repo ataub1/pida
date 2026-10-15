@@ -157,7 +157,7 @@ describe('Fehler', () => {
 
   it('Programmende', async () => {
     renderApp({ view: viewOf({ step: 'finished', exit_code: 4 }) });
-    expect(await screen.findByRole('heading', { level: 1, name: 'PDF-Over NG wurde beendet.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'PIDA wurde beendet.' })).toBeInTheDocument();
     expect(screen.getByText('Beendet mit Code 4.')).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 //! sRGB-ICC-Profil für den OutputIntent (Plan §6.9: „frei lizenziertes ICC-Profil“).
 //!
-//! Gleiche Berechnung wie `pdfover-sigblock` (`icc.rs`, dort für `ICCBased`-Farbräume; das Modul
+//! Gleiche Berechnung wie `pida-sigblock` (`icc.rs`, dort für `ICCBased`-Farbräume; das Modul
 //! ist dort privat): ICC v2.1, Geräteklasse Monitor, RGB → XYZ (Matrix/TRC) aus den Normwerten von
 //! IEC 61966-2-1, Weißpunkt D65 (D50-adaptierte Primärvalenzen), Tonwertkurve mit 1024
 //! Stützstellen. Keine fremden Profildateien; die Bytes sind deterministisch und identisch mit dem
@@ -9,7 +9,7 @@
 use std::sync::OnceLock;
 
 const TRC_POINTS: usize = 1024;
-const DESCRIPTION: &str = "sRGB (IEC 61966-2-1), PDF-Over NG";
+const DESCRIPTION: &str = "sRGB (IEC 61966-2-1), PIDA";
 const COPYRIGHT: &str = "No copyright, use freely";
 
 /// `OutputConditionIdentifier`/`Info` des OutputIntents (wie PDF-AS).

@@ -1,4 +1,4 @@
-//! `pdfover-net` – HTTP-Client-Fassade für A-Trust (Szenario A), lokale BKU und Update-Check.
+//! `pida-net` – HTTP-Client-Fassade für A-Trust (Szenario A), lokale BKU und Update-Check.
 //!
 //! Anforderungen (docs/analyse/02 §3.2–§3.4, §4.3, §6; Plan §2.1, §4.4):
 //! - **je Sitzung ein Client mit eigenem, leerem Cookie-Jar** (je SL-Request ein neuer Client wie
@@ -13,7 +13,7 @@
 //!   Pinning – TLS-Inspektion in Behördennetzen),
 //! - HTTP/1.1 wie Apache HttpClient 5 classic (kein HTTP/2, damit Reason-Phrase und Verhalten
 //!   gleich bleiben), Timeouts, Höchstgröße des Antwortkörpers, User-Agent
-//!   [`DEFAULT_USER_AGENT`] (`PDF-Over NG v<Version>`).
+//!   [`DEFAULT_USER_AGENT`] (`PIDA v<Version>`).
 //!
 //! Debug-Ausgaben und Fehlertexte enthalten nie Formularwerte, Tokens, Cookies oder URLs mit
 //! Abfrageparametern (ADR 0001 §4 Regel 9).
@@ -36,8 +36,8 @@ use zeroize::Zeroizing;
 pub use refresh::parse_refresh;
 
 /// User-Agent aller Requests, sofern [`NetConfig::user_agent`] nichts anderes vorgibt
-/// (`PDF-Over NG v<Version>`, analog zu PDF-Over `Constants.APP_NAME_VERSION`).
-pub const DEFAULT_USER_AGENT: &str = concat!("PDF-Over NG v", env!("CARGO_PKG_VERSION"));
+/// (`PIDA v<Version>`, analog zu PDF-Over `Constants.APP_NAME_VERSION`).
+pub const DEFAULT_USER_AGENT: &str = concat!("PIDA v", env!("CARGO_PKG_VERSION"));
 
 /// Höchstzahl automatisch verfolgter Redirects für [`Purpose::AtrustPoll`], [`Purpose::AtrustImage`]
 /// und [`Purpose::UpdateCheck`].
@@ -822,7 +822,7 @@ mod tests {
             ..NetConfig::default()
         };
         HttpClient::new(&manual, Purpose::AtrustSession).unwrap();
-        assert!(DEFAULT_USER_AGENT.starts_with("PDF-Over NG v"));
+        assert!(DEFAULT_USER_AGENT.starts_with("PIDA v"));
         assert_eq!(cfg.effective_user_agent(), DEFAULT_USER_AGENT);
     }
 

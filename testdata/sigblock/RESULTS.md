@@ -1,7 +1,7 @@
 # Signaturblock: Golden-Vergleich gegen PDF-AS (Paket C)
 
-Stand: 14.10.2026, `pdfover-sigblock` (Worktree Paket C). Tests: `cargo test -p pdfover-sigblock`
-(`tests/golden.rs`, `tests/layout.rs`, `tests/render.rs` – letzterer nur mit `PDFOVER_PDFIUM_DIR`).
+Stand: 14.10.2026, `pida-sigblock` (Worktree Paket C). Tests: `cargo test -p pida-sigblock`
+(`tests/golden.rs`, `tests/layout.rs`, `tests/render.rs` – letzterer nur mit `PIDA_PDFIUM_DIR`).
 
 ## Referenzen
 

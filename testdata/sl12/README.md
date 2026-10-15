@@ -1,4 +1,4 @@
-# Testdaten `pdfover-sl12` (Paket D)
+# Testdaten `pida-sl12` (Paket D)
 
 > **NUR FÜR TESTS.** Keine echten Zertifikate, keine Personendaten.
 

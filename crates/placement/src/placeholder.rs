@@ -3,8 +3,8 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
-use pdfover_pdf_cos::{ImageInvocation, Matrix, ObjectId, PageInfo, Rect, SigField};
-use pdfover_render::{Renderer, RgbaImage, concat_matrix};
+use pida_pdf_cos::{ImageInvocation, Matrix, ObjectId, PageInfo, Rect, SigField};
+use pida_render::{Renderer, RgbaImage, concat_matrix};
 use rxing::common::HybridBinarizer;
 use rxing::qrcode::QRCodeReader;
 use rxing::{BinaryBitmap, DecodeHints, Luma8LuminanceSource, Reader};

@@ -1,21 +1,21 @@
 [package]
-name = "pdfover-app"
-description = "PDF-Over NG – Tauri-2-Shell (Desktop und Mobile): bindet pdfover-core-api an (dispatch/subscribe, pdfover-render://)"
+name = "pida-app"
+description = "PIDA – Tauri-2-Shell (Desktop und Mobile): bindet pida-core-api an (dispatch/subscribe, pida-render://)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 publish.workspace = true
-default-run = "pdf-over-ng"
+default-run = "pida"
 
 # Tauri-2-Muster: Bibliothek (für Mobile als staticlib/cdylib) + dünnes Desktop-Binary.
 [lib]
-name = "pdfover_app_lib"
+name = "pida_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "pdf-over-ng"
+name = "pida"
 path = "src/main.rs"
 
 [build-dependencies]
@@ -23,18 +23,18 @@ path = "src/main.rs"
 tauri-build = { workspace = true }
 
 [dependencies]
-pdfover-core-api = { workspace = true }
-pdfover-config = { workspace = true }
-pdfover-backend-api = { workspace = true }
-pdfover-workflow = { workspace = true }
-pdfover-i18n = { workspace = true }
+pida-core-api = { workspace = true }
+pida-config = { workspace = true }
+pida-backend-api = { workspace = true }
+pida-workflow = { workspace = true }
+pida-i18n = { workspace = true }
 # nur die Bibliotheks-Auflösung (`library_paths_in`: iOS-Framework, Android jniLibs), ohne PDFium-Bindung
-pdfover-render = { workspace = true }
+pida-render = { workspace = true }
 # Mobile-Plugin (sicherer Speicher, Teilen/Exportieren, Import, eingehende Dokumente, TLS unter Android);
 # auf dem Desktop ohne native Seite (alle Methoden „nicht unterstützt“).
-tauri-plugin-pdfover-mobile = { workspace = true }
+tauri-plugin-pida-mobile = { workspace = true }
 # PDF-Over-Startargumente mit dem Parser der CLI (ohne Feature `run`), siehe src/args.rs
-pdfover-cli = { workspace = true }
+pida-cli = { workspace = true }
 clap = { workspace = true }
 zeroize = { workspace = true }
 # Tauri 2.12.4 (Apache-2.0 OR MIT), Plan §2.1 „Tauri 2.12.x, gepinnt“.
@@ -55,28 +55,28 @@ tauri-plugin-single-instance = { workspace = true }
 # Nur Desktop: Fenstergröße/-position merken (Apache-2.0 OR MIT).
 tauri-plugin-window-state = { workspace = true }
 # Nur Desktop: Datei-/Speichern-Dialoge (Apache-2.0 OR MIT). Mobile nutzt Dokument-Picker bzw. SAF über
-# `pdfover-mobile`; ohne das Plugin fehlen dort auch dessen Photos/PhotosUI-Bezüge (iOS, App-Store-
+# `pida-mobile`; ohne das Plugin fehlen dort auch dessen Photos/PhotosUI-Bezüge (iOS, App-Store-
 # Zweckangaben) und die zusätzliche Kotlin-Bibliothek.
 tauri-plugin-dialog = { workspace = true }
 
 # Natives FIDO2 nur auf dem Desktop (ADR 0001 §2): Windows über webauthn.dll, macOS/Linux über CTAP-HID.
 [target.'cfg(windows)'.dependencies]
-pdfover-backend-atrust = { workspace = true, features = ["fido2-windows"] }
+pida-backend-atrust = { workspace = true, features = ["fido2-windows"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
-pdfover-backend-atrust = { workspace = true, features = ["fido2-hid"] }
+pida-backend-atrust = { workspace = true, features = ["fido2-hid"] }
 
 # macOS: Besitzer des Single-Instance-Sockets im gemeinsamen /tmp prüfen (src/instance.rs).
 [target.'cfg(target_os = "macos")'.dependencies]
 rustix = { workspace = true }
 
 [target.'cfg(not(any(windows, target_os = "macos", target_os = "linux")))'.dependencies]
-pdfover-backend-atrust = { workspace = true }
+pida-backend-atrust = { workspace = true }
 
 [dev-dependencies]
 # Serde-Vertragstest Rust ↔ TypeScript (tests/serde_contract.rs)
-pdfover-placement = { workspace = true }
-pdfover-pades = { workspace = true }
+pida-placement = { workspace = true }
+pida-pades = { workspace = true }
 toml = { workspace = true }
 
 [lints]

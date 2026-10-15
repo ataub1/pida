@@ -1,6 +1,6 @@
 /**
  * Link-Markup der Katalogtexte (`<a>Text</a>`, `<a href="Ziel">Text</a>`), wie
- * `pdfover_i18n::markup::parse`: Unvollständiges Markup bleibt Text, andere spitze Klammern auch.
+ * `pida_i18n::markup::parse`: Unvollständiges Markup bleibt Text, andere spitze Klammern auch.
  */
 
 /** Teil eines Textes. */

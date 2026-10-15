@@ -4,9 +4,9 @@
 //!
 //! - [`pdfa_outputs_pass_verapdf`]: veraPDF (Greenfield-CLI, `tools/verapdf/fetch.sh`) prüft Eingabe
 //!   und Ausgabe; jede Regel, die in der Ausgabe, aber nicht in der Eingabe verletzt ist, ist ein
-//!   Fehler der Engine. Ohne veraPDF-JAR (`PDFOVER_VERAPDF_JAR`, sonst `tools/verapdf/dist/` im
-//!   Worktree bzw. unter `PDFOVER_MAIN`) oder ohne Java (`PDFOVER_JAVA`, `JAVA_HOME`, `java` im PATH)
-//!   übersprungen. `PDFOVER_VERAPDF_KEEP=<dir>` legt alle geprüften Dateien und die Berichte ab.
+//!   Fehler der Engine. Ohne veraPDF-JAR (`PIDA_VERAPDF_JAR`, sonst `tools/verapdf/dist/` im
+//!   Worktree bzw. unter `PIDA_MAIN`) oder ohne Java (`PIDA_JAVA`, `JAVA_HOME`, `java` im PATH)
+//!   übersprungen. `PIDA_VERAPDF_KEEP=<dir>` legt alle geprüften Dateien und die Berichte ab.
 //! - [`pdfa_outputs_structural_checks`]: ohne externe Werkzeuge die wichtigsten PDF/A-Regeln für das
 //!   Increment (ISO 19005-1 §6.1.3 `/ID`, §6.1.4/§6.1.8 Syntax, §6.4 Transparenz in PDF/A-1, §6.3.4
 //!   eingebettete Fonts, §6.2.3 Gerätefarbräume, §6.5.3 Widget-Flags und `/AP` nur mit `/N`, §6.9
@@ -20,9 +20,9 @@ use std::process::Command;
 use std::sync::Arc;
 
 use common::*;
-use pdfover_pades::{PlanOptions, SignPlan, analyze, cert_fields, plan_signature, prepare};
-use pdfover_pdf_cos::{Dictionary, Limits, Object, ObjectId, ObjectLocation, SourcePdf};
-use pdfover_sigblock::{Emblem, SigBlockInput};
+use pida_pades::{PlanOptions, SignPlan, analyze, cert_fields, plan_signature, prepare};
+use pida_pdf_cos::{Dictionary, Limits, Object, ObjectId, ObjectLocation, SourcePdf};
+use pida_sigblock::{Emblem, SigBlockInput};
 
 /// Eingaben: (Flavour, Bezeichnung, Datei, optionaler Byte-Patch).
 fn inputs() -> Vec<(&'static str, &'static str, Vec<u8>)> {
@@ -78,7 +78,7 @@ fn sign_all() -> Vec<Signed> {
         let report = analyze(&src).unwrap();
         assert!(report.pdfa.is_some(), "{name}: PDF/A erkannt");
         for (variant, profile, em) in variants() {
-            let time = pdfover_pades::local_signing_time();
+            let time = pida_pades::local_signing_time();
             let plan = match profile {
                 None => SignPlan::invisible(time),
                 Some(id) => {
@@ -303,14 +303,14 @@ fn java_works(java: &Path) -> bool {
 }
 
 fn verapdf() -> Option<VeraPdf> {
-    let mut jars: Vec<PathBuf> = std::env::var_os("PDFOVER_VERAPDF_JAR").map(PathBuf::from).into_iter().collect();
+    let mut jars: Vec<PathBuf> = std::env::var_os("PIDA_VERAPDF_JAR").map(PathBuf::from).into_iter().collect();
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     jars.push(workspace.join("tools/verapdf/dist").join(VERAPDF_JAR));
-    if let Some(main) = std::env::var_os("PDFOVER_MAIN") {
+    if let Some(main) = std::env::var_os("PIDA_MAIN") {
         jars.push(PathBuf::from(main).join("tools/verapdf/dist").join(VERAPDF_JAR));
     }
     let jar = jars.into_iter().find(|p| p.is_file())?;
-    let mut javas: Vec<PathBuf> = std::env::var_os("PDFOVER_JAVA").map(PathBuf::from).into_iter().collect();
+    let mut javas: Vec<PathBuf> = std::env::var_os("PIDA_JAVA").map(PathBuf::from).into_iter().collect();
     if let Some(home) = std::env::var_os("JAVA_HOME") {
         javas.push(PathBuf::from(home).join("bin/java"));
     }
@@ -429,11 +429,11 @@ fn mrr_parser_reads_compliance_and_failed_rules() {
 fn pdfa_outputs_pass_verapdf() {
     let Some(vera) = verapdf() else {
         eprintln!(
-            "veraPDF oder Java fehlt – PDF/A-Orakel übersprungen (tools/verapdf/fetch.sh, PDFOVER_VERAPDF_JAR, PDFOVER_JAVA)"
+            "veraPDF oder Java fehlt – PDF/A-Orakel übersprungen (tools/verapdf/fetch.sh, PIDA_VERAPDF_JAR, PIDA_JAVA)"
         );
         return;
     };
-    let keep = std::env::var_os("PDFOVER_VERAPDF_KEEP").map(PathBuf::from);
+    let keep = std::env::var_os("PIDA_VERAPDF_KEEP").map(PathBuf::from);
     let tmp = tempfile::tempdir().unwrap();
     let dir = keep.clone().unwrap_or_else(|| tmp.path().to_path_buf());
     std::fs::create_dir_all(&dir).unwrap();

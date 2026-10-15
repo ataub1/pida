@@ -1,4 +1,4 @@
-//! `pdfover-pdf-cos` – Fassade um `lopdf` (nur Parser und Objektmodell).
+//! `pida-pdf-cos` – Fassade um `lopdf` (nur Parser und Objektmodell).
 //!
 //! Verantwortung (Plan §3.2, §6.1, §6.3; docs/analyse/03 §4.13, §10 Punkt 1):
 //! - lenientes Lesen eines Eingabe-PDFs aus unveränderlichen Bytes ([`SourcePdf::open`]),
@@ -19,7 +19,7 @@
 //! Andere Crates verwenden lopdf ausschließlich über den Re-Export [`lopdf`] dieses Crates, damit die
 //! gepinnte Version (0.45.x) an genau einer Stelle festgelegt ist.
 //!
-//! Ownership: Paket **A** (zusammen mit `pdfover-pdf-incremental`).
+//! Ownership: Paket **A** (zusammen mit `pida-pdf-incremental`).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -395,7 +395,7 @@ pub enum CryptTarget {
 
 /// Verschlüsselt neue Objekte mit dem objektspezifischen Schlüssel des vorhandenen Handlers.
 ///
-/// Wird von `pdfover-pdf-incremental` benutzt (Plan §6.3): neue Strings und Streams werden
+/// Wird von `pida-pdf-incremental` benutzt (Plan §6.3): neue Strings und Streams werden
 /// verschlüsselt, `/Contents` des Signaturdictionarys **nie**. Innerer Aufbau ist Sache von Paket A.
 ///
 /// `Debug` zeigt nur das Verfahren, nie den Dateischlüssel (ADR 0001 Regel 9).
@@ -494,7 +494,7 @@ impl std::fmt::Debug for SigField {
 /// Aufruf eines Bild-XObjects per `Do` im Seiteninhalt (für QR-Platzhalter, docs/analyse/04 §5.1).
 ///
 /// Nur `Do` auf `/Subtype /Image` zählt; Inline-Bilder (`BI … EI`) werden wie bei PDF-AS ignoriert.
-/// `pdfover-placement` ordnet die Einträge den PDFium-Bildobjekten (`pdfover_render::ImageObject`)
+/// `pida-placement` ordnet die Einträge den PDFium-Bildobjekten (`pida_render::ImageObject`)
 /// **primär über [`ImageInvocation::ctm`]** zu, `order` ist nur Tie-Breaker (ADR 0001 §8).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImageInvocation {
@@ -597,7 +597,7 @@ pub struct AcroFormInfo {
 
 /// Lage eines Objekts laut zusammengeführtem Querverweis (neueste Revision gewinnt).
 ///
-/// Additiv (Welle 2, `pdfover-pades`): Grundlage der Whitelist-Prüfung I6, die die Objekte eines
+/// Additiv (Welle 2, `pida-pades`): Grundlage der Whitelist-Prüfung I6, die die Objekte eines
 /// Increments unabhängig vom Writer aus dem Querverweis der Ausgabe bestimmt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ObjectLocation {
@@ -977,7 +977,7 @@ impl SourcePdf {
     /// Liest ein PDF aus Bytes (leniente Variante, Plan §6.1 K1/K2).
     ///
     /// Fehler: [`CosError::PasswordRequired`], [`CosError::UnsupportedSecurityHandler`],
-    /// [`CosError::NoPages`] usw. – `pdfover-pades::analyze` bildet sie auf K5 ab.
+    /// [`CosError::NoPages`] usw. – `pida-pades::analyze` bildet sie auf K5 ab.
     pub fn open(bytes: impl Into<Arc<[u8]>>, limits: &Limits) -> Result<SourcePdf> {
         let bytes: Arc<[u8]> = bytes.into();
         if bytes.len() as u64 > limits.max_file_size {
@@ -1528,7 +1528,7 @@ impl SourcePdf {
     /// nach Objektnummer sortiert; freie Einträge fehlen. Bei Object Streams hat die ID immer
     /// Generation 0.
     ///
-    /// Additiv (Welle 2): `pdfover-pades` bestimmt damit die Objekte eines Increments (Invariante
+    /// Additiv (Welle 2): `pida-pades` bestimmt damit die Objekte eines Increments (Invariante
     /// I6) – Objekte mit Offset ≥ Länge des Originals bzw. in einem neuen Object Stream.
     pub fn object_locations(&self) -> Vec<(ObjectId, ObjectLocation)> {
         self.xref

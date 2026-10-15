@@ -6,8 +6,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use common::*;
-use pdfover_backend_api::BackendError;
-use pdfover_workflow::{
+use pida_backend_api::BackendError;
+use pida_workflow::{
     Context, DocId, Effect, Event, InputDocument, OutputDecision, PathProbe, Queue, SigningPhase, State, Step,
     decide_output, grown_reserve, output_file_name, reduce,
 };
@@ -58,7 +58,7 @@ proptest! {
         let mut order = Vec::new();
         for _ in 0..finish {
             if let Some(id) = q.current_id() { order.push(id.0); }
-            q.finish_current(pdfover_workflow::DocResult::Cancelled);
+            q.finish_current(pida_workflow::DocResult::Cancelled);
         }
         let expect: Vec<u64> = (0..n.min(finish) as u64).collect();
         prop_assert_eq!(&order, &expect);
@@ -116,12 +116,12 @@ proptest! {
                 0 => Event::Started { documents: vec![doc(1), doc(2)] },
                 1 => { next_id += 1; Event::FilesAdded(vec![doc(next_id)]) }
                 2 => analyzed(state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1), 2, None, false),
-                3 => analyzed(state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1), 1, Some(pdfover_workflow::PlaceholderFound::Qr(qr())), true),
-                4 => Event::PlaceholderAnswered { answer: pdfover_workflow::PlaceholderAnswer::Yes, field_index: None },
+                3 => analyzed(state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1), 1, Some(pida_workflow::PlaceholderFound::Qr(qr())), true),
+                4 => Event::PlaceholderAnswered { answer: pida_workflow::PlaceholderAnswer::Yes, field_index: None },
                 5 => Event::PositionConfirmed,
                 6 => Event::NewPageToggled,
                 7 => Event::BackendsProbed(options(true, true)),
-                8 => Event::BackendChosen(pdfover_backend_api::BackendId::Keystore),
+                8 => Event::BackendChosen(pida_backend_api::BackendId::Keystore),
                 9 => Event::PhaseCompleted(SigningPhase::OpeningSession),
                 10 => Event::PhaseCompleted(SigningPhase::ReadingCertificate),
                 11 => Event::PhaseCompleted(SigningPhase::Preparing),
@@ -149,9 +149,9 @@ proptest! {
                 29 => Event::Foregrounded,
                 30 => {
                     next_id += 1;
-                    let plan = pdfover_workflow::ResumePlan {
-                        position: pdfover_workflow::PositionChoice::Auto,
-                        backend: pdfover_backend_api::BackendId::Keystore,
+                    let plan = pida_workflow::ResumePlan {
+                        position: pida_workflow::PositionChoice::Auto,
+                        backend: pida_backend_api::BackendId::Keystore,
                     };
                     Event::ResumeRequested { document: doc(next_id), plan, pending: vec![doc(1)] }
                 }

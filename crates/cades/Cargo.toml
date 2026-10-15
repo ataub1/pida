@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-cades"
+name = "pida-cades"
 description = "CMS/CAdES: SignedAttributes (pdfas-compat, pades-b-b), SignedData-Montage, Verifier, Zertifikate (Paket B)"
 version.workspace = true
 edition.workspace = true

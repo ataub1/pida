@@ -20,29 +20,29 @@ parallel in diesem Worktree (Zuständigkeiten siehe §9).
 React-Oberfläche (apps/app/src)            ── ViewState / UiEvent (Tauri-IPC, unverändert) ──┐
   isMobile(view): Teilen/Exportieren, PKCS#12-Assistent, „Signatur fortsetzen“, FIDO2-Hinweis   │
                                                                                                 ▼
-Tauri-Shell (apps/app/src-tauri, Crate pdfover-app)                                pdfover-core-api (Kern)
+Tauri-Shell (apps/app/src-tauri, Crate pida-app)                                pida-core-api (Kern)
   cfg(mobile): Sandbox-Pfade, Lebenszyklus, Dokument-Eingang,  ── CoreOptions ──▶  Workflow-Reducer (State::Resuming)
   mobile_pick_files, ShellHooks share/export, SecretStore                         resume.rs: Prepared::persist/restore
         │ Rust-API (keine WebView-Befehle)                                          Long-Poll nach Rückkehr, Backend-Liste
         ▼
-Plugin tauri-plugin-pdfover-mobile (apps/app/plugins/pdfover-mobile)
-  src/ (fertig): PdfoverMobile, Fehlercodes, Pfadprüfung, tls.rs (Android: rustls-platform-verifier)
-  ios/Sources/PdfoverMobilePlugin.swift      ← M-iOS füllt (Keychain, Share, Document Picker, Inbox)
-  android/src/main/java/…/PdfoverMobilePlugin.kt ← M-Android füllt (Keystore, ACTION_SEND, SAF, Intents)
+Plugin tauri-plugin-pida-mobile (apps/app/plugins/pida-mobile)
+  src/ (fertig): PidaMobile, Fehlercodes, Pfadprüfung, tls.rs (Android: rustls-platform-verifier)
+  ios/Sources/PidaMobilePlugin.swift      ← M-iOS füllt (Keychain, Share, Document Picker, Inbox)
+  android/src/main/java/…/PidaMobilePlugin.kt ← M-Android füllt (Keystore, ACTION_SEND, SAF, Intents)
 ```
 
 Die Oberfläche hält keinen Fachzustand (Plan §3.1). Plattform kennt sie aus `ViewState.platform`
 (`{ os, mobile }`, vom Kern aus `CoreConfig::platform`).
 
-## 2. Plugin `pdfover-mobile`
+## 2. Plugin `pida-mobile`
 
-Crate `tauri-plugin-pdfover-mobile`, Tauri-Name `pdfover-mobile`, registriert auf **allen** Plattformen
+Crate `tauri-plugin-pida-mobile`, Tauri-Name `pida-mobile`, registriert auf **allen** Plattformen
 (Desktop: ohne native Seite, jede Methode liefert `Error::Unsupported`). Das Plugin hat **keine Befehle
 für die WebView** (`COMMANDS = []`, keine Berechtigungen): der sichere Speicher darf aus der Oberfläche
 nicht erreichbar sein. Nur die Rust-Shell ruft es auf – nie vom Hauptthread (iOS führt die Methoden dort
 aus; die Shell nutzt Hintergrund-Threads, der sichere Speicher zusätzlich eine Frist von 5 s).
 
-Rust-API (`PdfoverMobileExt::pdfover_mobile()` auf `AppHandle`):
+Rust-API (`PidaMobileExt::pida_mobile()` auf `AppHandle`):
 
 | Methode (Rust) | nativ | Argumente (JSON, camelCase) | Antwort | Umsetzung iOS / Android |
 |---|---|---|---|---|
@@ -58,11 +58,11 @@ Rust-API (`PdfoverMobileExt::pdfover_mobile()` auf `AppHandle`):
 Fehler: `invoke.reject(message, code)` – `not-implemented` (Hülle), `cancelled` (Nutzerin hat
 abgebrochen; Export/Import liefern dann `false` bzw. `[]`), sonst ein kurzer eigener Code. Die Nachricht
 wird verworfen (kann Pfade enthalten); Rust kennt `ng-mobile-unsupported`, `ng-mobile-not-implemented`,
-`ng-mobile-cancelled`, `ng-mobile-timeout`, `ng-mobile-native` (übersetzt in `pdfover-ng.ftl`).
+`ng-mobile-cancelled`, `ng-mobile-timeout`, `ng-mobile-native` (übersetzt in `pida.ftl`).
 Zurückgegebene Pfade müssen **innerhalb von `destination`** liegen und Dateien sein – andere verwirft die
 Rust-Seite (`within`, Schutz gegen fehlerhafte native Seiten).
 
-Tests der Rust-Seite: `cargo test -p tauri-plugin-pdfover-mobile` (Vertrag mit einer Attrappe der
+Tests der Rust-Seite: `cargo test -p tauri-plugin-pida-mobile` (Vertrag mit einer Attrappe der
 nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
 
 ## 3. Lebenszyklus (Plan §3.5)
@@ -108,8 +108,8 @@ nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
   Android 9/10 Apps mit Speicher-Berechtigung mitlesen), dann ohne Speichern-Dialog; vorhandene Datei → Rückfrage
   „Überschreiben?“. Im Ergebnis „Teilen“ (`share_result`) und „Sichern unter …“ (`export_result`) –
   Effekte `Effect::ShareResult`/`ExportResult` → `ShellHooks::share_path`/`export_path` → Plugin.
-- **Secrets:** `pdfover_config::ShellSecretStore` über `mobile::PluginSecureStorage` (Schlüssel
-  `PDF-Over NG/<SecretId::account>`); Verfügbarkeit beim ersten Zugriff (Probe `secureStoreGet`). Solange
+- **Secrets:** `pida_config::ShellSecretStore` über `mobile::PluginSecureStorage` (Schlüssel
+  `PIDA/<SecretId::account>`); Verfügbarkeit beim ersten Zugriff (Probe `secureStoreGet`). Solange
   die native Seite leer ist: nur RAM, `is_persistent() == false` (UI-Hinweis `ng-secrets-not-persistent`).
   Das ID-Austria-Passwort hat keinen `SecretId` und erreicht den Speicher nie.
 - **Signiermittel:** keine lokale BKU (Registry nur auf dem Desktop); ID Austria mit
@@ -130,7 +130,7 @@ nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
   `xcodebuild` (auf dem Entwicklungs-Mac: „failed to load a required plug-in“ ohne
   `xcodebuild -runFirstLaunch`), stellt das Skript dieselbe Struktur direkt zusammen. Im Xcode-Projekt
   „Embed & Sign“. Der Kern bindet `Frameworks/pdfium.framework/pdfium` im Bundle
-  (`pdfover_render::library_paths_in`, `pdfium::mobile_dir`); keine Suche nach dem bloßen Dateinamen.
+  (`pida_render::library_paths_in`, `pdfium::mobile_dir`); keine Suche nach dem bloßen Dateinamen.
 - **Mindest-iOS:** Die `pdfium-binaries` chromium/8100 für iOS sind mit `minos 17.0` gekennzeichnet; M-iOS setzt
   die Kennzeichnung mit `vtool` auf **16.0** (Plan §5.1, `PDFIUM_IOS_MIN`, docs/integration/mobile-ios.md §3) –
   auf iOS 16 selbst ungetestet.
@@ -173,35 +173,35 @@ A-Trust-Verbindung.
 
 Umgebung wie `tools/env.sh` (Rust 1.99, JDK 21, Android-SDK, NDK 29.0.14206865). Pfad mit Leerzeichen:
 `cargo check` für iOS/Android funktioniert direkt; scheitern Gradle/Xcode-Skripte daran, über einen
-Symlink ohne Leerzeichen bauen (`ln -s "<worktree>" /tmp/pdfover-ng-mobile` und dort `npm run tauri …`).
+Symlink ohne Leerzeichen bauen (`ln -s "<worktree>" /tmp/pida-mobile` und dort `npm run tauri …`).
 
 ```sh
 # PDFium für Mobile (einmalig)
 tools/fetch-pdfium.sh --xcframework --jnilibs
 
 # Kern, Shell, Plugin (Desktop-Tests)
-cargo test -p pdfover-workflow -p pdfover-core-api -p pdfover-app -p tauri-plugin-pdfover-mobile -p pdfover-config
+cargo test -p pida-workflow -p pida-core-api -p pida-app -p tauri-plugin-pida-mobile -p pida-config
 cd apps/app && npm test
 
 # Typprüfung Mobile (iOS kompiliert dabei das Swift-Paket des Plugins)
-cargo check -p pdfover-app --target aarch64-apple-ios-sim
-cargo check -p pdfover-app --target aarch64-apple-ios
+cargo check -p pida-app --target aarch64-apple-ios-sim
+cargo check -p pida-app --target aarch64-apple-ios
 NDK=$NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin
 CC_aarch64_linux_android=$NDK/aarch64-linux-android24-clang AR_aarch64_linux_android=$NDK/llvm-ar \
 CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK/aarch64-linux-android24-clang \
-  cargo check -p pdfover-app --target aarch64-linux-android
+  cargo check -p pida-app --target aarch64-linux-android
 ```
 
 Projekte anlegen (M-iOS/M-Android, je in `apps/app`): `npm run tauri ios init` (braucht `xcodegen`:
 `brew install xcodegen`; auf dem Entwicklungs-Mac zusätzlich einmal `sudo xcodebuild -runFirstLaunch`),
 `npm run tauri android init`. Danach `apps/app/src-tauri/.gitignore` anpassen (`/gen/apple`, `/gen/android`
-werden versioniert, nur Build-Ausgaben ignorieren). Kennung `at.pdf-over-ng`: unter Android ist `-` im
-Paketnamen unzulässig – Tauri leitet `at.pdf_over_ng` ab; prüfen und in `tauri.conf.json` ggf. per
+werden versioniert, nur Build-Ausgaben ignorieren). Kennung `at.pida`: unter Android ist `-` im
+Paketnamen unzulässig – Tauri leitet `at.pida` ab; prüfen und in `tauri.conf.json` ggf. per
 `bundle.android`/Plattform-Konfiguration festlegen.
 
 Nachweise M0 (15.10.2026): Workspace-Tests grün (`cargo test --workspace`), `npm test` 264 Tests,
 `cargo clippy -D warnings` (Desktop, `aarch64-apple-ios`, `aarch64-apple-ios-sim`,
-`aarch64-linux-android` mit NDK) für Shell und Plugin; `cargo check -p pdfover-app` für iOS-Simulator und
+`aarch64-linux-android` mit NDK) für Shell und Plugin; `cargo check -p pida-app` für iOS-Simulator und
 Android grün (verbleibende Warnungen nur `dead_code` in `pdf-cos`, `sigblock`, `pades` – Felder, die auf
 den Mobil-Zielen ungelesen bleiben; außerhalb von M0, `pdf-cos`/`sigblock` gehören zu T2). Nicht geprüft (Aufgabe M-iOS/M-Android): Start im Simulator/Emulator, native Seiten,
 Gradle-Build der Kotlin-Hülle.
@@ -212,7 +212,7 @@ Gemeinsame Regeln: Kern, Shell-Rust, Plugin-Rust und Oberfläche sind von M0 fer
 mit Absprache (Integration), Vertrag in §2 nicht einseitig ändern. Keine echten Zugangsdaten, nur
 Testdaten (`testdata/pdf`, `testdata/keystores`, Passwort `test`), kein Netzverkehr in Tests.
 
-**M-iOS** (Dateien: `apps/app/plugins/pdfover-mobile/ios/**`, `apps/app/src-tauri/gen/apple/**`):
+**M-iOS** (Dateien: `apps/app/plugins/pida-mobile/ios/**`, `apps/app/src-tauri/gen/apple/**`):
 
 1. `tauri ios init`; Projekt versionieren; `PDFium.xcframework` einbinden („Embed & Sign“), Deployment
    Target 17.0.
@@ -228,19 +228,19 @@ Testdaten (`testdata/pdf`, `testdata/keystores`, Passwort `test`), kein Netzverk
 5. QuickLook für „Öffnen“ des Ergebnisses (`opener` öffnet auf iOS keine Pfade) – ggf. `ShellHooks::open_path`
    über das Plugin (Vertrag mit M0/Integration abstimmen).
 
-**M-Android** (Dateien: `apps/app/plugins/pdfover-mobile/android/**`, `apps/app/src-tauri/gen/android/**`) –
+**M-Android** (Dateien: `apps/app/plugins/pida-mobile/android/**`, `apps/app/src-tauri/gen/android/**`) –
 **umgesetzt** (15.10.2026), Stand, Nachweise und Befunde: docs/integration/mobile-android.md:
 
 1. `tauri android init`; Projekt versionieren; `jniLibs` aus `tools/pdfium/android/jniLibs` einbinden
    (`sourceSets.main.jniLibs.srcDirs`), `minSdk 28`.
 2. Manifest: Intent-Filter `VIEW`, `SEND`, `SEND_MULTIPLE` für `application/pdf` (Activity
    `singleTask`, `configChanges` für Drehen/Dark Mode), `FileProvider` (Authority
-   `${applicationId}.pdfover.files`) für „Teilen“.
+   `${applicationId}.pida.files`) für „Teilen“.
 3. Kotlin: Android Keystore (`secureStore*`), `ACTION_SEND` (`shareFile`), SAF `ACTION_CREATE_DOCUMENT`
    (`exportFile`), `ACTION_OPEN_DOCUMENT` (`importFile`), Intents in `load()`/`onNewIntent` vormerken und
    über `ContentResolver` nach `destination` kopieren (`takePendingOpenDocuments`).
 4. `rustls-platform-verifier`-Komponente (Maven, Version aus `Cargo.lock`, §6) einbinden.
-5. Im Emulator `pdfover_api35` nachweisen wie M-iOS Punkt 4; zusätzlich Drehen während der Wartemaske,
+5. Im Emulator `pida_api35` nachweisen wie M-iOS Punkt 4; zusätzlich Drehen während der Wartemaske,
    „Nicht behalten“-Entwickleroption (Activity neu) und Zurück-Taste.
 6. „Öffnen“ des Ergebnisses über `ACTION_VIEW` (FileProvider) statt `opener`-Pfad.
 
@@ -267,20 +267,20 @@ Belege; beide Plattformen neu gebaut und im Simulator bzw. Emulator durchgespiel
 | R-10 | niedrig | Doku: Keychain-Zugriffsklasse, `openFile` unter iOS, Mindest-iOS veraltet | korrigiert (§2, §5, Plugin-Moduldoku) |
 
 Geprüft und **in Ordnung**: WebView erreicht das Plugin nicht (Tauri prüft die ACL vor `run_mobile_plugin`;
-`mobile.json` ohne `pdfover-mobile:*`), CSP/Capabilities minimal, ID-Austria-Passwort ohne `SecretId` (nur RAM der
+`mobile.json` ohne `pida-mobile:*`), CSP/Capabilities minimal, ID-Austria-Passwort ohne `SecretId` (nur RAM der
 Sitzung), Fehler/Logs ohne Pfade, URIs oder Werte, Pfadprüfungen bei Import/Eingang (Rust `within`, Swift
 `isInside`, Kotlin `Documents.within`), `resume.json` nur mit relativen Pfaden und Prüfsummen, Keychain
 `WhenUnlockedThisDeviceOnly` ohne Synchronisierung, Android-Keystore-AES-GCM mit Schlüssel als AAD, Backup-Regeln,
 Lebenszyklus (Hintergrund ≠ Abbruch, Long-Poll-Neustart), FIDO2 ausgegraut, keine lokale BKU.
 
-**Nachweise (diese Prüfung):** iOS-Simulator iPhone 17/iOS 27 – Startprüfung `pdfover-smoke: ok step=open
+**Nachweise (diese Prüfung):** iOS-Simulator iPhone 17/iOS 27 – Startprüfung `pida-smoke: ok step=open
 pdfium=true`, Keystore-Import über den Dokument-Picker (Kopie im Cache danach entfernt, Datei 0600,
 Sicherungsausschluss), Positionieren per Touch, Signiermittel-Auswahl (FIDO2 ausgegraut, Keystore wählbar), Signatur
 ohne Passwortabfrage, Teilen, „Sichern unter“ (bitgleich), QuickLook, Überschreiben-Rückfrage nur mit Dateinamen,
 Lebenszyklus `suspended=true/false`, Update-Installation mit Umzug des Keystores; drei signierte Dokumente laut
 pyHanko *VALID* (`--trust testdata/keystores/test-rsa2048.crt.pem`), `qpdf --check` ohne Fehler. Netzschutz: Start
 mit `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY=http://127.0.0.1:9` (System-Proxy des Kerns) – keine Verbindung zu A-Trust.
-Android-Emulator `pdfover_api35` im Flugmodus – Startprüfung `pdfium=true`, Keystore-Import über SAF (Cache-Kopie
+Android-Emulator `pida_api35` im Flugmodus – Startprüfung `pdfium=true`, Keystore-Import über SAF (Cache-Kopie
 entfernt, Secrets nur als `v1:`-Chiffrat), Dokument per `VIEW`-Intent (genau einmal), Ziehen des Blocks, Hintergrund
 und zurück ohne Zustandsverlust, Signatur ohne Passwortabfrage, Ausgabe in `files/Documents` (0600), Teilen,
 „Sichern unter“ (bitgleich nach `Download/`), „Öffnen“ über den FileProvider; pyHanko *VALID*. Screenshots in
@@ -289,9 +289,9 @@ und zurück ohne Zustandsverlust, Signatur ohne Passwortabfrage, Ausgabe in `fil
 Desktop ohne Regression: `cargo test --workspace --no-fail-fast` grün (1129 Tests, danach 2 weitere in
 `security_config`), `npm test` 266 Tests, `cargo clippy -D warnings` für Shell, Plugin, Kern und Workflow (Desktop,
 `aarch64-apple-ios-sim`, `aarch64-linux-android`), Gradle `testDebugUnitTest` 5/5; macOS-Debug-Bundle-Startprüfung
-dreimal `pdfover-smoke: ok step=open pdfium=true` (464/400/384 ms). Hinweis: Läuft bereits eine andere Instanz von
-PDF-Over NG (Single-Instance-Socket `/tmp/at_pdf_over_ng_si.sock`), übergibt die Startprüfung an sie und gibt nichts
-aus – für die Prüfung deshalb mit `--config '{"identifier":"at.pdf-over-ng.smoketest"}'` gebaut.
+dreimal `pida-smoke: ok step=open pdfium=true` (464/400/384 ms). Hinweis: Läuft bereits eine andere Instanz von
+PIDA (Single-Instance-Socket `/tmp/at_pida_si.sock`), übergibt die Startprüfung an sie und gibt nichts
+aus – für die Prüfung deshalb mit `--config '{"identifier":"at.pida.smoketest"}'` gebaut.
 
 Offen (nicht behoben, siehe auch mobile-ios.md §7 und mobile-android.md §7): Android beendet den Prozess, wenn das
 System die Activity ohne Konfigurationsänderung zerstört (Tauri/wry, upstream); Startprüfung unter Android endet in

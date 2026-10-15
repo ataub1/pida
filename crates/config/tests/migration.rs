@@ -5,14 +5,14 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use pdfover_config::migrate::{find_legacy_config, read_signature_field_name, scan_custom_profiles};
-use pdfover_config::{
+use pida_config::migrate::{find_legacy_config, read_signature_field_name, scan_custom_profiles};
+use pida_config::{
     ApplyOptions, BackendChoice, LegacyConfig, LegacyKey, LoadOutcome, MemorySecretStore, MigrationContext,
     NoteSetting, PasswordStorage, Paths, PlaceholderKind, ProxyMode, SecretId, SecretStore, Settings, SignatureProfile,
     WindowSize, apply_migration, migrate, undo_migration,
 };
-use pdfover_i18n::Lang;
-use pdfover_java_properties::Encoding;
+use pida_i18n::Lang;
+use pida_java_properties::Encoding;
 
 const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/config");
 
@@ -24,7 +24,7 @@ fn ctx(dir: &Path, check_paths: bool) -> MigrationContext {
     MigrationContext { legacy_dir: dir.to_path_buf(), system_language: Lang::De, check_paths }
 }
 
-fn migrate_fixture(name: &str) -> pdfover_config::MigrationResult {
+fn migrate_fixture(name: &str) -> pida_config::MigrationResult {
     let legacy = LegacyConfig::load(&fixture(name)).unwrap();
     migrate(&legacy, &ctx(Path::new(TESTDATA), true))
 }
@@ -59,11 +59,11 @@ fn snapshot(dir: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
     out
 }
 
-fn skipped(res: &pdfover_config::MigrationResult, key: LegacyKey) -> bool {
+fn skipped(res: &pida_config::MigrationResult, key: LegacyKey) -> bool {
     res.report.skipped.iter().any(|(k, _)| *k == key)
 }
 
-fn has_message(res: &pdfover_config::MigrationResult, id: &str) -> bool {
+fn has_message(res: &pida_config::MigrationResult, id: &str) -> bool {
     res.report.messages.iter().any(|m| m.id == id)
 }
 
@@ -415,13 +415,13 @@ fn secrets_store_failure_leaves_nothing_behind() {
     #[derive(Debug)]
     struct Broken;
     impl SecretStore for Broken {
-        fn get(&self, _: &SecretId) -> pdfover_config::Result<Option<zeroize::Zeroizing<String>>> {
+        fn get(&self, _: &SecretId) -> pida_config::Result<Option<zeroize::Zeroizing<String>>> {
             Ok(None)
         }
-        fn set(&self, _: &SecretId, _: &str) -> pdfover_config::Result<()> {
-            Err(pdfover_config::ConfigError::Secret("gesperrt".into()))
+        fn set(&self, _: &SecretId, _: &str) -> pida_config::Result<()> {
+            Err(pida_config::ConfigError::Secret("gesperrt".into()))
         }
-        fn delete(&self, _: &SecretId) -> pdfover_config::Result<()> {
+        fn delete(&self, _: &SecretId) -> pida_config::Result<()> {
             Ok(())
         }
         fn is_persistent(&self) -> bool {
@@ -465,7 +465,7 @@ fn repeated_import_never_overwrites_existing_files() {
     let LoadOutcome::Loaded(s) = Settings::load(&paths.settings_file()) else { panic!() };
     let used = s.signature.emblem.clone().unwrap();
     assert_ne!(used, own_emblem);
-    let emblems = |a: &pdfover_config::AppliedMigration| -> Vec<PathBuf> {
+    let emblems = |a: &pida_config::AppliedMigration| -> Vec<PathBuf> {
         a.created.iter().filter(|p| p.starts_with(paths.emblem_dir())).cloned().collect()
     };
     assert_eq!(emblems(&second), vec![used.clone()]);

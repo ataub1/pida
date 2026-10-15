@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use pdfover_pdf_cos::{Dictionary, Object, lopdf};
-use pdfover_sigblock::{
+use pida_pdf_cos::{Dictionary, Object, lopdf};
+use pida_sigblock::{
     Appearance, BuildOptions, CertFields, DirResources, Emblem, FontProvider, PdfaMode, Profile, ProfileStore,
     Resources, SigBlockInput,
 };
@@ -327,7 +327,7 @@ struct Case {
 /// G4 entstand mit einer älteren Profilversion: Captions zentriert statt rechtsbündig.
 fn captions_centered(p: &mut Profile) {
     let st = p.tables.get_mut("main").and_then(|t| t.style.as_mut()).unwrap();
-    st.halign = Some(pdfover_sigblock::HAlign::Center);
+    st.halign = Some(pida_sigblock::HAlign::Center);
 }
 
 fn cases() -> Vec<Case> {

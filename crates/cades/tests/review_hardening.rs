@@ -7,7 +7,7 @@ mod common;
 
 use std::process::Command;
 
-use pdfover_cades::{
+use pida_cades::{
     AssembleOptions, CertChain, CmsError, CmsProfile, DigestAlg, Expect, ExpectedSigner, KeyType, LocalSigner,
     RawSigner, SignatureAlg, SignedAttrs, SignedAttrsBuilder, SigningTime, assemble, estimate_cms_len, parse_cms,
     sign_detached, verify_detached, verify_raw,
@@ -20,7 +20,7 @@ fn golden_time() -> SigningTime {
     SigningTime(OffsetDateTime::from_unix_timestamp(1_791_979_200).unwrap())
 }
 
-fn verify(cms: &[u8], content: &[u8], expect: &Expect) -> pdfover_cades::Result<pdfover_cades::CmsReport> {
+fn verify(cms: &[u8], content: &[u8], expect: &Expect) -> pida_cades::Result<pida_cades::CmsReport> {
     verify_detached(cms, &mut &content[..], expect)
 }
 

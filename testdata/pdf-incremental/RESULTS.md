@@ -1,6 +1,6 @@
 # pdf-incremental – Ergebnisse Ende-zu-Ende (Paket A)
 
-Erzeugt von `cargo test -p pdfover-pdf-incremental --test e2e_sign` (mit `PDFOVER_UPDATE_RESULTS=1` wird diese Datei aktualisiert).
+Erzeugt von `cargo test -p pida-pdf-incremental --test e2e_sign` (mit `PIDA_UPDATE_RESULTS=1` wird diese Datei aktualisiert).
 
 Ablauf je Datei: `SourcePdf::open` → Increment mit Signaturdictionary (Reserve 8192 Byte) und leerem, unsichtbarem Widget `PDF-AS Signatur<n>` auf Seite 1 (`/F 132`, `/Rect [0 0 0 0]`) → ByteRange-Daten mit `openssl cms -sign -binary -outform DER -nosmimecap -md sha256` und `testdata/keystores/test-rsa2048.p12` signieren → `Increment::embed_contents` → Prüfung mit `openssl cms -verify -noverify`, `qpdf --check` und pyHanko (`testdata/pdf-incremental/pyhanko_report.py`: `validate_pdf_signature`, `strict=False` wie `--no-strict-syntax`, ohne Netzzugriff).
 

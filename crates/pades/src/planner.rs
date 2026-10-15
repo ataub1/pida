@@ -1,26 +1,24 @@
 //! Signierplan aus Profil, Position und Dokument (Plan §6.4–§6.9; docs/analyse/03 Phase C,
 //! docs/analyse/04 §4–§5).
 //!
-//! [`plan_signature`] verbindet `pdfover-sigblock` (Appearance, `/Name`, `/Reason`, `/TU`) mit
-//! `pdfover-placement` (Breite, Rasterscan, neue Seite, Widget-Rect, Rotation) und liefert einen
+//! [`plan_signature`] verbindet `pida-sigblock` (Appearance, `/Name`, `/Reason`, `/TU`) mit
+//! `pida-placement` (Breite, Rasterscan, neue Seite, Widget-Rect, Rotation) und liefert einen
 //! fertigen [`SignPlan`] für [`crate::prepare`]. Ohne Renderer (kein PDFium) gilt die
 //! Ausweichregel von `placement`: die Zielseite wird wie bei PDF-AS als leer behandelt
 //! ([`PlacementNotice::ScanFailed`]).
 
 use std::sync::Arc;
 
-use pdfover_cades::{Certificate, CmsProfile};
-use pdfover_pdf_cos::{PageInfo, Rect, SourcePdf};
-use pdfover_placement::{
+use pida_cades::{Certificate, CmsProfile};
+use pida_pdf_cos::{PageInfo, Rect, SourcePdf};
+use pida_placement::{
     CompatMode, EmptyFieldCandidate, FreeSpaceScanner, PlaceholderMode, PlaceholderQuery, PlacementError,
     PlacementNotice, PositionContext, QrPlaceholder, RasterScanner, ResolvedPosition, TablePos, appearance_rotation,
     find_empty_sig_fields, find_qr_placeholders, resolve_position, resolve_width, select_placeholder, widget_overlaps,
     widget_rect_with,
 };
-use pdfover_render::{ForcedColorOptions, RenderError, Renderer};
-use pdfover_sigblock::{
-    Appearance, BuildOptions, CertFields, FontProvider, PdfaMode, Profile, Resources, SigBlockInput,
-};
+use pida_render::{ForcedColorOptions, RenderError, Renderer};
+use pida_sigblock::{Appearance, BuildOptions, CertFields, FontProvider, PdfaMode, Profile, Resources, SigBlockInput};
 use time::OffsetDateTime;
 
 use crate::PadesError;
@@ -83,7 +81,7 @@ pub struct PlannedSignature {
 
 /// Zertifikatsfelder für den Signaturblock (`subject.X`, `issuer.X`, `sn`).
 pub fn cert_fields(cert: &Certificate) -> CertFields {
-    let avas = |v: Vec<pdfover_cades::RdnAttr>| -> Vec<(String, String)> {
+    let avas = |v: Vec<pida_cades::RdnAttr>| -> Vec<(String, String)> {
         v.into_iter().map(|a| (a.short_name.unwrap_or(a.oid), a.value)).collect()
     };
     CertFields {
@@ -144,7 +142,7 @@ pub fn find_placeholder(
 struct NoRenderer;
 
 impl FreeSpaceScanner for NoRenderer {
-    fn lowest_content(&mut self, _page: usize, _footer: f32) -> pdfover_placement::Result<f32> {
+    fn lowest_content(&mut self, _page: usize, _footer: f32) -> pida_placement::Result<f32> {
         Err(PlacementError::Render(RenderError::LibraryNotFound("kein Renderer".into())))
     }
 }
@@ -187,7 +185,7 @@ pub fn plan_signature(
     let mut position = None;
     let mut replaced_chars = Vec::new();
 
-    let name = if opts.certificate_known { pdfover_sigblock::expr::signer_name(profile, &input)? } else { None };
+    let name = if opts.certificate_known { pida_sigblock::expr::signer_name(profile, &input)? } else { None };
     let location = opts.placeholder.as_ref().map(|p| p.resource_name.clone());
 
     let visibility = if !profile.visible {
@@ -249,7 +247,7 @@ pub fn plan_signature(
                     None => resolve_position(&pos, &ctx, wd, first.height, &mut NoRenderer)?,
                 };
                 let page: &PageInfo = if rp.new_page {
-                    src.pages().last().ok_or(PadesError::Cos(pdfover_pdf_cos::CosError::NoPages))?
+                    src.pages().last().ok_or(PadesError::Cos(pida_pdf_cos::CosError::NoPages))?
                 } else {
                     src.pages().get(rp.page_index).ok_or(PadesError::InvalidPlan("Seite außerhalb".into()))?
                 };

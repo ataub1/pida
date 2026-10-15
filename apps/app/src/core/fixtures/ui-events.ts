@@ -1,7 +1,7 @@
 /**
  * Beispiel-Ereignisse aller `UiEvent`-Varianten, **typisiert** (der Compiler prüft sie gegen
  * `types.ts`). `contract.test.ts` schreibt bzw. vergleicht daraus `ui-events.json`; der Rust-Test
- * `apps/app/src-tauri/tests/serde_contract.rs` liest diese Datei als `pdfover_core_api::UiEvent`.
+ * `apps/app/src-tauri/tests/serde_contract.rs` liest diese Datei als `pida_core_api::UiEvent`.
  * Die Zugangsdaten sind Testwerte ohne Bedeutung.
  */
 import { defaultSettings } from '../defaults';
@@ -84,5 +84,5 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'choose_backend', backend: 'keystore' },
   { type: 'answer_warning', proceed: false },
   { type: 'accept_migration', store_secrets: false },
-  { type: 'import_keystore', path: '/data/user/0/at.pdf_over_ng/cache/import/k.p12', password: null, remember: false },
+  { type: 'import_keystore', path: '/data/user/0/at.pida/cache/import/k.p12', password: null, remember: false },
 ];

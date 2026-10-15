@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-core-api"
+name = "pida-core-api"
 description = "Stabile Fassade für Tauri-Shell, CLI und Plan-B-Shell: dispatch(UiEvent), subscribe(ViewState) (Integration)"
 version.workspace = true
 edition.workspace = true
@@ -12,23 +12,23 @@ publish.workspace = true
 # Test-Hilfen (Fake-PAdES-Engine, `testing`-Modul) für die eigenen Tests und die CLI-Tests.
 testing = []
 # TypeScript-Typen der Bridge (`ts::typescript_bindings`, Vertragstest `tests/ts_bindings.rs`).
-ts = ["dep:ts-rs", "pdfover-workflow/ts", "pdfover-backend-api/ts", "pdfover-i18n/ts"]
+ts = ["dep:ts-rs", "pida-workflow/ts", "pida-backend-api/ts", "pida-i18n/ts"]
 
 [dependencies]
-pdfover-workflow = { workspace = true }
-pdfover-config = { workspace = true }
-pdfover-i18n = { workspace = true }
-pdfover-render = { workspace = true, features = ["pdfium"] }
-pdfover-pades = { workspace = true }
-pdfover-placement = { workspace = true }
-pdfover-sigblock = { workspace = true }
-pdfover-cades = { workspace = true }
-pdfover-pdf-cos = { workspace = true }
-pdfover-backend-api = { workspace = true }
-pdfover-backend-atrust = { workspace = true }
-pdfover-backend-localbku = { workspace = true }
-pdfover-backend-keystore = { workspace = true }
-pdfover-net = { workspace = true }
+pida-workflow = { workspace = true }
+pida-config = { workspace = true }
+pida-i18n = { workspace = true }
+pida-render = { workspace = true, features = ["pdfium"] }
+pida-pades = { workspace = true }
+pida-placement = { workspace = true }
+pida-sigblock = { workspace = true }
+pida-cades = { workspace = true }
+pida-pdf-cos = { workspace = true }
+pida-backend-api = { workspace = true }
+pida-backend-atrust = { workspace = true }
+pida-backend-localbku = { workspace = true }
+pida-backend-keystore = { workspace = true }
+pida-net = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 serde = { workspace = true }
@@ -47,8 +47,8 @@ ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
 # eigene Test-Hilfen auch für die Integrationstests unter tests/
-pdfover-core-api = { workspace = true, features = ["testing", "ts"] }
-pdfover-backend-api = { workspace = true, features = ["testing"] }
+pida-core-api = { workspace = true, features = ["testing", "ts"] }
+pida-backend-api = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 toml = { workspace = true }

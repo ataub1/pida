@@ -10,16 +10,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use base64::Engine as _;
-use pdfover_backend_api::testing::{BrokerCall, MemoryDocument, ScriptedBroker, ScriptedReply};
-use pdfover_backend_api::{
+use pida_backend_api::testing::{BrokerCall, MemoryDocument, ScriptedBroker, ScriptedReply};
+use pida_backend_api::{
     BackendError, CancelToken, DocumentJob, Environment, ExcludedByteRange, NoticeAnswer, NoticeButtons, NoticeCode,
     SessionContext, SignJob, SignResult, SignatureBackend,
 };
-use pdfover_backend_localbku::{
+use pida_backend_localbku::{
     Availability, LocalBkuBackend, LocalBkuConfig, RequestMode, mode_from_server_header, null_operation,
 };
-use pdfover_net::testing::{MockResponse, MockServer, RecordedRequest};
-use pdfover_net::{HttpClient, NetConfig, ProxyConfig, Purpose};
+use pida_net::testing::{MockResponse, MockServer, RecordedRequest};
+use pida_net::{HttpClient, NetConfig, ProxyConfig, Purpose};
 
 const SL_NS: &str = "http://www.buergerkarte.at/namespaces/securitylayer/1.2#";
 const PATH: &str = "/http-security-layer-request";
@@ -188,14 +188,13 @@ async fn null_operation_request_and_mode_detection() {
         ("citizen-card-environment/1.2 MOCCA/1.3", RequestMode::Upload),
     ] {
         let server = bku(header, None, std::env::temp_dir()).await;
-        let cfg =
-            NetConfig { proxy: ProxyConfig::None, user_agent: Some("PDF-Over NG v9".into()), ..NetConfig::default() };
+        let cfg = NetConfig { proxy: ProxyConfig::None, user_agent: Some("PIDA v9".into()), ..NetConfig::default() };
         let client = HttpClient::new(&cfg, Purpose::LocalBku).unwrap();
         assert_eq!(null_operation(&client, &server.url(PATH)).await.unwrap(), mode, "{header}");
         let req = &server.requests()[0];
         assert_eq!(req.header("content-type"), Some("application/x-www-form-urlencoded; charset=UTF-8"));
-        assert_eq!(req.form_field("XMLRequest").as_deref(), Some(pdfover_sl12::NULL_OPERATION_REQUEST));
-        assert_eq!(req.header("user-agent"), Some("PDF-Over NG v9"));
+        assert_eq!(req.form_field("XMLRequest").as_deref(), Some(pida_sl12::NULL_OPERATION_REQUEST));
+        assert_eq!(req.header("user-agent"), Some("PIDA v9"));
     }
     assert_eq!(mode_from_server_header(None), RequestMode::Upload);
 }
@@ -223,8 +222,8 @@ async fn upload_mode_full_flow_with_openssl_oracle() {
     assert_eq!((parts[1].name.as_str(), parts[1].filename.as_deref()), ("fileupload", Some("sign.pdf")));
     assert_eq!(parts[1].content_type.as_deref(), Some("application/octet-stream"));
     assert_eq!(parts[1].data, pdf);
-    assert!(reqs.iter().all(|r| r.header("user-agent") == Some("PDF-Over NG v0.1.0-test")));
-    assert!(broker.calls().contains(&BrokerCall::Progress(pdfover_backend_api::Progress::Done)));
+    assert!(reqs.iter().all(|r| r.header("user-agent") == Some("PIDA v0.1.0-test")));
+    assert!(broker.calls().contains(&BrokerCall::Progress(pida_backend_api::Progress::Done)));
 
     let [SignResult::Cms(cms)] = results.as_slice() else { panic!("{results:?}") };
     if material.is_some() {
@@ -286,7 +285,7 @@ async fn unreachable_bku_cancel_headless_and_unsupported() {
     let addr = listener.local_addr().unwrap();
     drop(listener);
     let mut cfg = LocalBkuConfig::new("0.1.0");
-    cfg.endpoint = pdfover_net::Url::parse(&format!("http://{addr}{PATH}")).unwrap();
+    cfg.endpoint = pida_net::Url::parse(&format!("http://{addr}{PATH}")).unwrap();
     let backend = LocalBkuBackend::new(cfg, None);
 
     let broker = Arc::new(ScriptedBroker::new([ScriptedReply::Notice(NoticeAnswer::Cancel)]));
@@ -382,7 +381,7 @@ async fn availability_probe_follows_the_port() {
     assert!(wait_for(true, availability.clone()).await, "erreichbar");
     let backend = LocalBkuBackend::new(cfg.clone(), Some(availability.clone()));
     let mut env = Environment::current();
-    env.platform = pdfover_backend_api::Platform::MacOs;
+    env.platform = pida_backend_api::Platform::MacOs;
     assert!(backend.capabilities(&env).is_some(), "Probe macht das Backend verfügbar");
     drop(listener);
     assert!(wait_for(false, availability.clone()).await, "nicht mehr erreichbar");

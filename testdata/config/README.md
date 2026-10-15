@@ -1,4 +1,4 @@
-# Testdaten `pdfover-config` (Paket E)
+# Testdaten `pida-config` (Paket E)
 
 > **NUR FÜR TESTS.** Alle Namen, Nummern, Pfade und Passwörter sind erfunden (`test-…`, `NUR TEST`,
 > `*.example.test`). Keine echten Zugangsdaten.

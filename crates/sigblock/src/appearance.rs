@@ -2,7 +2,7 @@
 //!
 //! Der Graph verwendet **lokale Referenzen** `Object::Reference((i, LOCAL_GENERATION))` mit
 //! `i` = Index in [`Appearance::objects`]. [`Appearance::materialize`] ersetzt sie durch echte IDs
-//! des `IncrementBuilder` (`pdfover-pdf-incremental`).
+//! des `IncrementBuilder` (`pida-pdf-incremental`).
 //!
 //! Aufbau wie PDF-AS (`PDFAsVisualSignatureBuilder`/`PDFAsTemplateCreator`):
 //! - Holder-Form (`/AP /N`): `/BBox [W+1 H+1 0 0]`, `/Matrix` = Rotation, Inhalt
@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
-use pdfover_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
+use pida_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
 
 use crate::Result;
 use crate::SigBlockError;
@@ -1282,20 +1282,20 @@ mod tests {
         (px, smask)
     }
 
-    /// PDF-AS-Orakel (nur mit `PDFOVER_PDFAS_LIB` = Ordner mit den Bibliotheken von PDF-AS 4.4.2,
-    /// u. a. `pdfbox-2.0.*.jar` und `pdf-as-common-4.4.2.jar`, und Java ≥ 11 in `PDFOVER_JAVA` bzw.
+    /// PDF-AS-Orakel (nur mit `PIDA_PDFAS_LIB` = Ordner mit den Bibliotheken von PDF-AS 4.4.2,
+    /// u. a. `pdfbox-2.0.*.jar` und `pdf-as-common-4.4.2.jar`, und Java ≥ 11 in `PIDA_JAVA` bzw.
     /// `java`): jede Bildmarke wird wie bei PDF-AS eingebettet (`testdata/golden/emblem-oracle/
     /// PdfAsEmblem.java`) und mit `pdfas_quirks` hier. Erwartet: gleiche sichtbare Pixel und gleiche
     /// SMask; Farbraum und Samples exakt außer bei den in `QuirkImage` genannten Fällen (ICCBased
     /// des Java-`CS_GRAY` bzw. 16-Bit-Grau als DeviceRGB ⇒ hier DeviceGray aufgehellt; 1-Bit-Grau).
     #[test]
     fn pdfas_lossless_factory_oracle() {
-        let Some(lib) = std::env::var_os("PDFOVER_PDFAS_LIB").map(std::path::PathBuf::from) else {
-            eprintln!("PDFOVER_PDFAS_LIB nicht gesetzt – PDF-AS-Bildmarken-Orakel übersprungen");
+        let Some(lib) = std::env::var_os("PIDA_PDFAS_LIB").map(std::path::PathBuf::from) else {
+            eprintln!("PIDA_PDFAS_LIB nicht gesetzt – PDF-AS-Bildmarken-Orakel übersprungen");
             return;
         };
-        let java = std::env::var_os("PDFOVER_JAVA").unwrap_or_else(|| "java".into());
-        let dir = std::env::temp_dir().join(format!("pdfover-emblem-oracle-{}", std::process::id()));
+        let java = std::env::var_os("PIDA_JAVA").unwrap_or_else(|| "java".into());
+        let dir = std::env::temp_dir().join(format!("pida-emblem-oracle-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let fixtures = oracle_fixtures();
         let mut files = Vec::new();

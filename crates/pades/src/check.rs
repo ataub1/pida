@@ -26,7 +26,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use pdfover_pdf_cos::{Dictionary, Object, ObjectId, ObjectLocation, SourcePdf};
+use pida_pdf_cos::{Dictionary, Object, ObjectId, ObjectLocation, SourcePdf};
 
 use crate::signed::{Invariant, InvariantViolation, SignedMeta};
 use crate::util::{append_only, as_ref_id, changed_keys, key_text, same};
@@ -497,9 +497,9 @@ mod tests {
     use super::*;
     use crate::build::BuildMeta;
     use crate::prepared::PreparedMeta;
-    use pdfover_cades::{Certificate, CmsProfile};
-    use pdfover_pdf_cos::{Limits, Stream, StringFormat};
-    use pdfover_pdf_incremental::{IncrementBuilder, IncrementOptions, SignatureDictSpec};
+    use pida_cades::{Certificate, CmsProfile};
+    use pida_pdf_cos::{Limits, Stream, StringFormat};
+    use pida_pdf_incremental::{IncrementBuilder, IncrementOptions, SignatureDictSpec};
 
     fn testdata(rel: &str) -> std::path::PathBuf {
         std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata")).join(rel)

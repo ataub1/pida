@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# PDF-Over NG – veraPDF (Greenfield-CLI) als PDF/A-Orakel für Tests laden und per SHA-256 prüfen.
+# PIDA – veraPDF (Greenfield-CLI) als PDF/A-Orakel für Tests laden und per SHA-256 prüfen.
 #
 #   tools/verapdf/fetch.sh                 # laden (falls nötig) und prüfen
 #   tools/verapdf/fetch.sh --print-jar     # laden (falls nötig), Pfad der JAR auf stdout
-#   eval "$(tools/verapdf/fetch.sh --print-env)"   # PDFOVER_VERAPDF_JAR (und PDFOVER_JAVA) setzen
+#   eval "$(tools/verapdf/fetch.sh --print-env)"   # PIDA_VERAPDF_JAR (und PIDA_JAVA) setzen
 #   tools/verapdf/fetch.sh --github-env    # CI: Variablen nach $GITHUB_ENV schreiben
 #   tools/verapdf/fetch.sh --check         # nur prüfen, nichts laden (Exit 1, wenn es fehlt)
 #
@@ -15,8 +15,8 @@
 # abgleichen.
 #
 # Ziel: tools/verapdf/dist/ (nicht versioniert, tools/verapdf/.gitignore). veraPDF ist nur ein
-# Test-Orakel (GPL-3.0-or-later bzw. MPL-2.0) und wird nie mit PDF-Over NG ausgeliefert.
-# Laufzeit: Java ≥ 11 (PDFOVER_JAVA, sonst $JAVA_HOME/bin/java, sonst `java` im PATH).
+# Test-Orakel (GPL-3.0-or-later bzw. MPL-2.0) und wird nie mit PIDA ausgeliefert.
+# Laufzeit: Java ≥ 11 (PIDA_JAVA, sonst $JAVA_HOME/bin/java, sonst `java` im PATH).
 # Benötigt: bash ≥ 3.2, curl (oder wget), sha256sum/shasum/openssl. Lädt nur über HTTPS.
 # Umgebung (optional): VERAPDF_DEST (Zielordner), VERAPDF_BASE_URL (Spiegel von Maven Central).
 set -euo pipefail
@@ -84,8 +84,8 @@ download() {
 }
 
 find_java() {
-  if [ -n "${PDFOVER_JAVA:-}" ] && [ -x "$PDFOVER_JAVA" ]; then
-    echo "$PDFOVER_JAVA"
+  if [ -n "${PIDA_JAVA:-}" ] && [ -x "$PIDA_JAVA" ]; then
+    echo "$PIDA_JAVA"
   elif [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
     echo "$JAVA_HOME/bin/java"
   elif command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
@@ -120,7 +120,7 @@ case "$mode" in
   fetch)
     ensure
     java="$(find_java)"
-    if [ -z "$java" ]; then log "Hinweis: kein Java gefunden (PDFOVER_JAVA oder JAVA_HOME setzen)"; fi
+    if [ -z "$java" ]; then log "Hinweis: kein Java gefunden (PIDA_JAVA oder JAVA_HOME setzen)"; fi
     ;;
   print-jar)
     ensure
@@ -128,15 +128,15 @@ case "$mode" in
     ;;
   print-env)
     ensure
-    printf 'export PDFOVER_VERAPDF_JAR=%q\n' "$JAR"
+    printf 'export PIDA_VERAPDF_JAR=%q\n' "$JAR"
     java="$(find_java)"
-    if [ -n "$java" ]; then printf 'export PDFOVER_JAVA=%q\n' "$java"; fi
+    if [ -n "$java" ]; then printf 'export PIDA_JAVA=%q\n' "$java"; fi
     ;;
   github-env)
     ensure
     [ -n "${GITHUB_ENV:-}" ] || die "GITHUB_ENV nicht gesetzt"
-    echo "PDFOVER_VERAPDF_JAR=$JAR" >>"$GITHUB_ENV"
+    echo "PIDA_VERAPDF_JAR=$JAR" >>"$GITHUB_ENV"
     java="$(find_java)"
-    if [ -n "$java" ]; then echo "PDFOVER_JAVA=$java" >>"$GITHUB_ENV"; fi
+    if [ -n "$java" ]; then echo "PIDA_JAVA=$java" >>"$GITHUB_ENV"; fi
     ;;
 esac

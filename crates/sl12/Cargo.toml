@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-sl12"
+name = "pida-sl12"
 description = "Security-Layer-1.2-XML: Request-Builder, Response-Parser, HTTP-Bindings (Paket D)"
 version.workspace = true
 edition.workspace = true

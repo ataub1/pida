@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-pdf-cos"
+name = "pida-pdf-cos"
 description = "Lenientes PDF-Lesen über lopdf: Revisionen, xref-Typ, Security-Handler, Rechte, Seiten, Felder (Paket A)"
 version.workspace = true
 edition.workspace = true
@@ -19,7 +19,7 @@ zune-jpeg = { workspace = true }
 flate2 = { workspace = true }
 # QR-Orakel in den Tests (dekodierte Platzhalterbilder müssen lesbar sein); dieselbe Version wie placement.
 rxing = { workspace = true }
-# PDFium als Orakel für Bildmatrizen (ADR 0001 §8.2); nur mit PDFOVER_PDFIUM_DIR, sonst übersprungen.
+# PDFium als Orakel für Bildmatrizen (ADR 0001 §8.2); nur mit PIDA_PDFIUM_DIR, sonst übersprungen.
 pdfium-render = { workspace = true }
 
 [lints]

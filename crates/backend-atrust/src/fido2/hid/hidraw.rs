@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn sysfs_enumeration() {
-        let root = std::env::temp_dir().join(format!("pdfover-hidraw-test-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("pida-hidraw-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let mk = |name: &str, descriptor: &[u8], uevent: &str| {
             let dir = root.join(name).join("device");
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn open_reports_missing_device() {
-        let e = open(&HidDeviceInfo { path: "/dev/pdfover-gibt-es-nicht".into(), product: None }).unwrap_err();
+        let e = open(&HidDeviceInfo { path: "/dev/pida-gibt-es-nicht".into(), product: None }).unwrap_err();
         assert!(matches!(e, Fido2Error::Device(_)));
     }
 }

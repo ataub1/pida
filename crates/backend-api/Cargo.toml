@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-backend-api"
+name = "pida-backend-api"
 description = "Backend-Schnittstelle: Capabilities, SignatureBackend/BackendSession, SignJob/SignResult, InteractionBroker (Integration)"
 version.workspace = true
 edition.workspace = true
@@ -9,15 +9,15 @@ authors.workspace = true
 publish.workspace = true
 
 [features]
-# TypeScript-Typen der Bridge (ts-rs, nur für `pdfover-core-api/ts`).
+# TypeScript-Typen der Bridge (ts-rs, nur für `pida-core-api/ts`).
 ts = ["dep:ts-rs"]
 # Test-Hilfen (ScriptedBroker, MemoryDocument) für die Backend-Pakete B und D:
-# `pdfover-backend-api = { workspace = true, features = ["testing"] }` als dev-dependency.
+# `pida-backend-api = { workspace = true, features = ["testing"] }` als dev-dependency.
 testing = []
 
 [dependencies]
-pdfover-cades = { workspace = true }
-pdfover-i18n = { workspace = true }
+pida-cades = { workspace = true }
+pida-i18n = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
 zeroize = { workspace = true }

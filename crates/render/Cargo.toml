@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-render"
+name = "pida-render"
 description = "Renderer-Fassade (Trait Renderer) mit PDFium-Implementierung: Seiten, Forced-Color-Raster, Bildobjekte (Paket F)"
 version.workspace = true
 edition.workspace = true
@@ -9,10 +9,10 @@ authors.workspace = true
 publish.workspace = true
 
 [features]
-# PDFium-Implementierung (`PdfiumBackend`, `PdfiumRenderer`). Standard für `cargo test -p pdfover-render`.
-# Abhängige Crates binden `pdfover-render` ohne Default-Features ein (Workspace-Dependency mit
+# PDFium-Implementierung (`PdfiumBackend`, `PdfiumRenderer`). Standard für `cargo test -p pida-render`.
+# Abhängige Crates binden `pida-render` ohne Default-Features ein (Workspace-Dependency mit
 # `default-features = false`) und brauchen nur die Traits; `pdfium` aktiviert nur, wer `PdfiumBackend`
-# konstruiert (`pdfover-core-api`, Tauri-Shell). Rückfall-Renderer (z. B. hayro, Plan §2.4) kämen als
+# konstruiert (`pida-core-api`, Tauri-Shell). Rückfall-Renderer (z. B. hayro, Plan §2.4) kämen als
 # weiteres Feature hinzu.
 default = ["pdfium"]
 pdfium = ["dep:pdfium-render", "dep:zeroize"]

@@ -1,10 +1,10 @@
-//! Builder- und Increment-API von `pdfover-pdf-incremental` (Fehlerfälle, Platzhalter-Layout,
+//! Builder- und Increment-API von `pida-pdf-incremental` (Fehlerfälle, Platzhalter-Layout,
 //! Längenprüfung, Verschlüsselung neuer Objekte, Optionen).
 
 mod common;
 
-use pdfover_pdf_cos::{CryptTarget, Dictionary, Limits, Object, SourcePdf, Stream, StringFormat, XrefHealth, XrefKind};
-use pdfover_pdf_incremental::{
+use pida_pdf_cos::{CryptTarget, Dictionary, Limits, Object, SourcePdf, Stream, StringFormat, XrefHealth, XrefKind};
+use pida_pdf_incremental::{
     BYTE_RANGE_PLACEHOLDER, ByteRange, IncError, Increment, IncrementBuilder, IncrementOptions, RESERVE_MIN_MODEL_A,
     SignatureDictSpec, WrittenKind, XrefFormat,
 };
@@ -64,7 +64,7 @@ fn increment_without_signature_dictionary() {
     let mut b = IncrementBuilder::new(&src, IncrementOptions::default());
     let info = src.info_id().unwrap();
     let mut d = src.get_object(info).unwrap().as_dict().unwrap().clone();
-    d.set("Producer", Object::String(b"PDF-Over NG (NUR TEST)".to_vec(), StringFormat::Literal));
+    d.set("Producer", Object::String(b"PIDA (NUR TEST)".to_vec(), StringFormat::Literal));
     b.update_object(info, Object::Dictionary(d)).unwrap();
     let mut inc = b.build().unwrap();
     assert!(inc.signature_dict_id.is_none() && inc.contents_range.is_empty());
@@ -72,7 +72,7 @@ fn increment_without_signature_dictionary() {
     assert!(matches!(inc.embed_contents(&[1, 2, 3]), Err(IncError::NoSignatureDictionary)));
     let re = SourcePdf::open(inc.to_vec(src.bytes()), &Limits::default()).unwrap();
     let p = re.get_object(info).unwrap().as_dict().unwrap().get(b"Producer").unwrap();
-    assert_eq!(p.as_str().unwrap(), b"PDF-Over NG (NUR TEST)");
+    assert_eq!(p.as_str().unwrap(), b"PIDA (NUR TEST)");
     assert_eq!(inc.byte_range_parts(src.bytes())[1].len(), inc.bytes.len());
 }
 
@@ -171,7 +171,7 @@ fn types_are_send_and_sync() {
     check::<SourcePdf>();
     check::<Increment>();
     check::<IncrementBuilder<'static>>();
-    check::<pdfover_pdf_cos::Encryptor>();
+    check::<pida_pdf_cos::Encryptor>();
 }
 
 /// Falscher `startxref` (K2 „Repaired“): `/Prev` zeigt auf den tatsächlichen Abschnitt, die
@@ -396,7 +396,7 @@ fn source_without_id_gets_two_equal_new_ids() {
 /// Unplausible Reserve (z. B. fehlerhafter Profilwert `signatureSize`) → Fehler statt Allokation.
 #[test]
 fn contents_reserve_is_capped() {
-    use pdfover_pdf_incremental::RESERVE_MAX;
+    use pida_pdf_incremental::RESERVE_MAX;
     let src = open(TABLE);
     let mut b = IncrementBuilder::new(&src, IncrementOptions::default());
     for reserve in [RESERVE_MAX + 1, usize::MAX / 2 + 1, usize::MAX] {

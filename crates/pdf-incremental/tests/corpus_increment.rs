@@ -5,11 +5,11 @@
 
 mod common;
 
-use pdfover_pdf_cos::{CosError, Limits, Object, SourcePdf, XrefKind};
-use pdfover_pdf_incremental::{IncrementOptions, RESERVE_MODEL_B, WrittenKind};
+use pida_pdf_cos::{CosError, Limits, Object, SourcePdf, XrefKind};
+use pida_pdf_incremental::{IncrementOptions, RESERVE_MODEL_B, WrittenKind};
 
 /// Prüft ein fertiges Increment strukturell; liefert die Ausgabe.
-fn check_structure(name: &str, src: &SourcePdf, inc: &pdfover_pdf_incremental::Increment) -> Vec<u8> {
+fn check_structure(name: &str, src: &SourcePdf, inc: &pida_pdf_incremental::Increment) -> Vec<u8> {
     let original = src.bytes();
     let out = inc.to_vec(original);
 
@@ -49,7 +49,7 @@ fn check_structure(name: &str, src: &SourcePdf, inc: &pdfover_pdf_incremental::I
 }
 
 /// Re-Parse mit pdf-cos und lopdf.
-fn check_reparse(name: &str, src: &SourcePdf, inc: &pdfover_pdf_incremental::Increment, out: &[u8]) {
+fn check_reparse(name: &str, src: &SourcePdf, inc: &pida_pdf_incremental::Increment, out: &[u8]) {
     let re =
         SourcePdf::open(out.to_vec(), &Limits::default()).unwrap_or_else(|e| panic!("{name}: Re-Parse pdf-cos: {e}"));
     assert_eq!(re.page_count(), src.page_count(), "{name}: Seitenzahl");
@@ -57,7 +57,7 @@ fn check_reparse(name: &str, src: &SourcePdf, inc: &pdfover_pdf_incremental::Inc
     let last = re.last_revision();
     assert_eq!(last.prev, Some(src.last_revision().startxref), "{name}: /Prev");
     assert_eq!(last.xref_kind, src.xref_kind(), "{name}: xref-Format wie Vorrevision");
-    assert_eq!(re.tail().kind, pdfover_pdf_cos::TailKind::Clean, "{name}: Dateiende");
+    assert_eq!(re.tail().kind, pida_pdf_cos::TailKind::Clean, "{name}: Dateiende");
     assert_eq!(re.xref_health(), src.xref_health(), "{name}: Querverweis-Zustand");
     if let Some([id0, _]) = src.trailer_id() {
         assert_eq!(re.trailer_id().unwrap()[0], id0, "{name}: /ID[0] beibehalten");
@@ -84,7 +84,7 @@ fn check_reparse(name: &str, src: &SourcePdf, inc: &pdfover_pdf_incremental::Inc
     assert!(contents.iter().all(|&b| b == 0), "{name}: /Contents nicht unverschlüsselt");
     let br: Vec<i64> = sd.get(b"ByteRange").unwrap().as_array().unwrap().iter().map(|o| o.as_i64().unwrap()).collect();
     assert_eq!(br, inc.byte_range.0.iter().map(|&v| v as i64).collect::<Vec<_>>());
-    let nm = pdfover_pdf_cos::decode_text_string(sd.get(b"Name").unwrap()).unwrap();
+    let nm = pida_pdf_cos::decode_text_string(sd.get(b"Name").unwrap()).unwrap();
     assert_eq!(nm, common::TEST_NAME, "{name}: /Name (Verschlüsselung)");
     assert_eq!(sd.get(b"M").unwrap().as_str().unwrap(), common::signing_time().as_bytes());
     // Schlüsselreihenfolge wie PDF-AS
@@ -92,7 +92,7 @@ fn check_reparse(name: &str, src: &SourcePdf, inc: &pdfover_pdf_incremental::Inc
     assert_eq!(keys, vec![&b"Type"[..], b"Filter", b"SubFilter", b"M", b"Name", b"Reason", b"Contents", b"ByteRange"]);
 
     // lopdf direkt (zweiter Leser)
-    let doc = pdfover_pdf_cos::Document::load_mem(out).unwrap_or_else(|e| panic!("{name}: lopdf: {e}"));
+    let doc = pida_pdf_cos::Document::load_mem(out).unwrap_or_else(|e| panic!("{name}: lopdf: {e}"));
     assert_eq!(doc.get_pages().len(), src.page_count(), "{name}: lopdf Seitenzahl");
     let lsd = doc.get_object(sig_id).unwrap_or_else(|e| panic!("{name}: lopdf Signaturdictionary: {e}"));
     assert!(matches!(lsd, Object::Dictionary(d) if d.has(b"ByteRange")));
@@ -227,7 +227,7 @@ fn stream_increment_layout() {
     assert!(!tail.contains("\nxref\n"), "keine Tabelle bei xref-Stream-Quelle");
     let re = SourcePdf::open(out, &Limits::default()).unwrap();
     assert_eq!(re.last_revision().xref_kind, XrefKind::Stream);
-    assert_eq!(re.xref_health(), pdfover_pdf_cos::XrefHealth::Intact);
+    assert_eq!(re.xref_health(), pida_pdf_cos::XrefHealth::Intact);
 }
 
 /// Klassische Tabelle wie PDFBox: `0 n` mit Freieintrag, 20-Byte-Einträge, Trailer mit /Prev.

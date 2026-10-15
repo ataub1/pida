@@ -1,14 +1,14 @@
 //! Integrationstests der Kataloge: Konvertierung aus den PDF-Over-Quellen (Kopie unter
 //! `testdata/i18n/`), Vollständigkeit DE/EN, semantischer Rundlauf jeder Nachricht, Java-Orakel.
 //!
-//! Neu erzeugen der `locales/<lang>/pdfover.ftl`: `PDFOVER_I18N_BLESS=1 cargo test -p pdfover-i18n --test catalogs`.
+//! Neu erzeugen der `locales/<lang>/pdfover.ftl`: `PIDA_I18N_BLESS=1 cargo test -p pida-i18n --test catalogs`.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use pdfover_i18n::convert::{self, Placeholder};
-use pdfover_i18n::{ArgValue, Catalog, Lang, fluent_id_for_java_key, markup};
-use pdfover_java_properties::Properties;
+use pida_i18n::convert::{self, Placeholder};
+use pida_i18n::{ArgValue, Catalog, Lang, fluent_id_for_java_key, markup};
+use pida_java_properties::Properties;
 
 const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/i18n");
 const LOCALES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/locales");
@@ -34,7 +34,7 @@ fn read(path: &Path) -> String {
 
 #[test]
 fn generated_catalogs_are_up_to_date() {
-    let bless = std::env::var_os("PDFOVER_I18N_BLESS").is_some();
+    let bless = std::env::var_os("PIDA_I18N_BLESS").is_some();
     for lang in Lang::ALL {
         let conv = convert::convert_pdfover_messages(&source(lang), lang).expect("Konvertierung");
         assert!(conv.warnings.is_empty(), "{lang:?}: {:?}", conv.warnings);
@@ -45,7 +45,7 @@ fn generated_catalogs_are_up_to_date() {
         } else {
             assert!(
                 read(&path) == conv.ftl,
-                "{} ist veraltet: PDFOVER_I18N_BLESS=1 cargo test -p pdfover-i18n --test catalogs",
+                "{} ist veraltet: PIDA_I18N_BLESS=1 cargo test -p pida-i18n --test catalogs",
                 path.display()
             );
         }
@@ -73,7 +73,7 @@ fn de_and_en_are_complete_with_same_variables() {
     let de = convert::prepare_pdfover_messages(&source(Lang::De), Lang::De).unwrap().props;
     let en = convert::prepare_pdfover_messages(&source(Lang::En), Lang::En).unwrap().props;
     assert_eq!(convert::compare_catalogs(&en, &de), Vec::<String>::new());
-    for file in ["pdfover.ftl", "pdfover-ng.ftl"] {
+    for file in ["pdfover.ftl", "pida.ftl"] {
         let problems = convert::compare_ftl(&read(&locale_file(Lang::En, file)), &read(&locale_file(Lang::De, file)))
             .expect("gültiges FTL");
         assert_eq!(problems, Vec::<String>::new(), "{file}");

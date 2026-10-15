@@ -21,7 +21,7 @@ Java wird hier **nur als Test-Orakel** verwendet, nie im Produkt. Die Rust-Tests
 | `pdf-as-cli-4.4.2.zip` (Maven, nicht verwendet, anderer Build) | `https://apps.egiz.gv.at/maven/at/gv/egiz/pdfas/pdf-as-cli/4.4.2/` | SHA-1 `4af7bd24d3a053448d001c5772ae6af7b46d9b2d` (laut `.sha1`), SHA-256 `0c6bec14f1269a0f36a81d32ffa5f1509b717cefeea5660398baa30099b96f65` |
 
 Die CLI enthält PDFBox 2.0.32, IAIK JCE/CMS (MOA-Lizenz, nur für den Testbetrieb hier) und ZXing 3.5.0.
-Sie liegt nicht im Repository, sondern im Cache `target/golden/` (`PDFOVER_GOLDEN_CACHE`).
+Sie liegt nicht im Repository, sondern im Cache `target/golden/` (`PIDA_GOLDEN_CACHE`).
 
 ## Ablauf
 
@@ -29,14 +29,14 @@ Sie liegt nicht im Repository, sondern im Cache `target/golden/` (`PDFOVER_GOLDE
 bash tools/golden/run-pdfas.sh            # alle Fälle neu (≈ 5 min, 8 JVMs)
 bash tools/golden/run-pdfas.sh --only 'qr' # nur passende Fall-IDs, Index wird zusammengeführt
 bash tools/golden/run-pdfas.sh --reextract # Manifeste aus target/golden/work neu (nach --keep-work)
-PDFOVER_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pdfover-sigblock --test golden_pdfas442
-PDFOVER_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pdfover-placement --test golden_pdfas442
+PIDA_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pida-sigblock --test golden_pdfas442
+PIDA_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pida-placement --test golden_pdfas442
 python3 tools/golden/report.py --golden testdata/golden/pdfas-4.4.2 --reports target/golden/report \
     --out docs/integration/golden-report.md
 ```
 
-Voraussetzungen: Java ≥ 17 (`PDFOVER_JAVA`, Default `/opt/homebrew/opt/openjdk@21/bin/java`), qpdf,
-Python mit pyHanko und Pillow (`.venv`), `$PDFOVER_REFERENCE/pdfas-config` (wird nur gelesen und je
+Voraussetzungen: Java ≥ 17 (`PIDA_JAVA`, Default `/opt/homebrew/opt/openjdk@21/bin/java`), qpdf,
+Python mit pyHanko und Pillow (`.venv`), `$PIDA_REFERENCE/pdfas-config` (wird nur gelesen und je
 Variante kopiert). Netz nur für den einmaligen Download der CLI.
 
 Hinweise:
@@ -51,4 +51,4 @@ Hinweise:
   `<cfg>/…` (`run_cases.portable_overrides`). `--reextract` behält die PDF-AS-Laufzeit je Fall.
 - Eingaben für den Rasterscan gedrehter Seiten (KR-F04): `landscape-rot90/270`, `wide-rot180`,
   `a4-rot270-low`, `rot90-842-low`, `half-rot90` (Prüfung der Java2D-Pixelregel in
-  `pdfover_placement::position::pdfas_rotated_scan`).
+  `pida_placement::position::pdfas_rotated_scan`).

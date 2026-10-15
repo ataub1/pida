@@ -1,4 +1,4 @@
-//! `pdfover-backend-api` – gemeinsame Schnittstelle aller Signatur-Backends (Plan §3.3, §3.4, §4).
+//! `pida-backend-api` – gemeinsame Schnittstelle aller Signatur-Backends (Plan §3.3, §3.4, §4).
 //!
 //! **Szenario A ist Standard für ID Austria** (Entscheidung des Auftraggebers, ADR 0001 §2):
 //! `atrust-native` bedient den A-Trust-SL-1.2-HTTPS-Endpunkt nativ und zeigt alle Masken über
@@ -13,7 +13,7 @@
 //! | SMS-TAN (`MobileBKUEnterTANComposite`) | [`NativeForm::SmsTan`] → [`FormAnswer::Tan`] |
 //! | QR-Code (`MobileBKUQRComposite`) | [`NativeForm::QrCode`] (Bild + Vergleichswert; Long-Poll schließt den Dialog per Drop) |
 //! | App-Bestätigung (`MobileBKUNeedsAppComposite`) | [`NativeForm::WaitForApp`] (Long-Poll, Drop) |
-//! | FIDO2 (`MobileBKUFido2Composite`) | [`NativeForm::Fido2`] + `Fido2Provider` in `pdfover-backend-atrust` |
+//! | FIDO2 (`MobileBKUFido2Composite`) | [`NativeForm::Fido2`] + `Fido2Provider` in `pida-backend-atrust` |
 //! | Interstitial (`ExpiresInfo.aspx`) | [`InteractionBroker::notice`] mit [`NoticeCode::AtrustInterstitial`] |
 //! | A-Trust-Fehler (`error*.aspx`) | [`InteractionBroker::notice`] mit [`NoticeCode::AtrustError`], Retry/Cancel bzw. OK |
 //! | HTTP 407/413/sonstige, Verbindungsfehler | [`InteractionBroker::notice`] (OK → Abbruch) |
@@ -53,7 +53,7 @@ pub use interaction::{
     SecretKind, SecretPrompt, WebOutcome, WebRequest, WindowHandle,
 };
 pub use job::{DigestJob, DocumentJob, DocumentSource, ExcludedByteRange, SignJob, SignResult};
-pub use pdfover_cades::{CertChain, Certificate, DigestAlg, RawSignature, SignatureAlg};
+pub use pida_cades::{CertChain, Certificate, DigestAlg, RawSignature, SignatureAlg};
 
 use std::sync::Arc;
 
@@ -63,7 +63,7 @@ use async_trait::async_trait;
 #[derive(Debug, Clone)]
 pub struct SessionContext {
     /// UI-Sprache (Texte der eigenen Masken; A-Trust-Texte kommen roh).
-    pub language: pdfover_i18n::Lang,
+    pub language: pida_i18n::Lang,
     /// Anzahl der Dokumente im Batch (Szenario A: eine Anmeldung je Batch, Plan §4.4).
     pub batch_size: usize,
     /// Abbruch von außen (Nutzerin, Fenster geschlossen, App beendet) – der einzige Weg, ein

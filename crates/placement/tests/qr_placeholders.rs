@@ -4,11 +4,11 @@
 mod common;
 
 use common::{GrayImage, PageSpec, PdfBuilder, build_doc, generator_like_image, qr_image, to_rgba};
-use pdfover_placement::{
+use pida_placement::{
     Coord, PageSelector, PlaceholderMode, PlaceholderQuery, QrPlaceholder, decode_qr, find_qr_placeholders,
     select_placeholder,
 };
-use pdfover_render::{ForcedColorOptions, ImageObject, PageSize, RenderError, Renderer, RgbaImage};
+use pida_render::{ForcedColorOptions, ImageObject, PageSize, RenderError, Renderer, RgbaImage};
 
 #[test]
 fn decode_generated_qr_codes() {
@@ -203,7 +203,7 @@ fn pages_without_invocations_are_not_rendered_and_errors_propagate() {
     let renderer = common::open(&backend, &bytes);
     assert!(find_qr_placeholders(renderer.as_ref(), &common::pages(&doc), &[]).unwrap().is_empty());
     // Aufruf für eine Seite, die der Renderer nicht kennt
-    let bogus = pdfover_pdf_cos::ImageInvocation {
+    let bogus = pida_pdf_cos::ImageInvocation {
         page_index: 7,
         order: 0,
         resource_name: "X".into(),
@@ -214,7 +214,7 @@ fn pages_without_invocations_are_not_rendered_and_errors_propagate() {
         inside_form_xobject: false,
     };
     let mut pages = common::pages(&doc);
-    pages.push(pdfover_pdf_cos::PageInfo { index: 7, ..pages[0].clone() });
+    pages.push(pida_pdf_cos::PageInfo { index: 7, ..pages[0].clone() });
     assert!(find_qr_placeholders(renderer.as_ref(), &pages, &[bogus]).is_err());
 }
 
@@ -225,22 +225,22 @@ impl Renderer for FixedImages {
     fn page_count(&self) -> usize {
         1
     }
-    fn page_size(&self, _page: usize) -> pdfover_render::Result<PageSize> {
+    fn page_size(&self, _page: usize) -> pida_render::Result<PageSize> {
         Ok(PageSize { width: 595.0, height: 842.0 })
     }
-    fn render_page(&self, _page: usize, _scale: f32) -> pdfover_render::Result<RgbaImage> {
+    fn render_page(&self, _page: usize, _scale: f32) -> pida_render::Result<RgbaImage> {
         Err(RenderError::Render("nicht benötigt".into()))
     }
-    fn render_forced_color(&self, _page: usize, _opts: &ForcedColorOptions) -> pdfover_render::Result<RgbaImage> {
+    fn render_forced_color(&self, _page: usize, _opts: &ForcedColorOptions) -> pida_render::Result<RgbaImage> {
         Err(RenderError::Render("nicht benötigt".into()))
     }
-    fn image_objects(&self, _page: usize) -> pdfover_render::Result<Vec<ImageObject>> {
+    fn image_objects(&self, _page: usize) -> pida_render::Result<Vec<ImageObject>> {
         Ok(self.0.clone())
     }
 }
 
-fn invocation(order: usize, name: &str, ctm: [f32; 6], size: (u32, u32)) -> pdfover_pdf_cos::ImageInvocation {
-    pdfover_pdf_cos::ImageInvocation {
+fn invocation(order: usize, name: &str, ctm: [f32; 6], size: (u32, u32)) -> pida_pdf_cos::ImageInvocation {
+    pida_pdf_cos::ImageInvocation {
         page_index: 0,
         order,
         resource_name: name.to_owned(),
@@ -276,12 +276,12 @@ fn matching_scales_to_many_images_and_keeps_the_tie_breaker() {
     invs.push(invocation(n, "A", m, qr_size));
     invs.push(invocation(n + 2, "NaN", [f32::NAN, 0.0, 0.0, 100.0, 50.0, 600.0], qr_size));
     invs.push(invocation(n + 3, "Near", near, qr_size));
-    let page = pdfover_pdf_cos::PageInfo {
+    let page = pida_pdf_cos::PageInfo {
         index: 0,
         object_id: (1, 0),
-        media_box: pdfover_pdf_cos::Rect::new(0.0, 0.0, 595.0, 842.0),
-        crop_box: pdfover_pdf_cos::Rect::new(0.0, 0.0, 595.0, 842.0),
-        rotation: pdfover_pdf_cos::Rotation::R0,
+        media_box: pida_pdf_cos::Rect::new(0.0, 0.0, 595.0, 842.0),
+        crop_box: pida_pdf_cos::Rect::new(0.0, 0.0, 595.0, 842.0),
+        rotation: pida_pdf_cos::Rotation::R0,
         user_unit: 1.0,
         annots_indirect: None,
     };
@@ -296,7 +296,7 @@ fn matching_scales_to_many_images_and_keeps_the_tie_breaker() {
 
 /// Transparente PNG-Platzhalter (Welle 3, KR-F07): QR-Code nur in der `/SMask` (Farbwerte überall
 /// schwarz) bzw. helle Module per Farbschlüssel-`/Mask` ausgeblendet (ohne Maske invertiert). PDF-AS dekodiert `getImage()` mit angewandter Maske – transparente Pixel
-/// gelten als weiß –, `pdfover-render` liefert die Bilder ebenso maskiert.
+/// gelten als weiß –, `pida-render` liefert die Bilder ebenso maskiert.
 #[test]
 fn transparent_qr_placeholders_are_decoded_with_their_mask() {
     let backend = require_pdfium!();

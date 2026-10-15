@@ -11,13 +11,13 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use common::*;
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendError, BackendId, BackendSession, Capabilities, CertChain, Environment, FormAnswer, FormContext,
     InteractionBroker, InteractionError, NativeForm, Platform, SessionContext, SignJob, SignResult, SignatureBackend,
 };
-use pdfover_cades::{CmsProfile, DigestAlg, RawSigner, SigningTime};
-use pdfover_config::{Overlay, SecretId, SecretStore, SecureStorage, Settings, ShellSecretStore};
-use pdfover_core_api::{
+use pida_cades::{CmsProfile, DigestAlg, RawSigner, SigningTime};
+use pida_config::{Overlay, SecretId, SecretStore, SecureStorage, Settings, ShellSecretStore};
+use pida_core_api::{
     Core, CoreConfig, CoreOptions, FormAnswerView, InteractionView, PlatformOs, ShellHooks, StepView, UiEvent,
     ViewState,
 };
@@ -76,7 +76,7 @@ fn resume_dir(fx: &Fixture) -> PathBuf {
 
 #[derive(Debug)]
 struct AppConfirm {
-    key: Arc<pdfover_backend_keystore::LoadedKey>,
+    key: Arc<pida_backend_keystore::LoadedKey>,
     /// angezeigte Wartemasken
     shown: AtomicUsize,
     /// „weiter“ (Neuladen nach Rückkehr bzw. Poll fertig)
@@ -148,7 +148,7 @@ impl BackendSession for AppConfirmSession {
             let mut content = bytes[..r.from as usize].to_vec();
             content.extend_from_slice(&bytes[r.to as usize + 1..]);
             let digest = DigestAlg::Sha256.digest(&content);
-            let cms = pdfover_cades::sign_detached(
+            let cms = pida_cades::sign_detached(
                 self.backend.key.as_ref() as &dyn RawSigner,
                 &digest,
                 CmsProfile::PdfasCompat,
@@ -334,7 +334,7 @@ async fn cancel_deletes_only_the_state_of_the_running_signature() {
     core.dispatch(UiEvent::Cancel);
     wait_for(&core, "Auswahl", |v| matches!(v.step, StepView::Backend { .. })).await;
     assert!(resume_dir(&fx).join("resume.json").is_file(), "fremdes Angebot unangetastet");
-    core.dispatch(UiEvent::Navigate { step: pdfover_workflow::Step::Open });
+    core.dispatch(UiEvent::Navigate { step: pida_workflow::Step::Open });
     wait_for(&core, "Angebot wieder", |v| v.resume.is_some()).await;
     // fortsetzen und abbrechen → gelöscht
     core.dispatch(UiEvent::ResumeSignature);
@@ -531,9 +531,9 @@ async fn pkcs12_import_copies_into_the_sandbox_and_configures_the_keystore() {
     assert!(saved.keystore.enabled);
     assert_eq!(saved.keystore.file.as_deref(), Some(copy.as_path()));
     assert_eq!(saved.keystore.declared_type.as_deref(), Some("PKCS12"));
-    assert_eq!(saved.keystore.password_storage, pdfover_config::PasswordStorage::Keychain);
+    assert_eq!(saved.keystore.password_storage, pida_config::PasswordStorage::Keychain);
     assert_eq!(secrets.get(&SecretId::keystore_store(&copy)).unwrap().as_deref().map(String::as_str), Some("test"));
-    assert!(storage.0.lock().unwrap().keys().all(|k| k.starts_with("PDF-Over NG/")));
+    assert!(storage.0.lock().unwrap().keys().all(|k| k.starts_with("PIDA/")));
     // die Quelldatei bleibt (gehört der Shell); signieren ohne Passwortabfrage
     assert!(p12.is_file());
     let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
@@ -636,7 +636,7 @@ async fn imported_keystore_follows_a_moved_sandbox() {
         std::fs::create_dir_all(&keystores).unwrap();
         let now = keystores.join("test.p12");
         std::fs::copy(testdata(P12), &now).unwrap();
-        let old = fx.tmp.path().join("Application/ALTE-UUID/Library/at.pdf-over-ng/data/keystores/test.p12");
+        let old = fx.tmp.path().join("Application/ALTE-UUID/Library/at.pida/data/keystores/test.p12");
         fx.write_settings(&format!("{}password_storage = \"keychain\"\n", keystore_settings(&old)));
         let storage = Arc::new(FakeSecureStorage::default());
         let secrets: Arc<dyn SecretStore> = Arc::new(ShellSecretStore::new(storage.clone()));

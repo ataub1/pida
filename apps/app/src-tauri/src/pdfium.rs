@@ -5,10 +5,10 @@
 //! (`None` → `dlopen("libpdfium.so")` aus `nativeLibraryDir`, gefüllt aus `jniLibs/<abi>`,
 //! `tools/fetch-pdfium.sh --jnilibs`).
 //!
-//! Reihenfolge: Umgebungsvariable `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**: Entwicklung, Tests),
+//! Reihenfolge: Umgebungsvariable `PIDA_PDFIUM_DIR` (**nur Debug-Builds**: Entwicklung, Tests),
 //! Ordner der Binary, `../Frameworks` im macOS-Bundle, Ressourcenordner (auch `pdfium/` darunter).
 //! Wird nichts gefunden ([`resolve`]), entscheidet in Debug-Builds der Kern (`CoreConfig::pdfium_dir =
-//! None` → `PDFOVER_PDFIUM_DIR`, neben der Binary, System); ein Release-Build nennt dann den Ordner der
+//! None` → `PIDA_PDFIUM_DIR`, neben der Binary, System); ein Release-Build nennt dann den Ordner der
 //! Binary, sodass der Kern ohne mitgelieferte Bibliothek ohne Vorschau startet (automatische Position).
 //!
 //! Sicherheit: Ein Release-Build lädt nie eine Bibliothek aus einem per Umgebungsvariable genannten
@@ -18,13 +18,13 @@
 
 use std::path::{Path, PathBuf};
 
-/// Dateiname der PDFium-Bibliothek auf dieser Plattform (wie `pdfover_render::library_file_name`).
+/// Dateiname der PDFium-Bibliothek auf dieser Plattform (wie `pida_render::library_file_name`).
 pub fn library_file_name() -> &'static str {
-    pdfover_render::library_file_name()
+    pida_render::library_file_name()
 }
 
-/// Name der Umgebungsvariable (wie `pdfover_render::ENV_PDFIUM_DIR`).
-pub const ENV_PDFIUM_DIR: &str = "PDFOVER_PDFIUM_DIR";
+/// Name der Umgebungsvariable (wie `pida_render::ENV_PDFIUM_DIR`).
+pub const ENV_PDFIUM_DIR: &str = "PIDA_PDFIUM_DIR";
 
 /// Ordner aus [`ENV_PDFIUM_DIR`] – nur in Debug-Builds (siehe Moduldoku), sonst `None`.
 pub fn env_override() -> Option<PathBuf> {
@@ -50,7 +50,7 @@ pub fn candidates(env_dir: Option<PathBuf>, exe: Option<&Path>, resource_dir: Op
 
 /// Erster Kandidat, der die Bibliothek enthält (unter iOS auch als `pdfium.framework/pdfium`).
 pub fn find(candidates: &[PathBuf]) -> Option<PathBuf> {
-    candidates.iter().find(|dir| pdfover_render::library_paths_in(dir).iter().any(|p| p.is_file())).cloned()
+    candidates.iter().find(|dir| pida_render::library_paths_in(dir).iter().any(|p| p.is_file())).cloned()
 }
 
 /// Mobile: Ordner für `CoreConfig::pdfium_dir`. iOS: `Frameworks` des App-Bundles neben der Binary
@@ -67,8 +67,8 @@ pub fn mobile_dir(exe: Option<&Path>, android: bool) -> Option<PathBuf> {
 }
 
 /// Ordner für `CoreConfig::pdfium_dir`: der erste Kandidat mit der Bibliothek; ohne Treffer in einem
-/// Release-Build (`release`) der Ordner der Binary – `pdfover-render` sucht mit einem genannten Ordner
-/// nur dort, nie in `PDFOVER_PDFIUM_DIR` oder Systempfaden (siehe Moduldoku).
+/// Release-Build (`release`) der Ordner der Binary – `pida-render` sucht mit einem genannten Ordner
+/// nur dort, nie in `PIDA_PDFIUM_DIR` oder Systempfaden (siehe Moduldoku).
 pub fn resolve(candidates: &[PathBuf], exe: Option<&Path>, release: bool) -> Option<PathBuf> {
     find(candidates).or_else(|| if release { exe.and_then(Path::parent).map(Path::to_path_buf) } else { None })
 }
@@ -79,13 +79,13 @@ mod tests {
 
     #[test]
     fn search_order_and_hit() {
-        let root = std::env::temp_dir().join(format!("pdfover-app-pdfium-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("pida-app-pdfium-{}", std::process::id()));
         let exe_dir = root.join("MacOS");
         let frameworks = root.join("Frameworks");
         std::fs::create_dir_all(&exe_dir).expect("exe dir");
         std::fs::create_dir_all(&frameworks).expect("frameworks");
         std::fs::write(frameworks.join(library_file_name()), b"").expect("lib");
-        let exe = exe_dir.join("pdf-over-ng");
+        let exe = exe_dir.join("pida");
         let list = candidates(Some(PathBuf::new()), Some(&exe), None);
         // leere Umgebungsvariable zählt nicht
         assert_eq!(list[0], exe_dir);
@@ -100,8 +100,8 @@ mod tests {
 
     #[test]
     fn release_builds_never_fall_back_to_search_paths() {
-        let root = std::env::temp_dir().join(format!("pdfover-app-pdfium-resolve-{}", std::process::id()));
-        let exe = root.join("MacOS").join("pdf-over-ng");
+        let root = std::env::temp_dir().join(format!("pida-app-pdfium-resolve-{}", std::process::id()));
+        let exe = root.join("MacOS").join("pida");
         let none = [root.join("nichts")];
         // Debug: ohne Treffer entscheidet der Kern (Umgebung, Systempfad)
         assert_eq!(resolve(&none, Some(&exe), false), None);
@@ -120,9 +120,9 @@ mod tests {
         // Android: der Kern bindet über den Linker (jniLibs → nativeLibraryDir)
         assert_eq!(mobile_dir(Some(Path::new("/system/bin/app_process64")), true), None);
         // iOS: Frameworks im Bundle, auch ohne Treffer (dann ohne Vorschau)
-        let root = std::env::temp_dir().join(format!("pdfover-app-pdfium-ios-{}", std::process::id()));
-        let app = root.join("PDF-Over NG.app");
-        let exe = app.join("pdf-over-ng");
+        let root = std::env::temp_dir().join(format!("pida-app-pdfium-ios-{}", std::process::id()));
+        let app = root.join("PIDA.app");
+        let exe = app.join("pida");
         assert_eq!(mobile_dir(Some(&exe), false), Some(app.join("Frameworks")));
         std::fs::create_dir_all(&app).expect("Bundle");
         std::fs::write(app.join(library_file_name()), b"").expect("lib");

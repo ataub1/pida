@@ -13,14 +13,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use pdfover_backend_api::{NativeForm, NoticeAnswer, NoticeButtons, Progress, SecretKind};
-use pdfover_config::{BackendChoice, Paths};
-use pdfover_core_api::messages::{form_problem_message, notice_message, progress_message};
-use pdfover_core_api::{
-    Core, CoreConfig, CoreOptions, DoneItemView, FormAnswerView, InteractionView, StepView, UiEvent,
-};
-use pdfover_i18n::Lang;
-use pdfover_workflow::{DocResult, ExitCode};
+use pida_backend_api::{NativeForm, NoticeAnswer, NoticeButtons, Progress, SecretKind};
+use pida_config::{BackendChoice, Paths};
+use pida_core_api::messages::{form_problem_message, notice_message, progress_message};
+use pida_core_api::{Core, CoreConfig, CoreOptions, DoneItemView, FormAnswerView, InteractionView, StepView, UiEvent};
+use pida_i18n::Lang;
+use pida_workflow::{DocResult, ExitCode};
 use zeroize::Zeroizing;
 
 use crate::overlay::{self, ArgError};
@@ -95,10 +93,10 @@ pub fn sign(config_file: Option<PathBuf>, cli: &Cli, env: RunEnv) -> ExitCode {
     let config = CoreConfig {
         paths,
         overlay: ov,
-        platform: pdfover_backend_api::Platform::current(),
+        platform: pida_backend_api::Platform::current(),
         pdfium_dir: None,
         headless: true,
-        fido2: pdfover_core_api::platform_fido2(),
+        fido2: pida_core_api::platform_fido2(),
         app_version: env!("CARGO_PKG_VERSION").into(),
     };
     let options = CoreOptions { interactive: Some(interactive), init_logging: false, probe_local_bku, ..env.options };
@@ -116,12 +114,12 @@ pub fn sign(config_file: Option<PathBuf>, cli: &Cli, env: RunEnv) -> ExitCode {
             Err(e) => {
                 let mut p = BTreeMap::new();
                 p.insert("detail".to_owned(), e.to_string());
-                if let pdfover_core_api::CoreError::Config(c) = &e {
+                if let pida_core_api::CoreError::Config(c) = &e {
                     term.info(&c.localized(lang));
                 } else {
                     term.info(&tr_map(lang, e.message_id(), &p));
                 }
-                return if matches!(&e, pdfover_core_api::CoreError::Config(c) if c.missing_path().is_some()) {
+                return if matches!(&e, pida_core_api::CoreError::Config(c) if c.missing_path().is_some()) {
                     ExitCode::Usage
                 } else {
                     ExitCode::General
@@ -431,7 +429,7 @@ impl Ui {
                 (Some(Prompt::Tan { request, reference: reference_value.clone() }), None)
             }
             NativeForm::QrCode { reference_value, image, timeout_secs, .. } => {
-                let path = self.temp_dir.join(format!("pdfover-qr-{}-{request}.png", std::process::id()));
+                let path = self.temp_dir.join(format!("pida-qr-{}-{request}.png", std::process::id()));
                 let shown = match image {
                     Some(img) => {
                         match std::fs::create_dir_all(&self.temp_dir).and_then(|_| write_private(&path, &img.bytes)) {
@@ -583,7 +581,7 @@ pub fn report(term: &dyn Terminal, lang: Lang, results: &[DoneItemView], code: E
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_backend_api::{FormContext, QrImage};
+    use pida_backend_api::{FormContext, QrImage};
 
     fn qr_step(request: u64) -> StepView {
         StepView::Signing {

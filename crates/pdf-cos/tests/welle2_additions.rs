@@ -1,9 +1,9 @@
-//! Additive API aus Welle 2 (für `pdfover-pades`): `SourcePdf::signature_locations` (benutzte
+//! Additive API aus Welle 2 (für `pida-pades`): `SourcePdf::signature_locations` (benutzte
 //! QR-Platzhalter) und `SourcePdf::object_locations` (Objekte eines Increments, Invariante I6).
 
 use std::path::PathBuf;
 
-use pdfover_pdf_cos::{Limits, ObjectLocation, SourcePdf};
+use pida_pdf_cos::{Limits, ObjectLocation, SourcePdf};
 
 fn open(rel: &str) -> SourcePdf {
     let p = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata")).join(rel);
@@ -62,7 +62,7 @@ fn xref_stream_header_with_foreign_id_does_not_replace_the_catalog() {
     let pat = b"7 0 obj\n<< /Type /XRef";
     let pos = data.windows(pat.len()).position(|w| w == pat).expect("xref-Stream-Kopf");
     data[pos] = b'1';
-    let src = pdfover_pdf_cos::SourcePdf::open(data, &pdfover_pdf_cos::Limits::default()).unwrap();
+    let src = pida_pdf_cos::SourcePdf::open(data, &pida_pdf_cos::Limits::default()).unwrap();
     let cat = src.catalog().unwrap();
     assert_eq!(cat.get(b"Type").unwrap().as_name().unwrap(), b"Catalog");
     assert_eq!(src.page_count(), 1);
@@ -76,7 +76,7 @@ fn xref_stream_only_header_with_foreign_id_does_not_replace_the_catalog() {
     let pat = b"13 0 obj\n<< /Type /XRef";
     let pos = data.windows(pat.len()).position(|w| w == pat).expect("xref-Stream-Kopf");
     data[pos..pos + 2].copy_from_slice(b" 8");
-    let src = pdfover_pdf_cos::SourcePdf::open(data, &pdfover_pdf_cos::Limits::default()).unwrap();
+    let src = pida_pdf_cos::SourcePdf::open(data, &pida_pdf_cos::Limits::default()).unwrap();
     let cat = src.catalog().unwrap();
     assert_eq!(cat.get(b"Type").unwrap().as_name().unwrap(), b"Catalog");
     assert_eq!(src.page_count(), 1);
@@ -92,8 +92,8 @@ fn compressed_entry_in_a_non_object_stream_is_repaired() {
     let mut data = std::fs::read(path).unwrap();
     assert_eq!(data[628], 0x63, "Testdatei unverändert");
     data[628] = 0x96;
-    let src = pdfover_pdf_cos::SourcePdf::open(data, &pdfover_pdf_cos::Limits::default()).unwrap();
-    assert_eq!(src.xref_health(), pdfover_pdf_cos::XrefHealth::Repaired);
+    let src = pida_pdf_cos::SourcePdf::open(data, &pida_pdf_cos::Limits::default()).unwrap();
+    assert_eq!(src.xref_health(), pida_pdf_cos::XrefHealth::Repaired);
     assert_eq!(src.page_count(), 1);
 }
 
@@ -103,7 +103,7 @@ fn compressed_entry_in_a_non_object_stream_is_repaired() {
 /// ein Fehler (K5), kein stilles RC4.
 #[test]
 fn missing_or_unknown_crypt_filter_names_follow_the_spec() {
-    use pdfover_pdf_cos::{CosError, CryptTarget, Limits, SourcePdf};
+    use pida_pdf_cos::{CosError, CryptTarget, Limits, SourcePdf};
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/pdf/generated/simple-aes128-owner.pdf");
     let original = std::fs::read(path).unwrap();
     let patched = |from: &[u8], to: &[u8]| {

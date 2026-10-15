@@ -2,10 +2,10 @@
 
 use std::path::Path;
 
-use pdfover_cades::{AlgorithmPolicy, Expect, ExpectedSigner};
-use pdfover_pdf_cos::{Limits, Object, SourcePdf};
-use pdfover_render::RenderBackend;
-use pdfover_sigblock::{FontProvider, ProfileStore};
+use pida_cades::{AlgorithmPolicy, Expect, ExpectedSigner};
+use pida_pdf_cos::{Limits, Object, SourcePdf};
+use pida_render::RenderBackend;
+use pida_sigblock::{FontProvider, ProfileStore};
 
 use crate::CoreError;
 use crate::plan::{self, PlanError};
@@ -101,7 +101,7 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
             continue;
         };
         check.covers_whole_file = first.start == 0 && second.end == bytes.len();
-        let cms = match pdfover_cades::trim_contents_padding(&contents) {
+        let cms = match pida_cades::trim_contents_padding(&contents) {
             Ok(c) => c,
             Err(e) => {
                 check.error = Some(e.code().into());
@@ -116,7 +116,7 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
             max_len: None,
             policy: AlgorithmPolicy::PriorSignature,
         };
-        match pdfover_cades::verify_detached(cms, &mut data, &expect) {
+        match pida_cades::verify_detached(cms, &mut data, &expect) {
             Ok(report) => {
                 check.valid = true;
                 check.signer = report.signer.subject_cn();
@@ -133,7 +133,7 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
 /// Die 12 Profil-IDs von PDF-Over mit Verfügbarkeit im eingebauten Profilspeicher.
 pub fn profile_ids() -> Vec<(String, bool)> {
     let store = ProfileStore::builtin().ok();
-    pdfover_sigblock::PDFOVER_PROFILE_IDS
+    pida_sigblock::PDFOVER_PROFILE_IDS
         .iter()
         .map(|id| ((*id).to_owned(), store.as_ref().is_some_and(|s| s.get(id).is_some())))
         .collect()
@@ -144,7 +144,7 @@ pub fn block_pdf(profile_id: &str) -> Result<Vec<u8>, PlanError> {
     let store = ProfileStore::builtin()?;
     let fonts = FontProvider::builtin();
     let profile = store.profile(profile_id)?.clone();
-    let mut input = pdfover_sigblock::SigBlockInput::new(pdfover_sigblock::CertFields::example(), plan::local_now());
+    let mut input = pida_sigblock::SigBlockInput::new(pida_sigblock::CertFields::example(), plan::local_now());
     let pdfa = plan::pdfa_mode(None, &profile);
     input.pdfa = pdfa;
     let spec = plan::BlockSpec { profile_id: profile_id.to_owned(), profile, input, pdfa };
@@ -156,10 +156,10 @@ pub fn block_pdf(profile_id: &str) -> Result<Vec<u8>, PlanError> {
 
 /// Rendert die erste Seite eines PDFs als PNG (PDFium aus `pdfium_dir` bzw. Standardsuche).
 pub fn render_png(pdf: &[u8], scale: f32, pdfium_dir: Option<&Path>) -> Result<Vec<u8>, CoreError> {
-    let backend = pdfover_render::PdfiumBackend::bind(pdfium_dir)?;
+    let backend = pida_render::PdfiumBackend::bind(pdfium_dir)?;
     let r = backend.open(std::sync::Arc::from(pdf), None)?;
     let img = r.render_page(0, scale)?;
-    Ok(pdfover_render::encode_png(&img)?)
+    Ok(pida_render::encode_png(&img)?)
 }
 
 #[cfg(test)]

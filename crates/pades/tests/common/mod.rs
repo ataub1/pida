@@ -1,4 +1,4 @@
-//! Gemeinsame Test-Hilfen für `pdfover-pades`: Korpus, Keystore-Backend (Modell A), Fake-BKU
+//! Gemeinsame Test-Hilfen für `pida-pades`: Korpus, Keystore-Backend (Modell A), Fake-BKU
 //! (Modell B), externe Orakel (qpdf, openssl, pyHanko, PDFium).
 //!
 //! Externe Werkzeuge sind optional: fehlen sie, wird die jeweilige Prüfung übersprungen (Meldung
@@ -19,20 +19,20 @@ use std::process::Command;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use async_trait::async_trait;
-use pdfover_backend_api::testing::ScriptedBroker;
-use pdfover_backend_api::{
+use pida_backend_api::testing::ScriptedBroker;
+use pida_backend_api::{
     BackendError, BackendId, BackendSession, CancelToken, Capabilities, CertChain, DigestJob, DocumentJob,
     DocumentSource, Environment, ExcludedByteRange, InteractionBroker, SessionContext, SignJob, SignResult,
     SignatureBackend,
 };
-use pdfover_backend_keystore::{KeystoreBackend, KeystoreConfig};
-use pdfover_cades::{Certificate, CmsProfile, SignedAttrsBuilder, SigningTime, select_algorithm};
-use pdfover_pades::{
+use pida_backend_keystore::{KeystoreBackend, KeystoreConfig};
+use pida_cades::{Certificate, CmsProfile, SignedAttrsBuilder, SigningTime, select_algorithm};
+use pida_pades::{
     DocReport, FieldTarget, PlanOptions, PlannedSignature, Prepared, SignedPdf, cert_fields, plan_signature, prepare,
 };
-use pdfover_pdf_cos::{Limits, SourcePdf};
-use pdfover_render::{PdfiumBackend, RenderBackend, Renderer};
-use pdfover_sigblock::{FontProvider, ProfileStore, SigBlockInput};
+use pida_pdf_cos::{Limits, SourcePdf};
+use pida_render::{PdfiumBackend, RenderBackend, Renderer};
+use pida_sigblock::{FontProvider, ProfileStore, SigBlockInput};
 use zeroize::Zeroizing;
 
 /// Wurzel der gemeinsamen Testdaten.
@@ -79,12 +79,12 @@ pub fn which(cmd: &str) -> Option<PathBuf> {
     None
 }
 
-/// Python mit pyHanko: `PDFOVER_PYTHON`, sonst `python3` neben `pyhanko`, sonst `python3`.
+/// Python mit pyHanko: `PIDA_PYTHON`, sonst `python3` neben `pyhanko`, sonst `python3`.
 pub fn pyhanko_python() -> Option<PathBuf> {
     static PY: OnceLock<Option<PathBuf>> = OnceLock::new();
     PY.get_or_init(|| {
         let mut candidates = Vec::new();
-        if let Some(p) = std::env::var_os("PDFOVER_PYTHON") {
+        if let Some(p) = std::env::var_os("PIDA_PYTHON") {
             candidates.push(PathBuf::from(p));
         }
         if let Some(ph) = which("pyhanko")
@@ -106,11 +106,11 @@ pub fn pyhanko_python() -> Option<PathBuf> {
     .clone()
 }
 
-/// PDFium (nur mit `PDFOVER_PDFIUM_DIR`, sonst `None`).
+/// PDFium (nur mit `PIDA_PDFIUM_DIR`, sonst `None`).
 pub fn pdfium() -> Option<PdfiumBackend> {
     static B: OnceLock<Option<PdfiumBackend>> = OnceLock::new();
     *B.get_or_init(|| {
-        let dir = std::env::var_os("PDFOVER_PDFIUM_DIR")?;
+        let dir = std::env::var_os("PIDA_PDFIUM_DIR")?;
         match PdfiumBackend::bind(Some(Path::new(&dir))) {
             Ok(b) => Some(b),
             Err(e) => {
@@ -217,7 +217,7 @@ pub fn openssl_verify(openssl: &Path, dir: &Path, signed: &SignedPdf) -> bool {
     for pair in hex.chunks(2) {
         der.push(u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap());
     }
-    let der = pdfover_cades::trim_contents_padding(&der).unwrap().to_vec();
+    let der = pida_cades::trim_contents_padding(&der).unwrap().to_vec();
     let mut data = bytes[..a as usize].to_vec();
     data.extend_from_slice(&bytes[b as usize..(b + c) as usize]);
     let cms = dir.join("verify-cms.der");
@@ -315,8 +315,8 @@ impl KeystoreSigner {
         let job = SignJob::Digest(DigestJob { display_name: "test.pdf".into(), alg, digest: attrs.digest(alg).value });
         let mut results = self.rt.block_on(self.session.sign(vec![job])).unwrap();
         let SignResult::Raw { signature, chain } = results.remove(0) else { panic!("keine Rohsignatur") };
-        let opts = pdfover_cades::AssembleOptions { profile: prepared.cms_profile(), include_intermediates: false };
-        pdfover_cades::assemble(&attrs, &signature, &chain, &opts).unwrap()
+        let opts = pida_cades::AssembleOptions { profile: prepared.cms_profile(), include_intermediates: false };
+        pida_cades::assemble(&attrs, &signature, &chain, &opts).unwrap()
     }
 }
 
@@ -328,14 +328,14 @@ pub fn plan_for(
     signer: &Certificate,
     opts: &PlanOptions,
     renderer: Option<&dyn Renderer>,
-) -> Result<PlannedSignature, pdfover_pades::PadesError> {
+) -> Result<PlannedSignature, pida_pades::PadesError> {
     let base = store().profile(profile_id).expect("Profil");
     // BASE_LOGO: Laufzeit-Overlay wie PDF-Over (ohne eigenes Emblem 1×1 px, 23 mm)
     let profile = if profile_id == "BASE_LOGO" {
-        base.with_overrides(&pdfover_sigblock::ProfileOverrides::base_logo(
+        base.with_overrides(&pida_sigblock::ProfileOverrides::base_logo(
             None,
             (1, 1),
-            pdfover_sigblock::profile::DEFAULT_LOGO_SIZE_MM,
+            pida_sigblock::profile::DEFAULT_LOGO_SIZE_MM,
         ))
     } else {
         base.clone()
@@ -358,8 +358,8 @@ pub fn prepare_with(
     chain: &CertChain,
     cms_profile: CmsProfile,
     field: FieldTarget,
-) -> Result<(Prepared, PlannedSignature), pdfover_pades::PadesError> {
-    let mut opts = PlanOptions::new(pdfover_pades::local_signing_time());
+) -> Result<(Prepared, PlannedSignature), pida_pades::PadesError> {
+    let mut opts = PlanOptions::new(pida_pades::local_signing_time());
     opts.cms_profile = cms_profile;
     opts.field = field;
     let renderer = open_renderer(src);
@@ -531,13 +531,13 @@ pub fn sign_model_b(
     src: &SourcePdf,
     report: &DocReport,
     profile_id: &str,
-    reserve: pdfover_pades::Reserve,
+    reserve: pida_pades::Reserve,
 ) -> Result<SignedPdf, String> {
     let rt = runtime();
     let broker: Arc<dyn InteractionBroker> = Arc::new(ScriptedBroker::new([]));
     let mut session = rt.block_on(bku.open(session_context(), broker)).map_err(|e| e.to_string())?;
     let chain = rt.block_on(session.certificate()).map_err(|e| e.to_string())?;
-    let mut opts = PlanOptions::new(pdfover_pades::local_signing_time());
+    let mut opts = PlanOptions::new(pida_pades::local_signing_time());
     opts.reserve = reserve;
     let renderer = open_renderer(src);
     let planned =
@@ -551,8 +551,8 @@ pub fn sign_model_b(
     let mut results = rt.block_on(session.sign(vec![job])).map_err(|e| e.to_string())?;
     let SignResult::Cms(cms) = results.remove(0) else { return Err("kein CMS".into()) };
     let prepared = shared.lock().unwrap().take().unwrap();
-    let expect = pdfover_cades::Expect {
-        signer: pdfover_cades::ExpectedSigner::Certificate(chain.signer.clone()),
+    let expect = pida_cades::Expect {
+        signer: pida_cades::ExpectedSigner::Certificate(chain.signer.clone()),
         ..Default::default()
     };
     prepared.finish_cms(&cms, &expect).map_err(|e| format!("{}: {e}", e.code()))

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PDF-Over NG – Lizenzprüfung und Drittlizenz-Hinweise der npm-Abhängigkeiten (Plan §2.5, §10.2).
+// PIDA – Lizenzprüfung und Drittlizenz-Hinweise der npm-Abhängigkeiten (Plan §2.5, §10.2).
 //
 //   node tools/npm-licenses.mjs apps/app/package-lock.json                 # prüfen (CI)
 //   node tools/npm-licenses.mjs apps/app/package-lock.json --notices out.md   # zusätzlich Hinweise schreiben

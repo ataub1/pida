@@ -1,10 +1,10 @@
-//! Test-Hilfen für `pdfover-render`: minimaler PDF-Schreiber (ohne Abhängigkeiten) und
-//! PDFium-Bindung über `PDFOVER_PDFIUM_DIR` (ohne Variable werden PDFium-Tests übersprungen).
+//! Test-Hilfen für `pida-render`: minimaler PDF-Schreiber (ohne Abhängigkeiten) und
+//! PDFium-Bindung über `PIDA_PDFIUM_DIR` (ohne Variable werden PDFium-Tests übersprungen).
 #![allow(dead_code)]
 
 use std::sync::Arc;
 
-use pdfover_render::{ENV_PDFIUM_DIR, PdfiumBackend};
+use pida_render::{ENV_PDFIUM_DIR, PdfiumBackend};
 
 /// Bindet PDFium oder liefert `None` (Test überspringen).
 pub fn backend() -> Option<PdfiumBackend> {
@@ -12,7 +12,7 @@ pub fn backend() -> Option<PdfiumBackend> {
     if dir.is_empty() {
         return None;
     }
-    Some(PdfiumBackend::bind(Some(std::path::Path::new(&dir))).expect("PDFium aus PDFOVER_PDFIUM_DIR bindbar"))
+    Some(PdfiumBackend::bind(Some(std::path::Path::new(&dir))).expect("PDFium aus PIDA_PDFIUM_DIR bindbar"))
 }
 
 /// Überspringt den Test ohne PDFium.
@@ -22,7 +22,7 @@ macro_rules! require_pdfium {
         match common::backend() {
             Some(b) => b,
             None => {
-                eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – Test übersprungen");
+                eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – Test übersprungen");
                 return;
             }
         }
@@ -175,7 +175,7 @@ pub fn single_page(spec: PageSpec) -> Arc<[u8]> {
 
 /// Anzahl Pixel im Rechteck (x0..x1, y0..y1), die `pred` erfüllen.
 pub fn count(
-    img: &pdfover_render::RgbaImage,
+    img: &pida_render::RgbaImage,
     x0: u32,
     y0: u32,
     x1: u32,

@@ -83,7 +83,7 @@ flowchart LR
     SCR["Screens: Öffnen · Positionieren · Backend · Signieren · Ergebnis · Einstellungen"]
   end
   subgraph SHELL["Tauri-2-Shell (dünn)"]
-    CMD["Commands / Events / Custom-Protocol pdfover-render://"]
+    CMD["Commands / Events / Custom-Protocol pida-render://"]
     PLG["Plugins: dialog, single-instance, updater, deep-link, share-intents*, secure-store*, browser-control*"]
   end
   subgraph CORE["Rust-Kern (UI-unabhängig)"]
@@ -256,7 +256,7 @@ impl Prepared {
 export interface CoreBridge {
   dispatch(e: UiEvent): Promise<void>;
   onState(cb: (s: ViewState) => void): () => void;
-  pageImageUrl(doc: DocId, page: number, scale: number): string; // pdfover-render://…
+  pageImageUrl(doc: DocId, page: number, scale: number): string; // pida-render://…
 }
 export type ViewState =
   | { step: 'open'; queue: DocInfo[] }
@@ -553,7 +553,7 @@ Bewusste Abweichungen [E]:
   - Die Hilfetexte sind korrigiert (B-08).
   - Eine fehlende `-c`-Datei ergibt eine Fehlermeldung statt eines Factory-Resets.
   - `-p` wird in Szenario B mit Warnung ignoriert (das Passwort gehört auf die A-Trust-Seite). `-n` füllt den dokumentierten Parameter `telephonenumber` vor.
-- Neu: `pdf-over-ng sign --backend keystore --headless` für nicht-interaktive Batches mit PKCS#12. Unter Windows sorgt eine Konsolen-Shim-EXE für die Ausgabe von `-h` [B].
+- Neu: `pida sign --backend keystore --headless` für nicht-interaktive Batches mit PKCS#12. Unter Windows sorgt eine Konsolen-Shim-EXE für die Ausgabe von `-h` [B].
 
 ### 6.4 i18n
 

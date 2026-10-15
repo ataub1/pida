@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use pdfover_java_properties::{Properties, StoreOptions};
+use pida_java_properties::{Properties, StoreOptions};
 
 const CASES: &[&[u8]] = &[
     b"a=1\nb : 2\nc 3\n  d=  4  \ne\nf=\n",
@@ -100,7 +100,7 @@ fn matches_java_properties() {
         input.extend_from_slice(b"=====CASE=====\n");
         input.extend_from_slice(c);
     }
-    let file = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pdfover-java-properties-cases.bin");
+    let file = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pida-java-properties-cases.bin");
     std::fs::write(&file, &input).unwrap();
     let oracle = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/oracle/PropsOracle.java");
     let out = Command::new("java").arg(oracle).arg(&file).output().expect("java");

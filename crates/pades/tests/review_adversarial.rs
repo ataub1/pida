@@ -14,13 +14,13 @@
 mod common;
 
 use common::*;
-use pdfover_cades::{CmsError, CmsProfile, Expect, ExpectedSigner};
-use pdfover_pades::{
+use pida_cades::{CmsError, CmsProfile, Expect, ExpectedSigner};
+use pida_pades::{
     CheckContext, FieldTarget, FinishError, PadesError, Prepared, Reserve, SignPlan, analyze, codes, empty_fields,
     prepare,
 };
-use pdfover_pdf_cos::{Dictionary, Limits, Object, SourcePdf, StringFormat};
-use pdfover_pdf_incremental::{IncrementBuilder, IncrementOptions};
+use pida_pdf_cos::{Dictionary, Limits, Object, SourcePdf, StringFormat};
+use pida_pdf_incremental::{IncrementBuilder, IncrementOptions};
 
 fn name(s: &str) -> Object {
     Object::Name(s.as_bytes().to_vec())
@@ -52,7 +52,7 @@ fn finish_cms_enforces_prepare_time_certificate() {
     let src = simple();
     let signer_a = KeystoreSigner::open("test-rsa2048");
     let mut signer_b = KeystoreSigner::open("test-ecp256");
-    let plan = SignPlan::invisible(pdfover_pades::local_signing_time());
+    let plan = SignPlan::invisible(pida_pades::local_signing_time());
     let prepared = prepare(&src, &plan, Some(&signer_a.chain)).unwrap();
     let cms = signer_b.cms_for(&prepared);
     let expect = Expect { signer: ExpectedSigner::Certificate(signer_b.chain.signer.clone()), ..Expect::default() };
@@ -76,7 +76,7 @@ fn finish_cms_enforces_prepare_time_certificate() {
     signed.self_check(&ctx).unwrap();
     // die Selbstprüfung mit fremder Erwartung schlägt fehl (I3)
     let ctx = CheckContext { source: &src, expected_signer: Some(&signer_a.chain.signer), renderer: None };
-    assert_eq!(signed.self_check(&ctx).unwrap_err().invariant, pdfover_pades::Invariant::I3Cms);
+    assert_eq!(signed.self_check(&ctx).unwrap_err().invariant, pida_pades::Invariant::I3Cms);
 }
 
 /// Manipulierte Begleitdatei (erwarteter Signer, Feldname, neue Seite) wird beim Fortsetzen
@@ -87,7 +87,7 @@ fn persisted_sidecar_is_integrity_protected() {
     let src = simple();
     let signer = KeystoreSigner::open("test-rsa2048");
     let other = KeystoreSigner::open("test-ecp256");
-    let plan = SignPlan::invisible(pdfover_pades::local_signing_time());
+    let plan = SignPlan::invisible(pida_pades::local_signing_time());
     let prepared = prepare(&src, &plan, Some(&signer.chain)).unwrap();
     let handle = prepared.persist(dir.path()).unwrap();
     let json_path = handle.path.with_extension("json");
@@ -123,9 +123,9 @@ fn k2_findings_on_signed_documents_are_rejected_by_prepare() {
     let src = SourcePdf::open(bytes, &Limits::default()).unwrap();
     let report = analyze(&src).unwrap();
     assert!(report.has_finding(codes::TAIL_GARBAGE), "{:?}", report.findings);
-    assert_eq!(report.class, pdfover_pades::AcceptanceClass::K5Rejected);
+    assert_eq!(report.class, pida_pades::AcceptanceClass::K5Rejected);
     let signer = KeystoreSigner::open("test-rsa2048");
-    let plan = SignPlan::invisible(pdfover_pades::local_signing_time());
+    let plan = SignPlan::invisible(pida_pades::local_signing_time());
     match prepare(&src, &plan, Some(&signer.chain)) {
         Err(PadesError::Rejected(c)) => assert_eq!(c, codes::TAIL_GARBAGE),
         other => panic!("nicht abgelehnt: {other:?}"),
@@ -154,8 +154,8 @@ fn shared_annots_array_is_not_extended_for_other_pages() {
     let orig = work.path().join("shared-annots.pdf");
     std::fs::write(&orig, &bytes).unwrap();
     let mut signer = KeystoreSigner::open("test-ecp256");
-    let adjust = |opts: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &SourcePdf| {
-        opts.position = pdfover_placement::TablePos::parse("p:1;x:100;y:700").unwrap();
+    let adjust = |opts: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &SourcePdf| {
+        opts.position = pida_placement::TablePos::parse("p:1;x:100;y:700").unwrap();
     };
     let mut outcomes = vec![run_case(
         &or,
@@ -188,7 +188,7 @@ fn shared_annots_array_is_not_extended_for_other_pages() {
 fn cms_exactly_reserve_size_fits_one_byte_more_does_not() {
     let src = simple();
     let mut signer = KeystoreSigner::open("test-rsa2048");
-    let mut plan = SignPlan::invisible(pdfover_pades::local_signing_time());
+    let mut plan = SignPlan::invisible(pida_pades::local_signing_time());
     plan.reserve = Reserve::Bytes(16 * 1024);
     let probe = prepare(&src, &plan, Some(&signer.chain)).unwrap();
     let len = signer.cms_for(&probe).len();
@@ -268,7 +268,7 @@ fn existing_hierarchical_field_with_kid_widget() {
             widget_id: cand.widget_id,
             qualified_name: cand.qualified_name.clone(),
         };
-        let adjust = move |opts: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &SourcePdf| {
+        let adjust = move |opts: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &SourcePdf| {
             opts.field = target.clone();
         };
         let o = run_case(
@@ -350,7 +350,7 @@ fn indirect_dr_with_direct_font_dictionary() {
     let orig = work.path().join("dr.pdf");
     std::fs::write(&orig, &bytes).unwrap();
     let mut signer = KeystoreSigner::open("test-rsa2048");
-    let noop = |_: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &SourcePdf| {};
+    let noop = |_: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &SourcePdf| {};
     let mut outcomes = vec![run_case(
         &or,
         &mut signer,
@@ -428,7 +428,7 @@ fn field_mdp_reference_locks_fields_without_lock_dictionary() {
     let names: Vec<String> = empty_fields(&report).into_iter().map(|c| c.qualified_name).collect();
     assert_eq!(names, vec!["Dritte".to_string()]);
     let locked = report.fields.iter().find(|f| f.qualified_name == "Zweite").unwrap();
-    let mut plan = SignPlan::invisible(pdfover_pades::local_signing_time());
+    let mut plan = SignPlan::invisible(pida_pades::local_signing_time());
     plan.field = FieldTarget::Existing {
         field_id: locked.field_id,
         widget_id: locked.widgets[0].id,
@@ -453,7 +453,7 @@ fn certified_documents_allow_existing_fields_and_invisible_only() {
         let src = open(&path);
         let report = analyze(&src).unwrap();
         assert_eq!(report.doc_mdp.map(|d| d.permission), Some(p));
-        assert_eq!(report.class, pdfover_pades::AcceptanceClass::K4Restricted);
+        assert_eq!(report.class, pida_pades::AcceptanceClass::K4Restricted);
         assert!(!report.allows_new_visible_field());
         let cand = empty_fields(&report).into_iter().next().expect("leeres Feld „Leer“");
         let target = FieldTarget::Existing {
@@ -464,7 +464,7 @@ fn certified_documents_allow_existing_fields_and_invisible_only() {
 
         // neues sichtbares Feld: Planer und prepare lehnen ab
         let signer = KeystoreSigner::open("test-rsa2048");
-        let opts = pdfover_pades::PlanOptions::new(pdfover_pades::local_signing_time());
+        let opts = pida_pades::PlanOptions::new(pida_pades::local_signing_time());
         let renderer = open_renderer(&src);
         let err = plan_for(&src, &report, "SIGNATURBLOCK_SMALL_DE", &signer.chain.signer, &opts, renderer.as_deref())
             .unwrap_err();
@@ -484,7 +484,7 @@ fn certified_documents_allow_existing_fields_and_invisible_only() {
             let mut signer = KeystoreSigner::open(KEYS[i].1);
             let t = target.clone();
             let ex = *existing;
-            let adjust = move |opts: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &SourcePdf| {
+            let adjust = move |opts: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &SourcePdf| {
                 if ex {
                     opts.field = t.clone();
                 }
@@ -561,7 +561,7 @@ fn stale_parent_tree_next_key_does_not_collide() {
     let orig = work.path().join("stale-key.pdf");
     std::fs::write(&orig, &bytes).unwrap();
     let mut signer = KeystoreSigner::open("test-ecp256");
-    let noop = |_: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &SourcePdf| {};
+    let noop = |_: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &SourcePdf| {};
     let mut outcomes = vec![run_case(
         &or,
         &mut signer,

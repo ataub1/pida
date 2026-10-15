@@ -1,7 +1,7 @@
 /**
- * i18n: Kataloge laden fehlerfrei, die UI-Texte (`ng-ui-*` in `crates/i18n/locales/{de,en}/pdfover-ng.ftl`)
+ * i18n: Kataloge laden fehlerfrei, die UI-Texte (`ng-ui-*` in `crates/i18n/locales/{de,en}/pida.ftl`)
  * sind in DE und EN vollständig und mit denselben Variablen vorhanden, jede im Quelltext verwendete
- * Meldungs-ID existiert in beiden Sprachen, Fallback und Link-Markup verhalten sich wie `pdfover-i18n`.
+ * Meldungs-ID existiert in beiden Sprachen, Fallback und Link-Markup verhalten sich wie `pida-i18n`.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -35,15 +35,15 @@ function messageIds(text: string): Map<string, Set<string>> {
 }
 
 const uiIds = (text: string) => new Map([...messageIds(text)].filter(([id]) => id.startsWith('ng-ui-')));
-const appDe = uiIds(SOURCES.de.find((s) => s.name === 'de/pdfover-ng.ftl')?.text ?? '');
-const appEn = uiIds(SOURCES.en.find((s) => s.name === 'en/pdfover-ng.ftl')?.text ?? '');
+const appDe = uiIds(SOURCES.de.find((s) => s.name === 'de/pida.ftl')?.text ?? '');
+const appEn = uiIds(SOURCES.en.find((s) => s.name === 'en/pida.ftl')?.text ?? '');
 
 describe('Kataloge', () => {
   it('laden ohne Syntaxfehler und ohne doppelte IDs', () => {
     expect(catalogs().issues).toEqual([]);
   });
 
-  it('UI-Texte (ng-ui-*): gleiche IDs und Variablen in DE und EN, eine Quelle (pdfover-ng.ftl)', () => {
+  it('UI-Texte (ng-ui-*): gleiche IDs und Variablen in DE und EN, eine Quelle (pida.ftl)', () => {
     expect([...appDe.keys()].sort()).toEqual([...appEn.keys()].sort());
     for (const [id, vars] of appDe) {
       expect(id.startsWith('ng-ui-'), id).toBe(true);
@@ -117,7 +117,7 @@ describe('Translator', () => {
 });
 
 describe('Link-Markup', () => {
-  it('zerlegt wie pdfover_i18n::markup', () => {
+  it('zerlegt wie pida_i18n::markup', () => {
     expect(parseMarkup('Sie können das signierte Dokument <a>hier</a> öffnen.')).toEqual([
       { kind: 'text', text: 'Sie können das signierte Dokument ' },
       { kind: 'link', text: 'hier', href: null },

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- FileProvider `${applicationId}.fileprovider` der WebView (wry: Kameraaufnahme für <input capture>
      in getExternalFilesDir(Pictures)). Bewusst eng: kein Wurzelverzeichnis des externen Speichers, kein
-     Cache. „Teilen“ des Ergebnisses läuft über den eigenen Provider des Plugins pdfover-mobile. -->
+     Cache. „Teilen“ des Ergebnisses läuft über den eigenen Provider des Plugins pida-mobile. -->
 <paths>
   <external-files-path name="camera" path="Pictures/" />
 </paths>

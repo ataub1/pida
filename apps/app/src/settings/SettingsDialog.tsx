@@ -38,7 +38,7 @@ import { KeystoreImportDialog } from './KeystoreImport';
 import { applyTheme, readTheme, writeTheme, type Theme } from './theme';
 
 /** Ereignis, mit dem `App` eine auf die Blockvorschau gezogene Bilddatei meldet. */
-export const EMBLEM_DROP_EVENT = 'pdfover:emblem-drop';
+export const EMBLEM_DROP_EVENT = 'pida:emblem-drop';
 
 type Update = <K extends SettingsSection>(section: K, patch: Partial<Settings[K]>) => void;
 
@@ -586,7 +586,7 @@ function AboutTab({ draft, update }: TabProps) {
   return (
     <div className="tab-grid">
       <section className="group">
-        <h3 className="group-title">PDF-Over NG</h3>
+        <h3 className="group-title">PIDA</h3>
         <p>{t.t('ng-ui-about-version', { version: info?.version ?? '…' })}</p>
         <p className="pre-line">
           <Markup text={t.t('config-AboutText')} />
@@ -695,7 +695,7 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
     { id: 'advanced', msg: 'config-Advanced' },
     ...(draft.keystore.enabled ? [{ id: 'keystore', msg: 'config-Keystore' }] : []),
     { id: 'fido2', msg: 'config-FIDO2' },
-    { id: 'about', msg: 'config-About', args: { arg1: 'PDF-Over NG' } },
+    { id: 'about', msg: 'config-About', args: { arg1: 'PIDA' } },
   ];
   const props: TabProps = { draft, update, view: settingsView };
 

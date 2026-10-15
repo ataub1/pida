@@ -4,7 +4,7 @@
 //!
 //! Dateiname = SHA-256 über Backend und Konto (hex) – Benutzernamen oder Pfade erscheinen weder im
 //! Dateisystem noch im `Debug`-Text. Gültigkeit und Zuordnung (Fingerprint, Ablauf) prüft der Kern mit
-//! `pdfover-cades`, bevor er ein Zertifikat aus dem Cache verwendet.
+//! `pida-cades`, bevor er ein Zertifikat aus dem Cache verwendet.
 
 use std::path::{Path, PathBuf};
 

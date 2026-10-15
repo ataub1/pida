@@ -8,7 +8,7 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
-use pdfover_pades::OutputInfo;
+use pida_pades::OutputInfo;
 
 use crate::output::ExitCode;
 use crate::state::WorkflowError;

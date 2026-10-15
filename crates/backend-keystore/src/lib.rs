@@ -1,11 +1,11 @@
-//! `pdfover-backend-keystore` – PKCS#12-Signatur (Modell A: Hash über die SignedAttributes →
+//! `pida-backend-keystore` – PKCS#12-Signatur (Modell A: Hash über die SignedAttributes →
 //! Rohsignatur; Plan §3.7, §4.9; docs/analyse/02 §5).
 //!
 //! - `p12-keystore` 0.4.1: PKCS#12 inkl. Legacy-PBE (RC2-40, 3DES/SHA-1) und PBES2 (AES, 3DES,
 //!   PRF HMAC-SHA-1/2). `p12-keystore` nutzt intern die RustCrypto-Folgegeneration; die Grenze zu
-//!   `pdfover-cades` sind DER-Bytes (ADR 0001 §5.2): Zertifikate über
-//!   `pdfover_cades::Certificate::from_der`, Schlüssel als PKCS#8-DER über
-//!   [`pdfover_cades::LocalSigner`].
+//!   `pida-cades` sind DER-Bytes (ADR 0001 §5.2): Zertifikate über
+//!   `pida_cades::Certificate::from_der`, Schlüssel als PKCS#8-DER über
+//!   [`pida_cades::LocalSigner`].
 //! - **Ein-Passwort-Grenze:** `p12-keystore` entschlüsselt MAC, Zertifikate und Schlüssel mit
 //!   **einem** Passwort. Abbildung von PDF-Over `KEYSTORE_STOREPASS`/`KEYSTORE_KEYPASS`
 //!   (`-kspass`/`-kskeypass`):
@@ -31,10 +31,10 @@
 //! - Entsperren ist über das `CancelToken` abbrechbar, auch während der PBKDF-Arbeit; Dateien über
 //!   16 MiB werden nicht gelesen.
 //! - Passwort-Speicherarten `none` / `memory` / `disk` → Schlüsselbund über [`PasswordCache`]
-//!   (Implementierung für den Schlüsselbund liefert die Integration aus `pdfover-config`).
+//!   (Implementierung für den Schlüsselbund liefert die Integration aus `pida-config`).
 //!   Passwörter aus dem CLI-Overlay werden nie abgelegt (wie PDF-Over `KSState:119-129`).
 //! - Algorithmen wie PDF-AS (RSA → sha256WithRSA; EC ≥ 512 → SHA-512; EC ≥ 256 inkl. P-384 →
-//!   SHA-256; EC < 256 und DSA abgelehnt) über `pdfover_cades::select_algorithm`.
+//!   SHA-256; EC < 256 und DSA abgelehnt) über `pida_cades::select_algorithm`.
 //! - Dialoge: fehlende Datei und fehlender Alias → [`NoticeCode::KeystoreFileMissing`] bzw.
 //!   [`NoticeCode::KeystoreAliasMissing`] mit Wiederholen/Abbrechen (PDF-Over `KSState`), Abbrechen
 //!   = [`BackendError::Cancelled`]; Passwort über [`InteractionBroker::secret`] (`retry` nach
@@ -50,13 +50,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use p12_keystore::Pkcs12Archive;
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendError, BackendId, BackendSession, CancelToken, Capabilities, CertChain, CertNeed, Environment, FactorSet,
     Interaction, InteractionBroker, InteractionError, Notice, NoticeAnswer, NoticeButtons, NoticeCode, NoticeKind,
     Progress, Qualification, SecretKind, SecretPrompt, ServerNeed, SessionContext, SignInput, SignJob, SignOutput,
     SignResult, SignatureBackend,
 };
-use pdfover_cades::{
+use pida_cades::{
     Certificate, CmsError, Digest, DigestAlg, KeyType, LocalSigner, RawSignature, RawSigner, SignatureAlg,
 };
 use zeroize::Zeroizing;
@@ -140,7 +140,7 @@ pub enum KeystoreError {
     UnsupportedKey(String),
     /// CMS/Zertifikat.
     #[error(transparent)]
-    Cms(#[from] pdfover_cades::CmsError),
+    Cms(#[from] pida_cades::CmsError),
     /// E/A.
     #[error("E/A-Fehler: {0}")]
     Io(#[from] std::io::Error),
@@ -532,7 +532,7 @@ fn link(archive: Pkcs12Archive) -> Result<LinkedStore, KeystoreError> {
             .or_else(|| {
                 candidates().find(|c| {
                     c.cert.as_ref().is_some_and(|cert| {
-                        LocalSigner::from_pkcs8_der(&pkcs8, pdfover_cades::CertChain::new(cert.clone())).is_ok()
+                        LocalSigner::from_pkcs8_der(&pkcs8, pida_cades::CertChain::new(cert.clone())).is_ok()
                     })
                 })
             })
@@ -688,7 +688,7 @@ impl RawSigner for LoadedKey {
         self.algorithm
     }
 
-    fn sign_digest(&self, digest: &Digest) -> pdfover_cades::Result<RawSignature> {
+    fn sign_digest(&self, digest: &Digest) -> pida_cades::Result<RawSignature> {
         self.signer.sign_digest(digest)
     }
 }
@@ -711,7 +711,7 @@ impl KeystoreBackend {
     }
 }
 
-/// Hashverfahren, die der Kern laut [`pdfover_cades::select_algorithm`] anfordern kann.
+/// Hashverfahren, die der Kern laut [`pida_cades::select_algorithm`] anfordern kann.
 const ADVERTISED_ALGS: [DigestAlg; 2] = [DigestAlg::Sha256, DigestAlg::Sha512];
 
 #[async_trait]
@@ -998,7 +998,7 @@ impl BackendSession for KeystoreSession {
             }
             let digest = Digest { alg: job.alg, value: job.digest };
             let signature = key.sign_digest(&digest).map_err(|e| BackendError::Internal(e.to_string()))?;
-            pdfover_cades::verify_raw(&key.chain().signer, &digest, &signature)
+            pida_cades::verify_raw(&key.chain().signer, &digest, &signature)
                 .map_err(|e| BackendError::Internal(format!("Selbstprüfung der Signatur fehlgeschlagen: {e}")))?;
             out.push(SignResult::Raw { signature, chain: key.chain().clone() });
         }

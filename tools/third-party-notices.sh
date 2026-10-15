@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PDF-Over NG – THIRD-PARTY-NOTICES erzeugen (Plan §2.5, §10.2): Drittlizenz-Hinweise für das
+# PIDA – THIRD-PARTY-NOTICES erzeugen (Plan §2.5, §10.2): Drittlizenz-Hinweise für das
 # Über-Fenster und die Pakete. MIT, BSD und Apache-2.0 verlangen sie bei Binärweitergabe (auch in
 # den Stores).
 #
@@ -185,12 +185,12 @@ fi
 
 # --- Zusammenführen --------------------------------------------------------------------------------
 {
-  echo "# THIRD-PARTY-NOTICES – PDF-Over NG"
+  echo "# THIRD-PARTY-NOTICES – PIDA"
   echo
-  echo "PDF-Over NG steht unter der EUPL-1.2. Es enthält bzw. nutzt die folgenden Komponenten Dritter;"
+  echo "PIDA steht unter der EUPL-1.2. Es enthält bzw. nutzt die folgenden Komponenten Dritter;"
   echo "ihre Lizenzbedingungen gelten für den jeweiligen Teil."
   echo
-  echo "PDF-Over NG is licensed under the EUPL-1.2. It contains or uses the following third-party"
+  echo "PIDA is licensed under the EUPL-1.2. It contains or uses the following third-party"
   echo "components; their license terms apply to the respective part."
   echo
   echo "Quelle (source): Cargo.lock sha256 $(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$ROOT/Cargo.lock")"

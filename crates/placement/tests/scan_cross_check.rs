@@ -10,8 +10,8 @@ mod common;
 use std::sync::Arc;
 
 use common::{PageSpec, PdfBuilder, build_doc};
-use pdfover_placement::{DEFAULT_FOOTER, FreeSpaceScanner, RasterScanner};
-use pdfover_render::{ForcedColorOptions, PdfiumBackend, Renderer};
+use pida_placement::{DEFAULT_FOOTER, FreeSpaceScanner, RasterScanner};
+use pida_render::{ForcedColorOptions, PdfiumBackend, Renderer};
 
 struct Row {
     page: usize,

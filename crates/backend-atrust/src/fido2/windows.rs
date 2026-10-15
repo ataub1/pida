@@ -17,7 +17,7 @@
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
 
-use pdfover_backend_api::WindowHandle;
+use pida_backend_api::WindowHandle;
 
 use super::{
     AssertionOptions, Fido2Assertion, Fido2Error, Fido2Provider, Fido2Request, UserVerification, client_data_json,

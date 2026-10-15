@@ -278,7 +278,7 @@ sequenceDiagram
 - 1:1-Nachbau des Dispatchers (Reihenfolge FIDO2-Default, AutoSkip, Interstitial, Fehler, Login, SMS-TAN, QR, App-2FA, FIDO2), Redirect-Regeln, Long-Poll (300 s, Backoff 10 s), Loop-Guard [B, Analyse 02]. Die Selektoren liegen als versionierte Datendatei vor, damit Seitenänderungen ohne Codeänderung behoben werden können.
 - Native Dialoge in Plattformoptik: Login mit „Benutzername merken“ (das Passwort bleibt nur im RAM), SMS-TAN mit Vergleichswert, QR groß und kontrastreich, App-Warten mit Countdown. Batch mit **einer** Anmeldung, wie im Original.
 - FIDO2 nativ, nur auf dem Desktop: Windows `webauthn.dll` (die Origin wird über `WEBAUTHN_CLIENT_DATA` gesetzt), macOS/Linux `libfido2` statisch gelinkt (BSD-2) oder ein reines Rust-CTAP-HID. Linux braucht udev/uaccess, Flatpak `--device=all` [B].
-- Pflichten: User-Agent `PDF-Over-NG/<ver>`, damit A-Trust den Client erkennt; Canary-Tests gegen `hs-abnahme` nur in Abstimmung mit A-Trust.
+- Pflichten: User-Agent `PIDA/<ver>`, damit A-Trust den Client erkennt; Canary-Tests gegen `hs-abnahme` nur in Abstimmung mit A-Trust.
 
 ### 3.4 CSC-Hash-Signing (Zielpfad, mittelfristig)
 

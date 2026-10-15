@@ -7,7 +7,7 @@ mod common;
 use cms::content_info::ContentInfo;
 use cms::signed_data::SignedData;
 use der::{Decode, Encode};
-use pdfover_cades::{
+use pida_cades::{
     AlgorithmPolicy, AssembleOptions, CertChain, Certificate, CmsError, CmsProfile, CmsWarning, Digest, DigestAlg,
     EcCurve, Expect, ExpectedSigner, KeyType, LocalSigner, RawSignature, RawSigner, SignatureAlg, SignedAttrsBuilder,
     SigningTime, assemble, estimate_cms_len, parse_cms, select_algorithm, sign_detached, trim_contents_padding,
@@ -27,7 +27,7 @@ fn expect_signer(c: &Certificate) -> Expect {
     Expect { signer: ExpectedSigner::Certificate(c.clone()), ..Expect::default() }
 }
 
-fn verify(cms: &[u8], content: &[u8], expect: &Expect) -> pdfover_cades::Result<pdfover_cades::CmsReport> {
+fn verify(cms: &[u8], content: &[u8], expect: &Expect) -> pida_cades::Result<pida_cades::CmsReport> {
     verify_detached(cms, &mut &content[..], expect)
 }
 
@@ -415,7 +415,7 @@ fn local_signer_rejects_mismatched_key_and_sha1() {
 fn raw_signatures_any_sha2_on_any_curve() {
     for s in [rsa2048(), ecp256(), ecp384(), p521()] {
         for alg in [DigestAlg::Sha256, DigestAlg::Sha384, DigestAlg::Sha512] {
-            let d = alg.digest(b"PDF-Over NG");
+            let d = alg.digest(b"PIDA");
             let sig = s.sign_digest(&d).unwrap();
             assert_eq!(sig.alg.digest(), alg);
             verify_raw(&s.chain().signer, &d, &sig).unwrap();
@@ -508,7 +508,7 @@ fn verifier_uses_original_attribute_bytes_even_if_not_der_sorted() {
         unsorted.extend_from_slice(i);
     }
     assert_ne!(unsorted, attrs.der);
-    let attrs = pdfover_cades::SignedAttrs { der: unsorted, ..attrs };
+    let attrs = pida_cades::SignedAttrs { der: unsorted, ..attrs };
     let sig = s.sign_digest(&attrs.digest(DigestAlg::Sha256)).unwrap();
     let opts = AssembleOptions { profile: CmsProfile::PadesBB, include_intermediates: false };
     let cms = assemble(&attrs, &sig, s.chain(), &opts).unwrap();

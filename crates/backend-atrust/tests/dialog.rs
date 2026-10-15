@@ -6,13 +6,13 @@ mod support;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use pdfover_backend_api::testing::{BrokerCall, ScriptedBroker, ScriptedReply};
-use pdfover_backend_api::{
+use pida_backend_api::testing::{BrokerCall, ScriptedBroker, ScriptedReply};
+use pida_backend_api::{
     BackendError, BackendEvent, BackendSession, FormAnswer, FormProblem, NativeForm, NoticeAnswer, NoticeButtons,
     NoticeCode, NoticeKind, Progress, SignResult, SignatureBackend,
 };
-use pdfover_backend_atrust::{Fido2Error, fido2};
-use pdfover_net::testing::{MockResponse, MockServer, RecordedRequest};
+use pida_backend_atrust::{Fido2Error, fido2};
+use pida_net::testing::{MockResponse, MockServer, RecordedRequest};
 use support::*;
 use zeroize::Zeroizing;
 
@@ -63,12 +63,12 @@ fn events(broker: &ScriptedBroker) -> Vec<BackendEvent> {
     broker.calls().into_iter().filter_map(|c| if let BrokerCall::Event(e) = c { Some(e) } else { None }).collect()
 }
 
-fn notices(broker: &ScriptedBroker) -> Vec<pdfover_backend_api::Notice> {
+fn notices(broker: &ScriptedBroker) -> Vec<pida_backend_api::Notice> {
     broker.calls().into_iter().filter_map(|c| if let BrokerCall::Notice(n) = c { Some(n) } else { None }).collect()
 }
 
 async fn open(
-    backend: &pdfover_backend_atrust::AtrustNativeBackend,
+    backend: &pida_backend_atrust::AtrustNativeBackend,
     broker: &Arc<ScriptedBroker>,
 ) -> Box<dyn BackendSession> {
     backend.open(ctx(), broker.clone()).await.unwrap()
@@ -187,7 +187,7 @@ async fn login_then_sms_tan_and_second_request_logs_in_automatically() {
         }
     }
     assert_eq!(cms_req.header("cookie"), None, "zweiter SL-Request startet mit leerem Jar");
-    assert!(reqs.iter().all(|r| r.header("user-agent").is_some_and(|ua| ua.starts_with("PDF-Over NG v"))));
+    assert!(reqs.iter().all(|r| r.header("user-agent").is_some_and(|ua| ua.starts_with("PIDA v"))));
 }
 
 #[tokio::test]
@@ -458,15 +458,15 @@ struct PinFido2 {
     pins: std::sync::Mutex<Vec<Option<String>>>,
 }
 
-impl pdfover_backend_atrust::Fido2Provider for PinFido2 {
+impl pida_backend_atrust::Fido2Provider for PinFido2 {
     fn is_available(&self) -> bool {
         true
     }
     fn get_assertion(
         &self,
-        request: &pdfover_backend_atrust::Fido2Request,
-        parent: Option<pdfover_backend_api::WindowHandle>,
-    ) -> Result<pdfover_backend_atrust::Fido2Assertion, Fido2Error> {
+        request: &pida_backend_atrust::Fido2Request,
+        parent: Option<pida_backend_api::WindowHandle>,
+    ) -> Result<pida_backend_atrust::Fido2Assertion, Fido2Error> {
         self.get_assertion_with_pin(request, parent, None)
     }
     fn cancel(&self) {
@@ -477,10 +477,10 @@ impl pdfover_backend_atrust::Fido2Provider for PinFido2 {
     }
     fn get_assertion_with_pin(
         &self,
-        request: &pdfover_backend_atrust::Fido2Request,
-        parent: Option<pdfover_backend_api::WindowHandle>,
+        request: &pida_backend_atrust::Fido2Request,
+        parent: Option<pida_backend_api::WindowHandle>,
         pin: Option<&str>,
-    ) -> Result<pdfover_backend_atrust::Fido2Assertion, Fido2Error> {
+    ) -> Result<pida_backend_atrust::Fido2Assertion, Fido2Error> {
         self.pins.lock().unwrap().push(pin.map(str::to_string));
         self.inner.get_assertion(request, parent)
     }
@@ -511,7 +511,7 @@ async fn fido2_pin_required_asks_for_pin_and_retries() {
             _ => None,
         })
         .expect("PIN-Abfrage");
-    assert_eq!(prompt.kind, pdfover_backend_api::SecretKind::Fido2Pin);
+    assert_eq!(prompt.kind, pida_backend_api::SecretKind::Fido2Pin);
     assert!(!prompt.retry);
     assert!(server.requests().iter().any(|r| is(r, "POST", "fido.aspx")));
 }
@@ -1044,8 +1044,8 @@ async fn protocol_errors() {
     let addr = listener.local_addr().unwrap();
     drop(listener);
     let mut cfg = support::config(&server);
-    cfg.endpoint = pdfover_net::Url::parse(&format!("http://{addr}/default.aspx")).unwrap();
-    let backend = pdfover_backend_atrust::AtrustNativeBackend::new(cfg);
+    cfg.endpoint = pida_net::Url::parse(&format!("http://{addr}/default.aspx")).unwrap();
+    let backend = pida_backend_atrust::AtrustNativeBackend::new(cfg);
     let mut session = open(&backend, &Arc::new(ScriptedBroker::new([]))).await;
     let err = session.certificate().await.unwrap_err();
     assert!(matches!(err, BackendError::Network(_)), "{err:?}");
@@ -1228,9 +1228,9 @@ async fn app_switch_to_fido2_and_poll_unknown_keeps_waiting() {
 
 #[test]
 fn signature_data_link_opens_only_atrust_urls() {
-    let endpoint = pdfover_net::Url::parse(pdfover_backend_atrust::PROD_ENDPOINT).unwrap();
+    let endpoint = pida_net::Url::parse(pida_backend_atrust::PROD_ENDPOINT).unwrap();
     let broker = ScriptedBroker::new([]);
-    pdfover_backend_atrust::open_signature_data(
+    pida_backend_atrust::open_signature_data(
         &broker,
         "https://service.a-trust.at/mobile/https-security-layer-request/ShowSigobj.aspx?sid=1",
         &endpoint,
@@ -1249,10 +1249,7 @@ fn signature_data_link_opens_only_atrust_urls() {
         "kein link",
     ] {
         assert!(
-            matches!(
-                pdfover_backend_atrust::open_signature_data(&broker, bad, &endpoint),
-                Err(BackendError::Protocol(_))
-            ),
+            matches!(pida_backend_atrust::open_signature_data(&broker, bad, &endpoint), Err(BackendError::Protocol(_))),
             "{bad}"
         );
     }
@@ -1277,9 +1274,9 @@ async fn modell_a_jobs_are_rejected() {
     let server = MockServer::start(|_| MockResponse::status(500)).await;
     let backend = backend(&server, |_| {});
     let mut session = open(&backend, &Arc::new(ScriptedBroker::new([]))).await;
-    let job = pdfover_backend_api::SignJob::Digest(pdfover_backend_api::DigestJob {
+    let job = pida_backend_api::SignJob::Digest(pida_backend_api::DigestJob {
         display_name: "x".into(),
-        alg: pdfover_backend_api::DigestAlg::Sha256,
+        alg: pida_backend_api::DigestAlg::Sha256,
         digest: vec![0; 32],
     });
     assert!(matches!(session.sign(vec![job]).await.unwrap_err(), BackendError::Internal(_)));
@@ -1532,9 +1529,8 @@ async fn signature_data_link_is_offered_only_for_https_atrust_urls() {
 async fn redirect_and_autoskip_loops_end_even_when_the_server_is_slow() {
     // Ein langsamer Server (> 40 ms je Antwort) löst den PDF-Over-Loop-Guard (50 in 2 s) nie aus;
     // hier wird er abgeschaltet, damit der Test schnell bleibt – es greifen die zusätzlichen Grenzen.
-    let relaxed = |c: &mut pdfover_backend_atrust::AtrustConfig| {
-        c.loop_guard =
-            pdfover_backend_atrust::LoopGuardConfig { window: Duration::from_secs(2), max_requests: 100_000 };
+    let relaxed = |c: &mut pida_backend_atrust::AtrustConfig| {
+        c.loop_guard = pida_backend_atrust::LoopGuardConfig { window: Duration::from_secs(2), max_requests: 100_000 };
     };
     let server = MockServer::start(|_| MockResponse::redirect(302, "loop.aspx")).await;
     let first = backend(&server, relaxed);
@@ -1573,8 +1569,7 @@ async fn poll_reporting_finished_forever_does_not_loop_endlessly() {
     })
     .await;
     let backend = backend(&server, |c| {
-        c.loop_guard =
-            pdfover_backend_atrust::LoopGuardConfig { window: Duration::from_secs(2), max_requests: 100_000 };
+        c.loop_guard = pida_backend_atrust::LoopGuardConfig { window: Duration::from_secs(2), max_requests: 100_000 };
     });
     let replies: Vec<ScriptedReply> = (0..40).map(|_| ScriptedReply::Pending).collect();
     let broker = Arc::new(ScriptedBroker::new(replies));
@@ -1591,15 +1586,15 @@ struct LatePlugged {
     inner: Arc<FakeFido2>,
 }
 
-impl pdfover_backend_atrust::Fido2Provider for LatePlugged {
+impl pida_backend_atrust::Fido2Provider for LatePlugged {
     fn is_available(&self) -> bool {
         self.plugged.load(std::sync::atomic::Ordering::SeqCst)
     }
     fn get_assertion(
         &self,
-        request: &pdfover_backend_atrust::Fido2Request,
-        parent: Option<pdfover_backend_api::WindowHandle>,
-    ) -> Result<pdfover_backend_atrust::Fido2Assertion, Fido2Error> {
+        request: &pida_backend_atrust::Fido2Request,
+        parent: Option<pida_backend_api::WindowHandle>,
+    ) -> Result<pida_backend_atrust::Fido2Assertion, Fido2Error> {
         self.inner.get_assertion(request, parent)
     }
     fn cancel(&self) {
@@ -1614,8 +1609,8 @@ struct PlugInBroker {
 }
 
 #[async_trait::async_trait]
-impl pdfover_backend_api::InteractionBroker for PlugInBroker {
-    async fn native_form(&self, form: NativeForm) -> Result<FormAnswer, pdfover_backend_api::InteractionError> {
+impl pida_backend_api::InteractionBroker for PlugInBroker {
+    async fn native_form(&self, form: NativeForm) -> Result<FormAnswer, pida_backend_api::InteractionError> {
         if matches!(&form, NativeForm::Fido2 { in_progress: false, .. }) {
             self.provider.plugged.store(true, std::sync::atomic::Ordering::SeqCst);
         }
@@ -1623,14 +1618,14 @@ impl pdfover_backend_api::InteractionBroker for PlugInBroker {
     }
     async fn secret(
         &self,
-        prompt: pdfover_backend_api::SecretPrompt,
-    ) -> Result<Zeroizing<String>, pdfover_backend_api::InteractionError> {
+        prompt: pida_backend_api::SecretPrompt,
+    ) -> Result<Zeroizing<String>, pida_backend_api::InteractionError> {
         self.inner.secret(prompt).await
     }
     async fn notice(
         &self,
-        notice: pdfover_backend_api::Notice,
-    ) -> Result<NoticeAnswer, pdfover_backend_api::InteractionError> {
+        notice: pida_backend_api::Notice,
+    ) -> Result<NoticeAnswer, pida_backend_api::InteractionError> {
         self.inner.notice(notice).await
     }
     fn progress(&self, progress: Progress) {
@@ -1639,7 +1634,7 @@ impl pdfover_backend_api::InteractionBroker for PlugInBroker {
     fn event(&self, event: BackendEvent) {
         self.inner.event(event)
     }
-    fn open_external(&self, url: &str) -> Result<(), pdfover_backend_api::InteractionError> {
+    fn open_external(&self, url: &str) -> Result<(), pida_backend_api::InteractionError> {
         self.inner.open_external(url)
     }
 }

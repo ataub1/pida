@@ -1,4 +1,4 @@
-// Orakel für pdfover-i18n (nur Tests): liest .properties-Dateien wie PDF-Over (ResourceBundle,
+// Orakel für pida-i18n (nur Tests): liest .properties-Dateien wie PDF-Over (ResourceBundle,
 // Java >= 9: UTF-8, Rückfall ISO-8859-1) und gibt alle Einträge sortiert und ASCII-escaped aus.
 // Aufruf: java DumpBundle.java <datei>...
 // Ausgabe je Datei: "FILE\t<pfad>", danach je Key

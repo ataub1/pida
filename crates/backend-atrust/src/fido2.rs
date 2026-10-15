@@ -9,7 +9,7 @@
 //! Assertion vom Authenticator, Ergebnis-JSON exakt wie PDF-Over ([`result_json`]).
 
 use base64::Engine as _;
-use pdfover_backend_api::WindowHandle;
+use pida_backend_api::WindowHandle;
 
 pub mod ctap;
 #[cfg(feature = "fido2-hid")]
@@ -303,7 +303,7 @@ impl AssertionOptions {
         if challenge.is_empty() {
             return Err(Fido2Error::InvalidOptions("challenge ist leer".into()));
         }
-        let origin_host = pdfover_net::Url::parse(origin)
+        let origin_host = pida_net::Url::parse(origin)
             .ok()
             .and_then(|u| u.host_str().map(str::to_ascii_lowercase))
             .ok_or_else(|| Fido2Error::InvalidOptions("Origin ist ungültig".into()))?;

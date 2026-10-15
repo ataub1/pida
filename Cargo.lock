@@ -3763,387 +3763,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pdfover-app"
-version = "0.1.0"
-dependencies = [
- "clap",
- "pdfover-backend-api",
- "pdfover-backend-atrust",
- "pdfover-cli",
- "pdfover-config",
- "pdfover-core-api",
- "pdfover-i18n",
- "pdfover-pades",
- "pdfover-placement",
- "pdfover-render",
- "pdfover-workflow",
- "rustix",
- "serde",
- "serde_json",
- "sys-locale",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-pdfover-mobile",
- "tauri-plugin-single-instance",
- "tauri-plugin-window-state",
- "toml 1.1.8+spec-1.1.0",
- "tracing",
- "tracing-subscriber",
- "url",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-backend-api"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "pdfover-cades",
- "pdfover-i18n",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "ts-rs",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-backend-atrust"
-version = "0.1.0"
-dependencies = [
- "aes",
- "async-trait",
- "base64 0.23.1",
- "cbc",
- "futures",
- "hmac 0.12.1",
- "p256",
- "pdfover-backend-api",
- "pdfover-cades",
- "pdfover-net",
- "pdfover-sl12",
- "rand_core 0.6.4",
- "scraper",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "tracing",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-backend-keystore"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "der 0.7.10",
- "p12-keystore",
- "pdfover-backend-api",
- "pdfover-cades",
- "pkcs5",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "tracing",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-backend-localbku"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.23.1",
- "pdfover-backend-api",
- "pdfover-cades",
- "pdfover-net",
- "pdfover-sl12",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "pdfover-cades"
-version = "0.1.0"
-dependencies = [
- "base64 0.23.1",
- "cms 0.2.3",
- "const-oid 0.9.6",
- "der 0.7.10",
- "ecdsa",
- "hex",
- "p256",
- "p384",
- "p521",
- "rand_core 0.6.4",
- "rsa",
- "serde",
- "sha1 0.10.7",
- "sha2 0.10.9",
- "signature",
- "spki 0.7.3",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "x509-cert 0.2.5",
-]
-
-[[package]]
-name = "pdfover-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "pdfover-backend-api",
- "pdfover-config",
- "pdfover-core-api",
- "pdfover-i18n",
- "pdfover-workflow",
- "rpassword",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-config"
-version = "0.1.0"
-dependencies = [
- "directories",
- "hex",
- "keyring",
- "pdfover-i18n",
- "pdfover-java-properties",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 2.0.21",
- "toml 1.1.8+spec-1.1.0",
- "tracing",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-core-api"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "hex",
- "jiff",
- "pdfover-backend-api",
- "pdfover-backend-atrust",
- "pdfover-backend-keystore",
- "pdfover-backend-localbku",
- "pdfover-cades",
- "pdfover-config",
- "pdfover-core-api",
- "pdfover-i18n",
- "pdfover-net",
- "pdfover-pades",
- "pdfover-pdf-cos",
- "pdfover-placement",
- "pdfover-render",
- "pdfover-sigblock",
- "pdfover-workflow",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "toml 1.1.8+spec-1.1.0",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "ts-rs",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-i18n"
-version = "0.1.0"
-dependencies = [
- "fluent-bundle",
- "fluent-syntax",
- "pdfover-java-properties",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "ts-rs",
- "unic-langid",
-]
-
-[[package]]
-name = "pdfover-java-properties"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "pdfover-net"
-version = "0.1.0"
-dependencies = [
- "encoding_rs",
- "hyper",
- "pdfover-net",
- "reqwest",
- "rustls",
- "serde",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "tokio-rustls",
- "tracing",
- "url",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-pades"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "flate2",
- "hex",
- "jiff",
- "pdfover-backend-api",
- "pdfover-backend-keystore",
- "pdfover-cades",
- "pdfover-pdf-cos",
- "pdfover-pdf-incremental",
- "pdfover-placement",
- "pdfover-render",
- "pdfover-sigblock",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "tokio",
- "tracing",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-pdf-cos"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "lopdf",
- "pdfium-render",
- "rxing",
- "serde",
- "thiserror 2.0.21",
- "zune-jpeg",
-]
-
-[[package]]
-name = "pdfover-pdf-incremental"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "pdfover-pdf-cos",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror 2.0.21",
- "time",
-]
-
-[[package]]
-name = "pdfover-placement"
-version = "0.1.0"
-dependencies = [
- "pdfover-pdf-cos",
- "pdfover-render",
- "png 0.18.1",
- "proptest",
- "rxing",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "pdfover-render"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "pdfium-render",
- "png 0.18.1",
- "serde",
- "thiserror 2.0.21",
- "zeroize",
-]
-
-[[package]]
-name = "pdfover-sigblock"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "gif",
- "jiff",
- "kamadak-exif",
- "pdfium-render",
- "pdfover-java-properties",
- "pdfover-pdf-cos",
- "png 0.18.1",
- "proptest",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "skrifa",
- "subsetter",
- "tempfile",
- "thiserror 2.0.21",
- "time",
- "zune-jpeg",
-]
-
-[[package]]
-name = "pdfover-sl12"
-version = "0.1.0"
-dependencies = [
- "base64 0.23.1",
- "quick-xml",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "pdfover-workflow"
-version = "0.1.0"
-dependencies = [
- "pdfover-backend-api",
- "pdfover-config",
- "pdfover-pades",
- "pdfover-pdf-cos",
- "pdfover-placement",
- "proptest",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "ts-rs",
-]
-
-[[package]]
 name = "pem-rfc7468"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4218,6 +3837,387 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e57fef6bc5981e38c2ce2d63bfa546861309f875b8a75f092d1d54ae2d64f266"
 dependencies = [
  "siphasher",
+]
+
+[[package]]
+name = "pida-app"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "pida-backend-api",
+ "pida-backend-atrust",
+ "pida-cli",
+ "pida-config",
+ "pida-core-api",
+ "pida-i18n",
+ "pida-pades",
+ "pida-placement",
+ "pida-render",
+ "pida-workflow",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sys-locale",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-pida-mobile",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-window-state",
+ "toml 1.1.8+spec-1.1.0",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-backend-api"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "pida-cades",
+ "pida-i18n",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "ts-rs",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-backend-atrust"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "async-trait",
+ "base64 0.23.1",
+ "cbc",
+ "futures",
+ "hmac 0.12.1",
+ "p256",
+ "pida-backend-api",
+ "pida-cades",
+ "pida-net",
+ "pida-sl12",
+ "rand_core 0.6.4",
+ "scraper",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-backend-keystore"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "der 0.7.10",
+ "p12-keystore",
+ "pida-backend-api",
+ "pida-cades",
+ "pkcs5",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-backend-localbku"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "pida-backend-api",
+ "pida-cades",
+ "pida-net",
+ "pida-sl12",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pida-cades"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "cms 0.2.3",
+ "const-oid 0.9.6",
+ "der 0.7.10",
+ "ecdsa",
+ "hex",
+ "p256",
+ "p384",
+ "p521",
+ "rand_core 0.6.4",
+ "rsa",
+ "serde",
+ "sha1 0.10.7",
+ "sha2 0.10.9",
+ "signature",
+ "spki 0.7.3",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "x509-cert 0.2.5",
+]
+
+[[package]]
+name = "pida-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "pida-backend-api",
+ "pida-config",
+ "pida-core-api",
+ "pida-i18n",
+ "pida-workflow",
+ "rpassword",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-config"
+version = "0.1.0"
+dependencies = [
+ "directories",
+ "hex",
+ "keyring",
+ "pida-i18n",
+ "pida-java-properties",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml 1.1.8+spec-1.1.0",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-core-api"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "hex",
+ "jiff",
+ "pida-backend-api",
+ "pida-backend-atrust",
+ "pida-backend-keystore",
+ "pida-backend-localbku",
+ "pida-cades",
+ "pida-config",
+ "pida-core-api",
+ "pida-i18n",
+ "pida-net",
+ "pida-pades",
+ "pida-pdf-cos",
+ "pida-placement",
+ "pida-render",
+ "pida-sigblock",
+ "pida-workflow",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "toml 1.1.8+spec-1.1.0",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "ts-rs",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-i18n"
+version = "0.1.0"
+dependencies = [
+ "fluent-bundle",
+ "fluent-syntax",
+ "pida-java-properties",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "ts-rs",
+ "unic-langid",
+]
+
+[[package]]
+name = "pida-java-properties"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pida-net"
+version = "0.1.0"
+dependencies = [
+ "encoding_rs",
+ "hyper",
+ "pida-net",
+ "reqwest",
+ "rustls",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+ "url",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-pades"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "flate2",
+ "hex",
+ "jiff",
+ "pida-backend-api",
+ "pida-backend-keystore",
+ "pida-cades",
+ "pida-pdf-cos",
+ "pida-pdf-incremental",
+ "pida-placement",
+ "pida-render",
+ "pida-sigblock",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-pdf-cos"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "lopdf",
+ "pdfium-render",
+ "rxing",
+ "serde",
+ "thiserror 2.0.21",
+ "zune-jpeg",
+]
+
+[[package]]
+name = "pida-pdf-incremental"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "pida-pdf-cos",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+]
+
+[[package]]
+name = "pida-placement"
+version = "0.1.0"
+dependencies = [
+ "pida-pdf-cos",
+ "pida-render",
+ "png 0.18.1",
+ "proptest",
+ "rxing",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pida-render"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "pdfium-render",
+ "png 0.18.1",
+ "serde",
+ "thiserror 2.0.21",
+ "zeroize",
+]
+
+[[package]]
+name = "pida-sigblock"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "gif",
+ "jiff",
+ "kamadak-exif",
+ "pdfium-render",
+ "pida-java-properties",
+ "pida-pdf-cos",
+ "png 0.18.1",
+ "proptest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "skrifa",
+ "subsetter",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "zune-jpeg",
+]
+
+[[package]]
+name = "pida-sl12"
+version = "0.1.0"
+dependencies = [
+ "base64 0.23.1",
+ "quick-xml",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pida-workflow"
+version = "0.1.0"
+dependencies = [
+ "pida-backend-api",
+ "pida-config",
+ "pida-pades",
+ "pida-pdf-cos",
+ "pida-placement",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "ts-rs",
 ]
 
 [[package]]
@@ -6044,7 +6044,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-pdfover-mobile"
+name = "tauri-plugin-pida-mobile"
 version = "0.1.0"
 dependencies = [
  "jni 0.22.4",

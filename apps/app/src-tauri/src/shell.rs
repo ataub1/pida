@@ -1,4 +1,4 @@
-//! Verbindung zur Kern-Fassade `pdfover-core-api` (eine Instanz je Prozess).
+//! Verbindung zur Kern-Fassade `pida-core-api` (eine Instanz je Prozess).
 //!
 //! Die Shell hält **keinen Fachzustand**: Sie startet den Kern, reicht [`UiEvent`]s durch, leitet den
 //! [`ViewState`] an das Fenster weiter und bedient das Custom Protocol. Kann der Kern nicht starten
@@ -13,9 +13,9 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use pdfover_core_api::{Core, CoreConfig, CoreOptions, MainBarView, ShellHooks, StepView, UiEvent, ViewState};
-use pdfover_i18n::Lang;
-use pdfover_workflow::{MainBarStep, Step};
+use pida_core_api::{Core, CoreConfig, CoreOptions, MainBarView, ShellHooks, StepView, UiEvent, ViewState};
+use pida_i18n::Lang;
+use pida_workflow::{MainBarStep, Step};
 
 use crate::protocol::{self, RenderRequest};
 
@@ -88,7 +88,7 @@ impl Shell {
     }
 
     fn with(config: Option<CoreConfig>, fallback: ViewState, blocked: bool) -> Shell {
-        // Logging richtet die Shell ein (`pdfover_core_api::logging`), nicht der Kern.
+        // Logging richtet die Shell ein (`pida_core_api::logging`), nicht der Kern.
         let options = CoreOptions { init_logging: false, ..CoreOptions::default() };
         Shell {
             config,
@@ -258,7 +258,7 @@ impl Shell {
         }
     }
 
-    /// Bedient eine `pdfover-render`-Anfrage.
+    /// Bedient eine `pida-render`-Anfrage.
     pub fn render(&self, path: &str, query: Option<&str>) -> tauri::http::Response<Vec<u8>> {
         let request = match protocol::parse(path, query) {
             Ok(r) => r,
@@ -274,7 +274,7 @@ impl Shell {
         }));
         match result {
             Ok(Ok(png)) => protocol::png(png),
-            Ok(Err(pdfover_core_api::CoreError::UnknownDocument(_))) => protocol::error(404, "unknown-document"),
+            Ok(Err(pida_core_api::CoreError::UnknownDocument(_))) => protocol::error(404, "unknown-document"),
             Ok(Err(e)) => {
                 tracing::warn!(error = %e, "Rendern fehlgeschlagen");
                 protocol::error(500, "render-failed")
@@ -333,7 +333,7 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         notices: Vec::new(),
         migration: None,
         done: Vec::new(),
-        platform: pdfover_core_api::PlatformView::default(),
+        platform: pida_core_api::PlatformView::default(),
         resume: None,
         keystore_import: None,
     }
@@ -379,14 +379,14 @@ mod tests {
 
     fn test_shell() -> (Shell, PathBuf) {
         let root = std::env::temp_dir().join(format!(
-            "pdfover-app-shell-{}-{:?}",
+            "pida-app-shell-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));
         let config = CoreConfig {
-            paths: pdfover_config::Paths::under(&root),
-            overlay: pdfover_config::Overlay::default(),
-            platform: pdfover_backend_api::Platform::current(),
+            paths: pida_config::Paths::under(&root),
+            overlay: pida_config::Overlay::default(),
+            platform: pida_backend_api::Platform::current(),
             pdfium_dir: None,
             headless: false,
             fido2: None,

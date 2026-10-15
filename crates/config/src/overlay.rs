@@ -18,7 +18,7 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfover_i18n::Lang;
+use pida_i18n::Lang;
 use zeroize::Zeroizing;
 
 use crate::Result;

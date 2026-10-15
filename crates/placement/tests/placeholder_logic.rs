@@ -1,7 +1,7 @@
 //! QR-Inhalt, Auswahlmodi, leere Felder und Platzhalterposition – ohne PDFium.
 
-use pdfover_pdf_cos::{PageInfo, Rect, Rotation, SigField, SigWidget};
-use pdfover_placement::*;
+use pida_pdf_cos::{PageInfo, Rect, Rotation, SigField, SigWidget};
+use pida_placement::*;
 
 fn qr(name: &str, id: Option<&str>) -> QrPlaceholder {
     QrPlaceholder {
@@ -216,10 +216,10 @@ fn placeholder_position_from_ctm_for_rotations() {
 
 #[test]
 fn decode_qr_rejects_small_and_broken_images() {
-    assert!(decode_qr(&pdfover_render::RgbaImage::filled(9, 100, [0, 0, 0, 255])).is_empty());
-    assert!(decode_qr(&pdfover_render::RgbaImage::filled(100, 9, [0, 0, 0, 255])).is_empty());
-    assert!(decode_qr(&pdfover_render::RgbaImage::filled(64, 64, [255, 255, 255, 255])).is_empty());
-    assert!(decode_qr(&pdfover_render::RgbaImage::empty()).is_empty());
-    let broken = pdfover_render::RgbaImage { width: 50, height: 50, data: vec![0; 17] };
+    assert!(decode_qr(&pida_render::RgbaImage::filled(9, 100, [0, 0, 0, 255])).is_empty());
+    assert!(decode_qr(&pida_render::RgbaImage::filled(100, 9, [0, 0, 0, 255])).is_empty());
+    assert!(decode_qr(&pida_render::RgbaImage::filled(64, 64, [255, 255, 255, 255])).is_empty());
+    assert!(decode_qr(&pida_render::RgbaImage::empty()).is_empty());
+    let broken = pida_render::RgbaImage { width: 50, height: 50, data: vec![0; 17] };
     assert!(decode_qr(&broken).is_empty());
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PDF-Over NG – Testdaten (pades, Review Welle 2): zertifiziertes PDF (DocMDP) mit pyHanko.
+"""PIDA – Testdaten (pades, Review Welle 2): zertifiziertes PDF (DocMDP) mit pyHanko.
 
 Aufruf:  python3 -I make_certified.py <eingabe.pdf> <test.p12> <ausgabe.pdf> <P>
 

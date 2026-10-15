@@ -61,7 +61,7 @@ fn capabilities_are_minimal() {
 
 /// Mobile (iOS/Android): noch weniger als der Desktop – kein Dateidialog, kein Log-Ordner, kein
 /// Dateimanager, keine DevTools; Dateiauswahl nur über den eigenen Befehl (Kopie in die Sandbox). Das
-/// Plugin `pdfover-mobile` hat keine Befehle für die Oberfläche (sicherer Speicher nie aus der WebView).
+/// Plugin `pida-mobile` hat keine Befehle für die Oberfläche (sicherer Speicher nie aus der WebView).
 #[test]
 fn mobile_capabilities_are_minimal() {
     let caps = json(MOBILE_CAPABILITIES);
@@ -83,7 +83,7 @@ fn mobile_capabilities_are_minimal() {
     .map(str::to_owned)
     .collect();
     assert_eq!(ids, expected);
-    assert!(ids.iter().all(|id| !id.starts_with("pdfover-mobile:")), "Plugin ohne WebView-Befehle");
+    assert!(ids.iter().all(|id| !id.starts_with("pida-mobile:")), "Plugin ohne WebView-Befehle");
     let opener = caps["permissions"]
         .as_array()
         .and_then(|list| list.iter().find(|p| p["identifier"] == "opener:allow-open-url"))
@@ -135,8 +135,8 @@ fn csp_has_no_remote_sources() {
 const ANDROID_MANIFEST: &str = include_str!("../gen/android/app/src/main/AndroidManifest.xml");
 const ANDROID_CONF: &str = include_str!("../tauri.android.conf.json");
 const ANDROID_SHARE_PATHS: &str =
-    include_str!("../../plugins/pdfover-mobile/android/src/main/res/xml/pdfover_share_paths.xml");
-const IOS_INFO_PLIST: &str = include_str!("../gen/apple/pdfover-app_iOS/Info.plist");
+    include_str!("../../plugins/pida-mobile/android/src/main/res/xml/pida_share_paths.xml");
+const IOS_INFO_PLIST: &str = include_str!("../gen/apple/pida-app_iOS/Info.plist");
 
 /// Teil des XML ohne Kommentare (die Dateien erklären ihre Entscheidungen in Kommentaren).
 fn without_xml_comments(xml: &str) -> String {

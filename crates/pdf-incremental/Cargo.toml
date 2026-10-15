@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-pdf-incremental"
+name = "pida-pdf-incremental"
 description = "Append-only-Writer: Increment mit Signaturdictionary, /Contents- und /ByteRange-Platzhalter (Paket A)"
 version.workspace = true
 edition.workspace = true
@@ -9,7 +9,7 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
-pdfover-pdf-cos = { workspace = true }
+pida-pdf-cos = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 serde = { workspace = true }

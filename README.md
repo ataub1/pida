@@ -1,8 +1,11 @@
-# PDF-Over NG
+# PIDA
+
+**PIDA – PDF-Signatur mit ID Austria** (PDF · ID · Austria)
 
 Funktional gleichwertiger Klon von [PDF-Over](https://technology.a-sit.at/pdf-over/) (A-SIT, EUPL-1.2)
 **ohne Java**: ein UI-unabhängiger Rust-Kern (PAdES-Engine, Signatur-Backends, Workflow) mit einer dünnen
-Tauri-2-Shell für Windows, macOS, Linux, iOS und Android. Arbeitstitel „PDF-Over NG“, Lizenz
+Tauri-2-Shell für Windows, macOS, Linux, iOS und Android. Name **PIDA**
+(bis 15.10.2026 Arbeitstitel „PDF-Over NG“, [ADR 0002](docs/adr/0002-name-pida.md)), Lizenz
 **EUPL-1.2**.
 
 ID Austria läuft über den nativen A-Trust-Ablauf (Szenario A, freigegeben); lokale BKU und PKCS#12-Keystore
@@ -12,7 +15,7 @@ und [ADR 0001](docs/adr/0001-workspace-und-schnittstellen.md).
 ## Stand
 
 Welle 3 (Integration): Rust-Kern mit PAdES-Engine, Backends (ID Austria Szenario A, lokale BKU,
-PKCS#12), Workflow und Kern-Fassade; Kommandozeile `pdfover-cli`; Desktop-App (Tauri 2, React) mit
+PKCS#12), Workflow und Kern-Fassade; Kommandozeile `pida-cli`; Desktop-App (Tauri 2, React) mit
 denselben PDF-Over-Startargumenten, Bundles für macOS (Windows/Linux über die CI). Mobile folgt.
 Abnahme der App: [docs/integration/app-abnahme.md](docs/integration/app-abnahme.md); Arbeitsweise,
 CI und Lizenzen: [docs/entwicklung.md](docs/entwicklung.md). Ownership und Regeln: ADR 0001 §4,
@@ -41,7 +44,7 @@ crates/
   config            Settings (TOML), Legacy-Import, Overlay, Richtlinien, Secrets
   core-api          Fassade für Shell und CLI (dispatch/subscribe)
 apps/
-  cli               pdfover-cli (kompatibel zu den PDF-Over-Argumenten; Parser auch für die GUI)
+  cli               pida-cli (kompatibel zu den PDF-Over-Argumenten; Parser auch für die GUI)
   app               Desktop-App: Oberfläche (React 19, React Aria) + Tauri-2-Shell (src-tauri)
 docs/               Plan, Analysen, Recherchen, ADRs
 testdata/           gemeinsame Testdaten (Test-Keystores NUR TEST, PDF-AS-PDFs, qpdf-Varianten)
@@ -52,10 +55,10 @@ reference/          Originalquellen (nur lesen, nicht im Git)
 ## Bauen
 
 ```sh
-source tools/env.sh            # rustup (keg-only), .venv und PDFOVER_REFERENCE (auch in git worktrees)
+source tools/env.sh            # rustup (keg-only), .venv und PIDA_REFERENCE (auch in git worktrees)
 cargo check --workspace --all-targets
 cargo test --workspace
-cargo run -p pdfover-cli -- --help
+cargo run -p pida-cli -- --help
 tools/make-testdata.sh         # Testdaten erzeugen/aktualisieren (openssl, qpdf, python3)
 
 cd apps/app && npm ci && npm run build && npm test        # Oberfläche

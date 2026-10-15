@@ -1,4 +1,4 @@
-//! `pdfover-pdf-incremental` – eigener Append-only-Writer (Plan §6.2, §6.3, §6.4).
+//! `pida-pdf-incremental` – eigener Append-only-Writer (Plan §6.2, §6.3, §6.4).
 //!
 //! Originalbytes werden **nie** neu serialisiert. Der Writer hängt ein Increment an, das nur neue
 //! bzw. geänderte Objekte enthält, xref im Format der letzten Revision (Tabelle → Tabelle,
@@ -28,7 +28,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write as _;
 use std::ops::Range;
 
-use pdfover_pdf_cos::{
+use pida_pdf_cos::{
     CosError, CryptTarget, Dictionary, Encryptor, Object, ObjectId, SourcePdf, StringFormat, XrefHealth, XrefKind,
     encode_text_string,
 };
@@ -38,7 +38,7 @@ mod serialize;
 /// Platzhalter der ByteRange (36 Zeichen, docs/analyse/03 §4.2).
 pub const BYTE_RANGE_PLACEHOLDER: &str = "[0 1000000000 1000000000 1000000000]";
 
-/// Standard-Reserve für Modell B (SL, A-Trust, BKU): 16 KiB (Plan §6.2). `pdfover-pades` wählt sie
+/// Standard-Reserve für Modell B (SL, A-Trust, BKU): 16 KiB (Plan §6.2). `pida-pades` wählt sie
 /// über `Reserve::ModelB` bzw. `Capabilities::cms_reserve`.
 pub const RESERVE_MODEL_B: usize = 16 * 1024;
 
@@ -150,7 +150,7 @@ pub struct SignatureDictSpec {
     /// `/Reason` (`adobeSignReasonValue` oder „PAdES Signature“).
     pub reason: Option<String>,
     /// Reservierte CMS-Bytes (Hex-Länge = 2 × reserve). Default [`RESERVE_MIN_MODEL_A`] (4096 wie
-    /// PDF-AS); der Aufrufer (`pdfover-pades`) setzt sie immer explizit (Modell A: berechnet,
+    /// PDF-AS); der Aufrufer (`pida-pades`) setzt sie immer explizit (Modell A: berechnet,
     /// ≥ 4096; Modell B: [`RESERVE_MODEL_B`] bzw. `Capabilities::cms_reserve`).
     pub contents_reserve: usize,
 }

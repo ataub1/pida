@@ -1,23 +1,23 @@
 //! Abläufe mit PDFium (Seitenkacheln, Blockvorschau, Startposition, Auto-Position, QR-Platzhalter).
-//! Ohne `PDFOVER_PDFIUM_DIR` übersprungen (ADR 0001 Regel 6).
+//! Ohne `PIDA_PDFIUM_DIR` übersprungen (ADR 0001 Regel 6).
 
 mod common;
 
 use common::*;
-use pdfover_config::Overlay;
-use pdfover_core_api::{CoreOptions, StepView, UiEvent};
-use pdfover_workflow::DocId;
+use pida_config::Overlay;
+use pida_core_api::{CoreOptions, StepView, UiEvent};
+use pida_workflow::DocId;
 
 fn pdfium_dir() -> Option<std::path::PathBuf> {
-    std::env::var_os("PDFOVER_PDFIUM_DIR").map(Into::into)
+    std::env::var_os("PIDA_PDFIUM_DIR").map(Into::into)
 }
 
-fn start(fx: &Fixture, overlay: Overlay) -> Option<pdfover_core_api::Core> {
+fn start(fx: &Fixture, overlay: Overlay) -> Option<pida_core_api::Core> {
     let dir = pdfium_dir()?;
     let mut cfg = fx.config(overlay, false);
     cfg.pdfium_dir = Some(dir);
     let opts = CoreOptions { engine: Some(FakeEngine::new()), use_pdfium: true, ..CoreOptions::isolated() };
-    Some(pdfover_core_api::Core::new_with(cfg, opts).expect("Kern"))
+    Some(pida_core_api::Core::new_with(cfg, opts).expect("Kern"))
 }
 
 fn is_png(b: &[u8]) -> bool {
@@ -30,7 +30,7 @@ async fn positioning_with_tiles_preview_and_auto_place() {
     let input = fx.dir("in");
     let a = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &input, "simple.pdf");
     let Some(core) = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }) else {
-        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – übersprungen");
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
         return;
     };
     let v = wait_for(&core, "Positionierung", |v| matches!(v.step, StepView::Position { .. })).await;
@@ -97,7 +97,7 @@ async fn qr_placeholder_is_offered() {
     let input = fx.dir("in");
     let a = copy_pdf("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2-2.pdf", &input, "qr.pdf");
     let Some(core) = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }) else {
-        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – übersprungen");
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
         return;
     };
     let v =
@@ -112,7 +112,7 @@ async fn qr_placeholder_is_offered() {
 async fn block_preview_without_document_uses_a4() {
     let fx = Fixture::new();
     let Some(core) = start(&fx, Overlay::default()) else {
-        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – übersprungen");
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
         return;
     };
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
@@ -164,7 +164,7 @@ async fn block_width_follows_the_displayed_page() {
     let a = input.join("gemischt.pdf");
     std::fs::write(&a, mixed_size_pdf()).unwrap();
     let Some(core) = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }) else {
-        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – übersprungen");
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
         return;
     };
     let near = |a: f32, b: f32| (a - b).abs() < 1.0;

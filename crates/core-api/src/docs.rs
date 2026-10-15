@@ -5,13 +5,13 @@ use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use pdfover_pades::{AcceptanceClass, DocReport, PadesError};
-use pdfover_pdf_cos::{CosError, Limits, PageInfo, SourcePdf};
-use pdfover_placement::{
+use pida_pades::{AcceptanceClass, DocReport, PadesError};
+use pida_pdf_cos::{CosError, Limits, PageInfo, SourcePdf};
+use pida_placement::{
     PlaceholderMode, PlaceholderQuery, find_empty_sig_fields, find_qr_placeholders, select_placeholder,
 };
-use pdfover_render::{RenderBackend, RenderError, Renderer, RgbaImage};
-use pdfover_workflow::{DocId, PlaceholderFound, WorkflowError};
+use pida_render::{RenderBackend, RenderError, Renderer, RgbaImage};
+use pida_workflow::{DocId, PlaceholderFound, WorkflowError};
 
 use crate::engine::PadesEngine;
 
@@ -291,7 +291,7 @@ impl DocStore {
         } else {
             doc.with_renderer(backend, |r| r.render_page(page, scale))??
         };
-        let png: Arc<[u8]> = Arc::from(pdfover_render::encode_png(&image)?);
+        let png: Arc<[u8]> = Arc::from(pida_render::encode_png(&image)?);
         self.tiles.lock().unwrap_or_else(std::sync::PoisonError::into_inner).put(key, png.clone());
         Ok(Some(png))
     }

@@ -1,9 +1,9 @@
-//! `pdfover-config` – Konfiguration, Migration, Richtlinien, Pfade, Secrets (Plan §7.1–§7.4).
+//! `pida-config` – Konfiguration, Migration, Richtlinien, Pfade, Secrets (Plan §7.1–§7.4).
 //!
 //! - [`Settings`]: neues, versioniertes Schema (TOML, `schema_version`) am plattformüblichen Ort
 //!   ([`Paths`]); unbekannte Keys bleiben beim Speichern erhalten (auch in Untertabellen).
 //! - [`legacy`]: `~/.pdf-over/PDF-Over.config` mit bit-kompatiblem Java-Properties-Parser
-//!   (`pdfover-java-properties`) und **exakter Lese-Semantik aller 31 Keys** (docs/analyse/05 §1.5),
+//!   (`pida-java-properties`) und **exakter Lese-Semantik aller 31 Keys** (docs/analyse/05 §1.5),
 //!   geprüft gegen ein Java-Orakel.
 //! - [`mod@migrate`]: Import-Assistent (docs/analyse/05 §1.9, Plan §7.2) – Altdatei bleibt unverändert;
 //!   [`migrate::apply_migration`] schreibt nur neue Dateien und lässt sich rückgängig machen.
@@ -16,7 +16,7 @@
 //! - [`CertificateCache`]: Opt-in-Cache öffentlicher Signaturzertifikate.
 //!
 //! Meldungen für UI/CLI tragen stabile i18n-IDs (`ng-config-*`, `ng-migrate-*`) aus
-//! `pdfover-i18n/locales/*/pdfover-ng.ftl`.
+//! `pida-i18n/locales/*/pida.ftl`.
 //!
 //! Ownership: Paket **E**.
 
@@ -54,7 +54,7 @@ pub use source::{
     ConfigSource, SessionSecrets, load_config_source, load_config_source_with_secrets, resolve_config_file,
 };
 
-use pdfover_i18n::{ArgValue, Catalog, Lang};
+use pida_i18n::{ArgValue, Catalog, Lang};
 
 /// Fehler der Konfiguration.
 #[derive(Debug, thiserror::Error)]
@@ -191,7 +191,7 @@ mod tests {
     fn os_not_found_is_not_a_missing_config_file() {
         // z. B. LegacyConfig::load auf einen gelöschten Pfad: kein „Konfigurationsdatei … fehlt“ mit
         // dem OS-Fehlertext als Pfad, sondern ein E/A-Fehler mit Details.
-        let err = ConfigError::Io(std::fs::read("/nicht/vorhanden/pdfover-test").unwrap_err());
+        let err = ConfigError::Io(std::fs::read("/nicht/vorhanden/pida-test").unwrap_err());
         assert_eq!(err.message_id(), "ng-config-error-io");
         assert_eq!(err.missing_path(), None);
         assert!(!err.localized(Lang::De).contains("Konfigurationsdatei"));

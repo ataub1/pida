@@ -1,10 +1,10 @@
-//! Test-Hilfen für `pdfover-placement`.
+//! Test-Hilfen für `pida-placement`.
 //!
-//! - Mini-COS über `lopdf` (Re-Export aus `pdfover-pdf-cos`): `PageInfo`, `ImageInvocation`,
+//! - Mini-COS über `lopdf` (Re-Export aus `pida-pdf-cos`): `PageInfo`, `ImageInvocation`,
 //!   `SigField`, `/Location` – nur für Tests, weil `pdf-cos` (Paket A) parallel entsteht
 //!   (ADR 0001 §5.3: Tests bauen die Datenstrukturen selbst).
 //! - Minimaler PDF-Schreiber, QR-Bilder mit dem `rxing`-Encoder.
-//! - PDFium über `PDFOVER_PDFIUM_DIR` (sonst werden PDFium-Tests übersprungen).
+//! - PDFium über `PIDA_PDFIUM_DIR` (sonst werden PDFium-Tests übersprungen).
 //! - Erkennung umrandeter Signaturblöcke in den Referenzbildern der PDF-AS-Testsuiten.
 #![allow(dead_code)]
 
@@ -12,10 +12,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use pdfover_pdf_cos::lopdf::content::Content;
-use pdfover_pdf_cos::lopdf::{Dictionary, Document, Object, ObjectId};
-use pdfover_pdf_cos::{ImageInvocation, PageInfo, Rect, Rotation, SigField, SigWidget};
-use pdfover_render::{ENV_PDFIUM_DIR, PdfiumBackend, RenderBackend, Renderer, RgbaImage, concat_matrix};
+use pida_pdf_cos::lopdf::content::Content;
+use pida_pdf_cos::lopdf::{Dictionary, Document, Object, ObjectId};
+use pida_pdf_cos::{ImageInvocation, PageInfo, Rect, Rotation, SigField, SigWidget};
+use pida_render::{ENV_PDFIUM_DIR, PdfiumBackend, RenderBackend, Renderer, RgbaImage, concat_matrix};
 
 // ------------------------------------------------------------------------------------------------
 // Pfade, PDFium
@@ -34,7 +34,7 @@ pub fn backend() -> Option<PdfiumBackend> {
     if dir.is_empty() {
         return None;
     }
-    Some(PdfiumBackend::bind(Some(Path::new(&dir))).expect("PDFium aus PDFOVER_PDFIUM_DIR bindbar"))
+    Some(PdfiumBackend::bind(Some(Path::new(&dir))).expect("PDFium aus PIDA_PDFIUM_DIR bindbar"))
 }
 
 #[macro_export]
@@ -43,7 +43,7 @@ macro_rules! require_pdfium {
         match common::backend() {
             Some(b) => b,
             None => {
-                eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – Test übersprungen");
+                eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – Test übersprungen");
                 return;
             }
         }

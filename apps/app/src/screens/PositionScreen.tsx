@@ -1,6 +1,6 @@
 /**
  * Positionierung (docs/analyse/01 §4.3, F-30…F-43; Plan §6.7):
- * - Seitenvorschau aus Kacheln (`pdfover-render://`), Blockvorschau aus dem echten Appearance-Objekt,
+ * - Seitenvorschau aus Kacheln (`pida-render://`), Blockvorschau aus dem echten Appearance-Objekt,
  * - Ziehen per Maus/Touch/Stift (Block springt an den Zeiger, beim Greifen bleibt der Versatz – F-34);
  *   Touch (Plan §5.1 „Ziehen mit Fingerversatz“): außerhalb des Blocks angetippt, steht der Block mittig
  *   **über** dem Finger (der Finger verdeckt ihn nicht), kurze Haptik beim Greifen, größere Trefferfläche,
@@ -23,7 +23,7 @@ import { isMobile, type StepView } from '../core/types';
 type PositionView = Extract<StepView, { step: 'position' }>;
 type Unit = 'mm' | 'pt';
 
-const UNIT_KEY = 'pdfover-ng.position-unit';
+const UNIT_KEY = 'pida.position-unit';
 
 function readUnit(): Unit {
   try {

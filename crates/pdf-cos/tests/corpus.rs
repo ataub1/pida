@@ -1,12 +1,12 @@
-//! Korpus-Tests für `pdfover-pdf-cos` (Paket A) gegen `testdata/pdf/`.
+//! Korpus-Tests für `pida-pdf-cos` (Paket A) gegen `testdata/pdf/`.
 //!
 //! Orakel: bekannte Struktur der erzeugten Dateien (qpdf/tools/make-testdata.sh), Klartext-Original
 //! der verschlüsselten Varianten, QR-Erkennung mit rxing (Platzhalterbilder) und – falls
-//! `PDFOVER_PDFIUM_DIR` gesetzt ist – die Bildobjekt-Matrizen von PDFium (ADR 0001 §8.2).
+//! `PIDA_PDFIUM_DIR` gesetzt ist – die Bildobjekt-Matrizen von PDFium (ADR 0001 §8.2).
 
 mod common;
 
-use pdfover_pdf_cos::{
+use pida_pdf_cos::{
     CosError, CryptAlgorithm, CryptTarget, Limits, Object, PixelFormat, Rotation, SecurityHandler, SourcePdf, TailKind,
     XrefHealth, XrefKind,
 };
@@ -145,7 +145,7 @@ fn encryption_detection_and_rights() {
     // Unverschlüsselt: alle Rechte
     let plain = open("generated/simple-xref-table.pdf");
     assert!(plain.encryption().is_none() && plain.encryptor().is_none());
-    assert_eq!(plain.rights().permissions, pdfover_pdf_cos::Permissions::ALL);
+    assert_eq!(plain.rights().permissions, pida_pdf_cos::Permissions::ALL);
     // Benutzerpasswort → K5
     let err = SourcePdf::open_file(&common::pdf("generated/simple-aes256-userpw.pdf"), &Limits::default()).unwrap_err();
     assert!(matches!(err, CosError::PasswordRequired), "{err:?}");
@@ -171,7 +171,7 @@ fn empty_owner_password_grants_owner_rights_like_pdfbox() {
         assert!(!e.permissions.can_fill_in_form(), "{file}");
         // wirksam: Owner-Rechte
         assert!(s.rights().encrypted, "{file}");
-        assert_eq!(s.rights().permissions, pdfover_pdf_cos::Permissions::ALL, "{file}");
+        assert_eq!(s.rights().permissions, pida_pdf_cos::Permissions::ALL, "{file}");
         assert!(s.rights().may_sign(), "{file}");
     }
     // R2 (RC4-40, V1): Erkennung, Entschlüsselung und Encryptor-Roundtrip
@@ -201,7 +201,7 @@ fn decryption_matches_plaintext_source() {
     assert!(plain_content.len() > 50 && plain_content.windows(2).any(|w| w == b"BT"));
     let info = |s: &SourcePdf| -> Vec<(Vec<u8>, String)> {
         let d = s.get_object(s.info_id().unwrap()).unwrap().as_dict().unwrap();
-        d.iter().filter_map(|(k, v)| pdfover_pdf_cos::decode_text_string(v).map(|t| (k.clone(), t))).collect()
+        d.iter().filter_map(|(k, v)| pida_pdf_cos::decode_text_string(v).map(|t| (k.clone(), t))).collect()
     };
     let plain_info = info(&plain);
     assert!(!plain_info.is_empty());
@@ -327,7 +327,7 @@ fn signed_documents_signatures_end_at_revision_boundaries() {
                 .ok()?
                 .get(b"Location")
                 .ok()
-                .and_then(pdfover_pdf_cos::decode_text_string)
+                .and_then(pida_pdf_cos::decode_text_string)
         })
         .collect();
     assert!(locs.iter().any(|l| l.starts_with("Image")), "{locs:?}");
@@ -361,7 +361,7 @@ fn empty_signature_fields_like_pdfas_samples() {
     assert!(acro.has_dr && acro.has_da && !acro.need_appearances && !acro.has_xfa);
 }
 
-fn qr_text(s: &SourcePdf, id: pdfover_pdf_cos::ObjectId) -> Option<String> {
+fn qr_text(s: &SourcePdf, id: pida_pdf_cos::ObjectId) -> Option<String> {
     let img = s.decode_image(id).unwrap();
     let luma = img.to_luma();
     rxing::helpers::detect_in_luma(luma, img.width, img.height, Some(rxing::BarcodeFormat::QR_CODE))
@@ -427,8 +427,8 @@ fn image_invocation_ctm_and_order() {
 
 #[test]
 fn image_ctm_matches_pdfium() {
-    let Some(dir) = std::env::var_os("PDFOVER_PDFIUM_DIR") else {
-        eprintln!("HINWEIS: PDFOVER_PDFIUM_DIR nicht gesetzt – PDFium-Orakel übersprungen");
+    let Some(dir) = std::env::var_os("PIDA_PDFIUM_DIR") else {
+        eprintln!("HINWEIS: PIDA_PDFIUM_DIR nicht gesetzt – PDFium-Orakel übersprungen");
         return;
     };
     use pdfium_render::prelude::{PdfPageObjectsCommon, Pdfium};

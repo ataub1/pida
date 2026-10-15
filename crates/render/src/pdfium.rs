@@ -740,11 +740,11 @@ mod tests {
         if LIBRARY.get().is_some() {
             return;
         }
-        let dir = std::env::temp_dir().join("pdfover-render-gibt-es-nicht");
+        let dir = std::env::temp_dir().join("pida-render-gibt-es-nicht");
         let err = bind_library(Some(&dir)).unwrap_err();
         match err {
             RenderError::LibraryNotFound(msg) => {
-                assert!(msg.contains("pdfover-render-gibt-es-nicht"), "{msg}");
+                assert!(msg.contains("pida-render-gibt-es-nicht"), "{msg}");
                 assert!(msg.contains("nicht vorhanden"), "{msg}");
             }
             other => panic!("unerwartet: {other:?}"),

@@ -5,12 +5,12 @@
 mod common;
 
 use common::{PageSpec, PdfBuilder, build_doc, qr_image};
-use pdfover_pdf_cos::{PageInfo, Rect};
-use pdfover_placement::{
+use pida_pdf_cos::{PageInfo, Rect};
+use pida_placement::{
     CompatMode, PositionContext, ResolvedPosition, TablePos, auto_place, find_qr_placeholders, resolve_width,
     visible_block_rect, widget_rect,
 };
-use pdfover_render::RgbaImage;
+use pida_render::RgbaImage;
 
 /// Hülle der dunklen Pixel (x0, y0, x1, y1), exklusiv rechts/unten.
 fn dark_bbox(img: &RgbaImage) -> Option<(u32, u32, u32, u32)> {
@@ -94,7 +94,7 @@ fn quirk_rect_ignores_cropbox_origin() {
     };
     let page = page_info(&build_doc(PdfBuilder::new(), vec![spec("")], ""));
     let pos = resolved(150.0, 400.0, 200.0, 60.0, 0);
-    let rect = pdfover_placement::widget_rect_with(&pos, &page, CompatMode::PdfasQuirks);
+    let rect = pida_placement::widget_rect_with(&pos, &page, CompatMode::PdfasQuirks);
     let bytes = build_doc(PdfBuilder::new(), vec![spec(&fill(rect))], "");
     let img = common::open(&backend, &bytes).render_page(0, 1.0).unwrap();
     let (x0, y0, _, _) = dark_bbox(&img).unwrap();

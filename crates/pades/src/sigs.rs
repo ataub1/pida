@@ -3,9 +3,9 @@
 
 use std::io::Read;
 
-use pdfover_cades::{AlgorithmPolicy, CmsError, Expect, ExpectedSigner, verify_detached};
-use pdfover_pdf_cos::{Dictionary, Object, ObjectId, SigField, SourcePdf, decode_text_string};
-use pdfover_pdf_incremental::ByteRange;
+use pida_cades::{AlgorithmPolicy, CmsError, Expect, ExpectedSigner, verify_detached};
+use pida_pdf_cos::{Dictionary, Object, ObjectId, SigField, SourcePdf, decode_text_string};
+use pida_pdf_incremental::ByteRange;
 
 use crate::signed::PriorStatus;
 
@@ -49,7 +49,7 @@ impl SigDictInfo {
 
     /// `/Contents` ohne `0`-Padding (DER), falls trennbar.
     pub fn der(&self) -> Vec<u8> {
-        pdfover_cades::trim_contents_padding(&self.contents).map(<[u8]>::to_vec).unwrap_or_default()
+        pida_cades::trim_contents_padding(&self.contents).map(<[u8]>::to_vec).unwrap_or_default()
     }
 
     /// Ende der abgedeckten Bytes (`max(off + len)` über alle Paare).

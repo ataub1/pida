@@ -1,8 +1,8 @@
-//! `pdfover-workflow` – expliziter Reducer statt impliziter Re-Entry-Semantik (Plan §3.5;
+//! `pida-workflow` – expliziter Reducer statt impliziter Re-Entry-Semantik (Plan §3.5;
 //! docs/analyse/01 §3).
 //!
 //! `reduce(state, event, ctx) -> Transition { state, effects }` ist eine **reine Funktion**.
-//! Rendern, HTTP und Dateioperationen laufen als [`Effect`] in Tokio-Tasks (`pdfover-core-api`) und
+//! Rendern, HTTP und Dateioperationen laufen als [`Effect`] in Tokio-Tasks (`pida-core-api`) und
 //! melden sich als [`Event`] zurück. Die Übergangstabelle aus docs/analyse/01 §3.4 ist direkt in
 //! Tabellentests übertragen (`tests/transitions.rs`); dabei werden B-03 (INVISIBLE beim ersten
 //! Dokument), B-04 (Platzhalter-Flags nicht zurückgesetzt), B-05 (Feldwahl dauerhaft gespeichert),
@@ -42,14 +42,14 @@
 //! | Output: gespeichert, `-s` → Ende | [`Event::Saved`] + `skip_finish` → `Finished` (F-90) |
 //! | Output: Dateien abgelegt | [`Event::FilesAdded`] im Ergebnis-Screen nach erfolgreichem Speichern → sofort weiter (F-89) |
 //! | Output: Überschreiben/Speichern-Dialog/Schreibfehler | `OutputDecided` → `Write`/`AskOverwrite`/`AskSavePath`; `SaveFailed` → `Error{Save}` |
-//! | ConfigurationUI | Overlay in `pdfover-core-api`; [`Event::SettingsChanged`] baut die Vorschau neu |
+//! | ConfigurationUI | Overlay in `pida-core-api`; [`Event::SettingsChanged`] baut die Vorschau neu |
 //! | Hauptleiste (`jumpToState`) | [`Event::Navigate`] nach der Matrix [`State::main_bar`] |
 //!
 //! # Mobile-Lebenszyklus (Plan §3.5, §5.2)
 //!
 //! | Ereignis | hier |
 //! |---|---|
-//! | App in den Hintergrund / zurück (z. B. Wechsel in die App „ID Austria“) | [`Event::Backgrounded`] / [`Event::Foregrounded`]: **kein Abbruch**, Zustand und Effekte unverändert (den Long-Poll startet `pdfover-core-api` nach der Rückkehr neu) |
+//! | App in den Hintergrund / zurück (z. B. Wechsel in die App „ID Austria“) | [`Event::Backgrounded`] / [`Event::Foregrounded`]: **kein Abbruch**, Zustand und Effekte unverändert (den Long-Poll startet `pida-core-api` nach der Rückkehr neu) |
 //! | App vom System beendet, Neustart | [`Event::ResumeRequested`] (nur in `Idle`) → [`State::Resuming`]: Dokument laden, dann direkt das gespeicherte Signiermittel (Datenschutzhinweis nur, falls noch nicht bestätigt); ist es nicht verfügbar, Auswahl mit Hinweis [`MSG_RESUME_BACKEND_UNAVAILABLE`] und [`Effect::DeletePersisted`] |
 //! | Erfolg, Abbruch, Fehler | [`Effect::DeletePersisted`] (der persistierte Zustand gilt nur für genau diesen Vorgang) |
 //! | Ergebnis teilen / exportieren | [`Event::ShareResultRequested`] / [`Event::ExportResultRequested`] → [`Effect::ShareResult`] / [`Effect::ExportResult`] |

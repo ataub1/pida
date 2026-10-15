@@ -4,7 +4,7 @@
  */
 export type Theme = 'system' | 'light' | 'dark';
 
-const KEY = 'pdfover-ng.theme';
+const KEY = 'pida.theme';
 
 export function readTheme(): Theme {
   try {

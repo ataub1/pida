@@ -4,13 +4,13 @@
 
 use std::collections::BTreeMap;
 
-use pdfover_i18n::{ArgValue, Catalog, Lang, markup};
+use pida_i18n::{ArgValue, Catalog, Lang, markup};
 
 /// Text zu einer Meldungs-ID aus dem Katalog (Codes mit Punkt wie Java-Keys: `.` → `-`), sonst
 /// `None`.
 pub fn lookup(lang: Lang, id: &str, args: &BTreeMap<String, String>) -> Option<String> {
     let catalog = Catalog::global();
-    let fluent_id = pdfover_i18n::fluent_id_for_java_key(id);
+    let fluent_id = pida_i18n::fluent_id_for_java_key(id);
     for candidate in [id, fluent_id.as_str()] {
         if catalog.has(lang, candidate) || catalog.has(Lang::De, candidate) {
             let fargs: Vec<(&str, ArgValue)> =

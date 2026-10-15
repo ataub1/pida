@@ -10,8 +10,8 @@
 
 use std::collections::BTreeSet;
 
-use pdfover_pdf_cos::{CosError, Dictionary, Object, SigField, SourcePdf, TailKind, XrefHealth, XrefKind};
-use pdfover_pdf_incremental::ByteRange;
+use pida_pdf_cos::{CosError, Dictionary, Object, SigField, SourcePdf, TailKind, XrefHealth, XrefKind};
+use pida_pdf_incremental::ByteRange;
 
 use crate::PadesError;
 use crate::signed::PriorStatus;
@@ -340,11 +340,9 @@ pub(crate) fn locked_field_names(src: &SourcePdf, fields: &[SigField]) -> BTreeS
         for lock in lock_dicts(src, f) {
             let action = lock.get(b"Action").ok().and_then(|o| src.resolve(o).ok()).and_then(|o| o.as_name().ok());
             let names: Vec<String> = match lock.get(b"Fields").ok().and_then(|o| src.resolve(o).ok()) {
-                Some(Object::Array(a)) => a
-                    .iter()
-                    .filter_map(|o| src.resolve(o).ok())
-                    .filter_map(pdfover_pdf_cos::decode_text_string)
-                    .collect(),
+                Some(Object::Array(a)) => {
+                    a.iter().filter_map(|o| src.resolve(o).ok()).filter_map(pida_pdf_cos::decode_text_string).collect()
+                }
                 _ => Vec::new(),
             };
             let matches = |q: &str| names.iter().any(|n| q == n || q.starts_with(&format!("{n}.")));
@@ -627,7 +625,7 @@ pub fn reject_open_error(e: &CosError) -> Finding {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_pdf_cos::{Rect, SigWidget};
+    use pida_pdf_cos::{Rect, SigWidget};
 
     fn field(name: &str, depth: usize) -> SigField {
         SigField {

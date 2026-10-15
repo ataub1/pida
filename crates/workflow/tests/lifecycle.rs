@@ -4,9 +4,9 @@
 mod common;
 
 use common::*;
-use pdfover_backend_api::BackendId;
-use pdfover_pades::AcceptanceClass;
-use pdfover_workflow::{
+use pida_backend_api::BackendId;
+use pida_pades::AcceptanceClass;
+use pida_workflow::{
     Context, DocId, DocResult, Effect, Event, ExitCode, InputDocument, PlaceholderFound, PositionChoice, Queue,
     ResumePlan, SigningPhase, State, Step, WorkflowError,
 };
@@ -112,7 +112,7 @@ fn resume_with_unavailable_backend_shows_selection_and_discards_persisted_state(
     let State::ChoosingBackend { auto_choice, position, .. } = &s else { panic!("{s:?}") };
     assert!(!auto_choice);
     assert_eq!(*position, PositionChoice::Manual(start_placement(2)));
-    assert!(effects.contains(&Effect::Notify(pdfover_workflow::MSG_RESUME_BACKEND_UNAVAILABLE.into())));
+    assert!(effects.contains(&Effect::Notify(pida_workflow::MSG_RESUME_BACKEND_UNAVAILABLE.into())));
     assert!(effects.contains(&Effect::DeletePersisted));
 }
 

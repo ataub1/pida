@@ -1,4 +1,4 @@
-//! Pixelvergleich per PDFium (nur mit `PDFOVER_PDFIUM_DIR`, sonst übersprungen, ADR 0001 Regel 6):
+//! Pixelvergleich per PDFium (nur mit `PIDA_PDFIUM_DIR`, sonst übersprungen, ADR 0001 Regel 6):
 //! eigenes Inner-Form gegen das Inner-Form der PDF-AS-Referenzen (gleiche Seite, gleiche
 //! Auflösung), dazu ein Rendertest von [`Appearance::to_standalone_pdf`].
 
@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pdfium_render::prelude::*;
-use pdfover_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
-use pdfover_sigblock::{
+use pida_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
+use pida_sigblock::{
     Appearance, BuildOptions, CertFields, DirResources, Emblem, FontProvider, PdfaMode, ProfileStore, Resources,
     SigBlockInput,
 };
@@ -20,7 +20,7 @@ fn testdata(rel: &str) -> PathBuf {
 }
 
 fn pdfium() -> Option<Pdfium> {
-    let dir = std::env::var("PDFOVER_PDFIUM_DIR").ok()?;
+    let dir = std::env::var("PIDA_PDFIUM_DIR").ok()?;
     match Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(&dir)) {
         Ok(b) => Some(Pdfium::new(b)),
         Err(e) => {
@@ -205,7 +205,7 @@ fn build(c: &Case) -> Appearance {
         None => (def.get(c.profile).unwrap().clone(), def_res),
     };
     if c.centered {
-        profile.tables.get_mut("main").unwrap().style.as_mut().unwrap().halign = Some(pdfover_sigblock::HAlign::Center);
+        profile.tables.get_mut("main").unwrap().style.as_mut().unwrap().halign = Some(pida_sigblock::HAlign::Center);
     }
     let logo = std::fs::read(testdata(&format!("sigblock/pdfas-default/images/{}", c.logo))).unwrap();
     let mut cert = CertFields::example();
@@ -220,7 +220,7 @@ fn build(c: &Case) -> Appearance {
 #[test]
 fn pixels_match_pdfas_references() {
     let Some(pdfium) = pdfium() else {
-        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – Pixelvergleich übersprungen");
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – Pixelvergleich übersprungen");
         return;
     };
     let cases = [
@@ -332,7 +332,7 @@ fn pixels_match_pdfas_references() {
 #[test]
 fn pdfa_icc_logo_renders_like_device_rgb() {
     let Some(pdfium) = pdfium() else {
-        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – Pixelvergleich übersprungen");
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – Pixelvergleich übersprungen");
         return;
     };
     let s = ProfileStore::builtin().unwrap();

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  PDF-Over NG - PDFium-Binaries (bblanchon/pdfium-binaries) laden, per SHA-256 pruefen und entpacken.
+  PIDA - PDFium-Binaries (bblanchon/pdfium-binaries) laden, per SHA-256 pruefen und entpacken.
 
 .DESCRIPTION
   Gegenstueck zu tools/fetch-pdfium.sh fuer Windows (PowerShell 5.1 und 7). Die erwarteten Hashes
@@ -22,9 +22,9 @@
 .EXAMPLE
   tools\fetch-pdfium.ps1 -All                    # alle Plattformen aus tools/pdfium.lock
 .EXAMPLE
-  Invoke-Expression (tools\fetch-pdfium.ps1 -PrintEnv)   # $env:PDFOVER_PDFIUM_DIR setzen
+  Invoke-Expression (tools\fetch-pdfium.ps1 -PrintEnv)   # $env:PIDA_PDFIUM_DIR setzen
 .EXAMPLE
-  tools\fetch-pdfium.ps1 -GitHubEnv              # CI: PDFOVER_PDFIUM_DIR nach $env:GITHUB_ENV
+  tools\fetch-pdfium.ps1 -GitHubEnv              # CI: PIDA_PDFIUM_DIR nach $env:GITHUB_ENV
 .EXAMPLE
   $env:PDFIUM_RELEASE = 'chromium/<n>'; tools\fetch-pdfium.ps1 -UpdateLock -All
 #>
@@ -241,11 +241,11 @@ if ($UpdateLock) {
 $first = $platforms[0]
 $firstDir = Join-Path (Join-Path $Dest $first) (Get-LibSubdir $first)
 if ($PrintDir) { Write-Output $firstDir }
-if ($PrintEnv) { Write-Output ("`$env:PDFOVER_PDFIUM_DIR = '{0}'" -f ($firstDir -replace "'", "''")) }
+if ($PrintEnv) { Write-Output ("`$env:PIDA_PDFIUM_DIR = '{0}'" -f ($firstDir -replace "'", "''")) }
 if ($GitHubEnv) {
     if (-not $env:GITHUB_ENV) { Fail '-GitHubEnv: GITHUB_ENV ist nicht gesetzt' }
     # UTF-8 ohne BOM, auch unter Windows PowerShell 5.1 (dort schreibt Out-File -Encoding utf8 ein BOM,
     # das den ersten Variablennamen in GITHUB_ENV verfaelschen wuerde).
-    [System.IO.File]::AppendAllText($env:GITHUB_ENV, "PDFOVER_PDFIUM_DIR=$firstDir`n", (New-Object System.Text.UTF8Encoding $false))
-    Log "PDFOVER_PDFIUM_DIR=$firstDir -> GITHUB_ENV"
+    [System.IO.File]::AppendAllText($env:GITHUB_ENV, "PIDA_PDFIUM_DIR=$firstDir`n", (New-Object System.Text.UTF8Encoding $false))
+    Log "PIDA_PDFIUM_DIR=$firstDir -> GITHUB_ENV"
 }

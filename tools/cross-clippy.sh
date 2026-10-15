@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PDF-Over NG – die blockierenden Clippy-Schritte des CI-Jobs `build` lokal für ein Fremdziel nachstellen
+# PIDA – die blockierenden Clippy-Schritte des CI-Jobs `build` lokal für ein Fremdziel nachstellen
 # (z. B. Windows oder Linux von macOS aus), bevor die CI sie auf windows-latest/ubuntu-latest ausführt.
 #
 #   tools/cross-clippy.sh x86_64-pc-windows-msvc     # strikt (-D warnings, ohne CLIPPY_LENIENT) + fido2-windows
@@ -35,7 +35,7 @@ OUT="$ROOT/target/cross-clippy"
 # Fester Pfad (sonst baut ring bei jedem Lauf neu, weil sich CFLAGS ändern) ohne Leerzeichen: cc-rs
 # trennt CFLAGS an Leerraum, der Checkout liegt aber evtl. unter „PDF-Over Clone“.
 SHIM="${TMPDIR:-/tmp}"
-SHIM="${SHIM%/}/pdfover-cross-clippy-$(id -u)"
+SHIM="${SHIM%/}/pida-cross-clippy-$(id -u)"
 case "$SHIM" in *[[:space:]]*) die "Pfad für Platzhalter-Header enthält Leerraum: $SHIM (TMPDIR anpassen)" ;; esac
 mkdir -p "$SHIM/include"
 cat >"$SHIM/include/assert.h" <<'EOF'
@@ -81,6 +81,6 @@ for c in $LENIENT; do excludes+=(--exclude "$c"); done
 cd "$ROOT"
 echo "cross-clippy: $TARGET – strikt (ohne: ${LENIENT:-keine})" >&2
 cargo clippy --locked --target "$TARGET" --workspace ${excludes[@]+"${excludes[@]}"} --no-deps --all-targets -- -D warnings
-echo "cross-clippy: $TARGET – pdfover-backend-atrust --features $FIDO" >&2
-cargo clippy --locked --target "$TARGET" -p pdfover-backend-atrust --features "$FIDO" --no-deps --all-targets -- -D warnings
+echo "cross-clippy: $TARGET – pida-backend-atrust --features $FIDO" >&2
+cargo clippy --locked --target "$TARGET" -p pida-backend-atrust --features "$FIDO" --no-deps --all-targets -- -D warnings
 echo "cross-clippy: $TARGET ok" >&2

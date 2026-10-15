@@ -1,6 +1,6 @@
 //! Capability-Modell (Plan §3.3).
 
-use pdfover_cades::DigestAlg;
+use pida_cades::DigestAlg;
 
 /// Kennung eines Backends.
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]

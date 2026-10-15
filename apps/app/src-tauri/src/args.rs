@@ -1,6 +1,6 @@
 //! Startargumente der GUI mit der PDF-Over-Semantik der Kommandozeile (docs/analyse/01 §5).
 //!
-//! Die GUI nutzt **denselben Parser** wie `pdfover-cli` (Bibliothek `pdfover_cli` ohne Feature `run`):
+//! Die GUI nutzt **denselben Parser** wie `pida-cli` (Bibliothek `pida_cli` ohne Feature `run`):
 //! zweiphasiges `-c`, „unbekanntes Token = Eingabedatei“, `-i -o -b -n -p -ks -kstype -kspass -ksalias
 //! -kskeypass -proxy -proxyport -proxyuser -proxypass -e -a -s -c -v`. Die Werte gehen als
 //! [`Overlay`] an den Kern (nie persistiert). Wie bei PDF-Over gilt:
@@ -9,11 +9,11 @@
 //! - ungültige Argumente bzw. fehlende Dateien (`error-CmdLineArgs`, `error-FileNotExist`): Fehleranzeige,
 //!   „Abbrechen“ beendet (PDF-Over: Fehlerdialog + Ende, `PrepareConfigurationState.java:264-300`).
 //!
-//! NG-Ergänzungen: `--kspass-env <VAR>` liest das Keystore-Passwort aus der Umgebung,
-//! `--log-level <filter>` setzt den Log-Filter (Vorrang vor `PDFOVER_LOG`), Datei-URLs (`file:///…`,
+//! PIDA-Ergänzungen: `--kspass-env <VAR>` liest das Keystore-Passwort aus der Umgebung,
+//! `--log-level <filter>` setzt den Log-Filter (Vorrang vor `PIDA_LOG`), Datei-URLs (`file:///…`,
 //! Linux-Starter mit `%U`) gelten als Pfade; die
 //! CLI-Befehle (`verify`, `profiles`, `migrate`, `render-block`) und die Terminal-Optionen
-//! (`--headless`, `--json`, `--kspass-stdin`) gibt es nur in `pdfover-cli` – in der GUI sind sie ein
+//! (`--headless`, `--json`, `--kspass-stdin`) gibt es nur in `pida-cli` – in der GUI sind sie ein
 //! Argumentfehler. `sign <eingaben…>` öffnet die Eingaben (Ordner, Muster) wie in der CLI.
 //!
 //! Regel 9: Werte von Optionen (Passwörter, Benutzername) erscheinen weder im Log noch in der
@@ -23,14 +23,14 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use pdfover_cli::{Cli, CliError, Command};
-use pdfover_config::Overlay;
-use pdfover_i18n::Lang;
+use pida_cli::{Cli, CliError, Command};
+use pida_config::Overlay;
+use pida_i18n::Lang;
 use zeroize::Zeroizing;
 
 /// Meldungs-ID: ungültige Kommandozeile (PDF-Over `error.CmdLineArgs`).
 pub const CMDLINE_INVALID: &str = "error-CmdLineArgs";
-/// Meldungs-ID: Option nur in der Kommandozeile `pdfover-cli` verfügbar.
+/// Meldungs-ID: Option nur in der Kommandozeile `pida-cli` verfügbar.
 pub const CLI_ONLY: &str = "ng-ui-args-cli-only";
 
 /// Ergebnis der Auswertung.
@@ -40,7 +40,7 @@ pub enum GuiArgs {
     Start {
         /// Overlay des Kerns
         overlay: Box<Overlay>,
-        /// `--log-level` (Filter wie `PDFOVER_LOG`, hat Vorrang)
+        /// `--log-level` (Filter wie `PIDA_LOG`, hat Vorrang)
         log_level: Option<String>,
     },
     /// Hilfe ausgeben und beenden.
@@ -65,17 +65,17 @@ where
     T: Into<OsString>,
 {
     let raw: Vec<OsString> = without_platform_tokens(raw.into_iter().map(Into::into));
-    let normalized = pdfover_cli::normalize_args(raw.clone());
-    if pdfover_cli::wants_help(&normalized) {
-        return GuiArgs::Help(pdfover_cli::text::help(Lang::system()));
+    let normalized = pida_cli::normalize_args(raw.clone());
+    if pida_cli::wants_help(&normalized) {
+        return GuiArgs::Help(pida_cli::text::help(Lang::system()));
     }
-    let (config_file, cli) = match pdfover_cli::parse(raw) {
+    let (config_file, cli) = match pida_cli::parse(raw) {
         Ok(v) => v,
         Err(CliError::Clap(e)) if e.kind() == clap::error::ErrorKind::DisplayVersion => {
-            return GuiArgs::Version(format!("PDF-Over NG {}", env!("CARGO_PKG_VERSION")));
+            return GuiArgs::Version(format!("PIDA {}", env!("CARGO_PKG_VERSION")));
         }
         Err(CliError::Clap(e)) if e.kind() == clap::error::ErrorKind::DisplayHelp => {
-            return GuiArgs::Help(pdfover_cli::text::help(Lang::system()));
+            return GuiArgs::Help(pida_cli::text::help(Lang::system()));
         }
         Err(e) => return invalid(CMDLINE_INVALID, &[("detail", parser_detail(&e))]),
     };
@@ -83,11 +83,11 @@ where
         return invalid(CLI_ONLY, &[("option", problem.to_owned())]);
     }
     let cli = absolutize(cli, cwd);
-    if let Err(e) = pdfover_cli::overlay::check(&cli) {
+    if let Err(e) = pida_cli::overlay::check(&cli) {
         let params: Vec<(&str, String)> = e.args.clone();
         return invalid(e.id, &params);
     }
-    let mut overlay = pdfover_cli::to_overlay(&cli);
+    let mut overlay = pida_cli::to_overlay(&cli);
     overlay.config_file = config_file;
     if overlay.keystore_store_password.is_none()
         && let Some(var) = &cli.modern.kspass_env
@@ -102,7 +102,7 @@ where
     {
         return invalid("ng-cli-keypass-mismatch", &[]);
     }
-    match pdfover_cli::overlay::inputs(&cli) {
+    match pida_cli::overlay::inputs(&cli) {
         Ok(inputs) => overlay.input_files = inputs,
         Err(e) => {
             let params: Vec<(&str, String)> = e.args.clone();
@@ -119,13 +119,13 @@ where
 /// bleibt die einfache Auswertung von [`crate::files::documents_from_args`].
 pub fn second_instance_documents(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
     let raw: Vec<OsString> = without_platform_tokens(argv.iter().map(OsString::from));
-    match pdfover_cli::parse(raw) {
+    match pida_cli::parse(raw) {
         Ok((_, cli)) => {
             let cli = absolutize(cli, cwd);
             let mut out: Vec<PathBuf> = Vec::new();
             let mut all = cli.legacy.input.clone();
             if let Some(Command::Sign { inputs }) = &cli.command
-                && let Ok(expanded) = pdfover_cli::overlay::expand_inputs(inputs)
+                && let Ok(expanded) = pida_cli::overlay::expand_inputs(inputs)
             {
                 all.extend(expanded);
             }
@@ -223,14 +223,14 @@ fn invalid(code: &str, params: &[(&str, String)]) -> GuiArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_config::BackendChoice;
+    use pida_config::BackendChoice;
 
     fn no_env(_: &str) -> Option<OsString> {
         None
     }
 
     fn fixture(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("pdfover-app-args-{tag}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pida-app-args-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("Temp-Ordner");
         std::fs::write(dir.join("a.pdf"), b"%PDF-1.7\n").expect("a");
         std::fs::write(dir.join("b.pdf"), b"%PDF-1.7\n").expect("b");
@@ -239,7 +239,7 @@ mod tests {
     }
 
     fn start(args: &[&str], cwd: &Path) -> Overlay {
-        let mut raw = vec!["pdf-over-ng"];
+        let mut raw = vec!["pida"];
         raw.extend_from_slice(args);
         match parse_gui_args(raw, cwd, &no_env) {
             GuiArgs::Start { overlay, .. } => *overlay,
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn missing_files_and_bad_values_are_errors_without_secrets() {
         let dir = fixture("err");
-        let r = parse_gui_args(["pdf-over-ng", "fehlt.pdf"], &dir, &no_env);
+        let r = parse_gui_args(["pida", "fehlt.pdf"], &dir, &no_env);
         let GuiArgs::Invalid { code, params } = r else { panic!("{r:?}") };
         assert_eq!(code, "error-FileNotExist");
         assert!(params["arg1"].ends_with("fehlt.pdf"));
@@ -356,7 +356,7 @@ mod tests {
             assert!(text.contains("-kskeypass"), "{text}");
         }
         assert!(
-            matches!(parse_gui_args(["x", "--version"], &dir, &no_env), GuiArgs::Version(v) if v.starts_with("PDF-Over NG"))
+            matches!(parse_gui_args(["x", "--version"], &dir, &no_env), GuiArgs::Version(v) if v.starts_with("PIDA"))
         );
         for (args, option) in [
             (&["x", "--headless", "a.pdf"][..], "--headless"),
@@ -413,7 +413,7 @@ mod tests {
         assert!(spaced.contains("%20"), "{spaced}");
         let o = start(&[a.as_str(), spaced.as_str()], &dir);
         assert_eq!(o.input_files, vec![dir.join("a.pdf"), dir.join("mit leer.pdf")]);
-        let argv: Vec<String> = vec!["pdf-over-ng".into(), a];
+        let argv: Vec<String> = vec!["pida".into(), a];
         assert_eq!(second_instance_documents(&argv, &dir), vec![dir.join("a.pdf")]);
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -422,11 +422,11 @@ mod tests {
     fn second_instance_takes_only_existing_documents() {
         let dir = fixture("second");
         let argv: Vec<String> =
-            ["pdf-over-ng", "a.pdf", "-p", "b.pdf", "-i", "b.pdf", "fehlt.pdf", "a.pdf"].map(String::from).to_vec();
+            ["pida", "a.pdf", "-p", "b.pdf", "-i", "b.pdf", "fehlt.pdf", "a.pdf"].map(String::from).to_vec();
         // `-p b.pdf` ist ein Passwort (zu kurz ist egal – Optionen gelten hier nicht)
         assert_eq!(second_instance_documents(&argv, &dir), vec![dir.join("a.pdf"), dir.join("b.pdf")]);
         // Syntaxfehler (`-o` ohne Wert): einfache Auswertung
-        let argv: Vec<String> = ["pdf-over-ng", "a.pdf", "-o"].map(String::from).to_vec();
+        let argv: Vec<String> = ["pida", "a.pdf", "-o"].map(String::from).to_vec();
         assert_eq!(second_instance_documents(&argv, &dir), vec![dir.join("a.pdf")]);
         let _ = std::fs::remove_dir_all(dir);
     }

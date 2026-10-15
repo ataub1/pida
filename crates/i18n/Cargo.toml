@@ -1,5 +1,5 @@
 [package]
-name = "pdfover-i18n"
+name = "pida-i18n"
 description = "Fluent-Kataloge (de, en) für Kern, CLI und UI; Konverter für messages*.properties (Paket E)"
 version.workspace = true
 edition.workspace = true
@@ -9,11 +9,11 @@ authors.workspace = true
 publish.workspace = true
 
 [features]
-# TypeScript-Typen der Bridge (ts-rs, nur für `pdfover-core-api/ts`).
+# TypeScript-Typen der Bridge (ts-rs, nur für `pida-core-api/ts`).
 ts = ["dep:ts-rs"]
 
 [dependencies]
-pdfover-java-properties = { workspace = true }
+pida-java-properties = { workspace = true }
 fluent-bundle = { workspace = true }
 fluent-syntax = { workspace = true }
 unic-langid = { workspace = true }

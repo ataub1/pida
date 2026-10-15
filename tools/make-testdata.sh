@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PDF-Over NG – erzeugt bzw. aktualisiert die gemeinsamen Testdaten unter testdata/.
+# PIDA – erzeugt bzw. aktualisiert die gemeinsamen Testdaten unter testdata/.
 #
 #   tools/make-testdata.sh            # fehlende Keystores erzeugen, PDFs kopieren/erzeugen
 #   tools/make-testdata.sh --force    # Keystores neu erzeugen (neue Schlüssel!)
@@ -12,7 +12,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TD="$ROOT/testdata"
-REF="${PDFOVER_REFERENCE:-$ROOT/reference}/pdf-as-4"  # in Worktrees: source tools/env.sh
+REF="${PIDA_REFERENCE:-$ROOT/reference}/pdf-as-4"  # in Worktrees: source tools/env.sh
 FORCE=0
 [[ "${1:-}" == "--force" ]] && FORCE=1
 

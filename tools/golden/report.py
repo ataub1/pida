@@ -3,8 +3,8 @@
 JSON-Ergebnissen der Rust-Golden-Tests.
 
 Ablauf:
-  PDFOVER_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pdfover-sigblock --test golden_pdfas442
-  PDFOVER_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pdfover-placement --test golden_pdfas442
+  PIDA_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pida-sigblock --test golden_pdfas442
+  PIDA_GOLDEN_REPORT_DIR=target/golden/report cargo test -p pida-placement --test golden_pdfas442
   python3 tools/golden/report.py --golden testdata/golden/pdfas-4.4.2 --reports target/golden/report \
       --out docs/integration/golden-report.md
 

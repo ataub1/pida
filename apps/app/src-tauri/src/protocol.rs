@@ -1,18 +1,18 @@
-//! Custom Protocol `pdfover-render://` für Seitenkacheln und die Blockvorschau (Plan §3.1, §6.6).
+//! Custom Protocol `pida-render://` für Seitenkacheln und die Blockvorschau (Plan §3.1, §6.6).
 //!
 //! | URL (macOS/Linux/iOS) | Windows/Android | Inhalt |
 //! |---|---|---|
-//! | `pdfover-render://localhost/page/<doc>/<seite>?scale=<f>` | `http://pdfover-render.localhost/page/…` | PNG der Seite (0-basiert) |
-//! | `pdfover-render://localhost/block?scale=<f>&rev=<n>` | `http://pdfover-render.localhost/block?…` | PNG der Blockvorschau |
+//! | `pida-render://localhost/page/<doc>/<seite>?scale=<f>` | `http://pida-render.localhost/page/…` | PNG der Seite (0-basiert) |
+//! | `pida-render://localhost/block?scale=<f>&rev=<n>` | `http://pida-render.localhost/block?…` | PNG der Blockvorschau |
 //!
 //! `scale` ist der Faktor gegenüber 72 dpi (1 pt = 1 px); `rev` dient nur dem Cache-Busting
 //! (`BlockView::preview_revision`). Alle Eingaben werden streng geprüft; Antworten tragen nie
 //! Dokumentinhalte in Fehlertexten (Regel 9).
 
-use pdfover_workflow::DocId;
+use pida_workflow::DocId;
 
 /// Name des Schemas.
-pub const SCHEME: &str = "pdfover-render";
+pub const SCHEME: &str = "pida-render";
 /// Kleinster erlaubter Maßstab.
 pub const MIN_SCALE: f32 = 0.05;
 /// Größter erlaubter Maßstab (Schutz vor riesigen Bitmaps; der Renderer begrenzt zusätzlich).
@@ -46,7 +46,7 @@ pub enum RenderUriError {
     BadRequest(&'static str),
 }
 
-/// Zerlegt Pfad und Query einer `pdfover-render`-URL.
+/// Zerlegt Pfad und Query einer `pida-render`-URL.
 pub fn parse(path: &str, query: Option<&str>) -> Result<RenderRequest, RenderUriError> {
     let segments: Vec<&str> = path.trim_start_matches('/').split('/').filter(|s| !s.is_empty()).collect();
     let scale = scale_param(query)?;

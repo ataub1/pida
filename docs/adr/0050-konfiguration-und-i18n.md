@@ -3,18 +3,18 @@
 | | |
 |---|---|
 | **Status** | angenommen (14.10.2026) |
-| **Kontext** | Umsetzung von `pdfover-config`, `pdfover-i18n` (Plan §7.1–§7.5, analyse/05 §1, analyse/01 §5–§6) |
+| **Kontext** | Umsetzung von `pida-config`, `pida-i18n` (Plan §7.1–§7.5, analyse/05 §1, analyse/01 §5–§6) |
 | **Grundlage** | [ADR 0001](0001-workspace-und-schnittstellen.md) §4, §8 |
 
 ## Entscheidungen
 
 1. **Kataloge in zwei Dateien je Sprache.** `locales/<lang>/pdfover.ftl` wird aus `messages*.properties`
-   **erzeugt** (Test `catalogs` prüft Gleichheit; neu erzeugen mit `PDFOVER_I18N_BLESS=1`), eigene Texte stehen
-   in `locales/<lang>/pdfover-ng.ftl` (IDs mit Präfix `ng-`). Neue Meldungs-IDs anderer Pakete trägt die
-   Integration in `pdfover-ng.ftl` ein. Die UI lädt beide Dateien.
+   **erzeugt** (Test `catalogs` prüft Gleichheit; neu erzeugen mit `PIDA_I18N_BLESS=1`), eigene Texte stehen
+   in `locales/<lang>/pida.ftl` (IDs mit Präfix `ng-`). Neue Meldungs-IDs anderer Pakete trägt die
+   Integration in `pida.ftl` ein. Die UI lädt beide Dateien.
 2. **Fluent-Konventionen.** ID = Java-Key mit `-` statt `.`; `&`-Mnemonic → `.accesskey`; `%s`/`%d` →
    `{ $arg1 }`, `{ $arg2 }` … in Reihenfolge; `<a>…</a>`/`<a href="…">…</a>` bleiben als Link-Markup
-   (`pdfover_i18n::markup`, CLI: `to_plain`). Keine Unicode-Isolationszeichen um Platzhalter.
+   (`pida_i18n::markup`, CLI: `to_plain`). Keine Unicode-Isolationszeichen um Platzhalter.
 3. **Korrekturen an den PDF-Over-Texten** stehen als Tabellen im Konverter: B-09 (DE-Duplikat →
    `error.ConfigInitialization`), B-08 (EN-Hilfetexte `-kspass`/`-kskeypass` getauscht), B-07 (Hilfetext `-v`),
    Tippfehler „bittem un“, fehlende Keys je Sprache ergänzt; 29 von PDF-Over 4.4.x nicht referenzierte Keys
@@ -41,11 +41,11 @@
    Werte danach unverändert lesbar sind; sonst wird er verworfen (die Datei bleibt immer lesbar).
    `Settings::sanitize` ersetzt ungültige Werte (`logo_only_size_mm` NaN/±∞/≤ 0 → 23 mm); die Shell ruft
    es nach dem JSON-Rundlauf auf. Neue Enum-Werte erfordern eine neue `schema_version`.
-8. **Ordnernamen:** Windows `PDF-Over NG`, macOS `at.pdf-over-ng`, Linux `pdf-over-ng` (wie
-   `/etc/pdf-over-ng/policy.toml`); Logs unter `~/Library/Logs/at.pdf-over-ng` bzw. `$XDG_STATE_HOME`.
+8. **Ordnernamen:** Windows `PIDA`, macOS `at.pida`, Linux `pida` (wie
+   `/etc/pida/policy.toml`); Logs unter `~/Library/Logs/at.pida` bzw. `$XDG_STATE_HOME`.
    Die Tauri-Shell sollte ihren Identifier daran ausrichten.
-9. **Richtlinien** dateibasiert (`%ProgramData%\PDF-Over NG\policy.toml`, `/Library/Application
-   Support/at.pdf-over-ng/policy.toml`, `/etc/pdf-over-ng/policy.toml`); Registry und Managed Preferences
+9. **Richtlinien** dateibasiert (`%ProgramData%\PIDA\policy.toml`, `/Library/Application
+   Support/at.pida/policy.toml`, `/etc/pida/policy.toml`); Registry und Managed Preferences
    liest die Shell und übergibt sie per `Policy::from_toml`/`from_json`. Keine eigene Umgebungsvariable
    zum Umleiten; unter Windows kommt `%ProgramData%` aber aus der Prozessumgebung – manipulationsfest ist
    dort nur `HKLM\Software\Policies\…` (Shell). Ein vorgegebenes Profil gewinnt auch gegen CLI `-v`.

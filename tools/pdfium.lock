@@ -1,4 +1,4 @@
-# PDFium-Binaries für PDF-Over NG (ADR 0060 §1, Plan §2.1/§2.5)
+# PDFium-Binaries für PIDA (ADR 0060 §1, Plan §2.1/§2.5)
 #
 # Quelle:   https://github.com/bblanchon/pdfium-binaries/releases/tag/chromium%2F8100
 #           (PDFium 157.0.8100.0, veröffentlicht 12.10.2026; Bindings pdfium-render 0.9.4 = API pdfium_7881)

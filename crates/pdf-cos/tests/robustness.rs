@@ -3,7 +3,7 @@
 //!
 //! Jede öffentliche Auswertung von [`SourcePdf`] muss für beliebige Bytes ohne Panic und in
 //! begrenzter Zeit zurückkehren (Fehler sind erlaubt). Standardmäßig wenige Mutationen je Datei;
-//! `PDFOVER_FUZZ_ITERS=<n>` erhöht die Zahl für längere Läufe.
+//! `PIDA_FUZZ_ITERS=<n>` erhöht die Zahl für längere Läufe.
 
 mod common;
 
@@ -11,7 +11,7 @@ use std::io::Write as _;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
-use pdfover_pdf_cos::{CosError, Limits, Object, SourcePdf};
+use pida_pdf_cos::{CosError, Limits, Object, SourcePdf};
 
 /// xorshift64* – reproduzierbar, ohne Abhängigkeit.
 struct Rng(u64);
@@ -168,9 +168,9 @@ fn exercise(bytes: Vec<u8>, limits: &Limits) -> bool {
         }
     }
     if let Some(enc) = src.encryptor() {
-        let c = enc.encrypt((1, 0), b"NUR TEST", pdfover_pdf_cos::CryptTarget::String);
+        let c = enc.encrypt((1, 0), b"NUR TEST", pida_pdf_cos::CryptTarget::String);
         if let Ok(c) = c {
-            let _ = enc.decrypt((1, 0), &c, pdfover_pdf_cos::CryptTarget::String);
+            let _ = enc.decrypt((1, 0), &c, pida_pdf_cos::CryptTarget::String);
         }
     }
     true
@@ -181,10 +181,10 @@ fn fuzz_limits() -> Limits {
     Limits { max_decoded_stream: 64 * 1024 * 1024, ..Limits::default() }
 }
 
-/// Einzelne Datei untersuchen: `PDFOVER_FUZZ_FILE=<pfad>` (z. B. eine Eingabe aus `fuzz-failures`).
+/// Einzelne Datei untersuchen: `PIDA_FUZZ_FILE=<pfad>` (z. B. eine Eingabe aus `fuzz-failures`).
 #[test]
 fn replay_single_file() {
-    let Some(path) = std::env::var_os("PDFOVER_FUZZ_FILE") else { return };
+    let Some(path) = std::env::var_os("PIDA_FUZZ_FILE") else { return };
     let data = std::fs::read(&path).unwrap();
     let start = Instant::now();
     let opened = exercise(data, &fuzz_limits());
@@ -193,9 +193,8 @@ fn replay_single_file() {
 
 #[test]
 fn mutated_corpus_never_panics() {
-    let iters: usize = std::env::var("PDFOVER_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
-    let seed: u64 =
-        std::env::var("PDFOVER_FUZZ_SEED").ok().and_then(|v| v.parse().ok()).unwrap_or(0x005E_EDA1_1CE5_u64);
+    let iters: usize = std::env::var("PIDA_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
+    let seed: u64 = std::env::var("PIDA_FUZZ_SEED").ok().and_then(|v| v.parse().ok()).unwrap_or(0x005E_EDA1_1CE5_u64);
     let limits = fuzz_limits();
     let files = common::corpus();
     assert!(!files.is_empty());
@@ -214,7 +213,7 @@ fn mutated_corpus_never_panics() {
                         let mut rng = Rng(seed ^ (fi as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
                         for it in 0..iters {
                             let m = mutate(&mut rng, &data);
-                            if let Some(dir) = std::env::var_os("PDFOVER_FUZZ_TRACE") {
+                            if let Some(dir) = std::env::var_os("PIDA_FUZZ_TRACE") {
                                 // vor dem Lauf sichern: bricht der Prozess ab (Stack, Speicher),
                                 // bleibt die auslösende Eingabe erhalten
                                 let _ = std::fs::write(std::path::Path::new(&dir).join(format!("current-{t}.pdf")), &m);

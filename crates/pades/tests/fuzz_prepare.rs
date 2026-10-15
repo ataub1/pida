@@ -4,9 +4,9 @@
 //! [`HANG_LIMIT`] gilt als Hänger); Fehler sind erlaubt.
 //!
 //! Standard: 4 Mutationen je Datei (schnell). Langer Lauf in Release mit mehreren Threads:
-//! `PDFOVER_FUZZ_PREPARE_ITERS=3300 cargo test --release -p pdfover-pades --test fuzz_prepare -- --nocapture`
-//! (61 Dateien × 3300 ≈ 200 000 Mutationen). `PDFOVER_FUZZ_SEED=<u64>` ändert den Startwert,
-//! `PDFOVER_FUZZ_DUMP=<dir>` legt die Eingabe eines Funds ab, `PDFOVER_FUZZ_THREADS=<n>` setzt die
+//! `PIDA_FUZZ_PREPARE_ITERS=3300 cargo test --release -p pida-pades --test fuzz_prepare -- --nocapture`
+//! (61 Dateien × 3300 ≈ 200 000 Mutationen). `PIDA_FUZZ_SEED=<u64>` ändert den Startwert,
+//! `PIDA_FUZZ_DUMP=<dir>` legt die Eingabe eines Funds ab, `PIDA_FUZZ_THREADS=<n>` setzt die
 //! Anzahl der Threads.
 
 mod common;
@@ -16,10 +16,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use common::*;
-use pdfover_backend_keystore::LoadedKey;
-use pdfover_cades::RawSigner;
-use pdfover_pades::{PlanOptions, SignPlan, analyze, prepare, reject_open_error};
-use pdfover_pdf_cos::{Limits, SourcePdf};
+use pida_backend_keystore::LoadedKey;
+use pida_cades::RawSigner;
+use pida_pades::{PlanOptions, SignPlan, analyze, prepare, reject_open_error};
+use pida_pdf_cos::{Limits, SourcePdf};
 
 /// Ein einzelner Fall darf (Release) höchstens so lange dauern.
 const HANG_LIMIT: Duration = Duration::from_secs(30);
@@ -151,9 +151,9 @@ fn run_case(data: Vec<u8>, key: &LoadedKey) {
         }
     };
     let Ok(report) = analyze(&src) else { return };
-    let _ = pdfover_pades::empty_fields(&report);
+    let _ = pida_pades::empty_fields(&report);
     let chain = key.chain().clone();
-    let time = pdfover_pades::local_signing_time();
+    let time = pida_pades::local_signing_time();
     if let Ok(p) = prepare(&src, &SignPlan::invisible(time), Some(&chain)) {
         let _ = p.digest(key.algorithm().digest());
     }
@@ -169,7 +169,7 @@ fn run_case(data: Vec<u8>, key: &LoadedKey) {
 type Running = (Instant, String, Arc<Vec<u8>>);
 
 fn dump(data: &[u8], what: &str) {
-    if let Some(dir) = std::env::var_os("PDFOVER_FUZZ_DUMP") {
+    if let Some(dir) = std::env::var_os("PIDA_FUZZ_DUMP") {
         let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
         let _ = std::fs::write(std::path::PathBuf::from(dir).join(format!("{n}-{what}.pdf")), data);
     }
@@ -177,9 +177,9 @@ fn dump(data: &[u8], what: &str) {
 
 #[test]
 fn fuzz_open_analyze_prepare() {
-    let iters: usize = std::env::var("PDFOVER_FUZZ_PREPARE_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
-    let seed = std::env::var("PDFOVER_FUZZ_SEED").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0x0f0f_2026_1015);
-    let threads = std::env::var("PDFOVER_FUZZ_THREADS")
+    let iters: usize = std::env::var("PIDA_FUZZ_PREPARE_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
+    let seed = std::env::var("PIDA_FUZZ_SEED").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0x0f0f_2026_1015);
+    let threads = std::env::var("PIDA_FUZZ_THREADS")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or_else(|| std::thread::available_parallelism().map_or(2, |n| n.get()).min(8))
@@ -189,7 +189,7 @@ fn fuzz_open_analyze_prepare() {
     let files: Vec<(String, Vec<u8>)> = corpus().iter().map(|p| (rel(p), std::fs::read(p).unwrap())).collect();
     assert!(files.len() > 40, "Korpus unvollständig: {}", files.len());
     // Panics nicht auf stderr ausgeben (der Fund wird gesammelt und am Ende gemeldet)
-    let quiet = std::env::var_os("PDFOVER_FUZZ_VERBOSE").is_none();
+    let quiet = std::env::var_os("PIDA_FUZZ_VERBOSE").is_none();
     if quiet {
         std::panic::set_hook(Box::new(|_| {}));
     }

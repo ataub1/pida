@@ -2,16 +2,16 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfover_config::Paths;
-use pdfover_i18n::Lang;
-use pdfover_workflow::ExitCode;
+use pida_config::Paths;
+use pida_i18n::Lang;
+use pida_workflow::ExitCode;
 
 use crate::term::Terminal;
 use crate::text::tr;
 
 /// `profiles`: die 12 PDF-Over-Profil-IDs.
 pub fn profiles(term: &dyn Terminal, json: bool) -> ExitCode {
-    let ids = pdfover_core_api::tools::profile_ids();
+    let ids = pida_core_api::tools::profile_ids();
     if json {
         let v: Vec<serde_json::Value> =
             ids.iter().map(|(id, ok)| serde_json::json!({ "id": id, "available": ok })).collect();
@@ -27,7 +27,7 @@ pub fn profiles(term: &dyn Terminal, json: bool) -> ExitCode {
 /// `verify <datei>`: alle Signaturen mit dem eigenen Verifier prüfen. Exit 0 = alle gültig,
 /// 6 = mindestens eine ungültig, 3 = Datei nicht lesbar.
 pub fn verify(term: &dyn Terminal, lang: Lang, file: &Path, json: bool) -> ExitCode {
-    let checks = match pdfover_core_api::tools::verify_file(file) {
+    let checks = match pida_core_api::tools::verify_file(file) {
         Ok(c) => c,
         Err(e) => {
             term.info(&format!("{}: {e}", tr(lang, "error-MayNotBeAPDF", &[])));
@@ -56,7 +56,7 @@ pub fn verify(term: &dyn Terminal, lang: Lang, file: &Path, json: bool) -> ExitC
 
 /// `render-block --profile <ID> <datei.pdf|png>`.
 pub fn render_block(term: &dyn Terminal, lang: Lang, profile: &str, output: &Path) -> ExitCode {
-    let pdf = match pdfover_core_api::tools::block_pdf(profile) {
+    let pdf = match pida_core_api::tools::block_pdf(profile) {
         Ok(p) => p,
         Err(e) => {
             if e.code() == "sigblock-unknown-profile" {
@@ -69,7 +69,7 @@ pub fn render_block(term: &dyn Terminal, lang: Lang, profile: &str, output: &Pat
     };
     let png = output.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
     let bytes = if png {
-        match pdfover_core_api::tools::render_png(&pdf, 4.0, None) {
+        match pida_core_api::tools::render_png(&pdf, 4.0, None) {
             Ok(b) => b,
             Err(e) => {
                 term.info(&tr(lang, e.message_id(), &[("detail", e.to_string())]));
@@ -98,13 +98,13 @@ pub fn migrate(
     json: bool,
 ) -> ExitCode {
     let dir = from.or_else(Paths::legacy_dir);
-    let file = dir.as_deref().and_then(pdfover_config::migrate::find_legacy_config);
+    let file = dir.as_deref().and_then(pida_config::migrate::find_legacy_config);
     let Some(file) = file else {
         let shown = dir.map(|d| d.display().to_string()).unwrap_or_else(|| "~/.pdf-over".into());
         term.info(&tr(lang, "ng-cli-no-legacy", &[("path", shown)]));
         return ExitCode::Usage;
     };
-    let legacy = match pdfover_config::LegacyConfig::load(&file) {
+    let legacy = match pida_config::LegacyConfig::load(&file) {
         Ok(l) => l,
         Err(e) => {
             term.info(&e.localized(lang));
@@ -112,8 +112,8 @@ pub fn migrate(
         }
     };
     let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
-    let ctx = pdfover_config::MigrationContext { legacy_dir, system_language: lang, check_paths: true };
-    let result = pdfover_config::migrate(&legacy, &ctx);
+    let ctx = pida_config::MigrationContext { legacy_dir, system_language: lang, check_paths: true };
+    let result = pida_config::migrate(&legacy, &ctx);
     let messages: Vec<String> = result.report.messages.iter().map(|m| m.localized(lang)).collect();
     let mut written = None;
     if !dry_run {
@@ -124,9 +124,9 @@ pub fn migrate(
                 return ExitCode::General;
             }
         };
-        let store = pdfover_config::MemorySecretStore::default();
-        let opts = pdfover_config::ApplyOptions { store_secrets: false, ..pdfover_config::ApplyOptions::default() };
-        match pdfover_config::apply_migration(&result, &paths, &store, &opts) {
+        let store = pida_config::MemorySecretStore::default();
+        let opts = pida_config::ApplyOptions { store_secrets: false, ..pida_config::ApplyOptions::default() };
+        match pida_config::apply_migration(&result, &paths, &store, &opts) {
             Ok(a) => written = Some(a.settings_file),
             Err(e) => {
                 term.info(&e.localized(lang));

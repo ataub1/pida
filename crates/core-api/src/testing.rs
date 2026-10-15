@@ -1,16 +1,16 @@
 //! Test-Hilfen (Feature `testing`): eine Fake-PAdES-Engine, die statt eines PDF-Increments das CMS
 //! an den Originalinhalt hängt (`Inhalt ‖ CMS`). Signaturen sind echt (cades), nur die PDF-Struktur
-//! fehlt – damit lassen sich alle Abläufe des Kerns ohne `pdfover-pades` prüfen.
+//! fehlt – damit lassen sich alle Abläufe des Kerns ohne `pida-pades` prüfen.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
-use pdfover_cades::{AssembleOptions, CertChain, Digest, DigestAlg, Expect, ExpectedSigner, RawSignature, SignedAttrs};
-use pdfover_pades::{
+use pida_cades::{AssembleOptions, CertChain, Digest, DigestAlg, Expect, ExpectedSigner, RawSignature, SignedAttrs};
+use pida_pades::{
     AcceptanceClass, CheckContext, CheckReport, DocReport, ExcludedRange, Finding, FinishError, Invariant,
     InvariantViolation, OutputInfo, OutputTarget, PadesError, PreparedHandle, Reserve, SignPlan, XfaKind,
 };
-use pdfover_pdf_cos::SourcePdf;
+use pida_pdf_cos::SourcePdf;
 use time::OffsetDateTime;
 
 use crate::engine::{PadesEngine, PreparedDoc, SignedDoc};
@@ -181,7 +181,7 @@ impl PreparedDoc for FakePrepared {
         if cms.len() > self.reserve {
             return Err(FinishError::CmsTooLarge { needed: cms.len(), reserve: self.reserve });
         }
-        pdfover_cades::verify_detached(cms, &mut self.content.as_slice(), expect)?;
+        pida_cades::verify_detached(cms, &mut self.content.as_slice(), expect)?;
         Ok(Box::new(FakeSigned { bytes: [self.content.as_slice(), cms].concat(), fail_check: self.fail_check }))
     }
     fn finish_raw(
@@ -190,7 +190,7 @@ impl PreparedDoc for FakePrepared {
         signature: &RawSignature,
         chain: &CertChain,
     ) -> Result<Box<dyn SignedDoc>, FinishError> {
-        let cms = pdfover_cades::assemble(
+        let cms = pida_cades::assemble(
             attrs,
             signature,
             chain,
@@ -239,9 +239,9 @@ impl SignedDoc for FakeSigned {
 }
 
 /// Prüft eine von der Fake-Engine geschriebene Datei: CMS über den Originalinhalt.
-pub fn verify_fake_output(path: &std::path::Path, original: &[u8]) -> pdfover_cades::CmsReport {
+pub fn verify_fake_output(path: &std::path::Path, original: &[u8]) -> pida_cades::CmsReport {
     let bytes = std::fs::read(path).expect("Ausgabe lesbar");
     assert!(bytes.starts_with(original), "Original ist Präfix (I1)");
     let cms = &bytes[original.len()..];
-    pdfover_cades::verify_detached(cms, &mut &original[..], &Expect::default()).expect("CMS gültig")
+    pida_cades::verify_detached(cms, &mut &original[..], &Expect::default()).expect("CMS gültig")
 }

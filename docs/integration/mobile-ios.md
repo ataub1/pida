@@ -4,7 +4,7 @@ Stand: 15.10.2026, Welle Mobile, Paket **M-iOS** auf dem Fundament M0 (docs/inte
 Gemessen auf macOS 27 (arm64), Xcode 27.0 (27A266a), Swift 6.4, Rust 1.99, Tauri 2.12.4 / CLI 2.12.3,
 iOS-Simulator **iOS 27.0** (iPhone 17), PDFium chromium/8100.
 
-Ergebnis: Die App baut für den Simulator, startet (`pdfover-smoke: ok … pdfium=true`), nimmt Dokumente über
+Ergebnis: Die App baut für den Simulator, startet (`pida-smoke: ok … pdfium=true`), nimmt Dokumente über
 „Öffnen in“/Teilen (Kalt- und Warmstart) und die Dateiauswahl an, importiert PKCS#12 in die Sandbox, legt das
 Keystore-Passwort in der Keychain ab und signiert damit gültig (pyHanko: *VALID*). Ergebnis teilen, „Sichern
 unter …“ und „Öffnen“ (QuickLook) laufen nativ. FIDO2 ist ausgegraut mit Hinweis.
@@ -18,12 +18,12 @@ Angelegt mit `npm run tauri ios init -- --ci --skip-targets-install` und **versi
 
 | Punkt | Umsetzung |
 |---|---|
-| Bundle-ID | `at.pdf-over-ng` (`tauri.conf.json` `identifier`, `PRODUCT_BUNDLE_IDENTIFIER`); Anzeigename „PDF-Over NG“ |
+| Bundle-ID | `at.pida` (`tauri.conf.json` `identifier`, `PRODUCT_BUNDLE_IDENTIFIER`); Anzeigename „PIDA“ |
 | Mindest-iOS | **16.0** (Plan §5.1): `tauri.conf.json` `bundle.iOS.minimumSystemVersion`, `project.yml` `deploymentTarget`, `Podfile`; App-Binary `LC_BUILD_VERSION minos 16.0` (geprüft mit `vtool -show-build`). Abweichung zu M0 (17.0) siehe §3 |
 | Dokumenttypen | `CFBundleDocumentTypes`: `com.adobe.pdf`, Rolle `Viewer`, `LSHandlerRank` **`Alternate`** (nie Standard-App für PDF); Tauri ergänzt beim Bauen `CFBundleTypeExtensions: [pdf]` aus `bundle.fileAssociations` |
-| Öffnen am Ort | `LSSupportsOpeningDocumentsInPlace = YES` – iOS übergibt das Original als Security-Scoped URL, die App kopiert die **Bytes** in die Sandbox (§2.5). Zusammen mit `UIFileSharingEnabled = YES` erscheint `Documents` (signierte Dokumente) in der Dateien-App unter „Auf meinem iPhone › PDF-Over NG“ (Screenshots 05, 08) |
+| Öffnen am Ort | `LSSupportsOpeningDocumentsInPlace = YES` – iOS übergibt das Original als Security-Scoped URL, die App kopiert die **Bytes** in die Sandbox (§2.5). Zusammen mit `UIFileSharingEnabled = YES` erscheint `Documents` (signierte Dokumente) in der Dateien-App unter „Auf meinem iPhone › PIDA“ (Screenshots 05, 08) |
 | Exportkontrolle | `ITSAppUsesNonExemptEncryption = NO`: nur Standardverfahren (TLS, Signatur/Authentisierung) – **vom Auftraggeber zu bestätigen** (Exportkontroll-Einstufung) |
-| ATS | keine Ausnahmen (`NSAppTransportSecurity` fehlt bewusst): nur HTTPS, keine lokale BKU. Die WebView lädt die gebündelte Oberfläche (`tauri://`, `pdfover-render://`), nicht `devUrl` |
+| ATS | keine Ausnahmen (`NSAppTransportSecurity` fehlt bewusst): nur HTTPS, keine lokale BKU. Die WebView lädt die gebündelte Oberfläche (`tauri://`, `pida-render://`), nicht `devUrl` |
 | Face ID, Kamera, Fotos | keine Zweckangaben (`NSFaceIDUsageDescription` u. a.), weil nicht genutzt |
 | Share-Extension | keine (Plan: „Öffnen in“ reicht; die App erscheint im Teilen-Menü über die Dokumenttypen, Screenshot 02) |
 | Szenen | kein `UIApplicationSceneManifest`. iOS 27 führt die App trotzdem im Scene-Lebenszyklus aus (`KnownSceneSessions` im Container); tao 0.37 unterstützt beide Wege (App-Delegate bis iOS 26, Szenen ab iOS 27) |
@@ -33,13 +33,13 @@ Angelegt mit `npm run tauri ios init -- --ci --skip-targets-install` und **versi
 ### PDFium
 
 `project.yml` bettet `tools/pdfium/apple/PDFium.xcframework` (aus `tools/fetch-pdfium.sh --xcframework`) mit
-**Embed & Sign** ein, **ohne zu linken** (`link: false`): `pdfover-render` lädt
+**Embed & Sign** ein, **ohne zu linken** (`link: false`): `pida-render` lädt
 `<App>.app/Frameworks/pdfium.framework/pdfium` zur Laufzeit (`pdfium::mobile_dir`). Xcode wählt den Slice
 (`ios-arm64_x86_64-simulator` bzw. `ios-arm64`) und signiert ihn mit (Simulator: ad hoc). Bindung zur
 Laufzeit belegt die Startprüfung (`pdfium=true`) und die Seitenvorschau (Screenshot 03). Fehlt das
 xcframework, bricht der Xcode-Build ab – vorher `tools/fetch-pdfium.sh --xcframework` ausführen.
 
-## 2. Native Plugin-Seite (`apps/app/plugins/pdfover-mobile/ios`)
+## 2. Native Plugin-Seite (`apps/app/plugins/pida-mobile/ios`)
 
 Swift-Paket (Swift-Tools 5.3, Paket-Mindestversion iOS 14 für UTType/Dokument-Picker, App iOS 16), Dateien in
 `Sources/`. Die Methoden laufen auf der seriellen IPC-Warteschlange von Tauri; UIKit nur über
@@ -51,7 +51,7 @@ einem iCloud-Download). Fehler nur als kurzer Code (`invoke.reject(_, code:)`), 
 | `secureStoreGet/Set/Delete` | `SecureStore.swift`: `kSecClassGenericPassword`, Dienst `<Bundle-ID>.secrets`, Konto = Schlüssel der Rust-Seite, **`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`**, nicht synchronisiert. Setzen = `SecItemUpdate`, sonst `SecItemAdd`; Löschen eines fehlenden Eintrags ist kein Fehler | `keychain-locked`, `keychain-unavailable`, `keychain-error`, `keychain-bad-data` |
 | (Start) | Keychain-Einträge überleben das Löschen der App: Fehlt die Markierung in `UserDefaults` (erste Ausführung nach einer Installation), löscht das Plugin alle Einträge seines Dienstes. Außerdem legt es `Library/Application Support/<Bundle-ID>/data/keystores` (0700) an und nimmt den Ordner von iCloud-/Geräte-Sicherungen aus (`isExcludedFromBackup`, Review R-5) | – |
 | `shareFile` | `UIActivityViewController` mit der Datei-URL (nur Dateien in der Sandbox); `{}` sobald gezeigt; iPad: Popover mittig | `file-missing`, `no-view` |
-| `openFile` | **QuickLook** (`QLPreviewController`, Bearbeiten gesperrt – jede Änderung bräche die Signatur); darin auch Teilen/Drucken. Vertrag von M-Android eingeführt (`PdfoverMobile::open_file`, `ShellHooks::open_path` auf Mobile) | `file-missing`, `no-preview`, `no-view` |
+| `openFile` | **QuickLook** (`QLPreviewController`, Bearbeiten gesperrt – jede Änderung bräche die Signatur); darin auch Teilen/Drucken. Vertrag von M-Android eingeführt (`PidaMobile::open_file`, `ShellHooks::open_path` auf Mobile) | `file-missing`, `no-preview`, `no-view` |
 | `exportFile` | `UIDocumentPickerViewController(forExporting:asCopy: true)`; weicht `fileName` ab, zuerst eine benannte Kopie in `tmp/export-…`; Abbruch (auch Wegwischen) → `cancelled` | `file-missing`, `busy`, `no-view`, `io-error` |
 | `importFile` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy: true)`, `pdf` → `UTType.pdf`, `pkcs12` → `com.rsa.pkcs-12`/`.p12`/`.pfx`; Kopie nach `<destination>/<n>/<Name>`, iOS-Kopie in `tmp` danach gelöscht | `bad-args`, `bad-destination`, `busy`, `cancelled` |
 | `takePendingOpenDocuments` | `OpenedDocuments.swift` (§2.5) | `bad-destination` |
@@ -128,22 +128,22 @@ Bauen über einen Pfad ohne Leerzeichen (geprüft; mit eigenem Target-Ordner, da
 kann):
 
 ```sh
-ln -sfn "<worktree>" /tmp/pdfover-ng-ios
-cd /tmp/pdfover-ng-ios/apps/app && source ../../tools/env.sh
-export CARGO_TARGET_DIR=/tmp/pdfover-ng-ios/target-ios LANG=en_US.UTF-8
+ln -sfn "<worktree>" /tmp/pida-ios
+cd /tmp/pida-ios/apps/app && source ../../tools/env.sh
+export CARGO_TARGET_DIR=/tmp/pida-ios/target-ios LANG=en_US.UTF-8
 npx tauri ios build --target aarch64-sim --debug
-#  → src-tauri/gen/apple/build/arm64-sim/PDF-Over NG.app (Debug 224 MB: Binary 209 MB unoptimiert mit Debug-Infos, PDFium universal 14 MB)
+#  → src-tauri/gen/apple/build/arm64-sim/PIDA.app (Debug 224 MB: Binary 209 MB unoptimiert mit Debug-Infos, PDFium universal 14 MB)
 
-DEV=<UDID>; xcrun simctl boot $DEV; xcrun simctl install $DEV "src-tauri/gen/apple/build/arm64-sim/PDF-Over NG.app"
-SIMCTL_CHILD_PDFOVER_SMOKE=1 xcrun simctl launch $DEV at.pdf-over-ng
-xcrun simctl spawn $DEV log show --last 1m --predicate 'process == "PDF-Over NG"' | grep pdfover-smoke
+DEV=<UDID>; xcrun simctl boot $DEV; xcrun simctl install $DEV "src-tauri/gen/apple/build/arm64-sim/PIDA.app"
+SIMCTL_CHILD_PIDA_SMOKE=1 xcrun simctl launch $DEV at.pida
+xcrun simctl spawn $DEV log show --last 1m --predicate 'process == "PIDA"' | grep pida-smoke
 ```
 
 stdout/stderr leitet Tauri unter iOS in das System-Log um (`log show`), die App-Logdatei liegt im Container
-unter `Library/Application Support/at.pdf-over-ng/logs/`. Prüfungen: `cargo clippy --no-deps -p pdfover-app
--p tauri-plugin-pdfover-mobile --target aarch64-apple-ios{,-sim} -- -D warnings` (grün; der Build des
-Geräte-Ziels kompiliert dabei auch das Swift-Paket für `arm64-apple-ios`), `cargo test -p pdfover-app -p
-tauri-plugin-pdfover-mobile` (58 Tests grün), Swift-Paket ohne Warnungen der eigenen Quellen
+unter `Library/Application Support/at.pida/logs/`. Prüfungen: `cargo clippy --no-deps -p pida-app
+-p tauri-plugin-pida-mobile --target aarch64-apple-ios{,-sim} -- -D warnings` (grün; der Build des
+Geräte-Ziels kompiliert dabei auch das Swift-Paket für `arm64-apple-ios`), `cargo test -p pida-app -p
+tauri-plugin-pida-mobile` (58 Tests grün), Swift-Paket ohne Warnungen der eigenen Quellen
 (`swift build --triple arm64-apple-ios16.0[-simulator] --sdk …`).
 
 ## 5. Nachweise (15.10.2026, iPhone 17, iOS 27.0, Sprache de)
@@ -151,20 +151,20 @@ tauri-plugin-pdfover-mobile` (58 Tests grün), Swift-Paket ohne Warnungen der ei
 | Nr. | Prüfung | Ergebnis |
 |---|---|---|
 | I-01 | Simulator-Build | `** BUILD SUCCEEDED **`; `Frameworks/pdfium.framework` (universal x86_64+arm64, ad hoc signiert), App und PDFium `minos 16.0` |
-| I-02 | Startprüfung `PDFOVER_SMOKE=1` | `pdfover-smoke: ok step=open pdfium=true webview_ms=913 core_ms=914` (vorher 660 ms warm), Prozessende ohne Absturzbericht (vor dem Fix in `smoke.rs`: SIGABRT) |
+| I-02 | Startprüfung `PIDA_SMOKE=1` | `pida-smoke: ok step=open pdfium=true webview_ms=913 core_ms=914` (vorher 660 ms warm), Prozessende ohne Absturzbericht (vor dem Fix in `smoke.rs`: SIGABRT) |
 | I-03 | Startbildschirm | Screenshot 01 |
-| I-04 | „Öffnen in“ **Kaltstart** (App beendet, Vorschau › Teilen › PDF-Over NG) | Log `Dokumente eingegangen count=1`, Positionieren mit gerenderter Seite; Lieferung über den Hook `scene:willConnectToSession:options:` (tao meldet hier nichts) |
+| I-04 | „Öffnen in“ **Kaltstart** (App beendet, Vorschau › Teilen › PIDA) | Log `Dokumente eingegangen count=1`, Positionieren mit gerenderter Seite; Lieferung über den Hook `scene:willConnectToSession:options:` (tao meldet hier nichts) |
 | I-05 | „Öffnen in“ **laufende App** | Screenshot 02; genau ein Dokument (`inbox/2/Testdokument.pdf`), kein Duplikat |
-| I-06 | Dateiauswahl PDF/PKCS#12 | Dokument-Picker filtert (p12 bzw. PDF ausgegraut), Ordner „PDF-Over NG“ sichtbar (Screenshot 05) |
+| I-06 | Dateiauswahl PDF/PKCS#12 | Dokument-Picker filtert (p12 bzw. PDF ausgegraut), Ordner „PIDA“ sichtbar (Screenshot 05) |
 | I-07 | Positionieren per Touch | Block folgt dem Finger, steht darüber; Felder 38 mm / 249 mm (Screenshot 03) |
 | I-08 | Signiermittel-Auswahl | ID Austria mit „FIDO2 nicht verfügbar“ (durchgestrichen) und Hinweis, Keystore wählbar (Screenshot 04) |
 | I-09 | PKCS#12-Import `test-rsa2048.p12`, Passwort `test`, „sicher speichern“ | `ng-keystore-imported`, Datei 0600 in `data/keystores/`, Einstellungen `password_storage = "keychain"` (Screenshot 06) |
 | I-10 | Keystore-Signatur in der App | ohne Passwortabfrage (Keychain), auch **nach Neustart des Prozesses**; drei Läufe, pyHanko `--trust test-rsa2048.crt.pem`: *trusted, cryptographically sound, covers the entire file, VALID*; `qpdf --check` ohne Fehler |
 | I-11 | Ergebnis teilen | Share-Sheet mit `Testdokument_signed.pdf` (Screenshot 07) |
-| I-12 | „Sichern unter …“ | Export-Picker mit Ziel „PDF-Over NG“ (Screenshot 08); Abbrechen durch Wegwischen → keine Fehlermeldung |
+| I-12 | „Sichern unter …“ | Export-Picker mit Ziel „PIDA“ (Screenshot 08); Abbrechen durch Wegwischen → keine Fehlermeldung |
 | I-13 | „Öffnen“ | QuickLook-Vorschau mit Signaturblock (Screenshot 09); vor `openFile`: Hinweis „Konnte signiertes Dokument nicht öffnen“ |
 | I-14 | Lebenszyklus | Home-Taste → `Lebenszyklus suspended=true`, zurück → `suspended=false`, gleicher Prozess, Zustand erhalten |
-| I-15 | Dateien-App | „Auf meinem iPhone › PDF-Over NG“ zeigt `Testdokument_signed.pdf` |
+| I-15 | Dateien-App | „Auf meinem iPhone › PIDA“ zeigt `Testdokument_signed.pdf` |
 
 Screenshots: `docs/integration/screenshots/ios/01-start.jpg` … `11-ueberschreiben-nur-dateiname.jpg` (verkleinert; 01, 03–11
 neu aus dem Review, mobile.md §10; 02 aus M-iOS).
@@ -212,7 +212,7 @@ kein Request A-Trust erreichen kann.
    registrieren.
 7. `CFBundleShortVersionString`/`CFBundleVersion` setzt die CLI auf 1.0.0, die App meldet 0.1.0 –
    `version` in `tauri.conf.json` bzw. `bundle.iOS.bundleVersion` festlegen.
-8. **Behoben (R-10).** Doku-Tabellen in `apps/app/plugins/pdfover-mobile/src/lib.rs` und docs/integration/mobile.md §2 nennen
+8. **Behoben (R-10).** Doku-Tabellen in `apps/app/plugins/pida-mobile/src/lib.rs` und docs/integration/mobile.md §2 nennen
    für die Keychain noch `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`; umgesetzt ist (Vorgabe M-iOS)
    `…WhenUnlockedThisDeviceOnly` – der Kern liest Secrets nur im Vordergrund. Ebenso ist dort `openFile`
    für iOS noch als fehlend beschrieben.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PDF-Over NG – Test-Orakel (pades, Welle 2): pyHanko-Validierung als JSON, mehrere Dateien.
+"""PIDA – Test-Orakel (pades, Welle 2): pyHanko-Validierung als JSON, mehrere Dateien.
 
 Aufruf:  python3 -I pyhanko_report.py --trust <pem> [--trust <pem> ...] <datei.pdf> [...]
 

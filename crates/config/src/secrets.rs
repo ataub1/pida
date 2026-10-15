@@ -8,7 +8,7 @@
 //!   und keine `keyring`-Abhängigkeit: [`KeyringSecretStore`] meldet sich dort als nicht verfügbar,
 //!   [`platform_secret_store`] liefert den Platzhalter [`MobileSecretStorePlaceholder`] (nur RAM).
 //! - [`ShellSecretStore`]: Mobile – der sichere Speicher der Shell ([`SecureStorage`], iOS Keychain bzw.
-//!   Android Keystore über das Tauri-Plugin `pdfover-mobile`); die Mobile-Shell setzt ihn über
+//!   Android Keystore über das Tauri-Plugin `pida-mobile`); die Mobile-Shell setzt ihn über
 //!   `CoreOptions::secret_store` ein (Plan §3.1, §5.1). Ohne native Umsetzung: Rückfall auf RAM.
 //! - [`MemorySecretStore`]: Speicherart „Temporär“, Rückfall ohne Schlüsselbund, Tests.
 //! - [`platform_secret_store`]: Schlüsselbund, wenn verfügbar, sonst RAM
@@ -25,7 +25,7 @@ use zeroize::Zeroizing;
 use crate::Result;
 
 /// Dienstname im Schlüsselbund.
-pub const KEYRING_SERVICE: &str = "PDF-Over NG";
+pub const KEYRING_SERVICE: &str = "PIDA";
 
 /// Kennung eines Secrets.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -72,7 +72,7 @@ impl SecretId {
         SecretId::ProxyPassword { host: host.trim().to_ascii_lowercase(), user: user.to_owned() }
     }
 
-    /// Schlüssel im Schlüsselbund (Dienst „PDF-Over NG“, Konto = diese Kennung). Eindeutig: im Alias
+    /// Schlüssel im Schlüsselbund (Dienst „PIDA“, Konto = diese Kennung). Eindeutig: im Alias
     /// sind `%` und `:`, in Benutzer und Host `%` und `@` prozentkodiert, damit z. B. Pfad `/a:b` +
     /// Alias `c` nicht mit Pfad `/a` + Alias `b:c` zusammenfällt.
     pub fn account(&self) -> String {
@@ -124,7 +124,7 @@ pub struct KeyringSecretStore {
 }
 
 impl KeyringSecretStore {
-    /// Neuer Store mit Dienstnamen (Default „PDF-Over NG“, [`KEYRING_SERVICE`]).
+    /// Neuer Store mit Dienstnamen (Default „PIDA“, [`KEYRING_SERVICE`]).
     pub fn new(service: impl Into<String>) -> Self {
         Self { service: service.into() }
     }
@@ -249,7 +249,7 @@ impl SecretStore for MobileSecretStorePlaceholder {
 }
 
 /// Sicherer Speicher, den die **Shell** bereitstellt (Mobile: iOS Keychain bzw. Android Keystore über
-/// das Tauri-Plugin `pdfover-mobile`, Befehle `secure_store_get/set/delete`). `pdfover-config` kennt
+/// das Tauri-Plugin `pida-mobile`, Befehle `secure_store_get/set/delete`). `pida-config` kennt
 /// das Plugin nicht; die Shell implementiert diese Schnittstelle und setzt [`ShellSecretStore`] über
 /// `CoreOptions::secret_store` ein (keyring bleibt Desktop-only).
 ///
@@ -562,7 +562,7 @@ mod tests {
         assert_eq!(store.get(&id).unwrap(), None);
     }
 
-    /// Sicherer Speicher der Shell im Test (wie das Plugin `pdfover-mobile`): Schlüssel → Wert.
+    /// Sicherer Speicher der Shell im Test (wie das Plugin `pida-mobile`): Schlüssel → Wert.
     #[derive(Debug, Default)]
     struct FakeStorage {
         map: Mutex<HashMap<String, String>>,
@@ -603,7 +603,7 @@ mod tests {
         store.set(&id, "test-only").unwrap();
         assert_eq!(store.get(&id).unwrap().as_deref().map(String::as_str), Some("test-only"));
         let key = store.key(&id);
-        assert_eq!(key, "PDF-Over NG/keystore-store:/sandbox/data/keystores/test.p12");
+        assert_eq!(key, "PIDA/keystore-store:/sandbox/data/keystores/test.p12");
         assert_eq!(storage.map.lock().unwrap().get(&key).map(String::as_str), Some("test-only"));
         assert!(!format!("{store:?}").contains("test-only"));
         store.delete(&id).unwrap();
@@ -638,20 +638,20 @@ mod tests {
         assert!(!format!("{:?}", platform_secret_store()).is_empty());
     }
 
-    /// Echter Schlüsselbund nur auf ausdrücklichen Wunsch (`PDFOVER_TEST_KEYCHAIN=1`), mit eigenem
+    /// Echter Schlüsselbund nur auf ausdrücklichen Wunsch (`PIDA_TEST_KEYCHAIN=1`), mit eigenem
     /// Testdienst und Testwert; räumt immer auf.
     #[test]
     fn keyring_roundtrip_opt_in() {
-        if std::env::var_os("PDFOVER_TEST_KEYCHAIN").is_none() {
-            eprintln!("übersprungen: PDFOVER_TEST_KEYCHAIN nicht gesetzt");
+        if std::env::var_os("PIDA_TEST_KEYCHAIN").is_none() {
+            eprintln!("übersprungen: PIDA_TEST_KEYCHAIN nicht gesetzt");
             return;
         }
-        let store = KeyringSecretStore::new("PDF-Over NG Test");
+        let store = KeyringSecretStore::new("PIDA Test");
         if !store.is_available() {
             eprintln!("übersprungen: kein Schlüsselbund");
             return;
         }
-        let id = SecretId::proxy("test.invalid", &format!("pdfover-test-{}", std::process::id()));
+        let id = SecretId::proxy("test.invalid", &format!("pida-test-{}", std::process::id()));
         store.set(&id, "nur-test").unwrap();
         let got = store.get(&id);
         store.delete(&id).unwrap();

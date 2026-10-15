@@ -3,8 +3,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-use pdfover_pdf_cos::{PageInfo, Rect, Rotation, SigField};
-use pdfover_render::{ForcedColorOptions, Renderer, RgbaImage};
+use pida_pdf_cos::{PageInfo, Rect, Rotation, SigField};
+use pida_render::{ForcedColorOptions, Renderer, RgbaImage};
 
 use crate::coords::{Point, clamp_top_left};
 use crate::{CompatMode, MARGIN_H, MARGIN_V, PlacementError, Result};
@@ -740,7 +740,7 @@ enum RotatedScan {
 ///   Bereichs, ist sie selbst das Ergebnis ([`RotatedScan::Fixed`]); ebenso bei Start ≤ 0.
 /// - Sonst sucht PDF-AS im sichtbaren Raum ab der Startzeile aufwärts. Bei 90°/270° beginnt der
 ///   eigene Scan dann mit angepasster Fußzeile in derselben Zeile ([`RotatedScan::Scan`]; das
-///   Bild von `pdfover-render` hat `(int) w` Zeilen und bildet die Seite 1:1 ab, KR-F10 seit
+///   Bild von `pida-render` hat `(int) w` Zeilen und bildet die Seite 1:1 ab, KR-F10 seit
 ///   Welle 3). PDF-AS sieht dort nur die linken
 ///   `W` Spalten der sichtbaren Seite – Inhalt weiter rechts zählt hier mit (inhaltsabhängiger Rest).
 /// - 180° mit vollständig gelöschter Zeile: Bild = sichtbare Seite, normaler Scan (`None`).

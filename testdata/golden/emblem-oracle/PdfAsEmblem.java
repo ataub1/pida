@@ -1,4 +1,4 @@
-// PDF-Over NG – Test-Orakel (nur Tests, nie im Produkt): bettet Bildmarken genau wie PDF-AS 4.4.2
+// PIDA – Test-Orakel (nur Tests, nie im Produkt): bettet Bildmarken genau wie PDF-AS 4.4.2
 // ein (PDFAsVisualSignatureBuilder, Profil ohne PDF/A: ImageIO.read → removeAlphaChannel, falls
 // eine Transparenz ohne Alpha-Raster vorliegt → PDFBox LosslessFactory.createFromImage) und gibt
 // je Datei Farbraum, Bits, Samples und SMask aus. Aufruf durch

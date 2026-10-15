@@ -9,15 +9,15 @@
 //!
 //! Fehlen openssl oder pyHanko, wird der Test übersprungen (Meldung auf stderr). Das Ergebnis je
 //! Datei steht in `$CARGO_TARGET_TMPDIR/pdf-incremental-RESULTS.md`; mit
-//! `PDFOVER_UPDATE_RESULTS=1` wird `testdata/pdf-incremental/RESULTS.md` aktualisiert.
+//! `PIDA_UPDATE_RESULTS=1` wird `testdata/pdf-incremental/RESULTS.md` aktualisiert.
 
 mod common;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use pdfover_pdf_cos::{CosError, Limits, SourcePdf, XrefKind};
-use pdfover_pdf_incremental::{IncrementOptions, RESERVE_MIN_MODEL_A, XrefFormat};
+use pida_pdf_cos::{CosError, Limits, SourcePdf, XrefKind};
+use pida_pdf_incremental::{IncrementOptions, RESERVE_MIN_MODEL_A, XrefFormat};
 
 struct Signer {
     openssl: PathBuf,
@@ -336,8 +336,8 @@ Dateilänge, `<`/`>` an den Grenzen).\n";
 fn render(rows: &[Row], versions: &str) -> String {
     let mut s = String::new();
     s.push_str("# pdf-incremental – Ergebnisse Ende-zu-Ende (Paket A)\n\n");
-    s.push_str("Erzeugt von `cargo test -p pdfover-pdf-incremental --test e2e_sign` ");
-    s.push_str("(mit `PDFOVER_UPDATE_RESULTS=1` wird diese Datei aktualisiert).\n\n");
+    s.push_str("Erzeugt von `cargo test -p pida-pdf-incremental --test e2e_sign` ");
+    s.push_str("(mit `PIDA_UPDATE_RESULTS=1` wird diese Datei aktualisiert).\n\n");
     s.push_str("Ablauf je Datei: `SourcePdf::open` → Increment mit Signaturdictionary (Reserve 8192 Byte) und ");
     s.push_str("leerem, unsichtbarem Widget `PDF-AS Signatur<n>` auf Seite 1 (`/F 132`, `/Rect [0 0 0 0]`) → ");
     s.push_str("ByteRange-Daten mit `openssl cms -sign -binary -outform DER -nosmimecap -md sha256` und ");
@@ -384,9 +384,9 @@ fn render(rows: &[Row], versions: &str) -> String {
     s
 }
 
-/// Arbeitsverzeichnis: temporär, oder `PDFOVER_E2E_OUT` (Ausgaben bleiben zur Analyse erhalten).
+/// Arbeitsverzeichnis: temporär, oder `PIDA_E2E_OUT` (Ausgaben bleiben zur Analyse erhalten).
 fn workdir() -> (Option<tempfile::TempDir>, PathBuf) {
-    match std::env::var_os("PDFOVER_E2E_OUT") {
+    match std::env::var_os("PIDA_E2E_OUT") {
         Some(p) => {
             let p = PathBuf::from(p);
             std::fs::create_dir_all(&p).unwrap();
@@ -438,7 +438,7 @@ fn sign_with_openssl_and_validate_with_pyhanko() {
     let md = render(&rows, &tool_versions(&signer, &python, qpdf.as_deref()));
     let report = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("pdf-incremental-RESULTS.md");
     std::fs::write(&report, &md).unwrap();
-    if std::env::var_os("PDFOVER_UPDATE_RESULTS").is_some_and(|v| v == "1") {
+    if std::env::var_os("PIDA_UPDATE_RESULTS").is_some_and(|v| v == "1") {
         std::fs::write(common::testdata().join("pdf-incremental/RESULTS.md"), &md).unwrap();
     }
     let failed: Vec<_> =
@@ -551,7 +551,7 @@ fn edge_case_inputs_validate() {
         assert!(s.intact && s.valid, "{what}: {s:?}");
         assert_eq!(s.coverage.as_deref(), Some("ENTIRE_FILE"), "{what}: {s:?}");
         let re = SourcePdf::open(out, &Limits::default()).unwrap();
-        assert_eq!(re.tail().kind, pdfover_pdf_cos::TailKind::Clean, "{what}");
+        assert_eq!(re.tail().kind, pida_pdf_cos::TailKind::Clean, "{what}");
         if let Some(q) = &qpdf {
             let before = common::qpdf_check(q, &{
                 let p = work.path().join(format!("edge{i}-in.pdf"));

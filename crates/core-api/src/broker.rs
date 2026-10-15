@@ -14,7 +14,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendEvent, FormAnswer, FormContext, InteractionBroker, InteractionError, NativeForm, Notice, NoticeAnswer,
     Progress, SecretPrompt, WindowHandle,
 };
@@ -360,7 +360,7 @@ impl InteractionBroker for CoreBroker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfover_backend_api::{NoticeButtons, NoticeCode, NoticeKind, SecretKind};
+    use pida_backend_api::{NoticeButtons, NoticeCode, NoticeKind, SecretKind};
     use std::sync::atomic::AtomicUsize;
 
     #[derive(Default)]

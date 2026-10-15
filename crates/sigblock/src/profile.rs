@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
-use pdfover_java_properties::Properties;
+use pida_java_properties::Properties;
 
 use crate::emblem::Emblem;
 use crate::fonts::FontSpec;
@@ -302,7 +302,7 @@ pub struct Profile {
     pub id: String,
     /// `isvisible` (und `table.main` existiert).
     pub visible: bool,
-    /// `pos` (Positionsstring, Parsing in `pdfover-placement`).
+    /// `pos` (Positionsstring, Parsing in `pida-placement`).
     pub pos: Option<String>,
     /// Tabellen nach Name.
     pub tables: BTreeMap<String, Table>,
@@ -1116,7 +1116,7 @@ impl ProfileStore {
     }
 
     /// Lädt `<cfg_dir>/config.properties` mit Includes (Wildcards, nicht rekursiv) – für eigene
-    /// Profile aus `~/.pdf-over/cfg` (Erkennung per Prüfsumme in `pdfover-config`). Ressourcen kommen
+    /// Profile aus `~/.pdf-over/cfg` (Erkennung per Prüfsumme in `pida-config`). Ressourcen kommen
     /// aus dem Elternordner von `cfg_dir` ([`DirResources`]).
     pub fn load_dir(cfg_dir: &Path) -> Result<ProfileStore> {
         let mut st = LoadState::default();

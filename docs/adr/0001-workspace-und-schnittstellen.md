@@ -9,9 +9,9 @@
 ## 1. Entscheidung in Kürze
 
 - Ein Cargo-Workspace (Edition 2024, `resolver = "3"`, Lizenz `EUPL-1.2`, `rust-version = "1.99"`) mit 18
-  Bibliotheks-Crates unter `crates/` und der CLI unter `apps/cli` (Binary `pdfover-cli`). Die Tauri-2-Shell
+  Bibliotheks-Crates unter `crates/` und der CLI unter `apps/cli` (Binary `pida-cli`). Die Tauri-2-Shell
   `apps/app` legt erst die Integration an (in `Cargo.toml` als Kommentar vorgesehen).
-- Alle Crates heißen `pdfover-<name>`. Der Abhängigkeitsgraph ist azyklisch (§3).
+- Alle Crates heißen `pida-<name>`. Der Abhängigkeitsgraph ist azyklisch (§3).
 - Die öffentlichen APIs aller Crates sind **jetzt** als Typen, Traits und Signaturen festgelegt und
   kompilieren (`cargo check --workspace --all-targets`). Bodies sind `todo!()`, außer den in §5.1 genannten
   Querschnittsteilen, die bereits implementiert und getestet sind.
@@ -28,7 +28,7 @@ Formulare nativ befüllen, natives FIDO2 auf dem Desktop) freigegeben. Damit gil
 
 | Thema | Plan | jetzt verbindlich |
 |---|---|---|
-| ID Austria Standard | B (Browser-Control) | **A** (`pdfover-backend-atrust`, `BackendId::AtrustNative`, `Interaction::NativeForms`) |
+| ID Austria Standard | B (Browser-Control) | **A** (`pida-backend-atrust`, `BackendId::AtrustNative`, `Interaction::NativeForms`) |
 | Szenario B/B-Relay | Standard bzw. Rückfall | **nicht in v1**; Enum-Varianten (`BackendId::AtrustBrowser`, `Interaction::EmbeddedWeb/SystemBrowser`, `Capture`, `ServerNeed::DataUrlRelay`) und Broker-Methoden `embedded_web`/`system_browser` (Default `Unsupported`) bleiben reserviert |
 | CSC (C), EUDI-Wallet (D) | Zielpfad bzw. später | im Capability-Modell vorgesehen (`BackendId::Csc`, `BackendId::Wallet`, `ServerNeed::TokenProxy`, `Interaction::ExternalApp`), **keine Implementierung** |
 | `atrust-native` als Feature | nur mit Freigabe | reguläres Crate, immer gebaut |
@@ -37,7 +37,7 @@ Formulare nativ befüllen, natives FIDO2 auf dem Desktop) freigegeben. Damit gil
 | ID-Austria-Passwort | nie persistiert | **nie persistiert** – strukturell: `config::SecretId` hat keine Variante dafür |
 | Mobile 1.0 | Kernumfang | Kernumfang (Plan §5.2), ID Austria über Szenario A mit App-Bestätigung/SMS |
 
-Weitere Defaults: Lizenz EUPL-1.2, Arbeitstitel „PDF-Over NG“.
+Weitere Defaults: Lizenz EUPL-1.2, Arbeitstitel „PDF-Over NG“, seit 15.10.2026 **PIDA** ([ADR 0002](0002-name-pida.md)).
 
 ## 3. Crate-Graph
 
@@ -68,7 +68,7 @@ flowchart BT
   subgraph Integration
     WF["workflow"]
     API["core-api"]
-    CLI["apps/cli (pdfover-cli)"]
+    CLI["apps/cli (pida-cli)"]
     APP["apps/app (Tauri 2, später)"]
   end
 
@@ -128,25 +128,25 @@ die konkrete Backends kennt; `workflow` arbeitet nur gegen `backend-api`.
 
 | Crate | Verantwortung (Spezifikation) |
 |---|---|
-| `pdfover-java-properties` | bit-kompatibles `java.util.Properties` load/store (analyse/05 §1.3, analyse/04 §2.1) – **implementiert** |
-| `pdfover-i18n` | Fluent-Kataloge de/en, `t!`, Konverter `messages*.properties` → FTL (Plan §7.5, analyse/01 §6) |
-| `pdfover-pdf-cos` | lopdf-Fassade: `SourcePdf`, Revisionen, xref-Art, Security-Handler, Rechte, `PageInfo`, `SigField`, `ImageInvocation`, `Limits` (Plan §6.1, §6.3) |
-| `pdfover-pdf-incremental` | Append-only-Writer: `IncrementBuilder`, `Increment`, `ByteRange`, `patch_byte_range`, `embed_contents` (Plan §6.2, analyse/03 §4.1–§4.2) |
-| `pdfover-cades` | `Certificate`, `CertChain`, `DigestAlg`, `SignatureAlg`, `SignedAttrsBuilder` (`PdfasCompat`/`PadesBB`), `assemble`, `verify_detached`, `RawSigner` (Plan §6.10, analyse/03 §5) |
-| `pdfover-sigblock` | Profil-IR, `ProfileStore`, Ausdrücke, Fonts, Emblem, `layout`, `Appearance::build` (Plan §6.5, analyse/04 §2–§3, §7) |
-| `pdfover-placement` | `TablePos`, `Placement`, `resolve_width`/`resolve_position`/`auto_place`, `widget_rect`, QR-Platzhalter, leere Felder, Koordinatenräume (Plan §6.7–§6.8, analyse/04 §4–§5) |
-| `pdfover-render` | `Renderer`/`RenderBackend`, `PdfiumBackend` (Feature `pdfium`, Default; Abhängige binden ohne Default-Features, §8.1), `RgbaImage`, Forced-Color-Raster, Bildobjekte (Plan §6.6–§6.8) |
-| `pdfover-backend-api` | `SignatureBackend`, `BackendSession`, `Capabilities`, `SignJob`/`SignResult`, `DocumentSource`, `InteractionBroker` mit allen Dialogtypen, `BackendError`, `CancelToken` (Plan §3.3–§3.4, analyse/01 §4.6, analyse/02 §3) |
-| `pdfover-sl12` | SL-1.2-XML (InfoboxRead, CreateCMSSignature detached mit ExcludedByteRange, NullOperation), Antworten, HTTP-Bindings (analyse/02 §2) |
-| `pdfover-net` | `HttpClient` je Sitzung (Cookies, keine Auto-Redirects), Proxy, rustls+ring, `parse_refresh`, `tcp_probe` (analyse/02 §3.2–§3.4, §6) |
-| `pdfover-backend-atrust` | Szenario A: Seitenklassifikation (8 Blöcke), Long-Poll, Loop-Guard, Selektor-Datei, Validierung, `Fido2Provider` (analyse/02 §3) |
-| `pdfover-backend-localbku` | lokale BKU 127.0.0.1:3495, Probe, NullOperation, Upload/Base64 (analyse/02 §4) |
-| `pdfover-backend-keystore` | PKCS#12 (Modell A), JKS/JCEKS-Erkennung, `PasswordCache` (none/memory/Schlüsselbund) (Plan §4.9, analyse/02 §5) |
-| `pdfover-config` | `Settings` (TOML, versioniert), `LegacyConfig` (33 Keys, 31 migriert), `migrate`, `Overlay`/`Effective`, `Policy`, `Paths`, `SecretStore` (Plan §7.1–§7.4, analyse/05 §1) |
-| `pdfover-pades` | `analyze` (K1–K5), `SignPlan`, `prepare` → `Prepared`, `finish_cms`/`finish_raw`, `SignedPdf::self_check` (I1–I6), `write_atomically` (Plan §3.6, §6) |
-| `pdfover-workflow` | reiner Reducer `reduce(State, Event, &Context) -> Transition{State, Vec<Effect>}`, `Queue`, Ausgaberegeln, `ExitCode` (Plan §3.5, analyse/01 §3) |
-| `pdfover-core-api` | `Core::{new, dispatch, subscribe, view, page_tile, block_preview}`, serde-Typen `ViewState`/`UiEvent` für die Tauri-Bridge |
-| `pdfover-cli` | clap-Definition aller PDF-Over-Argumente inkl. Quirks (unbekanntes Token = Datei, zweiphasiges `-c`) – Parser **implementiert**, Ausführung `todo!()` |
+| `pida-java-properties` | bit-kompatibles `java.util.Properties` load/store (analyse/05 §1.3, analyse/04 §2.1) – **implementiert** |
+| `pida-i18n` | Fluent-Kataloge de/en, `t!`, Konverter `messages*.properties` → FTL (Plan §7.5, analyse/01 §6) |
+| `pida-pdf-cos` | lopdf-Fassade: `SourcePdf`, Revisionen, xref-Art, Security-Handler, Rechte, `PageInfo`, `SigField`, `ImageInvocation`, `Limits` (Plan §6.1, §6.3) |
+| `pida-pdf-incremental` | Append-only-Writer: `IncrementBuilder`, `Increment`, `ByteRange`, `patch_byte_range`, `embed_contents` (Plan §6.2, analyse/03 §4.1–§4.2) |
+| `pida-cades` | `Certificate`, `CertChain`, `DigestAlg`, `SignatureAlg`, `SignedAttrsBuilder` (`PdfasCompat`/`PadesBB`), `assemble`, `verify_detached`, `RawSigner` (Plan §6.10, analyse/03 §5) |
+| `pida-sigblock` | Profil-IR, `ProfileStore`, Ausdrücke, Fonts, Emblem, `layout`, `Appearance::build` (Plan §6.5, analyse/04 §2–§3, §7) |
+| `pida-placement` | `TablePos`, `Placement`, `resolve_width`/`resolve_position`/`auto_place`, `widget_rect`, QR-Platzhalter, leere Felder, Koordinatenräume (Plan §6.7–§6.8, analyse/04 §4–§5) |
+| `pida-render` | `Renderer`/`RenderBackend`, `PdfiumBackend` (Feature `pdfium`, Default; Abhängige binden ohne Default-Features, §8.1), `RgbaImage`, Forced-Color-Raster, Bildobjekte (Plan §6.6–§6.8) |
+| `pida-backend-api` | `SignatureBackend`, `BackendSession`, `Capabilities`, `SignJob`/`SignResult`, `DocumentSource`, `InteractionBroker` mit allen Dialogtypen, `BackendError`, `CancelToken` (Plan §3.3–§3.4, analyse/01 §4.6, analyse/02 §3) |
+| `pida-sl12` | SL-1.2-XML (InfoboxRead, CreateCMSSignature detached mit ExcludedByteRange, NullOperation), Antworten, HTTP-Bindings (analyse/02 §2) |
+| `pida-net` | `HttpClient` je Sitzung (Cookies, keine Auto-Redirects), Proxy, rustls+ring, `parse_refresh`, `tcp_probe` (analyse/02 §3.2–§3.4, §6) |
+| `pida-backend-atrust` | Szenario A: Seitenklassifikation (8 Blöcke), Long-Poll, Loop-Guard, Selektor-Datei, Validierung, `Fido2Provider` (analyse/02 §3) |
+| `pida-backend-localbku` | lokale BKU 127.0.0.1:3495, Probe, NullOperation, Upload/Base64 (analyse/02 §4) |
+| `pida-backend-keystore` | PKCS#12 (Modell A), JKS/JCEKS-Erkennung, `PasswordCache` (none/memory/Schlüsselbund) (Plan §4.9, analyse/02 §5) |
+| `pida-config` | `Settings` (TOML, versioniert), `LegacyConfig` (33 Keys, 31 migriert), `migrate`, `Overlay`/`Effective`, `Policy`, `Paths`, `SecretStore` (Plan §7.1–§7.4, analyse/05 §1) |
+| `pida-pades` | `analyze` (K1–K5), `SignPlan`, `prepare` → `Prepared`, `finish_cms`/`finish_raw`, `SignedPdf::self_check` (I1–I6), `write_atomically` (Plan §3.6, §6) |
+| `pida-workflow` | reiner Reducer `reduce(State, Event, &Context) -> Transition{State, Vec<Effect>}`, `Queue`, Ausgaberegeln, `ExitCode` (Plan §3.5, analyse/01 §3) |
+| `pida-core-api` | `Core::{new, dispatch, subscribe, view, page_tile, block_preview}`, serde-Typen `ViewState`/`UiEvent` für die Tauri-Bridge |
+| `pida-cli` | clap-Definition aller PDF-Over-Argumente inkl. Quirks (unbekanntes Token = Datei, zweiphasiges `-c`) – Parser **implementiert**, Ausführung `todo!()` |
 
 ## 4. Ownership und Regeln für die parallele Arbeit
 
@@ -180,7 +180,7 @@ die konkrete Backends kennt; `workflow` arbeitet nur gegen `backend-api`.
 6. **Tests:** Unit-Tests im Crate, Integrationstests unter `crates/<crate>/tests/`. Testdaten über
    `concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/…")`. Kein Netzverkehr in Tests, keine echten
    Zugangsdaten; A-Trust nur gegen aufgezeichnete, anonymisierte HTML-Fixtures. Tests, die PDFium
-   brauchen, prüfen die Umgebungsvariable `PDFOVER_PDFIUM_DIR` und werden sonst übersprungen
+   brauchen, prüfen die Umgebungsvariable `PIDA_PDFIUM_DIR` und werden sonst übersprungen
    (CI hat vorerst keine PDFium-Binaries).
 7. **Qualität je Paket:** `cargo fmt -p <eigene Crates>` (nicht `--all`, damit keine fremden Dateien
    angefasst werden), `cargo check --workspace --all-targets` (ergänzt `Cargo.lock` bei neuen
@@ -206,8 +206,8 @@ die konkrete Backends kennt; `workflow` arbeitet nur gegen `backend-api`.
     `NoticeCode`, `FormProblem`, `PlacementError`) samt deutschem und englischem Text im
     Abschlussbericht auf; die Integration trägt sie ein. Bis dahin liefert `Catalog::format` `!id!`.
 12. **Worktrees:** Jedes Paket arbeitet in einem eigenen `git worktree`/Branch. `reference/` und `.venv/`
-    sind nicht versioniert und fehlen dort; `source tools/env.sh` setzt `PDFOVER_MAIN`,
-    `PDFOVER_REFERENCE` (Referenzquellen, nur lesen) und nimmt die `.venv` (pyHanko) des Hauptcheckouts in
+    sind nicht versioniert und fehlen dort; `source tools/env.sh` setzt `PIDA_MAIN`,
+    `PIDA_REFERENCE` (Referenzquellen, nur lesen) und nimmt die `.venv` (pyHanko) des Hauptcheckouts in
     den `PATH`. Tests lesen nie aus `reference/`, sondern nur aus `testdata/` bzw. Crate-Assets.
 
 ## 5. Schnittstellenprinzipien
@@ -236,7 +236,7 @@ Gepinnt ist **eine** Generation: `cms` 0.2.3, `der` 0.7.10, `x509-cert` 0.2.5, `
 `pkcs8` 0.10.2, `sha1` 0.10, `sha2` 0.10.9, `rsa` 0.9.10, `p256`/`p384` 0.13, `p521` 0.13.3, `ecdsa` 0.16.9,
 `signature` 2.2 (Plan §2.5). `p12-keystore` 0.4.1 (Plan §2.1) zieht intern die **Folgegeneration**
 (`der` 0.8, `cms` 0.3-pre, `x509-cert` 0.3, `sha2` 0.11). Die Grenze sind **DER-Bytes**:
-`p12_keystore::Certificate::as_der()` → `pdfover_cades::Certificate::from_der`, Privatschlüssel als
+`p12_keystore::Certificate::as_der()` → `pida_cades::Certificate::from_der`, Privatschlüssel als
 PKCS#8-DER → `rsa`/`p256`/`p384`/`p521` der gepinnten Generation. Typen der Folgegeneration erscheinen in
 keiner öffentlichen API. Migration auf `cms` 0.3 ist ein eigenes Fenster (Plan §2.5).
 
@@ -251,7 +251,7 @@ damit `sl12`/`backend-api` nicht von der PDF-Engine abhängen.
 
 ### 5.4 PDF-Objekte
 
-Alle Crates verwenden lopdf über `pdfover_pdf_cos::lopdf` bzw. die Re-Exporte `Object`, `Dictionary`,
+Alle Crates verwenden lopdf über `pida_pdf_cos::lopdf` bzw. die Re-Exporte `Object`, `Dictionary`,
 `Stream`, `ObjectId`. `sigblock::Appearance` liefert einen Objektgraphen mit **lokalen Referenzen**
 (`Object::Reference((i, LOCAL_GENERATION))`), `Appearance::materialize` vergibt echte IDs aus dem
 `IncrementBuilder`. Das Signaturdictionary serialisiert ausschließlich `pdf-incremental` (Reihenfolge,
@@ -262,7 +262,7 @@ Platzhalter, `/Contents` nie verschlüsselt).
 - Backends sind `async` (`async-trait`), Laufzeit Tokio. Ablauf: `open` → optional `certificate` →
   Kern-`prepare` → `sign(Vec<SignJob>)` → Kern-`finish_*`.
 - Alle Dialoge aus analyse/01 §4.6/§4.7/§4.10 bildet `InteractionBroker` ab (Tabelle in der Doku von
-  `pdfover-backend-api`): `native_form` (Login, SMS-TAN, QR, App-Warten, FIDO2), `secret` (Keystore),
+  `pida-backend-api`): `native_form` (Login, SMS-TAN, QR, App-Warten, FIDO2), `secret` (Keystore),
   `notice` (Interstitial, A-Trust-Fehler, HTTP 407/413, Verbindungsfehler, Keystore-Fehler), `progress`,
   `event` (Benutzername merken), `open_external` („Signaturdaten anzeigen“), `parent_window` (FIDO2-Modalität).
 - Long-Poll und Dialog laufen nebenläufig; meldet der Poll „fertig“, **droppt** das Backend das
@@ -290,7 +290,7 @@ Plan §7.4 (`workflow::ExitCode`).
 ## 7. Konsequenzen und offene Punkte
 
 - **Abweichungen vom Plan:** Szenario A statt B als Standard (§2); zusätzliches Crate
-  `pdfover-java-properties` (gemeinsamer Parser für C und E); `apps/desktop`+`apps/mobile` aus Plan §3.2
+  `pida-java-properties` (gemeinsamer Parser für C und E); `apps/desktop`+`apps/mobile` aus Plan §3.2
   werden zu einem Tauri-Projekt `apps/app`; `rust-version` = verifizierte Toolchain 1.99.
 - **Lizenz-Gate:** `webpki-root-certs` (CDLA-Permissive-2.0, über `rustls-platform-verifier`) ist in
   `deny.toml` zugelassen (Plan §16 hatte das vorhergesehen); `scraper`/`selectors` bringen MPL-2.0.
@@ -314,9 +314,9 @@ umgesetzt; `cargo check --workspace --all-targets --locked` und alle Tests sind 
 
 ### 8.1 PDFium als Feature
 
-`pdfover-render` hat das Feature `pdfium` (Default, `dep:pdfium-render`) für `PdfiumBackend`/
-`PdfiumRenderer`. Die Workspace-Dependency `pdfover-render` ist `default-features = false`; nur
-`pdfover-core-api` (und später die Tauri-Shell) aktiviert `features = ["pdfium"]`. `placement` und
+`pida-render` hat das Feature `pdfium` (Default, `dep:pdfium-render`) für `PdfiumBackend`/
+`PdfiumRenderer`. Die Workspace-Dependency `pida-render` ist `default-features = false`; nur
+`pida-core-api` (und später die Tauri-Shell) aktiviert `features = ["pdfium"]`. `placement` und
 `pades` brauchen nur die Traits und lassen sich ohne `pdfium-render` bauen und mit eigenen
 Test-Renderern prüfen (CI-Schritt „cargo check ohne PDFium“). Ein Rückfall-Renderer (hayro, Plan §2.4)
 kommt als weiteres Feature dazu.

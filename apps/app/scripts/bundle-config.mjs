@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Erzeugt eine Tauri-Konfigurationsergänzung (JSON) für das Bundle:
 //
-// - PDFium aus $PDFOVER_PDFIUM_DIR (macOS: Contents/Frameworks, sonst Ressourcen/pdfium/); die Shell
+// - PDFium aus $PIDA_PDFIUM_DIR (macOS: Contents/Frameworks, sonst Ressourcen/pdfium/); die Shell
 //   findet sie dort (apps/app/src-tauri/src/pdfium.rs),
-// - Drittlizenz-Hinweise aus $PDFOVER_NOTICES_DIR (Standard: <repo>/target/notices, erzeugt mit
+// - Drittlizenz-Hinweise aus $PIDA_NOTICES_DIR (Standard: <repo>/target/notices, erzeugt mit
 //   tools/third-party-notices.sh bzw. `npm run notices`): THIRD-PARTY-NOTICES.md und
 //   RUST-STD-COPYRIGHT.html als Ressourcen (Plan §2.5: Hinweise je Build ins Paket).
 //
@@ -25,7 +25,7 @@ const resources = {};
 const bundle = {};
 let missing = false;
 
-const pdfiumDir = process.env.PDFOVER_PDFIUM_DIR;
+const pdfiumDir = process.env.PIDA_PDFIUM_DIR;
 if (pdfiumDir && existsSync(path.join(pdfiumDir, lib))) {
   const file = path.resolve(pdfiumDir, lib);
   if (process.platform === 'darwin') {
@@ -34,11 +34,11 @@ if (pdfiumDir && existsSync(path.join(pdfiumDir, lib))) {
     resources[file] = `pdfium/${lib}`;
   }
 } else {
-  console.error(`bundle-config: PDFOVER_PDFIUM_DIR nicht gesetzt oder ohne ${lib}: Bundle ohne PDFium.`);
+  console.error(`bundle-config: PIDA_PDFIUM_DIR nicht gesetzt oder ohne ${lib}: Bundle ohne PDFium.`);
   missing ||= requirePdfium;
 }
 
-const noticesDir = process.env.PDFOVER_NOTICES_DIR || path.join(repo, 'target', 'notices');
+const noticesDir = process.env.PIDA_NOTICES_DIR || path.join(repo, 'target', 'notices');
 const notices = ['THIRD-PARTY-NOTICES.md', 'RUST-STD-COPYRIGHT.html'].map((n) => path.join(noticesDir, n));
 if (notices.every((f) => existsSync(f))) {
   for (const f of notices) resources[path.resolve(f)] = path.basename(f);

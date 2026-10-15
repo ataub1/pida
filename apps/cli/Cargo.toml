@@ -1,6 +1,6 @@
 [package]
-name = "pdfover-cli"
-description = "PDF-Over NG Kommandozeile: kompatibel zu PDF-Over (-i -o -b -n -p -ks … -c -v), headless für Keystore/lokale BKU"
+name = "pida-cli"
+description = "PIDA Kommandozeile: kompatibel zu PDF-Over (-i -o -b -n -p -ks … -c -v), headless für Keystore/lokale BKU"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,11 +10,11 @@ publish.workspace = true
 
 # Bibliothek: Argument-Parser (auch für die GUI-Shell, ohne Feature `run`) und Ablauf der CLI.
 [lib]
-name = "pdfover_cli"
+name = "pida_cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "pdfover-cli"
+name = "pida-cli"
 path = "src/main.rs"
 required-features = ["run"]
 
@@ -23,9 +23,9 @@ default = ["run"]
 # Ablauf der Kommandozeile (Kern, Terminal, Subcommands). Ohne `run` bleibt nur der Parser der
 # PDF-Over-Argumente (`parse`, `to_overlay`, `overlay::{check, inputs}`) – so nutzt ihn die GUI.
 run = [
-    "dep:pdfover-core-api",
-    "dep:pdfover-workflow",
-    "dep:pdfover-backend-api",
+    "dep:pida-core-api",
+    "dep:pida-workflow",
+    "dep:pida-backend-api",
     "dep:tokio",
     "dep:tracing",
     "dep:tracing-subscriber",
@@ -34,15 +34,15 @@ run = [
 ]
 
 [dependencies]
-pdfover-config = { workspace = true }
-pdfover-i18n = { workspace = true }
+pida-config = { workspace = true }
+pida-i18n = { workspace = true }
 clap = { workspace = true }
 zeroize = { workspace = true }
 thiserror = { workspace = true }
-pdfover-core-api = { workspace = true, optional = true }
-pdfover-workflow = { workspace = true, optional = true }
+pida-core-api = { workspace = true, optional = true }
+pida-workflow = { workspace = true, optional = true }
 # Typen der Masken/Meldungen im ViewState (NativeForm, Notice, SecretKind)
-pdfover-backend-api = { workspace = true, optional = true }
+pida-backend-api = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "signal"], optional = true }
 tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
@@ -51,8 +51,8 @@ serde_json = { workspace = true, optional = true }
 rpassword = { workspace = true, optional = true }
 
 [dev-dependencies]
-pdfover-core-api = { workspace = true, features = ["testing"] }
-pdfover-backend-api = { workspace = true, features = ["testing"] }
+pida-core-api = { workspace = true, features = ["testing"] }
+pida-backend-api = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
 
 [lints]

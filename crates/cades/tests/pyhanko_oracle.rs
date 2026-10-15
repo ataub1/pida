@@ -6,7 +6,7 @@ mod common;
 
 use std::process::Command;
 
-use pdfover_cades::{CmsProfile, RawSigner, SigningTime, sign_detached};
+use pida_cades::{CmsProfile, RawSigner, SigningTime, sign_detached};
 use time::OffsetDateTime;
 
 use common::*;

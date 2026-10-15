@@ -4,11 +4,11 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use pdfover_config::{
+use pida_config::{
     BackendChoice, CmsProfileChoice, ConfigError, LoadOutcome, NoteSetting, PasswordStorage, PlaceholderKind,
     ProxyMode, SCHEMA_VERSION, Settings, SignatureProfile, WindowSize,
 };
-use pdfover_i18n::Lang;
+use pida_i18n::Lang;
 
 fn full_settings() -> Settings {
     let mut s = Settings::default();
@@ -50,7 +50,7 @@ fn full_settings() -> Settings {
 fn default_and_full_roundtrip() {
     for s in [Settings::default(), full_settings()] {
         let text = s.to_toml().unwrap();
-        assert!(text.starts_with("# PDF-Over NG"));
+        assert!(text.starts_with("# PIDA"));
         assert!(text.contains("schema_version = 1"));
         assert_eq!(Settings::from_toml(&text).unwrap(), s);
     }
@@ -291,7 +291,7 @@ fn hostile_toml_is_rejected_without_crash() {
         format!("[{}]\n", vec!["t"; n].join(".")),
     ] {
         assert!(matches!(Settings::from_toml(&text), Err(ConfigError::Parse(_))));
-        assert!(pdfover_config::Policy::from_toml(&text).is_err());
+        assert!(pida_config::Policy::from_toml(&text).is_err());
     }
     // Viele unbekannte Einträge bleiben handhabbar.
     let mut big = String::from("[future]\n");

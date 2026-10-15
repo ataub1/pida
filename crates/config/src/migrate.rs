@@ -14,7 +14,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use pdfover_i18n::{ArgValue, Catalog, Lang};
+use pida_i18n::{ArgValue, Catalog, Lang};
 use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
@@ -256,7 +256,7 @@ pub fn migrate(legacy: &LegacyConfig, ctx: &MigrationContext) -> MigrationResult
     }
     s.output.postfix = v.save_file_postfix.clone();
 
-    // Proxy (PDF-Over ohne Host: kein eigener Proxy → NG-Standard „System“)
+    // Proxy (PDF-Over ohne Host: kein eigener Proxy → PIDA-Standard „System“)
     match &v.proxy_host {
         Some(host) => {
             s.proxy = ProxySettings {
@@ -306,7 +306,7 @@ fn path_msg(id: &'static str, key: LegacyKey, path: &Path) -> ReportMessage {
     ReportMessage::new(id, Some(key)).arg("path", path.display().to_string())
 }
 
-/// Bildformate, die `pdfover-sigblock` verarbeitet (PNG, JPEG, GIF) – geprüft an der Signatur.
+/// Bildformate, die `pida-sigblock` verarbeitet (PNG, JPEG, GIF) – geprüft an der Signatur.
 fn supported_image(path: &Path) -> bool {
     let mut head = [0u8; 8];
     let Ok(mut f) = std::fs::File::open(path) else { return false };
@@ -334,7 +334,7 @@ fn migrate_emblem(v: &LegacyValues, ctx: &MigrationContext, r: &mut Reporter) ->
     let props = ctx.legacy_dir.join(".emblem.properties");
     let refers_to_emblem = std::fs::read(&props)
         .ok()
-        .and_then(|b| pdfover_java_properties::Properties::load_auto(&b).ok())
+        .and_then(|b| pida_java_properties::Properties::load_auto(&b).ok())
         .is_some_and(|(p, _)| p.get("IMG").map(Path::new) == Some(emblem.as_path()));
     if refers_to_emblem && cached.is_file() && supported_image(&cached) {
         r.warn(path_msg("ng-migrate-emblem-from-cache", LegacyKey::Emblem, emblem));
@@ -398,7 +398,7 @@ pub fn import_offer(paths: &Paths, legacy_dir: Option<&Path>) -> Option<PathBuf>
 /// Liest `signature_field_name` aus `cfg/advancedconfig.properties` (wird verworfen und protokolliert).
 pub fn read_signature_field_name(legacy_dir: &Path) -> Option<String> {
     let bytes = std::fs::read(legacy_dir.join("cfg").join("advancedconfig.properties")).ok()?;
-    let (props, _) = pdfover_java_properties::Properties::load_auto(&bytes).ok()?;
+    let (props, _) = pida_java_properties::Properties::load_auto(&bytes).ok()?;
     props.get("signature_field_name").filter(|v| !crate::java::trim(v).is_empty()).map(str::to_owned)
 }
 
@@ -682,7 +682,7 @@ pub fn undo_migration(applied: &AppliedMigration, secrets: &dyn SecretStore) -> 
 fn protocol(result: &MigrationResult, stored: &[SecretId], opts: &ApplyOptions) -> String {
     use std::fmt::Write as _;
     let r = &result.report;
-    let mut out = String::from("# PDF-Over NG – Import aus ~/.pdf-over\n");
+    let mut out = String::from("# PIDA – Import aus ~/.pdf-over\n");
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let _ = writeln!(out, "zeit_unix = {secs}");
     let imported: Vec<&str> = r.imported.iter().map(|k| k.name()).collect();
@@ -722,7 +722,7 @@ mod tests {
     #[test]
     fn note_default_text_is_recognized() {
         let de = crate::SignatureProfile::SignaturblockSmall.default_note(Lang::De).unwrap();
-        let mut props = pdfover_java_properties::Properties::new();
+        let mut props = pida_java_properties::Properties::new();
         props.insert("SIGNATURE_NOTE", de.as_str());
         props.insert("SIGNLOCALE", "de");
         let legacy = LegacyConfig::parse(&props.store_latin1(&Default::default())).unwrap();

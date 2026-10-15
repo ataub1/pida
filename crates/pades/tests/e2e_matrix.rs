@@ -7,7 +7,7 @@
 mod common;
 
 use common::*;
-use pdfover_cades::CmsProfile;
+use pida_cades::CmsProfile;
 
 const PROFILES: [&str; 5] = [
     "INVISIBLE",
@@ -33,7 +33,7 @@ fn full_matrix() {
     let simple_bytes = std::fs::read(&simple).unwrap();
     let pdfa_bytes = std::fs::read(&pdfa).unwrap();
     let mut outcomes = Vec::new();
-    let none = |_: &mut pdfover_pades::PlanOptions, _: &pdfover_pades::DocReport, _: &pdfover_pdf_cos::SourcePdf| {};
+    let none = |_: &mut pida_pades::PlanOptions, _: &pida_pades::DocReport, _: &pida_pdf_cos::SourcePdf| {};
     for (k, (key_label, stem)) in KEYS.iter().enumerate() {
         let mut signer = KeystoreSigner::open(stem);
         for profile in PROFILES {
@@ -76,7 +76,7 @@ fn full_matrix() {
     }
     // alle 12 Profil-IDs von PDF-Over (RSA-2048, pdfas-compat)
     let mut rsa = KeystoreSigner::open("test-rsa2048");
-    for id in pdfover_sigblock::PDFOVER_PROFILE_IDS {
+    for id in pida_sigblock::PDFOVER_PROFILE_IDS {
         let name = format!("profile-{id}");
         let label = format!("`simple.pdf` RSA-2048 {id} pdfas-compat");
         outcomes.push(run_case(
@@ -97,7 +97,7 @@ fn full_matrix() {
 
     let ok = outcomes.iter().filter(|o| o.problems.is_empty()).count();
     let mut md = String::from("## Matrix (Modell A, Keystore-Backend)\n\n");
-    md.push_str("Erzeugt von `cargo test -p pdfover-pades --test e2e_matrix`: `simple.pdf` × 3 Schlüssel × 5 Profile × 2 CMS-Profile, PDF/A-1b-Eingabe × 3 Schlüssel × `SIGNATURBLOCK_SMALL_DE_PDFA` × 2 CMS-Profile, alle 12 PDF-Over-Profil-IDs (BASE_LOGO mit dem Laufzeit-Overlay 23 mm). Orakel und Spalten wie im Korpus.\n\n");
+    md.push_str("Erzeugt von `cargo test -p pida-pades --test e2e_matrix`: `simple.pdf` × 3 Schlüssel × 5 Profile × 2 CMS-Profile, PDF/A-1b-Eingabe × 3 Schlüssel × `SIGNATURBLOCK_SMALL_DE_PDFA` × 2 CMS-Profile, alle 12 PDF-Over-Profil-IDs (BASE_LOGO mit dem Laufzeit-Overlay 23 mm). Orakel und Spalten wie im Korpus.\n\n");
     md.push_str(&format!("Werkzeuge: {}.\n\n**{ok} von {} Fällen bestanden.**\n\n", or.versions(), outcomes.len()));
     md.push_str(&table(&outcomes));
     write_results_section("matrix", &md);

@@ -12,7 +12,7 @@
 //!   der Sandbox; alles andere (Android `content://`, Security-Scoped URLs) löst die native Seite über
 //!   `take_pending_open_documents` auf, die auch Intents `VIEW`/`SEND` vormerkt.
 //! - **Sicherer Speicher:** [`PluginSecureStorage`] (`secure_store_*` des Plugins, mit Frist) unter
-//!   `pdfover_config::ShellSecretStore`; ohne native Umsetzung nur RAM.
+//!   `pida_config::ShellSecretStore`; ohne native Umsetzung nur RAM.
 //! - **Pfade:** App-Sandbox (`Paths::sandbox`), Ausgabe in die App-Dokumente.
 
 use std::path::{Path, PathBuf};
@@ -20,9 +20,9 @@ use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use pdfover_config::{SecretStore, SecureStorage, ShellSecretStore};
-use pdfover_core_api::UiEvent;
-use tauri_plugin_pdfover_mobile::{Error as MobileError, PdfoverMobile};
+use pida_config::{SecretStore, SecureStorage, ShellSecretStore};
+use pida_core_api::UiEvent;
+use tauri_plugin_pida_mobile::{Error as MobileError, PidaMobile};
 use zeroize::Zeroizing;
 
 /// Eingangsordner für Dokumente aus „Öffnen in“/Share/Intents (im Cache; der Kern kopiert ein
@@ -32,7 +32,7 @@ pub const INBOX_DIR: &str = "inbox";
 pub const IMPORT_DIR: &str = "import";
 /// Android: Ausgabeordner unter `filesDir` (internes App-Verzeichnis). Nicht `getExternalFilesDir`
 /// (Tauri `document_dir`): das lesen unter Android 9/10 alle Apps mit Speicher-Berechtigung mit.
-/// Muss zu `res/xml/pdfover_share_paths.xml` des Plugins passen (`files-path` `Documents/`).
+/// Muss zu `res/xml/pida_share_paths.xml` des Plugins passen (`files-path` `Documents/`).
 pub const ANDROID_OUTPUT_DIR: &str = "files/Documents";
 /// Kopien in [`INBOX_DIR`]/[`IMPORT_DIR`], die älter sind, räumt die Shell beim Start weg. So lange
 /// bietet der Kern „Signatur fortsetzen“ an (dessen Datensatz kann wartende Dokumente im Eingang
@@ -135,7 +135,7 @@ pub fn purge_stale_copies(dir: &Path, max_age: Duration, now: std::time::SystemT
 /// würde der Kern ihn blockierend fragen, während der Hauptthread selbst wartet, verklemmte die App.
 #[derive(Clone)]
 pub struct PluginSecureStorage {
-    mobile: PdfoverMobile,
+    mobile: PidaMobile,
     timeout: Duration,
 }
 
@@ -146,22 +146,22 @@ impl std::fmt::Debug for PluginSecureStorage {
 }
 
 /// Schlüssel der Verfügbarkeitsprüfung (kein Secret).
-const PROBE_KEY: &str = "PDF-Over NG/.probe";
+const PROBE_KEY: &str = "PIDA/.probe";
 
 impl PluginSecureStorage {
     /// Speicher über `mobile`.
-    pub fn new(mobile: PdfoverMobile) -> Self {
+    pub fn new(mobile: PidaMobile) -> Self {
         Self { mobile, timeout: SECURE_STORE_TIMEOUT }
     }
 
     fn call<T: Send + 'static>(
         &self,
-        f: impl FnOnce(&PdfoverMobile) -> Result<T, MobileError> + Send + 'static,
+        f: impl FnOnce(&PidaMobile) -> Result<T, MobileError> + Send + 'static,
     ) -> Result<T, MobileError> {
         let (tx, rx) = mpsc::channel();
         let mobile = self.mobile.clone();
         std::thread::Builder::new()
-            .name("pdfover-secure-store".into())
+            .name("pida-secure-store".into())
             .spawn(move || {
                 let _ = tx.send(f(&mobile));
             })
@@ -195,7 +195,7 @@ impl SecureStorage for PluginSecureStorage {
 }
 
 /// `SecretStore` für den Kern: Keychain bzw. Android Keystore über das Plugin, sonst RAM.
-pub fn secret_store(mobile: PdfoverMobile) -> Arc<dyn SecretStore> {
+pub fn secret_store(mobile: PidaMobile) -> Arc<dyn SecretStore> {
     Arc::new(ShellSecretStore::new(Arc::new(PluginSecureStorage::new(mobile))))
 }
 
@@ -203,10 +203,10 @@ pub fn secret_store(mobile: PdfoverMobile) -> Arc<dyn SecretStore> {
 mod tests {
     use super::*;
     use std::sync::Mutex;
-    use tauri_plugin_pdfover_mobile::Native;
+    use tauri_plugin_pida_mobile::Native;
 
     fn tmp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("pdfover-app-mobile-{name}-{}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("pida-app-mobile-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
@@ -301,17 +301,17 @@ mod tests {
 
     fn storage(delay: Duration, not_implemented: bool) -> PluginSecureStorage {
         let native = Arc::new(FakeNative { map: Mutex::new(Default::default()), delay, not_implemented });
-        PluginSecureStorage { mobile: PdfoverMobile::with_native(native), timeout: Duration::from_millis(300) }
+        PluginSecureStorage { mobile: PidaMobile::with_native(native), timeout: Duration::from_millis(300) }
     }
 
     #[test]
     fn plugin_storage_roundtrip_and_availability() {
         let s = storage(Duration::ZERO, false);
         assert!(s.is_available());
-        s.set("PDF-Over NG/k", "test").unwrap();
-        assert_eq!(s.get("PDF-Over NG/k").unwrap().as_deref().map(String::as_str), Some("test"));
-        s.delete("PDF-Over NG/k").unwrap();
-        assert_eq!(s.get("PDF-Over NG/k").unwrap(), None);
+        s.set("PIDA/k", "test").unwrap();
+        assert_eq!(s.get("PIDA/k").unwrap().as_deref().map(String::as_str), Some("test"));
+        s.delete("PIDA/k").unwrap();
+        assert_eq!(s.get("PIDA/k").unwrap(), None);
     }
 
     #[test]

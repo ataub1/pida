@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""PDF-Over NG – erzeugt ein minimales PDF mit Hybrid-Querverweis (ISO 32000-1 §7.5.8.4).
+"""PIDA – erzeugt ein minimales PDF mit Hybrid-Querverweis (ISO 32000-1 §7.5.8.4).
 
 Klassische xref-Tabelle + Trailer mit /XRefStm; das Font-Objekt 5 liegt in einem Object Stream
 (Objekt 6) und ist **nur** über den xref-Stream (Objekt 7) auffindbar, die Tabelle führt es nicht.
 Ein Leser, der /XRefStm ignoriert, findet die Schrift nicht. Referenz für
-`pdfover_pdf_cos::XrefKind::Hybrid` und den Hybrid-Writer (Plan §6.1 K1, §6.2).
+`pida_pdf_cos::XrefKind::Hybrid` und den Hybrid-Writer (Plan §6.1 K1, §6.2).
 
 Aufruf:  python3 -I tools/make-hybrid-xref.py <ausgabe.pdf>
 Deterministisch, nur Standardbibliothek, kein Netz.

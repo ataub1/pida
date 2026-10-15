@@ -6,7 +6,7 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 
-use pdfover_net::{HttpClient, NetConfig, NetError, ProxyConfig, Purpose, Url};
+use pida_net::{HttpClient, NetConfig, NetError, ProxyConfig, Purpose, Url};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn self_signed(dir: &std::path::Path) -> Option<(Vec<u8>, Vec<u8>)> {

@@ -4,9 +4,9 @@
 //! werden konvertiert, als Fluent-Katalog geladen und formatiert. Erwartet wird genau der Java-Text
 //! (Mnemonics entfernt, Platzhalter ersetzt). Deterministischer Generator (xorshift), kein Netz.
 
-use pdfover_i18n::convert::{self, ConvertOptions};
-use pdfover_i18n::{ArgValue, Catalog, Lang};
-use pdfover_java_properties::Properties;
+use pida_i18n::convert::{self, ConvertOptions};
+use pida_i18n::{ArgValue, Catalog, Lang};
+use pida_java_properties::Properties;
 
 /// Unabhängige Referenz: Java-Wert → erwarteter Text und Anzahl Platzhalter.
 fn expected_text(java: &str) -> (String, usize) {

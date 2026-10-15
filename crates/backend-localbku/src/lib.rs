@@ -1,7 +1,7 @@
-//! `pdfover-backend-localbku` – lokale Bürgerkartenumgebung (docs/analyse/02 §4; Plan §4.9).
+//! `pida-backend-localbku` – lokale Bürgerkartenumgebung (docs/analyse/02 §4; Plan §4.9).
 //!
 //! - Endpunkt `http://127.0.0.1:3495/http-security-layer-request`, nur HTTP, nur IPv4-Loopback,
-//!   **kein Proxy**; User-Agent `PDF-Over NG v<Version>`.
+//!   **kein Proxy**; User-Agent `PIDA v<Version>`.
 //! - Erkennung per TCP-Probe alle 5 s (nicht verfügbar) bzw. 30 s (verfügbar) ([`Availability`]).
 //! - Vor dem Signieren `NullOperationRequest`; enthält der `Server`-Header `trustDeskbasic` oder
 //!   `asignSecurityLayer`, wird Base64 gesendet, sonst Upload ([`RequestMode`]). Schlägt die Probe
@@ -22,13 +22,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use pdfover_backend_api::{
+use pida_backend_api::{
     BackendError, BackendId, BackendSession, Capabilities, CertChain, CertNeed, Certificate, Environment, FactorSet,
     Interaction, InteractionBroker, InteractionError, Notice, NoticeAnswer, NoticeButtons, NoticeCode, NoticeKind,
     Progress, Qualification, ServerNeed, SessionContext, SignInput, SignJob, SignOutput, SignResult, SignatureBackend,
 };
-use pdfover_net::{Body, FormPart, HttpClient, NetConfig, NetError, ProxyConfig, Purpose, Request, Url};
-use pdfover_sl12::{CreateCmsRequest, DocumentContent, HttpBody, PartOrder, SlRequest, SlResponse};
+use pida_net::{Body, FormPart, HttpClient, NetConfig, NetError, ProxyConfig, Purpose, Request, Url};
+use pida_sl12::{CreateCmsRequest, DocumentContent, HttpBody, PartOrder, SlRequest, SlResponse};
 
 /// Standard-Endpunkt.
 pub const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:3495/http-security-layer-request";
@@ -77,7 +77,7 @@ impl LocalBkuConfig {
         Self {
             endpoint: Url::parse(DEFAULT_ENDPOINT).expect("konstante URL"),
             probe_addr: PROBE_ADDR.parse().expect("konstante Adresse"),
-            user_agent: format!("PDF-Over NG v{app_version}"),
+            user_agent: format!("PIDA v{app_version}"),
             probe_interval_unavailable: Duration::from_secs(5),
             probe_interval_available: Duration::from_secs(30),
             request_timeout: Duration::from_secs(600),
@@ -136,7 +136,7 @@ impl Availability {
                 let state = Arc::clone(&state);
                 Some(handle.spawn(async move {
                     loop {
-                        let up = pdfover_net::tcp_probe(addr, PROBE_TIMEOUT).await;
+                        let up = pida_net::tcp_probe(addr, PROBE_TIMEOUT).await;
                         state.store(up, Ordering::SeqCst);
                         tokio::time::sleep(if up { available } else { unavailable }).await;
                     }
@@ -193,8 +193,8 @@ fn to_net_body(body: HttpBody) -> Body {
 }
 
 /// `NullOperationRequest` senden und Modus bestimmen (HTTP ≠ 200 → `error.LocalBKU`).
-pub async fn null_operation(client: &pdfover_net::HttpClient, endpoint: &Url) -> Result<RequestMode, BackendError> {
-    let body = to_net_body(pdfover_sl12::http_body(&SlRequest::NullOperation, None, PartOrder::XmlFirst));
+pub async fn null_operation(client: &pida_net::HttpClient, endpoint: &Url) -> Result<RequestMode, BackendError> {
+    let body = to_net_body(pida_sl12::http_body(&SlRequest::NullOperation, None, PartOrder::XmlFirst));
     let response = client
         .execute(Request::post(endpoint.clone(), body))
         .await
@@ -320,14 +320,14 @@ impl LocalBkuSession {
     }
 
     async fn send(&self, request: &SlRequest, upload: Option<&[u8]>) -> Result<SlResponse, BackendError> {
-        let body = to_net_body(pdfover_sl12::http_body(request, upload, PartOrder::XmlFirst));
+        let body = to_net_body(pida_sl12::http_body(request, upload, PartOrder::XmlFirst));
         let response = cancellable(&self.ctx, self.client.execute(Request::post(self.config.endpoint.clone(), body)))
             .await?
             .map_err(net_error)?;
         if response.status != 200 {
             return Err(BackendError::Http { status: response.status, reason: response.reason.clone() });
         }
-        match pdfover_sl12::parse_response(response.text().as_bytes()) {
+        match pida_sl12::parse_response(response.text().as_bytes()) {
             Ok(SlResponse::Error(e)) if e.is_user_cancel() => Err(BackendError::Cancelled),
             Ok(SlResponse::Error(e)) => Err(BackendError::SecurityLayer { code: e.code, info: e.info }),
             Ok(other) => Ok(other),
@@ -369,7 +369,7 @@ impl BackendSession for LocalBkuSession {
                 .map_err(|e| BackendError::Internal(format!("vorbereitetes Dokument nicht lesbar: {e}")))?;
             let range = job.source.excluded_range();
             drop(job);
-            let excluded = pdfover_sl12::ExcludedByteRange { from: range.from, to: range.to };
+            let excluded = pida_sl12::ExcludedByteRange { from: range.from, to: range.to };
             self.ui.progress(Progress::Signing);
             let response = match self.mode {
                 RequestMode::Upload => {
@@ -414,19 +414,19 @@ mod tests {
         let c = LocalBkuConfig::new("0.1.0");
         assert_eq!(c.endpoint.as_str(), DEFAULT_ENDPOINT);
         assert_eq!(c.probe_addr.to_string(), PROBE_ADDR);
-        assert_eq!(c.user_agent, "PDF-Over NG v0.1.0");
+        assert_eq!(c.user_agent, "PIDA v0.1.0");
         assert_eq!(c.probe_interval_unavailable, Duration::from_secs(5));
         assert_eq!(c.probe_interval_available, Duration::from_secs(30));
         let net = c.net();
         assert_eq!(net.proxy, ProxyConfig::None);
-        assert_eq!(net.user_agent.as_deref(), Some("PDF-Over NG v0.1.0"));
+        assert_eq!(net.user_agent.as_deref(), Some("PIDA v0.1.0"));
     }
 
     #[test]
     fn capabilities_only_on_reachable_desktop() {
         let backend = LocalBkuBackend::new(LocalBkuConfig::new("0.1.0"), None);
         let mut env = Environment::current();
-        env.platform = pdfover_backend_api::Platform::Linux;
+        env.platform = pida_backend_api::Platform::Linux;
         assert!(backend.capabilities(&env).is_none(), "nicht erreichbar");
         env.localbku_reachable = true;
         let caps = backend.capabilities(&env).unwrap();
@@ -437,9 +437,9 @@ mod tests {
         // headless ist erlaubt (die BKU hat ihre eigene Oberfläche)
         env.headless = true;
         assert!(backend.capabilities(&env).is_some());
-        env.platform = pdfover_backend_api::Platform::Android;
+        env.platform = pida_backend_api::Platform::Android;
         assert!(backend.capabilities(&env).is_none());
-        env.platform = pdfover_backend_api::Platform::Windows;
+        env.platform = pida_backend_api::Platform::Windows;
         env.allowed_by_policy = Some(vec![BackendId::Keystore]);
         assert!(backend.capabilities(&env).is_none());
     }
