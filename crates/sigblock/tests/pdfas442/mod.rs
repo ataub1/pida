@@ -273,9 +273,11 @@ pub fn test_cert() -> CertFields {
     }
 }
 
+/// PDF-AS-Konfiguration ohne PIDA-Vorgaben: Die Referenzen entstanden mit den PDF-AS-Bildmarken
+/// (`signatur-logo_de/en.png`), nicht mit dem PIDA-Siegel (ADR 0005).
 pub fn store() -> &'static ProfileStore {
     static STORE: std::sync::OnceLock<ProfileStore> = std::sync::OnceLock::new();
-    STORE.get_or_init(|| ProfileStore::builtin().expect("eingebaute Profile"))
+    STORE.get_or_init(|| ProfileStore::builtin_pdfas().expect("eingebaute Profile"))
 }
 
 pub fn emblem(file: &str) -> Arc<Emblem> {

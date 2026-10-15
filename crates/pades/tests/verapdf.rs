@@ -47,7 +47,8 @@ fn emblem(name: &str) -> Arc<Emblem> {
     Arc::new(Emblem::decode(&std::fs::read(&p).unwrap()).unwrap_or_else(|e| panic!("{name}: {e}")))
 }
 
-/// Varianten: (Bezeichnung, Profil, Bildmarke); `None` als Profil = unsichtbar.
+/// Varianten: (Bezeichnung, Profil, Bildmarke); `None` als Profil = unsichtbar, `None` als Bildmarke
+/// = Profil-Standard (kleine Blöcke: PIDA-Siegel mit Transparenz, ADR 0005; Amtssignatur: PDF-AS-Logo).
 fn variants() -> Vec<(&'static str, Option<&'static str>, Option<&'static str>)> {
     vec![
         ("small-pdfa", Some("SIGNATURBLOCK_SMALL_DE_PDFA"), None),

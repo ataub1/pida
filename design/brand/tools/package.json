@@ -1,0 +1,14 @@
+{
+  "name": "pida-brand-tools",
+  "private": true,
+  "description": "Erzeugt die Rasterfassungen von Siegel und App-Symbol (ADR 0005). Keine App-Abhängigkeit.",
+  "license": "EUPL-1.2",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "pngjs": "7.0.0"
+  }
+}

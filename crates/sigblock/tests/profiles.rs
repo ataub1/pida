@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pida_java_properties::Properties;
+use pida_sigblock::assets::PIDA_SEAL;
 use pida_sigblock::{
     BuiltinResources, CellSpec, HAlign, PDFOVER_PROFILE_IDS, ProfileOverrides, ProfileStore, SigBlockError, Std14,
     VAlign, fonts::FontSpec,
@@ -76,8 +77,10 @@ fn small_profiles_effective_content() {
         assert_eq!(p.captions["SIG_SUBJECT"], if en { "Signatory" } else { "Unterzeichner" });
         assert_eq!(p.captions["SIG_DATE"], if en { "Date/Time-UTC" } else { "Datum/Zeit-UTC" });
         assert_eq!(p.captions["SIG_META"], if en { "Verification" } else { "Prüfinformation" });
+        // PIDA-Vorgabe: Siegel statt signatur-logo_de/en.png (ADR 0005); PDF-AS unverändert
+        assert_eq!(p.values["SIG_LABEL"], PIDA_SEAL, "{id}");
         assert_eq!(
-            p.values["SIG_LABEL"],
+            ProfileStore::builtin_pdfas().unwrap().get(id).unwrap().values["SIG_LABEL"],
             if en { "./images/signatur-logo_en.png" } else { "./images/signatur-logo_de.png" }
         );
         assert_eq!(p.values["SIG_SUBJECT"], "${subject.title != null ? (subject.title + \" \") : \"\"}${subject.CN}");
@@ -226,7 +229,8 @@ fn load_dir_with_wildcard_includes_matches_builtin() {
     let tmp = tempfile::tempdir().unwrap();
     copy_dir(&assets.join("cfg"), &tmp.path().join("cfg"));
     let s = ProfileStore::load_dir(&tmp.path().join("cfg")).unwrap();
-    let b = store();
+    // ein eigener Ordner ist PDF-AS-Konfiguration: gleich `builtin_pdfas`, ohne PIDA-Vorgaben
+    let b = ProfileStore::builtin_pdfas().unwrap();
     for id in PDFOVER_PROFILE_IDS {
         assert_eq!(s.get(id), b.get(id), "{id}");
     }

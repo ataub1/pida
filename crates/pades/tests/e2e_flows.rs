@@ -656,6 +656,9 @@ fn pdfa_output_intent_strategy() {
     let signed = signer.sign(prepared).unwrap();
     let out = SourcePdf::open(signed.bytes(), &Limits::default()).unwrap();
     assert_eq!(intents(&out).len(), 1);
+    // PDF/A-1: Standard-Bildmarke (PIDA-Siegel, transparent) auf Weiß komponiert, keine SMask
+    let im = emblem_image(&out);
+    assert!(!im.dict.has(b"SMask"), "PDF/A-1: kein Alpha");
     // … aber nicht bei Vorsignaturen (Änderungsanalyse), mit Hinweis
     let report2 = analyze(&out).unwrap();
     let (prepared, _) = prepare_with(
@@ -693,7 +696,16 @@ fn pdfa_output_intent_strategy() {
     let acro = out.resolve(out.catalog().unwrap().get(b"AcroForm").unwrap()).unwrap().as_dict().unwrap();
     let dr = out.resolve(acro.get(b"DR").unwrap()).unwrap().as_dict().unwrap();
     assert!(!dr.has(b"Font") && !acro.has(b"DA"), "kein Fixup bei PDF/A");
-    // Bildmarke ICCBased statt DeviceRGB
+    // Bildmarke ICCBased statt DeviceRGB; PDF/A-3 erlaubt Transparenz: das Siegel behält die SMask
+    let im = emblem_image(&out);
+    let cs = out.resolve(im.dict.get(b"ColorSpace").unwrap()).unwrap();
+    assert!(matches!(cs, Object::Array(a) if a.first().and_then(|n| n.as_name().ok()) == Some(b"ICCBased")), "{cs:?}");
+    let smask = out.resolve(im.dict.get(b"SMask").expect("PDF/A-3: SMask des Siegels")).unwrap().as_stream().unwrap();
+    assert_eq!(out.resolve(smask.dict.get(b"ColorSpace").unwrap()).unwrap().as_name().unwrap(), b"DeviceGray");
+}
+
+/// Bildmarke (`/Im1` im Inner-Form) der signierten Signatur.
+fn emblem_image(out: &SourcePdf) -> pida_pdf_cos::Stream {
     let field = out.signature_fields().unwrap().into_iter().find(|f| f.signed).unwrap();
     let w = out.get_object(field.widgets[0].id).unwrap().as_dict().unwrap();
     let holder = out.resolve(w.get(b"AP").unwrap()).unwrap().as_dict().unwrap().get(b"N").unwrap().clone();
@@ -713,9 +725,9 @@ fn pdfa_output_intent_strategy() {
         .clone();
     let inner = out.resolve(&inner_ref).unwrap().as_stream().unwrap();
     let res = inner.dict.get(b"Resources").unwrap().as_dict().unwrap();
-    let im =
-        out.resolve(res.get(b"XObject").unwrap().as_dict().unwrap().get(b"Im1").unwrap()).unwrap().as_stream().unwrap();
-    let cs = out.resolve(im.dict.get(b"ColorSpace").unwrap()).unwrap();
-    assert!(matches!(cs, Object::Array(a) if a.first().and_then(|n| n.as_name().ok()) == Some(b"ICCBased")), "{cs:?}");
-    assert!(!im.dict.has(b"SMask"), "PDF/A-1: kein Alpha");
+    out.resolve(res.get(b"XObject").unwrap().as_dict().unwrap().get(b"Im1").unwrap())
+        .unwrap()
+        .as_stream()
+        .unwrap()
+        .clone()
 }

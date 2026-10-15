@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Erzeugt von design/brand/tools/build.mjs aus pida-app-icon.svg – nicht von Hand ändern. -->
+  <title>PIDA – App-Symbol (iOS, getönt)</title>
+  <rect width="1024" height="1024" fill="#000000"/>
+  <circle id="ring" cx="512" cy="512" r="304" fill="none" stroke="#ffffff" stroke-width="64"/>
+<path id="check" d="M381 470 468 552 643 363" fill="none" stroke="#ffffff" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+<rect id="accent-red-1" x="382" y="624" width="260" height="28" fill="#ffffff"/>
+<rect id="accent-red-2" x="382" y="674" width="260" height="28" fill="#ffffff"/>
+</svg>

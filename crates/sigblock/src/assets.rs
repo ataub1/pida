@@ -1,7 +1,8 @@
 //! Eingebettete PDF-AS-Konfiguration (`assets/`, übernommen aus `pdfas-config`, EUPL bzw.
 //! Bitstream-Vera-Lizenz für DejaVu): `cfg/config.properties`, `cfg/advancedconfig.properties`,
 //! `cfg/profiles/*.properties`, `fonts/DejaVu*.ttf`, `images/*.png`. `arial.ttf` wird bewusst nicht
-//! ausgeliefert (analyse/05 §6.3).
+//! ausgeliefert (analyse/05 §6.3). Dazu das PIDA-Siegel `images/pida-seal.png` ([`PIDA_SEAL`],
+//! eigenes Werk des Projekts, EUPL-1.2, ADR 0005); die PDF-AS-Dateien bleiben unverändert.
 
 /// `cfg/`-Dateien relativ zu `cfg/` (in fester Reihenfolge; Includes werden darüber aufgelöst).
 pub(crate) const CFG_FILES: &[(&str, &[u8])] = &[
@@ -72,11 +73,34 @@ const FONTS: &[(&str, &[u8])] = &[
     ("DejaVuSansCondensed.ttf", include_bytes!("../assets/fonts/DejaVuSansCondensed.ttf")),
 ];
 
-/// `images/`
-const IMAGES: &[(&str, &[u8])] = &[
+/// `images/` – die drei PDF-AS-Bildmarken (EUPL) und das PIDA-Siegel ([`PIDA_SEAL`], eigenes Werk
+/// des Projekts, EUPL-1.2; Master `design/brand/pida-seal.svg`, ADR 0005).
+pub(crate) const IMAGES: &[(&str, &[u8])] = &[
     ("signatur-logo_de.png", include_bytes!("../assets/images/signatur-logo_de.png")),
     ("signatur-logo_en.png", include_bytes!("../assets/images/signatur-logo_en.png")),
     ("amtsignatur-logo_demo.png", include_bytes!("../assets/images/amtsignatur-logo_demo.png")),
+    ("pida-seal.png", include_bytes!("../assets/images/pida-seal.png")),
+];
+
+/// Profilreferenz des PIDA-Siegels (Standard-Bildmarke der Profile [`PIDA_SEAL_PROFILES`], ADR 0005).
+///
+/// 326 × 342 px RGBA wie `signatur-logo_de/en.png`: gleiches Seitenverhältnis, damit Zeilenhöhen und
+/// Blockmaße für jede Blockbreite unverändert bleiben (die Bildhöhe folgt aus Spaltenbreite ·
+/// Höhe/Breite); außerhalb des Kreises transparent (PDF/A-1: auf Weiß komponiert, sonst `SMask`).
+pub const PIDA_SEAL: &str = "./images/pida-seal.png";
+
+/// Profile, deren Standard-Bildmarke in [`crate::ProfileStore::builtin`] das PIDA-Siegel ist
+/// (`value.SIG_LABEL` = [`PIDA_SEAL`]); in PDF-AS `./images/signatur-logo_de|en.png`.
+/// Amtssignatur (`AMTSSIGNATURBLOCK_*`) und `BASE_LOGO` behalten die PDF-AS-Bildmarken.
+pub const PIDA_SEAL_PROFILES: [&str; 8] = [
+    "SIGNATURBLOCK_SMALL_DE",
+    "SIGNATURBLOCK_SMALL_DE_NOTE",
+    "SIGNATURBLOCK_SMALL_DE_PDFA",
+    "SIGNATURBLOCK_SMALL_DE_NOTE_PDFA",
+    "SIGNATURBLOCK_SMALL_EN",
+    "SIGNATURBLOCK_SMALL_EN_NOTE",
+    "SIGNATURBLOCK_SMALL_EN_PDFA",
+    "SIGNATURBLOCK_SMALL_EN_NOTE_PDFA",
 ];
 
 /// Lizenztexte der eingebetteten Fremddaten (für „Über“-Dialoge).

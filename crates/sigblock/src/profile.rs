@@ -492,14 +492,9 @@ fn builtin_image_name(reference: &str) -> Option<&str> {
 fn builtin_images() -> &'static HashMap<&'static str, std::result::Result<Arc<Emblem>, String>> {
     static CACHE: OnceLock<HashMap<&'static str, std::result::Result<Arc<Emblem>, String>>> = OnceLock::new();
     CACHE.get_or_init(|| {
-        ["signatur-logo_de.png", "signatur-logo_en.png", "amtsignatur-logo_demo.png"]
-            .into_iter()
-            .map(|n| {
-                let decoded = assets::image(n)
-                    .ok_or_else(|| format!("{n} fehlt"))
-                    .and_then(|b| Emblem::decode_original(b).map(Arc::new).map_err(|e| e.to_string()));
-                (n, decoded)
-            })
+        assets::IMAGES
+            .iter()
+            .map(|&(n, bytes)| (n, Emblem::decode_original(bytes).map(Arc::new).map_err(|e| e.to_string())))
             .collect()
     })
 }
@@ -1097,22 +1092,46 @@ impl std::fmt::Debug for ProfileStore {
     }
 }
 
+/// PIDA-Vorgaben über der eingebetteten PDF-AS-Konfiguration (ADR 0005): das Siegel als
+/// Standard-Bildmarke der Profile [`assets::PIDA_SEAL_PROFILES`]. Als eigener Schlüssel des Profils
+/// gesetzt (vor der Vererbung), damit es den geerbten Wert aus `BASE_NORMAL[_EN]` ersetzt.
+fn apply_pida_defaults(merged: &mut Properties) {
+    for id in assets::PIDA_SEAL_PROFILES {
+        merged.insert(format!("sig_obj.{id}.value.SIG_LABEL"), assets::PIDA_SEAL);
+    }
+}
+
+/// Eingebettete Konfiguration laden, mit oder ohne PIDA-Vorgaben.
+fn load_builtin(pida_defaults: bool) -> std::result::Result<ProfileStore, String> {
+    let mut st = LoadState::default();
+    let mut merged = Properties::new();
+    load_recursive(&BuiltinCfg, "config.properties", &mut merged, &mut st).map_err(|e| e.to_string())?;
+    if pida_defaults {
+        apply_pida_defaults(&mut merged);
+    }
+    let mut store =
+        ProfileStore::from_properties(&merged, Arc::new(BuiltinResources::default())).map_err(|e| e.to_string())?;
+    store.problems.splice(0..0, st.problems);
+    Ok(store)
+}
+
 impl ProfileStore {
-    /// Eingebettete PDF-AS-Konfiguration (schreibgeschützt, Plan §6.5).
+    /// Eingebettete Konfiguration (schreibgeschützt, Plan §6.5): PDF-AS-Profile mit den
+    /// PIDA-Vorgaben (ADR 0005) – Standard-Bildmarke der Profile `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]`
+    /// ist das PIDA-Siegel ([`crate::assets::PIDA_SEAL`]) statt `signatur-logo_de/en.png`.
+    /// Amtssignatur und `BASE_LOGO` sind unverändert; eine eigene Bildmarke
+    /// ([`ProfileOverrides::sig_label`], [`crate::SigBlockInput::emblem`]) geht weiterhin vor.
+    /// Die PDF-AS-Konfiguration ohne diese Vorgaben liefert [`ProfileStore::builtin_pdfas`].
     pub fn builtin() -> Result<ProfileStore> {
         static BUILTIN: OnceLock<std::result::Result<ProfileStore, String>> = OnceLock::new();
-        BUILTIN
-            .get_or_init(|| {
-                let mut st = LoadState::default();
-                let mut merged = Properties::new();
-                load_recursive(&BuiltinCfg, "config.properties", &mut merged, &mut st).map_err(|e| e.to_string())?;
-                let mut store = ProfileStore::from_properties(&merged, Arc::new(BuiltinResources::default()))
-                    .map_err(|e| e.to_string())?;
-                store.problems.splice(0..0, st.problems);
-                Ok(store)
-            })
-            .clone()
-            .map_err(SigBlockError::Profile)
+        BUILTIN.get_or_init(|| load_builtin(true)).clone().map_err(SigBlockError::Profile)
+    }
+
+    /// Eingebettete PDF-AS-Konfiguration **ohne** PIDA-Vorgaben (Bildmarken wie PDF-AS 4,
+    /// `signatur-logo_de/en.png`) – für den Abgleich mit PDF-AS-Referenzen (Golden-Tests).
+    pub fn builtin_pdfas() -> Result<ProfileStore> {
+        static BUILTIN_PDFAS: OnceLock<std::result::Result<ProfileStore, String>> = OnceLock::new();
+        BUILTIN_PDFAS.get_or_init(|| load_builtin(false)).clone().map_err(SigBlockError::Profile)
     }
 
     /// Lädt `<cfg_dir>/config.properties` mit Includes (Wildcards, nicht rekursiv) – für eigene
