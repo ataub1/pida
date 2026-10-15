@@ -51,3 +51,33 @@ fn object_locations_cover_offsets_and_object_streams() {
     // sortiert nach Objektnummer
     assert!(locs.windows(2).all(|w| w[0].0.0 < w[1].0.0));
 }
+
+/// Mutationstest (Welle 3): der Kopf des `/XRefStm`-Streams eines Hybrid-Abschnitts trägt die
+/// Kennung des Katalogs (`7 0 obj` → `1 0 obj`). Der Katalog bleibt der aus der Tabelle (der
+/// xref-Stream überschreibt ihn im Objektmodell nicht).
+#[test]
+fn xref_stream_header_with_foreign_id_does_not_replace_the_catalog() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/pdf/generated/simple-xref-hybrid.pdf");
+    let mut data = std::fs::read(path).unwrap();
+    let pat = b"7 0 obj\n<< /Type /XRef";
+    let pos = data.windows(pat.len()).position(|w| w == pat).expect("xref-Stream-Kopf");
+    data[pos] = b'1';
+    let src = pdfover_pdf_cos::SourcePdf::open(data, &pdfover_pdf_cos::Limits::default()).unwrap();
+    let cat = src.catalog().unwrap();
+    assert_eq!(cat.get(b"Type").unwrap().as_name().unwrap(), b"Catalog");
+    assert_eq!(src.page_count(), 1);
+}
+
+/// Wie oben für einen reinen xref-Stream: Kopf `13 0 obj` → `8 0 obj` (Kennung des Katalogs, gleich lang).
+#[test]
+fn xref_stream_only_header_with_foreign_id_does_not_replace_the_catalog() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/pdf/generated/simple-xref-stream.pdf");
+    let mut data = std::fs::read(path).unwrap();
+    let pat = b"13 0 obj\n<< /Type /XRef";
+    let pos = data.windows(pat.len()).position(|w| w == pat).expect("xref-Stream-Kopf");
+    data[pos..pos + 2].copy_from_slice(b" 8");
+    let src = pdfover_pdf_cos::SourcePdf::open(data, &pdfover_pdf_cos::Limits::default()).unwrap();
+    let cat = src.catalog().unwrap();
+    assert_eq!(cat.get(b"Type").unwrap().as_name().unwrap(), b"Catalog");
+    assert_eq!(src.page_count(), 1);
+}

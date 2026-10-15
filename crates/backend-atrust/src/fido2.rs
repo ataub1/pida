@@ -14,6 +14,7 @@ use pdfover_backend_api::WindowHandle;
 pub mod ctap;
 #[cfg(feature = "fido2-hid")]
 pub mod hid;
+pub mod pin;
 #[cfg(feature = "fido2-windows")]
 pub mod windows;
 
@@ -89,6 +90,26 @@ pub enum Fido2Error {
     /// Die übergebene PIN ist falsch (CTAP2 `PIN_INVALID`; additiv, Welle 2).
     #[error("PIN des Sicherheitsschlüssels falsch")]
     PinInvalid,
+    /// PIN bzw. Nutzerverifikation gesperrt (CTAP2 `PIN_BLOCKED`, `PIN_AUTH_BLOCKED` – dann ab-
+    /// und wieder anstecken –, `UV_BLOCKED`; additiv, Welle 3).
+    #[error("Sicherheitsschlüssel ist gesperrt")]
+    Locked,
+    /// Der Schlüssel kann die Nutzerin nicht verifizieren: weder PIN noch Biometrie eingerichtet
+    /// (CTAP2 `PIN_NOT_SET`; additiv, Welle 3).
+    #[error("Sicherheitsschlüssel kann die Nutzerin nicht verifizieren (keine PIN/Biometrie eingerichtet)")]
+    NoUserVerification,
+    /// Keine ID-Austria-Registrierung auf dem Schlüssel (CTAP2 `NO_CREDENTIALS`; additiv, Welle 3).
+    #[error("Auf diesem Sicherheitsschlüssel ist keine ID-Austria-Registrierung vorhanden")]
+    NoCredential,
+    /// Zeitüberschreitung bei der Nutzeraktion (CTAP2 `USER_ACTION_TIMEOUT`; additiv, Welle 3).
+    #[error("Zeitüberschreitung: Sicherheitsschlüssel wurde nicht berührt")]
+    Timeout,
+    /// Nur U2F/CTAP1, kein CTAP2 (additiv, Welle 3).
+    #[error("Sicherheitsschlüssel unterstützt kein FIDO2 (nur U2F)")]
+    U2fOnly,
+    /// Kein Zugriff auf das HID-Gerät (Linux: udev-Regel `uaccess` fehlt; additiv, Welle 3).
+    #[error("kein Zugriff auf den Sicherheitsschlüssel (udev-Regel fehlt)")]
+    HidPermission,
 }
 
 impl Fido2Error {
@@ -101,6 +122,12 @@ impl Fido2Error {
             Fido2Error::Device(_) => "fido2-device",
             Fido2Error::PinRequired => "fido2-pin-required",
             Fido2Error::PinInvalid => "fido2-pin-invalid",
+            Fido2Error::Locked => "fido2-locked",
+            Fido2Error::NoUserVerification => "fido2-no-user-verification",
+            Fido2Error::NoCredential => "fido2-no-credential",
+            Fido2Error::Timeout => "fido2-timeout",
+            Fido2Error::U2fOnly => "fido2-u2f-only",
+            Fido2Error::HidPermission => "fido2-hid-permission",
         }
     }
 }
@@ -118,8 +145,8 @@ pub trait Fido2Provider: Send + Sync + std::fmt::Debug {
     fn cancel(&self);
 
     /// Kann der Provider eine PIN übernehmen ([`Self::get_assertion_with_pin`])? Default: nein
-    /// (Windows fragt selbst; der CTAP2-HID-Provider kennt das `clientPIN`-Protokoll noch nicht).
-    /// Additiv (Welle 2).
+    /// (Windows fragt selbst). Der CTAP2-HID-Provider kann es seit Welle 3 (`clientPIN`,
+    /// PIN-Protokoll 1 und 2, [`pin`]). Additiv (Welle 2).
     fn supports_pin(&self) -> bool {
         false
     }
@@ -375,6 +402,19 @@ mod tests {
         assert_eq!(Fido2Error::Unavailable.code(), "fido2-unavailable");
         assert_eq!(Fido2Error::InvalidOptions(String::new()).code(), "fido2-invalid-options");
         assert_eq!(Fido2Error::Device(String::new()).code(), "fido2-device");
+        // Welle 3: Codes aus dem Katalog (wave1-message-ids), nicht mehr nur `fido2-device`
+        for (e, code) in [
+            (Fido2Error::Locked, "fido2-locked"),
+            (Fido2Error::NoUserVerification, "fido2-no-user-verification"),
+            (Fido2Error::NoCredential, "fido2-no-credential"),
+            (Fido2Error::Timeout, "fido2-timeout"),
+            (Fido2Error::U2fOnly, "fido2-u2f-only"),
+            (Fido2Error::HidPermission, "fido2-hid-permission"),
+            (Fido2Error::PinInvalid, "fido2-pin-invalid"),
+            (Fido2Error::PinRequired, "fido2-pin-required"),
+        ] {
+            assert_eq!(e.code(), code);
+        }
     }
 
     #[test]

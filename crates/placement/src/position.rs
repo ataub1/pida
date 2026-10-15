@@ -740,7 +740,8 @@ enum RotatedScan {
 ///   Bereichs, ist sie selbst das Ergebnis ([`RotatedScan::Fixed`]); ebenso bei Start ≤ 0.
 /// - Sonst sucht PDF-AS im sichtbaren Raum ab der Startzeile aufwärts. Bei 90°/270° beginnt der
 ///   eigene Scan dann mit angepasster Fußzeile in derselben Zeile ([`RotatedScan::Scan`]; das
-///   Bild von `pdfover-render` hat `round(w)` Zeilen, KR-F10). PDF-AS sieht dort nur die linken
+///   Bild von `pdfover-render` hat `(int) w` Zeilen und bildet die Seite 1:1 ab, KR-F10 seit
+///   Welle 3). PDF-AS sieht dort nur die linken
 ///   `W` Spalten der sichtbaren Seite – Inhalt weiter rechts zählt hier mit (inhaltsabhängiger Rest).
 /// - 180° mit vollständig gelöschter Zeile: Bild = sichtbare Seite, normaler Scan (`None`).
 fn pdfas_rotated_scan(page: &PageInfo, footer: f32) -> Option<RotatedScan> {
@@ -765,8 +766,9 @@ fn pdfas_rotated_scan(page: &PageInfo, footer: f32) -> Option<RotatedScan> {
     match page.rotation {
         Rotation::R180 => None,
         _ => {
-            // sichtbare Höhe = w; eigener Start round(w) − 1 − f' = H − 1 − (int) f
-            let visible_rows = w.round() as i64;
+            // sichtbare Höhe = w; eigener Start (int) w − 1 − f' = H − 1 − (int) f (Raster
+            // `(int) w` Zeilen, 1:1 – `ForcedColorOptions::raster_size`)
+            let visible_rows = w as i64;
             Some(RotatedScan::Scan { footer: (footer as i64).saturating_add(visible_rows - ih) as f32 })
         }
     }

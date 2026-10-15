@@ -53,11 +53,20 @@ unsichtbar) und neue unsichtbare Signatur lassen die Zertifizierung bei `FORM_FI
 (`docmdp_ok`), ein neues sichtbares Feld ergab `OTHER`/`docmdp_ok=false` und wird jetzt abgelehnt
 (`pades-new-visible-field-not-allowed`).
 Die I6-Whitelist ist rollengenau (Unit-Tests in `src/check.rs`: fremde Arrays wie `/Contents`,
-`/Kids` nicht-terminaler Felder, Inhalt eines direkten AcroForms). Mutationstest mit
-`PDFOVER_FUZZ_ITERS=600` (4200 Mutationen, Release): kein Panic, keine I1–I4/I6-Verletzung bei
-intaktem Original; I5 scheitert fail-safe bei Querverweisen, die `pdf-cos` beim Öffnen korrigiert, in
-der Ausgabe aber mit alter Objektfassung liest (Reproduktion `repro-xref-misassigned.pdf`, offener
-Punkt Paket A).
+`/Kids` nicht-terminaler Felder, Inhalt eines direkten AcroForms).
+
+**Welle 3 (Härtung):** Mutationstest `robustness.rs` mit 14 Startwerten × 2000–2500 Mutationen je
+Datei (über 200 000 signierte Fälle, Release): kein Panic, bei intaktem Original **keine** Verletzung
+mehr, auch nicht I5. Behoben in `pdf-cos`: Querverweiseinträge, die auf den Kopf eines anderen
+Objekts zeigen (lopdf überschrieb dessen gültige Fassung, `repro-xref-misassigned.pdf`), und
+`/StrF`/`/StmF` fehlend, `/Identity` oder unbekannt (lopdf entschlüsselte mit RC4; jetzt
+spezifikationsgemäß, unbekannte Namen K5); Originalschreibweise fehlerhafter Reals (`0.595.32`) wird
+nicht mehr übernommen. In `pades`: `/DR /Font`, das kein Dictionary ist, ersetzt der PDFBox-Fixup
+durch ein direktes Dictionary, I6 lässt genau das zu. Bei beschädigtem Querverweis (K2) scheitert I5
+weiterhin vereinzelt fail-safe (Ausgabe erbt die Beschädigung; qpdf liest sie ebenso wenig).
+`fuzz_prepare.rs` (gesamter Korpus, `open` → `analyze` → `plan_signature` → `prepare`, 8 Threads):
+201 300 und 610 000 Mutationen ohne Panic und ohne Hänger (> 30 s je Fall). PDF/A: `verapdf.rs`
+(Strukturprüfung immer; veraPDF 1.28.2 über `tools/verapdf/fetch.sh`, sonst übersprungen).
 
 <!-- abschnitt:korpus -->
 ## Korpus (Modell A, Keystore-Backend)

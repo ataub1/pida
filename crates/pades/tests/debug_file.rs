@@ -67,7 +67,13 @@ fn debug_file_invisible() {
     let signed = signer.sign(prepared).unwrap();
     eprintln!("Quelle: health {:?} revisions {:?} prev {}", src.xref_health(), src.revisions(), src.prev_offset());
     match SourcePdf::open(signed.bytes(), &Limits::default()) {
-        Ok(out) => eprintln!("Ausgabe: health {:?} Felder {:?}", out.xref_health(), out.signature_fields()),
+        Ok(out) => {
+            eprintln!("Ausgabe: health {:?} Felder {:?}", out.xref_health(), out.signature_fields());
+            if let Some(n) = std::env::var("PDFOVER_DEBUG_OBJ").ok().and_then(|v| v.parse::<u32>().ok()) {
+                eprintln!("Objekt {n} vorher: {:?}", src.get_object((n, 0)));
+                eprintln!("Objekt {n} nachher: {:?}", out.get_object((n, 0)));
+            }
+        }
         Err(e) => eprintln!("Ausgabe nicht lesbar: {e}"),
     }
     eprintln!("Check: {:?}", signed.self_check(&CheckContext { source: &src, expected_signer: None, renderer: None }));

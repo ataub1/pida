@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use pdfium_render::prelude::{
     PdfBitmap, PdfBitmapFormat, PdfColor, PdfDocument, PdfPage, PdfPageImageObject, PdfPageObject, PdfPageObjectCommon,
-    PdfPageObjectsCommon, PdfPoints, PdfRenderConfig, Pdfium, PdfiumError, PdfiumInternalError, PdfiumLibraryBindings,
+    PdfPageObjectsCommon, PdfRenderConfig, Pdfium, PdfiumError, PdfiumInternalError, PdfiumLibraryBindings,
 };
 use zeroize::Zeroizing;
 
@@ -286,7 +286,7 @@ pub struct PdfiumRenderer {
     lib: &'static Library,
     /// `Option`, damit `Drop` das Dokument unter der Sperre schließen kann.
     doc: Option<PdfDocument<'static>>,
-    /// Zweite, nur für das Forced-Color-Raster geöffnete Instanz (lazy).
+    /// Zweite Instanz (lazy) für das Forced-Color-Raster und maskierte Bilder (`ffi`).
     raw: Mutex<Option<RawDocument>>,
     data: Arc<[u8]>,
     /// Nur im Speicher, für das lazy Öffnen von `raw`; wird beim Drop überschrieben.
@@ -378,7 +378,7 @@ impl PdfiumRenderer {
         &self,
         page: usize,
         img: &mut RgbaImage,
-        size: (i32, i32),
+        map: crate::ffi::DeviceMap,
         opts: &ForcedColorOptions,
     ) -> Result<()> {
         let color = blend(opts.foreground, [opts.background[0], opts.background[1], opts.background[2], 255]);
@@ -386,7 +386,7 @@ impl PdfiumRenderer {
         let pdf_page = self.doc().pages().get(index).map_err(|e| render_err("Seite laden", e))?;
         let mut matrices = Vec::new();
         visit_page_images(&pdf_page, &mut |_, m| matrices.push(m));
-        let config = PdfRenderConfig::new().set_fixed_size(size.0, size.1);
+        // dieselbe Abbildung wie das Raster (1:1 ab der sichtbaren linken oberen Ecke, KR-F10)
         for m in matrices {
             let corners = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)];
             let mut min = (i32::MAX, i32::MAX);
@@ -394,9 +394,14 @@ impl PdfiumRenderer {
             for (u, v) in corners {
                 let x = m[0] * u + m[2] * v + m[4];
                 let y = m[1] * u + m[3] * v + m[5];
-                let (px, py) = pdf_page
-                    .points_to_pixels(PdfPoints::new(x), PdfPoints::new(y), &config)
-                    .map_err(|e| render_err("Koordinaten", e))?;
+                let (u, v) = map.to_pixel(x, y);
+                if !(u.is_finite() && v.is_finite()) {
+                    continue;
+                }
+                let (px, py) = (
+                    u.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32,
+                    v.round().clamp(i32::MIN as f32, i32::MAX as f32) as i32,
+                );
                 min = (min.0.min(px), min.1.min(py));
                 max = (max.0.max(px), max.1.max(py));
             }
@@ -413,6 +418,48 @@ impl PdfiumRenderer {
         Ok(())
     }
 }
+
+impl PdfiumRenderer {
+    /// Ersetzt dekodierte Bilder mit Maske (`/SMask`, `/Mask`) durch die maskierte Fassung (Alpha
+    /// aus der Maske), wie PDF-AS `PDImageXObject.getImage()` (KR-F07, Welle 3). Nur Bilder bis
+    /// [`MAX_MASKED_IMAGE_PIXELS`] (QR-Platzhalter sind klein), im verbleibenden Budget.
+    fn apply_masks(&self, page: usize, out: &mut [ImageObject], mut left: u64) -> Result<()> {
+        let mut wanted = Vec::with_capacity(out.len());
+        for o in out.iter() {
+            let px = u64::from(o.bitmap.width) * u64::from(o.bitmap.height);
+            let want = !o.bitmap.is_empty() && px <= MAX_MASKED_IMAGE_PIXELS && px <= left;
+            if want {
+                left -= px;
+            }
+            wanted.push(want);
+        }
+        if !wanted.iter().any(|w| *w) {
+            return Ok(());
+        }
+        let mut raw = self.raw.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if raw.is_none() {
+            let password = self.password.as_ref().map(|p| p.as_str());
+            *raw = Some(RawDocument::open(self.lib.raw.as_ref(), Arc::clone(&self.data), password)?);
+        }
+        let raw = raw.as_ref().expect("eben geöffnet");
+        let masked = raw.masked_images(page, &wanted, MAX_MASKED_IMAGE_PIXELS)?;
+        if masked.len() != out.len() {
+            // andere Objektreihenfolge als in der Hauptinstanz: lieber unmaskiert lassen
+            return Ok(());
+        }
+        for (o, m) in out.iter_mut().zip(masked) {
+            if let Some(m) = m
+                && (m.width, m.height) == (o.bitmap.width, o.bitmap.height)
+            {
+                o.bitmap = m;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Obergrenze der Pixel eines Bildes, dessen Maske angewandt wird ([`PdfiumRenderer::apply_masks`]).
+const MAX_MASKED_IMAGE_PIXELS: u64 = 4_000_000;
 
 /// `src` (mit Alpha) über opakes `dst` legen.
 fn blend(src: [u8; 4], dst: [u8; 4]) -> [u8; 4] {
@@ -586,9 +633,9 @@ impl Renderer for PdfiumRenderer {
             *raw = Some(RawDocument::open(self.lib.raw.as_ref(), Arc::clone(&self.data), password)?);
         }
         let raw = raw.as_ref().expect("eben geöffnet");
-        let (mut img, area) = raw.render_forced_color(page, opts)?;
+        let (mut img, map) = raw.render_forced_color(page, opts)?;
         if !opts.keep_images {
-            self.paint_images(page, &mut img, area, opts)?;
+            self.paint_images(page, &mut img, map, opts)?;
         }
         Ok(img)
     }
@@ -613,6 +660,10 @@ impl Renderer for PdfiumRenderer {
             };
             out.push(ImageObject { order, matrix, bitmap });
         });
+        drop(pdf_page);
+        // Masken sind eine Verbesserung (KR-F07): scheitert die zweite Instanz, bleiben die Bilder
+        // unmaskiert wie bisher
+        let _ = self.apply_masks(page, &mut out, left);
         Ok(out)
     }
 }

@@ -1068,7 +1068,8 @@ impl SourcePdf {
         let mut repaired = structure.chain.repaired || lopdf_reconstructed;
         if !structure.reconstructed {
             let encrypt_id = encryption.as_ref().and_then(|e| e.encrypt_dict_id);
-            repaired |= fixup_objects(&mut document, data, &merged, base, encrypt_id, decryptor.as_ref(), limits, &index);
+            repaired |=
+                fixup_objects(&mut document, data, &merged, base, encrypt_id, decryptor.as_ref(), limits, &index);
             fixup_signature_dicts(&mut document, data, &merged, base, decryptor.as_ref(), &index);
         }
         if document.objects.len() > limits.max_objects {

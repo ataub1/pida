@@ -564,7 +564,10 @@ fn fix_dr(
     };
     match dr.get(b"Font").ok().cloned() {
         _ if !fixup => {}
-        Some(Object::Reference(fid)) => {
+        // Verweis auf ein Font-Dictionary: dort ergänzen. Ein Wert, der kein Dictionary ist (auch
+        // ein Verweis auf etwas anderes), wird wie bei PDFBox (`getCOSDictionary` = null) durch
+        // ein neues direktes Dictionary ersetzt (`check::check_dr` lässt genau das zu).
+        Some(Object::Reference(fid)) if matches!(ed.current(fid), Ok(Object::Dictionary(_))) => {
             let mut f = ed.dict(fid)?;
             ensure_fonts(&mut f);
             ed.put(fid, Object::Dictionary(f));

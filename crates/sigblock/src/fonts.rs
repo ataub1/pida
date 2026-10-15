@@ -165,8 +165,6 @@ pub(crate) struct TtfMetrics {
     pub ps_name: String,
     /// Originaldaten
     pub data: Arc<[u8]>,
-    /// `1000f / unitsPerEm`
-    pub scaling: f32,
     /// Unicode → GID
     pub cmap: HashMap<u32, u16>,
     /// gerundete Breite je GID (1/1000 em)
@@ -399,7 +397,6 @@ fn load_ttf(file: &str, data: Arc<[u8]>) -> Result<TtfMetrics> {
     Ok(TtfMetrics {
         file: file.to_string(),
         ps_name,
-        scaling,
         cmap,
         widths,
         ascent: f32::from(hhea.ascender().to_i16()) * scaling,

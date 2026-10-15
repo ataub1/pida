@@ -3,11 +3,11 @@
 //! andere (Kanal-Allokation, Fragmentierung, Keepalive, Abbruch, CBOR) liegt hier und ist gegen
 //! einen simulierten Authenticator getestet.
 //!
-//! Nicht enthalten (offener Punkt): `clientPIN`/PIN-Protokoll. Verlangt ein Authenticator eine
-//! PIN, meldet [`get_assertion`] [`Fido2Error::PinRequired`] (Code `fido2-pin-required`; Windows
-//! erledigt die PIN über `webauthn.dll` selbst). Der Weg zur PIN steht bereit
-//! (`SecretKind::Fido2Pin`, `Fido2Provider::get_assertion_with_pin`), der HID-Provider meldet aber
-//! noch `supports_pin() == false`.
+//! PIN (Welle 3): Verlangt ein Authenticator eine PIN, meldet [`get_assertion`]
+//! [`Fido2Error::PinRequired`] (Code `fido2-pin-required`); das Backend fragt sie über
+//! `SecretKind::Fido2Pin` ab und wiederholt mit [`get_assertion_with_pin`], das über
+//! `authenticatorClientPIN` ([`super::pin`], Protokoll 1 und 2) ein `pinUvAuthToken` holt und
+//! `pinUvAuthParam` mitsendet. Windows erledigt die PIN über `webauthn.dll` selbst.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -60,8 +60,16 @@ pub mod status {
     pub const PIN_INVALID: u8 = 0x31;
     /// PIN gesperrt
     pub const PIN_BLOCKED: u8 = 0x32;
-    /// PIN erforderlich
+    /// `pinUvAuthParam` ungültig
+    pub const PIN_AUTH_INVALID: u8 = 0x33;
+    /// drei Fehlversuche in Folge: erst nach erneutem Anstecken wieder möglich
+    pub const PIN_AUTH_BLOCKED: u8 = 0x34;
+    /// keine PIN gesetzt
+    pub const PIN_NOT_SET: u8 = 0x35;
+    /// PIN erforderlich (2.1: `PUAT_REQUIRED`)
     pub const PIN_REQUIRED: u8 = 0x36;
+    /// PIN verletzt die Richtlinie (z. B. zu kurz)
+    pub const PIN_POLICY_VIOLATION: u8 = 0x37;
     /// UV gesperrt
     pub const UV_BLOCKED: u8 = 0x3c;
     /// Aktion abgelaufen
@@ -445,8 +453,12 @@ pub struct AuthenticatorInfo {
     pub versions: Vec<String>,
     /// Option `uv` (eingebaute Nutzerverifikation): `Some(true)` = eingerichtet
     pub uv: Option<bool>,
-    /// Option `clientPin`: `Some(true)` = PIN gesetzt
+    /// Option `clientPin`: `Some(true)` = PIN gesetzt, `Some(false)` = unterstützt, nicht gesetzt
     pub client_pin: Option<bool>,
+    /// `pinUvAuthProtocols` (0x06; leer bei CTAP 2.0 = Protokoll 1). Additiv (Welle 3).
+    pub pin_protocols: Vec<u64>,
+    /// Option `pinUvAuthToken` (CTAP 2.1: `getPinUvAuthTokenUsingPinWithPermissions`). Additiv (Welle 3).
+    pub pin_uv_auth_token: Option<bool>,
 }
 
 impl AuthenticatorInfo {
@@ -459,7 +471,23 @@ impl AuthenticatorInfo {
             Some(Cbor::Bool(b)) => Some(*b),
             _ => None,
         };
-        Ok(AuthenticatorInfo { versions, uv: option("uv"), client_pin: option("clientPin") })
+        let pin_protocols = match value.get_uint_key(6) {
+            Some(Cbor::Array(items)) => items
+                .iter()
+                .filter_map(|v| match v {
+                    Cbor::Unsigned(n) => Some(*n),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        Ok(AuthenticatorInfo {
+            versions,
+            uv: option("uv"),
+            client_pin: option("clientPin"),
+            pin_protocols,
+            pin_uv_auth_token: option("pinUvAuthToken"),
+        })
     }
 }
 
@@ -469,6 +497,17 @@ fn text(s: &str) -> Cbor {
 
 /// Baut die Parameter von `authenticatorGetAssertion` (kanonisch sortierte Schlüssel).
 pub fn get_assertion_params(options: &AssertionOptions, client_data_hash: &[u8; 32], uv: bool) -> Cbor {
+    get_assertion_params_with_pin(options, client_data_hash, uv, None)
+}
+
+/// Wie [`get_assertion_params`], mit `pinUvAuthParam` (0x06) und `pinUvAuthProtocol` (0x07) aus
+/// einem PIN-Token. Mit PIN entfällt die Option `uv` (CTAP 2.1 §6.2.2). Additiv (Welle 3).
+pub fn get_assertion_params_with_pin(
+    options: &AssertionOptions,
+    client_data_hash: &[u8; 32],
+    uv: bool,
+    pin_auth: Option<(Vec<u8>, u64)>,
+) -> Cbor {
     let mut entries =
         vec![(Cbor::Unsigned(1), text(&options.rp_id)), (Cbor::Unsigned(2), Cbor::Bytes(client_data_hash.to_vec()))];
     if !options.allow_credentials.is_empty() {
@@ -479,61 +518,85 @@ pub fn get_assertion_params(options: &AssertionOptions, client_data_hash: &[u8; 
             .collect();
         entries.push((Cbor::Unsigned(3), Cbor::Array(list)));
     }
-    if uv {
+    if uv && pin_auth.is_none() {
         entries.push((Cbor::Unsigned(5), Cbor::Map(vec![(text("uv"), Cbor::Bool(true))])));
+    }
+    if let Some((param, protocol)) = pin_auth {
+        entries.push((Cbor::Unsigned(6), Cbor::Bytes(param)));
+        entries.push((Cbor::Unsigned(7), Cbor::Unsigned(protocol)));
     }
     Cbor::Map(entries)
 }
 
-/// Fehlerabbildung der CTAP2-Statuscodes.
-fn map_status(code: u8) -> Fido2Error {
+/// Fehlerabbildung der CTAP2-Statuscodes (Codes aus dem Katalog: `fido2-no-credential`,
+/// `fido2-timeout`, `fido2-locked`, `fido2-no-user-verification`; Welle 3).
+pub(crate) fn map_status(code: u8) -> Fido2Error {
     match code {
         status::KEEPALIVE_CANCEL | status::OPERATION_DENIED => Fido2Error::Cancelled,
-        status::NO_CREDENTIALS => {
-            Fido2Error::Device("Auf diesem Sicherheitsschlüssel ist keine ID-Austria-Registrierung vorhanden".into())
-        }
-        status::USER_ACTION_TIMEOUT | status::ACTION_TIMEOUT => {
-            Fido2Error::Device("Zeitüberschreitung: Sicherheitsschlüssel wurde nicht berührt".into())
-        }
+        status::NO_CREDENTIALS => Fido2Error::NoCredential,
+        status::USER_ACTION_TIMEOUT | status::ACTION_TIMEOUT => Fido2Error::Timeout,
         // Code `fido2-pin-required`; ohne PIN-Unterstützung des Providers zeigt das Backend den
         // Hinweis „bitte App oder SMS verwenden“ (Welle 2)
         status::PIN_REQUIRED => Fido2Error::PinRequired,
         status::PIN_INVALID => Fido2Error::PinInvalid,
-        status::PIN_BLOCKED | status::UV_BLOCKED => Fido2Error::Device("Sicherheitsschlüssel ist gesperrt".into()),
+        status::PIN_BLOCKED | status::PIN_AUTH_BLOCKED | status::UV_BLOCKED => Fido2Error::Locked,
+        status::PIN_NOT_SET => Fido2Error::NoUserVerification,
+        status::PIN_AUTH_INVALID => Fido2Error::Device("PIN-Prüfung am Sicherheitsschlüssel fehlgeschlagen".into()),
         other => Fido2Error::Device(format!("CTAP2-Status 0x{other:02x}")),
     }
 }
 
-/// Holt eine Assertion über einen geöffneten Kanal: GetInfo → UV-Entscheidung → GetAssertion.
-///
-/// UV: `required` → eingebaute UV (`uv`-Option) verwenden; ist nur eine PIN eingerichtet, kommt
-/// ein Hinweis (siehe Modul-Doku). `preferred` → eingebaute UV, wenn eingerichtet, sonst nur
-/// Anwesenheit. `discouraged` → nur Anwesenheit.
+/// Holt eine Assertion über einen geöffneten Kanal ohne PIN (siehe [`get_assertion_with_pin`]).
 pub fn get_assertion<C: HidConnection>(
     device: &mut CtapHidDevice<C>,
     options: &AssertionOptions,
     origin: &str,
     cancel: &AtomicBool,
 ) -> Result<Fido2Assertion, Fido2Error> {
+    get_assertion_with_pin(device, options, origin, cancel, None)
+}
+
+/// Holt eine Assertion über einen geöffneten Kanal: GetInfo → UV-Entscheidung → (mit PIN:
+/// `pinUvAuthToken`, [`super::pin::get_pin_token`]) → GetAssertion. Additiv (Welle 3).
+///
+/// Ohne PIN, wie ein Browser: `required`/`preferred` → eingebaute UV (`uv`-Option), wenn
+/// eingerichtet; sonst bei gesetzter PIN [`Fido2Error::PinRequired`] (das Backend fragt die PIN ab
+/// und ruft erneut auf); `required` ohne PIN und Biometrie → [`Fido2Error::NoUserVerification`];
+/// `preferred` ohne beides bzw. `discouraged` → nur Anwesenheit. Mit PIN wird immer das Token
+/// verwendet (die PIN wird nur nach `PinRequired` übergeben, auch wenn der Schlüssel sie z. B.
+/// wegen `alwaysUv` im GetAssertion selbst verlangt hat).
+pub fn get_assertion_with_pin<C: HidConnection>(
+    device: &mut CtapHidDevice<C>,
+    options: &AssertionOptions,
+    origin: &str,
+    cancel: &AtomicBool,
+    pin: Option<&str>,
+) -> Result<Fido2Assertion, Fido2Error> {
     if !device.supports_cbor() {
-        return Err(Fido2Error::Device("Sicherheitsschlüssel unterstützt kein FIDO2 (nur U2F)".into()));
+        return Err(Fido2Error::U2fOnly);
     }
     let info = device.get_info()?;
     let builtin_uv = info.uv == Some(true);
-    let uv = match options.user_verification {
-        UserVerification::Required if builtin_uv => true,
-        UserVerification::Required if info.client_pin == Some(true) => return Err(map_status(status::PIN_REQUIRED)),
-        UserVerification::Required => {
-            return Err(Fido2Error::Device(
-                "Sicherheitsschlüssel kann die Nutzerin nicht verifizieren (keine PIN/Biometrie eingerichtet)".into(),
-            ));
+    let pin_set = info.client_pin == Some(true);
+    let uv = match (pin, options.user_verification) {
+        (Some(_), _) => true,
+        (None, UserVerification::Required | UserVerification::Preferred) if builtin_uv => true,
+        (None, UserVerification::Required | UserVerification::Preferred) if pin_set => {
+            return Err(map_status(status::PIN_REQUIRED));
         }
-        UserVerification::Preferred => builtin_uv,
-        UserVerification::Discouraged => false,
+        (None, UserVerification::Required) => return Err(Fido2Error::NoUserVerification),
+        (None, UserVerification::Preferred | UserVerification::Discouraged) => false,
     };
     let client_data = client_data_json(&options.challenge, origin);
     let hash: [u8; 32] = sha2::Sha256::digest(&client_data).into();
-    let params = get_assertion_params(options, &hash, uv);
+    let pin_auth = match pin {
+        Some(p) => {
+            let token = super::pin::get_pin_token(device, &info, p, &options.rp_id)?;
+            Some((token.auth_param(&hash), token.protocol().id()))
+        }
+        None => None,
+    };
+    let params = get_assertion_params_with_pin(options, &hash, uv, pin_auth);
     let timeout = Duration::from_millis(options.timeout_ms.unwrap_or(120_000).clamp(10_000, 600_000) as u64);
     let (code, data) = device.cbor(CTAP2_GET_ASSERTION, Some(&params), timeout, Some(cancel))?;
     if code != status::OK {
@@ -565,10 +628,23 @@ pub fn get_assertion<C: HidConnection>(
 
 #[cfg(test)]
 pub(crate) mod sim {
-    //! Simulierter CTAP2-Authenticator für Tests (kein echtes Krypto, feste Antworten).
+    //! Simulierter CTAP2-Authenticator für Tests: feste Assertion-Antworten (keine echte
+    //! Signatur), aber ein vollständiges `authenticatorClientPIN` (Protokoll 1 und 2, echtes
+    //! ECDH/AES/HMAC aus Sicht des Authenticators, PIN-Zähler, Sperre nach drei Fehlversuchen in
+    //! Folge bzw. bei 0 Versuchen, Prüfung von `pinUvAuthParam` und Rechten).
     use std::collections::VecDeque;
 
+    use super::super::pin::{self, PinProtocol, SharedSecret};
     use super::*;
+
+    /// `CTAP2_ERR_INVALID_PARAMETER`
+    const INVALID_PARAMETER: u8 = 0x02;
+    /// `CTAP2_ERR_MISSING_PARAMETER`
+    const MISSING_PARAMETER: u8 = 0x14;
+    /// `CTAP2_ERR_INVALID_SUBCOMMAND`
+    const INVALID_SUBCOMMAND: u8 = 0x3e;
+    /// `CTAP2_ERR_UNAUTHORIZED_PERMISSION`
+    const UNAUTHORIZED_PERMISSION: u8 = 0x40;
 
     /// Verhalten des Simulators.
     #[derive(Debug, Clone)]
@@ -581,6 +657,29 @@ pub(crate) mod sim {
         pub user_handle: Option<Vec<u8>>,
         pub cbor_capable: bool,
         pub noise_other_channel: bool,
+        /// gesetzte PIN (GetInfo `clientPin` steuert weiterhin `client_pin`)
+        pub pin: Option<String>,
+        /// verbleibende PIN-Versuche
+        pub pin_retries: u64,
+        /// `pinUvAuthProtocols` (leer = CTAP 2.0, nur Protokoll 1)
+        pub pin_protocols: Vec<u64>,
+        /// Option `pinUvAuthToken` (CTAP 2.1)
+        pub pin_uv_auth_token: Option<bool>,
+        /// `alwaysUv`: GetAssertion ohne `pinUvAuthParam` → `PIN_REQUIRED`
+        pub always_uv: bool,
+    }
+
+    impl SimConfig {
+        /// Schlüssel mit gesetzter PIN und den angegebenen PIN-Protokollen.
+        pub fn with_pin(pin: &str, protocols: &[u64]) -> Self {
+            SimConfig {
+                uv: None,
+                client_pin: Some(true),
+                pin: Some(pin.to_owned()),
+                pin_protocols: protocols.to_vec(),
+                ..SimConfig::default()
+            }
+        }
     }
 
     impl Default for SimConfig {
@@ -594,6 +693,11 @@ pub(crate) mod sim {
                 user_handle: Some(vec![7, 7]),
                 cbor_capable: true,
                 noise_other_channel: true,
+                pin: None,
+                pin_retries: 8,
+                pin_protocols: Vec::new(),
+                pin_uv_auth_token: None,
+                always_uv: false,
             }
         }
     }
@@ -609,6 +713,14 @@ pub(crate) mod sim {
         pub received: Vec<(u8, Vec<u8>)>,
         pub cancel_received: bool,
         pending_assertion: Option<Vec<u8>>,
+        /// Schlüssel für `getKeyAgreement` (wird nach einer falschen PIN neu erzeugt)
+        key_agreement: p256::SecretKey,
+        /// Fehlversuche in Folge (3 → `PIN_AUTH_BLOCKED` bis zum „Neustecken“)
+        pub consecutive_fails: u8,
+        /// ausgegebenes Token: (Protokoll, Token, Rechte, RP-ID)
+        token: Option<(PinProtocol, Vec<u8>, u64, Option<String>)>,
+        /// letzte Assertion mit gesetztem UV-Flag
+        pub last_uv: bool,
     }
 
     impl SimDevice {
@@ -622,7 +734,130 @@ pub(crate) mod sim {
                 received: Vec::new(),
                 cancel_received: false,
                 pending_assertion: None,
+                key_agreement: p256::SecretKey::random(&mut rand_core::OsRng),
+                consecutive_fails: 0,
+                token: None,
+                last_uv: false,
             }
+        }
+
+        /// Schlüssel ab- und wieder angesteckt (setzt `PIN_AUTH_BLOCKED` zurück).
+        pub fn power_cycle(&mut self) {
+            self.consecutive_fails = 0;
+            self.token = None;
+            self.key_agreement = p256::SecretKey::random(&mut rand_core::OsRng);
+        }
+
+        fn protocol_of(&self, params: &Cbor) -> Result<PinProtocol, u8> {
+            let id = match params.get_uint_key(1) {
+                Some(Cbor::Unsigned(n)) => *n,
+                _ => return Err(MISSING_PARAMETER),
+            };
+            let supported = if self.config.pin_protocols.is_empty() { &[1][..] } else { &self.config.pin_protocols };
+            if !supported.contains(&id) {
+                return Err(INVALID_PARAMETER);
+            }
+            PinProtocol::from_id(id).ok_or(INVALID_PARAMETER)
+        }
+
+        /// `authenticatorClientPIN` aus Sicht des Authenticators (CTAP 2.1 §6.5.5).
+        fn client_pin(&mut self, params: &Cbor) -> Result<Cbor, u8> {
+            if self.config.client_pin.is_none() {
+                return Err(INVALID_SUBCOMMAND);
+            }
+            let protocol = self.protocol_of(params)?;
+            let sub_command = match params.get_uint_key(2) {
+                Some(Cbor::Unsigned(n)) => *n,
+                _ => return Err(MISSING_PARAMETER),
+            };
+            match sub_command {
+                pin::sub::GET_PIN_RETRIES => {
+                    Ok(Cbor::Map(vec![(Cbor::Unsigned(3), Cbor::Unsigned(self.config.pin_retries))]))
+                }
+                pin::sub::GET_KEY_AGREEMENT => {
+                    Ok(Cbor::Map(vec![(Cbor::Unsigned(1), pin::cose_key(&self.key_agreement.public_key()))]))
+                }
+                pin::sub::GET_PIN_TOKEN | pin::sub::GET_PIN_UV_AUTH_TOKEN_USING_PIN_WITH_PERMISSIONS => {
+                    let with_permissions = sub_command == pin::sub::GET_PIN_UV_AUTH_TOKEN_USING_PIN_WITH_PERMISSIONS;
+                    if with_permissions && self.config.pin_uv_auth_token != Some(true) {
+                        return Err(INVALID_SUBCOMMAND);
+                    }
+                    let (permissions, rp_id) = if with_permissions {
+                        let perm = match params.get_uint_key(9) {
+                            Some(Cbor::Unsigned(n)) if *n != 0 => *n,
+                            _ => return Err(MISSING_PARAMETER),
+                        };
+                        (perm, params.get_uint_key(10).and_then(Cbor::as_text).map(str::to_owned))
+                    } else {
+                        // CTAP 2.0-Token: Rechte mc|ga ohne RP-Bindung
+                        (0x03, None)
+                    };
+                    let Some(pin_value) = self.config.pin.clone() else { return Err(status::PIN_NOT_SET) };
+                    if self.config.pin_retries == 0 {
+                        return Err(status::PIN_BLOCKED);
+                    }
+                    if self.consecutive_fails >= 3 {
+                        return Err(status::PIN_AUTH_BLOCKED);
+                    }
+                    let peer = pin::parse_cose_key(params.get_uint_key(3).ok_or(MISSING_PARAMETER)?)
+                        .map_err(|_| INVALID_PARAMETER)?;
+                    let shared = p256::ecdh::diffie_hellman(self.key_agreement.to_nonzero_scalar(), peer.as_affine());
+                    let z: [u8; 32] = (*shared.raw_secret_bytes()).into();
+                    let secret = SharedSecret::derive(protocol, &z);
+                    let enc = params.get_uint_key(6).and_then(Cbor::as_bytes).ok_or(MISSING_PARAMETER)?;
+                    let hash = secret.decrypt(enc).map_err(|_| INVALID_PARAMETER)?;
+                    self.config.pin_retries -= 1;
+                    if hash.as_slice() != pin::pin_hash(&pin_value).as_ref() {
+                        self.consecutive_fails += 1;
+                        self.key_agreement = p256::SecretKey::random(&mut rand_core::OsRng);
+                        return Err(if self.config.pin_retries == 0 {
+                            status::PIN_BLOCKED
+                        } else if self.consecutive_fails >= 3 {
+                            status::PIN_AUTH_BLOCKED
+                        } else {
+                            status::PIN_INVALID
+                        });
+                    }
+                    self.config.pin_retries = 8;
+                    self.consecutive_fails = 0;
+                    let mut token = vec![0u8; 32];
+                    rand_core::RngCore::fill_bytes(&mut rand_core::OsRng, &mut token);
+                    let encrypted = secret.encrypt(&token).map_err(|_| INVALID_PARAMETER)?;
+                    self.token = Some((protocol, token, permissions, rp_id));
+                    Ok(Cbor::Map(vec![(Cbor::Unsigned(2), Cbor::Bytes(encrypted))]))
+                }
+                _ => Err(INVALID_SUBCOMMAND),
+            }
+        }
+
+        /// Prüft `pinUvAuthParam` einer GetAssertion; `Ok(true)` = UV durch PIN-Token.
+        fn check_pin_auth(&self, params: &Cbor) -> Result<bool, u8> {
+            let Some(param) = params.get_uint_key(6).and_then(Cbor::as_bytes) else {
+                return if self.config.always_uv && self.config.uv != Some(true) {
+                    Err(status::PIN_REQUIRED)
+                } else {
+                    Ok(false)
+                };
+            };
+            let protocol = self.protocol_of(&Cbor::Map(vec![(
+                Cbor::Unsigned(1),
+                params.get_uint_key(7).cloned().unwrap_or(Cbor::Null),
+            )]))?;
+            let Some((token_protocol, token, permissions, rp_id)) = &self.token else {
+                return Err(status::PIN_AUTH_INVALID);
+            };
+            let hash = params.get_uint_key(2).and_then(Cbor::as_bytes).ok_or(MISSING_PARAMETER)?;
+            if *token_protocol != protocol || pin::authenticate(protocol, token, hash) != param {
+                return Err(status::PIN_AUTH_INVALID);
+            }
+            let rp = params.get_uint_key(1).and_then(Cbor::as_text);
+            if permissions & pin::PERMISSION_GET_ASSERTION == 0 || rp_id.as_deref().is_some_and(|r| Some(r) != rp) {
+                return Err(UNAUTHORIZED_PERMISSION);
+            }
+            if params.get_uint_key(5).and_then(|o| o.get_text_key("uv")).is_some() {
+                return Err(INVALID_PARAMETER); // `uv` neben pinUvAuthParam ist ein Fehler der Plattform
+            }
+            Ok(true)
         }
 
         fn reply(&mut self, cid: u32, cmd: u8, payload: &[u8]) {
@@ -663,17 +898,25 @@ pub(crate) mod sim {
                 CMD_CBOR => match payload[0] {
                     CTAP2_GET_INFO => {
                         let mut opts = Vec::new();
+                        if let Some(t) = self.config.pin_uv_auth_token {
+                            opts.push((Cbor::Text("pinUvAuthToken".into()), Cbor::Bool(t)));
+                        }
                         if let Some(uv) = self.config.uv {
                             opts.push((Cbor::Text("uv".into()), Cbor::Bool(uv)));
                         }
                         if let Some(p) = self.config.client_pin {
                             opts.push((Cbor::Text("clientPin".into()), Cbor::Bool(p)));
                         }
-                        let info = Cbor::Map(vec![
+                        let mut info = vec![
                             (Cbor::Unsigned(1), Cbor::Array(vec![Cbor::Text("FIDO_2_0".into())])),
                             (Cbor::Unsigned(3), Cbor::Bytes(vec![0; 16])),
                             (Cbor::Unsigned(4), Cbor::Map(opts)),
-                        ]);
+                        ];
+                        if !self.config.pin_protocols.is_empty() {
+                            let list = self.config.pin_protocols.iter().map(|p| Cbor::Unsigned(*p)).collect();
+                            info.push((Cbor::Unsigned(6), Cbor::Array(list)));
+                        }
+                        let info = Cbor::Map(info);
                         let mut resp = vec![0];
                         resp.extend(cbor_encode(&info));
                         self.reply(cid, CMD_CBOR, &resp);
@@ -687,6 +930,16 @@ pub(crate) mod sim {
                             return;
                         }
                         let params = cbor_decode(&payload[1..]).unwrap();
+                        let pin_uv = match self.check_pin_auth(&params) {
+                            Ok(v) => v,
+                            Err(code) => {
+                                self.reply(cid, CMD_CBOR, &[code]);
+                                return;
+                            }
+                        };
+                        let builtin_uv =
+                            params.get_uint_key(5).and_then(|o| o.get_text_key("uv")) == Some(&Cbor::Bool(true));
+                        self.last_uv = pin_uv || builtin_uv;
                         let cred_id = match params.get_uint_key(3) {
                             Some(Cbor::Array(list)) => list[0].get_text_key("id").cloned().unwrap(),
                             _ => Cbor::Bytes(vec![9, 9, 9]),
@@ -703,7 +956,7 @@ pub(crate) mod sim {
                         }
                         // authData: rpIdHash(32) + flags + counter(4)
                         let mut auth = vec![0xaa; 32];
-                        auth.extend_from_slice(&[0x01, 0, 0, 0, 5]);
+                        auth.extend_from_slice(&[if self.last_uv { 0x05 } else { 0x01 }, 0, 0, 0, 5]);
                         map.push((Cbor::Unsigned(2), Cbor::Bytes(auth)));
                         map.push((Cbor::Unsigned(3), Cbor::Bytes(vec![0x30; 70])));
                         if let Some(uh) = &self.config.user_handle {
@@ -715,6 +968,17 @@ pub(crate) mod sim {
                         let mut resp = vec![0];
                         resp.extend(cbor_encode(&Cbor::Map(map)));
                         self.pending_assertion = Some(resp);
+                    }
+                    pin::CTAP2_CLIENT_PIN => {
+                        let params = cbor_decode(&payload[1..]).unwrap_or(Cbor::Null);
+                        match self.client_pin(&params) {
+                            Ok(resp) => {
+                                let mut r = vec![0];
+                                r.extend(cbor_encode(&resp));
+                                self.reply(cid, CMD_CBOR, &r);
+                            }
+                            Err(code) => self.reply(cid, CMD_CBOR, &[code]),
+                        }
                     }
                     _ => self.reply(cid, CMD_CBOR, &[0x01]),
                 },
@@ -911,6 +1175,237 @@ mod tests {
                 .unwrap_err();
         assert_eq!(e, Fido2Error::Cancelled);
         assert!(dev.conn.cancel_received);
+    }
+
+    // --- clientPIN (Welle 3) ----------------------------------------------------------------------
+
+    const ORIGIN: &str = "https://service.a-trust.at";
+
+    fn pin_device(config: SimConfig) -> CtapHidDevice<SimDevice> {
+        CtapHidDevice::init(SimDevice::new(config), [6; 8]).unwrap()
+    }
+
+    /// Parameter der zuletzt gesendeten CTAP2-Nachricht mit Kommando `command`.
+    fn last_sent(dev: &CtapHidDevice<SimDevice>, command: u8) -> Option<Cbor> {
+        dev.conn
+            .received
+            .iter()
+            .rev()
+            .find(|(c, p)| *c == CMD_CBOR && p.first() == Some(&command))
+            .map(|(_, p)| cbor_decode(&p[1..]).unwrap())
+    }
+
+    fn sub_commands(dev: &CtapHidDevice<SimDevice>) -> Vec<u64> {
+        dev.conn
+            .received
+            .iter()
+            .filter(|(c, p)| *c == CMD_CBOR && p.first() == Some(&crate::fido2::pin::CTAP2_CLIENT_PIN))
+            .filter_map(|(_, p)| match cbor_decode(&p[1..]).unwrap().get_uint_key(2) {
+                Some(Cbor::Unsigned(n)) => Some(*n),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn contains(hay: &[u8], needle: &[u8]) -> bool {
+        hay.windows(needle.len()).any(|w| w == needle)
+    }
+
+    #[test]
+    fn pin_protocols_one_and_two_against_simulator() {
+        use crate::fido2::pin::sub;
+        let cancel = AtomicBool::new(false);
+        for (protocols, permissions, protocol, param_len, token_sub) in [
+            (vec![], None, 1, 16, sub::GET_PIN_TOKEN),
+            (vec![1], None, 1, 16, sub::GET_PIN_TOKEN),
+            (vec![2, 1], None, 2, 32, sub::GET_PIN_TOKEN),
+            (vec![1, 2], Some(true), 2, 32, sub::GET_PIN_UV_AUTH_TOKEN_USING_PIN_WITH_PERMISSIONS),
+        ] {
+            let label = format!("{protocols:?} {permissions:?}");
+            let mut dev =
+                pin_device(SimConfig { pin_uv_auth_token: permissions, ..SimConfig::with_pin("1234", &protocols) });
+            // ohne PIN: wie ein Browser bei required und preferred die PIN verlangen
+            for uv in [UserVerification::Required, UserVerification::Preferred] {
+                let e = get_assertion(&mut dev, &options(uv, 1), ORIGIN, &cancel).unwrap_err();
+                assert_eq!(e, Fido2Error::PinRequired, "{label}");
+            }
+            // discouraged: nur Anwesenheit, kein clientPIN
+            get_assertion(&mut dev, &options(UserVerification::Discouraged, 1), ORIGIN, &cancel).unwrap();
+            assert!(!dev.conn.last_uv && sub_commands(&dev).is_empty(), "{label}");
+            // mit PIN
+            let a = get_assertion_with_pin(
+                &mut dev,
+                &options(UserVerification::Required, 1),
+                ORIGIN,
+                &cancel,
+                Some("1234"),
+            )
+            .unwrap();
+            assert!(dev.conn.last_uv, "{label}");
+            assert_eq!(a.authenticator_data[32] & 0x04, 0x04, "UV-Flag ({label})");
+            let sent = last_sent(&dev, CTAP2_GET_ASSERTION).unwrap();
+            assert_eq!(sent.get_uint_key(7), Some(&Cbor::Unsigned(protocol)), "{label}");
+            assert!(matches!(sent.get_uint_key(6), Some(Cbor::Bytes(b)) if b.len() == param_len), "{label}");
+            assert!(sent.get_uint_key(5).is_none(), "keine uv-Option neben pinUvAuthParam ({label})");
+            assert_eq!(sub_commands(&dev), [sub::GET_PIN_RETRIES, sub::GET_KEY_AGREEMENT, token_sub], "{label}");
+            let token_req = last_sent(&dev, crate::fido2::pin::CTAP2_CLIENT_PIN).unwrap();
+            if token_sub == sub::GET_PIN_UV_AUTH_TOKEN_USING_PIN_WITH_PERMISSIONS {
+                assert_eq!(
+                    token_req.get_uint_key(9),
+                    Some(&Cbor::Unsigned(crate::fido2::pin::PERMISSION_GET_ASSERTION))
+                );
+                assert_eq!(token_req.get_uint_key(10), Some(&Cbor::Text("a-trust.at".into())));
+            } else {
+                assert!(token_req.get_uint_key(9).is_none() && token_req.get_uint_key(10).is_none());
+            }
+            // weder PIN noch PIN-Hash im Klartext auf der Leitung
+            let hash = crate::fido2::pin::pin_hash("1234");
+            for (_, payload) in &dev.conn.received {
+                assert!(!contains(payload, b"1234") && !contains(payload, hash.as_ref()), "{label}");
+            }
+        }
+    }
+
+    #[test]
+    fn wrong_pin_counts_down_and_locks() {
+        use crate::fido2::pin::sub;
+        let cancel = AtomicBool::new(false);
+        let opts = options(UserVerification::Required, 1);
+        let mut dev = pin_device(SimConfig { pin_retries: 5, ..SimConfig::with_pin("1234", &[2, 1]) });
+        let e = get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("4321")).unwrap_err();
+        assert_eq!(e, Fido2Error::PinInvalid);
+        assert_eq!(e.code(), "fido2-pin-invalid");
+        assert_eq!(dev.conn.config.pin_retries, 4, "ein Versuch verbraucht");
+        get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap();
+        assert_eq!(dev.conn.config.pin_retries, 8, "richtige PIN setzt den Zähler zurück");
+        // drei Fehlversuche in Folge: PIN_AUTH_BLOCKED – auch die richtige PIN hilft erst nach dem
+        // erneuten Anstecken
+        for _ in 0..2 {
+            assert_eq!(
+                get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("0000")).unwrap_err(),
+                Fido2Error::PinInvalid
+            );
+        }
+        let e = get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("0000")).unwrap_err();
+        assert_eq!(e, Fido2Error::Locked);
+        assert_eq!(e.code(), "fido2-locked");
+        assert_eq!(
+            get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap_err(),
+            Fido2Error::Locked
+        );
+        dev.conn.power_cycle();
+        get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap();
+        // letzter Versuch falsch → PIN_BLOCKED; danach prüft der Client getPINRetries und
+        // verbraucht keinen Versuch mehr (kein getKeyAgreement/getPinToken)
+        let mut dev = pin_device(SimConfig { pin_retries: 1, ..SimConfig::with_pin("1234", &[1]) });
+        assert_eq!(
+            get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("9999")).unwrap_err(),
+            Fido2Error::Locked
+        );
+        assert_eq!(dev.conn.config.pin_retries, 0);
+        let before = sub_commands(&dev).len();
+        assert_eq!(
+            get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap_err(),
+            Fido2Error::Locked
+        );
+        assert_eq!(sub_commands(&dev)[before..], [sub::GET_PIN_RETRIES]);
+        // gesperrt bereits beim Öffnen
+        let mut dev = pin_device(SimConfig { pin_retries: 0, ..SimConfig::with_pin("1234", &[2]) });
+        assert_eq!(
+            get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap_err(),
+            Fido2Error::Locked
+        );
+    }
+
+    #[test]
+    fn pin_not_set_unsupported_or_malformed() {
+        let cancel = AtomicBool::new(false);
+        let required = options(UserVerification::Required, 1);
+        // PIN unterstützt, aber nicht gesetzt: required ohne Biometrie → klarer Code
+        let mut dev = pin_device(SimConfig { uv: None, client_pin: Some(false), ..SimConfig::default() });
+        let e = get_assertion(&mut dev, &required, ORIGIN, &cancel).unwrap_err();
+        assert_eq!(e, Fido2Error::NoUserVerification);
+        assert_eq!(e.code(), "fido2-no-user-verification");
+        assert_eq!(
+            get_assertion_with_pin(&mut dev, &required, ORIGIN, &cancel, Some("1234")).unwrap_err(),
+            Fido2Error::NoUserVerification
+        );
+        // preferred ohne PIN/Biometrie → nur Anwesenheit
+        get_assertion(&mut dev, &options(UserVerification::Preferred, 1), ORIGIN, &cancel).unwrap();
+        assert!(!dev.conn.last_uv);
+        // GetInfo meldet clientPin = true, der Schlüssel hat aber keine PIN (PIN_NOT_SET)
+        let mut dev = pin_device(SimConfig { uv: None, client_pin: Some(true), pin: None, ..SimConfig::default() });
+        assert_eq!(
+            get_assertion_with_pin(&mut dev, &required, ORIGIN, &cancel, Some("1234")).unwrap_err(),
+            Fido2Error::NoUserVerification
+        );
+        // kein clientPIN überhaupt
+        let mut dev = pin_device(SimConfig { uv: None, client_pin: None, ..SimConfig::default() });
+        assert!(matches!(
+            get_assertion_with_pin(&mut dev, &required, ORIGIN, &cancel, Some("1234")),
+            Err(Fido2Error::Device(_))
+        ));
+        // zu kurze bzw. zu lange PIN: falsch, ohne einen Versuch am Schlüssel zu verbrauchen
+        let mut dev = pin_device(SimConfig::with_pin("1234", &[2]));
+        for pin in ["123", &"1".repeat(64)] {
+            assert_eq!(
+                get_assertion_with_pin(&mut dev, &required, ORIGIN, &cancel, Some(pin)).unwrap_err(),
+                Fido2Error::PinInvalid
+            );
+        }
+        assert!(sub_commands(&dev).is_empty());
+        assert_eq!(dev.conn.config.pin_retries, 8);
+        // nur unbekannte Protokolle
+        let mut dev = pin_device(SimConfig::with_pin("1234", &[7]));
+        assert!(matches!(
+            get_assertion_with_pin(&mut dev, &required, ORIGIN, &cancel, Some("1234")),
+            Err(Fido2Error::Device(m)) if m.contains("PIN-Protokoll")
+        ));
+    }
+
+    #[test]
+    fn always_uv_key_requests_the_pin_in_get_assertion() {
+        let cancel = AtomicBool::new(false);
+        let opts = options(UserVerification::Discouraged, 1);
+        let mut dev = pin_device(SimConfig { always_uv: true, ..SimConfig::with_pin("1234", &[1]) });
+        assert_eq!(get_assertion(&mut dev, &opts, ORIGIN, &cancel).unwrap_err(), Fido2Error::PinRequired);
+        get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap();
+        assert!(dev.conn.last_uv);
+        // gefälschtes pinUvAuthParam weist der Schlüssel ab
+        let hash = [0x11; 32];
+        let params = get_assertion_params_with_pin(&opts, &hash, false, Some((vec![0; 16], 1)));
+        let (code, _) = dev.cbor(CTAP2_GET_ASSERTION, Some(&params), Duration::from_secs(1), None).unwrap();
+        assert_eq!(code, status::PIN_AUTH_INVALID);
+        assert!(matches!(map_status(code), Fido2Error::Device(_)));
+    }
+
+    #[test]
+    fn status_codes_from_the_catalog() {
+        assert_eq!(map_status(status::NO_CREDENTIALS), Fido2Error::NoCredential);
+        assert_eq!(map_status(status::USER_ACTION_TIMEOUT), Fido2Error::Timeout);
+        assert_eq!(map_status(status::ACTION_TIMEOUT), Fido2Error::Timeout);
+        for code in [status::PIN_BLOCKED, status::PIN_AUTH_BLOCKED, status::UV_BLOCKED] {
+            assert_eq!(map_status(code), Fido2Error::Locked);
+        }
+        assert_eq!(map_status(status::PIN_NOT_SET), Fido2Error::NoUserVerification);
+        let sim = SimDevice::new(SimConfig { cbor_capable: false, ..SimConfig::default() });
+        let mut dev = CtapHidDevice::init(sim, [9; 8]).unwrap();
+        let e = get_assertion(&mut dev, &options(UserVerification::Discouraged, 1), ORIGIN, &AtomicBool::new(false))
+            .unwrap_err();
+        assert_eq!(e, Fido2Error::U2fOnly);
+    }
+
+    #[test]
+    fn get_info_reads_pin_fields() {
+        let mut dev = pin_device(SimConfig { pin_uv_auth_token: Some(true), ..SimConfig::with_pin("1234", &[2, 1]) });
+        let info = dev.get_info().unwrap();
+        assert_eq!(info.pin_protocols, [2, 1]);
+        assert_eq!(info.pin_uv_auth_token, Some(true));
+        assert_eq!(info.client_pin, Some(true));
+        let mut dev = pin_device(SimConfig::default());
+        let info = dev.get_info().unwrap();
+        assert!(info.pin_protocols.is_empty());
+        assert_eq!(info.pin_uv_auth_token, None);
     }
 
     /// Gerät, das vorgegebene (auch bösartige) Reports liefert.

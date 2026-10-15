@@ -512,3 +512,24 @@ fn real_literals_keep_original_precision() {
     assert!(s.real_literals((99, 0)).is_empty());
     assert!(format!("{l:?}").contains("len: 3"));
 }
+
+/// Mutationstest (`rotate_090.pdf`): `/MediaBox [0 0.595.32 841.92]` liest lopdf als vier Werte
+/// (`0.595`, `.32`), der eigene Lexer als ein Token. Der Originaltext `0.595.32` darf nicht als
+/// Schreibweise für `0.595` gelten, sonst würde das fortgeschriebene Objekt fünf Werte enthalten.
+#[test]
+fn malformed_real_literals_are_not_reused() {
+    let mut p = Pdf::new("1.5");
+    p.obj(1, "<< /Type /Catalog /Pages 2 0 R >>")
+        .obj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+        .obj(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0.595.32 841.92] /A [1.-5 +.25 -0.0 4.] >>")
+        .table("/Size 4 /Root 1 0 R", 0);
+    let s = open(p.bytes());
+    let l = s.real_literals((3, 0));
+    let mb = |i| [PathSegment::Key(b"MediaBox".to_vec()), PathSegment::Index(i)];
+    assert_eq!(l.get(&mb(1), 0.595), None);
+    let a = |i| [PathSegment::Key(b"A".to_vec()), PathSegment::Index(i)];
+    assert_eq!(l.get(&a(0), 1.0), None, "1.-5 ist keine Zahl");
+    assert_eq!(l.get(&a(1), 0.25), Some("+.25"));
+    assert_eq!(l.get(&a(2), -0.0), Some("-0.0"));
+    assert_eq!(l.get(&a(3), 4.0), Some("4."));
+}

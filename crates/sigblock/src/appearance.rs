@@ -27,7 +27,7 @@ use pdfover_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
 
 use crate::Result;
 use crate::SigBlockError;
-use crate::emblem::Emblem;
+use crate::emblem::{Emblem, SourceColor, java_linear_gray_to_srgb};
 use crate::fonts::{FontProvider, LoadedFont, TtfMetrics};
 use crate::input::{PdfaMode, SigBlockInput};
 use crate::java::pdf_number;
@@ -690,15 +690,36 @@ fn push_icc(objects: &mut Vec<Object>) -> Result<usize> {
 fn without_alpha(emblem: &Emblem, quirks: bool) -> Emblem {
     if quirks {
         let rgba = emblem.rgba.as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
-        Emblem {
-            width: emblem.width,
-            height: emblem.height,
-            rgba,
-            has_alpha: false,
-            source_sha256: emblem.source_sha256,
-        }
+        Emblem { rgba, has_alpha: false, ..emblem.clone() }
     } else {
         emblem.flattened_on_white()
+    }
+}
+
+/// Einbettung einer Bildmarke außerhalb von PDF/A-1 mit `pdfas_quirks` wie PDF-AS 4.4.2 (PDFBox
+/// `LosslessFactory`, Register SB-G2 … SB-G4; Farbtyp aus [`Emblem::source_color`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QuirkImage {
+    /// wie im Standardmodus
+    AsIs,
+    /// SB-G2: Alphakanal der Datei voll deckend ⇒ trotzdem eine SMask (lauter 255)
+    OpaqueSmask,
+    /// SB-G3: Palettentransparenz verworfen (gespeicherte Palettenfarbe, keine SMask)
+    DropAlpha,
+    /// SB-G4: DeviceGray, Samples linear → sRGB aufgehellt
+    BrightenedGray,
+}
+
+fn quirk_image(emblem: &Emblem, pdfa: PdfaMode, quirks: bool) -> QuirkImage {
+    if !quirks || pdfa != PdfaMode::None {
+        return QuirkImage::AsIs;
+    }
+    match emblem.source_color {
+        SourceColor::RgbAlpha | SourceColor::GrayAlpha if !emblem.has_alpha => QuirkImage::OpaqueSmask,
+        SourceColor::Indexed if emblem.has_alpha => QuirkImage::DropAlpha,
+        // Graustufen ohne Alphakanal; eine `tRNS`-Transparenz verwirft PDF-AS ebenfalls
+        SourceColor::Gray => QuirkImage::BrightenedGray,
+        _ => QuirkImage::AsIs,
     }
 }
 
@@ -710,17 +731,27 @@ fn push_image(
     quirks: bool,
 ) -> Result<usize> {
     emblem.check()?;
+    let quirk = quirk_image(emblem, pdfa, quirks);
     let flattened;
-    let e = if emblem.has_alpha && pdfa == PdfaMode::Part1 {
+    let e = if emblem.has_alpha
+        && (pdfa == PdfaMode::Part1 || matches!(quirk, QuirkImage::DropAlpha | QuirkImage::BrightenedGray))
+    {
         flattened = without_alpha(emblem, quirks);
         &flattened
     } else {
         emblem
     };
     let idx = objects.len();
+    if quirk == QuirkImage::BrightenedGray {
+        // SB-G4: PDFBox `createFromGrayImage` liest `getRGB` des linearen CS_GRAY (aufgehellt)
+        let gray: Vec<u8> = e.rgba.as_chunks::<4>().0.iter().map(|p| java_linear_gray_to_srgb(p[0])).collect();
+        let d = image_dict(e, 1, name("DeviceGray"));
+        objects.push(flate_stream(d, &predictor_encode(&gray, e.width as usize, 1))?);
+        return Ok(idx);
+    }
     let mut d = image_dict(e, 3, rgb_space(icc));
     let rgb = predictor_encode(&e.rgb(), e.width as usize, 3);
-    if e.has_alpha {
+    if e.has_alpha || quirk == QuirkImage::OpaqueSmask {
         d.set("SMask", local(idx + 1));
         objects.push(flate_stream(d, &rgb)?);
         let a = predictor_encode(&e.alpha(), e.width as usize, 1);
@@ -1046,6 +1077,7 @@ mod tests {
             rgba: vec![0, 0, 0, 0, 200, 10, 20, 255],
             has_alpha: true,
             source_sha256: [0; 32],
+            source_color: SourceColor::RgbAlpha,
         };
         let white = without_alpha(&e, false);
         assert_eq!(white.rgba, vec![255, 255, 255, 255, 200, 10, 20, 255]);
@@ -1062,6 +1094,59 @@ mod tests {
             assert!(s.dict.get(b"SMask").is_err());
             assert_eq!(s.decompressed_content().unwrap(), rgb.to_vec());
         }
+    }
+
+    /// Mit `pdfas_quirks` (außerhalb von PDF/A) wie PDF-AS: SMask für jeden Alphakanal (SB-G2),
+    /// Palettentransparenz verworfen (SB-G3), Graustufen als DeviceGray aufgehellt (SB-G4); ohne
+    /// Quirks nach Inhalt.
+    #[test]
+    fn quirk_image_embedding_by_source_color() {
+        let emblem = |rgba: Vec<u8>, has_alpha, source_color| Emblem {
+            width: 2,
+            height: 1,
+            rgba,
+            has_alpha,
+            source_sha256: [0; 32],
+            source_color,
+        };
+        let embed = |e: &Emblem, quirks| {
+            let mut objects = Vec::new();
+            let idx = push_image(&mut objects, e, PdfaMode::None, None, quirks).unwrap();
+            let Object::Stream(s) = &objects[idx] else { panic!("Bildstream") };
+            let cs = s.dict.get(b"ColorSpace").unwrap().as_name().unwrap().to_vec();
+            let samples = s.decompressed_content().unwrap();
+            let smask = (objects.len() > 1).then(|| match &objects[idx + 1] {
+                Object::Stream(m) => m.decompressed_content().unwrap(),
+                _ => panic!("SMask"),
+            });
+            (cs, samples, smask)
+        };
+        // SB-G2: voll deckender Alphakanal
+        let opaque = emblem(vec![1, 2, 3, 255, 4, 5, 6, 255], false, SourceColor::RgbAlpha);
+        assert_eq!(embed(&opaque, false).2, None);
+        assert_eq!(embed(&opaque, true).2, Some(vec![255, 255]));
+        // SB-G3: Palette mit Transparenz
+        let indexed = emblem(vec![255, 0, 0, 0, 0, 0, 255, 255], true, SourceColor::Indexed);
+        assert_eq!(embed(&indexed, false).2, Some(vec![0, 255]));
+        let (cs, samples, smask) = embed(&indexed, true);
+        assert_eq!((cs.as_slice(), samples, smask), (&b"DeviceRGB"[..], vec![255, 0, 0, 0, 0, 255], None));
+        // SB-G4: Graustufen
+        let gray = emblem(vec![20, 20, 20, 255, 200, 200, 200, 255], false, SourceColor::Gray);
+        let (cs, samples, _) = embed(&gray, false);
+        assert_eq!((cs.as_slice(), samples), (&b"DeviceRGB"[..], vec![20, 20, 20, 200, 200, 200]));
+        let (cs, samples, smask) = embed(&gray, true);
+        assert_eq!(
+            (cs.as_slice(), samples, smask),
+            (&b"DeviceGray"[..], vec![79, java_linear_gray_to_srgb(200)], None)
+        );
+        // echte Transparenz bleibt in beiden Modi
+        let alpha = emblem(vec![1, 2, 3, 0, 4, 5, 6, 255], true, SourceColor::RgbAlpha);
+        assert_eq!(embed(&alpha, true).2, Some(vec![0, 255]));
+        // PDF/A: unverändert (Part 1 ohne Alpha, andere wie bisher)
+        let mut objects = Vec::new();
+        push_image(&mut objects, &gray, PdfaMode::Part1, None, true).unwrap();
+        let Object::Stream(s) = &objects[0] else { panic!() };
+        assert_eq!(s.dict.get(b"ColorSpace").unwrap().as_name().unwrap(), b"DeviceRGB");
     }
 
     #[test]

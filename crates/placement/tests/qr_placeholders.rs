@@ -293,3 +293,54 @@ fn matching_scales_to_many_images_and_keeps_the_tie_breaker() {
     assert_eq!(found[2].pos.to_string(), "p:1;x:300;y:700;w:100");
     eprintln!("Zuordnung von {} Bildobjekten: {:?}", n + 3, start.elapsed());
 }
+
+/// Transparente PNG-Platzhalter (Welle 3, KR-F07): QR-Code nur in der `/SMask` (Farbwerte überall
+/// schwarz) bzw. helle Module per Farbschlüssel-`/Mask` ausgeblendet (ohne Maske invertiert). PDF-AS dekodiert `getImage()` mit angewandter Maske – transparente Pixel
+/// gelten als weiß –, `pdfover-render` liefert die Bilder ebenso maskiert.
+#[test]
+fn transparent_qr_placeholders_are_decoded_with_their_mask() {
+    let backend = require_pdfium!();
+    let qr = qr_image("PDF-AS-POS;id=21", 4);
+    let (w, h) = (qr.width, qr.height);
+    let mut b = PdfBuilder::new();
+    let alpha: Vec<u8> = qr.data.iter().map(|&v| if v == 0 { 255 } else { 0 }).collect();
+    let smask = b.add_stream(
+        &format!("/Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceGray /BitsPerComponent 8"),
+        &alpha,
+    );
+    let soft = b.add_stream(
+        &format!(
+            "/Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask {smask} 0 R"
+        ),
+        &vec![0u8; (w * h * 3) as usize],
+    );
+    // dunkle Module 5, helle 0 (ohne Maske invertiert und nicht lesbar), Farbschlüssel blendet 0 aus
+    let keyed_data: Vec<u8> =
+        qr_image("PDF-AS-POS;id=22", 4).data.iter().map(|&v| if v == 0 { 5 } else { 0 }).collect();
+    let keyed = b.add_stream(
+        &format!("/Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace /DeviceGray /BitsPerComponent 8 /Mask [0 0]"),
+        &keyed_data,
+    );
+    let page = PageSpec {
+        resources: format!("/XObject << /Qs {soft} 0 R /Qk {keyed} 0 R >>"),
+        ..PageSpec::a4("q 100 0 0 100 72 600 cm /Qs Do Q q 100 0 0 100 300 600 cm /Qk Do Q")
+    };
+    let bytes = build_doc(b, vec![page], "");
+    let doc = common::load(&bytes);
+    let pages = common::pages(&doc);
+    let renderer = common::open(&backend, &bytes);
+    // ohne Maske nicht lesbar (Gegenprobe)
+    let raw_soft = to_rgba(&GrayImage { width: w, height: h, data: vec![0; (w * h) as usize] });
+    assert!(decode_qr(&raw_soft).is_empty());
+    let raw_keyed = to_rgba(&GrayImage { width: w, height: h, data: keyed_data });
+    assert!(decode_qr(&raw_keyed).is_empty());
+    let found = find_qr_placeholders(renderer.as_ref(), &pages, &common::all_invocations(&doc, false)).unwrap();
+    let got: Vec<_> = found.iter().map(summary).collect();
+    assert_eq!(
+        got,
+        vec![
+            (0, "Qs".to_owned(), Some("21".to_owned()), "p:1;x:72;y:700;w:100".to_owned()),
+            (0, "Qk".to_owned(), Some("22".to_owned()), "p:1;x:300;y:700;w:100".to_owned()),
+        ]
+    );
+}

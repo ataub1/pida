@@ -181,14 +181,17 @@ fn int_value(src: &SourcePdf, d: &Dictionary, key: &[u8]) -> Option<i64> {
 }
 
 /// `/DR`: nur hinzugefügte Einträge; in direkt eingebetteten `/Font`/`/XObject` ebenso
-/// (`/FRM1` darf ersetzt werden, PDFBox `assignAcroFormDefaultResource`).
-fn check_dr(id: ObjectId, old: &Dictionary, new: &Dictionary) -> Result<(), InvariantViolation> {
+/// (`/FRM1` darf ersetzt werden, PDFBox `assignAcroFormDefaultResource`). Ein `/Font`, das kein
+/// Dictionary ist (auch nicht über einen Verweis), darf durch ein neues direktes Dictionary ersetzt
+/// werden (`build::fix_dr`, wie PDFBox).
+fn check_dr(src: &SourcePdf, id: ObjectId, old: &Dictionary, new: &Dictionary) -> Result<(), InvariantViolation> {
     for (k, v) in old.iter() {
         match (v, new.get(k)) {
             (_, Ok(w)) if same(v, w) => {}
             (Object::Dictionary(a), Ok(Object::Dictionary(b))) if k == b"Font" || k == b"XObject" => {
                 only_added(id, a, b, &[b"FRM1"])?
             }
+            (_, Ok(Object::Dictionary(_))) if k == b"Font" && !matches!(src.resolve(v), Ok(Object::Dictionary(_))) => {}
             _ => return Err(violation(format!("Objekt {} {}: /DR-Eintrag {} geändert", id.0, id.1, key_text(k)))),
         }
     }
@@ -208,7 +211,7 @@ fn check_acroform(src: &SourcePdf, id: ObjectId, o: &Dictionary, n: &Dictionary)
     match (o.get(b"DR").ok(), n.get(b"DR").ok()) {
         (Some(a), Some(b)) if same(a, b) => {}
         (None, Some(Object::Dictionary(_)) | None) => {}
-        (Some(Object::Dictionary(a)), Some(Object::Dictionary(b))) => check_dr(id, a, b)?,
+        (Some(Object::Dictionary(a)), Some(Object::Dictionary(b))) => check_dr(src, id, a, b)?,
         // Verweis auf ein fehlendes bzw. kaputtes /DR: neues direktes /DR (`build::update_acroform`)
         (Some(Object::Reference(r)), Some(Object::Dictionary(_)))
             if !matches!(src.get_object(*r), Ok(Object::Dictionary(_))) => {}
@@ -455,7 +458,7 @@ fn check_changed(
                 return Ok(());
             }
             if Some(id) == roles.dr {
-                return check_dr(id, o, n);
+                return check_dr(src, id, o, n);
             }
             if roles.dr_children.contains(&id) {
                 return only_added(id, o, n, &[b"FRM1"]);

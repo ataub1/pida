@@ -155,8 +155,22 @@ fn inconsistent_emblems_are_rejected() {
     let p = s.get("SIGNATURBLOCK_SMALL_DE").unwrap();
     let opts = BuildOptions { width: 230.0, rotation: 0, pdfa: PdfaMode::None, preview_only: false };
     for e in [
-        Emblem { width: 0, height: 5, rgba: vec![], has_alpha: false, source_sha256: [0; 32] },
-        Emblem { width: 10, height: 10, rgba: vec![1; 7], has_alpha: true, source_sha256: [0; 32] },
+        Emblem {
+            width: 0,
+            height: 5,
+            rgba: vec![],
+            has_alpha: false,
+            source_sha256: [0; 32],
+            source_color: Default::default(),
+        },
+        Emblem {
+            width: 10,
+            height: 10,
+            rgba: vec![1; 7],
+            has_alpha: true,
+            source_sha256: [0; 32],
+            source_color: Default::default(),
+        },
     ] {
         let mut inp = input();
         inp.emblem = Some(Arc::new(e));
