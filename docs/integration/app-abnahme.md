@@ -66,7 +66,7 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | S-04 | PDF mit Nutzungsrechten (`/Perms /UR3`), Hybrid-XFA bzw. unerfüllbaren Seed Values | Schritt „Hinweis zum Dokument“ mit Liste; „Trotzdem signieren“ geht weiter, „Dokument verwerfen“ zurück zu Öffnen |
 | S-05 | PDF mit leeren Signaturfeldern bzw. QR-Platzhalter | Frage „Platzhalter verwenden?“ (Ja/Nein/Abbrechen), bei mehreren Feldern Auswahl |
 | S-06 | QR-Platzhalter mit `profile=…` | signiert mit dem Profil des Platzhalters; unbekanntes Profil → Hinweis `ng-placeholder-profile-unknown`, eingestelltes Profil |
-| S-07 | Positionieren: Ziehen, Seitenwechsel, „Neue Seite“, „Automatisch platzieren“, Zahlenfelder | Block folgt; Live-Region nennt Seite/Position; „Neue Seite“ auf bereits signiertem Dokument bleibt auf der letzten Seite und zeigt `placement.notice.new_page_not_allowed` |
+| S-07 | Positionieren: Ziehen, Pfeiltasten, Seitenwechsel, „Neue Seite“, „Automatisch platzieren“, „Unsichtbar“ (manuelle Koordinatenfelder gibt es seit 15.10.2026 nicht mehr) | Block folgt; Live-Region nennt Seite/Position; „Neue Seite“ auf bereits signiertem Dokument bleibt auf der letzten Seite und zeigt `placement.notice.new_page_not_allowed` |
 | S-08 | „Unsichtbar signieren“ | nur dieses Dokument ohne sichtbaren Block (Profil-Einstellung unverändert) |
 | S-09 | Signiermittel-Auswahl | ID Austria, lokale BKU (nur wenn erreichbar), Keystore (wenn eingerichtet); Datenschutzhinweis einmal je Backend vor dem ersten Upload |
 | S-10 | Keystore-Signatur mit Test-Keystore | Passwortabfrage, Signatur, Ergebnis-Schritt; Datei `<name>_signed.pdf` neben der Quelle bzw. im Ausgabeordner |

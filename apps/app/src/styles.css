@@ -974,48 +974,6 @@ code {
   text-align: center;
 }
 
-.coords {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 12px 10px;
-  margin: 0;
-}
-
-.coords legend {
-  font-weight: 650;
-  padding: 0 4px;
-}
-
-.unit-switch {
-  display: inline-flex;
-  flex-direction: row;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  width: fit-content;
-}
-
-.segment {
-  min-width: 56px;
-  min-height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 4px 10px;
-}
-
-.segment[data-selected] {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.segment[data-focus-visible] {
-  outline: 3px solid var(--focus);
-  outline-offset: -3px;
-}
-
 .position-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1764,8 +1722,7 @@ code {
   }
 
   .checkbox[data-selected] .checkbox-box,
-  .radio[data-selected] .radio-mark,
-  .segment[data-selected] {
+  .radio[data-selected] .radio-mark {
     background: Highlight;
     forced-color-adjust: none;
   }

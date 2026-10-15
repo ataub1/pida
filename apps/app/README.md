@@ -72,6 +72,6 @@ PIDA_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src/co
 ## Barrierefreiheit (WCAG 2.2 AA)
 
 React Aria Components für Rollen, Fokus und Tastatur; Zugriffstasten aus den `&`-Mnemonics der Kataloge
-(Alt+Taste, macOS ⌃⌥+Taste); Positionierung vollständig per Tastatur und Zahlenfeldern mit
+(Alt+Taste, macOS ⌃⌥+Taste); Positionierung vollständig per Tastatur (Pfeile, Bild↑/↓, Pos1/Ende) mit
 Live-Region; Fokus springt beim Schrittwechsel auf die Überschrift; Hell/Dunkel, Kontrastdesigns
 (`forced-colors`), reduzierte Bewegung, Zielgrößen ≥ 44 px, responsiv bis Smartphone-Breite.

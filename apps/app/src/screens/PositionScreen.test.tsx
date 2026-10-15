@@ -17,13 +17,12 @@ describe('Positionieren', () => {
     expect(b).toHaveAttribute('tabindex', '0');
     expect(screen.getByRole('img', { name: 'Seite 3 von 3 – Vertrag.pdf' })).toBeInTheDocument();
     expect(screen.getByText('Seite 3 von 3', { selector: '.pager-label' })).toBeInTheDocument();
-    // Status nennt dieselben Kanten wie die Felder: 297,64 pt ≈ 105 mm (linke Kante), 210,47 pt ≈ 74 mm
-    // (Oberkante von unten = Feld Y; Befund: früher „45 mm von unten“ = Unterkante bei Feld „Oberkante“)
+    // Status nennt linke Kante und Oberkante: 297,64 pt ≈ 105 mm (linke Kante), 210,47 pt ≈ 74 mm (Oberkante von unten);
+    // die früheren Zahlenfelder entfallen (Entscheidung des Auftraggebers)
     expect(document.getElementById('position-status')).toHaveTextContent(
       'Seite 3 von 3, linke Kante 105 mm von links, Oberkante 74 mm von unten',
     );
-    expect(screen.getByRole('textbox', { name: 'Y: Oberkante von unten (mm)' })).toHaveValue('74,2');
-    expect(screen.getByRole('textbox', { name: 'X: linke Kante von links (mm)' })).toHaveValue('105');
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(b.getAttribute('aria-describedby')).toContain('position-help');
   });
 
@@ -152,7 +151,8 @@ describe('Positionieren', () => {
     act(() => mock.setView(positionView({ placement: { page_index: 2, x: 61, y: 700, width: 232, height: 82 } })));
     await waitFor(() => expect(b).not.toHaveAttribute('data-dragging'));
     expect(b.style.left).toBe(`${61 * scale}px`);
-    expect(screen.getByRole('textbox', { name: 'Y: Oberkante von unten (mm)' })).toHaveValue('246,9');
+    // Statuszeile nennt dieselben Kanten wie früher die Felder: linke Kante von links, Oberkante von unten (246,9 mm)
+    expect(document.getElementById('position-status')).toHaveTextContent(/Seite 3 von 3, linke Kante 22 mm von links, Oberkante 24[67](,\d)? mm von unten/);
   });
 
   it('Klick auf den Block ohne Bewegung lässt keinen Ziehzustand zurück', async () => {
@@ -184,30 +184,16 @@ describe('Positionieren', () => {
     expect(last.y).toBeCloseTo(841.89 - 1 / Math.min(560 / 595.28, 760 / 841.89), 0);
   });
 
-  it('Zahlenfelder in mm und pt senden MoveBlock bzw. ChangePage', async () => {
-    const { mock, user } = renderApp({ view: positionView() });
+  it('ohne manuelle Positionsfelder (kein Abschnitt „Position“, keine mm/pt-Umschaltung)', async () => {
+    renderApp({ view: positionView() });
     await block();
-    const x = screen.getByRole('textbox', { name: 'X: linke Kante von links (mm)' });
-    expect(x).toHaveValue('105');
-    await user.clear(x);
-    await user.type(x, '20{Enter}');
-    const ev = mock.dispatched[mock.dispatched.length - 1];
-    if (ev?.type !== 'move_block') throw new Error('move_block erwartet');
-    expect(ev.x).toBeCloseTo((20 * 72) / 25.4, 3);
-    expect(ev.y).toBeCloseTo(210.47, 2);
-
-    await user.click(screen.getByRole('radio', { name: 'pt' }));
-    const y = screen.getByRole('textbox', { name: 'Y: Oberkante von unten (pt)' });
-    expect(y).toHaveValue('210,5');
-    await user.clear(y);
-    await user.type(y, '400{Enter}');
-    const ev2 = mock.dispatched[mock.dispatched.length - 1];
-    expect(ev2).toEqual({ type: 'move_block', page: 2, x: 297.64, y: 400 });
-
-    const page = screen.getByRole('textbox', { name: 'Seite' });
-    await user.clear(page);
-    await user.type(page, '1{Enter}');
-    expect(mock.dispatched[mock.dispatched.length - 1]).toEqual({ type: 'change_page', page: 0 });
+    expect(screen.queryByRole('group', { name: 'Position' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'mm' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'pt' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/X von links|Oberkante von unten/)).not.toBeInTheDocument();
+    // Seitennavigation bleibt
+    expect(screen.getByRole('group', { name: 'Seiten' })).toBeInTheDocument();
   });
 
   it('Neue Seite, Automatisch, Unsichtbar, Signieren', async () => {

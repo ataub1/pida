@@ -6,32 +6,20 @@
  *   **über** dem Finger (der Finger verdeckt ihn nicht), kurze Haptik beim Greifen, größere Trefferfläche,
  * - Tastatur am Block: Pfeile 15 pt, Shift 1 pt, Strg/⌘ 50 pt (der Kern rechnet die Schritte),
  *   Bild↑/↓ Seite, Pos1/Ende erste/letzte Seite, Enter bestätigt; Mausrad blättert (Shift: 5 Seiten),
- * - Zahlenfelder x/y/Seite in mm oder pt als gleichwertige Alternative, Live-Region (nennt dieselben Kanten
- *   wie die Felder: linke Kante von links, Oberkante von unten),
+ * - Live-Region für Screenreader mit Seite und Lage des Blocks (linke Kante von links, Oberkante von unten),
  * - „Neue Seite“, „Automatisch“, „Unsichtbar“, „Signieren“.
  * Die Position im Kern ist maßgeblich; die Oberfläche zeigt beim Ziehen nur eine vorläufige Lage.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
-import { Button, Group, Input, Label, NumberField, Radio, RadioGroup } from 'react-aria-components';
+import { Button, Group } from 'react-aria-components';
 import { useApp } from '../app/context';
 import { IconChevronLeft, IconChevronRight, IconEyeOff, IconPagePlus, IconWand } from '../components/icons';
 import { AccessButton, ScreenHeading, Spinner } from '../components/ui';
 import { tileScale } from '../core/bridge';
-import { mmToPt, ptToMm } from '../core/defaults';
+import { ptToMm } from '../core/defaults';
 import { isMobile, type StepView } from '../core/types';
 
 type PositionView = Extract<StepView, { step: 'position' }>;
-type Unit = 'mm' | 'pt';
-
-const UNIT_KEY = 'pida.position-unit';
-
-function readUnit(): Unit {
-  try {
-    return localStorage.getItem(UNIT_KEY) === 'pt' ? 'pt' : 'mm';
-  } catch {
-    return 'mm';
-  }
-}
 
 /**
  * Mausrad-Weg in Pixeln: Zeilen/Seiten-Modus (`deltaMode` 1/2) umrechnen; mit Shift liefern
@@ -281,21 +269,6 @@ export function PositionScreen({ view }: { view: PositionView }) {
     return () => clearTimeout(timer);
   }, [positionText, announce]);
 
-  // --- Zahlenfelder --------------------------------------------------------------------------
-  const [unit, setUnit] = useState<Unit>(readUnit);
-  const toUnit = (pt: number) => (unit === 'mm' ? ptToMm(pt) : pt);
-  const fromUnit = (v: number) => (unit === 'mm' ? mmToPt(v) : v);
-  const changeUnit = (u: string) => {
-    const next: Unit = u === 'pt' ? 'pt' : 'mm';
-    setUnit(next);
-    try {
-      localStorage.setItem(UNIT_KEY, next);
-    } catch {
-      /* nur Komfort */
-    }
-  };
-  const fmt = { maximumFractionDigits: 1 } as const;
-
   // --- Kacheln -------------------------------------------------------------------------------
   const tile = tileScale(scale * dpr);
   const [loaded, setLoaded] = useState<string | null>(null);
@@ -377,55 +350,6 @@ export function PositionScreen({ view }: { view: PositionView }) {
               <IconChevronRight />
             </Button>
           </Group>
-
-          <fieldset className="coords">
-            <legend>{t.t('ng-ui-position-coordinates')}</legend>
-            <RadioGroup className="unit-switch" orientation="horizontal" value={unit} onChange={changeUnit} aria-label={t.t('ng-ui-unit')}>
-              <Radio value="mm" className="segment">
-                mm
-              </Radio>
-              <Radio value="pt" className="segment">
-                pt
-              </Radio>
-            </RadioGroup>
-            <NumberField
-              className="field number-field"
-              value={Number(toUnit(current.x).toFixed(1))}
-              minValue={0}
-              formatOptions={fmt}
-              onChange={(v) => {
-                if (Number.isFinite(v)) dispatch({ type: 'move_block', page, x: fromUnit(v), y: placement.y });
-              }}
-            >
-              <Label className="field-label">{t.t('ng-ui-position-x', { unit })}</Label>
-              <Input className="input" />
-            </NumberField>
-            <NumberField
-              className="field number-field"
-              value={Number(toUnit(current.y).toFixed(1))}
-              minValue={0}
-              formatOptions={fmt}
-              onChange={(v) => {
-                if (Number.isFinite(v)) dispatch({ type: 'move_block', page, x: placement.x, y: fromUnit(v) });
-              }}
-            >
-              <Label className="field-label">{t.t('ng-ui-position-y', { unit })}</Label>
-              <Input className="input" />
-            </NumberField>
-            <NumberField
-              className="field number-field"
-              value={page + 1}
-              minValue={1}
-              maxValue={totalPages}
-              step={1}
-              onChange={(v) => {
-                if (Number.isFinite(v)) goTo(Math.round(v) - 1);
-              }}
-            >
-              <Label className="field-label">{t.t('ng-ui-position-page-field')}</Label>
-              <Input className="input" />
-            </NumberField>
-          </fieldset>
 
           <div className="position-actions">
             <AccessButton

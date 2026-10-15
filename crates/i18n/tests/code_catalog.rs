@@ -655,8 +655,14 @@ fn translate_calls_use_existing_ids() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
+/// Später bewusst entfernte IDs der Welle-2-Liste (die Liste bleibt als Bericht unverändert): der
+/// Abschnitt „Position“ der Positionierung (manuelle Koordinaten in mm/pt, Seitenfeld), entfernt am
+/// 15.10.2026. Sie dürfen nicht mehr im Katalog stehen.
+const RETIRED_WAVE2_IDS: &[&str] =
+    &["ng-ui-unit", "ng-ui-position-coordinates", "ng-ui-position-x", "ng-ui-position-y", "ng-ui-position-page-field"];
+
 /// Welle 2 (Integration, 274 IDs): jede ID steht in DE und EN mit den Variablen des Berichts (die
-/// Texte dürfen nach Review angepasst sein).
+/// Texte dürfen nach Review angepasst sein); ausgenommen [`RETIRED_WAVE2_IDS`].
 #[test]
 fn wave2_message_ids_are_in_catalog() {
     #[derive(serde::Deserialize)]
@@ -676,6 +682,14 @@ fn wave2_message_ids_are_in_catalog() {
     let mut problems = Vec::new();
     for e in &entries {
         let id = fluent_id_for_java_key(&e.id);
+        if RETIRED_WAVE2_IDS.contains(&e.id.as_str()) {
+            for lang in [Lang::De, Lang::En] {
+                if catalog.has(lang, &id) {
+                    problems.push(format!("{id} ist entfernt, steht aber noch in {}", lang.tag()));
+                }
+            }
+            continue;
+        }
         for ((lang, catalog_vars), text) in vars.iter().zip([&e.de, &e.en]) {
             if !catalog.has(*lang, &id) {
                 problems.push(format!("{id} fehlt in {}", lang.tag()));
