@@ -696,8 +696,22 @@ fn without_alpha(emblem: &Emblem, quirks: bool) -> Emblem {
     }
 }
 
-/// Einbettung einer Bildmarke außerhalb von PDF/A-1 mit `pdfas_quirks` wie PDF-AS 4.4.2 (PDFBox
-/// `LosslessFactory`, Register SB-G2 … SB-G4; Farbtyp aus [`Emblem::source_color`]).
+/// Einbettung einer Bildmarke außerhalb von PDF/A mit `pdfas_quirks` wie PDF-AS 4.4.2 (Register
+/// SB-G2 … SB-G4; Farbtyp aus [`Emblem::source_color`]).
+///
+/// PDF-AS liest die Datei mit `ImageIO.read`, verwirft eine Transparenz ohne Alpha-Raster
+/// (`removeAlphaChannel`) und bettet mit PDFBox `LosslessFactory.createFromImage` ein. Gegen
+/// genau diese Bibliotheken (PDF-AS 4.4.2 mit PDFBox 2.0.34, Java 21) geprüft:
+///
+/// | Quelle | PDF-AS | hier |
+/// |---|---|---|
+/// | RGB, Palette ohne `tRNS` | DeviceRGB | gleich |
+/// | RGBA (auch voll deckend), RGB mit `tRNS` | DeviceRGB + SMask (SB-G2) | gleich |
+/// | Palette mit `tRNS`, GIF mit Transparenz | Alpha verworfen, Palettenfarbe (SB-G3) | gleich |
+/// | Graustufen 8 Bit | DeviceGray, `getRGB` linear → sRGB (SB-G4) | gleich |
+/// | Graustufen 16 Bit | DeviceRGB, aufgehellt | DeviceGray, aufgehellt (gleiches Bild) |
+/// | Graustufen mit `tRNS`, Graustufen + Alpha (auch voll deckend) | ICCBased (lineares `CS_GRAY`) + SMask | DeviceGray aufgehellt + SMask (gleiches Bild, ohne das Java-ICC-Profil) |
+/// | Graustufen 1/2/4 Bit (Java: Palettenbild) | DeviceRGB, nicht aufgehellt | wie Palette |
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum QuirkImage {
     /// wie im Standardmodus
@@ -706,8 +720,9 @@ enum QuirkImage {
     OpaqueSmask,
     /// SB-G3: Palettentransparenz verworfen (gespeicherte Palettenfarbe, keine SMask)
     DropAlpha,
-    /// SB-G4: DeviceGray, Samples linear → sRGB aufgehellt
-    BrightenedGray,
+    /// SB-G4: DeviceGray, Samples linear → sRGB aufgehellt; `smask`: mit SMask aus dem Alpha
+    /// (Graustufen mit Alphakanal bzw. `tRNS`, auch voll deckend)
+    BrightenedGray { smask: bool },
 }
 
 fn quirk_image(emblem: &Emblem, pdfa: PdfaMode, quirks: bool) -> QuirkImage {
@@ -715,10 +730,10 @@ fn quirk_image(emblem: &Emblem, pdfa: PdfaMode, quirks: bool) -> QuirkImage {
         return QuirkImage::AsIs;
     }
     match emblem.source_color {
-        SourceColor::RgbAlpha | SourceColor::GrayAlpha if !emblem.has_alpha => QuirkImage::OpaqueSmask,
+        SourceColor::RgbAlpha if !emblem.has_alpha => QuirkImage::OpaqueSmask,
         SourceColor::Indexed if emblem.has_alpha => QuirkImage::DropAlpha,
-        // Graustufen ohne Alphakanal; eine `tRNS`-Transparenz verwirft PDF-AS ebenfalls
-        SourceColor::Gray => QuirkImage::BrightenedGray,
+        SourceColor::Gray => QuirkImage::BrightenedGray { smask: emblem.has_alpha },
+        SourceColor::GrayAlpha => QuirkImage::BrightenedGray { smask: true },
         _ => QuirkImage::AsIs,
     }
 }
@@ -733,20 +748,30 @@ fn push_image(
     emblem.check()?;
     let quirk = quirk_image(emblem, pdfa, quirks);
     let flattened;
-    let e = if emblem.has_alpha
-        && (pdfa == PdfaMode::Part1 || matches!(quirk, QuirkImage::DropAlpha | QuirkImage::BrightenedGray))
-    {
+    let e = if emblem.has_alpha && (pdfa == PdfaMode::Part1 || quirk == QuirkImage::DropAlpha) {
         flattened = without_alpha(emblem, quirks);
         &flattened
     } else {
         emblem
     };
     let idx = objects.len();
-    if quirk == QuirkImage::BrightenedGray {
+    let alpha_mask = |objects: &mut Vec<Object>| -> Result<()> {
+        let a = predictor_encode(&e.alpha(), e.width as usize, 1);
+        // SMask: immer DeviceGray (ISO 32000-1 §11.6.5.3)
+        objects.push(flate_stream(image_dict(e, 1, name("DeviceGray")), &a)?);
+        Ok(())
+    };
+    if let QuirkImage::BrightenedGray { smask } = quirk {
         // SB-G4: PDFBox `createFromGrayImage` liest `getRGB` des linearen CS_GRAY (aufgehellt)
         let gray: Vec<u8> = e.rgba.as_chunks::<4>().0.iter().map(|p| java_linear_gray_to_srgb(p[0])).collect();
-        let d = image_dict(e, 1, name("DeviceGray"));
+        let mut d = image_dict(e, 1, name("DeviceGray"));
+        if smask {
+            d.set("SMask", local(idx + 1));
+        }
         objects.push(flate_stream(d, &predictor_encode(&gray, e.width as usize, 1))?);
+        if smask {
+            alpha_mask(objects)?;
+        }
         return Ok(idx);
     }
     let mut d = image_dict(e, 3, rgb_space(icc));
@@ -754,9 +779,7 @@ fn push_image(
     if e.has_alpha || quirk == QuirkImage::OpaqueSmask {
         d.set("SMask", local(idx + 1));
         objects.push(flate_stream(d, &rgb)?);
-        let a = predictor_encode(&e.alpha(), e.width as usize, 1);
-        // SMask: immer DeviceGray (ISO 32000-1 §11.6.5.3)
-        objects.push(flate_stream(image_dict(e, 1, name("DeviceGray")), &a)?);
+        alpha_mask(objects)?;
     } else {
         objects.push(flate_stream(d, &rgb)?);
     }
@@ -1139,6 +1162,15 @@ mod tests {
             (cs.as_slice(), samples, smask),
             (&b"DeviceGray"[..], vec![79, java_linear_gray_to_srgb(200)], None)
         );
+        // Graustufen mit tRNS bzw. Alphakanal (PDF-AS: ICCBased-Grau + SMask, auch voll deckend):
+        // Transparenz bleibt, Grau aufgehellt (PDFBox 2.0.34 / Java 21 geprüft: 20 → 0x4f)
+        let gray_trns = emblem(vec![20, 20, 20, 0, 200, 200, 200, 255], true, SourceColor::Gray);
+        let (cs, samples, smask) = embed(&gray_trns, true);
+        assert_eq!((cs.as_slice(), samples, smask), (&b"DeviceGray"[..], vec![79, 229], Some(vec![0, 255])));
+        let gray_alpha_opaque = emblem(vec![20, 20, 20, 255, 200, 200, 200, 255], false, SourceColor::GrayAlpha);
+        let (cs, samples, smask) = embed(&gray_alpha_opaque, true);
+        assert_eq!((cs.as_slice(), samples, smask), (&b"DeviceGray"[..], vec![79, 229], Some(vec![255, 255])));
+        assert_eq!(embed(&gray_alpha_opaque, false).2, None, "Standardmodus: keine SMask ohne Transparenz");
         // echte Transparenz bleibt in beiden Modi
         let alpha = emblem(vec![1, 2, 3, 0, 4, 5, 6, 255], true, SourceColor::RgbAlpha);
         assert_eq!(embed(&alpha, true).2, Some(vec![0, 255]));
@@ -1147,6 +1179,173 @@ mod tests {
         push_image(&mut objects, &gray, PdfaMode::Part1, None, true).unwrap();
         let Object::Stream(s) = &objects[0] else { panic!() };
         assert_eq!(s.dict.get(b"ColorSpace").unwrap().as_name().unwrap(), b"DeviceRGB");
+    }
+
+    /// PNG-/GIF-Bildmarken aller Farbtypen für das PDF-AS-Orakel (Name, Datei).
+    fn oracle_fixtures() -> Vec<(&'static str, Vec<u8>)> {
+        let png = |w: u32, color, depth, palette: Option<Vec<u8>>, trns: Option<Vec<u8>>, data: &[u8]| {
+            let mut out = Vec::new();
+            {
+                let mut enc = png::Encoder::new(&mut out, w, 1);
+                enc.set_color(color);
+                enc.set_depth(depth);
+                if let Some(p) = palette {
+                    enc.set_palette(p);
+                }
+                if let Some(t) = trns {
+                    enc.set_trns(t);
+                }
+                let mut wr = enc.write_header().unwrap();
+                wr.write_image_data(data).unwrap();
+            }
+            out
+        };
+        use png::{BitDepth as B, ColorType as C};
+        // GIF mit `colors` Paletteneinträgen (Java: ≤ 16 gepackt), Index 0 transparent
+        let gif = |colors: usize| {
+            let mut palette = vec![255u8, 0, 0, 0, 0, 255, 20, 20, 20];
+            palette.resize(colors * 3, 7);
+            let mut out = Vec::new();
+            {
+                let mut enc = gif::Encoder::new(&mut out, 3, 1, &palette).unwrap();
+                let mut frame =
+                    gif::Frame { width: 3, height: 1, buffer: vec![0u8, 1, 2].into(), ..Default::default() };
+                frame.transparent = Some(0);
+                enc.write_frame(&frame).unwrap();
+            }
+            out
+        };
+        vec![
+            ("rgb.png", png(2, C::Rgb, B::Eight, None, None, &[1, 2, 3, 200, 100, 50])),
+            ("rgba.png", png(2, C::Rgba, B::Eight, None, None, &[1, 2, 3, 0, 200, 100, 50, 128])),
+            ("rgba-opaque.png", png(2, C::Rgba, B::Eight, None, None, &[1, 2, 3, 255, 200, 100, 50, 255])),
+            ("rgb-trns.png", png(2, C::Rgb, B::Eight, None, Some(vec![0, 1, 0, 2, 0, 3]), &[1, 2, 3, 200, 100, 50])),
+            ("gray8.png", png(3, C::Grayscale, B::Eight, None, None, &[0, 20, 200])),
+            ("gray8-trns.png", png(3, C::Grayscale, B::Eight, None, Some(vec![0, 20]), &[0, 20, 200])),
+            ("gray16.png", png(2, C::Grayscale, B::Sixteen, None, None, &[20, 0, 200, 0])),
+            ("gray-alpha.png", png(2, C::GrayscaleAlpha, B::Eight, None, None, &[20, 0, 200, 128])),
+            ("gray-alpha-opaque.png", png(2, C::GrayscaleAlpha, B::Eight, None, None, &[20, 255, 200, 255])),
+            ("gray1.png", png(8, C::Grayscale, B::One, None, None, &[0b1010_0000])),
+            ("gray2.png", png(4, C::Grayscale, B::Two, None, None, &[0b0001_1011])),
+            ("gray4.png", png(2, C::Grayscale, B::Four, None, None, &[0x1e])),
+            ("indexed.png", png(2, C::Indexed, B::Eight, Some(vec![255, 0, 0, 20, 20, 20]), None, &[0, 1])),
+            (
+                "indexed-trns.png",
+                png(2, C::Indexed, B::Eight, Some(vec![255, 0, 0, 0, 0, 255]), Some(vec![0]), &[0, 1]),
+            ),
+            (
+                "indexed2-trns.png",
+                png(
+                    3,
+                    C::Indexed,
+                    B::Two,
+                    Some(vec![200, 100, 50, 0, 0, 255, 9, 9, 9]),
+                    Some(vec![0, 255, 255]),
+                    &[0b0001_1000],
+                ),
+            ),
+            ("indexed.gif", gif(3)),
+            ("indexed8.gif", gif(17)),
+        ]
+    }
+
+    /// Ein eingebettetes Bild als sichtbare sRGB-Pixel (Farbraum wie ihn ein Viewer zeigt) und SMask.
+    fn shown(
+        cs: &str,
+        bpc: u32,
+        w: usize,
+        h: usize,
+        samples: &[u8],
+        smask: Option<Vec<u8>>,
+    ) -> (Vec<[u8; 3]>, Option<Vec<u8>>) {
+        let n = w * h;
+        let px: Vec<[u8; 3]> = match (cs, bpc) {
+            ("DeviceRGB", 8) => samples.as_chunks::<3>().0.to_vec(),
+            ("DeviceGray", 8) => samples.iter().map(|&v| [v, v, v]).collect(),
+            ("DeviceGray", 1) => {
+                (0..n).map(|i| if samples[i / 8] >> (7 - i % 8) & 1 == 1 { [255; 3] } else { [0; 3] }).collect()
+            }
+            // ICCBased mit dem linearen Java-`CS_GRAY`: sichtbar wie `getRGB` (aufgehellt)
+            ("ICCBased1", 8) => samples.iter().map(|&v| [java_linear_gray_to_srgb(v); 3]).collect(),
+            ("ICCBased1", 16) => samples.chunks(2).map(|v| [java_linear_gray_to_srgb(v[0]); 3]).collect(),
+            other => panic!("Farbraum {other:?} im Orakel nicht vorgesehen"),
+        };
+        // 16-Bit-SMask auf 8 Bit (höherwertiges Byte)
+        let smask = smask.map(|m| if m.len() == 2 * n { m.chunks(2).map(|v| v[0]).collect() } else { m });
+        (px, smask)
+    }
+
+    /// PDF-AS-Orakel (nur mit `PDFOVER_PDFAS_LIB` = Ordner mit den Bibliotheken von PDF-AS 4.4.2,
+    /// u. a. `pdfbox-2.0.*.jar` und `pdf-as-common-4.4.2.jar`, und Java ≥ 11 in `PDFOVER_JAVA` bzw.
+    /// `java`): jede Bildmarke wird wie bei PDF-AS eingebettet (`testdata/golden/emblem-oracle/
+    /// PdfAsEmblem.java`) und mit `pdfas_quirks` hier. Erwartet: gleiche sichtbare Pixel und gleiche
+    /// SMask; Farbraum und Samples exakt außer bei den in `QuirkImage` genannten Fällen (ICCBased
+    /// des Java-`CS_GRAY` bzw. 16-Bit-Grau als DeviceRGB ⇒ hier DeviceGray aufgehellt; 1-Bit-Grau).
+    #[test]
+    fn pdfas_lossless_factory_oracle() {
+        let Some(lib) = std::env::var_os("PDFOVER_PDFAS_LIB").map(std::path::PathBuf::from) else {
+            eprintln!("PDFOVER_PDFAS_LIB nicht gesetzt – PDF-AS-Bildmarken-Orakel übersprungen");
+            return;
+        };
+        let java = std::env::var_os("PDFOVER_JAVA").unwrap_or_else(|| "java".into());
+        let dir = std::env::temp_dir().join(format!("pdfover-emblem-oracle-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let fixtures = oracle_fixtures();
+        let mut files = Vec::new();
+        for (name, bytes) in &fixtures {
+            let p = dir.join(name);
+            std::fs::write(&p, bytes).unwrap();
+            files.push(p);
+        }
+        let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testdata/golden/emblem-oracle/PdfAsEmblem.java");
+        let out = std::process::Command::new(&java)
+            .arg("-cp")
+            .arg(format!("{}/*", lib.display()))
+            .arg(&program)
+            .args(&files)
+            .output()
+            .expect("Java startet");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(out.status.success(), "Orakel: {}", String::from_utf8_lossy(&out.stderr));
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let unhex = |h: &str| -> Option<Vec<u8>> {
+            (h != "-").then(|| (0..h.len()).step_by(2).map(|i| u8::from_str_radix(&h[i..i + 2], 16).unwrap()).collect())
+        };
+        let mut checked = 0;
+        for line in stdout.lines().filter(|l| l.contains('|')) {
+            let f: Vec<&str> = line.split('|').collect();
+            let (name, mut cs, n, bpc, w, h) = (f[0], f[1].to_owned(), f[2], f[3], f[4], f[5]);
+            if cs == "ICCBased" {
+                cs = format!("ICCBased{n}");
+            }
+            let (bpc, w, h): (u32, usize, usize) = (bpc.parse().unwrap(), w.parse().unwrap(), h.parse().unwrap());
+            let (want_px, want_mask) = shown(&cs, bpc, w, h, &unhex(f[6]).unwrap(), unhex(f[7]));
+            let bytes = &fixtures.iter().find(|(n, _)| *n == name).unwrap().1;
+            let emblem = Emblem::decode(bytes).unwrap();
+            let mut objects = Vec::new();
+            let idx = push_image(&mut objects, &emblem, PdfaMode::None, None, true).unwrap();
+            let Object::Stream(st) = &objects[idx] else { panic!("Bildstream") };
+            let our_cs = String::from_utf8(st.dict.get(b"ColorSpace").unwrap().as_name().unwrap().to_vec()).unwrap();
+            let our_bpc = st.dict.get(b"BitsPerComponent").unwrap().as_i64().unwrap() as u32;
+            let our_mask = st.dict.has(b"SMask").then(|| match &objects[idx + 1] {
+                Object::Stream(m) => m.decompressed_content().unwrap(),
+                _ => panic!("SMask"),
+            });
+            let (got_px, got_mask) = shown(&our_cs, our_bpc, w, h, &st.decompressed_content().unwrap(), our_mask);
+            let close = got_px.iter().zip(&want_px).all(|(a, b)| a.iter().zip(b).all(|(x, y)| x.abs_diff(*y) <= 1));
+            assert!(
+                close && got_px.len() == want_px.len(),
+                "{name}: Pixel {got_px:?} vs PDF-AS {want_px:?} ({our_cs} vs {cs})"
+            );
+            assert_eq!(got_mask, want_mask, "{name}: SMask ({our_cs} vs {cs})");
+            let exact_expected = !cs.starts_with("ICCBased") && name != "gray16.png" && name != "gray1.png";
+            if exact_expected {
+                assert_eq!(our_cs, cs, "{name}: Farbraum");
+            }
+            checked += 1;
+        }
+        assert_eq!(checked, fixtures.len(), "Orakel-Ausgabe unvollständig:\n{stdout}");
     }
 
     #[test]

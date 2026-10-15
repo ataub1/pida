@@ -52,7 +52,8 @@
 //! | PDF/A-1-Bilder (SB-G6) | `removeAlphaChannel`: Alpha entfällt, gespeicherte RGB-Werte bleiben (transparente Pixel meist schwarz; Golden PDF-AS 4.4.2) | Komposition auf Weiß; mit `pdfas_quirks` wie PDF-AS |
 //! | Voll deckender Alphakanal (SB-G2) | SMask mit lauter 255 (LosslessFactory) | keine SMask (pixelgleich); mit `pdfas_quirks` wie PDF-AS (Farbtyp [`SourceColor`], Welle 3) |
 //! | Indizierte Transparenz (SB-G3, PNG-Palette mit `tRNS`, GIF) | verworfen, Palettenfarbe sichtbar | als SMask erhalten; mit `pdfas_quirks` wie PDF-AS |
-//! | Graustufen-Bildmarken (SB-G4, PNG-Graustufen, Graustufen-JPEG) | DeviceGray, aufgehellt (Java `CS_GRAY` linear → sRGB, z. B. 20 → 79) | DeviceRGB mit den Originalwerten; mit `pdfas_quirks` wie PDF-AS ([`java_linear_gray_to_srgb`]) |
+//! | Graustufen-Bildmarken (SB-G4, PNG-Graustufen, Graustufen-JPEG) | DeviceGray, aufgehellt (Java `CS_GRAY` linear → sRGB, z. B. 20 → 79); mit `tRNS`/Alphakanal ICCBased-Grau + SMask | DeviceRGB mit den Originalwerten; mit `pdfas_quirks` wie PDF-AS ([`java_linear_gray_to_srgb`]; ICCBased-Grau als aufgehelltes DeviceGray + SMask, gleiches Bild) |
+//! | Palettenbilder ≤ 16 Farben (PNG 1/2/4 Bit, GIF) | Java liest sie gepackt: verworfene Transparenz zeigt Schwarz | ebenso (beim Dekodieren; sonst unsichtbar) |
 //! | JPEG-Bildmarken (SB-G5) | ImageIO (libjpeg) | `zune-jpeg`, wenige Stufen Abweichung |
 //! | EXIF | nur JPEG (PDF-Over) | nur JPEG (wie PDF-Over) |
 //! | Logo-Größe > 120 mm (SB-G1) | Klemmung nur in der Vorschau | Klemmung auch beim Signieren ([`ProfileOverrides::base_logo`]) |
@@ -60,7 +61,9 @@
 //! Golden-Vergleich gegen einen frischen PDF-AS-4.4.2-Lauf (12 Profil-IDs × Eingaben × Positionen,
 //! `tools/golden/run-pdfas.sh`, `tests/golden_pdfas442.rs`, docs/integration/golden-report.md):
 //! Geometrie, Texte, Fonts und Linien gleich (±0,01 pt), mit `pdfas_quirks` Content-Stream
-//! byte-gleich, Bilder (Farbraum, Samples, SMask) bis auf SB-G5 (JPEG-Dekoder) gleich; Abweichungen
+//! byte-gleich, Bilder (Farbraum, Samples, SMask) bis auf SB-G5 (JPEG-Dekoder) gleich. Alle
+//! PNG-/GIF-Farbtypen prüft zusätzlich das PDF-AS-Orakel `appearance::tests::pdfas_lossless_factory_oracle`
+//! (mit `PDFOVER_PDFAS_LIB`, PDF-AS 4.4.2 + PDFBox 2.0.34 unter Java 21). Abweichungen
 //! im Standardmodus nur in den Zeilen SB-G1 … SB-G6. Ob der Standardmodus korrigiert bleibt
 //! (SB-G3, SB-G4, SB-G6), entscheidet der Auftraggeber; Default: korrigiert. [`Appearance::to_standalone_pdf`]
 //! zeichnet über das Holder-Form und ist mit PDFium pixelgleich zum Widget der PDF-AS-Ausgabe.

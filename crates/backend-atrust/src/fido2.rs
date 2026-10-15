@@ -90,10 +90,16 @@ pub enum Fido2Error {
     /// Die übergebene PIN ist falsch (CTAP2 `PIN_INVALID`; additiv, Welle 2).
     #[error("PIN des Sicherheitsschlüssels falsch")]
     PinInvalid,
-    /// PIN bzw. Nutzerverifikation gesperrt (CTAP2 `PIN_BLOCKED`, `PIN_AUTH_BLOCKED` – dann ab-
-    /// und wieder anstecken –, `UV_BLOCKED`; additiv, Welle 3).
+    /// PIN bzw. Nutzerverifikation dauerhaft gesperrt (CTAP2 `PIN_BLOCKED`, `UV_BLOCKED`; nur ein
+    /// Zurücksetzen des Schlüssels hilft; additiv, Welle 3).
     #[error("Sicherheitsschlüssel ist gesperrt")]
     Locked,
+    /// Drei falsche PINs in Folge (CTAP2 `PIN_AUTH_BLOCKED`): vorübergehend gesperrt, bis der
+    /// Schlüssel ab- und wieder angesteckt wird. Bewusst getrennt von [`Fido2Error::Locked`], damit
+    /// niemand deswegen den Schlüssel zurücksetzt (das löscht die ID-Austria-Registrierung);
+    /// additiv, Welle 3.
+    #[error("zu viele falsche PIN-Eingaben: Sicherheitsschlüssel ab- und wieder anstecken")]
+    PinAuthBlocked,
     /// Der Schlüssel kann die Nutzerin nicht verifizieren: weder PIN noch Biometrie eingerichtet
     /// (CTAP2 `PIN_NOT_SET`; additiv, Welle 3).
     #[error("Sicherheitsschlüssel kann die Nutzerin nicht verifizieren (keine PIN/Biometrie eingerichtet)")]
@@ -123,6 +129,7 @@ impl Fido2Error {
             Fido2Error::PinRequired => "fido2-pin-required",
             Fido2Error::PinInvalid => "fido2-pin-invalid",
             Fido2Error::Locked => "fido2-locked",
+            Fido2Error::PinAuthBlocked => "fido2-pin-auth-blocked",
             Fido2Error::NoUserVerification => "fido2-no-user-verification",
             Fido2Error::NoCredential => "fido2-no-credential",
             Fido2Error::Timeout => "fido2-timeout",
@@ -405,6 +412,7 @@ mod tests {
         // Welle 3: Codes aus dem Katalog (wave1-message-ids), nicht mehr nur `fido2-device`
         for (e, code) in [
             (Fido2Error::Locked, "fido2-locked"),
+            (Fido2Error::PinAuthBlocked, "fido2-pin-auth-blocked"),
             (Fido2Error::NoUserVerification, "fido2-no-user-verification"),
             (Fido2Error::NoCredential, "fido2-no-credential"),
             (Fido2Error::Timeout, "fido2-timeout"),

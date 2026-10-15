@@ -68,7 +68,9 @@ Werte, die der PDFBox-Fixup ersetzt, weil sie beschädigt sind (`/DR /Font` kein
 `/AcroForm` kein Dictionary, `/Fields` kein Array, `/DA` kein String), lässt I6 genau so zu;
 eine Vorsignatur, deren `/ByteRange` über das Dateiende reicht, lehnen `analyze`/`prepare` vorab ab
 (K5 `pdf-prior-signature-beyond-eof`, vorher I4 in der Selbstprüfung). Regressionstests:
-`known_mutations_with_intact_xref_sign_cleanly`. Bei beschädigtem Querverweis (K2) scheitert I5/I6
+`known_mutations_with_intact_xref_sign_cleanly` (seit dem Review auch `/StrF` bzw. `/StmF` fehlend
+in `simple-aes128-owner.pdf`: Ausgabe mit pyHanko gültig und intakt, qpdf meldet nur die
+Beschädigung der Eingabe) und `missing_or_unknown_crypt_filter_names_follow_the_spec` (pdf-cos). Bei beschädigtem Querverweis (K2) scheitert I5/I6
 weiterhin vereinzelt fail-safe (die Ausgabe erbt die Beschädigung; qpdf liest sie ebenso wenig).
 `fuzz_prepare.rs` (gesamter Korpus, `open` → `analyze` → `plan_signature` → `prepare`, 8 Threads):
 201 300, 610 000 und zweimal 244 000 Mutationen ohne Panic und ohne Hänger (> 30 s je Fall). PDF/A:

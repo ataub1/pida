@@ -18,7 +18,8 @@
 //! `Debug` (ADR 0001 Regel 9).
 //!
 //! Vor dem ersten Versuch fragt der Client `getPINRetries` ab: bei 0 meldet er
-//! [`Fido2Error::Locked`], ohne einen Versuch zu verbrauchen. PINs mit weniger als 4 Zeichen oder
+//! [`Fido2Error::Locked`], ohne einen Versuch zu verbrauchen. Drei Fehlversuche in Folge
+//! (`PIN_AUTH_BLOCKED`) sind [`Fido2Error::PinAuthBlocked`]: ab- und wieder anstecken genügt. PINs mit weniger als 4 Zeichen oder
 //! mehr als 63 Byte (§6.5.1) kann der Schlüssel nie angenommen haben; sie gelten ohne Gerätezugriff
 //! als falsch. Die PIN wird nicht NFC-normalisiert (Ziffern-PINs sind davon nicht betroffen).
 
@@ -350,10 +351,17 @@ fn client_pin_params(protocol: PinProtocol, sub_command: u64, extra: Vec<(u64, C
 }
 
 /// Fehlerabbildung für `clientPIN` (Status ≠ OK).
+///
+/// `PIN_POLICY_VIOLATION` meldet ein CTAP-2.1-Schlüssel bei `getPinToken` bzw.
+/// `getPinUvAuthTokenUsingPinWithPermissions` erst **nach** erfolgreicher PIN-Prüfung, wenn
+/// `forcePINChange` gesetzt ist (§6.5.5.7). Das ist keine falsche PIN: als
+/// [`Fido2Error::PinInvalid`] würde die Abfrage endlos wiederholt.
 fn pin_status(code: u8) -> Fido2Error {
     match code {
         status::PIN_INVALID => Fido2Error::PinInvalid,
-        status::PIN_POLICY_VIOLATION => Fido2Error::PinInvalid,
+        status::PIN_POLICY_VIOLATION => Fido2Error::Device(
+            "Die PIN des Sicherheitsschlüssels muss zuerst geändert werden (z. B. in den Systemeinstellungen)".into(),
+        ),
         _ => map_status(code),
     }
 }
@@ -383,8 +391,9 @@ pub fn pin_retries<C: HidConnection>(
 
 /// Holt ein `pinUvAuthToken` mit der PIN (§6.5.5.7). Voraussetzung: GetInfo meldet `clientPin`
 /// = `true`. Fehler: [`Fido2Error::PinInvalid`] (falsche PIN, der Schlüssel zählt einen Versuch
-/// herunter), [`Fido2Error::Locked`] (keine Versuche mehr bzw. drei Fehlversuche in Folge – dann
-/// ab- und wieder anstecken), [`Fido2Error::NoUserVerification`] (keine PIN gesetzt).
+/// herunter), [`Fido2Error::PinAuthBlocked`] (drei Fehlversuche in Folge – ab- und wieder
+/// anstecken), [`Fido2Error::Locked`] (keine Versuche mehr), [`Fido2Error::NoUserVerification`]
+/// (keine PIN gesetzt).
 pub fn get_pin_token<C: HidConnection>(
     device: &mut CtapHidDevice<C>,
     info: &AuthenticatorInfo,
@@ -429,8 +438,10 @@ pub fn get_pin_token<C: HidConnection>(
         _ => return Err(cbor_err("pinUvAuthToken fehlt")),
     };
     let token = shared.decrypt(encrypted)?;
+    // Protokoll 1: CTAP 2.0 verlangt nur ein Vielfaches von 16 Byte (ältere Schlüssel liefern 16,
+    // CTAP 2.1 32); Protokoll 2: genau 32 Byte (§6.5.7)
     let ok_len = match protocol {
-        PinProtocol::One => token.len() == 16 || token.len() == 32,
+        PinProtocol::One => !token.is_empty() && token.len() <= 64,
         PinProtocol::Two => token.len() == 32,
     };
     if !ok_len {
@@ -471,6 +482,46 @@ mod tests {
         assert!(aes256_cbc_decrypt(&key, iv, &[0; 17]).is_err());
         // LEFT(SHA-256("1234"), 16)
         assert_eq!(pin_hash("1234").to_vec(), hex("03ac674216f3e15c761ee1a5e255f067"));
+    }
+
+    /// Unabhängig berechnete Vektoren (pyca/cryptography: ECDH P-256, SHA-256 bzw. HKDF-SHA-256
+    /// mit Salt 32 × 0, AES-256-CBC, HMAC-SHA-256) mit festen Schlüsseln d = 0x11…11 (Authenticator)
+    /// und d = 0x22…22 (Plattform): prüft die Zusammensetzung von ECDH (x-Koordinate), KDF,
+    /// `encrypt` (pinHashEnc) und `authenticate` beider Protokolle gegen CTAP 2.1 §6.5.6/§6.5.7.
+    #[test]
+    fn composition_matches_independent_implementation() {
+        let authenticator = p256::SecretKey::from_slice(&[0x11; 32]).unwrap();
+        let platform = p256::SecretKey::from_slice(&[0x22; 32]).unwrap();
+        let shared = p256::ecdh::diffie_hellman(platform.to_nonzero_scalar(), authenticator.public_key().as_affine());
+        let z: [u8; 32] = (*shared.raw_secret_bytes()).into();
+        assert_eq!(z.to_vec(), hex("ccfc261f58193c98ca4ad4a53bbac6f0ee29bc4d48438090446908622ca79af6"));
+        let one = SharedSecret::derive(PinProtocol::One, &z);
+        let two = SharedSecret::derive(PinProtocol::Two, &z);
+        assert_eq!(one.bytes.to_vec(), hex("98f5bf15dbc72627acd9a8ab61ce21349ea3496d79136adf08ad381cc9c0fa25"));
+        assert_eq!(
+            two.bytes.to_vec(),
+            hex(concat!(
+                "abc3809533cb07b6ae481ea05b28ac708ffed9777147a09aabc8ab58e167ba0e",
+                "aecad75245932defecf4cd0d93420fcd05d99403d09a49655fed76fa64c2cf82"
+            ))
+        );
+        let ph = pin_hash("1234");
+        assert_eq!(one.encrypt(ph.as_ref()).unwrap(), hex("cd782dd78eb3517e6279ff687e577f00"));
+        let iv: [u8; 16] = (0..16).collect::<Vec<u8>>().try_into().unwrap();
+        assert_eq!(
+            two.encrypt_with_iv(iv, ph.as_ref()).unwrap(),
+            hex("000102030405060708090a0b0c0d0e0fa14e0b24843722d89bd7f624fc50660b")
+        );
+        let cdh = [0x5a; 32];
+        assert_eq!(one.authenticate(&cdh), hex("9f896996cdbaa1b0081777131d75f25b"));
+        assert_eq!(two.authenticate(&cdh), hex("ef01ff97f5c1daf30c11d0e235925fb3c8f9b0ddc4e73bacec3988b4f9c55453"));
+        // COSE-Schlüssel der Plattform: x-Koordinate unverändert (big endian)
+        let Cbor::Map(entries) = cose_key(&platform.public_key()) else { panic!("Map") };
+        assert_eq!(entries[3].1, Cbor::Bytes(hex("d65a93977caa3d1b081852ff57a79e465f1660577304baead505dd3a48589cf3")));
+        // forcePINChange ist keine falsche PIN
+        assert!(matches!(pin_status(status::PIN_POLICY_VIOLATION), Fido2Error::Device(_)));
+        assert_eq!(pin_status(status::PIN_INVALID), Fido2Error::PinInvalid);
+        assert_eq!(pin_status(status::PIN_AUTH_BLOCKED), Fido2Error::PinAuthBlocked);
     }
 
     #[test]

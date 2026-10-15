@@ -529,7 +529,7 @@ pub fn get_assertion_params_with_pin(
 }
 
 /// Fehlerabbildung der CTAP2-Statuscodes (Codes aus dem Katalog: `fido2-no-credential`,
-/// `fido2-timeout`, `fido2-locked`, `fido2-no-user-verification`; Welle 3).
+/// `fido2-timeout`, `fido2-locked`, `fido2-pin-auth-blocked`, `fido2-no-user-verification`; Welle 3).
 pub(crate) fn map_status(code: u8) -> Fido2Error {
     match code {
         status::KEEPALIVE_CANCEL | status::OPERATION_DENIED => Fido2Error::Cancelled,
@@ -539,7 +539,9 @@ pub(crate) fn map_status(code: u8) -> Fido2Error {
         // Hinweis „bitte App oder SMS verwenden“ (Welle 2)
         status::PIN_REQUIRED => Fido2Error::PinRequired,
         status::PIN_INVALID => Fido2Error::PinInvalid,
-        status::PIN_BLOCKED | status::PIN_AUTH_BLOCKED | status::UV_BLOCKED => Fido2Error::Locked,
+        status::PIN_BLOCKED | status::UV_BLOCKED => Fido2Error::Locked,
+        // vorübergehend: ab- und wieder anstecken genügt (nicht zurücksetzen!)
+        status::PIN_AUTH_BLOCKED => Fido2Error::PinAuthBlocked,
         status::PIN_NOT_SET => Fido2Error::NoUserVerification,
         status::PIN_AUTH_INVALID => Fido2Error::Device("PIN-Prüfung am Sicherheitsschlüssel fehlgeschlagen".into()),
         other => Fido2Error::Device(format!("CTAP2-Status 0x{other:02x}")),
@@ -1287,11 +1289,11 @@ mod tests {
             );
         }
         let e = get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("0000")).unwrap_err();
-        assert_eq!(e, Fido2Error::Locked);
-        assert_eq!(e.code(), "fido2-locked");
+        assert_eq!(e, Fido2Error::PinAuthBlocked, "vorübergehend, nicht dauerhaft gesperrt");
+        assert_eq!(e.code(), "fido2-pin-auth-blocked");
         assert_eq!(
             get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap_err(),
-            Fido2Error::Locked
+            Fido2Error::PinAuthBlocked
         );
         dev.conn.power_cycle();
         get_assertion_with_pin(&mut dev, &opts, ORIGIN, &cancel, Some("1234")).unwrap();
@@ -1384,9 +1386,10 @@ mod tests {
         assert_eq!(map_status(status::NO_CREDENTIALS), Fido2Error::NoCredential);
         assert_eq!(map_status(status::USER_ACTION_TIMEOUT), Fido2Error::Timeout);
         assert_eq!(map_status(status::ACTION_TIMEOUT), Fido2Error::Timeout);
-        for code in [status::PIN_BLOCKED, status::PIN_AUTH_BLOCKED, status::UV_BLOCKED] {
+        for code in [status::PIN_BLOCKED, status::UV_BLOCKED] {
             assert_eq!(map_status(code), Fido2Error::Locked);
         }
+        assert_eq!(map_status(status::PIN_AUTH_BLOCKED), Fido2Error::PinAuthBlocked);
         assert_eq!(map_status(status::PIN_NOT_SET), Fido2Error::NoUserVerification);
         let sim = SimDevice::new(SimConfig { cbor_capable: false, ..SimConfig::default() });
         let mut dev = CtapHidDevice::init(sim, [9; 8]).unwrap();

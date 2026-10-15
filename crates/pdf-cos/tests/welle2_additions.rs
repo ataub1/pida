@@ -96,3 +96,45 @@ fn compressed_entry_in_a_non_object_stream_is_repaired() {
     assert_eq!(src.xref_health(), pdfover_pdf_cos::XrefHealth::Repaired);
     assert_eq!(src.page_count(), 1);
 }
+
+/// Mutationstest (Welle 3): fehlendes `/StrF` bzw. `/StmF` bedeutet nach ISO 32000-1 Tabelle 20
+/// `/Identity` (lopdf 0.45 nahm RC4). Strings bzw. Streams werden dann weder gelesen noch beim
+/// Fortschreiben verschlüsselt; der jeweils andere Filter bleibt AESV2. Ein unbekannter Name ist
+/// ein Fehler (K5), kein stilles RC4.
+#[test]
+fn missing_or_unknown_crypt_filter_names_follow_the_spec() {
+    use pdfover_pdf_cos::{CosError, CryptTarget, Limits, SourcePdf};
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/pdf/generated/simple-aes128-owner.pdf");
+    let original = std::fs::read(path).unwrap();
+    let patched = |from: &[u8], to: &[u8]| {
+        let mut d = original.clone();
+        let pos = d.windows(from.len()).position(|w| w == from).expect("Muster im Encrypt-Dictionary");
+        d[pos..pos + to.len()].copy_from_slice(to);
+        d
+    };
+    let plain = b"NUR TEST";
+    // Referenz: beide Filter AESV2 (IV + Chiffrat, länger als der Klartext)
+    let src = SourcePdf::open(original.clone(), &Limits::default()).unwrap();
+    let enc = src.encryptor().unwrap();
+    assert!(enc.encrypt((1, 0), plain, CryptTarget::String).unwrap().len() > plain.len());
+    for (from, to, string_identity, stream_identity) in [
+        (&b"/StrF /StdCF"[..], &b"/XXXX /StdCF"[..], true, false),
+        (b"/StmF /StdCF", b"/XXXX /StdCF", false, true),
+        (b"/StmF /StdCF /StrF /StdCF", b"/XXXX /StdCF /YYYY /StdCF", true, true),
+    ] {
+        let label = String::from_utf8_lossy(to).into_owned();
+        let src = SourcePdf::open(patched(from, to), &Limits::default()).unwrap_or_else(|e| panic!("{label}: {e}"));
+        let enc = src.encryptor().expect("verschlüsselt");
+        for (target, identity) in [(CryptTarget::String, string_identity), (CryptTarget::Stream, stream_identity)] {
+            let c = enc.encrypt((1, 0), plain, target).unwrap();
+            assert_eq!(c == plain, identity, "{label} {target:?}");
+            assert_eq!(enc.decrypt((1, 0), &c, target).unwrap(), plain, "{label} {target:?}");
+        }
+    }
+    // unbekannter Filtername: abgelehnt
+    match SourcePdf::open(patched(b"/StrF /StdCF", b"/StrF /StdCX"), &Limits::default()) {
+        Err(CosError::UnsupportedSecurityHandler(m)) => assert!(m.contains("StdCX"), "{m}"),
+        Err(e) => panic!("unerwarteter Fehler {e}"),
+        Ok(_) => panic!("unbekannter Crypt-Filter darf nicht still als RC4 gelten"),
+    }
+}

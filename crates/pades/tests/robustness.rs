@@ -166,6 +166,10 @@ fn known_mutations_with_intact_xref_sign_cleanly() {
         // Fixup wie PDFBox, I6 lässt es zu
         ("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf", b"/Fields [27 0 R]", b"/Fields][27 0 R]"),
         ("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf", b"/DA (/Helv 0 Tf 0 g )", b"/DA \xd9/Helv 0 Tf 0 g )"),
+        // `/StrF` bzw. `/StmF` fehlt (= `/Identity`, lopdf las RC4): neue Strings bzw. Streams
+        // unverschlüsselt, Re-Parse liest Quelle und Ausgabe gleich (pyHanko: gültig)
+        ("pdf/generated/simple-aes128-owner.pdf", b"/StrF /StdCF", b"/XXXX /StdCF"),
+        ("pdf/generated/simple-aes128-owner.pdf", b"/StmF /StdCF", b"/XXXX /StdCF"),
     ] {
         let mut data = std::fs::read(testdata().join(rel)).unwrap();
         let pos = data.windows(from.len()).position(|w| w == from).unwrap_or_else(|| panic!("{rel}: Muster fehlt"));

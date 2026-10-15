@@ -439,3 +439,36 @@ fn image_objects_apply_masks_like_pdfbox_get_image() {
     // Forced-Color danach unverändert möglich (dieselbe zweite Instanz)
     assert!(r.render_forced_color(0, &ForcedColorOptions::default()).is_ok());
 }
+
+/// Maskierte Bilder (Welle 3, KR-F07) behalten Ausrichtung und Farben des unmaskierten Bildes:
+/// 2×2 rot, grün / blau, weiß mit SMask 255 0 / 0 255 – die Zeilen dürfen nicht vertauscht und
+/// die Spalten nicht gespiegelt sein, auch bei gedrehter und gespiegelter Matrix.
+#[test]
+fn masked_images_keep_orientation_and_colors() {
+    let backend = require_pdfium!();
+    let mut b = PdfBuilder::new();
+    let smask = b.add_stream(
+        "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8",
+        &[255, 0, 0, 255],
+    );
+    let data = [255u8, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255];
+    let img = b.add_stream(
+        &format!(
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /SMask {smask} 0 R"
+        ),
+        &data,
+    );
+    let content = "q 40 0 0 40 72 600 cm /I Do Q q 0 40 -40 0 300 600 cm /I Do Q q -40 0 0 -40 500 500 cm /I Do Q";
+    let page = PageSpec { resources: format!("/XObject << /I {img} 0 R >>"), ..PageSpec::a4(content) };
+    let doc: Arc<[u8]> = build_doc(b, vec![page], "").into();
+    let r = backend.open(doc, None).unwrap();
+    let objs = r.image_objects(0).unwrap();
+    assert_eq!(objs.len(), 3);
+    for (i, o) in objs.iter().enumerate() {
+        assert_eq!((o.bitmap.width, o.bitmap.height), (2, 2), "Bild {i}");
+        assert_eq!(o.bitmap.pixel(0, 0), [255, 0, 0, 255], "Bild {i} oben links");
+        assert_eq!(o.bitmap.pixel(1, 0)[3], 0, "Bild {i} oben rechts transparent");
+        assert_eq!(o.bitmap.pixel(0, 1)[3], 0, "Bild {i} unten links transparent");
+        assert_eq!(o.bitmap.pixel(1, 1), [255, 255, 255, 255], "Bild {i} unten rechts");
+    }
+}
