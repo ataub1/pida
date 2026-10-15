@@ -37,7 +37,7 @@ pub use migrate::{
     import_offer, migrate, undo_migration,
 };
 pub use overlay::{Effective, Overlay};
-pub use paths::Paths;
+pub use paths::{HOME_ENV, Paths};
 pub use policy::Policy;
 pub use secrets::{
     KeyringSecretStore, MemorySecretStore, MobileSecretStorePlaceholder, SecretId, SecretStore, platform_secret_store,

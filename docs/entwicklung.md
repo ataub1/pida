@@ -123,6 +123,18 @@ PDFOVER_SMOKE=1 HOME="$(mktemp -d)" "../../target/debug/bundle/macos/PDF-Over NG
   `PDFOVER_BLESS=1 cargo test -p pdfover-app --test serde_contract` bzw.
   `PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts`.
 
+### Isolierte bzw. portable Profile (`PDFOVER_HOME`)
+
+Ist `PDFOVER_HOME` gesetzt, legen App und CLI Einstellungen, Daten, Cache, Logs und Temp-Dateien unter
+`$PDFOVER_HOME/{config,data,cache,logs,tmp}` ab und suchen die PDF-Over-Altkonfiguration in
+`$PDFOVER_HOME/.pdf-over`. Das isoliert Tests auf allen Plattformen – unter Windows lassen sich die
+Profilordner über `HOME`/`APPDATA` nicht umlenken (Known-Folder-API) – und erlaubt eine portable
+Installation (z. B. auf einem USB-Stick).
+
+```bash
+PDFOVER_HOME="$(mktemp -d)" target/release/pdfover-cli profiles
+```
+
 ## 5. Lints und Formatierung
 
 - `cargo fmt --all` (rustfmt.toml: Breite 120). Pakete formatieren nur ihre eigenen Crates (`cargo fmt -p …`).

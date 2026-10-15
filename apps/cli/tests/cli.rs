@@ -24,6 +24,8 @@ impl Home {
         Command::new(env!("CARGO_BIN_EXE_pdfover-cli"))
             .args(args)
             .env("HOME", self.path())
+            // Windows: Profilordner nur über PDFOVER_HOME umlenkbar (Known-Folder-API)
+            .env("PDFOVER_HOME", self.path())
             .env("XDG_CONFIG_HOME", self.path().join(".config"))
             .env("XDG_DATA_HOME", self.path().join(".local/share"))
             .env("XDG_STATE_HOME", self.path().join(".local/state"))

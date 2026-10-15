@@ -37,6 +37,21 @@ pub const LOG_MAX_FILE_BYTES: u64 = 512 * 1024;
 /// Anzahl aufbewahrter rotierter Logdateien (`.1` … `.3`).
 pub const LOG_KEEP: u32 = 3;
 
+/// Umgebungsvariable für eine portable bzw. isolierte Installation: Ist sie gesetzt, liegen
+/// Einstellungen, Daten, Cache, Logs und Temp-Dateien unter `$PDFOVER_HOME/{config,data,cache,logs,tmp}`,
+/// und die PDF-Over-Altkonfiguration wird in `$PDFOVER_HOME/.pdf-over` gesucht.
+pub const HOME_ENV: &str = "PDFOVER_HOME";
+
+fn home_override() -> Option<PathBuf> {
+    home_override_from(std::env::var_os(HOME_ENV))
+}
+
+fn home_override_from(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let value = value.filter(|v| !v.is_empty())?;
+    let path = PathBuf::from(value);
+    Some(std::path::absolute(&path).unwrap_or(path))
+}
+
 /// Alle Pfade der Anwendung.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Paths {
@@ -54,7 +69,14 @@ pub struct Paths {
 
 impl Paths {
     /// Pfade der Plattform (`directories::ProjectDirs` mit den Ordnernamen aus der Tabelle oben).
+    ///
+    /// Ist [`HOME_ENV`] (`PDFOVER_HOME`) gesetzt, liegen alle Ordner darunter ([`Paths::under`]) –
+    /// portable Installation bzw. isolierte Tests. Unter Windows lassen sich die Profilordner sonst
+    /// nicht umlenken (Known-Folder-API statt `APPDATA`/`HOME`).
     pub fn platform() -> Result<Paths> {
+        if let Some(root) = home_override() {
+            return Ok(Paths::under(&root));
+        }
         let project_path = if cfg!(target_os = "windows") {
             APP_NAME
         } else if cfg!(any(target_os = "macos", target_os = "ios")) {
@@ -127,7 +149,10 @@ impl Paths {
 
     /// Altordner `~/.pdf-over`, falls vorhanden.
     pub fn legacy_dir() -> Option<PathBuf> {
-        let home = BaseDirs::new()?.home_dir().to_path_buf();
+        let home = match home_override() {
+            Some(home) => home,
+            None => BaseDirs::new()?.home_dir().to_path_buf(),
+        };
         Paths::legacy_dir_in(&home)
     }
 
@@ -277,6 +302,18 @@ mod tests {
         // ohne Konfigurationsordner: nichts zu tun
         assert_eq!(p.reset().unwrap(), backup);
         assert!(backup.join("neu.txt").is_file());
+    }
+
+    #[test]
+    fn home_override_is_absolute_and_ignores_empty() {
+        assert_eq!(home_override_from(None), None);
+        assert_eq!(home_override_from(Some("".into())), None);
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(home_override_from(Some(dir.path().into())), Some(dir.path().to_path_buf()));
+        let rel = home_override_from(Some("portable".into())).unwrap();
+        assert!(rel.is_absolute() && rel.ends_with("portable"), "{rel:?}");
+        let p = Paths::under(&rel);
+        assert!(p.settings_file().starts_with(&rel));
     }
 
     #[test]

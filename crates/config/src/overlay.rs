@@ -498,7 +498,19 @@ mod tests {
     fn keystore_password_found_under_raw_path() {
         // Beim Import fehlte die Datei → Secret unter dem Rohpfad; jetzt existiert sie (kanonisch anders).
         let dir = tempfile::tempdir().unwrap();
-        let raw = dir.path().join(".").join("k.p12");
+        // Ein Symlink-Ordner macht den kanonischen Pfad sicher verschieden; ein `/./` genügt nicht,
+        // weil `Path`-Vergleiche `.`-Komponenten ignorieren (nur macOS unterschied sich über /private).
+        #[cfg(unix)]
+        let raw = {
+            let real = dir.path().join("real");
+            std::fs::create_dir(&real).unwrap();
+            let link = dir.path().join("link");
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            link.join("k.p12")
+        };
+        // Windows: `canonicalize` liefert `\\?\`-Pfade und unterscheidet sich damit ohnehin.
+        #[cfg(not(unix))]
+        let raw = dir.path().join("k.p12");
         let store = MemorySecretStore::default();
         store.set(&SecretId::KeystoreStorePassword { keystore: raw.clone() }, "raw-pw").unwrap();
         std::fs::write(&raw, b"x").unwrap();
