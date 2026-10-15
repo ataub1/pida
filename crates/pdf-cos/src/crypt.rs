@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use lopdf::encryption::DecryptionError;
 use lopdf::encryption::crypt_filters::{CryptFilter, IdentityCryptFilter, Rc4CryptFilter};
 use lopdf::{Dictionary, EncryptionState, Object, ObjectId};
 
@@ -137,6 +138,135 @@ pub(crate) fn standard_supported(info: &EncryptionInfo) -> bool {
     matches!((info.v, info.r), (1, 2) | (2, 3) | (3, 3) | (4, 4) | (5, 5) | (5, 6) | (1, 3) | (2, 2) | (4, 3))
 }
 
+/// Spezifikationsgemäße Crypt-Filter für Strings und Streams (ISO 32000-1 §7.6.5, Tabelle 20) und
+/// ob lopdf beim Laden andere verwendet hat.
+///
+/// lopdf 0.45 nimmt für einen fehlenden oder `/Identity`-Eintrag `/StrF` bzw. `/StmF` (und für
+/// Namen, die in `/CF` fehlen) RC4 statt Identity. Quelle und Re-Parse der Ausgabe würden dann
+/// Strings anders lesen, als der Writer sie schreibt (und als jeder andere Leser sie sieht). Ein
+/// unbekannter Filtername ist nach ISO 32000-1 ein Fehler (K5).
+#[derive(Clone)]
+pub(crate) struct SpecFilters {
+    string: Arc<dyn CryptFilter>,
+    stream: Arc<dyn CryptFilter>,
+    lopdf_deviates: bool,
+}
+
+fn spec_filter(state: &EncryptionState, filter_name: &[u8]) -> Result<(Arc<dyn CryptFilter>, bool)> {
+    if state.version() < 4 {
+        return Ok((Arc::new(Rc4CryptFilter), false));
+    }
+    let lopdf = state.crypt_filters().get(filter_name);
+    // ISO 32000-1 Tabelle 20: StmF/StrF fehlen → /Identity; der Name /Identity ist reserviert.
+    if filter_name.is_empty() || filter_name == b"Identity" {
+        let deviates = lopdf.is_none_or(|f| f.method() != b"Identity");
+        return Ok((Arc::new(IdentityCryptFilter), deviates));
+    }
+    match lopdf {
+        Some(f) => Ok((Arc::clone(f), false)),
+        None => Err(CosError::UnsupportedSecurityHandler(format!(
+            "Crypt-Filter /{} unbekannt",
+            String::from_utf8_lossy(filter_name)
+        ))),
+    }
+}
+
+impl SpecFilters {
+    pub(crate) fn new(state: &EncryptionState) -> Result<Self> {
+        let (string, d1) = spec_filter(state, state.default_string_filter())?;
+        let (stream, d2) = spec_filter(state, state.default_stream_filter())?;
+        Ok(Self { string, stream, lopdf_deviates: d1 || d2 })
+    }
+}
+
+/// Entschlüsselt Objekte wie lopdf beim Laden, aber mit den [`SpecFilters`].
+#[derive(Clone)]
+pub(crate) struct Decryptor {
+    state: EncryptionState,
+    filters: SpecFilters,
+}
+
+impl Decryptor {
+    pub(crate) fn new(state: EncryptionState) -> Result<Self> {
+        let filters = SpecFilters::new(&state)?;
+        Ok(Self { state, filters })
+    }
+
+    /// lopdf hat beim Laden andere Filter verwendet: alle Objekte sind neu zu lesen.
+    pub(crate) fn lopdf_deviates(&self) -> bool {
+        self.filters.lopdf_deviates
+    }
+
+    pub(crate) fn state(&self) -> &EncryptionState {
+        &self.state
+    }
+
+    pub(crate) fn filters(&self) -> &SpecFilters {
+        &self.filters
+    }
+
+    /// Entschlüsselt `obj` (Objekt `id`) in place. Stimmen die Filter mit lopdf überein, genau
+    /// lopdfs Verfahren (damit nachgeladene und von lopdf geladene Objekte gleich aussehen), sonst
+    /// dieselbe Logik mit den spezifikationsgemäßen Filtern – einschließlich Abbruch beim ersten
+    /// Fehler wie lopdf.
+    pub(crate) fn decrypt_object(&self, id: ObjectId, obj: &mut Object) -> std::result::Result<(), DecryptionError> {
+        if !self.filters.lopdf_deviates {
+            return lopdf::encryption::decrypt_object(&self.state, id, obj);
+        }
+        self.decrypt_spec(id, obj)
+    }
+
+    fn decrypt_spec(&self, id: ObjectId, obj: &mut Object) -> std::result::Result<(), DecryptionError> {
+        if obj.as_stream().is_ok_and(|s| s.dict.has_type(b"XRef")) {
+            return Ok(());
+        }
+        if obj.type_name().ok() == Some(b"Metadata") && !self.state.encrypt_metadata() {
+            return Ok(());
+        }
+        let override_filter = obj
+            .as_stream()
+            .ok()
+            .filter(|s| s.filters().is_ok_and(|f| f.contains(&&b"Crypt"[..])))
+            .and_then(|s| s.dict.get(b"DecodeParms").ok())
+            .and_then(|o| o.as_dict().ok())
+            .map(|d| {
+                d.get(b"Name")
+                    .and_then(|o| o.as_name())
+                    .ok()
+                    .and_then(|n| self.state.crypt_filters().get(n).cloned())
+                    .unwrap_or_else(|| Arc::new(IdentityCryptFilter))
+            });
+        let filter = match obj {
+            Object::Array(items) => {
+                for o in items {
+                    self.decrypt_spec(id, o)?;
+                }
+                return Ok(());
+            }
+            Object::Dictionary(d) => {
+                for (_, o) in d.iter_mut() {
+                    self.decrypt_spec(id, o)?;
+                }
+                return Ok(());
+            }
+            Object::String(..) => Arc::clone(&self.filters.string),
+            Object::Stream(_) => Arc::clone(&self.filters.stream),
+            _ => return Ok(()),
+        };
+        let filter = override_filter.unwrap_or(filter);
+        let key = filter.compute_key(self.state.file_encryption_key(), id)?;
+        match obj {
+            Object::String(content, _) => *content = filter.decrypt(&key, content)?,
+            Object::Stream(stream) => {
+                let plain = filter.decrypt(&key, &stream.content)?;
+                stream.set_content(plain);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
 /// Interner Aufbau des [`crate::Encryptor`].
 #[derive(Clone)]
 pub(crate) struct EncryptorInner {
@@ -146,6 +276,7 @@ pub(crate) struct EncryptorInner {
     pub(crate) algorithm: CryptAlgorithm,
 }
 
+/// Name des Filters für [`info_from_state`] (Befund, keine Entschlüsselung).
 fn select_filter(state: &EncryptionState, filter_name: &[u8]) -> Arc<dyn CryptFilter> {
     if state.version() < 4 {
         return Arc::new(Rc4CryptFilter);
@@ -158,10 +289,15 @@ fn select_filter(state: &EncryptionState, filter_name: &[u8]) -> Arc<dyn CryptFi
 }
 
 impl EncryptorInner {
-    pub(crate) fn new(state: EncryptionState, algorithm: CryptAlgorithm) -> Self {
-        let string_filter = select_filter(&state, state.default_string_filter());
-        let stream_filter = select_filter(&state, state.default_stream_filter());
-        Self { state, string_filter, stream_filter, algorithm }
+    /// Verschlüsselt mit denselben (spezifikationsgemäßen) Filtern, mit denen [`Decryptor`] liest.
+    pub(crate) fn new(decryptor: &Decryptor, algorithm: CryptAlgorithm) -> Self {
+        let f = decryptor.filters();
+        Self {
+            state: decryptor.state().clone(),
+            string_filter: Arc::clone(&f.string),
+            stream_filter: Arc::clone(&f.stream),
+            algorithm,
+        }
     }
 
     fn filter(&self, target: CryptTarget) -> &Arc<dyn CryptFilter> {
@@ -188,12 +324,12 @@ impl EncryptorInner {
 
 /// Entschlüsselt die Strings eines Signaturdictionarys außer `/Contents` (dieser Wert ist nach
 /// ISO 32000-2 §7.6.1 nie verschlüsselt). `raw` ist das unentschlüsselte Dictionary aus der Datei.
-pub(crate) fn decrypt_signature_dict(state: &EncryptionState, id: ObjectId, raw: &Dictionary) -> Dictionary {
+pub(crate) fn decrypt_signature_dict(decryptor: &Decryptor, id: ObjectId, raw: &Dictionary) -> Dictionary {
     let mut out = Dictionary::new();
     for (k, v) in raw.iter() {
         let mut v = v.clone();
         if k.as_slice() != b"Contents" {
-            let _ = lopdf::encryption::decrypt_object(state, id, &mut v);
+            let _ = decryptor.decrypt_object(id, &mut v);
         }
         out.set(k.clone(), v);
     }

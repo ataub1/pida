@@ -455,7 +455,9 @@ fn parse_number(text: &[u8]) -> Token<'static> {
 pub(crate) struct IndirectObject {
     pub id: ObjectId,
     pub object: Object,
-    /// Offset direkt hinter dem Objekt (nach `endobj`, falls vorhanden).
+    /// Offset direkt hinter dem Objekt (nach `endobj`, falls vorhanden); derzeit nur in Tests
+    /// ausgewertet (Grenzen aufeinanderfolgender Objekte).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub end: usize,
 }
 

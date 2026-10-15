@@ -2,7 +2,8 @@
 //! `prepare` → `finish_raw` → `self_check`. Erwartet wird **kein Panic** (Fehler sind erlaubt);
 //! gelingt das Signieren, muss die Selbstprüfung bestehen oder eine Verletzung melden.
 //!
-//! Standard: 25 Mutationen je Datei; mehr mit `PDFOVER_FUZZ_ITERS=<n>`.
+//! Standard: 25 Mutationen je Datei; mehr mit `PDFOVER_FUZZ_ITERS=<n>`, anderer Startwert mit
+//! `PDFOVER_FUZZ_SEED=<u64>`.
 
 mod common;
 
@@ -94,18 +95,14 @@ fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) {
         }
         if let Some(dir) = std::env::var_os("PDFOVER_FUZZ_DUMP") {
             let n = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-            let _ =
-                std::fs::write(std::path::PathBuf::from(dir).join(format!("{n}-{:?}.pdf", v.invariant)), src.bytes());
+            let name = format!("{n}-{:?}-{:?}.pdf", src.xref_health(), v.invariant);
+            let _ = std::fs::write(std::path::PathBuf::from(dir).join(name), src.bytes());
         }
-        // I5 (Re-Parse) darf auch bei „intaktem“ Original scheitern: Querverweise, deren Einträge
-        // auf ein anderes Objekt zeigen, korrigiert `pdf-cos` beim Öffnen, liest die Ausgabe aber
-        // teils mit der alten Objektfassung (offener Punkt Paket A, `testdata/pades/
-        // repro-xref-misassigned.pdf`) – dann wird nichts gespeichert. I1–I4 und I6 dürfen bei
-        // intaktem Original nie scheitern (das wären Fehler der Engine).
-        assert!(
-            src.xref_health() != pdfover_pdf_cos::XrefHealth::Intact || v.invariant == Invariant::I5Reparse,
-            "Selbstprüfung bei intaktem Original: {v}"
-        );
+        // Bei intaktem Original darf keine Invariante scheitern (das wäre ein Fehler der Engine),
+        // auch I5 nicht: Querverweiseinträge, die auf ein anderes Objekt zeigen, korrigiert
+        // `pdf-cos` beim Öffnen von Quelle **und** Ausgabe gleich (`testdata/pades/
+        // repro-xref-misassigned.pdf`).
+        assert!(src.xref_health() != pdfover_pdf_cos::XrefHealth::Intact, "Selbstprüfung bei intaktem Original: {v}");
     }
 }
 
@@ -131,7 +128,8 @@ fn mutated_inputs_do_not_panic() {
     let iters: usize = std::env::var("PDFOVER_FUZZ_ITERS").ok().and_then(|v| v.parse().ok()).unwrap_or(25);
     let p12 = std::fs::read(key_p12("test-ecp256")).unwrap();
     let key = LoadedKey::open_pkcs12(&p12, "test", None).unwrap();
-    let mut rng = Rng(0x5eed_1234_abcd_ef01);
+    let seed = std::env::var("PDFOVER_FUZZ_SEED").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(0x5eed_1234_abcd_ef01);
+    let mut rng = Rng(seed.max(1));
     let mut signed = 0usize;
     for rel in FILES {
         let data = std::fs::read(testdata().join(rel)).unwrap();

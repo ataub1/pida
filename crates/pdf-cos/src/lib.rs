@@ -767,12 +767,14 @@ fn check_container_params(data: &[u8], merged: &BTreeMap<u32, xref::Entry>, base
 
 /// Lädt fehlende bzw. von lopdf falsch zugeordnete Objekte nach der eigenen Querverweistabelle nach.
 /// Liefert `true`, wenn Offsets nicht stimmten und Objekte per Suche gefunden werden mussten.
+#[allow(clippy::too_many_arguments)]
 fn fixup_objects(
     doc: &mut Document,
     data: &[u8],
     merged: &BTreeMap<u32, xref::Entry>,
     base: u64,
     encrypt_id: Option<ObjectId>,
+    decryptor: Option<&crypt::Decryptor>,
     limits: &Limits,
     index: &lexer::EndstreamIndex,
 ) -> bool {
@@ -780,8 +782,10 @@ fn fixup_objects(
     let mut repaired = false;
     let mut scan: Option<BTreeMap<ObjectId, usize>> = None;
     let mut objstm_cache: BTreeMap<u32, Option<lopdf::ObjectStream>> = BTreeMap::new();
-    let state = doc.encryption_state.clone();
     let max_stream = usize::try_from(limits.max_decoded_stream).unwrap_or(usize::MAX);
+    // Hat lopdf mit anderen Crypt-Filtern entschlüsselt, ist keine seiner Fassungen verwendbar.
+    let clobbered =
+        if decryptor.is_some_and(crypt::Decryptor::lopdf_deviates) { Clobbered::All } else { clobbered_ids(doc, data) };
 
     // Zwei Durchläufe: erst Objekte an Offsets (darunter Object-Stream-Container), dann komprimierte.
     for (&num, entry) in merged
@@ -799,7 +803,7 @@ fn fixup_objects(
                     doc.reference_table.get(num),
                     Some(XrefEntry::Normal { offset: o, generation: g }) if u64::from(*o) == offset && *g == generation
                 );
-                if lopdf_ok && doc.objects.contains_key(&id) {
+                if lopdf_ok && !clobbered.contains(id) && doc.objects.contains_key(&id) {
                     continue;
                 }
                 let Some(abs) = offset.checked_add(base).and_then(|a| usize::try_from(a).ok()) else { continue };
@@ -815,8 +819,8 @@ fn fixup_objects(
                 let resolve_len = |rid: ObjectId| doc.objects.get(&rid).and_then(|o| o.as_i64().ok());
                 let Some(io) = lexer::parse_indirect_object(data, pos, &resolve_len, index) else { continue };
                 let mut obj = io.object;
-                if let Some(st) = &state {
-                    let _ = lopdf::encryption::decrypt_object(st, id, &mut obj);
+                if let Some(d) = decryptor {
+                    let _ = d.decrypt_object(id, &mut obj);
                 }
                 doc.objects.insert(id, obj);
             }
@@ -826,7 +830,7 @@ fn fixup_objects(
                     doc.reference_table.get(num),
                     Some(XrefEntry::Compressed { container, .. }) if *container == stream
                 );
-                if lopdf_ok && doc.objects.contains_key(&id) {
+                if lopdf_ok && !clobbered.contains(id) && doc.objects.contains_key(&id) {
                     continue;
                 }
                 let os = objstm_cache.entry(stream).or_insert_with(|| {
@@ -846,6 +850,70 @@ fn fixup_objects(
         }
     }
     repaired
+}
+
+/// Objekte, deren Fassung im lopdf-Objektmodell nicht sicher vom eigenen Querverweiseintrag stammt.
+///
+/// lopdf 0.45 legt jedes Objekt unter der Kennung seines **Objektkopfs** ab, nicht unter der Nummer
+/// des Querverweiseintrags, und spätere Einträge überschreiben frühere. Zeigt ein Eintrag (z. B.
+/// nach einem verschobenen Unterabschnitt `1 2` statt `0 2`) auf den Kopf eines anderen Objekts,
+/// ersetzt lopdf dessen gültige Fassung durch die alte – obwohl die Tabelle für dieses Objekt
+/// stimmt. Ohne diese Prüfung sähe der Re-Parse eines Increments den alten Katalog (I5).
+enum Clobbered {
+    /// diese Kennungen können überschrieben worden sein
+    Ids(std::collections::HashSet<ObjectId>),
+    /// ein Eintrag zeigt auf einen Kopf, den der eigene Lexer nicht liest: alle Objekte nachladen
+    All,
+}
+
+impl Clobbered {
+    fn contains(&self, id: ObjectId) -> bool {
+        match self {
+            Clobbered::Ids(ids) => ids.contains(&id),
+            Clobbered::All => true,
+        }
+    }
+}
+
+fn clobbered_ids(doc: &Document, data: &[u8]) -> Clobbered {
+    use lopdf::xref::XrefEntry;
+    let mut ids = std::collections::HashSet::new();
+    for (&num, entry) in &doc.reference_table.entries {
+        let XrefEntry::Normal { offset, generation } = *entry else { continue };
+        let Ok(pos) = usize::try_from(offset) else { continue };
+        if pos >= data.len() {
+            continue; // lopdf liest dort nichts
+        }
+        match lexer::object_header_at(data, pos) {
+            Some((hid, _)) if hid == (num, generation) => {}
+            Some((hid, _)) => {
+                ids.insert(hid);
+            }
+            // lopdf überspringt vor dem Kopf auch Kommentare; was der eigene Lexer nicht als Kopf
+            // erkennt, kann lopdf trotzdem unter einer unbekannten Kennung geladen haben.
+            None if lopdf_may_parse_header(data, pos) => return Clobbered::All,
+            None => {}
+        }
+    }
+    Clobbered::Ids(ids)
+}
+
+/// Grobe Vorprüfung: Beginnt an `pos` (nach Leerraum und Kommentaren) eine Ziffer, kann lopdf dort
+/// einen Objektkopf gelesen haben.
+fn lopdf_may_parse_header(data: &[u8], pos: usize) -> bool {
+    let mut p = pos;
+    loop {
+        while p < data.len() && lexer::is_whitespace(data[p]) {
+            p += 1;
+        }
+        if data.get(p) == Some(&b'%') {
+            while p < data.len() && !matches!(data[p], b'\r' | b'\n') {
+                p += 1;
+            }
+            continue;
+        }
+        return data.get(p).is_some_and(u8::is_ascii_digit);
+    }
 }
 
 /// Alle Objektköpfe `n g obj` am Zeilenanfang (spätere Vorkommen gewinnen).
@@ -874,9 +942,10 @@ fn fixup_signature_dicts(
     data: &[u8],
     merged: &BTreeMap<u32, xref::Entry>,
     base: u64,
+    decryptor: Option<&crypt::Decryptor>,
     index: &lexer::EndstreamIndex,
 ) {
-    let Some(state) = doc.encryption_state.clone() else { return };
+    let Some(decryptor) = decryptor else { return };
     let candidates: Vec<ObjectId> = doc
         .objects
         .iter()
@@ -894,7 +963,7 @@ fn fixup_signature_dicts(
             continue;
         }
         if let Object::Dictionary(raw) = io.object {
-            let fixed = crypt::decrypt_signature_dict(&state, id, &raw);
+            let fixed = crypt::decrypt_signature_dict(decryptor, id, &raw);
             doc.objects.insert(id, Object::Dictionary(fixed));
         }
     }
@@ -968,36 +1037,39 @@ impl SourcePdf {
         let lopdf_reconstructed = document.xref_start == 0 && !structure.reconstructed;
 
         let mut owner_rights = false;
-        let (encryption, encryptor) = match pre_encryption {
-            Some((info, owner)) => {
-                let Some(state) = document.encryption_state.clone() else {
-                    return Err(if crypt::standard_supported(&info) {
-                        CosError::PasswordRequired
-                    } else {
-                        CosError::UnsupportedSecurityHandler(format!("Standard V{} R{}", info.v, info.r))
-                    });
-                };
-                let enc = Encryptor { inner: crypt::EncryptorInner::new(state, info.algorithm.clone()) };
+        let decryptor = document.encryption_state.clone().map(crypt::Decryptor::new).transpose()?;
+        if decryptor.as_ref().is_some_and(crypt::Decryptor::lopdf_deviates) && structure.reconstructed {
+            // Ohne eigene Querverweistabelle lässt sich lopdfs Entschlüsselung nicht ersetzen.
+            return Err(CosError::Decryption("Crypt-Filter bei rekonstruiertem Querverweis nicht lesbar".into()));
+        }
+        let (encryption, encryptor) = match (pre_encryption, &decryptor) {
+            (Some((info, owner)), Some(dec)) => {
+                let enc = Encryptor { inner: crypt::EncryptorInner::new(dec, info.algorithm.clone()) };
                 owner_rights = owner;
                 (Some(info), Some(enc))
             }
-            None => match document.encryption_state.clone() {
-                // Rekonstruierter Querverweis: Befund aus lopdfs Zustand.
-                Some(state) => {
-                    let info = crypt::info_from_state(&state);
-                    let enc = Encryptor { inner: crypt::EncryptorInner::new(state, info.algorithm.clone()) };
-                    (Some(info), Some(enc))
-                }
-                None if document.trailer.has(b"Encrypt") => return Err(CosError::PasswordRequired),
-                None => (None, None),
-            },
+            (Some((info, _)), None) => {
+                return Err(if crypt::standard_supported(&info) {
+                    CosError::PasswordRequired
+                } else {
+                    CosError::UnsupportedSecurityHandler(format!("Standard V{} R{}", info.v, info.r))
+                });
+            }
+            // Rekonstruierter Querverweis: Befund aus lopdfs Zustand.
+            (None, Some(dec)) => {
+                let info = crypt::info_from_state(dec.state());
+                let enc = Encryptor { inner: crypt::EncryptorInner::new(dec, info.algorithm.clone()) };
+                (Some(info), Some(enc))
+            }
+            (None, None) if document.trailer.has(b"Encrypt") => return Err(CosError::PasswordRequired),
+            (None, None) => (None, None),
         };
 
         let mut repaired = structure.chain.repaired || lopdf_reconstructed;
         if !structure.reconstructed {
             let encrypt_id = encryption.as_ref().and_then(|e| e.encrypt_dict_id);
-            repaired |= fixup_objects(&mut document, data, &merged, base, encrypt_id, limits, &index);
-            fixup_signature_dicts(&mut document, data, &merged, base, &index);
+            repaired |= fixup_objects(&mut document, data, &merged, base, encrypt_id, decryptor.as_ref(), limits, &index);
+            fixup_signature_dicts(&mut document, data, &merged, base, decryptor.as_ref(), &index);
         }
         if document.objects.len() > limits.max_objects {
             return Err(CosError::LimitExceeded { what: "Objektanzahl", limit: limits.max_objects as u64 });
