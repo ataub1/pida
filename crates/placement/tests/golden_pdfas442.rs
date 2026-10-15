@@ -6,7 +6,8 @@
 //! Holder-`/Matrix`) mit `resolve_width`/`resolve_position`/`widget_rect_with` nachgerechnet:
 //!
 //! - manuelle Position, `p:new`, `p:last`, Platzhalter: Breite, x, y und Widget-Rect ±0,01 pt,
-//! - Auto-Position (Rasterscan mit PDFium, nur mit `PDFOVER_PDFIUM_DIR`): gleiche Seite, ±1 pt,
+//! - Auto-Position (Rasterscan mit PDFium, nur mit `PDFOVER_PDFIUM_DIR`): gleiche Seite, ±0,01 pt
+//!   (seit Welle 3, KR-F10: Raster 1:1 wie Java2D); nur Eingaben aus [`HAIRLINE_INPUTS`] ±1 pt,
 //! - neue Seite (Seitenindex, MediaBox und `/Rotate` der neuen Seite), Rotation der Erscheinung.
 //!
 //! Gerechnet wird in beiden Modi: [`CompatMode::PdfasQuirks`] muss PDF-AS exakt treffen,
@@ -33,6 +34,19 @@ use serde::Deserialize;
 /// Toleranz manuelle Position (Auftrag: ±0,01 pt) bzw. Auto-Position (Plan §8.2: ±1 pt).
 const TOL_EXACT: f32 = 0.01;
 const TOL_AUTO: f32 = 1.0;
+
+/// Eingaben, deren unterste Inhaltszeile eine Haarlinie knapp über einer Pixelgrenze ist: PDFium
+/// zeichnet Linien mindestens 1 px breit (`CFX_AggDriver`, keine Render-Option dagegen), Java2D
+/// mit der echten Breite. `presigned`: die 0,1-pt-Unterkante der PDF-AS-Erscheinung endet bei
+/// 689,99 px; PDFium färbt Zeile 690 an, PDF-AS nicht ⇒ genau 1 pt tiefer (Register KR-F10, Rest).
+/// Alle anderen Auto-Positionen treffen PDF-AS seit der 1:1-Abbildung exakt.
+const HAIRLINE_INPUTS: &[&str] = &["presigned"];
+
+/// Toleranz eines Falls: exakt, außer Rasterscan auf einer Eingabe aus [`HAIRLINE_INPUTS`].
+fn tolerance(id: &str, scanned: bool) -> f32 {
+    let input = id.split("__").nth(1).unwrap_or("");
+    if scanned && HAIRLINE_INPUTS.contains(&input) { TOL_AUTO } else { TOL_EXACT }
+}
 
 fn golden(rel: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/golden/pdfas-4.4.2").join(rel)
@@ -75,6 +89,8 @@ struct Manifest {
 #[derive(Debug, Clone, Deserialize)]
 struct CaseInfo {
     id: String,
+    /// nur für Diagnose (`Debug`)
+    #[allow(dead_code)]
     profile: String,
     input: String,
     position_key: String,
@@ -351,7 +367,7 @@ fn check(m: &Manifest, inp: &Input, compat: CompatMode, backend: Option<&pdfover
         o.errors.clear();
         return o;
     }
-    let tol = if probe.scanned { TOL_AUTO } else { TOL_EXACT };
+    let tol = tolerance(&m.case.id, probe.scanned);
     // Seite (PDF-AS: 1-basiert, bei neuer Seite = Seitenzahl + 1)
     if got.page_index + 1 != expected.page || got.new_page != expected.make_new_page {
         o.errors.push(format!(
@@ -495,7 +511,7 @@ fn verify_documented(outcomes: &[Outcome]) {
             } else {
                 // Rect wie PDF-AS, verschoben um den CropBox-Ursprung
                 let e = normalized(&m.widget.rect);
-                let tol = if o.scanned { TOL_AUTO } else { TOL_EXACT };
+                let tol = tolerance(&o.id, o.scanned);
                 [
                     (o.rect[0], e.llx + crop.llx),
                     (o.rect[1], e.lly + crop.lly),

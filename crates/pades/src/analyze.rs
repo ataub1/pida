@@ -6,7 +6,7 @@
 //! | K2 reparierbar (nur ohne Vorsignaturen; Warnung = Zustimmung nötig) | `pdf-xref-repaired`, `pdf-tail-garbage` |
 //! | K3 verschlüsselt | `pdf-encrypted` |
 //! | K4 eingeschränkt | `pdf-docmdp-p2`, `pdf-docmdp-p3` (keine neue Seite, kein neues sichtbares Feld: [`DocReport::allows_new_visible_field`]), `pdf-field-locked`, `pdf-seed-value`, `pdf-seed-value-incompatible` (Warnung) |
-//! | K5 abgelehnt | `pdf-docmdp-p1`, `pdf-permissions`, `pdf-xfa-dynamic`, `pdf-xref-reconstructed`, K2-Befunde bei Vorsignaturen; beim Öffnen ([`reject_open_error`]): `pdf-user-password`, `pdf-public-key`, `pdf-unsupported-security`, `pdf-no-pages`, `pdf-not-a-pdf`, `pdf-unreadable`, `pdf-limit-exceeded`, `pdf-decryption`, `pdf-io` |
+//! | K5 abgelehnt | `pdf-docmdp-p1`, `pdf-permissions`, `pdf-xfa-dynamic`, `pdf-xref-reconstructed`, `pdf-prior-signature-beyond-eof`, K2-Befunde bei Vorsignaturen; beim Öffnen ([`reject_open_error`]): `pdf-user-password`, `pdf-public-key`, `pdf-unsupported-security`, `pdf-no-pages`, `pdf-not-a-pdf`, `pdf-unreadable`, `pdf-limit-exceeded`, `pdf-decryption`, `pdf-io` |
 
 use std::collections::BTreeSet;
 
@@ -53,6 +53,9 @@ pub mod codes {
     pub const PRIOR_SIGNATURE_INVALID: &str = "pdf-prior-signature-invalid";
     /// Vorsignatur nicht prüfbar – Hinweis
     pub const PRIOR_SIGNATURE_UNVERIFIABLE: &str = "pdf-prior-signature-unverifiable";
+    /// `/ByteRange` einer Vorsignatur reicht über das Dateiende (Datei nach dem Signieren gekürzt
+    /// bzw. beschädigt) – K5: ein Increment läge im signierten Bereich (I4; Welle 3)
+    pub const PRIOR_SIGNATURE_BEYOND_EOF: &str = "pdf-prior-signature-beyond-eof";
     /// Benutzerpasswort – K5
     pub const USER_PASSWORD: &str = "pdf-user-password";
     /// Public-Key-Security – K5
@@ -463,6 +466,7 @@ pub fn analyze(src: &SourcePdf) -> Result<DocReport, PadesError> {
 
     // Vorhandene Signaturen
     let mut signatures = Vec::new();
+    let mut beyond_eof = false;
     for f in fields.iter().filter(|f| f.signed) {
         let Some(info) = sigs::read_sig_dict(src, f) else {
             // `/V` ohne lesbares Signaturdictionary: zählt als (ungültige) Vorsignatur, damit
@@ -482,6 +486,7 @@ pub fn analyze(src: &SourcePdf) -> Result<DocReport, PadesError> {
         };
         let (status, status_code) = sigs::signature_status(src.bytes(), &info);
         let end = info.covered_end();
+        beyond_eof |= end.is_some_and(|e| e > src.len());
         let covers_revision = end.and_then(|e| revision_ending_at(src, e));
         let covers_whole_file = covers_revision.is_some_and(|i| i + 1 == src.revisions().len());
         signatures.push(ExistingSignature {
@@ -516,6 +521,9 @@ pub fn analyze(src: &SourcePdf) -> Result<DocReport, PadesError> {
     }
     if src.tail().kind == TailKind::Garbage {
         findings.push(k2(codes::TAIL_GARBAGE));
+    }
+    if beyond_eof {
+        findings.push(Finding::new(codes::PRIOR_SIGNATURE_BEYOND_EOF, K5Rejected, false));
     }
 
     // Verschlüsselung und Rechte

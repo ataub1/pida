@@ -21,6 +21,51 @@ pub const MAX_EMBLEM_HEIGHT: u32 = 600;
 /// Obergrenze für dekodierte Bilder (Schutz vor Dekompressionsbomben): 64 Megapixel.
 const MAX_DECODED_PIXELS: u64 = 64 * 1024 * 1024;
 
+/// Farbtyp der Quelldatei (additiv, Welle 3).
+///
+/// PDF-AS bettet Bildmarken je nach Java-Bildtyp verschieden ein (PDFBox `LosslessFactory`); mit
+/// `SigBlockInput::pdfas_quirks` bildet die Appearance das nach (Register SB-G2 … SB-G4):
+/// - [`SourceColor::RgbAlpha`]/[`SourceColor::GrayAlpha`]: SMask für jeden Alphakanal, auch voll
+///   deckend (SB-G2),
+/// - [`SourceColor::Indexed`] (PNG-Palette, GIF, Graustufen-PNG unter 8 Bit – Java liest sie als
+///   Palettenbild): Transparenz verworfen, Palettenfarbe (SB-G3),
+/// - [`SourceColor::Gray`]/[`SourceColor::GrayAlpha`] (PNG-Graustufen ab 8 Bit, Graustufen-JPEG):
+///   Java-Umrechnung des linearen `CS_GRAY` nach sRGB (aufgehellt, SB-G4); mit Alphakanal bzw.
+///   `tRNS` zusätzlich eine SMask (Einzelheiten `appearance::QuirkImage`).
+///
+/// Ohne Quirks (Standard) zählt nur der Inhalt: SMask nur bei echter Transparenz, Palettenalpha
+/// bleibt erhalten, Graustufen unverändert als RGB.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum SourceColor {
+    /// Truecolor ohne Alphakanal (PNG RGB, Farb-JPEG); auch der Default für Strukturliterale
+    #[default]
+    Rgb,
+    /// Truecolor mit Alphakanal (PNG RGBA; RGBA aus der Shell, [`Emblem::from_rgba`])
+    RgbAlpha,
+    /// Graustufen ohne Alphakanal (PNG Typ 0 mit 8 oder 16 Bit, auch mit `tRNS`; Graustufen-JPEG)
+    Gray,
+    /// Graustufen mit Alphakanal (PNG Typ 4)
+    GrayAlpha,
+    /// Palettenbild (PNG Typ 3, auch mit `tRNS`; GIF; PNG-Graustufen mit 1, 2 oder 4 Bit)
+    Indexed,
+}
+
+impl SourceColor {
+    /// Die Datei hat einen eigenen Alphakanal (nicht nur Paletten- bzw. Farbschlüssel-Transparenz).
+    pub fn has_alpha_channel(self) -> bool {
+        matches!(self, SourceColor::RgbAlpha | SourceColor::GrayAlpha)
+    }
+}
+
+/// Java `ColorModel.getRGB` für ein Byte des linearen `CS_GRAY` (TYPE_BYTE_GRAY): sRGB-Kodierung
+/// (IEC 61966-2-1) des linearen Werts, gerundet – so schreibt PDFBox `createFromGrayImage` die
+/// Samples (SB-G4, z. B. 20 → 79; Golden PDF-AS 4.4.2 für alle Stufen von `emblem-tall.png`).
+pub fn java_linear_gray_to_srgb(v: u8) -> u8 {
+    let l = f64::from(v) / 255.0;
+    let s = if l <= 0.003_130_8 { 12.92 * l } else { 1.055 * l.powf(1.0 / 2.4) - 0.055 };
+    (s * 255.0).round().clamp(0.0, 255.0) as u8
+}
+
 /// Dekodierte Bildmarke (RGBA, 8 Bit).
 #[derive(Clone, PartialEq, Eq)]
 pub struct Emblem {
@@ -34,6 +79,8 @@ pub struct Emblem {
     pub has_alpha: bool,
     /// SHA-256 der Originaldatei (Cache-Schlüssel).
     pub source_sha256: [u8; 32],
+    /// Farbtyp der Quelldatei (additiv, Welle 3; [`SourceColor`]).
+    pub source_color: SourceColor,
 }
 
 impl std::fmt::Debug for Emblem {
@@ -42,6 +89,7 @@ impl std::fmt::Debug for Emblem {
             .field("width", &self.width)
             .field("height", &self.height)
             .field("has_alpha", &self.has_alpha)
+            .field("source_color", &self.source_color)
             .finish()
     }
 }
@@ -86,6 +134,7 @@ struct Raw {
     height: u32,
     rgba: Vec<u8>,
     has_alpha: bool,
+    source_color: SourceColor,
 }
 
 fn decode_png(bytes: &[u8]) -> Result<Raw> {
@@ -93,6 +142,20 @@ fn decode_png(bytes: &[u8]) -> Result<Raw> {
     dec.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
     let mut reader = dec.read_info().map_err(img_err)?;
     let (w, h) = (reader.info().width, reader.info().height);
+    let packed_palette = reader.info().color_type == png::ColorType::Indexed
+        && matches!(reader.info().bit_depth, png::BitDepth::One | png::BitDepth::Two | png::BitDepth::Four);
+    // Farbtyp laut IHDR (vor EXPAND), wie Java ImageIO ihn sieht: Graustufen unter 8 Bit liest
+    // ImageIO als Palettenbild (`TYPE_BYTE_BINARY`, IndexColorModel ohne lineares CS_GRAY)
+    let source_color = match (reader.info().color_type, reader.info().bit_depth) {
+        (png::ColorType::Rgba, _) => SourceColor::RgbAlpha,
+        (png::ColorType::Rgb, _) => SourceColor::Rgb,
+        (png::ColorType::GrayscaleAlpha, _) => SourceColor::GrayAlpha,
+        (png::ColorType::Grayscale, png::BitDepth::One | png::BitDepth::Two | png::BitDepth::Four) => {
+            SourceColor::Indexed
+        }
+        (png::ColorType::Grayscale, _) => SourceColor::Gray,
+        (png::ColorType::Indexed, _) => SourceColor::Indexed,
+    };
     check_size(w, h)?;
     let size = reader.output_buffer_size().ok_or_else(|| img_err("PNG zu groß"))?;
     let mut buf = vec![0; size];
@@ -111,7 +174,25 @@ fn decode_png(bytes: &[u8]) -> Result<Raw> {
     if rgba.len() != px * 4 {
         return Err(img_err("PNG-Daten unvollständig"));
     }
-    Ok(Raw { width: w, height: h, rgba, has_alpha })
+    let mut rgba = rgba;
+    if packed_palette {
+        java_packed_palette_transparency(&mut rgba);
+    }
+    Ok(Raw { width: w, height: h, rgba, has_alpha, source_color })
+}
+
+/// Palettenbilder mit höchstens 16 Farben (PNG-Palette mit 1/2/4 Bit, GIF mit ≤ 16 Einträgen) liest
+/// Java ImageIO gepackt (`TYPE_BYTE_BINARY`); wird ihre Transparenz verworfen (PDF-AS
+/// `removeAlphaChannel`, SB-G3/SB-G6), zeigen voll transparente Pixel **Schwarz**, bei 8-Bit-
+/// Paletten dagegen die gespeicherte Farbe (geprüft mit PDF-AS 4.4.2/Java 21). Die Farbe voll
+/// transparenter Pixel ist sonst nirgends sichtbar (SMask bzw. Komposition auf Weiß); hier wird
+/// sie deshalb gleich beim Dekodieren wie bei Java auf Schwarz gesetzt.
+fn java_packed_palette_transparency(rgba: &mut [u8]) {
+    for p in rgba.as_chunks_mut::<4>().0 {
+        if p[3] == 0 {
+            *p = [0, 0, 0, 0];
+        }
+    }
 }
 
 fn decode_jpeg(bytes: &[u8]) -> Result<Raw> {
@@ -126,28 +207,36 @@ fn decode_jpeg(bytes: &[u8]) -> Result<Raw> {
     let info = dec.info().ok_or_else(|| img_err("JPEG ohne Kopf"))?;
     let (w, h) = (u32::from(info.width), u32::from(info.height));
     check_size(w, h)?;
+    // Graustufen-JPEG liest ImageIO als TYPE_BYTE_GRAY (SB-G4)
+    let source_color = if info.components == 1 { SourceColor::Gray } else { SourceColor::Rgb };
     let rgb = dec.decode().map_err(img_err)?;
     let px = (w as usize) * (h as usize);
     if rgb.len() != px * 3 {
         return Err(img_err("JPEG-Daten unvollständig"));
     }
     let rgba = rgb.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
-    Ok(Raw { width: w, height: h, rgba, has_alpha: false })
+    Ok(Raw { width: w, height: h, rgba, has_alpha: false, source_color })
 }
 
 fn decode_gif(bytes: &[u8]) -> Result<Raw> {
     let mut opts = gif::DecodeOptions::new();
     opts.set_color_output(gif::ColorOutput::RGBA);
     let mut dec = opts.read_info(Cursor::new(bytes)).map_err(img_err)?;
+    let global_entries = dec.global_palette().map(|p| p.len() / 3);
     let frame = dec.read_next_frame().map_err(img_err)?.ok_or_else(|| img_err("GIF ohne Bild"))?;
     let (w, h) = (u32::from(frame.width), u32::from(frame.height));
     check_size(w, h)?;
-    let rgba = frame.buffer.to_vec();
+    let mut rgba = frame.buffer.to_vec();
+    // Java: höchstens 16 Paletteneinträge ⇒ gepackt (`java_packed_palette_transparency`)
+    let entries = frame.palette.as_ref().map(|p| p.len() / 3).or(global_entries).unwrap_or(256);
+    if entries <= 16 {
+        java_packed_palette_transparency(&mut rgba);
+    }
     if rgba.len() != (w as usize) * (h as usize) * 4 {
         return Err(img_err("GIF-Daten unvollständig"));
     }
     let has_alpha = frame.transparent.is_some() || rgba.as_chunks::<4>().0.iter().any(|p| p[3] != 255);
-    Ok(Raw { width: w, height: h, rgba, has_alpha })
+    Ok(Raw { width: w, height: h, rgba, has_alpha, source_color: SourceColor::Indexed })
 }
 
 fn decode_raw(bytes: &[u8]) -> Result<(Raw, Format)> {
@@ -199,7 +288,7 @@ fn rotate_cw(raw: Raw, quarters: u32) -> Raw {
                     out[dst..dst + 4].copy_from_slice(&raw.rgba[src..src + 4]);
                 }
             }
-            Raw { width: raw.height, height: raw.width, rgba: out, has_alpha: raw.has_alpha }
+            Raw { width: raw.height, height: raw.width, rgba: out, ..raw }
         }
     }
 }
@@ -263,7 +352,34 @@ fn resize_nearest(raw: Raw, nw: u32, nh: u32) -> Raw {
             out.extend_from_slice(&raw.rgba[i..i + 4]);
         }
     }
-    Raw { width: nw, height: nh, rgba: out, has_alpha: raw.has_alpha }
+    Raw { width: nw, height: nh, rgba: out, ..raw }
+}
+
+/// Palette (höchstens 256 RGBA-Farben, in Reihenfolge des ersten Auftretens) und Indizes.
+fn palette_of(px: &[[u8; 4]]) -> Option<(Vec<[u8; 4]>, Vec<u8>)> {
+    let mut colors: Vec<[u8; 4]> = Vec::new();
+    let mut lookup = std::collections::HashMap::new();
+    let mut indices = Vec::with_capacity(px.len());
+    for p in px {
+        let i = match lookup.get(p) {
+            Some(&i) => i,
+            None => {
+                let i = u8::try_from(colors.len()).ok()?;
+                colors.push(*p);
+                lookup.insert(*p, i);
+                i
+            }
+        };
+        indices.push(i);
+    }
+    Some((colors, indices))
+}
+
+/// Farbschlüssel (`tRNS` bei RGB bzw. Graustufen): genau eine Farbe ist vollständig transparent,
+/// alle anderen Pixel sind deckend und haben eine andere Farbe.
+fn color_key(px: &[[u8; 4]]) -> Option<[u8; 3]> {
+    let key = px.iter().find(|p| p[3] == 0).map(|p| [p[0], p[1], p[2]])?;
+    px.iter().all(|p| if [p[0], p[1], p[2]] == key { p[3] == 0 } else { p[3] == 255 }).then_some(key)
 }
 
 fn sha256(bytes: &[u8]) -> [u8; 32] {
@@ -299,7 +415,8 @@ impl Emblem {
 
     fn from_raw(raw: Raw, source_sha256: [u8; 32]) -> Emblem {
         let has_alpha = raw.has_alpha && raw.rgba.as_chunks::<4>().0.iter().any(|p| p[3] != 255);
-        Emblem { width: raw.width, height: raw.height, rgba: raw.rgba, has_alpha, source_sha256 }
+        let source_color = raw.source_color;
+        Emblem { width: raw.width, height: raw.height, rgba: raw.rgba, has_alpha, source_sha256, source_color }
     }
 
     /// Aus bereits dekodiertem RGBA (z. B. HEIC über die Shell); verkleinert wie [`Emblem::decode`].
@@ -308,7 +425,7 @@ impl Emblem {
         if rgba.len() as u64 != u64::from(width) * u64::from(height) * 4 {
             return Err(img_err(format!("RGBA-Puffer passt nicht zu {width}×{height}")));
         }
-        let raw = Raw { width, height, rgba, has_alpha: true };
+        let raw = Raw { width, height, rgba, has_alpha: true, source_color: SourceColor::RgbAlpha };
         let (nw, nh) = reduced_size(width, height);
         Ok(Emblem::from_raw(resize_nearest(raw, nw, nh), source_sha256))
     }
@@ -326,21 +443,65 @@ impl Emblem {
                 [mix(p[0]), mix(p[1]), mix(p[2]), 255]
             })
             .collect();
-        Emblem { width: self.width, height: self.height, rgba, has_alpha: false, source_sha256: self.source_sha256 }
+        Emblem { rgba, has_alpha: false, ..self.clone() }
     }
 
-    /// PNG für den Cache im Konfigurationsordner (RGB bzw. RGBA, 8 Bit).
+    /// PNG für den Cache im Konfigurationsordner (8 Bit). Der Farbtyp der Quelle
+    /// ([`Emblem::source_color`]) bleibt beim erneuten Dekodieren erhalten, wie bei PDF-Over
+    /// `ImageIO.write` – sonst bettete `pdfas_quirks` die Bildmarke aus dem Cache anders ein als
+    /// aus der Originaldatei (SB-G2 … SB-G4): Palette (mit `tRNS`) bleibt Palette, Graustufen
+    /// bleiben Graustufen, ein Alphakanal bleibt auch voll deckend erhalten, ein Farbschlüssel
+    /// (`tRNS` bei RGB/Graustufen) bleibt Farbschlüssel. Lässt sich der Inhalt so nicht darstellen
+    /// (z. B. mehr als 256 Farben nach dem Verkleinern), gilt RGB bzw. RGBA.
     pub fn to_png(&self) -> crate::Result<Vec<u8>> {
+        let px = self.rgba.as_chunks::<4>().0;
+        let gray = px.iter().all(|p| p[0] == p[1] && p[1] == p[2]);
+        let palette = if self.source_color == SourceColor::Indexed { palette_of(px) } else { None };
         let mut out = Vec::new();
         {
             let mut enc = png::Encoder::new(&mut out, self.width, self.height);
             enc.set_depth(png::BitDepth::Eight);
-            let data: Vec<u8> = if self.has_alpha {
-                enc.set_color(png::ColorType::Rgba);
-                self.rgba.clone()
-            } else {
-                enc.set_color(png::ColorType::Rgb);
-                self.rgb()
+            let alpha_channel = self.source_color.has_alpha_channel() || self.has_alpha;
+            let key = if self.has_alpha && !self.source_color.has_alpha_channel() { color_key(px) } else { None };
+            let data: Vec<u8> = match (self.source_color, palette) {
+                (SourceColor::Indexed, Some((colors, indices))) => {
+                    enc.set_color(png::ColorType::Indexed);
+                    enc.set_palette(colors.iter().flat_map(|c| [c[0], c[1], c[2]]).collect::<Vec<u8>>());
+                    if colors.iter().any(|c| c[3] != 255) {
+                        enc.set_trns(colors.iter().map(|c| c[3]).collect::<Vec<u8>>());
+                    }
+                    indices
+                }
+                (SourceColor::Gray | SourceColor::GrayAlpha, _) if gray => match key {
+                    Some(k) if self.source_color == SourceColor::Gray => {
+                        enc.set_color(png::ColorType::Grayscale);
+                        enc.set_trns(vec![0, k[0]]);
+                        px.iter().map(|p| p[0]).collect()
+                    }
+                    _ if alpha_channel => {
+                        enc.set_color(png::ColorType::GrayscaleAlpha);
+                        px.iter().flat_map(|p| [p[0], p[3]]).collect()
+                    }
+                    _ => {
+                        enc.set_color(png::ColorType::Grayscale);
+                        px.iter().map(|p| p[0]).collect()
+                    }
+                },
+                _ => match key {
+                    Some(k) if self.source_color == SourceColor::Rgb => {
+                        enc.set_color(png::ColorType::Rgb);
+                        enc.set_trns(vec![0, k[0], 0, k[1], 0, k[2]]);
+                        self.rgb()
+                    }
+                    _ if alpha_channel => {
+                        enc.set_color(png::ColorType::Rgba);
+                        self.rgba.clone()
+                    }
+                    _ => {
+                        enc.set_color(png::ColorType::Rgb);
+                        self.rgb()
+                    }
+                },
             };
             let mut w = enc.write_header().map_err(img_err)?;
             w.write_image_data(&data).map_err(img_err)?;
@@ -430,7 +591,13 @@ mod tests {
     #[test]
     fn orientation_mapping() {
         // 2×1: rot, grün
-        let raw = || Raw { width: 2, height: 1, rgba: vec![255, 0, 0, 255, 0, 255, 0, 255], has_alpha: false };
+        let raw = || Raw {
+            width: 2,
+            height: 1,
+            rgba: vec![255, 0, 0, 255, 0, 255, 0, 255],
+            has_alpha: false,
+            source_color: SourceColor::Rgb,
+        };
         let r6 = apply_orientation(raw(), 6);
         assert_eq!((r6.width, r6.height), (1, 2));
         assert_eq!(&r6.rgba[0..4], &[255, 0, 0, 255]); // 90° UZS: links wird oben
@@ -463,6 +630,130 @@ mod tests {
         assert!(short.check().is_err());
         let empty = Emblem { width: 0, rgba: Vec::new(), ..ok };
         assert!(empty.check().is_err());
+    }
+
+    #[test]
+    fn source_color_from_the_file() {
+        let png = |color, data: &[u8]| Emblem::decode(&png_bytes(1, 1, color, data)).unwrap().source_color;
+        assert_eq!(png(png::ColorType::Rgb, &[1, 2, 3]), SourceColor::Rgb);
+        assert_eq!(png(png::ColorType::Rgba, &[1, 2, 3, 255]), SourceColor::RgbAlpha);
+        assert_eq!(png(png::ColorType::Grayscale, &[7]), SourceColor::Gray);
+        // Graustufen unter 8 Bit: für Java ein Palettenbild (keine Aufhellung bei PDF-AS)
+        for depth in [png::BitDepth::One, png::BitDepth::Two, png::BitDepth::Four] {
+            let mut out = Vec::new();
+            {
+                let mut enc = png::Encoder::new(&mut out, 1, 1);
+                enc.set_color(png::ColorType::Grayscale);
+                enc.set_depth(depth);
+                let mut w = enc.write_header().unwrap();
+                w.write_image_data(&[0x80]).unwrap();
+            }
+            assert_eq!(Emblem::decode(&out).unwrap().source_color, SourceColor::Indexed, "{depth:?}");
+        }
+        assert_eq!(png(png::ColorType::GrayscaleAlpha, &[7, 255]), SourceColor::GrayAlpha);
+        assert!(SourceColor::RgbAlpha.has_alpha_channel() && SourceColor::GrayAlpha.has_alpha_channel());
+        assert!(!SourceColor::Indexed.has_alpha_channel() && !SourceColor::Gray.has_alpha_channel());
+        // Palette mit tRNS: Transparenz im Inhalt, kein eigener Alphakanal
+        let mut out = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut out, 2, 1);
+            enc.set_color(png::ColorType::Indexed);
+            enc.set_depth(png::BitDepth::Eight);
+            enc.set_palette(vec![255, 0, 0, 0, 0, 255]);
+            enc.set_trns(vec![0, 255]);
+            let mut w = enc.write_header().unwrap();
+            w.write_image_data(&[0, 1]).unwrap();
+        }
+        let e = Emblem::decode(&out).unwrap();
+        assert_eq!(e.source_color, SourceColor::Indexed);
+        assert!(e.has_alpha);
+        assert_eq!(e.rgba, vec![255, 0, 0, 0, 0, 0, 255, 255]);
+        // RGBA aus der Shell, Verkleinerung und Drehung erhalten den Farbtyp
+        assert_eq!(Emblem::from_rgba(1, 1, vec![0, 0, 0, 255], [0; 32]).unwrap().source_color, SourceColor::RgbAlpha);
+        let big = png_bytes(10, 1300, png::ColorType::Grayscale, &vec![9; 13000]);
+        let g = Emblem::decode(&big).unwrap();
+        assert_eq!(g.source_color, SourceColor::Gray);
+        // Cache-PNG behält den Farbtyp
+        let cached = Emblem::decode(&g.to_png().unwrap()).unwrap();
+        assert_eq!((cached.source_color, cached.rgba.clone()), (SourceColor::Gray, g.rgba.clone()));
+        assert!(format!("{e:?}").contains("Indexed"));
+        assert_eq!(e.flattened_on_white().source_color, SourceColor::Indexed);
+    }
+
+    /// Der Cache (`to_png` → `decode`) erhält Farbtyp, Pixel und Transparenz jeder Quelle – sonst
+    /// bettete `pdfas_quirks` eine Bildmarke aus dem Cache anders ein (SB-G2 … SB-G4).
+    #[test]
+    fn cache_png_keeps_the_source_color() {
+        let encode = |w: u32, color, palette: Option<(Vec<u8>, Vec<u8>)>, trns: Option<Vec<u8>>, data: &[u8]| {
+            let mut out = Vec::new();
+            {
+                let mut enc = png::Encoder::new(&mut out, w, 1);
+                enc.set_color(color);
+                enc.set_depth(png::BitDepth::Eight);
+                if let Some((p, t)) = palette {
+                    enc.set_palette(p);
+                    enc.set_trns(t);
+                }
+                if let Some(t) = trns {
+                    enc.set_trns(t);
+                }
+                let mut wr = enc.write_header().unwrap();
+                wr.write_image_data(data).unwrap();
+            }
+            out
+        };
+        let cases: Vec<(&str, Vec<u8>)> = vec![
+            ("RGB", encode(2, png::ColorType::Rgb, None, None, &[1, 2, 3, 4, 5, 6])),
+            ("RGBA deckend (SB-G2)", encode(2, png::ColorType::Rgba, None, None, &[1, 2, 3, 255, 4, 5, 6, 255])),
+            ("RGBA", encode(2, png::ColorType::Rgba, None, None, &[1, 2, 3, 0, 4, 5, 6, 128])),
+            ("RGB mit tRNS", encode(2, png::ColorType::Rgb, None, Some(vec![0, 1, 0, 2, 0, 3]), &[1, 2, 3, 4, 5, 6])),
+            ("Grau", encode(2, png::ColorType::Grayscale, None, None, &[20, 200])),
+            ("Grau mit tRNS", encode(2, png::ColorType::Grayscale, None, Some(vec![0, 20]), &[20, 200])),
+            ("Grau+Alpha deckend", encode(2, png::ColorType::GrayscaleAlpha, None, None, &[20, 255, 200, 255])),
+            ("Grau+Alpha", encode(2, png::ColorType::GrayscaleAlpha, None, None, &[20, 0, 200, 99])),
+            (
+                "Palette mit tRNS (SB-G3)",
+                encode(3, png::ColorType::Indexed, Some((vec![255, 0, 0, 0, 0, 255], vec![0, 255])), None, &[0, 1, 1]),
+            ),
+            (
+                "Palette",
+                encode(2, png::ColorType::Indexed, Some((vec![9, 8, 7, 1, 2, 3], vec![255, 255])), None, &[1, 0]),
+            ),
+        ];
+        for (label, bytes) in cases {
+            let e = Emblem::decode(&bytes).unwrap();
+            let back = Emblem::decode(&e.to_png().unwrap()).unwrap();
+            assert_eq!(
+                (back.source_color, back.has_alpha, &back.rgba),
+                (e.source_color, e.has_alpha, &e.rgba),
+                "{label}"
+            );
+        }
+        // mehr als 256 Farben einer Palettenquelle (z. B. nach Bearbeitung): RGB(A) statt Palette
+        let mut many = Emblem::decode(&encode(
+            2,
+            png::ColorType::Indexed,
+            Some((vec![1, 1, 1, 2, 2, 2], vec![255, 255])),
+            None,
+            &[0, 1],
+        ))
+        .unwrap();
+        many.width = 300;
+        many.rgba = (0..300u32).flat_map(|i| [(i % 256) as u8, (i / 256) as u8, 0, 255]).collect();
+        let back = Emblem::decode(&many.to_png().unwrap()).unwrap();
+        assert_eq!((back.source_color, &back.rgba), (SourceColor::Rgb, &many.rgba));
+    }
+
+    #[test]
+    fn java_gray_conversion_brightens_like_cs_gray() {
+        // Stützwerte aus dem Golden-Lauf (PDF-AS 4.4.2, emblem-tall.png) bzw. sRGB-Definition
+        assert_eq!(java_linear_gray_to_srgb(0), 0);
+        assert_eq!(java_linear_gray_to_srgb(20), 79);
+        assert_eq!(java_linear_gray_to_srgb(255), 255);
+        assert_eq!(java_linear_gray_to_srgb(1), 13);
+        let lut: Vec<u8> = (0..=255).map(java_linear_gray_to_srgb).collect();
+        assert!(lut.windows(2).all(|w| w[0] <= w[1]), "monoton");
+        assert!((1..255).all(|v| java_linear_gray_to_srgb(v) >= v), "hellt auf");
     }
 
     #[test]

@@ -47,8 +47,14 @@ fn is_pdfa_profile(case: &CaseInfo) -> bool {
 
 /// Bewusste, dokumentierte Abweichungen (Kompatibilitätsregister, docs/integration/golden-report.md
 /// Abschnitt „Signaturblock“, IDs SB-G1 … SB-G6). Aspekte: `bbox`, `ops`, `fonts`, `image`,
-/// `image-colorspace`, `image-samples`, `image-samples-quirks`, `image-smask`, `quirks` (Bytes),
-/// `pixels` (Standardmodus/Mini-PDF), `pixels-quirks`.
+/// `image-colorspace`, `image-samples`, `image-smask` (Standardmodus), `image-colorspace-quirks`,
+/// `image-samples-quirks`, `image-smask-quirks` (mit `pdfas_quirks`), `quirks` (Bytes), `pixels`
+/// (Standardmodus/Mini-PDF), `pixels-quirks`.
+///
+/// Seit Welle 3 trägt `Emblem` den Farbtyp der Quelle (`SourceColor`): mit `pdfas_quirks` sind
+/// SB-G2 (SMask für jeden Alphakanal), SB-G3 (Palettentransparenz verworfen) und SB-G4 (DeviceGray,
+/// aufgehellt) exakt wie PDF-AS – die `-quirks`-Aspekte dürfen dort nicht mehr abweichen. Der
+/// Standardmodus bleibt korrigiert (Entscheidung des Auftraggebers offen, Default dokumentiert).
 fn known_deviation(case: &CaseInfo, aspect: &str) -> Option<&'static str> {
     let em = case.emblem.as_deref().unwrap_or("");
     let pdfa = is_pdfa_profile(case);
@@ -60,14 +66,12 @@ fn known_deviation(case: &CaseInfo, aspect: &str) -> Option<&'static str> {
         }
         // SB-G3 indizierte Transparenz (PNG-Palette mit tRNS, GIF): PDF-AS verwirft sie
         // (`hasAlpha` ohne Alpha-Raster), PDF-Over NG behält sie als SMask.
-        "image-smask" | "pixels" | "pixels-quirks" if em == "emblem-indexed.png" && !pdfa => {
+        "image-smask" | "pixels" if em == "emblem-indexed.png" && !pdfa => {
             Some("SB-G3 indizierte Transparenz bleibt als SMask erhalten")
         }
         // SB-G4 Graustufen-Bildmarken: PDF-AS schreibt DeviceGray mit Java-Umrechnung linear →
         // sRGB (aufgehellt, z. B. 20 → 79); PDF-Over NG übernimmt die Originalwerte (DeviceRGB).
-        "image-colorspace" | "image-samples" | "image-samples-quirks" | "pixels" | "pixels-quirks"
-            if em == "emblem-tall.png" && !pdfa =>
-        {
+        "image-colorspace" | "image-samples" | "pixels" if em == "emblem-tall.png" && !pdfa => {
             Some("SB-G4 Graustufen-Bildmarke ohne Java-Aufhellung, DeviceRGB")
         }
         // SB-G5 JPEG-Dekoder: zune-jpeg statt libjpeg (ImageIO), Abweichung ≤ 2 Stufen je Kanal.
@@ -225,9 +229,21 @@ fn check_case(m: &Manifest) -> Outcome {
             if gi.sha256 != oi.sha256 {
                 flag(&mut o, "image-samples", format!("{name}: Samples verschieden ({gcs})"));
             }
-            if gi.sha256 != qi.sha256 {
-                flag(&mut o, "image-samples-quirks", format!("{name}: Samples mit Quirks verschieden ({gcs})"));
-            }
+        }
+        // mit pdfas_quirks: Farbraum, Samples und SMask exakt wie PDF-AS (SB-G2 … SB-G4 nachgebildet)
+        if gcs != qi.color_space {
+            flag(&mut o, "image-colorspace-quirks", format!("{name}: {gcs} vs {} (Quirks)", qi.color_space));
+        } else if gi.sha256 != qi.sha256 {
+            flag(&mut o, "image-samples-quirks", format!("{name}: Samples mit Quirks verschieden ({gcs})"));
+        }
+        match (&gi.smask, &qi.smask) {
+            (None, None) => {}
+            (Some(a), Some(b)) if a.sha256 == *b => {}
+            (a, b) => flag(
+                &mut o,
+                "image-smask-quirks",
+                format!("{name}: SMask mit Quirks {:?} vs {:?}", a.is_some(), b.is_some()),
+            ),
         }
         match (&gi.smask, &oi.smask) {
             (None, None) => {}

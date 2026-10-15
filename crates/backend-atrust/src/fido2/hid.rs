@@ -6,16 +6,17 @@
 //!   (ohne `unsafe`; braucht Zugriffsrechte über udev/`uaccess`, unter Flatpak `--device=all`).
 //! - macOS: IOKit-HID-Manager ([`macos`], FFI mit lokalem `allow(unsafe_code)`).
 //!
-//! Protokoll und Abbruch liegen in [`super::ctap`]. Verlangt der Schlüssel eine PIN, kommt ein
-//! klarer Hinweis (PIN-Protokoll ist ein offener Punkt). Mehrere Schlüssel: der erste gefundene
-//! wird verwendet.
+//! Protokoll und Abbruch liegen in [`super::ctap`]. Verlangt der Schlüssel eine PIN, meldet der
+//! Provider [`Fido2Error::PinRequired`]; das Backend fragt sie ab und ruft
+//! [`Fido2Provider::get_assertion_with_pin`] auf (`clientPIN`, Protokoll 1 und 2, [`super::pin`];
+//! Welle 3). Mehrere Schlüssel: der erste gefundene wird verwendet.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use pdfover_backend_api::WindowHandle;
 
-use super::ctap::{CtapHidDevice, HidConnection, get_assertion, random_nonce};
+use super::ctap::{CtapHidDevice, HidConnection, get_assertion_with_pin, random_nonce};
 use super::{AssertionOptions, Fido2Assertion, Fido2Error, Fido2Provider, Fido2Request};
 
 #[cfg(unix)]
@@ -156,7 +157,21 @@ impl Fido2Provider for HidFido2Provider {
     fn get_assertion(
         &self,
         request: &Fido2Request,
+        parent: Option<WindowHandle>,
+    ) -> Result<Fido2Assertion, Fido2Error> {
+        self.get_assertion_with_pin(request, parent, None)
+    }
+
+    /// CTAP2 `clientPIN` ist umgesetzt (Welle 3).
+    fn supports_pin(&self) -> bool {
+        true
+    }
+
+    fn get_assertion_with_pin(
+        &self,
+        request: &Fido2Request,
         _parent: Option<WindowHandle>,
+        pin: Option<&str>,
     ) -> Result<Fido2Assertion, Fido2Error> {
         let flag = Arc::new(AtomicBool::new(false));
         self.active.lock().map_err(|_| Fido2Error::Device("interner Zustand".into()))?.push(Arc::clone(&flag));
@@ -166,7 +181,7 @@ impl Fido2Provider for HidFido2Provider {
         tracing::debug!(product = ?device.product, "FIDO2-HID-Gerät");
         let connection = open(&device)?;
         let mut ctap = CtapHidDevice::init(connection, random_nonce())?;
-        get_assertion(&mut ctap, &options, &request.origin, &registration.flag)
+        get_assertion_with_pin(&mut ctap, &options, &request.origin, &registration.flag, pin)
     }
 
     fn cancel(&self) {
@@ -229,11 +244,18 @@ mod tests {
     #[test]
     fn provider_without_devices_is_unavailable() {
         let p = HidFido2Provider::new();
+        assert!(p.supports_pin(), "clientPIN seit Welle 3");
         if enumerate().is_empty() {
             assert!(!p.is_available());
             let r = p.get_assertion(
                 &Fido2Request { options_json: r#"{"challenge":"AQ"}"#.into(), origin: crate::WEBAUTHN_ORIGIN.into() },
                 None,
+            );
+            assert_eq!(r.unwrap_err(), Fido2Error::Unavailable);
+            let r = p.get_assertion_with_pin(
+                &Fido2Request { options_json: r#"{"challenge":"AQ"}"#.into(), origin: crate::WEBAUTHN_ORIGIN.into() },
+                None,
+                Some("1234"),
             );
             assert_eq!(r.unwrap_err(), Fido2Error::Unavailable);
         }

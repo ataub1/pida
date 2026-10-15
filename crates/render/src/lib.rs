@@ -250,11 +250,13 @@ pub struct ImageObject {
     /// der Form-Matrix verkettet), PDF-Konvention `[a b c d e f]` – vergleichbar mit
     /// `ImageInvocation::ctm`.
     pub matrix: [f32; 6],
-    /// Dekodiertes Bild (alle Filter, `FPDFImageObj_GetBitmap`). Masken (`/SMask`, `/Mask`)
-    /// sind **nicht** angewandt; nicht dekodierbare oder zu große Bilder (> [`MAX_PIXELS`])
-    /// sind leer (0 × 0), ebenso Bilder, die das Budget [`MAX_IMAGE_PIXELS_PER_PAGE`] der Seite
-    /// sprengen würden (dekodiert wird vom kleinsten zum größten Bild; die Größe kommt vor dem
-    /// Dekodieren aus `/Width` × `/Height`).
+    /// Dekodiertes Bild in Originalauflösung (alle Filter, `FPDFImageObj_GetBitmap`). Masken
+    /// (`/SMask`, `/Mask` als Stencil oder Farbschlüssel) sind seit Welle 3 **angewandt**: Pixel
+    /// außerhalb der Maske haben Alpha < 255 (wie PDF-AS `PDImageXObject.getImage()`, KR-F07;
+    /// nur Bilder bis 4 MP – QR-Platzhalter sind klein –, größere bleiben unmaskiert). Nicht
+    /// dekodierbare oder zu große Bilder (> [`MAX_PIXELS`]) sind leer (0 × 0), ebenso Bilder,
+    /// die das Budget [`MAX_IMAGE_PIXELS_PER_PAGE`] der Seite sprengen würden (dekodiert wird vom
+    /// kleinsten zum größten Bild; die Größe kommt vor dem Dekodieren aus `/Width` × `/Height`).
     pub bitmap: RgbaImage,
 }
 
@@ -285,6 +287,9 @@ pub trait Renderer: Send {
     fn render_page(&self, page: usize, scale: f32) -> Result<RgbaImage>;
 
     /// Rendert eine Seite mit ersetzten Farben (`FPDF_RenderPageBitmapWithColorScheme_Start`).
+    /// Raster [`ForcedColorOptions::raster_size`]; die Seite liegt ohne Streckung im Maßstab
+    /// `dpi/72` an der sichtbaren linken oberen Ecke, der Rest rechts und unten fällt weg – wie
+    /// Java2D bei PDF-AS (seit Welle 3, Register KR-F10 in `pdfover-placement`).
     fn render_forced_color(&self, page: usize, opts: &ForcedColorOptions) -> Result<RgbaImage>;
 
     /// Alle Bildobjekte der Seite mit Matrix und dekodiertem Bild (Speicherbudget siehe

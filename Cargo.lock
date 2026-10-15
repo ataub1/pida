@@ -3813,13 +3813,18 @@ dependencies = [
 name = "pdfover-backend-atrust"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "async-trait",
  "base64 0.23.1",
+ "cbc",
  "futures",
+ "hmac 0.12.1",
+ "p256",
  "pdfover-backend-api",
  "pdfover-cades",
  "pdfover-net",
  "pdfover-sl12",
+ "rand_core 0.6.4",
  "scraper",
  "serde",
  "serde_json",

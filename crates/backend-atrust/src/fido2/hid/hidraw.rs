@@ -63,10 +63,9 @@ pub fn open(device: &HidDeviceInfo) -> Result<HidrawConnection, Fido2Error> {
     let path = PathBuf::from(&device.path);
     let file = OpenOptions::new().read(true).write(true).custom_flags(O_NONBLOCK).open(&path).map_err(|e| {
         if e.kind() == ErrorKind::PermissionDenied {
-            Fido2Error::Device(format!(
-                "kein Zugriff auf {} – udev-Regel (uaccess) für FIDO-Sicherheitsschlüssel fehlt",
-                path.display()
-            ))
+            // Code `fido2-hid-permission` (Welle 3); der Pfad nur im Log
+            tracing::warn!(path = %path.display(), "kein Zugriff auf das hidraw-Gerät (udev-Regel uaccess fehlt)");
+            Fido2Error::HidPermission
         } else {
             Fido2Error::Device(format!("{}: {e}", path.display()))
         }

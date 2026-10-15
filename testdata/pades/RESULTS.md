@@ -53,11 +53,28 @@ unsichtbar) und neue unsichtbare Signatur lassen die Zertifizierung bei `FORM_FI
 (`docmdp_ok`), ein neues sichtbares Feld ergab `OTHER`/`docmdp_ok=false` und wird jetzt abgelehnt
 (`pades-new-visible-field-not-allowed`).
 Die I6-Whitelist ist rollengenau (Unit-Tests in `src/check.rs`: fremde Arrays wie `/Contents`,
-`/Kids` nicht-terminaler Felder, Inhalt eines direkten AcroForms). Mutationstest mit
-`PDFOVER_FUZZ_ITERS=600` (4200 Mutationen, Release): kein Panic, keine I1–I4/I6-Verletzung bei
-intaktem Original; I5 scheitert fail-safe bei Querverweisen, die `pdf-cos` beim Öffnen korrigiert, in
-der Ausgabe aber mit alter Objektfassung liest (Reproduktion `repro-xref-misassigned.pdf`, offener
-Punkt Paket A).
+`/Kids` nicht-terminaler Felder, Inhalt eines direkten AcroForms).
+
+**Welle 3 (Härtung):** Mutationstest `robustness.rs` nach der letzten Korrektur mit 32 Startwerten
+× 2500 Mutationen je Datei (560 000 Mutationen, Release, je sichtbar und unsichtbar signiert): kein
+Panic, bei intaktem Original keine Verletzung mehr, auch nicht I5. Behoben in
+`pdf-cos`: Querverweiseinträge, die auf den Kopf eines anderen Objekts zeigen (lopdf überschrieb
+dessen gültige Fassung, `repro-xref-misassigned.pdf`); `/StrF`/`/StmF` fehlend, `/Identity` oder
+unbekannt (lopdf entschlüsselte mit RC4; jetzt spezifikationsgemäß, unbekannte Namen K5);
+Originalschreibweise fehlerhafter Reals (`0.595.32`) wird nicht übernommen; komprimierte Einträge
+in einem Container, der kein Object Stream ist, gelten als repariert (K2); ein Blatt des Seitenbaums
+mit fremdem `/Type` (z. B. der Katalog nach `/Pages 1 0 R`) ist keine Seite. In `pades`:
+Werte, die der PDFBox-Fixup ersetzt, weil sie beschädigt sind (`/DR /Font` kein Dictionary,
+`/AcroForm` kein Dictionary, `/Fields` kein Array, `/DA` kein String), lässt I6 genau so zu;
+eine Vorsignatur, deren `/ByteRange` über das Dateiende reicht, lehnen `analyze`/`prepare` vorab ab
+(K5 `pdf-prior-signature-beyond-eof`, vorher I4 in der Selbstprüfung). Regressionstests:
+`known_mutations_with_intact_xref_sign_cleanly` (seit dem Review auch `/StrF` bzw. `/StmF` fehlend
+in `simple-aes128-owner.pdf`: Ausgabe mit pyHanko gültig und intakt, qpdf meldet nur die
+Beschädigung der Eingabe) und `missing_or_unknown_crypt_filter_names_follow_the_spec` (pdf-cos). Bei beschädigtem Querverweis (K2) scheitert I5/I6
+weiterhin vereinzelt fail-safe (die Ausgabe erbt die Beschädigung; qpdf liest sie ebenso wenig).
+`fuzz_prepare.rs` (gesamter Korpus, `open` → `analyze` → `plan_signature` → `prepare`, 8 Threads):
+201 300, 610 000 und zweimal 244 000 Mutationen ohne Panic und ohne Hänger (> 30 s je Fall). PDF/A:
+`verapdf.rs` (Strukturprüfung immer; veraPDF 1.28.2 über `tools/verapdf/fetch.sh`, sonst übersprungen).
 
 <!-- abschnitt:korpus -->
 ## Korpus (Modell A, Keystore-Backend)

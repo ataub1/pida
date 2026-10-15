@@ -455,7 +455,9 @@ fn parse_number(text: &[u8]) -> Token<'static> {
 pub(crate) struct IndirectObject {
     pub id: ObjectId,
     pub object: Object,
-    /// Offset direkt hinter dem Objekt (nach `endobj`, falls vorhanden).
+    /// Offset direkt hinter dem Objekt (nach `endobj`, falls vorhanden); derzeit nur in Tests
+    /// ausgewertet (Grenzen aufeinanderfolgender Objekte).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub end: usize,
 }
 
@@ -639,6 +641,21 @@ pub(crate) fn parse_indirect_object(
 
 /// Sammelt die Originalschreibweise aller Reals des Objekts ab `pos` mit ihrem Pfad
 /// (Dictionary-Schlüssel bzw. Array-Index; Struktur wie [`Lexer::parse_object`]).
+/// `text` ist eine Zahl nach ISO 32000-1 §7.3.3 (`[+-]?(Ziffern[.Ziffern]|.Ziffern)`), die jeder
+/// Leser als genau einen Wert `v` liest.
+fn is_plain_real(text: &[u8], v: f32) -> bool {
+    let body = text.strip_prefix(b"+").or_else(|| text.strip_prefix(b"-")).unwrap_or(text);
+    let dots = body.iter().filter(|&&b| b == b'.').count();
+    let digits = body.iter().filter(|b| b.is_ascii_digit()).count();
+    if dots > 1 || digits == 0 || digits + dots != body.len() {
+        return false;
+    }
+    std::str::from_utf8(text)
+        .ok()
+        .and_then(|s| s.trim_start_matches('+').parse::<f64>().ok())
+        .is_some_and(|p| (p as f32).to_bits() == v.to_bits() || (p == 0.0 && v == 0.0))
+}
+
 pub(crate) fn collect_real_literals(
     data: &[u8],
     pos: usize,
@@ -664,8 +681,13 @@ fn walk_literals(
     let Some(tok) = lx.next_token() else { return };
     match tok {
         Token::Real(v) => {
-            let text = String::from_utf8_lossy(&lx.data[start..lx.pos]).into_owned();
-            out.insert(path.clone(), (v, text));
+            // Nur wohlgeformte Zahlen übernehmen: `0.595.32` liest dieser Lexer als ein Token,
+            // lopdf als zwei (`0.595`, `.32`); der Originaltext würde beim Fortschreiben wieder
+            // zu zwei Werten (I6 „/MediaBox geändert“).
+            let text = &lx.data[start..lx.pos];
+            if is_plain_real(text, v) {
+                out.insert(path.clone(), (v, String::from_utf8_lossy(text).into_owned()));
+            }
         }
         Token::Int(n) => {
             // Referenz `n g R` wie im Parser als ein Wert behandeln.
