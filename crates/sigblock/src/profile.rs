@@ -1094,7 +1094,8 @@ impl std::fmt::Debug for ProfileStore {
 
 /// PIDA-Vorgaben über der eingebetteten PDF-AS-Konfiguration (ADR 0005): das Siegel als
 /// Standard-Bildmarke der Profile [`assets::PIDA_SEAL_PROFILES`]. Als eigener Schlüssel des Profils
-/// gesetzt (vor der Vererbung), damit es den geerbten Wert aus `BASE_NORMAL[_EN]` ersetzt.
+/// gesetzt (vor der Vererbung), damit es den geerbten Wert aus `BASE_NORMAL[_EN]` bzw. den eigenen
+/// Wert von `BASE_LOGO` ersetzt.
 fn apply_pida_defaults(merged: &mut Properties) {
     for id in assets::PIDA_SEAL_PROFILES {
         merged.insert(format!("sig_obj.{id}.value.SIG_LABEL"), assets::PIDA_SEAL);
@@ -1118,8 +1119,8 @@ fn load_builtin(pida_defaults: bool) -> std::result::Result<ProfileStore, String
 impl ProfileStore {
     /// Eingebettete Konfiguration (schreibgeschützt, Plan §6.5): PDF-AS-Profile mit den
     /// PIDA-Vorgaben (ADR 0005) – Standard-Bildmarke der Profile `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]`
-    /// ist das PIDA-Siegel ([`crate::assets::PIDA_SEAL`]) statt `signatur-logo_de/en.png`.
-    /// Amtssignatur und `BASE_LOGO` sind unverändert; eine eigene Bildmarke
+    /// und `BASE_LOGO` ist das PIDA-Siegel ([`crate::assets::PIDA_SEAL`]) statt `signatur-logo_de/en.png`.
+    /// Die Amtssignatur ist unverändert; eine eigene Bildmarke
     /// ([`ProfileOverrides::sig_label`], [`crate::SigBlockInput::emblem`]) geht weiterhin vor.
     /// Die PDF-AS-Konfiguration ohne diese Vorgaben liefert [`ProfileStore::builtin_pdfas`].
     pub fn builtin() -> Result<ProfileStore> {

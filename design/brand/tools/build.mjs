@@ -4,7 +4,7 @@
 //   design/brand/variants/*.svg            Varianten des App-Symbols (iOS dunkel/getönt, Android, Desktop)
 //   design/brand/favicon.svg               Favicon (übernimmt der Orchestrator nach apps/app/public)
 //   design/brand/pida-seal-1024.png        Siegel, transparent
-//   design/brand/pida-seal-sigblock.png    Siegel für den Signaturblock (326 × 342 px, wie signatur-logo_de/en.png)
+//   design/brand/pida-seal-sigblock.png    Siegel für den Signaturblock (652 × 684 px = 2 × signatur-logo_de/en.png)
 //   design/brand/pida-app-icon-1024.png    App-Symbol, deckend (ohne Alphakanal)
 //   design/brand/pida-app-icon-play-512.png  App-Symbol für den Google-Play-Eintrag
 //   crates/sigblock/assets/images/pida-seal.png              = pida-seal-sigblock.png
@@ -178,10 +178,11 @@ function rasterize(svg, width) {
 
 /**
  * PNG schreiben. `alpha: false` entfernt den Alphakanal (iOS-Symbole müssen deckend sein und dürfen
- * keinen Alphakanal haben). Voll transparente Pixel bekommen Weiß als Farbe, damit Programme, die
+ * keinen Alphakanal haben); `opaque: true` prüft nur, dass alles deckend ist, und behält den Kanal
+ * (Google Play: 32-Bit-PNG). Voll transparente Pixel bekommen Weiß als Farbe, damit Programme, die
  * eine Transparenz verwerfen, keinen schwarzen Grund zeigen (vgl. PDF-AS `removeAlphaChannel`).
  */
-function encode(img, { alpha = true } = {}) {
+function encode(img, { alpha = true, opaque = !alpha } = {}) {
   const data = Buffer.from(img.data);
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) {
@@ -190,7 +191,7 @@ function encode(img, { alpha = true } = {}) {
       data[i + 2] = 255;
     }
   }
-  if (!alpha) {
+  if (opaque) {
     for (let i = 3; i < data.length; i += 4) {
       if (data[i] !== 255) throw new Error('deckendes Symbol erwartet, aber Transparenz gefunden');
     }
@@ -226,20 +227,24 @@ write('design/brand/favicon.svg', favicon);
 // Siegel
 const seal1024 = svgDoc('PIDA – Siegel', sealInner.replaceAll('\n', '\n  '), { w: 40, h: 40 });
 writePng('design/brand/pida-seal-1024.png', seal1024, 1024);
-// Signaturblock: 326 × 342 px wie signatur-logo_de/en.png (PDF-AS), Siegel 326 × 326 mittig. Gleiches
-// Seitenverhältnis ⇒ gleiche Zeilenhöhen und Blockmaße für jede Blockbreite (Layout: Bildhöhe =
-// Spaltenbreite · Höhe/Breite).
+// Signaturblock: 652 × 684 px = 2 × 326 × 342 px von signatur-logo_de/en.png (PDF-AS), Siegel 652 × 652
+// mittig (wie `DefaultEmblem` mit viewBox 40 × 40 in einer 652 × 684-Fläche). Gleiches Seitenverhältnis
+// mit Faktor 2 (Zweierpotenz: die Gleitkomma-Rechnung des Layouts ist exakt dieselbe) ⇒ gleiche
+// Zeilenhöhen und Blockmaße für jede Blockbreite; doppelte Auflösung für breite Blöcke und „nur Bildmarke“.
+const SEAL_K = 2;
+const [SEAL_W, SEAL_H] = [326 * SEAL_K, 342 * SEAL_K];
 const sealBlock = svgDoc(
   'PIDA – Siegel (Signaturblock)',
-  `<g transform="translate(0 8) scale(${326 / 40})">\n    ${sealInner.replaceAll('\n', '\n    ')}\n  </g>`,
-  { w: 326, h: 342 },
+  `<g transform="translate(0 ${(SEAL_H - SEAL_W) / 2}) scale(${SEAL_W / 40})">\n    ${sealInner.replaceAll('\n', '\n    ')}\n  </g>`,
+  { w: SEAL_W, h: SEAL_H },
 );
-const sealBlockPng = writePng('design/brand/pida-seal-sigblock.png', sealBlock, 326);
+const sealBlockPng = writePng('design/brand/pida-seal-sigblock.png', sealBlock, SEAL_W);
 write('crates/sigblock/assets/images/pida-seal.png', sealBlockPng);
 
-// App-Symbol (deckend); 512 px für Google Play (Store-Eintrag, Google legt die Maske selbst an)
+// App-Symbol (deckend); 512 px für Google Play (Store-Eintrag, Google legt die Maske selbst an).
+// App Store (Asset-Katalog): ohne Alphakanal; Google Play verlangt „32-bit PNG (with alpha)“ – deckend.
 const icon1024 = writePng('design/brand/pida-app-icon-1024.png', iconSvg, 1024, { alpha: false });
-writePng('design/brand/pida-app-icon-play-512.png', iconSvg, 512, { alpha: false });
+writePng('design/brand/pida-app-icon-play-512.png', iconSvg, 512, { opaque: true });
 
 // iOS: Asset-Katalog mit einer Größe (Xcode erzeugt die übrigen), hell/dunkel/getönt (iOS 18+)
 const appiconset = 'apps/app/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset';
@@ -434,7 +439,7 @@ function previewSheet(block) {
     image(x, y, seal, 256, 256);
     text(x + 128, y + 292, label, { size: 24, fill: MUTED, anchor: 'middle' });
   }
-  text(pad, y + b.h + 48 + 40, `Block ${b.w} × ${b.h} px (Render 4 ×); Bildmarke 326 × 342 px (Seitenverhältnis wie PDF-AS), Blockmaße unverändert`, {
+  text(pad, y + b.h + 48 + 40, `Block ${b.w} × ${b.h} px (Render 4 ×); Bildmarke ${SEAL_W} × ${SEAL_H} px (2 × PDF-AS-Logo, gleiches Seitenverhältnis), Blockmaße unverändert`, {
     size: 24,
     fill: MUTED,
   });

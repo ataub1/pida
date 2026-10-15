@@ -265,13 +265,13 @@ fn seal_image_is_lossless_with_smask() {
     let main = *imgs.iter().find(|d| d.get(b"SMask").is_ok()).expect("SMask");
     assert_eq!(
         (main.get(b"Width").unwrap().as_i64().unwrap(), main.get(b"Height").unwrap().as_i64().unwrap()),
-        (326, 342)
+        (652, 684)
     );
     assert_eq!(main.get(b"ColorSpace").unwrap().as_name().unwrap(), b"DeviceRGB");
-    assert_eq!(unpredict(&stream_data(stream_of(&a, main)), 326, 3), seal.rgb());
+    assert_eq!(unpredict(&stream_data(stream_of(&a, main)), 652, 3), seal.rgb());
     let smask_obj = &a.objects[local_index(main.get(b"SMask").unwrap())];
     assert_eq!(dict(smask_obj).get(b"ColorSpace").unwrap().as_name().unwrap(), b"DeviceGray");
-    assert_eq!(unpredict(&stream_data(smask_obj), 326, 1), seal.alpha());
+    assert_eq!(unpredict(&stream_data(smask_obj), 652, 1), seal.alpha());
 
     for pdfa in [PdfaMode::Part2, PdfaMode::Part3] {
         let p = build("SIGNATURBLOCK_SMALL_DE_PDFA", 230.0, 0, pdfa, &input());
@@ -285,13 +285,13 @@ fn seal_image_is_lossless_with_smask() {
     let imgs = images(&p1);
     assert_eq!(imgs.len(), 1, "PDF/A-1: keine SMask");
     assert!(imgs[0].get(b"SMask").is_err());
-    let rgb = unpredict(&stream_data(stream_of(&p1, imgs[0])), 326, 3);
+    let rgb = unpredict(&stream_data(stream_of(&p1, imgs[0])), 652, 3);
     assert_eq!(rgb, seal.flattened_on_white().rgb());
     // Ecke (außerhalb des Kreises) weiß, Mitte des Rings dunkel (#3a414d)
     assert_eq!(&rgb[0..3], &[255, 255, 255]);
-    let px = |x: usize, y: usize| &rgb[(y * 326 + x) * 3..(y * 326 + x) * 3 + 3];
-    // Ring links auf halber Höhe: x = (20 − 17,5) · 326/40 ≈ 20, y = 8 + 163
-    let ring = px(20, 171);
+    let px = |x: usize, y: usize| &rgb[(y * 652 + x) * 3..(y * 652 + x) * 3 + 3];
+    // Ring links auf halber Höhe: x = (20 − 17,5) · 652/40 ≈ 41, y = 16 + 326
+    let ring = px(41, 342);
     assert!(ring.iter().zip([0x3a, 0x41, 0x4d]).all(|(&c, e)| c.abs_diff(e) <= 24), "Ring {ring:?}");
 }
 

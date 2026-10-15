@@ -84,15 +84,19 @@ pub(crate) const IMAGES: &[(&str, &[u8])] = &[
 
 /// Profilreferenz des PIDA-Siegels (Standard-Bildmarke der Profile [`PIDA_SEAL_PROFILES`], ADR 0005).
 ///
-/// 326 × 342 px RGBA wie `signatur-logo_de/en.png`: gleiches Seitenverhältnis, damit Zeilenhöhen und
-/// Blockmaße für jede Blockbreite unverändert bleiben (die Bildhöhe folgt aus Spaltenbreite ·
-/// Höhe/Breite); außerhalb des Kreises transparent (PDF/A-1: auf Weiß komponiert, sonst `SMask`).
+/// 652 × 684 px RGBA = 2 × `signatur-logo_de/en.png` (326 × 342): gleiches Seitenverhältnis mit
+/// Faktor 2, damit Zeilenhöhen und Blockmaße für jede Blockbreite unverändert bleiben (die Bildhöhe
+/// folgt aus Spaltenbreite · Höhe/Breite; mit einer Zweierpotenz rechnet das Layout bitgleich), bei
+/// doppelter Auflösung (Standardbreite 230 pt ≈ 1400 dpi, 495 pt ≈ 570 dpi, „nur Bildmarke“ 23 mm
+/// ≈ 750 dpi); außerhalb des Kreises transparent (PDF/A-1: auf Weiß komponiert, sonst `SMask`).
 pub const PIDA_SEAL: &str = "./images/pida-seal.png";
 
 /// Profile, deren Standard-Bildmarke in [`crate::ProfileStore::builtin`] das PIDA-Siegel ist
-/// (`value.SIG_LABEL` = [`PIDA_SEAL`]); in PDF-AS `./images/signatur-logo_de|en.png`.
-/// Amtssignatur (`AMTSSIGNATURBLOCK_*`) und `BASE_LOGO` behalten die PDF-AS-Bildmarken.
-pub const PIDA_SEAL_PROFILES: [&str; 8] = [
+/// (`value.SIG_LABEL` = [`PIDA_SEAL`]): die acht kleinen Standardblöcke (in PDF-AS
+/// `./images/signatur-logo_de|en.png`) und `BASE_LOGO` („nur Bildmarke“ ohne eigene Bildmarke, in
+/// PDF-AS `./images/signatur-logo_de.png`). Die Amtssignatur (`AMTSSIGNATURBLOCK_*`) behält die
+/// Demo-Bildmarke der Behörde (`amtsignatur-logo_demo.png`).
+pub const PIDA_SEAL_PROFILES: [&str; 9] = [
     "SIGNATURBLOCK_SMALL_DE",
     "SIGNATURBLOCK_SMALL_DE_NOTE",
     "SIGNATURBLOCK_SMALL_DE_PDFA",
@@ -101,6 +105,7 @@ pub const PIDA_SEAL_PROFILES: [&str; 8] = [
     "SIGNATURBLOCK_SMALL_EN_NOTE",
     "SIGNATURBLOCK_SMALL_EN_PDFA",
     "SIGNATURBLOCK_SMALL_EN_NOTE_PDFA",
+    "BASE_LOGO",
 ];
 
 /// Lizenztexte der eingebetteten Fremddaten (für „Über“-Dialoge).

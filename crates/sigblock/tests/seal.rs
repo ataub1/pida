@@ -15,6 +15,8 @@ use pida_sigblock::{
 use time::macros::datetime;
 
 const SEAL_PNG: &[u8] = include_bytes!("../assets/images/pida-seal.png");
+/// Pixelmaße des Siegels: 2 × 326 × 342 (PDF-AS-Logo).
+const SEAL_PX: (u32, u32) = (652, 684);
 
 fn seal() -> Emblem {
     Emblem::decode_original(SEAL_PNG).unwrap()
@@ -86,10 +88,10 @@ fn seal_asset_matches_design_master() {
 #[test]
 fn seal_asset_geometry_and_colors() {
     let s = seal();
-    // Seitenverhältnis und Größe wie signatur-logo_de/en.png (326 × 342)
+    // doppelte Pixelmaße von signatur-logo_de/en.png (326 × 342): gleiches Seitenverhältnis mit Faktor 2
     let de = Emblem::decode_original(include_bytes!("../assets/images/signatur-logo_de.png")).unwrap();
-    assert_eq!((s.width, s.height), (de.width, de.height));
-    assert_eq!((s.width, s.height), (326, 342));
+    assert_eq!((s.width, s.height), (2 * de.width, 2 * de.height));
+    assert_eq!((s.width, s.height), SEAL_PX);
     assert!(s.has_alpha, "außerhalb des Kreises transparent");
     assert_eq!(s.source_color, SourceColor::RgbAlpha);
     let px = |x: u32, y: u32| {
@@ -97,12 +99,13 @@ fn seal_asset_geometry_and_colors() {
         [s.rgba[i], s.rgba[i + 1], s.rgba[i + 2], s.rgba[i + 3]]
     };
     let near = |p: [u8; 4], rgb: [u8; 3]| p[3] == 255 && p.iter().zip(rgb).all(|(&c, e)| c.abs_diff(e) <= 12);
-    // Ecken und Rand oben/unten (8 px) voll transparent, Farbe Weiß (kein schwarzer Grund ohne Alpha)
-    for (x, y) in [(0, 0), (325, 0), (0, 341), (325, 341), (163, 3), (163, 338)] {
+    // Ecken und Rand oben/unten (16 px) voll transparent, Farbe Weiß (kein schwarzer Grund ohne Alpha)
+    for (x, y) in [(0, 0), (651, 0), (0, 683), (651, 683), (326, 6), (326, 677)] {
         assert_eq!(px(x, y), [255, 255, 255, 0], "({x}, {y})");
     }
-    // Siegel: 326 px = 40 Einheiten (8,15 px je Einheit), um 8 px nach unten versetzt
-    let at = |ux: f32, uy: f32| px((ux * 8.15) as u32, (8.0 + uy * 8.15) as u32);
+    // Siegel: 652 px = 40 Einheiten (16,3 px je Einheit), um 16 px nach unten versetzt (viewBox 40 × 40
+    // mittig in 652 × 684 wie `DefaultEmblem` im Prototyp)
+    let at = |ux: f32, uy: f32| px((ux * 16.3) as u32, (16.0 + uy * 16.3) as u32);
     assert!(near(at(20.0, 20.0), [255, 255, 255]), "Mitte weiß: {:?}", at(20.0, 20.0));
     assert!(near(at(2.5, 20.0), [0x3a, 0x41, 0x4d]), "Ring: {:?}", at(2.5, 20.0));
     assert!(near(at(17.6, 25.6), [0x1f, 0x26, 0x30]), "Häkchen: {:?}", at(17.6, 25.6));
@@ -114,7 +117,7 @@ fn seal_asset_geometry_and_colors() {
 }
 
 #[test]
-fn seal_is_the_default_of_exactly_the_small_profiles() {
+fn seal_is_the_default_of_exactly_the_small_profiles_and_base_logo() {
     let b = builtin();
     let p = pdfas();
     assert!(b.problems().is_empty(), "{:?}", b.problems());
@@ -127,8 +130,14 @@ fn seal_is_the_default_of_exactly_the_small_profiles() {
             ours.values.insert("SIG_LABEL".into(), theirs.values["SIG_LABEL"].clone());
             ours.raw.insert("value.SIG_LABEL".into(), theirs.raw["value.SIG_LABEL"].clone());
         }
-        // sonst alles gleich (Amtssignatur, BASE_LOGO, Basisprofile)
+        // sonst alles gleich (Amtssignatur, Basisprofile)
         assert_eq!(&ours, theirs, "{id}");
+    }
+    assert_eq!(PIDA_SEAL_PROFILES.len(), 9);
+    for id in PIDA_SEAL_PROFILES {
+        assert!(id.starts_with("SIGNATURBLOCK_SMALL_") || id == "BASE_LOGO", "{id}");
+        let theirs = &p.get(id).unwrap().values["SIG_LABEL"];
+        assert!(theirs.starts_with("./images/signatur-logo_"), "{id}: PDF-AS {theirs}");
     }
     assert_eq!(
         b.get("AMTSSIGNATURBLOCK_DE_RECOMMENDED").unwrap().values["SIG_LABEL"],
@@ -138,20 +147,35 @@ fn seal_is_the_default_of_exactly_the_small_profiles() {
         b.get("AMTSSIGNATURBLOCK_EN_RECOMMENDED").unwrap().values["SIG_LABEL"],
         "./images/amtsignatur-logo_demo.png"
     );
-    assert_eq!(b.get("BASE_LOGO").unwrap().values["SIG_LABEL"], "./images/signatur-logo_de.png");
+    assert_eq!(b.get("BASE_LOGO").unwrap().values["SIG_LABEL"], PIDA_SEAL);
+    assert_eq!(p.get("BASE_LOGO").unwrap().values["SIG_LABEL"], "./images/signatur-logo_de.png");
     // Ressource auflösbar (auch über DirResources-Rückfall)
     let img = b.resources().image(PIDA_SEAL).unwrap();
     assert_eq!(*img, seal());
 }
 
-/// Gleiches Seitenverhältnis wie das PDF-AS-Logo ⇒ derselbe Content-Stream des Inner-Forms (Maße,
-/// Bildmatrix, Texte, Linien) für alle acht Profile, viele Breiten, mit/ohne Hinweis und lange Namen.
+/// Gleiches Seitenverhältnis wie das PDF-AS-Logo (doppelte Pixelmaße) ⇒ derselbe Content-Stream des
+/// Inner-Forms (Maße, Bildmatrix, Texte, Linien) für alle acht kleinen Profile, viele Breiten, mit/ohne
+/// Hinweis und lange Namen, und für `BASE_LOGO` mit dem PDF-Over-Overlay (1 × 1 px ohne eigene
+/// Bildmarke) von 5 bis 120 mm.
 #[test]
 fn block_dimensions_unchanged_against_pdfas_logo() {
     let (b, p) = (builtin(), pdfas());
     let long = "Univ.-Prof. Dipl.-Ing. Dr. techn. Maximiliane Mustermann-Langname von und zu Beispielhausen";
     let mut checked = 0;
-    for id in PIDA_SEAL_PROFILES {
+    let same = |ours: &Appearance, theirs: &Appearance, what: &str| {
+        assert_eq!((ours.width, ours.height), (theirs.width, theirs.height), "{what}");
+        assert_eq!(
+            stream_bytes(&ours.objects[ours.inner]),
+            stream_bytes(&theirs.objects[theirs.inner]),
+            "{what}: Inner-Form"
+        );
+        let (oi, ti) = (images(ours), images(theirs));
+        assert_eq!((oi.len(), ti.len()), (1, 1), "{what}");
+        assert_eq!(dims(oi[0]), (i64::from(SEAL_PX.0), i64::from(SEAL_PX.1)), "{what}");
+        assert_eq!(dims(ti[0]), (326, 342), "{what}");
+    };
+    for id in PIDA_SEAL_PROFILES.into_iter().filter(|id| *id != "BASE_LOGO") {
         let pdfa = if id.ends_with("PDFA") { PdfaMode::Part1 } else { PdfaMode::None };
         for cn in ["Max Mustermann", long] {
             for note in [None, Some("Hinweis: ".repeat(30))] {
@@ -160,22 +184,28 @@ fn block_dimensions_unchanged_against_pdfas_logo() {
                 for width in [90.0, 150.0, 225.0, 230.0, 300.0, 495.30396, 595.0] {
                     let ours = build_with(&b, id, width, pdfa, &inp);
                     let theirs = build_with(&p, id, width, pdfa, &inp);
-                    assert_eq!((ours.width, ours.height), (theirs.width, theirs.height), "{id} w={width} cn={cn}");
-                    assert_eq!(
-                        stream_bytes(&ours.objects[ours.inner]),
-                        stream_bytes(&theirs.objects[theirs.inner]),
-                        "{id} w={width}: Inner-Form"
-                    );
-                    let (oi, ti) = (images(&ours), images(&theirs));
-                    assert_eq!((oi.len(), ti.len()), (1, 1));
-                    assert_eq!(dims(oi[0]), (326, 342));
-                    assert_ne!(stream_bytes_of(&ours, oi[0]), stream_bytes_of(&theirs, ti[0]), "Siegel ≠ PDF-AS-Logo");
+                    same(&ours, &theirs, &format!("{id} w={width} cn={cn}"));
                     checked += 1;
                 }
             }
         }
     }
-    assert_eq!(checked, 8 * 2 * 2 * 7);
+    // „nur Bildmarke“ wie PDF-Over ohne eigene Bildmarke (1 × 1 px ⇒ quadratisch), auch PDF/A
+    for mm in [5.0, 23.0, 47.5, 120.0] {
+        let ov = ProfileOverrides::base_logo(None, (1, 1), mm);
+        let (ours_p, theirs_p) =
+            (b.get("BASE_LOGO").unwrap().with_overrides(&ov), p.get("BASE_LOGO").unwrap().with_overrides(&ov));
+        let width = ov.imagescaletofit.unwrap().0;
+        for pdfa in [PdfaMode::None, PdfaMode::Part1, PdfaMode::Part3] {
+            let opts = BuildOptions { width, rotation: 0, pdfa, preview_only: false };
+            let inp = input("Max Mustermann");
+            let ours = Appearance::build(&ours_p, &inp, &opts, &FontProvider::builtin(), &**b.resources()).unwrap();
+            let theirs = Appearance::build(&theirs_p, &inp, &opts, &FontProvider::builtin(), &**p.resources()).unwrap();
+            same(&ours, &theirs, &format!("BASE_LOGO {mm} mm {pdfa:?}"));
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 8 * 2 * 2 * 7 + 4 * 3);
 }
 
 fn stream_bytes_of<'a>(a: &'a Appearance, d: &Dictionary) -> &'a [u8] {
@@ -210,12 +240,19 @@ fn own_emblem_takes_precedence_over_seal() {
     let a =
         Appearance::build(&prof, &input("Max Mustermann"), &opts, &FontProvider::builtin(), &**b.resources()).unwrap();
     assert_eq!(dims(images(&a)[0]), (24, 12));
-    // Amtssignatur und BASE_LOGO behalten ihre Bildmarken
+    // „nur Bildmarke“: eigene Bildmarke über das PDF-Over-Overlay geht vor, ohne sie das Siegel
+    let own = ProfileOverrides::base_logo(Some(tiny_emblem()), (24, 12), 23.0);
+    let prof = b.get("BASE_LOGO").unwrap().with_overrides(&own);
+    let a = Appearance::build(&prof, &input("Max"), &opts, &FontProvider::builtin(), &**b.resources()).unwrap();
+    assert_eq!(dims(images(&a)[0]), (24, 12));
+    let logo = build_with(&b, "BASE_LOGO", 230.0, PdfaMode::None, &input("Max"));
+    assert_eq!(dims(images(&logo)[0]), (i64::from(SEAL_PX.0), i64::from(SEAL_PX.1)));
+    assert!(images(&logo)[0].get(b"SMask").is_ok(), "BASE_LOGO: Siegel mit SMask");
+    // Amtssignatur behält die Demo-Bildmarke der Behörde
     let amts = build_with(&b, "AMTSSIGNATURBLOCK_DE_RECOMMENDED", 400.0, PdfaMode::None, &input("Max"));
     assert_eq!(dims(images(&amts)[0]), (236, 235));
-    let logo = build_with(&b, "BASE_LOGO", 230.0, PdfaMode::None, &input("Max"));
-    assert_eq!(dims(images(&logo)[0]), (326, 342));
-    assert!(images(&logo)[0].get(b"SMask").is_err(), "BASE_LOGO: signatur-logo_de.png (RGB)");
+    let amts_en = build_with(&b, "AMTSSIGNATURBLOCK_EN_RECOMMENDED", 400.0, PdfaMode::None, &input("Max"));
+    assert_eq!(dims(images(&amts_en)[0]), (236, 235));
 }
 
 /// Auch wenn ein Programm die Transparenz verwirft (PDF-AS `removeAlphaChannel`, hier mit
@@ -229,7 +266,7 @@ fn seal_without_alpha_shows_white_corners() {
     let imgs = images(&a);
     assert_eq!(imgs.len(), 1);
     assert!(imgs[0].get(b"SMask").is_err());
-    let rgb = unpredict(&inflate(stream_bytes_of(&a, imgs[0])), 326, 3);
+    let rgb = unpredict(&inflate(stream_bytes_of(&a, imgs[0])), SEAL_PX.0 as usize, 3);
     // gespeicherte RGB-Werte unverändert übernommen, Ecken weiß
     assert_eq!(rgb, seal().rgb());
     assert_eq!(&rgb[0..3], &[255, 255, 255]);

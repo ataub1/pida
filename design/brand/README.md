@@ -7,8 +7,8 @@ Eigene Werke des Projekts, EUPL-1.2.
 
 ## Master (von Hand)
 
-- `pida-seal.svg` – Siegel, Standard-Bildmarke der kleinen Signaturblöcke (exakt `DefaultEmblem` aus
-  `prototypes/pida-workspace/src/ui/Logo.tsx`).
+- `pida-seal.svg` – Siegel, Standard-Bildmarke der kleinen Signaturblöcke und von „nur Bildmarke“ (exakt
+  `DefaultEmblem` aus `prototypes/pida-workspace/src/ui/Logo.tsx`; Rasterfassung 652 × 684 px).
 - `pida-app-icon.svg` – App-Symbol; das Zeichen steht zwischen `<!-- glyph:start -->` und `<!-- glyph:end -->`
   und wird für alle Varianten übernommen (die IDs `accent-red-*`, `accent-white` steuern die monochrome Fassung).
 

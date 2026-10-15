@@ -25,8 +25,8 @@
 //! per `include_bytes!` eingebettet ([`BuiltinResources`], [`ProfileStore::builtin`]); die
 //! Standard-14-Breiten stammen aus den Adobe-Core14-AFM-Dateien (`src/afm_data.rs`, generiert mit
 //! `tools/gen_afm.py`). Das PIDA-Siegel (`assets/images/pida-seal.png`, eigenes Werk, EUPL-1.2) ist
-//! die Standard-Bildmarke der kleinen Standardblöcke ([`assets::PIDA_SEAL_PROFILES`]); Master und
-//! Generator unter `design/brand/` (ADR 0005).
+//! die Standard-Bildmarke der kleinen Standardblöcke und von `BASE_LOGO`
+//! ([`assets::PIDA_SEAL_PROFILES`]); Master und Generator unter `design/brand/` (ADR 0005).
 //!
 //! # Verifikation
 //!
@@ -40,7 +40,7 @@
 //!
 //! | Thema | PDF-AS | hier |
 //! |---|---|---|
-//! | Standard-Bildmarke `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]` | `signatur-logo_de/en.png` | PIDA-Siegel ([`assets::PIDA_SEAL`], ADR 0005; gleiches Seitenverhältnis ⇒ gleiche Blockmaße); [`ProfileStore::builtin_pdfas`] liefert die PDF-AS-Konfiguration unverändert (gilt auch mit `pdfas_quirks`) |
+//! | Standard-Bildmarke `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]`, `BASE_LOGO` | `signatur-logo_de/en.png` | PIDA-Siegel ([`assets::PIDA_SEAL`], ADR 0005; doppelte Pixelmaße, gleiches Seitenverhältnis ⇒ gleiche Blockmaße); [`ProfileStore::builtin_pdfas`] liefert die PDF-AS-Konfiguration unverändert (gilt auch mit `pdfas_quirks`) |
 //! | `/TU` (Q10) | nur Texte der äußersten Tabelle (SMALL ohne Hinweis: leer) | alle Texte in Leserichtung |
 //! | Nicht darstellbare Zeichen (Q11) | `URLEncoder.encode` des ganzen Werts | Zeichen → `?`, gemeldet in [`Layout::replaced_chars`] |
 //! | `\n` am Wortende | Messfehler, Signatur bricht ab | wird als Umbruch behandelt |

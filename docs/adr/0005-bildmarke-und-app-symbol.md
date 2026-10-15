@@ -3,18 +3,19 @@
 | | |
 |---|---|
 | **Status** | angenommen (15.10.2026) |
-| **Kontext** | Die kleinen Standardblöcke von PDF-Over zeigen ohne eigene Bildmarke `signatur-logo_de/en.png` aus der PDF-AS-Konfiguration; ob ein Klon diese Bildmarken verwenden darf, ist offen (docs/analyse/05 §8 Frage 4, Plan Q12/E-05: „sonst neutrale Grafiken“). Das App-Symbol war ein Platzhalter (blaues Dokument, `apps/app/src-tauri/icons/app-icon.svg`). Der Prototyp `prototypes/pida-workspace` zeigt im Signaturblock ein eigenes, neutrales Siegel (`DefaultEmblem` in `src/ui/Logo.tsx`). |
+| **Kontext** | Die kleinen Standardblöcke und „nur Bildmarke“ (`BASE_LOGO`) von PDF-Over zeigen ohne eigene Bildmarke `signatur-logo_de/en.png` aus der PDF-AS-Konfiguration; ob ein Klon diese Bildmarken verwenden darf, ist offen (docs/analyse/05 §8 Frage 4, Plan Q12/E-05: „sonst neutrale Grafiken“). Das App-Symbol war ein Platzhalter (blaues Dokument, `apps/app/src-tauri/icons/app-icon.svg`). Der Prototyp `prototypes/pida-workspace` zeigt im Signaturblock ein eigenes, neutrales Siegel (`DefaultEmblem` in `src/ui/Logo.tsx`). |
 | **Entscheidung** | Auftraggeber, 15.10.2026: Das Siegel aus dem Prototyp wird (1) die neue Standard-Bildmarke im sichtbaren Signaturblock und (2) – davon abgeleitet – das App-Symbol für iOS und Android, einheitlich auch für macOS, Windows, Linux und das Favicon. |
 | **Betrifft** | `pida-sigblock` (Asset, Profil-Vorgabe, Tests), Golden-/Pixeltests, `pida-pades`-Tests (PDF/A), `apps/app/src-tauri/icons/**`, `gen/apple/Assets.xcassets`, `gen/android/…/res/{mipmap-*,values}`, `design/brand/**` |
 
 ## 1. Entscheidung
 
-1. **Siegel = Standard-Bildmarke der kleinen Standardblöcke.** Für die acht Profile
-   `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]` ist ohne eigene Bildmarke das PIDA-Siegel
-   (`crates/sigblock/assets/images/pida-seal.png`) die Bildmarke – statt `signatur-logo_de/en.png`.
+1. **Siegel = Standard-Bildmarke der sichtbaren Standardblöcke.** Für die acht Profile
+   `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]` und für `BASE_LOGO` („nur Bildmarke“, unter „Weitere
+   Profile“, ADR 0004) ist ohne eigene Bildmarke das PIDA-Siegel (`crates/sigblock/assets/images/pida-seal.png`)
+   die Bildmarke – statt `signatur-logo_de/en.png`. Wie im Prototyp (`SignatureBlock.tsx`: ohne eigenes Logo
+   `DefaultEmblem`) zeigt PIDA damit ohne eigene Bildmarke überall dasselbe Zeichen.
    - **Unverändert:** Amtssignatur (`AMTSSIGNATURBLOCK_*`, `amtsignatur-logo_demo.png` – eine Behörde setzt dort
-     ohnehin ihre eigene Bildmarke), `BASE_LOGO` („nur Bildmarke“, Rückfall `signatur-logo_de.png`) und alle
-     Basisprofile.
+     ohnehin ihre eigene Bildmarke) und alle Basisprofile.
    - **Vorrang wie bisher:** Eine eigene Bildmarke (Einstellung `signature.emblem`, CLI `-e`, PDF-Over-Overlay
      `value.SIG_LABEL`) geht vor (`SigBlockInput::emblem` → `ProfileOverrides::sig_label` → Profilwert).
    - **Eigene PDF-AS-Konfiguration** (`ProfileStore::load_dir`, z. B. migrierte Profile aus `~/.pdf-over/cfg`)
@@ -30,9 +31,9 @@
 |---|---|
 | `design/brand/pida-seal.svg` | **Master Siegel** (viewBox 40 × 40), exakt `DefaultEmblem` |
 | `design/brand/pida-seal-1024.png` | Siegel 1024 × 1024, transparent |
-| `design/brand/pida-seal-sigblock.png` = `crates/sigblock/assets/images/pida-seal.png` | Rasterfassung für den Signaturblock, 326 × 342 px RGBA (§3.1) |
+| `design/brand/pida-seal-sigblock.png` = `crates/sigblock/assets/images/pida-seal.png` | Rasterfassung für den Signaturblock, 652 × 684 px RGBA (§3.1) |
 | `design/brand/pida-app-icon.svg` | **Master App-Symbol** (1024 × 1024); die Gruppe zwischen `glyph:start`/`glyph:end` ist das Zeichen |
-| `design/brand/pida-app-icon-1024.png`, `pida-app-icon-play-512.png` | App-Symbol deckend ohne Alphakanal (App Store über den Asset-Katalog; Google-Play-Eintrag 512 px) |
+| `design/brand/pida-app-icon-1024.png`, `pida-app-icon-play-512.png` | App-Symbol deckend: 1024 px ohne Alphakanal (App Store über den Asset-Katalog), 512 px für den Google-Play-Eintrag als 32-Bit-PNG (RGBA, überall deckend – Vorgabe der Play Console) |
 | `design/brand/variants/*.svg` | erzeugte Varianten: iOS dunkel/getönt, Android Vordergrund/monochrom/klassisch/rund, macOS, Windows/Linux |
 | `design/brand/favicon.svg` | Favicon (abgerundetes Quadrat, Zeichen 112 %) – **übernimmt der Orchestrator** nach `apps/app/public/app-icon.svg` (Favicon und Kopfzeile, `index.html`, `App.tsx`) |
 | `design/brand/preview.png` | Vorschaubogen: Siegel im echten Signaturblock, App-Symbol in 1024/180/120/87/58/40/29 px hell/dunkel, Android-Masken, monochrom, iOS dunkel/getönt, Desktop |
@@ -59,23 +60,35 @@ dunkel/getönt). Der Test `seal_asset_matches_design_master` hält Asset und Gen
 - **Geometrie und Farben** exakt wie `DefaultEmblem`: weißer Kreis r 17,5 mit Ring `#3a414d` (1,6),
   gepunkteter Innenring r 13,6 (`#3a414d`, 0,7, Strich 1,2/1,4), Häkchen `#1f2630` (2,6, runde Enden),
   rot-weiß-roter Streifen `#c8102e` 10 × (1,3 + 1,1 + 1,3).
-- **326 × 342 px** wie `signatur-logo_de/en.png`: Die Bildhöhe in der Zelle ist Spaltenbreite · Höhe/Breite
-  (PDF-AS `TableFactory`); mit gleichem Seitenverhältnis bleiben Zeilenhöhen und Blockmaße für **jede**
-  Blockbreite gleich – auch bei Platzhaltern mit anderer Breite. Das Siegel (326 × 326) liegt mittig, oben
-  und unten 8 px transparent. Auflösung bei der Standardbreite 230 pt (Bild ≈ 33 pt): ≈ 700 dpi; innerhalb
-  der Emblem-Grenze 480 × 600. Nachweis `tests/seal.rs::block_dimensions_unchanged_against_pdfas_logo`: Für
-  alle acht Profile, sieben Breiten von 90 bis 595 pt, kurze/lange Namen, mit/ohne Hinweis ist der
-  Content-Stream des Inner-Forms byte-gleich zu dem mit PDF-AS-Logo.
+- **652 × 684 px = 2 × `signatur-logo_de/en.png` (326 × 342):** Die Bildhöhe in der Zelle ist
+  Spaltenbreite · Höhe/Breite (PDF-AS `TableFactory`), die gezeichnete Größe `floor(min(w/W, h/H) · W|H)`;
+  mit gleichem Seitenverhältnis und dem Faktor 2 (Zweierpotenz) sind diese Gleitkomma-Rechnungen bitgleich, so
+  bleiben Zeilenhöhen und Blockmaße für **jede** Blockbreite gleich – auch bei Platzhaltern mit anderer Breite.
+  Das Siegel (652 × 652) liegt mittig, oben und unten 16 px transparent – genau wie `DefaultEmblem` (viewBox
+  40 × 40, `xMidYMid meet`) in dieser Fläche; ein resvg-Render des Prototyp-SVG ist pixelgleich. Auflösung:
+  Standardbreite 230 pt (Bild 33 pt) ≈ 1400 dpi, 495 pt (Bild 82 pt) ≈ 570 dpi, „nur Bildmarke“ 23 mm
+  ≈ 750 dpi, beim Höchstwert 120 mm ≈ 145 dpi (mit 326 px wären es 710, 290, 380 bzw. 72 dpi).
+  Die doppelte Auflösung kostet je Signatur ≈ 17 KB (signierte Testdatei 64 KB statt 47 KB, mit dem
+  PDF-AS-Logo 66 KB). Die Emblem-Grenze 480 × 600 gilt nur für eigene Bildmarken (`Emblem::decode`), nicht
+  für die eingebetteten Profilbilder (`decode_original`, wie PDF-AS). Nachweis
+  `tests/seal.rs::block_dimensions_unchanged_against_pdfas_logo`: Für alle acht kleinen Profile, sieben Breiten
+  von 90 bis 595 pt, kurze/lange Namen, mit/ohne Hinweis, und für `BASE_LOGO` mit dem PDF-Over-Overlay (5 bis
+  120 mm, mit/ohne PDF/A) ist der Content-Stream des Inner-Forms byte-gleich zu dem mit PDF-AS-Logo.
 - **Transparenz:** außerhalb des Kreises Alpha 0 (voll transparente Pixel tragen Weiß). Die bestehende
   Emblem-Pipeline schreibt eine `SMask` (ohne PDF/A und PDF/A-2/3, ICCBased-sRGB) bzw. komponiert für
   PDF/A-1 auf Weiß. Verwirft ein Programm die Transparenz (PDF-AS `removeAlphaChannel`, `pdfas_quirks`), bleibt
   der Grund trotzdem weiß. veraPDF (PDF/A-1b, -2b, -3b) bleibt ohne neue Regelverletzung
   (`crates/pades/tests/verapdf.rs`, Varianten `small-pdfa`, `small-note-pdfa`).
-- **Dateigröße:** flache Farben komprimieren gut; die signierte Testdatei ist mit Siegel 47 KB, mit dem
+- **Dateigröße:** flache Farben komprimieren gut; die signierte Testdatei ist mit Siegel 64 KB, mit dem
   PDF-AS-Logo als Bildmarke 66 KB.
+- **Gestaltung wie im Prototyp:** Der gepunktete Innenring (r 13,6) läuft unter dem Akzent durch (Akzent
+  y 30,2–33,9, Ring bis 33,95); ein Strichrest von 0,05 Einheiten ist erst bei starker Vergrößerung unter dem
+  unteren roten Streifen zu sehen. Bewusst so belassen (pixelgleich zu `DefaultEmblem`); eine Korrektur wäre
+  eine Änderung am Prototyp-Zeichen.
 - **Umsetzung:** Die PDF-AS-Profildateien bleiben byte-gleich zum Auslieferungsstand (Herkunft nachvollziehbar).
-  `ProfileStore::builtin()` setzt beim Laden für die acht Profile `value.SIG_LABEL = ./images/pida-seal.png` als
-  eigenen Schlüssel (vor der Vererbung, ersetzt den aus `BASE_NORMAL[_EN]` geerbten Wert);
+  `ProfileStore::builtin()` setzt beim Laden für die neun Profile `value.SIG_LABEL = ./images/pida-seal.png` als
+  eigenen Schlüssel (vor der Vererbung, ersetzt den aus `BASE_NORMAL[_EN]` geerbten bzw. bei `BASE_LOGO` den
+  eigenen Wert);
   `ProfileStore::builtin_pdfas()` liefert die Konfiguration ohne diese Vorgabe. Konstanten
   `pida_sigblock::assets::{PIDA_SEAL, PIDA_SEAL_PROFILES}`. Golden-Vergleiche gegen PDF-AS
   (`tests/pdfas442`) verwenden `builtin_pdfas()`, `tests/golden.rs` und `tests/render.rs` übergeben das
@@ -111,14 +124,14 @@ mittig (Abstand Häkchen–Ring oben = Akzent–Ring unten ≈ 82 px).
   (Wappengesetz). Rot-weiß-rot erscheint nur als schmaler **Farbakzent**: drei Streifen ungleicher Stärke
   (1,3 : 1,1 : 1,3 bzw. 28 : 22 : 28) in einem Band 2,7 : 1 (Siegel) bzw. 3,3 : 1 (App-Symbol) – nicht die
   Flagge (2 : 3, gleiche Drittel), nicht freistehend, immer zusammen mit Ring und Häkchen.
-- **Keine Amtssignatur-Bildmarke:** Das Siegel steht nur in den Standardblöcken. Die Bildmarke einer
+- **Keine Amtssignatur-Bildmarke:** Das Siegel steht nur in den Standardblöcken und in „nur Bildmarke“. Die Bildmarke einer
   Amtssignatur (E-GovG § 19) ist die der Behörde; die Amtssignatur-Profile bleiben unverändert und werden
   mit der eigenen Bildmarke der Behörde verwendet.
 - **Keine fremden Marken:** keine Zeichen von ID Austria, A-Trust, A-SIT, PDF-Over, PDF-AS oder Bund
   (`gv.at`); keine Anlehnung an das Logo „ID Austria“. Ring und Häkchen sind allgemeine Formen.
 - **Kein Prüfsiegel:** Das Zeichen bescheinigt nichts (keine Zertifizierung, kein „geprüft“); siehe §3.1.
-- Die bisherigen PDF-AS-Bildmarken bleiben nur dort, wo es die Entscheidung ausdrücklich vorsieht
-  (Amtssignatur-Demo, `BASE_LOGO`-Rückfall) und in `builtin_pdfas()` für den Golden-Abgleich.
+- Die bisherigen PDF-AS-Bildmarken bleiben nur in der Amtssignatur-Demo (die Behörde setzt ihre eigene
+  Bildmarke) und in `builtin_pdfas()` für den Golden-Abgleich.
 
 ## 5. Offene Punkte
 
