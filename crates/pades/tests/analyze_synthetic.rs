@@ -230,6 +230,8 @@ fn garbage_after_eof_is_k2() {
     assert_eq!(r.tail, pdfover_pdf_cos::TailKind::Garbage);
     assert!(codes_of(&r).contains(&codes::TAIL_GARBAGE.to_string()));
     assert_eq!(r.class, AcceptanceClass::K2Repairable);
+    // K2 braucht eine Zustimmung (Plan §6.1)
+    assert!(r.warnings().any(|f| f.code == codes::TAIL_GARBAGE));
 }
 
 #[test]

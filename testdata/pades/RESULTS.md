@@ -38,6 +38,27 @@ Original/Signer, neue Seite auf signiertem Dokument, PDF/UA-Struktur, PDF/A-Outp
 `robustness.rs` (Mutationen des Korpus: keine Panics; bei intaktem Querverweis besteht jede erzeugte
 Signatur die Selbstprüfung).
 
+**Review (adversarial, Welle 2):** `review_adversarial.rs` mit denselben Orakeln über `run_case`
+(qpdf, openssl, PDFium-Pixel, pyHanko): `finish_cms` erzwingt das Zertifikat aus `prepare` auch gegen
+eine abweichende Erwartung des Aufrufers; die Begleitdatei von `persist` ist über
+`PreparedHandle::sha256` (PDF ‖ JSON) geschützt; K2-Befunde mit Vorsignaturen lehnt auch `prepare` ab;
+ein von zwei Seiten geteiltes indirektes `/Annots` wird nicht verlängert (direkte Kopie auf der
+Zielseite); CMS genau in Reservegröße passt, ein Byte mehr ergibt `cms-too-large`; vorhandenes
+hierarchisches Feld `Unterschriften.Kunde` mit eigenem Widget-Kind (sichtbar und unsichtbar);
+indirektes `/DR` mit direktem `/Font` (Vorgängerfassung meldete fälschlich I6); FieldMDP im
+Signaturdictionary sperrt Felder ohne `/Lock`; unlesbares Signaturdictionary zählt als Vorsignatur;
+zertifizierte Dokumente (`certified-docmdp-p2.pdf`, `certified-docmdp-p3.pdf`, erzeugt mit pyHanko über
+`make_certified.py` aus `simple.pdf` und `test-ecp256.p12`): vorhandenes leeres Feld (sichtbar und
+unsichtbar) und neue unsichtbare Signatur lassen die Zertifizierung bei `FORM_FILLING`
+(`docmdp_ok`), ein neues sichtbares Feld ergab `OTHER`/`docmdp_ok=false` und wird jetzt abgelehnt
+(`pades-new-visible-field-not-allowed`).
+Die I6-Whitelist ist rollengenau (Unit-Tests in `src/check.rs`: fremde Arrays wie `/Contents`,
+`/Kids` nicht-terminaler Felder, Inhalt eines direkten AcroForms). Mutationstest mit
+`PDFOVER_FUZZ_ITERS=600` (4200 Mutationen, Release): kein Panic, keine I1–I4/I6-Verletzung bei
+intaktem Original; I5 scheitert fail-safe bei Querverweisen, die `pdf-cos` beim Öffnen korrigiert, in
+der Ausgabe aber mit alter Objektfassung liest (Reproduktion `repro-xref-misassigned.pdf`, offener
+Punkt Paket A).
+
 <!-- abschnitt:korpus -->
 ## Korpus (Modell A, Keystore-Backend)
 
@@ -54,63 +75,63 @@ Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf 
 | `pdf/generated/manySignFields-xref-stream.pdf` | xref-Stream | – | 0 | K1 | RSA-2048 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/generated/simple-aes128-owner.pdf` | Tabelle | Aes128 (R4) | 0 | K3 | P-256 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/generated/simple-aes256-nosign.pdf` | Tabelle | Aes256 (R6) | 0 | K5 | P-384 | INVISIBLE | pdfas-compat | abgelehnt (pdf-permissions) | – | – | – | – | – | – | ok |
-| `pdf/generated/simple-aes256-owner-xref-stream.pdf` | xref-Stream | Aes256 (R6) | 0 | K3 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4440 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/generated/simple-aes256-owner.pdf` | Tabelle | Aes256 (R6) | 0 | K3 | P-256 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4537 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-aes256-owner-xref-stream.pdf` | xref-Stream | Aes256 (R6) | 0 | K3 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4449 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-aes256-owner.pdf` | Tabelle | Aes256 (R6) | 0 | K3 | P-256 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4548 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/generated/simple-aes256-userpw.pdf` | – | – | 0 | K5 | P-384 | – | pdfas-compat | abgelehnt beim Öffnen (pdf-user-password) | – | – | – | – | – | – | ok |
-| `pdf/generated/simple-linearized-xref-stream.pdf` | xref-Stream | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7865 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/generated/simple-linearized.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7950 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/generated/simple-rc4-128-owner.pdf` | Tabelle | Rc4_128 (R3) | 0 | K3 | P-384 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7826 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/generated/simple-xref-hybrid.pdf` | Hybrid | – | 0 | K1 | RSA-2048 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20368 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/generated/simple-xref-stream.pdf` | xref-Stream | – | 0 | K1 | P-256 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20786 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/generated/simple-xref-table.pdf` | Tabelle | – | 0 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (21392 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-linearized-xref-stream.pdf` | xref-Stream | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7875 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-linearized.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7962 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-rc4-128-owner.pdf` | Tabelle | Rc4_128 (R3) | 0 | K3 | P-384 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7839 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-xref-hybrid.pdf` | Hybrid | – | 0 | K1 | RSA-2048 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20383 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-xref-stream.pdf` | xref-Stream | – | 0 | K1 | P-256 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20799 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/generated/simple-xref-table.pdf` | Tabelle | – | 0 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (21405 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas/pdf-as-cli/rotate_090.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | INVISIBLE | pades-b-b | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas/pdf-as-cli/rotate_180.pdf` | Tabelle | – | 0 | K1 | P-256 | INVISIBLE | pades-b-b | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas/pdf-as-cli/rotate_270.pdf` | Tabelle | – | 0 | K1 | P-384 | INVISIBLE | pades-b-b | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-cli/simple_rotated_0.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4445 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-cli/simple_rotated_180.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4535 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-cli/simple_rotated_270.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4781 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-cli/simple_rotated_90.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pades-b-b | signiert | ok | ok | Block sichtbar (7869 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-legacy/simple.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_EN_NOTE | pades-b-b | signiert | ok | ok | Block sichtbar (7954 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-pdfbox-2/1Sign_manyQR.pdf` | xref-Stream | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_EN_NOTE | pades-b-b | signiert | ok | ok | Block sichtbar (7831 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-pdfbox-2/data/platzhalter_en_de_test.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert | ok | ok | Block sichtbar (5030 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf` | xref-Stream | – | 0 | K1 | P-256 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pades-b-b | signiert | ok | ok | Block sichtbar (20794 px) | INTACT / VALID / ENTIRE_FILE | – | placement.notice.overlaps_widget | ok |
-| `pdf/pdfas/pdf-as-pdfbox-2/manySignFields_signed4.pdf` | xref-Stream | – | 1 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pades-b-b | signiert | ok | ok | Block sichtbar (21404 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped, placement.notice.overlaps_widget | ok |
+| `pdf/pdfas/pdf-as-cli/simple_rotated_0.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4456 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-cli/simple_rotated_180.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4553 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-cli/simple_rotated_270.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4799 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-cli/simple_rotated_90.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pades-b-b | signiert | ok | ok | Block sichtbar (7871 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-legacy/simple.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_EN_NOTE | pades-b-b | signiert | ok | ok | Block sichtbar (7956 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-pdfbox-2/1Sign_manyQR.pdf` | xref-Stream | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_EN_NOTE | pades-b-b | signiert | ok | ok | Block sichtbar (7843 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-pdfbox-2/data/platzhalter_en_de_test.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert | ok | ok | Block sichtbar (5043 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf` | xref-Stream | – | 0 | K1 | P-256 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pades-b-b | signiert | ok | ok | Block sichtbar (20816 px) | INTACT / VALID / ENTIRE_FILE | – | placement.notice.overlaps_widget | ok |
+| `pdf/pdfas/pdf-as-pdfbox-2/manySignFields_signed4.pdf` | xref-Stream | – | 1 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pades-b-b | signiert | ok | ok | Block sichtbar (21417 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped, placement.notice.overlaps_widget | ok |
 | `pdf/pdfas/pdf-as-pdfbox-2/new_qr_2-2.pdf` | Hybrid | – | 0 | K1 | RSA-2048 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf` | Tabelle | – | 1 | K1 | P-256 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped | ok |
 | `pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed_signed.pdf` | Tabelle | – | 2 | K1 | P-384 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | OTHER → OTHER; NONE → FORM_FILLING | pades-pdfua-skipped | ok |
-| `pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed_signed_signed.pdf` | Tabelle | – | 3 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4440 px) | INTACT / VALID / ENTIRE_FILE | OTHER → OTHER; OTHER → OTHER; NONE → FORM_FILLING | pades-pdfua-skipped | ok |
-| `pdf/pdfas/pdf-as-web/data/dummy-pdf-signed.pdf` | Tabelle | – | 1 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4539 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped | ok |
-| `pdf/pdfas/pdf-as-web/data/enc_own.pdf` | Tabelle | Rc4_128 (R3) | 0 | K3 | P-384 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (5296 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas/pdf-as-web/data/placeholder_sigfield_and_qr.pdf` | xref-Stream | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7866 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_DE/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4617 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_DE_NOTE/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4862 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_EN/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4518 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_EN_NOTE/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4615 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_ABSOLUT_PAGE_LAST/example.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert (neue Seite) | ok | ok | Block sichtbar (5366 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_ABSOLUT_PAGE_NUM_HIGH/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5028 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed_signed_signed.pdf` | Tabelle | – | 3 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4458 px) | INTACT / VALID / ENTIRE_FILE | OTHER → OTHER; OTHER → OTHER; NONE → FORM_FILLING | pades-pdfua-skipped | ok |
+| `pdf/pdfas/pdf-as-web/data/dummy-pdf-signed.pdf` | Tabelle | – | 1 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4549 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped | ok |
+| `pdf/pdfas/pdf-as-web/data/enc_own.pdf` | Tabelle | Rc4_128 (R3) | 0 | K3 | P-384 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (5308 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas/pdf-as-web/data/placeholder_sigfield_and_qr.pdf` | xref-Stream | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7877 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_DE/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4626 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_DE_NOTE/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4876 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_EN/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4532 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/PDFA_SIGNATURBLOCK_EN_NOTE/TestGhostscriptPdfA.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert | ok | ok | Block sichtbar (4629 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_ABSOLUT_PAGE_LAST/example.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE_PDFA | pdfas-compat | signiert (neue Seite) | ok | ok | Block sichtbar (5374 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_ABSOLUT_PAGE_NUM_HIGH/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5037 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas-suites/POS_AMTSSIGNATURBLOCK_DE/example.pdf` | Tabelle | – | 0 | K1 | P-256 | INVISIBLE | pades-b-b | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas-suites/POS_AMTSSIGNATURBLOCK_DE_SMALL/example.pdf` | Tabelle | – | 0 | K1 | P-384 | INVISIBLE | pades-b-b | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_AMTSSIGNATURBLOCK_EN/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4447 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_AMTSSIGNATURBLOCK_EN_SMALL/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4544 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_AUTO/example.pdf` | Hybrid | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (5294 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_AUTO_WITH_NEWPAGE/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5024 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_LAST/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5114 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_LAST_ALREADY_SIGNED/example.pdf` | Tabelle | – | 1 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert | ok | ok | Block sichtbar (5371 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped, placement.notice.new_page_not_allowed | ok |
+| `pdf/pdfas-suites/POS_AMTSSIGNATURBLOCK_EN/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4457 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_AMTSSIGNATURBLOCK_EN_SMALL/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (4554 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_AUTO/example.pdf` | Hybrid | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE | pades-b-b | signiert | ok | ok | Block sichtbar (5309 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_AUTO_WITH_NEWPAGE/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5040 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_LAST/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5123 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_LAST_ALREADY_SIGNED/example.pdf` | Tabelle | – | 1 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert | ok | ok | Block sichtbar (5370 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped, placement.notice.new_page_not_allowed | ok |
 | `pdf/pdfas-suites/POS_LAST_ALREADY_SIGNED_FORCE_NEW/example.pdf` | Tabelle | – | 1 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert | ok | ok | Block sichtbar (5033 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped, placement.notice.new_page_not_allowed | ok |
-| `pdf/pdfas-suites/POS_LAST_WITH_POS/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5119 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE/example.pdf` | Tabelle | – | 0 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pades-b-b | signiert | ok | ok | Block sichtbar (21400 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_LAST_WITH_POS/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE_PDFA | pades-b-b | signiert (neue Seite) | ok | ok | Block sichtbar (5132 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE/example.pdf` | Tabelle | – | 0 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pades-b-b | signiert | ok | ok | Block sichtbar (21423 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_MINIMAL/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_NOTE/example.pdf` | Tabelle | – | 0 | K1 | P-256 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_PDFA/example.pdf` | Tabelle | – | 0 | K1 | P-384 | INVISIBLE | pdfas-compat | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_PDFA_NOTE/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4445 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_SMALL/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4536 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_SMALL_NOTE/example.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4782 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7863 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_MINIMAL/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7950 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_NOTE/example.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7827 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_PDFA/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20570 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_PDFA_NOTE/example.pdf` | Tabelle | – | 0 | K1 | P-256 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20798 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_SMALL/example.pdf` | Tabelle | – | 0 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (21404 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_PDFA_NOTE/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4460 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_SMALL/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4553 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_DE_SMALL_NOTE/example.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_DE | pdfas-compat | signiert | ok | ok | Block sichtbar (4799 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7880 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_MINIMAL/example.pdf` | Tabelle | – | 0 | K1 | P-256 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7959 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_NOTE/example.pdf` | Tabelle | – | 0 | K1 | P-384 | SIGNATURBLOCK_SMALL_EN_NOTE | pdfas-compat | signiert | ok | ok | Block sichtbar (7836 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_PDFA/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20580 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_PDFA_NOTE/example.pdf` | Tabelle | – | 0 | K1 | P-256 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (20810 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_SMALL/example.pdf` | Tabelle | – | 0 | K1 | P-384 | AMTSSIGNATURBLOCK_DE_RECOMMENDED | pdfas-compat | signiert | ok | ok | Block sichtbar (21416 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `pdf/pdfas-suites/POS_SIGNATURBLOCK_EN_SMALL_NOTE/example.pdf` | Tabelle | – | 0 | K1 | RSA-2048 | INVISIBLE | pades-b-b | signiert | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 
 <!-- /abschnitt:korpus -->
@@ -128,9 +149,9 @@ Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf 
 
 | Fall | Vorsig. | qpdf | openssl | Bild | Neue Signatur | Vorsignaturen | Hinweise | ok |
 |---|---|---|---|---|---|---|---|---|
-| `simple.pdf` Schritt 1 (RSA-2048, SIGNATURBLOCK_SMALL_DE) | 0 | ok | ok | Block sichtbar (4444 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` Schritt 2 (P-256, SIGNATURBLOCK_SMALL_EN_NOTE) | 1 | ok | ok | Block sichtbar (7954 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | – | ok |
-| `simple.pdf` Schritt 3 (P-384, SIGNATURBLOCK_SMALL_DE) | 2 | ok | ok | Block sichtbar (4789 px) | INTACT / VALID / ENTIRE_FILE | FORM_FILLING → FORM_FILLING; NONE → FORM_FILLING | – | ok |
+| `simple.pdf` Schritt 1 (RSA-2048, SIGNATURBLOCK_SMALL_DE) | 0 | ok | ok | Block sichtbar (4453 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` Schritt 2 (P-256, SIGNATURBLOCK_SMALL_EN_NOTE) | 1 | ok | ok | Block sichtbar (7963 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | – | ok |
+| `simple.pdf` Schritt 3 (P-384, SIGNATURBLOCK_SMALL_DE) | 2 | ok | ok | Block sichtbar (4798 px) | INTACT / VALID / ENTIRE_FILE | FORM_FILLING → FORM_FILLING; NONE → FORM_FILLING | – | ok |
 
 ### QR-Platzhalter nacheinander (benutzt: Image5, Image8)
 
@@ -138,9 +159,9 @@ Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf 
 
 | Fall | Vorsig. | qpdf | openssl | Bild | Neue Signatur | Vorsignaturen | Hinweise | ok |
 |---|---|---|---|---|---|---|---|---|
-| `new_qr_2-2.pdf` Platzhalter Schritt 1 (RSA-2048) | 0 | ok | ok | Block sichtbar (4426 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `new_qr_2-2.pdf` Platzhalter Schritt 2 (P-256) | 1 | ok | ok | Block sichtbar (4512 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped | ok |
-| `new_qr_2-2.pdf` Platzhalter Schritt 3 (P-384) | 2 | ok | ok | Block sichtbar (4791 px) | INTACT / VALID / ENTIRE_FILE | FORM_FILLING → FORM_FILLING; NONE → FORM_FILLING | pades-pdfua-skipped | ok |
+| `new_qr_2-2.pdf` Platzhalter Schritt 1 (RSA-2048) | 0 | ok | ok | Block sichtbar (4444 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `new_qr_2-2.pdf` Platzhalter Schritt 2 (P-256) | 1 | ok | ok | Block sichtbar (4530 px) | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped | ok |
+| `new_qr_2-2.pdf` Platzhalter Schritt 3 (P-384) | 2 | ok | ok | Block sichtbar (4793 px) | INTACT / VALID / ENTIRE_FILE | FORM_FILLING → FORM_FILLING; NONE → FORM_FILLING | pades-pdfua-skipped | ok |
 
 ### Vorhandene leere Signaturfelder (nacheinander)
 
@@ -148,9 +169,9 @@ Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf 
 
 | Fall | Vorsig. | qpdf | openssl | Bild | Neue Signatur | Vorsignaturen | Hinweise | ok |
 |---|---|---|---|---|---|---|---|---|
-| `manySignFields.pdf` Feld 1 (SIGNATURBLOCK_SMALL_DE, RSA-2048) | 0 | ok | ok | Block sichtbar (4949 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `manySignFields.pdf` Feld 1 (SIGNATURBLOCK_SMALL_DE, RSA-2048) | 0 | ok | ok | Block sichtbar (4970 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `manySignFields.pdf` Feld 2 (INVISIBLE, P-256) | 1 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | NONE → FORM_FILLING | pades-pdfua-skipped | ok |
-| `manySignFields.pdf` Feld 3 (AMTSSIGNATURBLOCK_DE_RECOMMENDED, P-384) | 2 | ok | ok | Block sichtbar (1463 px) | INTACT / VALID / ENTIRE_FILE | FORM_FILLING → FORM_FILLING; NONE → FORM_FILLING | pades-pdfua-skipped | ok |
+| `manySignFields.pdf` Feld 3 (AMTSSIGNATURBLOCK_DE_RECOMMENDED, P-384) | 2 | ok | ok | Block sichtbar (1464 px) | INTACT / VALID / ENTIRE_FILE | FORM_FILLING → FORM_FILLING; NONE → FORM_FILLING | pades-pdfua-skipped | ok |
 
 ### Modell B (Fake-BKU: Blackout-PDF + ExcludedByteRange, `openssl cms -sign -cades`)
 
@@ -182,50 +203,50 @@ Werkzeuge: OpenSSL 4.0.3 29 Sep 2026 (Library: OpenSSL 4.0.3 29 Sep 2026); qpdf 
 |---|---|---|---|---|---|---|---|---|
 | `simple.pdf` RSA-2048 INVISIBLE pdfas-compat | 0 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `simple.pdf` RSA-2048 INVISIBLE pades-b-b | 0 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4436 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE pades-b-b | 0 | ok | ok | Block sichtbar (4438 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7861 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE pades-b-b | 0 | ok | ok | Block sichtbar (7861 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20554 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_DE_RECOMMENDED pades-b-b | 0 | ok | ok | Block sichtbar (20554 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4508 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4508 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `TestGhostscriptPdfA.pdf` (PDF/A-1b) RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4508 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `TestGhostscriptPdfA.pdf` (PDF/A-1b) RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4517 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4457 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE pades-b-b | 0 | ok | ok | Block sichtbar (4455 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7878 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE pades-b-b | 0 | ok | ok | Block sichtbar (7879 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20580 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_DE_RECOMMENDED pades-b-b | 0 | ok | ok | Block sichtbar (20580 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4534 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4534 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `TestGhostscriptPdfA.pdf` (PDF/A-1b) RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4527 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `TestGhostscriptPdfA.pdf` (PDF/A-1b) RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4527 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `simple.pdf` P-256 INVISIBLE pdfas-compat | 0 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `simple.pdf` P-256 INVISIBLE pades-b-b | 0 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4538 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE pades-b-b | 0 | ok | ok | Block sichtbar (4538 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7951 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_EN_NOTE pades-b-b | 0 | ok | ok | Block sichtbar (7950 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20797 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 AMTSSIGNATURBLOCK_DE_RECOMMENDED pades-b-b | 0 | ok | ok | Block sichtbar (20773 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4607 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4607 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-256 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4609 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-256 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4609 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4558 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE pades-b-b | 0 | ok | ok | Block sichtbar (4558 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7969 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_EN_NOTE pades-b-b | 0 | ok | ok | Block sichtbar (7969 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20818 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 AMTSSIGNATURBLOCK_DE_RECOMMENDED pades-b-b | 0 | ok | ok | Block sichtbar (20806 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4625 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-256 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4625 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-256 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4619 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-256 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4619 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `simple.pdf` P-384 INVISIBLE pdfas-compat | 0 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `simple.pdf` P-384 INVISIBLE pades-b-b | 0 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4783 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE pades-b-b | 0 | ok | ok | Block sichtbar (4781 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7824 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_EN_NOTE pades-b-b | 0 | ok | ok | Block sichtbar (7824 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (21391 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 AMTSSIGNATURBLOCK_DE_RECOMMENDED pades-b-b | 0 | ok | ok | Block sichtbar (21391 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4861 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4861 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-384 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4861 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-384 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4854 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4435 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (8093 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4519 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_NOTE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (8189 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN pdfas-compat | 0 | ok | ok | Block sichtbar (4340 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7868 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4352 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (7959 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20568 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
-| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_EN_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20255 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4792 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE pades-b-b | 0 | ok | ok | Block sichtbar (4795 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7837 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_EN_NOTE pades-b-b | 0 | ok | ok | Block sichtbar (7837 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (21396 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 AMTSSIGNATURBLOCK_DE_RECOMMENDED pades-b-b | 0 | ok | ok | Block sichtbar (21396 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4871 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` P-384 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4871 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-384 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4871 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `TestGhostscriptPdfA.pdf` (PDF/A-1b) P-384 SIGNATURBLOCK_SMALL_DE_PDFA pades-b-b | 0 | ok | ok | Block sichtbar (4873 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE pdfas-compat | 0 | ok | ok | Block sichtbar (4454 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (8095 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4522 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_DE_NOTE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (8201 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN pdfas-compat | 0 | ok | ok | Block sichtbar (4353 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE pdfas-compat | 0 | ok | ok | Block sichtbar (7879 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (4364 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 SIGNATURBLOCK_SMALL_EN_NOTE_PDFA pdfas-compat | 0 | ok | ok | Block sichtbar (7972 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_DE_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20572 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
+| `simple.pdf` RSA-2048 AMTSSIGNATURBLOCK_EN_RECOMMENDED pdfas-compat | 0 | ok | ok | Block sichtbar (20263 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `simple.pdf` RSA-2048 BASE_LOGO pdfas-compat | 0 | ok | ok | Block sichtbar (1936 px) | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 | `simple.pdf` RSA-2048 INVISIBLE pdfas-compat | 0 | ok | ok | unverändert | INTACT / VALID / ENTIRE_FILE | – | – | ok |
 

@@ -4,7 +4,8 @@
 //! [`plan_signature`]) → ggf. Zertifikat vom Backend → [`prepare`] → Backend `sign` →
 //! [`Prepared::finish_cms`] (Modell B) bzw. [`Prepared::finish_raw`] (Modell A) →
 //! [`SignedPdf::self_check`] (Invarianten I1–I6) → [`SignedPdf::write_atomically`]. Verletzt die
-//! Ausgabe eine Invariante, wird **nichts** gespeichert.
+//! Ausgabe eine Invariante, wird **nichts** gespeichert: `write_atomically`/`write_to` schreiben
+//! nur nach bestandener Selbstprüfung derselben Instanz (sonst `pades-not-self-checked`).
 //!
 //! Zweiphasenmodell nach dem Vorbild der PDF-AS-API `startSign`/`finishSign`
 //! (docs/analyse/03 §6.4): [`Prepared`] ist nach `prepare()` unveränderlich (WYSIWYS).
@@ -31,7 +32,7 @@
 //! | KR-P02 | OutputIntents werden **ersetzt** (nur sichtbar, nur PDF/A-1/-3-Logik) | nur ergänzt, wenn keiner vorhanden; Teile 1–3 gleich |
 //! | KR-P03 | Formularfeld + PDF/UA: NullPointer, kein StructElem | StructElem auch für vorhandene Felder (wenn das Widget noch keins hat) |
 //! | KR-P04 | `/Contents` wird bei verschlüsselten Dokumenten mitverschlüsselt | nie verschlüsselt (ISO 32000) |
-//! | KR-P05 | keine Prüfung von DocMDP, `/Lock`, Seed Values | Analyse K4/K5, gesperrte Felder nicht wählbar |
+//! | KR-P05 | keine Prüfung von DocMDP, `/Lock`/FieldMDP, Seed Values | Analyse K4/K5, gesperrte Felder (`/Lock` am Feld oder FieldMDP im Signaturdictionary) nicht wählbar; zertifiziert (DocMDP P=2/3): keine neue Seite, kein neues sichtbares Feld (pyHanko: `OTHER`), vorhandene leere Felder und unsichtbar erlaubt |
 //! | KR-P06 | unsichtbar auf vorhandenem Feld: `/Rect [0 0 0 0]` | `/Rect` bleibt, leeres AP (Änderungsanalyse) |
 //! | KR-P07 | Struktur-/OutputIntent-Ergänzung auch bei Vorsignaturen | entfällt bei Vorsignaturen (sonst `OTHER` in der Änderungsanalyse), Hinweis |
 //! | KR-P08 | keine Längenprüfung vor dem Einpatchen | harte Prüfung, `cms-too-large` mit benötigter Größe |
@@ -56,11 +57,14 @@
 //! | `pades-invalid-plan` | Die Signatur kann so nicht platziert werden. | The signature cannot be placed this way. |
 //! | `pades-invalid-state` | Der gespeicherte Signaturvorgang ist ungültig und wird verworfen. | The saved signing process is invalid and will be discarded. |
 //! | `pades-invariant-i1` … `-i6` | Die Selbstprüfung der Signatur ist fehlgeschlagen; es wurde nichts gespeichert. | The signature self-check failed; nothing was saved. |
+//! | `pades-new-visible-field-not-allowed` | Das Dokument ist zertifiziert: Ein neues sichtbares Signaturfeld würde die Zertifizierung verletzen. Bitte ein vorhandenes leeres Signaturfeld oder eine unsichtbare Signatur wählen. | The document is certified: a new visible signature field would violate the certification. Please choose an existing empty signature field or an invisible signature. |
+//! | `pades-not-self-checked` | Die Selbstprüfung der Signatur wurde nicht bestanden; es wird nichts gespeichert. | The signature self-check has not been passed; nothing is saved. |
 //! | `pades-pdfua-skipped` | Die Barrierefreiheits-Struktur (PDF/UA) wurde nicht ergänzt. | The accessibility structure (PDF/UA) was not extended. |
 //! | `pades-output-intent-skipped` | Der Farbraum für PDF/A (OutputIntent) wurde nicht ergänzt, weil das Dokument bereits signiert ist. | The PDF/A colour profile (output intent) was not added because the document is already signed. |
 //! | `pades-i5-without-pdfium` | Die Prüfung mit PDFium wurde übersprungen. | The check with PDFium was skipped. |
 //! | `pdf-signature-subfilter` | Das Signaturverfahren einer vorhandenen Signatur wird nicht geprüft. | The signature method of an existing signature is not verified. |
 //! | `pdf-signature-byterange` | Der signierte Bereich einer vorhandenen Signatur ist ungültig. | The signed range of an existing signature is invalid. |
+//! | `pdf-signature-dictionary` | Eine vorhandene Signatur hat kein lesbares Signaturdictionary. | An existing signature has no readable signature dictionary. |
 //!
 //! Die Befund-Codes ([`codes`]) mit Texten führt der Abschlussbericht von Welle 2 auf.
 //!
@@ -94,8 +98,8 @@ pub use signed::{
 
 pub use pdfover_pdf_incremental::{ByteRange, ExcludedRange};
 
-/// Fehler der Engine.
-#[derive(Debug, thiserror::Error)]
+/// Fehler der Engine. `Debug` zeigt Feldnamen nur als Länge (Dokumentinhalt, Regel 9).
+#[derive(thiserror::Error)]
 pub enum PadesError {
     /// Leser
     #[error(transparent)]
@@ -140,6 +144,39 @@ pub enum PadesError {
     /// Persistierter Zustand passt nicht (Prüfsumme, Original, Format).
     #[error("gespeicherter Signaturvorgang ist ungültig: {0}")]
     InvalidState(String),
+    /// Neues sichtbares Signaturfeld in einem zertifizierten Dokument (DocMDP P=2/3) – die
+    /// Änderungsanalyse wertet es als Verletzung der Zertifizierung; vorhandenes leeres Feld
+    /// oder unsichtbare Signatur wählen (Plan §6.1 K4; additiv, Review Welle 2).
+    #[error("neues sichtbares Signaturfeld in einem zertifizierten Dokument nicht erlaubt")]
+    NewVisibleFieldNotAllowed,
+    /// Schreiben ohne bestandene Selbstprüfung I1–I6 (Plan §3.6; additiv, Review Welle 2).
+    #[error("Selbstprüfung nicht bestanden – es wird nichts gespeichert")]
+    NotSelfChecked,
+}
+
+impl std::fmt::Debug for PadesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PadesError::Cos(e) => f.debug_tuple("Cos").field(e).finish(),
+            PadesError::Incremental(e) => f.debug_tuple("Incremental").field(e).finish(),
+            PadesError::Cms(e) => f.debug_tuple("Cms").field(e).finish(),
+            PadesError::SigBlock(e) => f.debug_tuple("SigBlock").field(e).finish(),
+            PadesError::Rejected(code) => f.debug_tuple("Rejected").field(code).finish(),
+            PadesError::FieldAlreadySigned(n) => {
+                f.debug_struct("FieldAlreadySigned").field("name_len", &n.chars().count()).finish()
+            }
+            PadesError::FieldLocked(n) => f.debug_struct("FieldLocked").field("name_len", &n.chars().count()).finish(),
+            PadesError::CertificateNotValid => f.write_str("CertificateNotValid"),
+            PadesError::Io(e) => f.debug_tuple("Io").field(e).finish(),
+            PadesError::Placement(e) => f.debug_tuple("Placement").field(e).finish(),
+            PadesError::FieldNotFound => f.write_str("FieldNotFound"),
+            PadesError::NewPageNotAllowed => f.write_str("NewPageNotAllowed"),
+            PadesError::InvalidPlan(m) => f.debug_tuple("InvalidPlan").field(m).finish(),
+            PadesError::InvalidState(m) => f.debug_tuple("InvalidState").field(m).finish(),
+            PadesError::NewVisibleFieldNotAllowed => f.write_str("NewVisibleFieldNotAllowed"),
+            PadesError::NotSelfChecked => f.write_str("NotSelfChecked"),
+        }
+    }
 }
 
 impl PadesError {
@@ -161,6 +198,8 @@ impl PadesError {
             PadesError::NewPageNotAllowed => "pades-new-page-not-allowed",
             PadesError::InvalidPlan(_) => "pades-invalid-plan",
             PadesError::InvalidState(_) => "pades-invalid-state",
+            PadesError::NewVisibleFieldNotAllowed => "pades-new-visible-field-not-allowed",
+            PadesError::NotSelfChecked => "pades-not-self-checked",
         }
     }
 }
@@ -236,6 +275,9 @@ mod tests {
     fn field_names_are_not_displayed() {
         let e = PadesError::FieldAlreadySigned("Max Mustermann".into());
         assert!(!e.to_string().contains("Mustermann"), "{e}");
+        assert!(!format!("{e:?}").contains("Mustermann"), "{e:?}");
+        let e = PadesError::FieldLocked("Max Mustermann".into());
+        assert!(!format!("{e:?}").contains("Mustermann") && format!("{e:?}").contains("name_len: 14"), "{e:?}");
     }
 
     #[test]

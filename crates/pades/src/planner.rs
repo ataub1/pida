@@ -236,6 +236,9 @@ pub fn plan_signature(
                 })
             }
             FieldTarget::New { .. } => {
+                if !report.allows_new_visible_field() {
+                    return Err(PadesError::NewVisibleFieldNotAllowed);
+                }
                 let wd = resolve_width(&pos, &ctx)?;
                 let first = build_appearance(profile, &input, wd.width, 0, pdfa, fonts, resources)?;
                 let rp = match renderer {

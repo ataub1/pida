@@ -9,7 +9,7 @@ mod common;
 use common::*;
 use pdfover_backend_keystore::LoadedKey;
 use pdfover_cades::{RawSigner, SignedAttrsBuilder, SigningTime};
-use pdfover_pades::{CheckContext, PlanOptions, SignPlan, analyze, prepare, reject_open_error};
+use pdfover_pades::{CheckContext, Invariant, PlanOptions, SignPlan, analyze, prepare, reject_open_error};
 use pdfover_pdf_cos::{Limits, SourcePdf};
 
 const FILES: [&str; 7] = [
@@ -97,8 +97,33 @@ fn sign(src: &SourcePdf, plan: &SignPlan, key: &LoadedKey) {
             let _ =
                 std::fs::write(std::path::PathBuf::from(dir).join(format!("{n}-{:?}.pdf", v.invariant)), src.bytes());
         }
-        assert_ne!(src.xref_health(), pdfover_pdf_cos::XrefHealth::Intact, "Selbstprüfung bei intaktem Original: {v}");
+        // I5 (Re-Parse) darf auch bei „intaktem“ Original scheitern: Querverweise, deren Einträge
+        // auf ein anderes Objekt zeigen, korrigiert `pdf-cos` beim Öffnen, liest die Ausgabe aber
+        // teils mit der alten Objektfassung (offener Punkt Paket A, `testdata/pades/
+        // repro-xref-misassigned.pdf`) – dann wird nichts gespeichert. I1–I4 und I6 dürfen bei
+        // intaktem Original nie scheitern (das wären Fehler der Engine).
+        assert!(
+            src.xref_health() != pdfover_pdf_cos::XrefHealth::Intact || v.invariant == Invariant::I5Reparse,
+            "Selbstprüfung bei intaktem Original: {v}"
+        );
     }
+}
+
+/// Reproduktion aus dem Mutationstest (`rotate_090.pdf`, xref-Unterabschnitt `0 2` → `1 2`: der
+/// Katalog gilt in der letzten Revision als frei, Objekt 2 zeigt auf den Katalog): Signieren
+/// gelingt, die Selbstprüfung erkennt den fehlerhaften Re-Parse (I5) bzw. besteht – nie eine
+/// andere Verletzung, nie ein Panic.
+#[test]
+fn misassigned_xref_entries_fail_safe() {
+    let data = std::fs::read(testdata().join("pades/repro-xref-misassigned.pdf")).unwrap();
+    let src = SourcePdf::open(data, &Limits::default()).unwrap();
+    let p12 = std::fs::read(key_p12("test-ecp256")).unwrap();
+    let key = LoadedKey::open_pkcs12(&p12, "test", None).unwrap();
+    let report = analyze(&src).unwrap();
+    let opts = PlanOptions::new(pdfover_pades::local_signing_time());
+    let planned = plan_for(&src, &report, "SIGNATURBLOCK_SMALL_DE", &key.chain().signer, &opts, None).unwrap();
+    sign(&src, &planned.plan, &key);
+    sign(&src, &SignPlan::invisible(pdfover_pades::local_signing_time()), &key);
 }
 
 #[test]

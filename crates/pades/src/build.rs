@@ -168,42 +168,10 @@ fn str_key<'b>(src: &'b SourcePdf, d: &'b Dictionary, key: &[u8]) -> Option<&'b 
     }
 }
 
-/// Felder, die `/Lock`-Dictionaries vorhandener Signaturen sperren (wie `analyze`).
+/// Zielfeld gesperrt: `ReadOnly` oder durch `/Lock`/FieldMDP einer vorhandenen Signatur (wie
+/// `analyze`).
 fn is_locked(src: &SourcePdf, fields: &[SigField], f: &SigField) -> bool {
-    if f.field_flags & 1 != 0 {
-        return true;
-    }
-    for s in fields.iter().filter(|s| s.signed && s.has_lock) {
-        let Some(lock) = src
-            .get_object(s.field_id)
-            .ok()
-            .and_then(|o| o.as_dict().ok())
-            .and_then(|d| d.get(b"Lock").ok())
-            .and_then(|o| src.resolve(o).ok())
-            .and_then(|o| o.as_dict().ok())
-        else {
-            continue;
-        };
-        let action = lock.get(b"Action").ok().and_then(|o| src.resolve(o).ok()).and_then(|o| o.as_name().ok());
-        let names: Vec<String> = match lock.get(b"Fields").ok().and_then(|o| src.resolve(o).ok()) {
-            Some(Object::Array(a)) => {
-                a.iter().filter_map(|o| src.resolve(o).ok()).filter_map(pdfover_pdf_cos::decode_text_string).collect()
-            }
-            _ => Vec::new(),
-        };
-        let q = f.qualified_name.as_str();
-        let hit = names.iter().any(|n| q == n || q.starts_with(&format!("{n}.")));
-        let locked = match action {
-            Some(b"All") => true,
-            Some(b"Include") => hit,
-            Some(b"Exclude") => !hit,
-            _ => false,
-        };
-        if locked {
-            return true;
-        }
-    }
-    false
+    f.field_flags & 1 != 0 || crate::analyze::locked_field_names(src, fields).contains(&f.qualified_name)
 }
 
 /// Geerbtes Seitenattribut (über `/Parent`), aufgelöst und kopiert.
@@ -300,6 +268,12 @@ pub(crate) fn build(src: &SourcePdf, plan: &SignPlan, reserve: usize) -> Result<
                 Some(bp) if visible => (bp.page_index, bp.new_page, bp.rect),
                 _ => (0, false, Rect::default()),
             };
+            // Zertifiziertes Dokument (DocMDP P=2/3): ein neues **sichtbares** Feld wertet die
+            // Änderungsanalyse als `OTHER` (Zertifizierung verletzt, pyHanko-Gegenprobe im
+            // Korpus); erlaubt sind vorhandene leere Felder und unsichtbare Signaturen (Plan §6.1 K4)
+            if visible && doc_mdp.is_some() {
+                return Err(PadesError::NewVisibleFieldNotAllowed);
+            }
             if new_page {
                 if signed_before || doc_mdp.is_some() {
                     return Err(PadesError::NewPageNotAllowed);
@@ -488,9 +462,17 @@ pub(crate) fn build(src: &SourcePdf, plan: &SignPlan, reserve: usize) -> Result<
     Ok(BuildOutput { increment, meta: BuildMeta { notices, ..meta } })
 }
 
-/// Hängt das Widget an `/Annots` der Seite (indirektes Array → Array-Objekt fortschreiben).
+/// Indirektes `/Annots`-Array, das nur diese Seite benutzt (ein von mehreren Seiten geteiltes
+/// Array darf nicht verlängert werden, sonst erschiene das Widget auf allen diesen Seiten).
+pub(crate) fn own_annots_array(src: &SourcePdf, page: &PageInfo) -> Option<ObjectId> {
+    let id = page.annots_indirect?;
+    (src.pages().iter().filter(|p| p.annots_indirect == Some(id)).count() == 1).then_some(id)
+}
+
+/// Hängt das Widget an `/Annots` der Seite (eigenes indirektes Array → Array-Objekt
+/// fortschreiben; geteiltes Array → direkte Kopie in der Seite).
 fn register_annot(src: &SourcePdf, ed: &mut Edits<'_>, page: &PageInfo, widget: ObjectId) -> Result<(), PadesError> {
-    if let Some(arr_id) = page.annots_indirect {
+    if let Some(arr_id) = own_annots_array(src, page) {
         let mut a = ed.array(arr_id)?;
         a.push(Object::Reference(widget));
         ed.put(arr_id, Object::Array(a));
@@ -733,7 +715,7 @@ fn max_number_key(src: &SourcePdf, node: &Dictionary, depth: u32, seen: &mut BTr
 }
 
 /// Erstes Strukturelement unter `/StructTreeRoot /K` (indirekt; PDF-AS `docElement`).
-fn first_struct_elem(src: &SourcePdf, k: &Object) -> Option<ObjectId> {
+pub(crate) fn first_struct_elem(src: &SourcePdf, k: &Object) -> Option<ObjectId> {
     let is_elem = |id: ObjectId| {
         src.get_object(id)
             .ok()
@@ -792,9 +774,13 @@ fn inject_struct(
             _ => return Err("ParentTree weder nur /Nums noch nur /Kids (error.pdf.sig.pdfua.1)".into()),
         }
     };
+    // PDF-AS: `/ParentTreeNextKey`, sonst größter Schlüssel + 1. Ein veralteter
+    // `/ParentTreeNextKey` (kleiner als vorhandene Schlüssel) ergäbe einen doppelten bzw. nicht
+    // sortierten Eintrag im Number Tree – daher das Maximum aus beiden.
+    let after_max = max_number_key(src, &pt_dict, 0, &mut BTreeSet::new()).map_or(0, |m| m.saturating_add(1));
     let key = match int_key(src, &root, b"ParentTreeNextKey") {
-        Some(k) if k >= 0 => k,
-        _ => max_number_key(src, &pt_dict, 0, &mut BTreeSet::new()).map_or(0, |m| m + 1),
+        Some(k) if k >= 0 => k.max(after_max),
+        _ => after_max,
     };
     // alle Lesezugriffe vor der ID-Vergabe (eine vergebene, nicht gesetzte ID wäre ein Fehler)
     if let Pt::Nums(_, Some(r)) | Pt::Kids(_, Some(r)) = &pt_kind {

@@ -8,7 +8,7 @@ use pdfover_cades::{
     AlgorithmPolicy, AssembleOptions, CertChain, Certificate, CmsError, CmsProfile, Digest, DigestAlg, Expect,
     ExpectedSigner, RawSignature, SignedAttrs, assemble, estimate_cms_len, select_algorithm, verify_detached,
 };
-use pdfover_pdf_cos::{ObjectId, SourcePdf, XrefHealth};
+use pdfover_pdf_cos::{ObjectId, SourcePdf, TailKind, XrefHealth};
 use pdfover_pdf_incremental::{
     ByteRange, ExcludedRange, Increment, RESERVE_MAX, RESERVE_MIN_MODEL_A, RESERVE_MODEL_B, WrittenKind,
 };
@@ -44,7 +44,8 @@ pub(crate) struct PreparedMeta {
 }
 
 impl PreparedMeta {
-    fn expected_cert(&self) -> Option<Certificate> {
+    /// Zertifikat aus `prepare` (maßgeblich für I3: Signaturblock und `/Name` stammen daraus).
+    pub(crate) fn expected_cert(&self) -> Option<Certificate> {
         self.expected_signer.as_deref().and_then(|h| hex::decode(h).ok()).and_then(|d| Certificate::from_der(&d).ok())
     }
 }
@@ -67,8 +68,23 @@ impl std::fmt::Debug for Prepared {
 pub struct PreparedHandle {
     /// Datei in der App-Sandbox (Rechte 0600)
     pub path: PathBuf,
-    /// SHA-256 des fertigen Platzhalter-PDFs (Integritätsprüfung beim Fortsetzen)
+    /// SHA-256 über das fertige Platzhalter-PDF **und** die Begleitdatei (`<datei>.json`, in
+    /// dieser Reihenfolge aneinandergehängt) – Integritätsprüfung beim Fortsetzen; die
+    /// Begleitdatei trägt die Erwartungen der Selbstprüfung (Zertifikat, Feld, Seitenzahl).
     pub sha256: Vec<u8>,
+}
+
+/// SHA-256 über Platzhalter-PDF und Begleitdatei ([`PreparedHandle::sha256`]).
+fn state_digest(pdf: &[u8], json: &[u8]) -> Vec<u8> {
+    let mut h = DigestAlg::Sha256.hasher();
+    h.update(pdf);
+    h.update(json);
+    h.finalize().value
+}
+
+/// Fehlertext für eine unlesbare Begleitdatei: nur die Position, nie Inhalte (Regel 9).
+fn sidecar_error(e: &serde_json::Error) -> PadesError {
+    PadesError::InvalidState(format!("Begleitdatei nicht lesbar (Zeile {}, Spalte {})", e.line(), e.column()))
 }
 
 /// Inhalt der Begleitdatei (`<datei>.json`) von [`Prepared::persist`].
@@ -90,19 +106,27 @@ struct PersistedState {
 
 const PERSIST_FORMAT: u32 = 1;
 
-/// Annahmeprüfung vor dem Aufbau (K5, Plan §6.1; Einzelheiten liefert [`crate::analyze`]).
+/// Annahmeprüfung vor dem Aufbau: dieselben K5-Befunde wie [`crate::analyze`] in derselben
+/// Reihenfolge (Plan §6.1; K2-Befunde mit Vorsignaturen sind K5).
 fn preflight(src: &SourcePdf) -> Result<(), PadesError> {
+    let reject = |code: &str| Err(PadesError::Rejected(code.into()));
+    let signed = src.signature_fields()?.iter().any(|f| f.signed);
+    match src.xref_health() {
+        XrefHealth::Reconstructed => return reject(codes::XREF_RECONSTRUCTED),
+        XrefHealth::Repaired if signed => return reject(codes::XREF_REPAIRED),
+        _ => {}
+    }
+    if signed && src.tail().kind == TailKind::Garbage {
+        return reject(codes::TAIL_GARBAGE);
+    }
     if !src.rights().may_sign() {
-        return Err(PadesError::Rejected(codes::PERMISSIONS.into()));
-    }
-    if src.xref_health() == XrefHealth::Reconstructed {
-        return Err(PadesError::Rejected(codes::XREF_RECONSTRUCTED.into()));
-    }
-    if src.needs_rendering() {
-        return Err(PadesError::Rejected(codes::XFA_DYNAMIC.into()));
+        return reject(codes::PERMISSIONS);
     }
     if src.doc_mdp()?.is_some_and(|d| d.permission == 1) {
-        return Err(PadesError::Rejected(codes::DOCMDP_P1.into()));
+        return reject(codes::DOCMDP_P1);
+    }
+    if src.needs_rendering() {
+        return reject(codes::XFA_DYNAMIC);
     }
     Ok(())
 }
@@ -327,23 +351,23 @@ impl Prepared {
             written: self.increment.written.clone(),
             meta: self.meta.clone(),
         };
-        let json = serde_json::to_vec(&state).map_err(|e| PadesError::InvalidState(e.to_string()))?;
+        let json = serde_json::to_vec(&state).map_err(|e| sidecar_error(&e))?;
         write_private(&path, &pdf)?;
         write_private(&path.with_extension("json"), &json)?;
-        Ok(PreparedHandle { path, sha256: sha.value })
+        Ok(PreparedHandle { path, sha256: state_digest(&pdf, &json) })
     }
 
-    /// Lädt einen persistierten Zustand (prüft SHA-256, Präfix = Original und die Offsets gegen
-    /// die Bytes).
+    /// Lädt einen persistierten Zustand (prüft SHA-256 über PDF und Begleitdatei, Präfix =
+    /// Original und die Offsets gegen die Bytes).
     pub fn restore(handle: &PreparedHandle, src: &SourcePdf) -> Result<Prepared, PadesError> {
         let invalid = |m: &str| PadesError::InvalidState(m.to_string());
         let pdf = std::fs::read(&handle.path)?;
-        let sha = DigestAlg::Sha256.digest(&pdf);
-        if sha.value != handle.sha256 {
+        let json = std::fs::read(handle.path.with_extension("json"))?;
+        if state_digest(&pdf, &json) != handle.sha256 {
             return Err(invalid("Prüfsumme stimmt nicht"));
         }
-        let json = std::fs::read(handle.path.with_extension("json"))?;
-        let st: PersistedState = serde_json::from_slice(&json).map_err(|e| PadesError::InvalidState(e.to_string()))?;
+        let sha = DigestAlg::Sha256.digest(&pdf);
+        let st: PersistedState = serde_json::from_slice(&json).map_err(|e| sidecar_error(&e))?;
         if st.format != PERSIST_FORMAT || st.pdf_sha256 != sha.to_hex() {
             return Err(invalid("Begleitdatei passt nicht zum PDF"));
         }
@@ -417,8 +441,11 @@ impl Prepared {
     /// Modell B: Längenprüfung, `verify_detached` (I3), Einbetten.
     ///
     /// Die Prüfung verlangt immer wie PDF-AS genau einen SignerInfo, signing-certificate(-v2) und
-    /// die Politik für neue Signaturen; ohne erwarteten Signer in `expect` gilt das Zertifikat aus
-    /// `prepare`. `cms` darf mit `0x00` aufgefüllt sein.
+    /// die Politik für neue Signaturen. Kam in `prepare` ein Zertifikat mit, ist **dieses** der
+    /// erwartete Signer (Signaturblock und `/Name` stammen daraus; PDF-AS „Certificates
+    /// missmatch!“); eine abweichende Erwartung in `expect` ist ein Fehler
+    /// (`cms-unexpected-signer`). Ohne Zertifikat aus `prepare` gilt `expect.signer`. `cms` darf
+    /// mit `0x00` aufgefüllt sein.
     pub fn finish_cms(self, cms: &[u8], expect: &Expect) -> Result<SignedPdf, FinishError> {
         let der = pdfover_cades::trim_contents_padding(cms)?;
         let reserve = self.reserve();
@@ -429,11 +456,11 @@ impl Prepared {
         e.policy = AlgorithmPolicy::NewSignature;
         e.require_signing_certificate = true;
         e.max_len = Some(reserve);
-        let expected = self.meta.expected_cert();
-        if matches!(e.signer, ExpectedSigner::Any)
-            && let Some(c) = &expected
-        {
-            e.signer = ExpectedSigner::Certificate(c.clone());
+        if let Some(c) = self.meta.expected_cert() {
+            if matches!(&e.signer, ExpectedSigner::Certificate(x) if *x != c) {
+                return Err(FinishError::Cms(CmsError::UnexpectedSigner));
+            }
+            e.signer = ExpectedSigner::Certificate(c);
         }
         let report = verify_detached(der, &mut self.signed_data(), &e)?;
         let mut increment = self.increment;

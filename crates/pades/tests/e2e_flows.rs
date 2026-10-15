@@ -446,6 +446,20 @@ fn write_atomically_respects_overwrite() {
     let plan = pdfover_pades::SignPlan::invisible(pdfover_pades::local_signing_time());
     let signed = signer.sign(prepare(&src, &plan, Some(&chain)).unwrap()).unwrap();
     let target = dir.path().join("out.pdf");
+    // ohne bzw. nach fehlgeschlagener Selbstprüfung wird nichts geschrieben
+    let not_checked = signed.write_atomically(&OutputTarget { path: target.clone(), overwrite: true });
+    assert!(matches!(not_checked, Err(PadesError::NotSelfChecked)), "{not_checked:?}");
+    assert_eq!(not_checked.unwrap_err().code(), "pades-not-self-checked");
+    assert_eq!(signed.write_to(&mut Vec::new()).unwrap_err().kind(), std::io::ErrorKind::PermissionDenied);
+    let other = open(&testdata().join("pdf/generated/simple-xref-table.pdf"));
+    assert!(signed.self_check(&CheckContext { source: &other, expected_signer: None, renderer: None }).is_err());
+    assert!(matches!(
+        signed.write_atomically(&OutputTarget { path: target.clone(), overwrite: true }),
+        Err(PadesError::NotSelfChecked)
+    ));
+    assert!(!target.exists());
+    signed.self_check(&CheckContext { source: &src, expected_signer: Some(&chain.signer), renderer: None }).unwrap();
+    assert!(signed.is_checked());
     std::fs::write(&target, b"vorhanden").unwrap();
     let err = signed.write_atomically(&OutputTarget { path: target.clone(), overwrite: false }).unwrap_err();
     assert!(matches!(&err, PadesError::Io(e) if e.kind() == std::io::ErrorKind::AlreadyExists), "{err:?}");

@@ -3,9 +3,9 @@
 //! | Klasse | Befund-Codes ([`codes`]) |
 //! |---|---|
 //! | K1 regulär (ggf. Warnung) | `pdf-xfa-hybrid`, `pdf-usage-rights`, `pdf-pdfa-need-appearances`, `pdf-prior-signature-invalid`, `pdf-prior-signature-unverifiable` |
-//! | K2 reparierbar (nur ohne Vorsignaturen, Zustimmung) | `pdf-xref-repaired`, `pdf-tail-garbage` |
+//! | K2 reparierbar (nur ohne Vorsignaturen; Warnung = Zustimmung nötig) | `pdf-xref-repaired`, `pdf-tail-garbage` |
 //! | K3 verschlüsselt | `pdf-encrypted` |
-//! | K4 eingeschränkt | `pdf-docmdp-p2`, `pdf-docmdp-p3`, `pdf-field-locked`, `pdf-seed-value`, `pdf-seed-value-incompatible` (Warnung) |
+//! | K4 eingeschränkt | `pdf-docmdp-p2`, `pdf-docmdp-p3` (keine neue Seite, kein neues sichtbares Feld: [`DocReport::allows_new_visible_field`]), `pdf-field-locked`, `pdf-seed-value`, `pdf-seed-value-incompatible` (Warnung) |
 //! | K5 abgelehnt | `pdf-docmdp-p1`, `pdf-permissions`, `pdf-xfa-dynamic`, `pdf-xref-reconstructed`, K2-Befunde bei Vorsignaturen; beim Öffnen ([`reject_open_error`]): `pdf-user-password`, `pdf-public-key`, `pdf-unsupported-security`, `pdf-no-pages`, `pdf-not-a-pdf`, `pdf-unreadable`, `pdf-limit-exceeded`, `pdf-decryption`, `pdf-io` |
 
 use std::collections::BTreeSet;
@@ -161,7 +161,9 @@ pub struct ExistingSignature {
     pub sub_filter: Option<String>,
     /// `/ByteRange`
     pub byte_range: Option<ByteRange>,
-    /// `/Contents` (DER ohne Padding, falls trennbar)
+    /// `/Contents` (DER ohne Padding, falls trennbar). Nicht serialisiert: das CMS trägt
+    /// Zertifikats-Personendaten und gehört nicht in IPC-/Diagnosedaten (Regel 9).
+    #[serde(skip)]
     pub contents: Vec<u8>,
     /// `/Location` (Platzhaltername)
     pub location: Option<String>,
@@ -249,6 +251,13 @@ impl DocReport {
         out
     }
 
+    /// Darf ein **neues sichtbares** Signaturfeld angelegt werden? Nicht bei zertifizierten
+    /// Dokumenten (DocMDP): die Änderungsanalyse wertet es als Verletzung der Zertifizierung;
+    /// dort bleiben vorhandene leere Felder und unsichtbare Signaturen (Plan §6.1 K4).
+    pub fn allows_new_visible_field(&self) -> bool {
+        self.doc_mdp.is_none()
+    }
+
     /// Hat das Dokument einen Befund mit diesem Code?
     pub fn has_finding(&self, code: &str) -> bool {
         self.findings.iter().any(|f| f.code == code)
@@ -262,6 +271,9 @@ impl DocReport {
 
 /// Default-Präfix neuer Feldnamen (E-07).
 pub(crate) const FIELD_PREFIX: &str = "PDF-AS Signatur";
+
+/// [`ExistingSignature::status_code`]: `/V` ist kein lesbares Signaturdictionary.
+const SIGNATURE_DICTIONARY_UNREADABLE: &str = "pdf-signature-dictionary";
 
 /// Java `Integer.parseInt` (optionales Vorzeichen, ASCII-Ziffern, 32 Bit).
 fn java_parse_int(s: &str) -> Option<i32> {
@@ -289,50 +301,82 @@ pub(crate) fn next_field_number(fields: &[SigField], prefix: &str) -> u32 {
     u32::try_from(count + 1).unwrap_or(u32::MAX)
 }
 
-/// Feldnamen, die `/Lock`-Dictionaries **signierter** Felder sperren (ISO 32000-1 Tabelle 233:
-/// `/Action /All | /Include | /Exclude`, `/Fields` voll qualifizierte Namen).
-fn locked_field_names(src: &SourcePdf, fields: &[SigField]) -> BTreeSet<String> {
+/// Sperr-Dictionaries (`/Action`, `/Fields`) eines **signierten** Felds: `/Lock` am Feld
+/// (ISO 32000-1 Tabelle 233) und FieldMDP-`/TransformParams` im Signaturdictionary
+/// (`/Reference`, ISO 32000-1 §12.8.2.4) – Validatoren werten die Transformation aus, auch wenn
+/// `/Lock` fehlt.
+fn lock_dicts<'a>(src: &'a SourcePdf, f: &SigField) -> Vec<&'a Dictionary> {
+    let dict_of = |o: &'a Object| src.resolve(o).ok().and_then(|o| o.as_dict().ok());
+    let mut out = Vec::new();
+    let Some(fd) = src.get_object(f.field_id).ok().and_then(|o| o.as_dict().ok()) else { return out };
+    if let Some(lock) = fd.get(b"Lock").ok().and_then(dict_of) {
+        out.push(lock);
+    }
+    let sig = f.value_id.and_then(|id| src.get_object(id).ok()).or_else(|| fd.get(b"V").ok());
+    if let Some(Object::Array(refs)) =
+        sig.and_then(dict_of).and_then(|s| s.get(b"Reference").ok()).and_then(|o| src.resolve(o).ok())
+    {
+        for r in refs.iter().filter_map(dict_of) {
+            if r.get(b"TransformMethod").ok().and_then(|o| o.as_name().ok()) == Some(b"FieldMDP")
+                && let Some(tp) = r.get(b"TransformParams").ok().and_then(dict_of)
+            {
+                out.push(tp);
+            }
+        }
+    }
+    out
+}
+
+/// Voll qualifizierte Namen der Felder, die vorhandene Signaturen sperren (`/Action /All |
+/// /Include | /Exclude`, `/Fields` voll qualifizierte Namen; ein Name sperrt auch alle
+/// Nachfahren). Gemeinsame Grundlage von [`analyze`] und `prepare`.
+pub(crate) fn locked_field_names(src: &SourcePdf, fields: &[SigField]) -> BTreeSet<String> {
     let all: Vec<&str> = fields.iter().map(|f| f.qualified_name.as_str()).collect();
     let mut locked = BTreeSet::new();
-    for f in fields.iter().filter(|f| f.signed && f.has_lock) {
-        let Some(lock) = src
-            .get_object(f.field_id)
-            .ok()
-            .and_then(|o| o.as_dict().ok())
-            .and_then(|d| d.get(b"Lock").ok())
-            .and_then(|o| src.resolve(o).ok())
-            .and_then(|o| o.as_dict().ok())
-        else {
-            continue;
-        };
-        let action = lock.get(b"Action").ok().and_then(|o| src.resolve(o).ok()).and_then(|o| o.as_name().ok());
-        let names: Vec<String> = match lock.get(b"Fields").ok().and_then(|o| src.resolve(o).ok()) {
-            Some(Object::Array(a)) => {
-                a.iter().filter_map(|o| src.resolve(o).ok()).filter_map(pdfover_pdf_cos::decode_text_string).collect()
-            }
-            _ => Vec::new(),
-        };
-        // ein Name sperrt auch alle Nachfahren (`a` sperrt `a.b`)
-        let matches = |q: &str| names.iter().any(|n| q == n || q.starts_with(&format!("{n}.")));
-        for q in &all {
-            let hit = match action {
-                Some(b"All") => true,
-                Some(b"Include") => matches(q),
-                Some(b"Exclude") => !matches(q),
-                _ => false,
+    for f in fields.iter().filter(|f| f.signed) {
+        for lock in lock_dicts(src, f) {
+            let action = lock.get(b"Action").ok().and_then(|o| src.resolve(o).ok()).and_then(|o| o.as_name().ok());
+            let names: Vec<String> = match lock.get(b"Fields").ok().and_then(|o| src.resolve(o).ok()) {
+                Some(Object::Array(a)) => a
+                    .iter()
+                    .filter_map(|o| src.resolve(o).ok())
+                    .filter_map(pdfover_pdf_cos::decode_text_string)
+                    .collect(),
+                _ => Vec::new(),
             };
-            if hit && *q != f.qualified_name {
-                locked.insert((*q).to_string());
+            let matches = |q: &str| names.iter().any(|n| q == n || q.starts_with(&format!("{n}.")));
+            for q in &all {
+                let hit = match action {
+                    Some(b"All") => true,
+                    Some(b"Include") => matches(q),
+                    Some(b"Exclude") => !matches(q),
+                    _ => false,
+                };
+                if hit && *q != f.qualified_name {
+                    locked.insert((*q).to_string());
+                }
             }
         }
     }
     locked
 }
 
-/// Seed Values (ISO 32000-1 Tabelle 234) mit dem Klon erfüllbar? `/Ff`-Bits: 2 SubFilter,
-/// 6 AddRevInfo, 7 DigestMethod (Pflicht, wenn gesetzt).
+/// Seed Values (ISO 32000-1 Tabelle 234) mit dem Klon erfüllbar? `/Ff`-Bits: 1 Filter,
+/// 2 SubFilter, 4 Reasons, 6 AddRevInfo, 7 DigestMethod (Pflicht, wenn gesetzt).
 fn seed_value_compatible(src: &SourcePdf, sv: &Dictionary) -> bool {
     let ff = sv.get(b"Ff").ok().and_then(|o| crate::util::int_of(src, o)).unwrap_or(0);
+    if ff & 1 != 0
+        && let Some(filter) = sv.get(b"Filter").ok().and_then(|o| src.resolve(o).ok()).and_then(|o| o.as_name().ok())
+        && filter != b"Adobe.PPKLite"
+    {
+        return false;
+    }
+    // Pflicht-Begründungen: `/Reason` kommt aus dem Profil und ist vorab nicht abgleichbar
+    if ff & 8 != 0
+        && matches!(sv.get(b"Reasons").ok().and_then(|o| src.resolve(o).ok()), Some(Object::Array(a)) if !a.is_empty())
+    {
+        return false;
+    }
     let names = |key: &[u8]| -> Option<Vec<Vec<u8>>> {
         match sv.get(key).ok().and_then(|o| src.resolve(o).ok())? {
             Object::Array(a) => {
@@ -420,7 +464,22 @@ pub fn analyze(src: &SourcePdf) -> Result<DocReport, PadesError> {
     // Vorhandene Signaturen
     let mut signatures = Vec::new();
     for f in fields.iter().filter(|f| f.signed) {
-        let Some(info) = sigs::read_sig_dict(src, f) else { continue };
+        let Some(info) = sigs::read_sig_dict(src, f) else {
+            // `/V` ohne lesbares Signaturdictionary: zählt als (ungültige) Vorsignatur, damit
+            // `is_signed` mit `prepare` übereinstimmt (keine neue Seite, Plan §6.1)
+            signatures.push(ExistingSignature {
+                field_name: f.qualified_name.clone(),
+                sub_filter: None,
+                byte_range: None,
+                contents: Vec::new(),
+                location: None,
+                covers_revision: None,
+                status: PriorStatus::Invalid,
+                status_code: Some(SIGNATURE_DICTIONARY_UNREADABLE.into()),
+                covers_whole_file: false,
+            });
+            continue;
+        };
         let (status, status_code) = sigs::signature_status(src.bytes(), &info);
         let end = info.covered_end();
         let covers_revision = end.and_then(|e| revision_ending_at(src, e));
@@ -445,16 +504,18 @@ pub fn analyze(src: &SourcePdf) -> Result<DocReport, PadesError> {
         findings.push(Finding::new(codes::PRIOR_SIGNATURE_UNVERIFIABLE, K1Regular, false));
     }
 
-    // Querverweis und Dateiende
+    // Querverweis und Dateiende: K2 nur ohne Vorsignaturen und nur nach Zustimmung (Warnung),
+    // mit Vorsignaturen K5 (Plan §6.1)
+    let k2 = |code: &str| {
+        if signed { Finding::new(code, K5Rejected, false) } else { Finding::new(code, K2Repairable, true) }
+    };
     match src.xref_health() {
         XrefHealth::Intact => {}
-        XrefHealth::Repaired => {
-            findings.push(Finding::new(codes::XREF_REPAIRED, if signed { K5Rejected } else { K2Repairable }, false))
-        }
+        XrefHealth::Repaired => findings.push(k2(codes::XREF_REPAIRED)),
         XrefHealth::Reconstructed => findings.push(Finding::new(codes::XREF_RECONSTRUCTED, K5Rejected, false)),
     }
     if src.tail().kind == TailKind::Garbage {
-        findings.push(Finding::new(codes::TAIL_GARBAGE, if signed { K5Rejected } else { K2Repairable }, false));
+        findings.push(k2(codes::TAIL_GARBAGE));
     }
 
     // Verschlüsselung und Rechte
@@ -627,5 +688,7 @@ mod tests {
         };
         let d = format!("{s:?}");
         assert!(!d.contains("Mustermann") && !d.contains("geheim"), "{d}");
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(!json.contains("contents"), "{json}");
     }
 }

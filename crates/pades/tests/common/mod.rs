@@ -298,6 +298,26 @@ impl KeystoreSigner {
         };
         prepared.finish_raw(&attrs, &signature, &chain).map_err(|e| format!("finish_raw ({}): {e}", e.code()))
     }
+
+    /// Fertiges CMS dieses Schlüssels über die ByteRange-Daten von `prepared` (ohne `finish_*`) –
+    /// für Negativtests (fremder Signer, Reservegrenzen).
+    pub fn cms_for(&mut self, prepared: &Prepared) -> Vec<u8> {
+        let alg = select_algorithm(&self.chain.signer.key_type().unwrap()).unwrap().digest();
+        let digest = prepared.digest(alg);
+        let attrs = SignedAttrsBuilder::new(
+            prepared.cms_profile(),
+            &digest,
+            &self.chain.signer,
+            SigningTime(prepared.signing_time()),
+        )
+        .build()
+        .unwrap();
+        let job = SignJob::Digest(DigestJob { display_name: "test.pdf".into(), alg, digest: attrs.digest(alg).value });
+        let mut results = self.rt.block_on(self.session.sign(vec![job])).unwrap();
+        let SignResult::Raw { signature, chain } = results.remove(0) else { panic!("keine Rohsignatur") };
+        let opts = pdfover_cades::AssembleOptions { profile: prepared.cms_profile(), include_intermediates: false };
+        pdfover_cades::assemble(&attrs, &signature, &chain, &opts).unwrap()
+    }
 }
 
 /// Plan für ein Profil (Builtin-Store) mit Zertifikat; `renderer` = PDFium falls vorhanden.

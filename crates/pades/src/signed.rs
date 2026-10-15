@@ -117,6 +117,9 @@ impl std::fmt::Debug for CheckReport {
 /// Warnung: I5 ohne PDFium (nur `pdf-cos`).
 pub const WARNING_I5_WITHOUT_PDFIUM: &str = "pades-i5-without-pdfium";
 
+/// Meldung, wenn ohne bestandene Selbstprüfung geschrieben werden soll.
+const NOT_SELF_CHECKED: &str = "Selbstprüfung (I1–I6) nicht bestanden – es wird nichts gespeichert";
+
 /// Ziel der Ausgabe (Regeln F-81…F-85 löst der Workflow auf).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputTarget {
@@ -149,10 +152,17 @@ pub(crate) struct SignedMeta {
 }
 
 /// Signiertes PDF (Original + Increment mit eingesetztem CMS). `Debug` ohne Inhalt (Regel 9).
+///
+/// Gespeichert wird nur nach bestandener Selbstprüfung: [`Self::write_atomically`] und
+/// [`Self::write_to`] verweigern das Schreiben, solange [`Self::self_check`] auf **dieser**
+/// Instanz nicht erfolgreich war (Plan §3.6 „Verletzt die Ausgabe eine Invariante, wird nichts
+/// gespeichert“). [`Self::bytes`] bleibt für Vorschau und Diagnose ungeprüft.
 pub struct SignedPdf {
     original: Arc<[u8]>,
     increment: Vec<u8>,
     meta: SignedMeta,
+    /// `self_check` bestanden
+    checked: std::sync::atomic::AtomicBool,
 }
 
 impl std::fmt::Debug for SignedPdf {
@@ -161,17 +171,32 @@ impl std::fmt::Debug for SignedPdf {
             .field("original_len", &self.original.len())
             .field("increment_len", &self.increment.len())
             .field("byte_range", &self.meta.byte_range)
+            .field("checked", &self.is_checked())
             .finish()
     }
 }
 
 impl SignedPdf {
     pub(crate) fn new(original: Arc<[u8]>, increment: Vec<u8>, meta: SignedMeta) -> Self {
-        Self { original, increment, meta }
+        Self { original, increment, meta, checked: std::sync::atomic::AtomicBool::new(false) }
     }
 
-    /// Prüft I1–I6. Die erste Verletzung bricht ab; dann darf **nichts** gespeichert werden.
+    /// Hat [`Self::self_check`] auf dieser Instanz bestanden?
+    pub fn is_checked(&self) -> bool {
+        self.checked.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Prüft I1–I6. Die erste Verletzung bricht ab; dann darf **nichts** gespeichert werden (das
+    /// Schreiben bleibt gesperrt). Erst ein Erfolg gibt [`Self::write_atomically`] und
+    /// [`Self::write_to`] frei.
     pub fn self_check(&self, ctx: &CheckContext<'_>) -> Result<CheckReport, InvariantViolation> {
+        self.checked.store(false, std::sync::atomic::Ordering::Release);
+        let report = self.run_checks(ctx)?;
+        self.checked.store(true, std::sync::atomic::Ordering::Release);
+        Ok(report)
+    }
+
+    fn run_checks(&self, ctx: &CheckContext<'_>) -> Result<CheckReport, InvariantViolation> {
         use Invariant::*;
         let mut checked = Vec::new();
         let mut warnings = Vec::new();
@@ -231,10 +256,17 @@ impl SignedPdf {
         let _ = b3;
         checked.push(I2ByteRange);
 
-        // I3: CMS
-        let expected = ctx.expected_signer.cloned().or_else(|| Some(self.meta.signer.clone()));
+        // I3: CMS – erwartet wird das Zertifikat des Aufrufers bzw. aus `prepare`; beide müssen
+        // übereinstimmen. Erst ohne beide gilt der Signer laut CMS (nur Strukturprüfung).
+        let prepared_cert = self.meta.prepared.expected_cert();
+        if let (Some(p), Some(x)) = (&prepared_cert, ctx.expected_signer)
+            && p != x
+        {
+            return Err(InvariantViolation::new(I3Cms, "erwarteter Signer weicht vom Zertifikat aus prepare ab"));
+        }
+        let expected = ctx.expected_signer.cloned().or(prepared_cert).unwrap_or_else(|| self.meta.signer.clone());
         let expect = Expect {
-            signer: expected.map_or(ExpectedSigner::Any, ExpectedSigner::Certificate),
+            signer: ExpectedSigner::Certificate(expected),
             require_signing_certificate: true,
             max_len: None,
             policy: AlgorithmPolicy::NewSignature,
@@ -337,8 +369,16 @@ impl SignedPdf {
         &self.meta.signer
     }
 
-    /// Schreibt in einen Writer (Mobile: SAF/`UIDocumentPicker`-Stream).
+    /// Schreibt in einen Writer (Mobile: SAF/`UIDocumentPicker`-Stream) – nur nach bestandener
+    /// Selbstprüfung, sonst `ErrorKind::PermissionDenied` ohne ein geschriebenes Byte.
     pub fn write_to(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
+        if !self.is_checked() {
+            return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, NOT_SELF_CHECKED));
+        }
+        self.write_unchecked(w)
+    }
+
+    fn write_unchecked(&self, w: &mut dyn std::io::Write) -> std::io::Result<()> {
         w.write_all(&self.original)?;
         w.write_all(&self.increment)
     }
@@ -347,7 +387,12 @@ impl SignedPdf {
     /// überschrieben, außer `target.overwrite`. Ohne `overwrite` scheitert das Schreiben mit
     /// `ErrorKind::AlreadyExists`, wenn das Ziel existiert (auch bei gleichzeitigem Anlegen:
     /// Hardlink statt Umbenennen).
+    ///
+    /// Ohne bestandene Selbstprüfung: [`PadesError::NotSelfChecked`], nichts wird angelegt.
     pub fn write_atomically(&self, target: &OutputTarget) -> Result<OutputInfo, PadesError> {
+        if !self.is_checked() {
+            return Err(PadesError::NotSelfChecked);
+        }
         let path = &target.path;
         if !target.overwrite && path.exists() {
             return Err(PadesError::Io(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Zieldatei existiert")));
@@ -355,7 +400,7 @@ impl SignedPdf {
         let tmp = temp_path(path);
         let result = (|| -> std::io::Result<()> {
             let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
-            self.write_to(&mut f)?;
+            self.write_unchecked(&mut f)?;
             f.flush()?;
             f.sync_all()?;
             drop(f);
