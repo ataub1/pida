@@ -16,5 +16,10 @@ pdfover-config = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }
+pdfover-pdf-cos = { workspace = true }
+
 [lints]
 workspace = true

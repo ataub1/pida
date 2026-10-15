@@ -17,12 +17,23 @@ pdfover-core-api = { workspace = true }
 pdfover-config = { workspace = true }
 pdfover-i18n = { workspace = true }
 pdfover-workflow = { workspace = true }
+# Typen der Masken/Meldungen im ViewState (NativeForm, Notice, SecretKind)
+pdfover-backend-api = { workspace = true }
 clap = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "signal"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 zeroize = { workspace = true }
 thiserror = { workspace = true }
+serde_json = { workspace = true }
+# Verdeckte Eingabe von Passwort/TAN im Terminal (Unix: termios, Windows: Console-API). Apache-2.0.
+# Noch nicht in [workspace.dependencies] – die Integration hebt die Abhängigkeit dorthin.
+rpassword = "=7.5.4"
+
+[dev-dependencies]
+pdfover-core-api = { workspace = true, features = ["testing"] }
+pdfover-backend-api = { workspace = true, features = ["testing"] }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

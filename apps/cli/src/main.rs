@@ -12,10 +12,23 @@
 //! PDF-Over „unsichtbar“ (B-07, kompatibel zu Skripten mit `-v x`), Hilfetexte von `-kspass`/`-kskeypass`
 //! richtig (B-08), fehlende `-c`-Datei ist ein Fehler statt Werksreset, abweichendes `-kskeypass`
 //! ergibt einen klaren Fehler. Neu: Subcommands, `--headless`, `--json`, `--kspass-stdin`,
-//! `--kspass-env`. Die Ausführungslogik ist Teil der Integration (`run`, `todo!()`).
+//! `--kspass-env`.
+//!
+//! Ausführung ([`run`]): Signieren läuft über `pdfover-core-api` ohne grafische Oberfläche; die CLI
+//! beantwortet Masken und Passwortabfragen im Terminal ([`session`]). Ohne Terminal bzw. mit
+//! `--headless` gibt es keine Rückfragen (Keystore mit Passwort aus `-kspass`, `--kspass-stdin`,
+//! `--kspass-env`; lokale BKU). Die Hilfe (`-h`, `-?`, `--help`) erscheint in der Systemsprache
+//! (DE/EN, [`text::help`]). Exit-Codes nach Plan §7.4 (`pdfover_workflow::ExitCode`).
+
+mod commands;
+mod overlay;
+mod session;
+mod term;
+mod text;
 
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
@@ -46,6 +59,12 @@ pub const MODERN_FLAGS: [&str; 5] = ["--headless", "--json", "--kspass-stdin", "
 
 /// Subcommands.
 pub const SUBCOMMANDS: [&str; 5] = ["sign", "verify", "profiles", "migrate", "render-block"];
+
+/// Optionen der Subcommands mit Wert (`migrate --from`, `render-block --profile`).
+pub const SUBCOMMAND_WITH_VALUE: [&str; 2] = ["--from", "--profile"];
+
+/// Flags der Subcommands (`migrate --dry-run`).
+pub const SUBCOMMAND_FLAGS: [&str; 1] = ["--dry-run"];
 
 /// PDF-Over-Signiermittel (`-b`, case-sensitive).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -280,9 +299,13 @@ where
             with_value(long, next)
         } else if LEGACY_FLAGS.contains(&s.as_ref()) || MODERN_FLAGS.contains(&s.as_ref()) {
             (vec![tok.clone()], 1)
-        } else if MODERN_WITH_VALUE.contains(&s.as_ref()) {
+        } else if MODERN_WITH_VALUE.contains(&s.as_ref())
+            || (subcommand_seen && SUBCOMMAND_WITH_VALUE.contains(&s.as_ref()))
+        {
             with_value(&s, next)
-        } else if s.starts_with("--") && s.contains('=') {
+        } else if (subcommand_seen && SUBCOMMAND_FLAGS.contains(&s.as_ref()))
+            || (s.starts_with("--") && s.contains('='))
+        {
             (vec![tok.clone()], 1)
         } else if !subcommand_seen && SUBCOMMANDS.contains(&s.as_ref()) {
             subcommand_seen = true;
@@ -328,32 +351,75 @@ where
     Ok((config, cli))
 }
 
-/// Overlay aus den Argumenten (nie persistiert).
+/// Overlay aus den Argumenten (nie persistiert): `-n` normalisiert (`0…` → `+43…`), `-b NONE` = keine
+/// Vorgabe, `-v` nach B-07. Prüfungen (`-p` 5–200, `-kskeypass` = `-kspass`, Dateien vorhanden)
+/// macht [`overlay::check`], Passwörter aus `--kspass-stdin`/`--kspass-env` [`overlay::keystore_password`].
 pub fn to_overlay(cli: &Cli) -> pdfover_config::Overlay {
-    todo!("Integration: inkl. Normalisierung -n, --kspass-stdin/-env, Prüfung -kskeypass == -kspass")
+    overlay::to_overlay(cli)
+}
+
+/// Hilfe angefordert (`-h`, `-?` → `--help`, `--help`)?
+pub fn wants_help(normalized: &[OsString]) -> bool {
+    normalized.iter().skip(1).any(|t| t == "-h" || t == "--help")
 }
 
 /// Führt die Kommandozeile aus.
 pub fn run(config_file: Option<PathBuf>, cli: Cli) -> pdfover_workflow::ExitCode {
-    todo!("Integration: Core starten; headless (Keystore/lokale BKU) oder Übergabe an laufende GUI")
+    let env =
+        session::RunEnv { term: Arc::new(term::Tty), paths: None, options: pdfover_core_api::CoreOptions::default() };
+    run_with(config_file, cli, env)
+}
+
+/// Wie [`run`] mit vorgegebener Umgebung (Tests).
+pub fn run_with(config_file: Option<PathBuf>, cli: Cli, env: session::RunEnv) -> pdfover_workflow::ExitCode {
+    let lang = pdfover_i18n::Lang::system();
+    let json = cli.modern.json;
+    match &cli.command {
+        Some(Command::Profiles) => commands::profiles(env.term.as_ref(), json),
+        Some(Command::Verify { file }) => commands::verify(env.term.as_ref(), lang, file, json),
+        Some(Command::RenderBlock { profile, output }) => {
+            commands::render_block(env.term.as_ref(), lang, profile, output)
+        }
+        Some(Command::Migrate { from, dry_run }) => {
+            commands::migrate(env.term.as_ref(), lang, from.clone(), *dry_run, env.paths.clone(), json)
+        }
+        Some(Command::Sign { .. }) | None => session::sign(config_file, &cli, env),
+    }
 }
 
 fn main() {
-    let (config_file, cli) = match parse(std::env::args_os()) {
+    let args: Vec<OsString> = std::env::args_os().collect();
+    let lang = pdfover_i18n::Lang::system();
+    if wants_help(&normalize_args(args.clone())) {
+        print!("{}", text::help(lang));
+        std::process::exit(pdfover_workflow::ExitCode::Success.code());
+    }
+    let (config_file, cli) = match parse(args) {
         Ok(v) => v,
-        Err(CliError::Clap(e)) => e.exit(),
+        Err(CliError::Clap(e))
+            if matches!(e.kind(), clap::error::ErrorKind::DisplayVersion | clap::error::ErrorKind::DisplayHelp) =>
+        {
+            e.exit()
+        }
         Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(pdfover_workflow::ExitCode::Usage as i32);
+            eprintln!("{}\n{e}", text::tr(lang, "error-CmdLineArgs", &[]));
+            std::process::exit(pdfover_workflow::ExitCode::Usage.code());
         }
     };
-    let filter = cli.modern.log_level.clone().unwrap_or_else(|| "warn".into());
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::new(filter))
-        .with_writer(std::io::stderr)
-        .init();
+    let level = cli.modern.log_level.clone().unwrap_or_else(|| "warn".into());
+    let _log = match pdfover_config::Paths::platform() {
+        Ok(paths) => pdfover_core_api::logging::init(
+            &paths,
+            &pdfover_core_api::logging::LogOptions { level, stderr: true, file: true },
+        ),
+        Err(_) => pdfover_core_api::logging::init(
+            &pdfover_config::Paths::under(&std::env::temp_dir()),
+            &pdfover_core_api::logging::LogOptions { level, stderr: true, file: false },
+        ),
+    };
     let code = run(config_file, cli);
-    std::process::exit(code as i32);
+    drop(_log);
+    std::process::exit(code.code());
 }
 
 #[cfg(test)]
@@ -419,5 +485,208 @@ mod tests {
     fn question_mark_is_help() {
         let n = normalize_args(["pdfover-cli", "-?"]);
         assert_eq!(n[1], OsString::from("--help"));
+        assert!(wants_help(&n));
+        assert!(wants_help(&normalize_args(["pdfover-cli", "x.pdf", "-h"])));
+        assert!(!wants_help(&normalize_args(["pdfover-cli", "x.pdf"])));
+    }
+}
+
+/// Ablauf der CLI mit Fake-Engine (pades ist in dieser Welle noch Stub) und echtem Keystore.
+#[cfg(test)]
+mod run_tests {
+    use std::path::Path;
+
+    use pdfover_core_api::CoreOptions;
+    use pdfover_core_api::testing::{FakeEngine, verify_fake_output};
+    use pdfover_workflow::ExitCode;
+
+    use super::*;
+    use crate::session::RunEnv;
+    use crate::term::Scripted;
+
+    const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata");
+
+    struct Fx {
+        tmp: tempfile::TempDir,
+    }
+
+    impl Fx {
+        fn new() -> Fx {
+            pdfover_i18n::Lang::set_system(Some(pdfover_i18n::Lang::De));
+            Fx { tmp: tempfile::tempdir().unwrap() }
+        }
+
+        fn pdf(&self, name: &str) -> PathBuf {
+            let dir = self.tmp.path().join("in");
+            std::fs::create_dir_all(&dir).unwrap();
+            let p = dir.join(name);
+            std::fs::copy(Path::new(TESTDATA).join("pdf/generated/simple-xref-table.pdf"), &p).unwrap();
+            p
+        }
+
+        fn run(&self, args: &[&str], term: Arc<Scripted>) -> ExitCode {
+            let mut v = vec!["pdfover-cli"];
+            v.extend_from_slice(args);
+            let (config_file, cli) = parse(v).expect("parse");
+            let env = RunEnv {
+                term,
+                paths: Some(pdfover_config::Paths::under(&self.tmp.path().join("app"))),
+                options: CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() },
+            };
+            run_with(config_file, cli, env)
+        }
+    }
+
+    fn ks() -> String {
+        format!("{TESTDATA}/keystores/test-rsa2048.p12")
+    }
+
+    #[test]
+    fn headless_keystore_signing_with_json() {
+        let fx = Fx::new();
+        let a = fx.pdf("a.pdf");
+        let b = fx.pdf("b.pdf");
+        let term = Arc::new(Scripted::new(false, &[]));
+        let ks = ks();
+        let code = fx.run(
+            &["--headless", "--json", "-ks", &ks, "-kspass", "test", a.to_str().unwrap(), "-i", b.to_str().unwrap()],
+            term.clone(),
+        );
+        assert_eq!(code, ExitCode::Success, "{}", term.stderr());
+        let original = std::fs::read(&a).unwrap();
+        verify_fake_output(&a.with_file_name("a_signed.pdf"), &original);
+        verify_fake_output(&b.with_file_name("b_signed.pdf"), &original);
+        let json: serde_json::Value = serde_json::from_str(&term.stdout()).unwrap();
+        assert_eq!(json["exit_code"], 0);
+        assert_eq!(json["documents"].as_array().unwrap().len(), 2);
+        assert_eq!(json["documents"][0]["result"], "signed");
+    }
+
+    #[test]
+    fn sign_subcommand_with_folder_and_output() {
+        let fx = Fx::new();
+        let a = fx.pdf("a.pdf");
+        fx.pdf("b.pdf");
+        let out = fx.tmp.path().join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        let term = Arc::new(Scripted::new(false, &[]));
+        let ks = ks();
+        let dir = a.parent().unwrap().to_str().unwrap().to_owned();
+        let code = fx.run(
+            &["sign", "-ks", &ks, "-kspass", "test", "-o", out.to_str().unwrap(), "-v", "true", &dir],
+            term.clone(),
+        );
+        assert_eq!(code, ExitCode::Success, "{}", term.stderr());
+        assert!(out.join("a_signed.pdf").is_file() && out.join("b_signed.pdf").is_file());
+        assert!(term.stdout().contains("signiert"), "{}", term.stdout());
+    }
+
+    #[test]
+    fn interactive_keystore_password_prompt() {
+        let fx = Fx::new();
+        let a = fx.pdf("a.pdf");
+        let term = Arc::new(Scripted::new(true, &["falsch", "test"]));
+        let ks = ks();
+        let code = fx.run(&["-ks", &ks, a.to_str().unwrap()], term.clone());
+        assert_eq!(code, ExitCode::Success, "{}", term.stderr());
+        let prompts = term.prompts.lock().unwrap().clone();
+        assert_eq!(prompts.len(), 2, "{prompts:?}");
+        assert!(prompts[0].contains("test-rsa2048.p12"));
+        assert!(term.stderr().contains("Passwort falsch"), "{}", term.stderr());
+    }
+
+    #[test]
+    fn existing_output_overwrite_question() {
+        let fx = Fx::new();
+        let a = fx.pdf("a.pdf");
+        let target = a.with_file_name("a_signed.pdf");
+        std::fs::write(&target, b"alt").unwrap();
+        let ks = ks();
+        // ohne Terminal: nicht überschreiben → abgebrochen
+        let term = Arc::new(Scripted::new(false, &[]));
+        let code = fx.run(&["-ks", &ks, "-kspass", "test", a.to_str().unwrap()], term.clone());
+        assert_eq!(code, ExitCode::Cancelled);
+        assert_eq!(std::fs::read(&target).unwrap(), b"alt");
+        // mit Terminal: „j“ → überschrieben
+        let term = Arc::new(Scripted::new(true, &["j"]));
+        let code = fx.run(&["-ks", &ks, "-kspass", "test", a.to_str().unwrap()], term.clone());
+        assert_eq!(code, ExitCode::Success, "{}", term.stderr());
+        verify_fake_output(&target, &std::fs::read(&a).unwrap());
+    }
+
+    #[test]
+    fn usage_errors() {
+        let fx = Fx::new();
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&[], term.clone()), ExitCode::Usage);
+        assert!(term.stderr().contains("Kein Dokument"), "{}", term.stderr());
+        let a = fx.pdf("a.pdf");
+        let a = a.to_str().unwrap();
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&["-c", "fehlt.config", a], term.clone()), ExitCode::Usage);
+        assert!(term.stderr().contains("fehlt.config"), "{}", term.stderr());
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&["-kspass", "a", "-kskeypass", "b", a], term.clone()), ExitCode::Usage);
+        assert!(term.stderr().contains("-kskeypass"), "{}", term.stderr());
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&["-p", "kurz", a], term), ExitCode::Usage);
+    }
+
+    #[test]
+    fn wrong_password_headless_reports_failure() {
+        let fx = Fx::new();
+        let a = fx.pdf("a.pdf");
+        let term = Arc::new(Scripted::new(false, &[]));
+        let ks = ks();
+        let code = fx.run(&["--headless", "-ks", &ks, "-kspass", "falsch", a.to_str().unwrap()], term.clone());
+        assert_eq!(code, ExitCode::Backend);
+        assert!(term.stderr().contains("Passwort ist falsch"), "{}", term.stderr());
+    }
+
+    #[test]
+    fn subcommands() {
+        let fx = Fx::new();
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&["profiles"], term.clone()), ExitCode::Success);
+        assert_eq!(term.out.lock().unwrap().len(), 12);
+        let term = Arc::new(Scripted::new(false, &[]));
+        let signed = format!("{TESTDATA}/pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf");
+        assert_eq!(fx.run(&["--json", "verify", &signed], term.clone()), ExitCode::Success);
+        let v: serde_json::Value = serde_json::from_str(&term.stdout()).unwrap();
+        assert_eq!(v["valid"], true);
+        let out = fx.tmp.path().join("block.pdf");
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(
+            fx.run(&["render-block", "--profile", "SIGNATURBLOCK_SMALL_EN", out.to_str().unwrap()], term.clone()),
+            ExitCode::Success
+        );
+        assert!(std::fs::read(&out).unwrap().starts_with(b"%PDF-"));
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&["render-block", "--profile", "NEIN", out.to_str().unwrap()], term), ExitCode::Usage);
+    }
+
+    #[test]
+    fn migrate_dry_run_and_apply() {
+        let fx = Fx::new();
+        let legacy = fx.tmp.path().join("legacy");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::copy(Path::new(TESTDATA).join("config/pdf-over-generated-de.config"), legacy.join("PDF-Over.config"))
+            .unwrap();
+        let settings = fx.tmp.path().join("app/config/settings.toml");
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(
+            fx.run(&["migrate", "--from", legacy.to_str().unwrap(), "--dry-run"], term.clone()),
+            ExitCode::Success
+        );
+        assert!(!settings.exists());
+        assert!(term.stdout().contains("Probelauf"), "{}", term.stdout());
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&["migrate", "--from", legacy.to_str().unwrap()], term.clone()), ExitCode::Success);
+        let s = pdfover_config::Settings::from_toml(&std::fs::read_to_string(&settings).unwrap()).unwrap();
+        assert_eq!(s.id_austria.username.as_deref(), Some("+436641234567"));
+        let term = Arc::new(Scripted::new(false, &[]));
+        let empty = fx.tmp.path().join("leer");
+        std::fs::create_dir_all(&empty).unwrap();
+        assert_eq!(fx.run(&["migrate", "--from", empty.to_str().unwrap()], term), ExitCode::Usage);
     }
 }
