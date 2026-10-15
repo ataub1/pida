@@ -1,0 +1,4 @@
+# Vom Build-Skript (tauri-plugin) kopierte Tauri-API für Swift bzw. Gradle
+/.tauri
+/android/.tauri
+/android/build

@@ -4,6 +4,7 @@
 use std::collections::BTreeSet;
 
 const CAPABILITIES: &str = include_str!("../capabilities/default.json");
+const MOBILE_CAPABILITIES: &str = include_str!("../capabilities/mobile.json");
 const TAURI_CONF: &str = include_str!("../tauri.conf.json");
 
 fn json(text: &str) -> serde_json::Value {
@@ -26,6 +27,7 @@ fn permission_ids(caps: &serde_json::Value) -> BTreeSet<String> {
 fn capabilities_are_minimal() {
     let caps = json(CAPABILITIES);
     assert_eq!(caps["windows"], serde_json::json!(["main"]), "nur das Hauptfenster");
+    assert_eq!(caps["platforms"], serde_json::json!(["linux", "macOS", "windows"]), "nur Desktop");
     assert!(caps.get("remote").is_none(), "keine Remote-URLs mit IPC-Zugriff");
     let ids = permission_ids(&caps);
     let expected: BTreeSet<String> = [
@@ -50,6 +52,38 @@ fn capabilities_are_minimal() {
         assert!(!id.ends_with(":default"), "keine Sammelberechtigung {id}");
     }
     // Links nur https/mailto (kein file:, kein http:, keine Programme)
+    let opener = caps["permissions"]
+        .as_array()
+        .and_then(|list| list.iter().find(|p| p["identifier"] == "opener:allow-open-url"))
+        .expect("opener-Eintrag");
+    assert_eq!(opener["allow"], serde_json::json!([{ "url": "https://*" }, { "url": "mailto:*" }]));
+}
+
+/// Mobile (iOS/Android): noch weniger als der Desktop – kein Dateidialog, kein Log-Ordner, kein
+/// Dateimanager, keine DevTools; Dateiauswahl nur über den eigenen Befehl (Kopie in die Sandbox). Das
+/// Plugin `pdfover-mobile` hat keine Befehle für die Oberfläche (sicherer Speicher nie aus der WebView).
+#[test]
+fn mobile_capabilities_are_minimal() {
+    let caps = json(MOBILE_CAPABILITIES);
+    assert_eq!(caps["windows"], serde_json::json!(["main"]));
+    assert_eq!(caps["platforms"], serde_json::json!(["iOS", "android"]));
+    assert!(caps.get("remote").is_none());
+    let ids = permission_ids(&caps);
+    let expected: BTreeSet<String> = [
+        "core:event:allow-listen",
+        "core:event:allow-unlisten",
+        "allow-core-view",
+        "allow-core-dispatch",
+        "allow-app-info",
+        "allow-open-notices",
+        "allow-mobile-pick-files",
+        "opener:allow-open-url",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(ids, expected);
+    assert!(ids.iter().all(|id| !id.starts_with("pdfover-mobile:")), "Plugin ohne WebView-Befehle");
     let opener = caps["permissions"]
         .as_array()
         .and_then(|list| list.iter().find(|p| p["identifier"] == "opener:allow-open-url"))

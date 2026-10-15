@@ -107,7 +107,7 @@ proptest! {
     /// Beliebige Ereignisfolgen: der Reducer paniert nie, die Warteschlange enthält keine Duplikate
     /// und ohne Oberfläche wird nie ein Dialog-Effekt erzeugt.
     #[test]
-    fn reducer_is_total_and_keeps_queue_consistent(events in prop::collection::vec(0u8..28, 0..60), headless in any::<bool>()) {
+    fn reducer_is_total_and_keeps_queue_consistent(events in prop::collection::vec(0u8..33, 0..60), headless in any::<bool>()) {
         let ctx = Context { headless, placeholder_search: true, ..Context::default() };
         let mut state = State::Starting;
         let mut next_id = 1u64;
@@ -144,9 +144,29 @@ proptest! {
                 24 => Event::WarningAnswered(e % 2 == 0),
                 25 => Event::WarningAnswered(true),
                 26 => Event::PageChanged(0),
+                // Mobile-Lebenszyklus (Plan §3.5): App-Wechsel, „Signatur fortsetzen“, Teilen/Exportieren
+                28 => Event::Backgrounded,
+                29 => Event::Foregrounded,
+                30 => {
+                    next_id += 1;
+                    let plan = pdfover_workflow::ResumePlan {
+                        position: pdfover_workflow::PositionChoice::Auto,
+                        backend: pdfover_backend_api::BackendId::Keystore,
+                    };
+                    Event::ResumeRequested { document: doc(next_id), plan, pending: vec![doc(1)] }
+                }
+                31 => Event::ShareResultRequested,
+                32 => Event::ExportResultRequested,
                 _ => Event::Navigate(Step::Signing),
             };
+            let lifecycle = matches!(event, Event::Backgrounded | Event::Foregrounded);
+            let before = state.clone();
             let t = reduce(state, event, &ctx);
+            if lifecycle {
+                // ein App-Wechsel ändert nie etwas (kein Abbruch)
+                prop_assert_eq!(&t.state, &before);
+                prop_assert!(t.effects.is_empty());
+            }
             if headless {
                 for eff in &t.effects {
                     let dialog = matches!(eff, Effect::AskSavePath(_));

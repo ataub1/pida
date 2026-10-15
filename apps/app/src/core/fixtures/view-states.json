@@ -3,6 +3,7 @@
     "name": "starting",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -31,6 +32,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "step": "starting"
@@ -41,6 +47,7 @@
     "name": "open_empty",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -69,6 +76,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "queue": [],
@@ -80,6 +92,7 @@
     "name": "open_queue",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -108,6 +121,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "queue": [
@@ -130,6 +148,7 @@
     "name": "loading",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -158,6 +177,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "queue": [
@@ -180,6 +204,7 @@
     "name": "warning",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -208,6 +233,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "codes": [
@@ -274,6 +304,7 @@
           }
         }
       ],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -318,6 +349,11 @@
           }
         }
       ],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "queue": [],
@@ -329,6 +365,7 @@
     "name": "placeholder_fields",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -357,6 +394,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "doc": {
@@ -394,6 +436,7 @@
     "name": "placeholder_qr",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -422,6 +465,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "doc": {
@@ -453,6 +501,7 @@
     "name": "position",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -481,13 +530,18 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "announce": {
-          "bottom": "74",
           "left": "105",
           "page": "2",
-          "pages": "2"
+          "pages": "2",
+          "top": "120"
         },
         "block": {
           "height": 82.0,
@@ -527,6 +581,7 @@
     "name": "position_new_page",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -555,6 +610,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "announce": {},
@@ -596,6 +656,7 @@
     "name": "backend",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -624,6 +685,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "options": [
@@ -648,12 +714,14 @@
               "qualification": "Qes",
               "server": "None"
             },
-            "id": "atrust_native"
+            "id": "atrust_native",
+            "notes": []
           },
           {
             "available": false,
             "capabilities": null,
-            "id": "local_bku"
+            "id": "local_bku",
+            "notes": []
           },
           {
             "available": true,
@@ -683,12 +751,14 @@
               "qualification": "Unknown",
               "server": "None"
             },
-            "id": "keystore"
+            "id": "keystore",
+            "notes": []
           },
           {
             "available": false,
             "capabilities": null,
-            "id": "csc"
+            "id": "csc",
+            "notes": []
           }
         ],
         "privacy_notice": null,
@@ -700,6 +770,7 @@
     "name": "backend_privacy",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -728,6 +799,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "options": [
@@ -752,7 +828,8 @@
               "qualification": "Qes",
               "server": "None"
             },
-            "id": "atrust_native"
+            "id": "atrust_native",
+            "notes": []
           }
         ],
         "privacy_notice": {
@@ -768,6 +845,7 @@
     "name": "waiting_connecting",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -796,6 +874,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -822,6 +905,7 @@
     "name": "waiting_certificate",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -850,6 +934,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -876,6 +965,7 @@
     "name": "waiting_server",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -904,6 +994,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -930,6 +1025,7 @@
     "name": "waiting_signing",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -958,6 +1054,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -984,6 +1085,7 @@
     "name": "waiting_document",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1012,6 +1114,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1043,6 +1150,7 @@
     "name": "waiting_done",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1071,6 +1179,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1097,6 +1210,7 @@
     "name": "form_login",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1125,6 +1239,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1164,6 +1283,7 @@
     "name": "form_login_too_short",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1192,6 +1312,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1231,6 +1356,7 @@
     "name": "form_login_too_long",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1259,6 +1385,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1298,6 +1429,7 @@
     "name": "form_login_rejected",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1326,6 +1458,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1365,6 +1502,7 @@
     "name": "form_login_atrust",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1393,6 +1531,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1434,6 +1577,7 @@
     "name": "form_login_fido2_error",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1462,6 +1606,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1506,6 +1655,7 @@
     "name": "form_sms",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1534,6 +1684,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1572,6 +1727,7 @@
     "name": "form_sms_no_tan",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1600,6 +1756,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1638,6 +1799,7 @@
     "name": "form_sms_too_long",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1666,6 +1828,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1704,6 +1871,7 @@
     "name": "form_sms_reference",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1732,6 +1900,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1770,6 +1943,7 @@
     "name": "form_qr",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1798,6 +1972,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1846,6 +2025,7 @@
     "name": "form_qr_failed",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1874,6 +2054,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1914,6 +2099,7 @@
     "name": "form_app",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -1942,6 +2128,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -1981,6 +2172,7 @@
     "name": "form_app_no_reference",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2009,6 +2201,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2048,6 +2245,7 @@
     "name": "form_fido2",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2076,6 +2274,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2114,6 +2317,7 @@
     "name": "form_fido2_failed",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2142,6 +2346,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2182,6 +2391,7 @@
     "name": "secret_keystore",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2210,6 +2420,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2241,6 +2456,7 @@
     "name": "secret_key_retry",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2269,6 +2485,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2300,6 +2521,7 @@
     "name": "secret_proxy",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2328,6 +2550,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2359,6 +2586,7 @@
     "name": "secret_fido2_pin",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2387,6 +2615,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2418,6 +2651,7 @@
     "name": "notice_interstitial",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2446,6 +2680,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2478,6 +2717,7 @@
     "name": "notice_atrust_error",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2506,6 +2746,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2538,6 +2783,7 @@
     "name": "notice_proxy",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2566,6 +2812,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2598,6 +2849,7 @@
     "name": "notice_too_large",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2626,6 +2878,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2658,6 +2915,7 @@
     "name": "notice_http",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2686,6 +2944,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2722,6 +2985,7 @@
     "name": "notice_connection",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2750,6 +3014,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2782,6 +3051,7 @@
     "name": "notice_local_bku",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2810,6 +3080,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2842,6 +3117,7 @@
     "name": "notice_keystore_missing",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2870,6 +3146,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2902,6 +3183,7 @@
     "name": "notice_alias_missing",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2930,6 +3212,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -2962,6 +3249,7 @@
     "name": "notice_keystore",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -2990,6 +3278,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -3022,6 +3315,7 @@
     "name": "notice_conversion",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -3050,6 +3344,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "interaction": {
@@ -3082,6 +3381,7 @@
     "name": "output_saved",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -3110,6 +3410,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "next": null,
@@ -3127,6 +3432,7 @@
     "name": "output_pending_next",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -3155,6 +3461,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "next": {
@@ -3187,6 +3498,7 @@
     "name": "output_ask_overwrite",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -3215,6 +3527,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "next": null,
@@ -3232,6 +3549,7 @@
     "name": "output_save_dialog",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -3260,6 +3578,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "next": null,
@@ -3280,6 +3603,7 @@
     "name": "error",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": true,
@@ -3308,6 +3632,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "code": "error-MayNotBeAPDF",
@@ -3323,6 +3652,7 @@
     "name": "finished",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -3351,6 +3681,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": null,
       "step": {
         "exit_code": 4,
@@ -3362,6 +3697,7 @@
     "name": "settings_open",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "en",
       "main_bar": {
         "settings_enabled": false,
@@ -3390,6 +3726,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": {
         "fido2_available": false,
         "keychain_available": true,
@@ -3469,6 +3810,7 @@
     "name": "settings_defaults",
     "view": {
       "done": [],
+      "keystore_import": null,
       "language": "de",
       "main_bar": {
         "settings_enabled": false,
@@ -3497,6 +3839,11 @@
       },
       "migration": null,
       "notices": [],
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "resume": null,
       "settings": {
         "fido2_available": true,
         "keychain_available": false,
@@ -3559,6 +3906,179 @@
           }
         }
       },
+      "step": {
+        "queue": [],
+        "step": "open"
+      }
+    }
+  },
+  {
+    "name": "mobile_backend",
+    "view": {
+      "done": [],
+      "keystore_import": null,
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "platform": {
+        "mobile": true,
+        "os": "android"
+      },
+      "resume": null,
+      "settings": null,
+      "step": {
+        "options": [
+          {
+            "available": true,
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": false,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "id": "atrust_native",
+            "notes": [
+              "ng-fido2-unavailable-mobile"
+            ]
+          }
+        ],
+        "privacy_notice": null,
+        "step": "backend"
+      }
+    }
+  },
+  {
+    "name": "mobile_resume_offer",
+    "view": {
+      "done": [],
+      "keystore_import": null,
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "platform": {
+        "mobile": true,
+        "os": "ios"
+      },
+      "resume": {
+        "age_minutes": 3,
+        "backend": "atrust_native",
+        "name": "Vertrag.pdf",
+        "pending": 1
+      },
+      "settings": null,
+      "step": {
+        "queue": [],
+        "step": "open"
+      }
+    }
+  },
+  {
+    "name": "mobile_keystore_imported",
+    "view": {
+      "done": [],
+      "keystore_import": {
+        "code": "ng-keystore-imported",
+        "file_name": "test.p12",
+        "ok": true,
+        "password_stored": true
+      },
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "platform": {
+        "mobile": true,
+        "os": "android"
+      },
+      "resume": null,
+      "settings": null,
       "step": {
         "queue": [],
         "step": "open"

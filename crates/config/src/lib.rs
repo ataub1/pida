@@ -10,7 +10,8 @@
 //! - [`Overlay`]: CLI-Overlays, die nie persistiert werden, mit den Vorrangregeln aus
 //!   docs/analyse/05 §1.4 ([`Effective`]); [`source`]: `-c <name>` inklusive Altdateien.
 //! - [`Policy`]: verwaltete Richtlinien (nur lesend).
-//! - [`secrets`]: OS-Schlüsselbund bzw. RAM; das ID-Austria-Passwort hat **keinen** [`SecretId`]
+//! - [`secrets`]: OS-Schlüsselbund bzw. RAM, auf Mobile der sichere Speicher der Shell
+//!   ([`ShellSecretStore`] über [`SecureStorage`]); das ID-Austria-Passwort hat **keinen** [`SecretId`]
 //!   und kann damit strukturell nicht persistiert werden (Vorgabe des Auftraggebers).
 //! - [`CertificateCache`]: Opt-in-Cache öffentlicher Signaturzertifikate.
 //!
@@ -40,7 +41,8 @@ pub use overlay::{Effective, Overlay};
 pub use paths::Paths;
 pub use policy::Policy;
 pub use secrets::{
-    KeyringSecretStore, MemorySecretStore, MobileSecretStorePlaceholder, SecretId, SecretStore, platform_secret_store,
+    KeyringSecretStore, MemorySecretStore, MobileSecretStorePlaceholder, SecretId, SecretStore, SecureStorage,
+    ShellSecretStore, platform_secret_store,
 };
 pub use settings::{
     BackendChoice, BackendSettings, CertificateCacheSettings, CmsProfileChoice, GeneralSettings, IdAustriaSettings,

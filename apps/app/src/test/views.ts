@@ -3,6 +3,7 @@ import { defaultSettings, mainBar } from '../core/defaults';
 import type {
   BackendOptionView,
   DocInfo,
+  PlatformView,
   FormContext,
   InteractionView,
   Lang,
@@ -46,6 +47,11 @@ const BARS: Record<StepView['step'], [string, string, string, string]> = {
   finished: ['', '', '', ''],
 };
 
+/** Plattform der Tests (Standard: Desktop). */
+export const DESKTOP: PlatformView = { os: 'macos', mobile: false };
+export const IOS: PlatformView = { os: 'ios', mobile: true };
+export const ANDROID: PlatformView = { os: 'android', mobile: true };
+
 export function viewOf(step: StepView, extra: Partial<ViewState> = {}): ViewState {
   const settingsEnabled = !['starting', 'signing', 'finished'].includes(step.step);
   return {
@@ -56,11 +62,20 @@ export function viewOf(step: StepView, extra: Partial<ViewState> = {}): ViewStat
     notices: [],
     migration: null,
     done: [],
+    platform: DESKTOP,
+    resume: null,
+    keystore_import: null,
     ...extra,
   };
 }
 
+/** Derselbe Zustand auf einer Mobile-Plattform. */
+export function onMobile(view: ViewState, platform: PlatformView = IOS): ViewState {
+  return { ...view, platform };
+}
+
 export function positionView(extra: Partial<Extract<StepView, { step: 'position' }>> = {}, lang: Lang = 'de'): ViewState {
+  // Live-Region: linke Kante 297,64 pt ≈ 105 mm, Oberkante 210,47 pt ≈ 74 mm (wie das Feld Y)
   return viewOf(
     {
       step: 'position',

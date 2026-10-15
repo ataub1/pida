@@ -180,10 +180,12 @@ fn system_candidates() -> Vec<(String, PathBuf)> {
 
 /// Darf die Bibliothek über ihren bloßen Dateinamen gesucht werden? Unter Linux/Android sucht
 /// `ld.so` nur in `LD_LIBRARY_PATH`, `RUNPATH`, `ld.so.cache` und den Standardverzeichnissen
-/// (nie im Arbeitsverzeichnis); macOS und Windows nutzen stattdessen [`system_candidates`].
-const LEAF_NAME_SEARCH: bool = !cfg!(any(target_os = "macos", windows));
-// Regression (CWE-427): auf macOS/Windows nie nach dem bloßen Dateinamen suchen.
-#[cfg(any(target_os = "macos", windows))]
+/// (nie im Arbeitsverzeichnis) – unter Android gehört dazu `nativeLibraryDir` der App
+/// (`jniLibs`, wie `System.loadLibrary`); macOS und Windows nutzen stattdessen [`system_candidates`],
+/// iOS nur das App-Bundle.
+const LEAF_NAME_SEARCH: bool = !cfg!(any(target_os = "macos", target_os = "ios", windows));
+// Regression (CWE-427): auf macOS/iOS/Windows nie nach dem bloßen Dateinamen suchen.
+#[cfg(any(target_os = "macos", target_os = "ios", windows))]
 const _: () = assert!(!LEAF_NAME_SEARCH);
 
 fn bind_library(library_dir: Option<&Path>) -> Result<Library> {
@@ -194,17 +196,18 @@ fn bind_library(library_dir: Option<&Path>) -> Result<Library> {
     };
     let mut tried = Vec::new();
     for (label, dir) in &candidates {
-        let path = dir.join(&file_name);
-        if !path.is_file() {
-            tried.push(format!("{label}: {} (nicht vorhanden)", path.display()));
-            continue;
-        }
-        match bind_pair(|| Pdfium::bind_to_library(&path)) {
-            Ok((main, raw)) => {
-                let build = read_build(dir);
-                return Ok(Library { pdfium: Pdfium::new(main), raw, path: Some(path), build });
+        for path in crate::library_paths_in(dir) {
+            if !path.is_file() {
+                tried.push(format!("{label}: {} (nicht vorhanden)", path.display()));
+                continue;
             }
-            Err(e) => tried.push(format!("{label}: {} ({e})", path.display())),
+            match bind_pair(|| Pdfium::bind_to_library(&path)) {
+                Ok((main, raw)) => {
+                    let build = read_build(dir);
+                    return Ok(Library { pdfium: Pdfium::new(main), raw, path: Some(path), build });
+                }
+                Err(e) => tried.push(format!("{label}: {} ({e})", path.display())),
+            }
         }
     }
     if library_dir.is_none() && LEAF_NAME_SEARCH {
@@ -663,6 +666,21 @@ mod tests {
         for (label, dir) in system_candidates() {
             assert!(dir.is_absolute(), "{label}: {}", dir.display());
         }
+    }
+
+    #[test]
+    fn library_paths_per_platform() {
+        let dir = Path::new("/bundle/Frameworks");
+        let paths = crate::library_paths_in(dir);
+        assert_eq!(paths.last(), Some(&dir.join(crate::library_file_name())));
+        assert_eq!(crate::library_file_name(), Pdfium::pdfium_platform_library_name().to_string_lossy());
+        if cfg!(target_os = "ios") {
+            assert_eq!(paths.first(), Some(&dir.join("pdfium.framework/pdfium")));
+        } else {
+            assert_eq!(paths.len(), 1);
+        }
+        // Mobile: iOS nur aus dem Bundle, Android über den Linker-Namensraum (nativeLibraryDir)
+        assert_eq!(LEAF_NAME_SEARCH, !cfg!(any(target_os = "macos", target_os = "ios", windows)));
     }
 
     #[test]

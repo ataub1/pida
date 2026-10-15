@@ -31,15 +31,35 @@
 //! | `position` | Seite (`pdfover-render://` → [`Core::page_tile`]), Block ([`Core::block_preview`], `preview_revision`), `announce` | `move_block`, `nudge_block`, `change_page`, `toggle_new_page`, `auto_place`, `confirm_position`, `choose_invisible` |
 //! | `backend` | Optionen; `privacy_notice` = Datenschutzhinweis | `choose_backend`, `acknowledge_privacy{accepted}` |
 //! | `signing` | `interaction`: `waiting`/`form`/`secret`/`notice` | `submit_form`, `submit_secret`, `answer_notice`, `open_signature_data`, `cancel` |
-//! | `output` | Ergebnis; `ask_overwrite` = Rückfrage, `save_dialog` = Speichern-Dialog öffnen, `save_pending` = Knopf „Speichern“ | `confirm_overwrite`, `save{path}` (`null` = Dialog abgebrochen bzw. Knopf), `open_result`, `navigate` |
+//! | `output` | Ergebnis; `ask_overwrite` = Rückfrage, `save_dialog` = Speichern-Dialog öffnen, `save_pending` = Knopf „Speichern“ | `confirm_overwrite`, `save{path}` (`null` = Dialog abgebrochen bzw. Knopf), `open_result`, `share_result`/`export_result` (Mobile), `navigate` |
 //! | `error` | `code` + `params` (i18n), `retry` | `retry`, `cancel` |
 //! | `finished` | Exit-Code | – |
 //!
 //! Querschnitt: `notices` (Hinweise ohne Rückfrage, `dismiss_notice{id}`), `migration`
 //! (`accept_migration{store_secrets}`/`decline_migration`), `settings` (Overlay: `open_settings`,
 //! `save_settings{settings}` – unbekannte Keys unverändert zurückgeben –, `close_settings`,
-//! `reset_settings`), `done` (Ergebnisliste), `main_bar` (Matrix docs/analyse/01 §3.5).
-//! Dateien öffnen bzw. URLs im Browser übernimmt die Shell über [`ShellHooks`] ([`Core::set_shell`]).
+//! `reset_settings`), `done` (Ergebnisliste), `main_bar` (Matrix docs/analyse/01 §3.5), `platform`
+//! (Desktop/Mobile), `resume` („Signatur fortsetzen“: `resume_signature`/`discard_resume`),
+//! `keystore_import` (Ergebnis von `import_keystore{path, password, remember}`, schließen mit
+//! `dismiss_keystore_import`). Lebenszyklus: `backgrounded`/`foregrounded` (kein Abbruch).
+//! Dateien öffnen bzw. URLs im Browser, Teilen und Exportieren übernimmt die Shell über [`ShellHooks`]
+//! ([`Core::set_shell`]).
+//!
+//! # Mobile (Plan §3.5, §5.2; docs/integration/mobile.md)
+//!
+//! - **Lebenszyklus:** `UiEvent::Backgrounded`/`Foregrounded` sind kein Abbruch. Nach der Rückkehr
+//!   beantwortet der Kern eine wartende App-/QR-Maske mit „weiter“ – das Backend lädt die A-Trust-Seite
+//!   neu und startet den Long-Poll frisch (die alte Verbindung hat das System oft getrennt).
+//! - **Persistenz:** mit [`CoreOptions::persist_prepared`] (Standard auf iOS/Android) sichert der Kern
+//!   nach `prepare` den vorbereiteten Zustand in der Sandbox (`resume`-Modul, `pades::Prepared::persist`);
+//!   nach einem App-Kill bietet er „Signatur fortsetzen“ an und stellt das Dokument mit
+//!   `Prepared::restore` wieder her. `Effect::DeletePersisted` löscht ihn nach Erfolg/Abbruch/Fehler.
+//! - **Ausgabe:** [`CoreOptions::default_output_dir`] (App-Dokumente) statt Speichern-Dialog;
+//!   Teilen/Exportieren über [`ShellHooks::share_path`]/[`ShellHooks::export_path`].
+//! - **Signiermittel:** keine lokale BKU; FIDO2 nur mit Hinweis `ng-fido2-unavailable-mobile`
+//!   (`BackendOptionView::notes`); PKCS#12 nur nach Import in die Sandbox (`import_keystore`).
+//! - **Secrets:** die Shell setzt [`CoreOptions::secret_store`] auf `pdfover_config::ShellSecretStore`
+//!   (Keychain bzw. Android Keystore); das ID-Austria-Passwort wird nie persistiert.
 //!
 //! # Vertrag Kern ↔ Oberfläche (Welle 3)
 //!
@@ -54,7 +74,7 @@
 //! | `ViewState.notification` (ein Toast mit `id`) | ersetzt durch [`ViewState::notices`] (Liste, älteste zuerst, schließen mit `dismiss_notice{id}`) – mehrere Hinweise gehen nicht verloren |
 //! | `UiEvent::ChooseInvisible` | übernommen: [`UiEvent::ChooseInvisible`] → `Event::InvisibleChosen` → unsichtbare Signatur nur für dieses Dokument |
 //! | Schlüssel von `SettingsView::problems` | TOML-Punktpfade der Felder (`proxy.host`, `output.folder`, `keystore.file`, `signature.emblem` …) |
-//! | `Position.announce` | Schlüssel `page`, `pages`, `left`, `bottom` (mm, ganzzahlig) |
+//! | `Position.announce` | Schlüssel `page`, `pages`, `left` (linke Kante), `top` (Oberkante von unten, wie das Feld Y; mm, ganzzahlig) |
 //! | Migrationsassistent | [`MigrationOfferView::plaintext_secrets`] ergänzt: die UI fragt nur dann nach der Übernahme der Passwörter in den Schlüsselbund |
 //!
 //! Ownership: **Integration**.
@@ -67,6 +87,7 @@ pub mod engine;
 pub mod logging;
 pub mod messages;
 pub mod plan;
+mod resume;
 mod runtime;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
@@ -82,9 +103,10 @@ pub use backends::{SecretStoreCache, password_storage};
 pub use broker::ShellHooks;
 pub use config::PRIVACY_TEXT_VERSION;
 pub use view::{
-    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, FormAnswerView, InteractionView, MainBarView,
-    MigrationOfferView, NoticeView, OutputView, PrivacyNoticeView, QrInfo, QueueItemView, SaveDialogView, SettingsView,
-    StepView, UiEvent, ViewState,
+    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, FormAnswerView, InteractionView,
+    KeystoreImportView, MainBarView, MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView,
+    PrivacyNoticeView, QrInfo, QueueItemView, ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent,
+    ViewState,
 };
 
 use pdfover_backend_api::{Platform, SignatureBackend};
@@ -192,6 +214,12 @@ pub struct CoreOptions {
     pub probe_local_bku: bool,
     /// Budget des Kachel-Caches in Bytes
     pub tile_cache_bytes: usize,
+    /// Vorbereiteten Zustand für „Signatur fortsetzen“ in der Sandbox sichern (Mobile-Lebenszyklus,
+    /// Plan §3.5). `None` = nach Plattform (iOS/Android ja, Desktop nein).
+    pub persist_prepared: Option<bool>,
+    /// Ausgabeordner, wenn weder Overlay noch Einstellung einen nennen (Mobile: App-Dokumente, dann ohne
+    /// Speichern-Dialog; Teilen/Exportieren im Ergebnis-Screen). `None` = Speichern-Dialog (Desktop).
+    pub default_output_dir: Option<PathBuf>,
 }
 
 impl Default for CoreOptions {
@@ -213,6 +241,8 @@ impl Default for CoreOptions {
             detect_legacy_dir: true,
             probe_local_bku: true,
             tile_cache_bytes: 64 * 1024 * 1024,
+            persist_prepared: None,
+            default_output_dir: None,
         }
     }
 }
@@ -245,6 +275,7 @@ impl std::fmt::Debug for CoreOptions {
             .field("use_pdfium", &self.use_pdfium)
             .field("shell", &self.shell.is_some())
             .field("init_logging", &self.init_logging)
+            .field("persist_prepared", &self.persist_prepared)
             .finish_non_exhaustive()
     }
 }
@@ -271,7 +302,7 @@ impl std::fmt::Debug for Core {
     }
 }
 
-fn initial_view(lang: Lang) -> ViewState {
+fn initial_view(lang: Lang, platform: Platform) -> ViewState {
     ViewState {
         step: StepView::Starting,
         main_bar: MainBarView { steps: pdfover_workflow::State::Starting.main_bar().to_vec(), settings_enabled: false },
@@ -280,6 +311,9 @@ fn initial_view(lang: Lang) -> ViewState {
         notices: Vec::new(),
         migration: None,
         done: Vec::new(),
+        platform: PlatformView::from(platform),
+        resume: None,
+        keystore_import: None,
     }
 }
 
@@ -386,8 +420,13 @@ impl Core {
             options.backends.clone(),
             options.probe_local_bku,
         );
-        let (view_tx, view_rx) = watch::channel(initial_view(cfg.language()));
+        let (view_tx, view_rx) = watch::channel(initial_view(cfg.language(), config.platform));
         let (finished_tx, finished_rx) = watch::channel(None);
+        let mobile = runtime::MobileSetup {
+            platform: config.platform,
+            persist_prepared: options.persist_prepared.unwrap_or(!config.platform.is_desktop()) && !config.headless,
+            default_output_dir: options.default_output_dir.clone(),
+        };
         let task = CoreTask::new(
             shared.clone(),
             cfg,
@@ -397,6 +436,7 @@ impl Core {
             finished_tx,
             startup,
             fido2_available,
+            mobile,
         );
         handle.spawn(task.run(rx));
         Ok(Core { tx, view_rx, finished_rx, shared, runtime, _log: Mutex::new(log) })

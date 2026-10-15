@@ -106,6 +106,18 @@ impl Shell {
         *lock(&self.options) = options;
     }
 
+    /// Optionen für den nächsten Kernstart anpassen (Mobile: sicherer Speicher, App-Dokumente).
+    pub fn update_options(&self, f: impl FnOnce(&mut CoreOptions)) {
+        f(&mut lock(&self.options));
+    }
+
+    /// Sendet ein Ereignis aus der Shell selbst (Lebenszyklus); ohne Kern wird es verworfen.
+    pub fn dispatch(&self, event: UiEvent) {
+        if let Some(core) = self.core() {
+            let _ = catch_unwind(AssertUnwindSafe(|| core.dispatch(event)));
+        }
+    }
+
     /// Systemsprache aus dem Betriebssystem (`sys-locale`) für den Kern (`CoreOptions::system_language`).
     pub fn set_system_language(&self, lang: Option<Lang>) {
         lock(&self.options).system_language = lang;
@@ -321,6 +333,9 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         notices: Vec::new(),
         migration: None,
         done: Vec::new(),
+        platform: pdfover_core_api::PlatformView::default(),
+        resume: None,
+        keystore_import: None,
     }
 }
 
@@ -410,6 +425,20 @@ mod tests {
         assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "move_block", "page": "x" })), Err(EVENT_INVALID));
         assert_eq!(shell.render("/../x", None).status(), 404);
         assert_eq!(shell.render("/page/a/0", None).status(), 400);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Die Shell gibt Lebenszyklus-Ereignisse nur an einen laufenden Kern; Optionen gelten für den
+    /// nächsten Start.
+    #[test]
+    fn lifecycle_events_and_option_updates() {
+        let (shell, root) = test_shell();
+        shell.dispatch(UiEvent::Backgrounded); // ohne Kern: verworfen, keine Panik
+        shell.update_options(|o| o.default_output_dir = Some(root.join("Documents")));
+        assert_eq!(lock(&shell.options).default_output_dir, Some(root.join("Documents")));
+        let _ = shell.start();
+        shell.dispatch(UiEvent::Backgrounded);
+        shell.dispatch(UiEvent::Foregrounded);
         let _ = std::fs::remove_dir_all(root);
     }
 

@@ -206,7 +206,7 @@ describe('Einstellungen', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('tab', { name: 'FIDO2' }));
     await user.click(within(dialog).getByRole('checkbox', { name: 'FIDO2 standardmäßig auswählen' }));
-    await user.click(within(dialog).getByRole('button', { name: /Informationsseite der ID-Austria/ }));
+    await user.click(within(dialog).getByRole('link', { name: /Informationsseite der ID-Austria/ }));
     expect(mock.openedUrls).toEqual(['https://www.oesterreich.gv.at/id-austria/haeufige-fragen/allgemeines-zu-id-austria#fido']);
     await user.click(within(dialog).getByRole('button', { name: 'Speichern' }));
     expect(savedSettings(mock.dispatched).id_austria.fido2_default).toBe(true);
@@ -225,7 +225,7 @@ describe('Einstellungen', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('tab', { name: 'Über PDF-Over NG' }));
     expect(await within(dialog).findByText('Version 0.1.0')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: /software@egiz\.gv\.at/ }));
+    await user.click(within(dialog).getByRole('link', { name: /software@egiz\.gv\.at/ }));
     expect(mock.openedUrls).toEqual(['mailto:software@egiz.gv.at']);
     await user.click(within(dialog).getByRole('button', { name: /Log/ }));
     await waitFor(() => expect(mock.nativeCalls).toContain('openLogDir'));

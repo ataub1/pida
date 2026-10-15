@@ -7,10 +7,11 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use pdfover_backend_api::{
     BackendError, BackendEvent, BackendId, BackendSession, CancelToken, Capabilities, CertChain, DigestJob,
-    DocumentJob, DocumentSource, ExcludedByteRange, SessionContext, SignInput, SignJob, SignResult,
+    DocumentJob, DocumentSource, ExcludedByteRange, Platform, SessionContext, SignInput, SignJob, SignResult,
 };
 use pdfover_cades::{Expect, ExpectedSigner, SignedAttrs, SignedAttrsBuilder, SigningTime};
 use pdfover_config::{CertCacheKey, CertificateCache, Effective, Overlay, Policy, Settings};
@@ -21,7 +22,7 @@ use pdfover_render::RenderBackend;
 use pdfover_sigblock::{FontProvider, ProfileStore};
 use pdfover_workflow::{
     BackendOption, Context, DocId, Effect, Event, ExitCode, FsProbe, InputDocument, OutputDecision, PositionChoice,
-    State, Step, WorkflowError, chosen_path, decide_output, reduce, resolve_without_dialog,
+    ResumePlan, State, Step, WorkflowError, chosen_path, decide_output, reduce, resolve_without_dialog,
 };
 use tokio::sync::{mpsc, watch};
 
@@ -30,9 +31,11 @@ use crate::config::{ConfigState, PRIVACY_TEXT_VERSION, StartupProblem, validate}
 use crate::docs::{DocData, DocStore, Loaded};
 use crate::engine::{PadesEngine, PreparedDoc, SignedDoc};
 use crate::plan::{self, BlockSpec, PlanInput, SpecInput};
+use crate::resume;
 use crate::view::{
-    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, MainBarView, MigrationOfferView, NoticeView,
-    OutputView, PrivacyNoticeView, QrInfo, QueueItemView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
+    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, KeystoreImportView, MainBarView,
+    MigrationOfferView, NoticeView, OutputView, PlatformView, PrivacyNoticeView, QrInfo, QueueItemView,
+    ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
 };
 
 /// Nachricht an den Kern-Task.
@@ -114,6 +117,8 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::Save { .. } => "save",
         UiEvent::ConfirmOverwrite { .. } => "confirm_overwrite",
         UiEvent::OpenResult => "open_result",
+        UiEvent::ShareResult => "share_result",
+        UiEvent::ExportResult => "export_result",
         UiEvent::Navigate { .. } => "navigate",
         UiEvent::OpenSettings => "open_settings",
         UiEvent::SaveSettings { .. } => "save_settings",
@@ -121,6 +126,10 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::ResetSettings => "reset_settings",
         UiEvent::Backgrounded => "backgrounded",
         UiEvent::Foregrounded => "foregrounded",
+        UiEvent::ResumeSignature => "resume_signature",
+        UiEvent::DiscardResume => "discard_resume",
+        UiEvent::ImportKeystore { .. } => "import_keystore",
+        UiEvent::DismissKeystoreImport => "dismiss_keystore_import",
         UiEvent::Quit => "quit",
         UiEvent::DismissNotice { .. } => "dismiss_notice",
         UiEvent::AcceptMigration { .. } => "accept_migration",
@@ -252,6 +261,34 @@ pub(crate) fn broker_sink(tx: mpsc::UnboundedSender<Msg>) -> Arc<dyn BrokerSink>
     Arc::new(Sink(tx))
 }
 
+/// Plattform und Mobile-Optionen des Kerns (`CoreOptions::persist_prepared`, `default_output_dir`).
+#[derive(Debug, Clone)]
+pub(crate) struct MobileSetup {
+    pub platform: Platform,
+    /// vorbereiteten Zustand für „Signatur fortsetzen“ sichern (iOS/Android)
+    pub persist_prepared: bool,
+    /// Ausgabeordner ohne Einstellung (App-Dokumente auf Mobile)
+    pub default_output_dir: Option<PathBuf>,
+}
+
+/// Meldungs-ID: Hinweis zu ID Austria auf Mobile – FIDO2 ist auf diesem Gerät nicht verfügbar (Plan
+/// §4.7, §5.2); die Oberfläche zeigt FIDO2 ausgegraut mit diesem Text.
+pub(crate) const MSG_FIDO2_UNAVAILABLE_MOBILE: &str = "ng-fido2-unavailable-mobile";
+/// Meldungs-ID: PKCS#12 importiert.
+pub(crate) const MSG_KEYSTORE_IMPORTED: &str = "ng-keystore-imported";
+/// Meldungs-ID: Import gerade nicht möglich (Signiervorgang läuft).
+pub(crate) const MSG_KEYSTORE_IMPORT_BUSY: &str = "ng-keystore-import-busy";
+/// Meldungs-ID: Datei nicht lesbar bzw. zu groß.
+pub(crate) const MSG_KEYSTORE_IMPORT_UNREADABLE: &str = "ng-keystore-import-unreadable";
+/// Meldungs-ID: keine PKCS#12-Datei.
+pub(crate) const MSG_KEYSTORE_IMPORT_FORMAT: &str = "ng-keystore-import-format";
+/// Meldungs-ID: Kopie in die Sandbox fehlgeschlagen.
+pub(crate) const MSG_KEYSTORE_IMPORT_FAILED: &str = "ng-keystore-import-failed";
+/// Höchstgröße einer importierten PKCS#12-Datei (typisch wenige KiB).
+const MAX_KEYSTORE_BYTES: u64 = 4 * 1024 * 1024;
+/// Ordner der importierten Keystores unter `Paths::data_dir`.
+pub(crate) const KEYSTORE_DIR: &str = "keystores";
+
 /// Offener Dialog der Ausgabe (aus den Effekten `AskOverwrite`/`AskSavePath`).
 #[derive(Debug, Clone, PartialEq)]
 enum OutputDialog {
@@ -280,6 +317,19 @@ pub(crate) struct CoreTask {
     queue: VecDeque<Event>,
     /// Import-Angebot mit „enthält Klartext-Passwörter“ (einmal je Altdatei ermittelt)
     migration_view: Option<MigrationOfferView>,
+    /// Plattform und Mobile-Optionen
+    mobile: MobileSetup,
+    /// App im Hintergrund (Lebenszyklus; kein Abbruch)
+    backgrounded: bool,
+    /// gespeicherter, noch nicht angenommener Vorgang („Signatur fortsetzen“)
+    resume_offer: Option<resume::Persisted>,
+    /// angenommener Vorgang: Dokument und Zustand für die Wiederherstellung beim nächsten `Prepare`
+    resume_active: Option<(DocId, resume::Persisted)>,
+    /// der Ordner des persistierten Zustands gehört dem laufenden Vorgang (sonst hält er ein noch nicht
+    /// angenommenes Angebot, das `DeletePersisted` eines anderen Vorgangs nicht löschen darf)
+    persist_owned: bool,
+    /// Ergebnis des PKCS#12-Imports
+    keystore_import: Option<KeystoreImportView>,
 }
 
 impl CoreTask {
@@ -292,6 +342,7 @@ impl CoreTask {
         finished_tx: watch::Sender<Option<ExitCode>>,
         startup: Option<StartupProblem>,
         fido2_available: bool,
+        mobile: MobileSetup,
     ) -> CoreTask {
         let ctx = cfg.context(headless);
         CoreTask {
@@ -313,7 +364,199 @@ impl CoreTask {
             dialog: None,
             queue: VecDeque::new(),
             migration_view: None,
+            mobile,
+            backgrounded: false,
+            resume_offer: None,
+            resume_active: None,
+            persist_owned: false,
+            keystore_import: None,
         }
+    }
+
+    /// Ordner des persistierten Signierzustands (App-Sandbox, nicht der Cache).
+    fn resume_dir(&self) -> PathBuf {
+        self.cfg.paths.temp_dir.join(resume::RESUME_DIR)
+    }
+
+    /// Beim Start: unterbrochenen Vorgang suchen und „Signatur fortsetzen“ anbieten (Mobile).
+    fn load_resume_offer(&mut self) {
+        if !self.mobile.persist_prepared {
+            return;
+        }
+        let dir = self.resume_dir();
+        match resume::load(&dir, SystemTime::now()) {
+            resume::Loaded::Nothing => {}
+            resume::Loaded::Offer(p) => {
+                tracing::info!("unterbrochener Signiervorgang gefunden – „Signatur fortsetzen“ wird angeboten");
+                self.resume_offer = Some(*p);
+            }
+            resume::Loaded::Expired => {
+                tracing::info!("unterbrochener Signiervorgang zu alt – verworfen");
+                resume::delete(&dir);
+                self.notify(resume::MSG_EXPIRED, BTreeMap::new());
+            }
+            resume::Loaded::Invalid(reason) => {
+                tracing::warn!(reason = %reason, "persistierter Signierzustand ungültig – verworfen");
+                resume::delete(&dir);
+            }
+        }
+    }
+
+    /// `Effect::DeletePersisted`: nur den Zustand des laufenden Vorgangs löschen.
+    fn delete_persisted(&mut self) {
+        self.resume_active = None;
+        if self.mobile.persist_prepared && self.persist_owned {
+            resume::delete(&self.resume_dir());
+            self.persist_owned = false;
+        }
+    }
+
+    /// „Signatur fortsetzen“ angenommen: Dokument (Sandbox-Kopie) mit Position und Signiermittel an den
+    /// Workflow; das vorbereitete Dokument wird beim nächsten `Prepare` wiederhergestellt.
+    fn resume_signature(&mut self) {
+        if !matches!(self.state, State::Idle { .. }) {
+            tracing::debug!("„Signatur fortsetzen“ nur im Auswahl-Screen");
+            return;
+        }
+        let Some(persisted) = self.resume_offer.take() else { return };
+        let document = persisted.document();
+        if !document.is_file() {
+            resume::delete(&persisted.dir);
+            self.notify(resume::MSG_RESTORE_FAILED, BTreeMap::new());
+            return;
+        }
+        let id = DocId(self.next_doc);
+        self.next_doc += 1;
+        let input = InputDocument { id, path: document, display_name: persisted.record.name.clone() };
+        let pending = self.input_documents(&persisted.existing_pending());
+        let plan = ResumePlan { position: persisted.record.position.clone(), backend: persisted.record.backend };
+        tracing::info!(backend = plan.backend.as_str(), pending = pending.len(), "Signatur wird fortgesetzt");
+        self.persist_owned = true;
+        self.resume_active = Some((id, persisted));
+        self.apply(Event::ResumeRequested { document: input, plan, pending });
+    }
+
+    /// „Signatur fortsetzen“ verworfen.
+    fn discard_resume(&mut self) {
+        if let Some(p) = self.resume_offer.take() {
+            tracing::info!("unterbrochener Signiervorgang verworfen");
+            resume::delete(&p.dir);
+        }
+    }
+
+    /// Lebenszyklus „Vordergrund“: Wartet ID Austria auf die Bestätigung in der App bzw. einen QR-Scan,
+    /// wird der Long-Poll sofort neu gestartet (Seite neu laden, R7) – der Wechsel ist kein Abbruch.
+    fn foregrounded(&mut self) {
+        let was_background = std::mem::replace(&mut self.backgrounded, false);
+        self.apply(Event::Foregrounded);
+        if was_background && matches!(self.state, State::Signing { .. }) && self.shared.broker.restart_long_poll() {
+            tracing::info!("nach der Rückkehr in die App: Long-Poll neu gestartet");
+        }
+    }
+
+    /// PKCS#12-Import in die App-Sandbox (Mobile, Plan §5.2): Datei kopieren, Passwort prüfen,
+    /// Einstellungen › Keystore setzen, Passwort optional im sicheren Speicher.
+    fn import_keystore(&mut self, path: &Path, password: Option<zeroize::Zeroizing<String>>, remember: bool) {
+        let file_name =
+            path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "keystore.p12".into());
+        let result = self.import_keystore_inner(path, &file_name, password, remember);
+        let (ok, code, password_stored) = match result {
+            Ok(stored) => (true, MSG_KEYSTORE_IMPORTED.to_owned(), stored),
+            Err(code) => (false, code, false),
+        };
+        tracing::info!(ok, code = %code, "PKCS#12-Import");
+        self.keystore_import = Some(KeystoreImportView { file_name, ok, code, password_stored });
+    }
+
+    fn import_keystore_inner(
+        &mut self,
+        path: &Path,
+        file_name: &str,
+        password: Option<zeroize::Zeroizing<String>>,
+        remember: bool,
+    ) -> Result<bool, String> {
+        // nicht während eines Signiervorgangs (Einstellungen dürfen dort nicht wechseln); in der
+        // Signiermittel-Auswahl ja – danach ist der Keystore dort sofort verfügbar
+        let busy = matches!(
+            self.state,
+            State::Signing { .. } | State::Resuming { .. } | State::Starting | State::Finished { .. }
+        );
+        if busy {
+            return Err(MSG_KEYSTORE_IMPORT_BUSY.into());
+        }
+        let len = std::fs::metadata(path).map(|m| m.len()).map_err(|_| MSG_KEYSTORE_IMPORT_UNREADABLE.to_owned())?;
+        if len == 0 || len > MAX_KEYSTORE_BYTES {
+            return Err(MSG_KEYSTORE_IMPORT_UNREADABLE.into());
+        }
+        let bytes = std::fs::read(path).map_err(|_| MSG_KEYSTORE_IMPORT_UNREADABLE.to_owned())?;
+        match pdfover_backend_keystore::detect_format(&bytes) {
+            pdfover_backend_keystore::KeystoreFormat::Pkcs12 => {}
+            pdfover_backend_keystore::KeystoreFormat::Jks | pdfover_backend_keystore::KeystoreFormat::Jceks => {
+                return Err("keystore-conversion-needed".into());
+            }
+            pdfover_backend_keystore::KeystoreFormat::Unknown => return Err(MSG_KEYSTORE_IMPORT_FORMAT.into()),
+        }
+        // Passwort prüfen (falls angegeben); bei genau einem Schlüssel wird dessen Alias übernommen
+        let mut alias = None;
+        if let Some(pw) = &password {
+            let entries = pdfover_backend_keystore::list_aliases(&bytes, pw).map_err(|e| e.code().to_owned())?;
+            let keys: Vec<_> = entries.into_iter().filter(|e| e.is_key_entry).collect();
+            if keys.is_empty() {
+                return Err("keystore-no-key-entry".into());
+            }
+            if keys.len() == 1 {
+                alias = keys.into_iter().next().map(|k| k.alias);
+            }
+        }
+        // in die Sandbox kopieren (Ordner 0700, Datei 0600, atomar)
+        let dir = self.cfg.paths.data_dir.join(KEYSTORE_DIR);
+        let target = dir.join(sanitize_file_name(file_name, "keystore.p12"));
+        write_private_file(&dir, &target, &bytes).map_err(|_| MSG_KEYSTORE_IMPORT_FAILED.to_owned())?;
+        // vorher importierte Datei (anderer Name) samt gespeicherter Passwörter entfernen
+        if let Some(old) = self.cfg.settings.keystore.file.clone()
+            && old != target
+            && old.parent() == Some(dir.as_path())
+        {
+            let _ = std::fs::remove_file(&old);
+            let _ = self.cfg.secrets.delete(&pdfover_config::SecretId::keystore_store(&old));
+            let old_alias = self.cfg.settings.keystore.alias.clone().unwrap_or_default();
+            let _ = self.cfg.secrets.delete(&pdfover_config::SecretId::keystore_key(&old, &old_alias));
+        }
+        let mut stored = false;
+        if let (true, Some(pw)) = (remember, &password)
+            && self.cfg.secrets.is_persistent()
+        {
+            let a = alias.clone().unwrap_or_default();
+            let secrets = [
+                (pdfover_config::SecretId::keystore_store(&target), pw.clone()),
+                (pdfover_config::SecretId::keystore_key(&target, &a), pw.clone()),
+            ];
+            match pdfover_config::secrets::store_all(self.cfg.secrets.as_ref(), &secrets) {
+                Ok(_) => stored = true,
+                Err(e) => tracing::warn!(id = e.message_id(), "Keystore-Passwort nicht im sicheren Speicher"),
+            }
+        }
+        let ks = &mut self.cfg.settings.keystore;
+        ks.enabled = true;
+        ks.file = Some(target);
+        ks.declared_type = Some("PKCS12".into());
+        ks.alias = alias;
+        if stored {
+            ks.password_storage = pdfover_config::PasswordStorage::Keychain;
+        } else if ks.password_storage == pdfover_config::PasswordStorage::Keychain {
+            ks.password_storage = pdfover_config::PasswordStorage::Memory;
+        }
+        if let Err(e) = self.cfg.save() {
+            tracing::warn!(id = e.message_id(), "Einstellungen nach dem Import nicht gespeichert");
+            self.notify("error-FailedToSaveSettings", BTreeMap::new());
+        }
+        if self.settings_view.is_some() {
+            self.settings_view = Some(self.settings_view_for(self.cfg.settings.clone(), BTreeMap::new()));
+        }
+        self.ctx = self.cfg.context(self.headless);
+        self.registry.configure(&self.cfg);
+        self.apply(Event::SettingsChanged);
+        Ok(stored)
     }
 
     /// Import-Angebot für die Ansicht (Klartext-Passwörter einmal je Altdatei ermitteln).
@@ -447,7 +690,10 @@ impl CoreTask {
     /// nicht im Speicher zurück.
     fn on_loaded(&mut self, loaded: Loaded, event: Event) {
         let id = loaded.data.id;
-        let current = matches!(&self.state, State::Analyzing { queue } if queue.current_id() == Some(id));
+        let current = matches!(
+            &self.state,
+            State::Analyzing { queue } | State::Resuming { queue, doc: None, .. } if queue.current_id() == Some(id)
+        );
         if !current {
             tracing::debug!("Analyse eines verworfenen Dokuments verworfen");
             return;
@@ -503,6 +749,7 @@ impl CoreTask {
         {
             self.notify("ng-secrets-not-persistent", BTreeMap::new());
         }
+        self.load_resume_offer();
         let docs = self.input_documents(&self.cfg.overlay.input_files.clone());
         self.apply(Event::Started { documents: docs });
     }
@@ -641,13 +888,15 @@ impl CoreTask {
             Effect::Write(p) => self.effect_write(p, false),
             Effect::Overwrite(p) => self.effect_write(p, true),
             Effect::OpenResult(p) => self.effect_open_result(&p),
+            Effect::ShareResult(p) => self.effect_share(p),
+            Effect::ExportResult(p) => self.effect_export(p),
             Effect::Notify(code) => self.notify(&code, BTreeMap::new()),
             Effect::AcknowledgePrivacy(id) => {
                 self.cfg.acknowledge_privacy(id);
                 self.ctx = self.cfg.context(self.headless);
             }
             Effect::ResetSettings => self.reset_settings(true),
-            Effect::DeletePersisted => {}
+            Effect::DeletePersisted => self.delete_persisted(),
             Effect::Discard(id) => self.shared.docs.remove(id),
             Effect::RememberDirectory(dir) => self.cfg.remember_directory(&dir),
             Effect::Exit(code) => {
@@ -895,7 +1144,51 @@ impl CoreTask {
             let slot = lock(&shared.sign);
             (slot.epoch, slot.chain.clone(), slot.caps.clone())
         };
+        let backend = match &self.state {
+            State::Signing { backend, .. } => Some(*backend),
+            _ => None,
+        };
+        // „Signatur fortsetzen“: genau einmal wiederherstellen – nur für dieses Dokument, dasselbe
+        // Signiermittel und ohne vergrößerte Reserve (sonst neu vorbereiten)
+        let restore = self
+            .resume_active
+            .take()
+            .filter(|(id, p)| *id == doc && Some(p.record.backend) == backend && min_reserve.is_none())
+            .map(|(_, p)| p);
+        // Mobile: nach `prepare` für „Signatur fortsetzen“ sichern (ersetzt ein nicht angenommenes Angebot)
+        let persist = match (self.mobile.persist_prepared, backend) {
+            (true, Some(backend)) if restore.is_none() => {
+                self.resume_offer = None;
+                self.persist_owned = true;
+                let pending =
+                    self.state.queue().map(|q| q.pending.iter().map(|d| d.path.clone()).collect()).unwrap_or_default();
+                let name = self
+                    .state
+                    .queue()
+                    .and_then(|q| q.current.as_ref())
+                    .map(|d| d.display_name.clone())
+                    .unwrap_or_else(|| data.name.clone());
+                Some(PersistJob { dir: self.resume_dir(), name, backend, pending })
+            }
+            _ => None,
+        };
         self.spawn_blocking_event(Some(epoch), signing_panic, move || {
+            if let Some(persisted) = &restore {
+                match persisted.restore(shared.engine.as_ref(), &data.src) {
+                    Ok(prepared) => {
+                        tracing::info!("vorbereitetes Dokument wiederhergestellt („Signatur fortsetzen“)");
+                        let profile = prepared
+                            .cms_profile()
+                            .unwrap_or_else(|| plan::cms_profile(snap.settings.signature.cms_profile));
+                        return store_prepared(&shared, epoch, prepared, profile);
+                    }
+                    Err(code) => {
+                        // neu vorbereiten (mit dem eben gelesenen Zertifikat); der alte Zustand ist verbraucht
+                        tracing::warn!(code = %code, "Wiederherstellen fehlgeschlagen – neu vorbereiten");
+                        shared.send(Msg::Notices(vec![(resume::MSG_RESTORE_FAILED.to_owned(), BTreeMap::new())]));
+                    }
+                }
+            }
             let model_a = caps.as_ref().is_some_and(|c| matches!(c.input, SignInput::Digest { .. }));
             let reserve = match (min_reserve, model_a) {
                 (Some(n), _) => Reserve::Bytes(n),
@@ -958,13 +1251,10 @@ impl CoreTask {
                 Ok(p) => p,
                 Err(e) => return Event::SigningFailed(pades_error(&e)),
             };
-            let mut slot = lock(&shared.sign);
-            if slot.epoch != epoch {
-                return Event::BackendFailed(BackendError::Cancelled);
+            if let Some(job) = &persist {
+                job.save(&data, prepared.as_ref(), &position);
             }
-            slot.prepared = Some(prepared);
-            slot.cms_profile = Some(cms_profile);
-            Event::PhaseCompleted(pdfover_workflow::SigningPhase::Preparing)
+            store_prepared(&shared, epoch, prepared, cms_profile)
         });
     }
 
@@ -1126,7 +1416,17 @@ impl CoreTask {
 
     fn effect_decide(&mut self, doc: DocId) {
         let Some(input) = self.state.queue().and_then(|q| q.current.clone()).filter(|d| d.id == doc) else { return };
-        let output = self.cfg.output();
+        // Mobile: ohne Einstellung in die App-Dokumente (kein Speichern-Dialog; Teilen/Exportieren danach)
+        let output = self.cfg.output().or_else(|| {
+            let dir = self.mobile.default_output_dir.clone()?;
+            match std::fs::create_dir_all(&dir) {
+                Ok(()) => Some(dir),
+                Err(e) => {
+                    tracing::warn!(kind = ?e.kind(), "App-Dokumente nicht anlegbar – Speichern-Dialog");
+                    None
+                }
+            }
+        });
         let d = decide_output(&input.path, output.as_deref(), &self.cfg.settings.output.postfix, &FsProbe);
         let d = if self.headless { resolve_without_dialog(d, &FsProbe) } else { d };
         self.queue.push_back(Event::OutputDecided(d));
@@ -1160,6 +1460,45 @@ impl CoreTask {
             p.insert("arg1".into(), file_name(path));
             self.notify("error-FailedToOpenDocument", p);
         }
+    }
+
+    /// Ergebnis teilen (Mobile, Share-Sheet); im Hintergrund, Fehler als Hinweis.
+    fn effect_share(&mut self, path: PathBuf) {
+        let Some(shell) = self.shared.shell() else {
+            self.notify("ng-share-failed", BTreeMap::new());
+            return;
+        };
+        let shared = self.shared.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Err(e) = shell.share_path(&path) {
+                tracing::warn!(error = %e, "Teilen fehlgeschlagen");
+                shared.send(Msg::Notices(vec![("ng-share-failed".to_owned(), BTreeMap::new())]));
+            }
+        });
+    }
+
+    /// Ergebnis exportieren („Sichern unter“, Mobile); im Hintergrund, Ergebnis als Hinweis.
+    fn effect_export(&mut self, path: PathBuf) {
+        let Some(shell) = self.shared.shell() else {
+            self.notify("ng-export-failed", BTreeMap::new());
+            return;
+        };
+        let shared = self.shared.clone();
+        let name = file_name(&path);
+        tokio::task::spawn_blocking(move || {
+            let notice = match shell.export_path(&path, &name) {
+                Ok(true) => Some("ng-export-done"),
+                Ok(false) => None,
+                Err(e) => {
+                    tracing::warn!(error = %e, "Exportieren fehlgeschlagen");
+                    Some("ng-export-failed")
+                }
+            };
+            if let Some(code) = notice {
+                let params = BTreeMap::from([("name".to_owned(), name)]);
+                shared.send(Msg::Notices(vec![(code.to_owned(), params)]));
+            }
+        });
     }
 
     /// „Einstellungen zurücksetzen“ (F-05, Plan §7.1): nach `.old` verschieben, neu laden.
@@ -1282,6 +1621,8 @@ impl CoreTask {
                 self.apply(Event::OverwriteAnswered(overwrite));
             }
             UiEvent::OpenResult => self.apply(Event::OpenResultRequested),
+            UiEvent::ShareResult => self.apply(Event::ShareResultRequested),
+            UiEvent::ExportResult => self.apply(Event::ExportResultRequested),
             UiEvent::Navigate { step } => {
                 if step != Step::Finish {
                     self.apply(Event::Navigate(step));
@@ -1311,8 +1652,19 @@ impl CoreTask {
                     self.apply(Event::SettingsChanged);
                 }
             }
-            UiEvent::Backgrounded => self.apply(Event::Backgrounded),
-            UiEvent::Foregrounded => self.apply(Event::Foregrounded),
+            UiEvent::Backgrounded => {
+                // kein Abbruch: Sitzung, Masken und persistierter Zustand bleiben (Plan §3.5)
+                self.backgrounded = true;
+                self.apply(Event::Backgrounded);
+            }
+            UiEvent::Foregrounded => self.foregrounded(),
+            UiEvent::ResumeSignature => self.resume_signature(),
+            UiEvent::DiscardResume => self.discard_resume(),
+            UiEvent::ImportKeystore { path, password, remember } => {
+                let password = password.map(zeroize::Zeroizing::new);
+                self.import_keystore(&path, password, remember);
+            }
+            UiEvent::DismissKeystoreImport => self.keystore_import = None,
             UiEvent::Quit => self.apply(Event::Quit),
             UiEvent::DismissNotice { id } => self.notices.retain(|n| n.id != id),
             UiEvent::AcceptMigration { store_secrets } => self.accept_migration(store_secrets),
@@ -1574,6 +1926,16 @@ impl CoreTask {
                 .clone()
                 .filter(|m| self.cfg.migration_offer.as_ref() == Some(&m.legacy_file)),
             done,
+            platform: PlatformView::from(self.mobile.platform),
+            resume: self.resume_offer.as_ref().filter(|_| matches!(self.state, State::Idle { .. })).map(|p| {
+                ResumeOfferView {
+                    name: p.record.name.clone(),
+                    backend: p.record.backend,
+                    age_minutes: p.age_minutes(SystemTime::now()),
+                    pending: u32::try_from(p.record.pending.len()).unwrap_or(u32::MAX),
+                }
+            }),
+            keystore_import: self.keystore_import.clone(),
         }
     }
 
@@ -1581,7 +1943,13 @@ impl CoreTask {
         match state {
             State::Starting => StepView::Starting,
             State::Idle { .. } => StepView::Open { queue: self.queue_items() },
-            State::Analyzing { .. } => StepView::Loading { queue: self.queue_items() },
+            State::Analyzing { .. } | State::Resuming { doc: None, .. } => {
+                StepView::Loading { queue: self.queue_items() }
+            }
+            // Fortsetzen: Dokument geladen, Signiermittel wird geprüft
+            State::Resuming { doc: Some(_), .. } => {
+                StepView::Signing { interaction: self.shared.broker.current(), queue: self.queue_items() }
+            }
             State::AnalysisWarning { warnings, doc, .. } => {
                 StepView::Warning { doc: self.doc_info(doc.id), codes: warnings.clone() }
             }
@@ -1610,8 +1978,10 @@ impl CoreTask {
                 announce.insert("page".into(), (placement.page_index + 1).to_string());
                 announce.insert("pages".into(), (doc.page_count + usize::from(*new_page)).to_string());
                 let mm = |pt: f32| format!("{:.0}", pt * 25.4 / 72.0);
+                // Live-Region und Zahlenfelder nennen dieselben Kanten (PAGE_ABS): linke Kante und
+                // Oberkante, jeweils von links bzw. von unten
                 announce.insert("left".into(), mm(placement.x));
-                announce.insert("bottom".into(), mm(placement.y - placement.height));
+                announce.insert("top".into(), mm(placement.y));
                 StepView::Position {
                     doc: self.doc_info(doc.id),
                     page: *page,
@@ -1626,10 +1996,10 @@ impl CoreTask {
                 }
             }
             State::ChoosingBackend { options, .. } => {
-                StepView::Backend { options: option_views(options), privacy_notice: None }
+                StepView::Backend { options: option_views(options, self.mobile.platform), privacy_notice: None }
             }
             State::PrivacyNotice { backend, options, .. } => StepView::Backend {
-                options: option_views(options),
+                options: option_views(options, self.mobile.platform),
                 privacy_notice: Some(PrivacyNoticeView {
                     backend: *backend,
                     version: PRIVACY_TEXT_VERSION,
@@ -1684,11 +2054,83 @@ impl CoreTask {
     }
 }
 
-fn option_views(options: &[BackendOption]) -> Vec<BackendOptionView> {
+fn option_views(options: &[BackendOption], platform: Platform) -> Vec<BackendOptionView> {
     options
         .iter()
-        .map(|o| BackendOptionView { id: o.id, available: o.available(), capabilities: o.capabilities.clone() })
+        .map(|o| {
+            let mut notes = Vec::new();
+            // Mobile: ID Austria ohne FIDO2 (Plan §4.7) – FIDO2 ausgegraut mit Hinweis
+            if !platform.is_desktop()
+                && o.id == BackendId::AtrustNative
+                && o.capabilities.as_ref().is_none_or(|c| !c.factors.fido2)
+            {
+                notes.push(MSG_FIDO2_UNAVAILABLE_MOBILE.to_owned());
+            }
+            BackendOptionView { id: o.id, available: o.available(), capabilities: o.capabilities.clone(), notes }
+        })
         .collect()
+}
+
+/// Sicherung des vorbereiteten Zustands nach `prepare` (Mobile, „Signatur fortsetzen“).
+struct PersistJob {
+    dir: PathBuf,
+    name: String,
+    backend: BackendId,
+    pending: Vec<PathBuf>,
+}
+
+impl PersistJob {
+    /// Sichert; Fehler sind nicht fatal (dann ohne „Fortsetzen“).
+    fn save(&self, data: &DocData, prepared: &dyn PreparedDoc, position: &PositionChoice) {
+        let src = data.src.bytes();
+        let now = SystemTime::now();
+        match resume::persist(&self.dir, &self.name, src, prepared, position, self.backend, self.pending.clone(), now) {
+            Ok(()) => tracing::info!("vorbereiteter Zustand für „Signatur fortsetzen“ gesichert"),
+            Err(e) => {
+                tracing::warn!(error = %e, "vorbereiteter Zustand nicht gesichert – ohne „Signatur fortsetzen“");
+                resume::delete(&self.dir);
+            }
+        }
+    }
+}
+
+/// Vorbereitetes Dokument in den Signiervorgang übernehmen (verworfen, wenn der Vorgang inzwischen
+/// abgebrochen wurde).
+fn store_prepared(
+    shared: &Shared,
+    epoch: u64,
+    prepared: Box<dyn PreparedDoc>,
+    cms_profile: pdfover_cades::CmsProfile,
+) -> Event {
+    let mut slot = lock(&shared.sign);
+    if slot.epoch != epoch {
+        return Event::BackendFailed(BackendError::Cancelled);
+    }
+    slot.prepared = Some(prepared);
+    slot.cms_profile = Some(cms_profile);
+    Event::PhaseCompleted(pdfover_workflow::SigningPhase::Preparing)
+}
+
+/// Dateiname ohne Pfadanteile und Steuerzeichen; leer → `fallback`.
+fn sanitize_file_name(name: &str, fallback: &str) -> String {
+    let cleaned: String =
+        name.chars().map(|c| if c.is_control() || matches!(c, '/' | '\\' | ':' | '\0') { '_' } else { c }).collect();
+    let trimmed = cleaned.trim().trim_start_matches('.');
+    if trimmed.is_empty() { fallback.to_owned() } else { trimmed.to_owned() }
+}
+
+/// Schreibt eine private Datei atomar (Ordner 0700, Datei 0600).
+fn write_private_file(dir: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let tmp = target.with_extension("part");
+    std::fs::write(&tmp, bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
+    }
+    std::fs::rename(&tmp, target)
 }
 
 fn file_name(path: &Path) -> String {

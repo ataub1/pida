@@ -7,12 +7,13 @@
 //! `SignPlan`, `FinishError`, `InvariantViolation`, …) – die Fake-Engine baut sie selbst.
 
 use std::io::Read;
+use std::path::Path;
 use std::sync::Arc;
 
 use pdfover_cades::{CertChain, Digest, DigestAlg, Expect, RawSignature, SignedAttrs};
 use pdfover_pades::{
     CheckContext, CheckReport, DocReport, ExcludedRange, FinishError, InvariantViolation, OutputInfo, OutputTarget,
-    PadesError, Prepared, SignPlan, SignedPdf,
+    PadesError, Prepared, PreparedHandle, SignPlan, SignedPdf,
 };
 use pdfover_pdf_cos::SourcePdf;
 use time::OffsetDateTime;
@@ -29,6 +30,13 @@ pub trait PadesEngine: Send + Sync + std::fmt::Debug {
         plan: &SignPlan,
         cert: Option<&CertChain>,
     ) -> Result<Box<dyn PreparedDoc>, PadesError>;
+
+    /// Stellt einen mit [`PreparedDoc::persist`] gesicherten Zustand wieder her (Mobile, „Signatur
+    /// fortsetzen“, Plan §3.5; prüft Prüfsummen, Original und Offsets). Standard: nicht unterstützt.
+    fn restore(&self, handle: &PreparedHandle, src: &SourcePdf) -> Result<Box<dyn PreparedDoc>, PadesError> {
+        let _ = (handle, src);
+        Err(PadesError::InvalidState("Fortsetzen wird von dieser Engine nicht unterstützt".into()))
+    }
 }
 
 /// Vorbereitetes Dokument (nach `prepare` unveränderlich, WYSIWYS).
@@ -54,6 +62,17 @@ pub trait PreparedDoc: Send + Sync + std::fmt::Debug {
         signature: &RawSignature,
         chain: &CertChain,
     ) -> Result<Box<dyn SignedDoc>, FinishError>;
+    /// CMS-Profil, mit dem vorbereitet wurde (Modell A: die SignedAttributes müssen es verwenden);
+    /// `None` = unbekannt (Kern nimmt das der Einstellungen).
+    fn cms_profile(&self) -> Option<pdfover_cades::CmsProfile> {
+        None
+    }
+    /// Sichert den Zustand in `dir` (App-Sandbox, Rechte 0600) für „Signatur fortsetzen“ nach einem
+    /// App-Kill ([`PadesEngine::restore`]). Standard: nicht unterstützt.
+    fn persist(&self, dir: &Path) -> Result<PreparedHandle, PadesError> {
+        let _ = dir;
+        Err(PadesError::InvalidState("Persistieren wird von dieser Engine nicht unterstützt".into()))
+    }
 }
 
 /// Signiertes Dokument.
@@ -87,6 +106,10 @@ impl PadesEngine for RealPades {
     ) -> Result<Box<dyn PreparedDoc>, PadesError> {
         Ok(Box::new(pdfover_pades::prepare(src, plan, cert)?))
     }
+
+    fn restore(&self, handle: &PreparedHandle, src: &SourcePdf) -> Result<Box<dyn PreparedDoc>, PadesError> {
+        Ok(Box::new(Prepared::restore(handle, src)?))
+    }
 }
 
 impl PreparedDoc for Prepared {
@@ -118,6 +141,12 @@ impl PreparedDoc for Prepared {
         chain: &CertChain,
     ) -> Result<Box<dyn SignedDoc>, FinishError> {
         Ok(Box::new(Prepared::finish_raw(*self, attrs, signature, chain)?))
+    }
+    fn cms_profile(&self) -> Option<pdfover_cades::CmsProfile> {
+        Some(Prepared::cms_profile(self))
+    }
+    fn persist(&self, dir: &Path) -> Result<PreparedHandle, PadesError> {
+        Prepared::persist(self, dir)
     }
 }
 

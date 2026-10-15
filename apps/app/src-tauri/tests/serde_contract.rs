@@ -19,9 +19,9 @@ use pdfover_backend_api::{
 };
 use pdfover_config::{NoteSetting, Settings};
 use pdfover_core_api::{
-    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, InteractionView, MainBarView, MigrationOfferView,
-    NoticeView, OutputView, PrivacyNoticeView, QrInfo, QueueItemView, SaveDialogView, SettingsView, StepView, UiEvent,
-    ViewState,
+    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, InteractionView, KeystoreImportView, MainBarView,
+    MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView, PrivacyNoticeView, QrInfo, QueueItemView,
+    ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
 };
 use pdfover_i18n::Lang;
 use pdfover_pades::{AcceptanceClass, OutputInfo};
@@ -49,6 +49,9 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         notices: Vec::new(),
         migration: None,
         done: Vec::new(),
+        platform: PlatformView { os: PlatformOs::Macos, mobile: false },
+        resume: None,
+        keystore_import: None,
     }
 }
 
@@ -203,7 +206,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     announce.insert("page".to_owned(), "2".to_owned());
     announce.insert("pages".to_owned(), "2".to_owned());
     announce.insert("left".to_owned(), "105".to_owned());
-    announce.insert("bottom".to_owned(), "74".to_owned());
+    announce.insert("top".to_owned(), "120".to_owned());
     out.push((
         "position",
         view(
@@ -241,10 +244,21 @@ fn samples() -> Vec<(&'static str, ViewState)> {
                         id: BackendId::AtrustNative,
                         available: true,
                         capabilities: Some(caps_native()),
+                        notes: Vec::new(),
                     },
-                    BackendOptionView { id: BackendId::LocalBku, available: false, capabilities: None },
-                    BackendOptionView { id: BackendId::Keystore, available: true, capabilities: Some(caps_keystore()) },
-                    BackendOptionView { id: BackendId::Csc, available: false, capabilities: None },
+                    BackendOptionView {
+                        id: BackendId::LocalBku,
+                        available: false,
+                        capabilities: None,
+                        notes: Vec::new(),
+                    },
+                    BackendOptionView {
+                        id: BackendId::Keystore,
+                        available: true,
+                        capabilities: Some(caps_keystore()),
+                        notes: Vec::new(),
+                    },
+                    BackendOptionView { id: BackendId::Csc, available: false, capabilities: None, notes: Vec::new() },
                 ],
                 privacy_notice: None,
             },
@@ -259,6 +273,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
                     id: BackendId::AtrustNative,
                     available: true,
                     capabilities: Some(caps_native()),
+                    notes: Vec::new(),
                 }],
                 privacy_notice: Some(PrivacyNoticeView {
                     backend: BackendId::AtrustNative,
@@ -507,6 +522,43 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         read_only: true,
     });
     out.push(("settings_defaults", defaults));
+
+    // Mobile (Plan §5.2): Plattform, FIDO2-Hinweis, „Signatur fortsetzen“, PKCS#12-Import
+    let android = PlatformView { os: PlatformOs::Android, mobile: true };
+    let mut mobile_caps = caps_native();
+    mobile_caps.factors.fido2 = false;
+    let mut mobile_backend = view(
+        StepView::Backend {
+            options: vec![BackendOptionView {
+                id: BackendId::AtrustNative,
+                available: true,
+                capabilities: Some(mobile_caps),
+                notes: vec!["ng-fido2-unavailable-mobile".into()],
+            }],
+            privacy_notice: None,
+        },
+        bar(["AE", "AE", "A", ""], true),
+    );
+    mobile_backend.platform = android;
+    out.push(("mobile_backend", mobile_backend));
+    let mut resume = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    resume.platform = PlatformView { os: PlatformOs::Ios, mobile: true };
+    resume.resume = Some(ResumeOfferView {
+        name: "Vertrag.pdf".into(),
+        backend: BackendId::AtrustNative,
+        age_minutes: 3,
+        pending: 1,
+    });
+    out.push(("mobile_resume_offer", resume));
+    let mut imported = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    imported.platform = android;
+    imported.keystore_import = Some(KeystoreImportView {
+        file_name: "test.p12".into(),
+        ok: true,
+        code: "ng-keystore-imported".into(),
+        password_stored: true,
+    });
+    out.push(("mobile_keystore_imported", imported));
     out
 }
 
@@ -604,7 +656,7 @@ fn typescript_events_deserialize_into_ui_event() {
 }
 
 /// Anzahl der `UiEvent`-Varianten (die TS-Beispiele müssen jede abdecken).
-const UI_EVENT_VARIANTS: usize = 32;
+const UI_EVENT_VARIANTS: usize = 38;
 
 #[test]
 fn unknown_events_are_rejected() {

@@ -22,12 +22,23 @@
 //! 1. Verzeichnis aus der Umgebungsvariable [`ENV_PDFIUM_DIR`] (`PDFOVER_PDFIUM_DIR`), z. B.
 //!    `tools/pdfium/mac-arm64/lib` im Hauptcheckout,
 //! 2. neben der laufenden Binary (bei macOS-Bundles zusätzlich `../Frameworks` und
-//!    `../Resources`, unter iOS `Frameworks`),
+//!    `../Resources`, unter iOS `Frameworks` des App-Bundles),
 //! 3. Systempfad: unter Linux/Android `dlopen("libpdfium.so")` (`ld.so` sucht nie im
 //!    Arbeitsverzeichnis); unter macOS und Windows nur **absolute** Verzeichnisse
 //!    (macOS: absolute Einträge von `DYLD_LIBRARY_PATH`/`DYLD_FALLBACK_LIBRARY_PATH`,
 //!    `/opt/homebrew/lib`, `/usr/local/lib`, `/usr/lib`; Windows: absolute `PATH`-Einträge), weil
-//!    die Suche nach dem bloßen Dateinamen dort auch das Arbeitsverzeichnis einschließt (CWE-427).
+//!    die Suche nach dem bloßen Dateinamen dort auch das Arbeitsverzeichnis einschließt (CWE-427);
+//!    unter iOS gar nicht (die Bibliothek gehört ins Bundle).
+//!
+//! **Mobile (Plan §5.3, ADR 0060):**
+//! - **iOS:** PDFium liegt als Framework [`IOS_FRAMEWORK_BINARY`] (`pdfium.framework/pdfium`, aus
+//!   `PDFium.xcframework` von `tools/fetch-pdfium.sh --xcframework`, eingebettet und mitsigniert) in
+//!   `<App>.app/Frameworks`; je Verzeichnis werden das Framework und eine lose `libpdfium.dylib`
+//!   (Entwicklung) versucht ([`library_paths_in`]).
+//! - **Android:** `libpdfium.so` je ABI in `jniLibs/<abi>/` (`tools/fetch-pdfium.sh --jnilibs`); der
+//!   Paketmanager entpackt sie nach `nativeLibraryDir`, das im Linker-Namensraum der App liegt –
+//!   `dlopen("libpdfium.so")` (Schritt 3) findet sie wie `System.loadLibrary("pdfium")`. Kennt die
+//!   Shell `nativeLibraryDir` (Plugin), kann sie es als `bind(Some(dir))` übergeben.
 //!
 //! Mit `bind(Some(dir))` wird ausschließlich `dir` verwendet. Findet sich nichts, liefert
 //! `bind` [`RenderError::LibraryNotFound`] mit allen durchsuchten Orten. Die Bibliothek wird
@@ -57,6 +68,34 @@ pub use pdfium::{PdfiumBackend, PdfiumRenderer};
 
 /// Umgebungsvariable mit dem Verzeichnis der PDFium-Bibliothek (Tests, Entwicklung).
 pub const ENV_PDFIUM_DIR: &str = "PDFOVER_PDFIUM_DIR";
+
+/// iOS: Binary des PDFium-Frameworks relativ zu `Frameworks` des App-Bundles (install name
+/// `@rpath/pdfium.framework/pdfium`, `tools/fetch-pdfium.sh --xcframework`).
+pub const IOS_FRAMEWORK_BINARY: &str = "pdfium.framework/pdfium";
+
+/// Dateiname der PDFium-Bibliothek auf dem Zielsystem (`pdfium.dll`, `libpdfium.dylib`,
+/// `libpdfium.so`); unter iOS die lose Variante neben [`IOS_FRAMEWORK_BINARY`].
+pub fn library_file_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "pdfium.dll"
+    } else if cfg!(any(target_os = "macos", target_os = "ios")) {
+        "libpdfium.dylib"
+    } else {
+        "libpdfium.so"
+    }
+}
+
+/// Mögliche Bibliotheksdateien in einem Verzeichnis in Suchreihenfolge: unter iOS zuerst das
+/// Framework ([`IOS_FRAMEWORK_BINARY`]), dann die lose `libpdfium.dylib`; sonst nur
+/// [`library_file_name`].
+pub fn library_paths_in(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    if cfg!(target_os = "ios") {
+        out.push(dir.join(IOS_FRAMEWORK_BINARY));
+    }
+    out.push(dir.join(library_file_name()));
+    out
+}
 
 /// Obergrenze für die Pixelzahl eines Rasters bzw. dekodierten Bildes (Schutz gegen
 /// Speicherüberlauf bei feindlichen Seitengrößen, Plan §7.7).

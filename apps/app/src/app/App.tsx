@@ -9,7 +9,7 @@ import { MainBar } from '../components/MainBar';
 import { Toasts } from '../components/Toasts';
 import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar } from '../core/defaults';
-import type { StepView, UiEvent, ViewState } from '../core/types';
+import { isMobile, type StepView, type UiEvent, type ViewState } from '../core/types';
 import { translator } from '../i18n/catalog';
 import { BackendScreen } from '../screens/BackendScreen';
 import { OpenScreen } from '../screens/OpenScreen';
@@ -22,6 +22,7 @@ import { EMBLEM_DROP_EVENT, SettingsDialog } from '../settings/SettingsDialog';
 import { applyTheme, readTheme } from '../settings/theme';
 import { AppContext, type AppContextValue, type Toast } from './context';
 import { MigrationDialog } from './MigrationDialog';
+import { ResumeDialog } from './ResumeDialog';
 
 const STARTING: ViewState = {
   step: { step: 'starting' },
@@ -31,6 +32,10 @@ const STARTING: ViewState = {
   notices: [],
   migration: null,
   done: [],
+  // bis zum ersten ViewState: Desktop-Bedienelemente (der Startschritt hat keine plattformabhängigen)
+  platform: { os: 'linux', mobile: false },
+  resume: null,
+  keystore_import: null,
 };
 
 const STEP_TITLE: Record<StepView['step'], string> = {
@@ -149,7 +154,19 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   );
 
   // --- Dateien öffnen --------------------------------------------------------------------------
+  const mobile = isMobile(current);
   const browse = useCallback(async () => {
+    if (mobile) {
+      // Mobile: Dokument-Picker bzw. SAF über das Plugin; Kopien in der Sandbox (keine Pfade der Quelle)
+      try {
+        const paths = await bridge.pickMobileFiles({ kind: 'pdf', multiple: true });
+        if (paths.length > 0) void dispatch({ type: 'open_files', paths });
+      } catch (e) {
+        const code = e instanceof Error ? e.message : 'ng-ui-dialog-failed';
+        toast(t.code(code, {}, 'ng-ui-dialog-failed'), 'error');
+      }
+      return;
+    }
     try {
       const paths = await bridge.pickFiles({
         title: t.t('dataSourceSelection-browse'),
@@ -163,7 +180,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
     } catch {
       toast(t.t('ng-ui-dialog-failed'), 'error');
     }
-  }, [bridge, dispatch, t, toast]);
+  }, [bridge, dispatch, t, toast, mobile]);
 
   // --- Drag & Drop -----------------------------------------------------------------------------
   const stepName = current.step.step;
@@ -252,7 +269,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   return (
     <I18nProvider locale={current.language === 'de' ? 'de-AT' : 'en-GB'}>
       <AppContext.Provider value={ctx}>
-        <div className="app" data-step={stepName} data-drag={dragActive || undefined}>
+        <div className="app" data-step={stepName} data-drag={dragActive || undefined} data-mobile={mobile || undefined} data-os={current.platform.os}>
           <a className="skip-link" href="#main">
             {t.t('ng-ui-skip-to-content')}
           </a>
@@ -268,6 +285,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           </main>
           {current.settings ? <SettingsDialog settingsView={current.settings} /> : null}
           {current.migration && !current.settings ? <MigrationDialog offer={current.migration} /> : null}
+          {current.resume && !current.settings && !current.migration ? <ResumeDialog offer={current.resume} /> : null}
           <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />
           <div className="visually-hidden" aria-live="polite" aria-atomic="true" data-testid="live-region">
             {liveText}

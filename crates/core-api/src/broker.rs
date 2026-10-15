@@ -31,15 +31,30 @@ pub(crate) trait BrokerSink: Send + Sync {
     fn backend_event(&self, event: BackendEvent);
 }
 
-/// Shell-Funktionen, die der Kern nicht selbst hat (System-Opener, Fensterhandle).
+/// Shell-Funktionen, die der Kern nicht selbst hat (System-Opener, Fensterhandle, Mobile: Teilen und
+/// Exportieren). Fehlertexte enthalten keine Pfade oder URLs (Regel 9).
 pub trait ShellHooks: Send + Sync {
-    /// Öffnet eine Datei mit der Standardanwendung (F-87).
+    /// Öffnet eine Datei mit der Standardanwendung (F-87; Mobile: QuickLook bzw. `ACTION_VIEW`).
     fn open_path(&self, path: &std::path::Path) -> Result<(), String>;
     /// Öffnet eine `https://`-URL im Systembrowser (F-68).
     fn open_url(&self, url: &str) -> Result<(), String>;
     /// Elternfenster für modale Systemdialoge (FIDO2 unter Windows).
     fn parent_window(&self) -> Option<WindowHandle> {
         None
+    }
+    /// Teilt eine Datei (Mobile: Share-Sheet `UIActivityViewController` bzw. `ACTION_SEND` mit
+    /// `FileProvider`-URI). Blockiert höchstens bis das System-UI angezeigt ist. Standard: nicht
+    /// unterstützt (Desktop).
+    fn share_path(&self, path: &std::path::Path) -> Result<(), String> {
+        let _ = path;
+        Err("unsupported".into())
+    }
+    /// Exportiert eine Datei („Sichern unter“: `UIDocumentPickerViewController(forExporting:)` bzw. SAF
+    /// `ACTION_CREATE_DOCUMENT` mit `file_name` als Vorschlag). Blockiert, bis die Nutzerin gewählt hat;
+    /// `Ok(false)` = abgebrochen. Standard: nicht unterstützt (Desktop: Speichern-Dialog des Kerns).
+    fn export_path(&self, path: &std::path::Path, file_name: &str) -> Result<bool, String> {
+        let _ = (path, file_name);
+        Err("unsupported".into())
     }
 }
 
@@ -184,6 +199,33 @@ impl CoreBroker {
         match p.map(|p| p.reply) {
             Some(Reply::Notice(tx)) => {
                 let _ = tx.send(Ok(answer));
+                self.sink.changed();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Mobile-Lebenszyklus: Wartet die jüngste Maske auf die App „ID Austria“ bzw. einen QR-Scan
+    /// (Long-Poll im Hintergrund), wird sie mit „weiter“ beantwortet – das Backend lädt die Seite neu
+    /// (R7) und startet damit einen frischen Long-Poll. Nach der Rückkehr aus der App ist die alte
+    /// Verbindung oft vom System getrennt; ohne Neustart würde erst nach Fehler-Backoff bzw. 300-s-Frist
+    /// weitergemacht. Liefert, ob neu gestartet wurde.
+    pub(crate) fn restart_long_poll(&self) -> bool {
+        let p = {
+            let mut inner = self.lock();
+            let waiting = inner.pending.iter().next_back().and_then(|(id, p)| match &p.view {
+                InteractionView::Form { form: NativeForm::WaitForApp { .. } | NativeForm::QrCode { .. }, .. } => {
+                    Some(*id)
+                }
+                _ => None,
+            });
+            let Some(id) = waiting else { return false };
+            inner.pending.remove(&id)
+        };
+        match p.map(|p| p.reply) {
+            Some(Reply::Form(tx)) => {
+                let _ = tx.send(Ok(FormAnswer::Continue));
                 self.sink.changed();
                 true
             }
@@ -416,6 +458,53 @@ mod tests {
         assert_eq!(b.native_form(login_form()).await, Err(InteractionError::Unsupported));
         assert_eq!(b.open_external("http://x"), Err(InteractionError::Unsupported));
         assert_eq!(b.open_external("https://x"), Err(InteractionError::Unsupported));
+    }
+
+    /// Rückkehr aus der App „ID Austria“: nur eine wartende App-/QR-Maske wird mit „weiter“ beantwortet
+    /// (Backend lädt neu und pollt frisch); Anmelde- und TAN-Masken bleiben unberührt.
+    #[tokio::test]
+    async fn restart_long_poll_answers_only_waiting_masks() {
+        let (b, _) = broker();
+        assert!(!b.restart_long_poll(), "nichts offen");
+        let b2 = b.clone();
+        let login = tokio::spawn(async move { b2.native_form(login_form()).await });
+        while !b.has_pending() {
+            tokio::task::yield_now().await;
+        }
+        assert!(!b.restart_long_poll(), "Anmeldung bleibt offen");
+        assert!(b.cancel_current());
+        let _ = login.await;
+        let b3 = b.clone();
+        let wait = tokio::spawn(async move {
+            b3.native_form(NativeForm::WaitForApp {
+                reference_value: Some("AB12".into()),
+                timeout_secs: Some(300),
+                ctx: FormContext::default(),
+            })
+            .await
+        });
+        while !b.has_pending() {
+            tokio::task::yield_now().await;
+        }
+        assert!(b.restart_long_poll());
+        assert_eq!(wait.await.unwrap(), Ok(FormAnswer::Continue));
+        assert!(!b.has_pending());
+    }
+
+    #[test]
+    fn shell_hooks_share_and_export_default_to_unsupported() {
+        struct Desktop;
+        impl ShellHooks for Desktop {
+            fn open_path(&self, _: &std::path::Path) -> Result<(), String> {
+                Ok(())
+            }
+            fn open_url(&self, _: &str) -> Result<(), String> {
+                Ok(())
+            }
+        }
+        let p = std::path::Path::new("/x/a_signed.pdf");
+        assert!(Desktop.share_path(p).is_err());
+        assert!(Desktop.export_path(p, "a_signed.pdf").is_err());
     }
 
     #[test]

@@ -19,6 +19,8 @@ Oberfläche und Shell von PDF-Over NG: **React 19 + TypeScript (strict) + React 
 ```sh
 npm ci                 # Abhängigkeiten exakt nach package-lock.json
 npm run dev:mock       # Oberfläche mit Mock-Kern im Browser (http://localhost:1420)
+                       # Mobile-Ansicht: http://localhost:1420/?platform=ios (bzw. android), &resume=1
+                       # zeigt „Signatur fortsetzen“ (docs/integration/mobile.md)
 npm run build          # tsc (strict) + Vite → dist/
 npm test               # Vitest + Testing Library (jsdom)
 npm run tauri dev      # App mit Rust-Kern (Vite-Dev-Server + cargo)

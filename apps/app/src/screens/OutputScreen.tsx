@@ -4,14 +4,18 @@
  * Dialog öffnet sich automatisch, die Antwort geht als `save{path}` bzw. `save{null}` zurück) und
  * Überschreiben-Rückfrage (F-84, `OutputView::ask_overwrite` → `confirm_overwrite`), nächstes Dokument
  * der Warteschlange; Dateien lassen sich weiter ablegen (F-89).
+ *
+ * Mobile (Plan §5.1 „Ausgabe“): Die Datei liegt in den App-Dokumenten; statt „Im Ordner anzeigen“ gibt es
+ * „Teilen“ (Share-Sheet bzw. `ACTION_SEND`) und „Sichern unter …“ (Dokument-Picker bzw. SAF) – beides
+ * führt der Kern über die Shell aus (`share_result`/`export_result`).
  */
 import { useEffect, useRef } from 'react';
 import { useApp } from '../app/context';
 import { DonePanel } from '../components/DonePanel';
-import { IconCheck, IconFolder } from '../components/icons';
+import { IconCheck, IconFolder, IconUpload } from '../components/icons';
 import { AccessButton, ConfirmDialog, Markup, ScreenHeading } from '../components/ui';
 import { baseName, dirName } from '../core/defaults';
-import type { DocInfo, OutputView } from '../core/types';
+import { isMobile, type DocInfo, type OutputView } from '../core/types';
 
 function joinPath(dir: string, name: string): string {
   if (!dir) return name;
@@ -20,7 +24,8 @@ function joinPath(dir: string, name: string): string {
 }
 
 export function OutputScreen({ result, next }: { result: OutputView; next: DocInfo | null }) {
-  const { t, dispatch, bridge, toast, dragActive } = useApp();
+  const { t, dispatch, bridge, toast, dragActive, view } = useApp();
+  const mobile = isMobile(view);
   const filters = [
     { name: t.t('common-PDFExtension_Description'), extensions: ['pdf'] },
     { name: t.t('common-AllExtension_Description'), extensions: ['*'] },
@@ -71,12 +76,24 @@ export function OutputScreen({ result, next }: { result: OutputView; next: DocIn
             </p>
             <p className="path" title={result.path}>
               <strong>{baseName(result.path)}</strong>
-              <span className="hint block">{dirName(result.path)}</span>
+              {/* Mobile: der Sandbox-Pfad sagt der Nutzerin nichts („liegt in den Dokumenten dieser App“) */}
+              {mobile ? null : <span className="hint block">{dirName(result.path)}</span>}
             </p>
-            <div className="actions actions-start">
-              <AccessButton msg="common-open" variant="primary" onPress={() => dispatch({ type: 'open_result' })} />
-              <AccessButton msg="ng-ui-output-reveal" icon={<IconFolder size={18} />} onPress={reveal} />
-            </div>
+            {mobile ? (
+              <>
+                <p className="hint">{t.t('ng-ui-output-mobile-hint')}</p>
+                <div className="actions actions-start">
+                  <AccessButton msg="common-open" variant="primary" onPress={() => dispatch({ type: 'open_result' })} />
+                  <AccessButton msg="ng-ui-output-share" icon={<IconUpload size={18} />} onPress={() => dispatch({ type: 'share_result' })} />
+                  <AccessButton msg="ng-ui-output-export" icon={<IconFolder size={18} />} onPress={() => dispatch({ type: 'export_result' })} />
+                </div>
+              </>
+            ) : (
+              <div className="actions actions-start">
+                <AccessButton msg="common-open" variant="primary" onPress={() => dispatch({ type: 'open_result' })} />
+                <AccessButton msg="ng-ui-output-reveal" icon={<IconFolder size={18} />} onPress={reveal} />
+              </div>
+            )}
           </div>
         </>
       ) : (
@@ -101,7 +118,7 @@ export function OutputScreen({ result, next }: { result: OutputView; next: DocIn
           </>
         ) : (
           <>
-            <p className="hint">{t.t('ng-ui-output-drop-hint')}</p>
+            {mobile ? null : <p className="hint">{t.t('ng-ui-output-drop-hint')}</p>}
             <AccessButton msg="ng-ui-output-more" onPress={() => dispatch({ type: 'navigate', step: 'Open' })} />
           </>
         )}

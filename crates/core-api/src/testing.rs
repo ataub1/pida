@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use pdfover_cades::{AssembleOptions, CertChain, Digest, DigestAlg, Expect, ExpectedSigner, RawSignature, SignedAttrs};
 use pdfover_pades::{
     AcceptanceClass, CheckContext, CheckReport, DocReport, ExcludedRange, Finding, FinishError, Invariant,
-    InvariantViolation, OutputInfo, OutputTarget, PadesError, Reserve, SignPlan, XfaKind,
+    InvariantViolation, OutputInfo, OutputTarget, PadesError, PreparedHandle, Reserve, SignPlan, XfaKind,
 };
 use pdfover_pdf_cos::SourcePdf;
 use time::OffsetDateTime;
@@ -32,6 +32,8 @@ pub struct FakeEngine {
     pub analyze_delay_ms: AtomicU64,
     /// Befunde der Analyse (z. B. Warnungen mit Abbruchmöglichkeit)
     pub findings: Mutex<Vec<Finding>>,
+    /// Anzahl erfolgreicher `restore` (Mobile, „Signatur fortsetzen“)
+    pub restores: AtomicUsize,
 }
 
 impl Default for FakeEngine {
@@ -44,6 +46,7 @@ impl Default for FakeEngine {
             prepares: AtomicUsize::new(0),
             analyze_delay_ms: AtomicU64::new(0),
             findings: Mutex::new(Vec::new()),
+            restores: AtomicUsize::new(0),
         }
     }
 }
@@ -114,6 +117,35 @@ impl PadesEngine for FakeEngine {
             fail_check: self.fail_check.load(Ordering::SeqCst),
         }))
     }
+
+    fn restore(&self, handle: &PreparedHandle, src: &SourcePdf) -> Result<Box<dyn PreparedDoc>, PadesError> {
+        let invalid = |m: &str| PadesError::InvalidState(m.to_owned());
+        let bytes = std::fs::read(&handle.path)?;
+        if DigestAlg::Sha256.digest(&bytes).value != handle.sha256 {
+            return Err(invalid("Prüfsumme stimmt nicht"));
+        }
+        let state: FakeState = serde_json::from_slice(&bytes).map_err(|_| invalid("Zustand nicht lesbar"))?;
+        if state.content != src.bytes() {
+            return Err(invalid("Original passt nicht"));
+        }
+        let signing_time =
+            OffsetDateTime::from_unix_timestamp(state.signing_time_unix).map_err(|_| invalid("Zeitpunkt"))?;
+        self.restores.fetch_add(1, Ordering::SeqCst);
+        Ok(Box::new(FakePrepared {
+            content: state.content,
+            signing_time,
+            reserve: state.reserve,
+            fail_check: self.fail_check.load(Ordering::SeqCst),
+        }))
+    }
+}
+
+/// Persistierter Zustand der Fake-Engine (JSON).
+#[derive(serde::Serialize, serde::Deserialize)]
+struct FakeState {
+    content: Vec<u8>,
+    signing_time_unix: i64,
+    reserve: usize,
 }
 
 /// „Vorbereitetes PDF“: Inhalt + 2 Byte Lücke.
@@ -166,6 +198,17 @@ impl PreparedDoc for FakePrepared {
         )?;
         let expect = Expect { signer: ExpectedSigner::Certificate(chain.signer.clone()), ..Expect::default() };
         self.finish_cms(&cms, &expect)
+    }
+    fn persist(&self, dir: &std::path::Path) -> Result<PreparedHandle, PadesError> {
+        let state = FakeState {
+            content: self.content.clone(),
+            signing_time_unix: self.signing_time.unix_timestamp(),
+            reserve: self.reserve,
+        };
+        let bytes = serde_json::to_vec(&state).map_err(|e| PadesError::InvalidState(e.to_string()))?;
+        let path = dir.join("fake-prepared.json");
+        std::fs::write(&path, &bytes)?;
+        Ok(PreparedHandle { path, sha256: DigestAlg::Sha256.digest(&bytes).value })
     }
 }
 

@@ -718,6 +718,13 @@ code {
   font-weight: 600;
 }
 
+.badge-disabled {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  text-decoration: line-through;
+}
+
 .badge-muted {
   background: var(--surface-2);
   color: var(--text-muted);
@@ -1089,6 +1096,10 @@ code {
   gap: 8px;
   align-items: center;
   font-weight: 600;
+}
+
+.privacy-lead svg {
+  flex: none;
 }
 
 .signing-layout {
@@ -1604,7 +1615,114 @@ code {
   .brand {
     display: none;
   }
+
+  /* schmale Telefone: nur der aktuelle Schritt mit Namen, die übrigen als Nummer */
+  .mainbar-item[data-current] .mainbar-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: hidden;
+    clip: auto;
+  }
+
+  .mainbar-steps {
+    display: flex;
+  }
+
+  .mainbar-item {
+    flex: 0 0 auto;
+  }
+
+  .mainbar-item[data-current] {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }
+
+/* ------------------------------------------------------------------------------------------- */
+/* Mobile: Safe Areas (Notch, Home-Indikator; viewport-fit=cover) und Touch                       */
+/* ------------------------------------------------------------------------------------------- */
+
+.topbar {
+  padding-top: max(10px, env(safe-area-inset-top));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+.content {
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-bottom: max(40px, calc(env(safe-area-inset-bottom) + 24px));
+}
+
+.toasts {
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
+}
+
+.modal-overlay {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Finger statt Maus: Tap-Ziele mindestens 44 × 44 px (WCAG 2.5.5, Apple HIG), größere Trefferfläche
+   des Signaturblocks, kein Text-Markieren beim Ziehen, keine Doppeltipp-Vergrößerung */
+@media (pointer: coarse) {
+  .icon-button,
+  .segment,
+  .select-button,
+  .input,
+  .tab {
+    min-height: 44px;
+  }
+
+  .icon-button {
+    min-width: 44px;
+  }
+
+  .checkbox,
+  .radio {
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .link {
+    padding: 2px 0;
+  }
+
+  .block-overlay::after {
+    content: '';
+    position: absolute;
+    inset: -14px;
+  }
+
+  .page-stage,
+  .mainbar-step,
+  .btn {
+    touch-action: manipulation;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-left: max(8px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+
+  .content {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: max(32px, calc(env(safe-area-inset-bottom) + 16px));
+  }
+}
+
+.app[data-mobile] .page-stage {
+  /* Mobile: Seite füllt die Breite, Höhe bleibt im sichtbaren Bereich */
+  height: min(62vh, 720px);
+  min-height: 280px;
+}
+
 
 /* ------------------------------------------------------------------------------------------- */
 /* Barrierefreiheit: Bewegung, Kontrastdesigns                                                  */

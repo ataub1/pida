@@ -57,6 +57,12 @@ export interface PlatformServices {
   pickSavePath(options: { title: string; filters: FileFilter[]; defaultPath?: string | null }): Promise<string | null>;
   /** Ordnerdialog; `null` = abgebrochen. */
   pickDirectory(options: { title: string; defaultPath?: string | null }): Promise<string | null>;
+  /**
+   * Mobile: System-Dateiauswahl über das Plugin `pdfover-mobile` (Dokument-Picker bzw. SAF); die Dateien
+   * liegen danach als Kopien in der App-Sandbox. `[]` = abgebrochen. Fehler tragen einen Code
+   * (`ng-mobile-not-implemented`, `ng-mobile-unsupported` …).
+   */
+  pickMobileFiles(options: { kind: 'pdf' | 'pkcs12'; multiple: boolean }): Promise<string[]>;
   /** Drag & Drop von Dateien über das Fenster. */
   onFileDrag(cb: (event: FileDragEvent) => void): () => void;
   /** Öffnet eine `https:`/`mailto:`-URL im Systembrowser. */
@@ -178,6 +184,13 @@ export async function createTauriBridge(): Promise<Bridge> {
     async pickDirectory({ title, defaultPath }) {
       const result = await dialog.open({ title, directory: true, multiple: false, defaultPath: defaultPath ?? undefined });
       return typeof result === 'string' ? result : null;
+    },
+    async pickMobileFiles({ kind, multiple }) {
+      try {
+        return await invoke<string[]>('mobile_pick_files', { kind, multiple });
+      } catch (e) {
+        throw new Error(errorCode(e));
+      }
     },
     onFileDrag(cb) {
       let unlisten: (() => void) | null = null;

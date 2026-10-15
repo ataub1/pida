@@ -1,4 +1,5 @@
-//! `pdfover-app` – Tauri-2-Shell von PDF-Over NG (Desktop; Mobile folgt in einer späteren Welle).
+//! `pdfover-app` – Tauri-2-Shell von PDF-Over NG (Desktop und Mobile; Mobile-Teil: [`mobile`],
+//! docs/integration/mobile.md).
 //!
 //! Die Shell ist **dünn** (Plan §3.1): Sie startet `pdfover-core-api`, leitet den [`ViewState`] als
 //! Ereignis [`VIEW_EVENT`] an das Fenster, nimmt [`pdfover_core_api::UiEvent`]s über den Command
@@ -33,7 +34,19 @@
 //!   nicht binnen [`QUIT_GRACE`], endet die App trotzdem.
 //! - **Berechtigungen** der Oberfläche (capabilities/default.json) sind minimal: Ereignisse empfangen,
 //!   die eigenen Commands, Datei-/Speichern-Dialog und `https:`/`mailto:`-Links – kein `core:default`
-//!   (Menüs, Tray, Fenster-/Pfad-APIs bleiben gesperrt).
+//!   (Menüs, Tray, Fenster-/Pfad-APIs bleiben gesperrt). Mobile (capabilities/mobile.json): ohne
+//!   Dateidialog, Log-Ordner und Dateimanager, dafür `mobile_pick_files`.
+//!
+//! Mobile (`cfg(mobile)`, Plan §5.2/§5.3):
+//! - Einstieg [`run`] mit `tauri::mobile_entry_point`; keine Startargumente (keine CLI), kein
+//!   Single-Instance, kein Fensterzustand, kein Updater.
+//! - Pfade der App-Sandbox (`Paths::sandbox`), Ausgabe in die App-Dokumente, Secrets über das Plugin
+//!   ([`mobile::secret_store`]), PDFium aus dem Bundle bzw. `jniLibs` ([`pdfium::mobile_dir`]).
+//! - Lebenszyklus `WindowEvent::Suspended`/`Resumed` → `UiEvent::Backgrounded`/`Foregrounded` (kein
+//!   Abbruch); Schließen/Beenden geht nie als `Quit` an den Kern.
+//! - Dokument-Eingang: `RunEvent::Opened` (URLs, keine Pfade) und Intents über das Plugin
+//!   (`take_pending_open_documents`, beim Start und nach jeder Rückkehr); Bytes werden in den
+//!   Eingangsordner der Sandbox kopiert ([`mobile::ingest_urls`]).
 //!
 //! Ownership: Paket **I3** (Welle 2), danach Integration.
 
@@ -41,6 +54,7 @@ pub mod args;
 pub mod files;
 pub mod hooks;
 pub mod instance;
+pub mod mobile;
 pub mod pdfium;
 pub mod protocol;
 pub mod shell;
@@ -58,7 +72,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use args::GuiArgs;
 use instance::EarlyDocuments;
-use shell::{DispatchOutcome, QuitRequest, Shell, Started};
+use shell::{DispatchOutcome, Shell, Started};
 
 /// Meldungs-ID: der Kern-Task hat unerwartet geendet (Detail im Fehlerschritt).
 pub const CORE_STOPPED: &str = "ng-core-stopped";
@@ -138,6 +152,28 @@ fn open_notices(app: AppHandle) -> Result<(), String> {
     app.opener().open_path(file.to_string_lossy(), None::<&str>).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
+/// Mobile: System-Dateiauswahl über das Plugin (`kind` = `pdf` bzw. `pkcs12`); die gewählten Dateien liegen
+/// danach als Kopien im Import-Ordner der Sandbox (die Oberfläche sendet ihre Pfade als `open_files` bzw.
+/// `import_keystore`). Desktop: `ng-mobile-unsupported` (dort gilt der Dateidialog). Läuft im
+/// Hintergrund (die native Seite darf nicht vom Hauptthread aus blockierend gerufen werden).
+#[tauri::command]
+async fn mobile_pick_files(app: AppHandle, kind: String, multiple: bool) -> Result<Vec<String>, String> {
+    use tauri_plugin_pdfover_mobile::{ImportKind, PdfoverMobileExt};
+    let kind = match kind.as_str() {
+        "pdf" => ImportKind::Pdf,
+        "pkcs12" => ImportKind::Pkcs12,
+        _ => return Err(shell::EVENT_INVALID.to_owned()),
+    };
+    let dest = app.path().app_cache_dir().map_err(|_| "ng-ui-open-failed".to_owned())?.join(mobile::IMPORT_DIR);
+    std::fs::create_dir_all(&dest).map_err(|_| "ng-ui-open-failed".to_owned())?;
+    let plugin = app.pdfover_mobile();
+    let files = tauri::async_runtime::spawn_blocking(move || plugin.import_file(kind, multiple, &dest))
+        .await
+        .map_err(|_| "ng-ui-open-failed".to_owned())?
+        .map_err(|e| e.code().to_owned())?;
+    Ok(files.into_iter().map(|f| f.path.to_string_lossy().into_owned()).collect())
+}
+
 /// Startet den Kern (bzw. erneut nach „Wiederholen“) und abonniert den ViewState.
 fn start_core(app: &AppHandle, shell: &Shell) {
     // Der Kern darf `tokio::spawn` im Kontext der Tauri-Laufzeit nutzen.
@@ -182,6 +218,7 @@ fn start_core(app: &AppHandle, shell: &Shell) {
     }
 }
 
+#[cfg(desktop)]
 /// Beenden über den Kern anfordern (Fenster schließen, ⌘Q). `true` = der Kern beendet die App über
 /// `Finished` (Schließen/Beenden jetzt verhindern); nach [`QUIT_GRACE`] endet sie in jedem Fall.
 fn quit_via_core(app: &AppHandle) -> bool {
@@ -189,9 +226,9 @@ fn quit_via_core(app: &AppHandle) -> bool {
         return false;
     };
     match shell.request_quit() {
-        QuitRequest::NoCore => false,
-        QuitRequest::AlreadyRequested => true,
-        QuitRequest::Requested => {
+        shell::QuitRequest::NoCore => false,
+        shell::QuitRequest::AlreadyRequested => true,
+        shell::QuitRequest::Requested => {
             let app = app.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(QUIT_GRACE);
@@ -204,12 +241,16 @@ fn quit_via_core(app: &AppHandle) -> bool {
 }
 
 fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pdfover_config::ConfigError> {
-    let paths = Paths::platform()?;
-    let env_dir = pdfium::env_override();
+    let paths = platform_paths(app)?;
     let exe = std::env::current_exe().ok();
-    let resources = app.path().resource_dir().ok();
-    let candidates = pdfium::candidates(env_dir, exe.as_deref(), resources.as_deref());
-    let pdfium_dir = pdfium::resolve(&candidates, exe.as_deref(), !cfg!(debug_assertions));
+    let pdfium_dir = if cfg!(mobile) {
+        pdfium::mobile_dir(exe.as_deref(), cfg!(target_os = "android"))
+    } else {
+        let env_dir = pdfium::env_override();
+        let resources = app.path().resource_dir().ok();
+        let candidates = pdfium::candidates(env_dir, exe.as_deref(), resources.as_deref());
+        pdfium::resolve(&candidates, exe.as_deref(), !cfg!(debug_assertions))
+    };
     Ok(CoreConfig {
         paths,
         overlay,
@@ -219,6 +260,75 @@ fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pdfover_
         fido2: fido2_provider(),
         app_version: app.package_info().version.to_string(),
     })
+}
+
+/// Pfade: Desktop plattformüblich, Mobile die App-Sandbox (`app_data_dir` gesichert, `app_cache_dir`
+/// darf das System leeren).
+fn platform_paths(app: &AppHandle) -> Result<Paths, pdfover_config::ConfigError> {
+    if cfg!(mobile) {
+        let data = app.path().app_data_dir().map_err(|_| pdfover_config::ConfigError::NoHomeDirectory)?;
+        let cache = app.path().app_cache_dir().map_err(|_| pdfover_config::ConfigError::NoHomeDirectory)?;
+        Ok(Paths::sandbox(&data, &cache))
+    } else {
+        Paths::platform()
+    }
+}
+
+/// Mobile: Optionen des Kerns (sicherer Speicher über das Plugin, Ausgabe in die App-Dokumente, keine
+/// Altkonfiguration, keine lokale BKU).
+#[cfg(mobile)]
+fn mobile_options(app: &AppHandle, shell: &Shell) {
+    use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
+    let documents = app.path().document_dir().ok();
+    let secrets = mobile::secret_store(app.pdfover_mobile());
+    shell.update_options(move |o| {
+        o.secret_store = Some(secrets);
+        o.default_output_dir = documents;
+        o.detect_legacy_dir = false;
+        o.probe_local_bku = false;
+    });
+}
+
+/// Mobile: Lebenszyklus an den Kern (kein Abbruch); nach der Rückkehr eingegangene Dokumente abholen.
+#[cfg(mobile)]
+fn lifecycle(app: &AppHandle, suspended: bool) {
+    if let Some(shell) = app.try_state::<Shell>() {
+        tracing::info!(suspended, "Lebenszyklus");
+        shell.dispatch(mobile::lifecycle_event(suspended));
+    }
+    if !suspended {
+        take_pending_documents(app, Vec::new());
+    }
+}
+
+/// Mobile: Dokumente aus „Öffnen in“/Share/Intents in die Sandbox kopieren und an den Kern geben – im
+/// Hintergrund (Dateizugriff, native Seite; Ereignisse kommen auf dem Hauptthread).
+#[cfg(mobile)]
+fn take_pending_documents(app: &AppHandle, urls: Vec<url::Url>) {
+    use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
+    let Ok(cache) = app.path().app_cache_dir() else { return };
+    let inbox = cache.join(mobile::INBOX_DIR);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let ingested = mobile::ingest_urls(&urls, &inbox);
+        let mut docs = ingested.files;
+        if std::fs::create_dir_all(&inbox).is_ok() {
+            match app.pdfover_mobile().take_pending_open_documents(&ingested.unresolved, &inbox) {
+                Ok(files) => docs.extend(files.into_iter().map(|f| f.path)),
+                Err(e) => {
+                    if !ingested.unresolved.is_empty()
+                        || !matches!(e, tauri_plugin_pdfover_mobile::Error::NotImplemented)
+                    {
+                        tracing::warn!(code = e.code(), "eingehende Dokumente der Plattform nicht abgeholt");
+                    }
+                }
+            }
+        }
+        if !docs.is_empty() {
+            tracing::info!(count = docs.len(), "Dokumente eingegangen");
+            deliver_documents(&app, docs);
+        }
+    });
 }
 
 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
@@ -274,6 +384,7 @@ fn deliver_documents(app: &AppHandle, docs: Vec<std::path::PathBuf>) {
     });
 }
 
+#[cfg(desktop)]
 fn focus_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -288,9 +399,13 @@ pub fn run() {
     smoke::mark_process_start();
     let system_language = init_language();
 
-    // Startargumente wie PDF-Over (Hilfe/Version ohne Fenster).
+    // Startargumente wie PDF-Over (Hilfe/Version ohne Fenster); Mobile hat keine Kommandozeile.
     let cwd = std::env::current_dir().unwrap_or_default();
-    let start_args = args::parse_gui_args(std::env::args_os(), &cwd, &|name| std::env::var_os(name));
+    let start_args = if cfg!(mobile) {
+        GuiArgs::Start { overlay: Box::default(), log_level: None }
+    } else {
+        args::parse_gui_args(std::env::args_os(), &cwd, &|name| std::env::var_os(name))
+    };
     let start_args = match start_args {
         GuiArgs::Help(text) => {
             print!("{text}");
@@ -304,11 +419,13 @@ pub fn run() {
     };
 
     // vor `build` registriert: `RunEvent::Opened` kann unter macOS vor `setup` eintreffen
-    let mut builder = tauri::Builder::default().manage(EarlyDocuments::default());
+    let builder = tauri::Builder::default().manage(EarlyDocuments::default());
 
+    // Nur Desktop: Single-Instance (Mobile: das System startet die App einmal) und Fensterzustand.
     let single_instance = cfg!(desktop) && instance::single_instance_allowed();
     #[cfg(desktop)]
-    {
+    let builder = {
+        let mut builder = builder;
         // Muss als erstes Plugin registriert werden (macOS: nur mit eigenem Socket, siehe `instance`).
         if single_instance {
             builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
@@ -317,12 +434,14 @@ pub fn run() {
                 focus_main_window(app);
             }));
         }
-        builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
-    }
+        builder.plugin(tauri_plugin_window_state::Builder::default().build())
+    };
 
     let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        // Mobile: native Seite (Swift/Kotlin); Desktop: ohne Funktion. Keine Befehle für die WebView.
+        .plugin(tauri_plugin_pdfover_mobile::init())
         .register_asynchronous_uri_scheme_protocol(protocol::SCHEME, |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             let path = request.uri().path().to_owned();
@@ -341,7 +460,8 @@ pub fn run() {
             app_info,
             open_log_dir,
             reveal_output,
-            open_notices
+            open_notices,
+            mobile_pick_files
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -374,12 +494,17 @@ pub fn run() {
             }
             shell.set_system_language(system_language);
             shell.set_hooks(Arc::new(hooks::TauriHooks::new(handle.clone())));
+            #[cfg(mobile)]
+            mobile_options(&handle, &shell);
             app.manage(shell);
             let shell = handle.state::<Shell>();
             // vor `setup` eingetroffene Dokumente (macOS-Kaltstart über ein Dokument) gehen mit dem Start
             // an den Kern; ab hier liefert `deliver_documents` direkt an die Shell
             shell.open_files(handle.state::<EarlyDocuments>().close());
             start_core(&handle, &shell);
+            // Mobile-Kaltstart über „Öffnen in“/Share bzw. Intent: vorgemerkte Dokumente der Plattform
+            #[cfg(mobile)]
+            take_pending_documents(&handle, Vec::new());
             smoke::arm_watchdog(&handle);
             Ok(())
         })
@@ -387,6 +512,9 @@ pub fn run() {
         .expect("Tauri-Anwendung konnte nicht erstellt werden");
 
     app.run(|app, event| match event {
+        // Desktop: Schließen/Beenden über den Kern. Mobile verwaltet das System den Prozess – ein
+        // Schließen der Activity bzw. ein App-Wechsel ist kein Abbruch (Plan §3.5).
+        #[cfg(desktop)]
         tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::CloseRequested { api, .. }, .. } => {
             // Fenster schließen während eines Dialogs gilt als Abbruch (F-73); der Kern räumt auf, sichert
             // die Einstellungen und meldet `Finished` → `app.exit(code)`.
@@ -395,6 +523,7 @@ pub fn run() {
             }
         }
         // Beenden durch den Nutzer (⌘Q, Menü); `Some(code)` stammt von `app.exit` und wird nicht gehalten.
+        #[cfg(desktop)]
         tauri::RunEvent::ExitRequested { code: None, api, .. } => {
             if quit_via_core(app) {
                 api.prevent_exit();
@@ -406,7 +535,14 @@ pub fn run() {
                 drop(log.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take());
             }
         }
-        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+        #[cfg(mobile)]
+        tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::Suspended, .. } => lifecycle(app, true),
+        #[cfg(mobile)]
+        tauri::RunEvent::WindowEvent { event: tauri::WindowEvent::Resumed, .. } => lifecycle(app, false),
+        // Mobile: URLs (keine Pfade) – Bytes in die Sandbox kopieren, `content://` über das Plugin
+        #[cfg(mobile)]
+        tauri::RunEvent::Opened { urls } => take_pending_documents(app, urls),
+        #[cfg(target_os = "macos")]
         tauri::RunEvent::Opened { urls } => {
             deliver_documents(app, files::documents_from_urls(&urls));
             focus_main_window(app);

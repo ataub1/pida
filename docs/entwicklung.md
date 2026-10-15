@@ -255,6 +255,7 @@ Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lok
 | `x86_64-unknown-linux-gnu` | wie Windows: alle reinen Rust-Crates ok, `ring`-abhängige nur nativ (CI `ubuntu-latest`) |
 | `aarch64-apple-ios` | ok: alle Crates außer cli (ring baut mit Xcode). Seit Welle 3 bindet `pdfover-config` `keyring` nur auf Desktop-Zielen ein (unter iOS verlangte `apple-native-keyring-store` 1.0.2 das Feature `protected`); auf Mobile liefert `platform_secret_store` den Platzhalter `MobileSecretStorePlaceholder`, bis die Mobile-Shell ihren Speicher setzt. Behoben in Welle 2: `time` ohne `local-offset` |
 | `aarch64-linux-android` | ok: alle reinen Rust-Crates inkl. config/workflow; `ring`-abhängige brauchen das NDK (`CC_aarch64_linux_android`), CI-Job `mobile` setzt es |
+| Mobile-Welle M0 (Shell) | ok: `cargo check`/`clippy -D warnings` für `pdfover-app` und `tauri-plugin-pdfover-mobile` auf `aarch64-apple-ios`, `aarch64-apple-ios-sim` (kompiliert das Swift-Paket des Plugins) und `aarch64-linux-android` (NDK 29.0.14206865, `CC_/AR_/CARGO_TARGET_…_LINKER` auf `aarch64-linux-android24-clang`); Bauen, Plugin-Vertrag und Aufgaben: docs/integration/mobile.md |
 
 **Clippy für Fremdziele** (`tools/cross-clippy.sh <ziel>`, Review Welle 2): stellt die blockierenden
 Clippy-Schritte des Jobs `build` (strikt ohne `CLIPPY_LENIENT` aus `ci.yml`, dazu FIDO2 mit

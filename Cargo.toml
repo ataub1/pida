@@ -35,7 +35,8 @@ members = [
     "crates/core-api",
     # Anwendungen
     "apps/cli",
-    "apps/app/src-tauri",   # Tauri-2-Shell (Desktop; Mobile folgt), ADR 0001 §3
+    "apps/app/src-tauri",   # Tauri-2-Shell (Desktop und Mobile), ADR 0001 §3
+    "apps/app/plugins/pdfover-mobile",   # Mobile-Plugin der Shell (Swift/Kotlin: M-iOS/M-Android)
 ]
 
 [workspace.package]
@@ -73,6 +74,8 @@ pdfover-config = { path = "crates/config" }
 pdfover-core-api = { path = "crates/core-api" }
 # Argument-Parser von PDF-Over (auch für die GUI-Shell); `features = ["run"]` = Ablauf der CLI.
 pdfover-cli = { path = "apps/cli", default-features = false }
+# Mobile-Plugin der Tauri-Shell (sicherer Speicher, Teilen/Exportieren, Import, eingehende Dokumente).
+tauri-plugin-pdfover-mobile = { path = "apps/app/plugins/pdfover-mobile" }
 
 # --- PDF ------------------------------------------------------------------------------------------
 # Plan §2.1/§2.5: lopdf 0.45.x nur als Parser/Objektmodell (gekapselt in pdf-cos); kein rayon/chrono-clock,
@@ -166,6 +169,8 @@ rpassword = "=7.5.4"
 # Tauri 2.12.x exakt gepinnt (Plan §2.1/§2.5); Apache-2.0 OR MIT.
 tauri = { version = "=2.12.4", features = [] }
 tauri-build = { version = "=2.7.3", features = [] }
+# Build-Skript eigener Tauri-Plugins (apps/app/plugins/pdfover-mobile); Version wie im Graph der Plugins.
+tauri-plugin = { version = "=2.7.2", features = ["build"] }
 tauri-plugin-dialog = "=2.8.3"
 tauri-plugin-opener = "=2.7.2"
 tauri-plugin-single-instance = "=2.5.4"

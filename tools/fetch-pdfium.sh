@@ -7,11 +7,16 @@
 #   tools/fetch-pdfium.sh --print-dir          # laden (falls nötig), Bibliotheksverzeichnis auf stdout
 #   eval "$(tools/fetch-pdfium.sh --print-env)"   # laden und PDFOVER_PDFIUM_DIR in der Shell setzen
 #   tools/fetch-pdfium.sh --github-env         # CI: PDFOVER_PDFIUM_DIR nach $GITHUB_ENV schreiben
+#   tools/fetch-pdfium.sh --xcframework        # iOS: <Ziel>/apple/PDFium.xcframework (Gerät + Simulator)
+#   tools/fetch-pdfium.sh --jnilibs            # Android: <Ziel>/android/jniLibs/<abi>/libpdfium.so
 #   PDFIUM_RELEASE=chromium/<n> tools/fetch-pdfium.sh --update-lock --all   # neue Release einpflegen
 #
 # Ziel: tools/pdfium/<plattform>/ (nicht versioniert, .gitignore), Bibliothek in lib/ bzw. unter
 # Windows in bin/. Die erwarteten Hashes stehen in tools/pdfium.lock; eine Abweichung bricht ab und
 # löscht das Archiv. Bereits entpackte Plattformen mit passendem Hash werden nicht neu geladen.
+# --xcframework lädt ios-device-arm64, ios-simulator-arm64/-x64 und baut daraus ein Framework je Slice
+# (install name @rpath/pdfium.framework/pdfium, Simulator als arm64+x86_64, ad-hoc signiert; nur macOS
+# mit Xcode). --jnilibs lädt android-arm64/-arm/-x64 (ABIs arm64-v8a, armeabi-v7a, x86_64).
 #
 # Plattformen: mac-arm64 mac-x64 linux-x64 linux-arm64 win-x64 win-arm64 ios-device-arm64
 #              ios-simulator-arm64 ios-simulator-x64 android-arm64 android-arm android-x64
@@ -30,7 +35,7 @@ die() { echo "fetch-pdfium: $*" >&2; exit 1; }
 log() { echo "fetch-pdfium: $*" >&2; }
 
 usage() {
-  sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -112,6 +117,8 @@ MODE=fetch
 GITHUB_ENV_OUT=0
 UPDATE_LOCK=0
 FORCE=0
+XCFRAMEWORK=0
+JNILIBS=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -h | --help) usage 0 ;;
@@ -122,6 +129,8 @@ while [ $# -gt 0 ]; do
     --github-env) GITHUB_ENV_OUT=1 ;;
     --update-lock) UPDATE_LOCK=1 ;;
     --force) FORCE=1 ;;
+    --xcframework) XCFRAMEWORK=1; PLATFORMS="$PLATFORMS ios-device-arm64 ios-simulator-arm64 ios-simulator-x64" ;;
+    --jnilibs) JNILIBS=1; PLATFORMS="$PLATFORMS android-arm64 android-arm android-x64" ;;
     --dest) shift; [ $# -gt 0 ] || die "--dest braucht ein Verzeichnis"; DEST="$1" ;;
     -*) log "unbekannte Option $1"; usage 2 ;;
     *) valid_platform "$1" || die "unbekannte Plattform '$1' (--list zeigt alle)"; PLATFORMS="$PLATFORMS $1" ;;
@@ -215,6 +224,127 @@ if [ "$UPDATE_LOCK" = 1 ]; then
   } >"$tmp_lock"
   mv "$tmp_lock" "$LOCK"
   log "tools/pdfium.lock aktualisiert ($RELEASE) – Hashes gegen die Release-Seite prüfen und Kopfkommentar anpassen"
+fi
+
+# --- Mobile: xcframework (iOS) und jniLibs (Android) --------------------------------------------
+build_version() {
+  awk -F= '$1 == "MAJOR" { major = $2 } $1 == "MINOR" { minor = $2 } $1 == "BUILD" { build = $2 } END { if (major != "") print major "." (minor == "" ? 0 : minor) "." build; else print "0.0.0" }' "$1"
+}
+
+# Ein Framework-Slice: pdfium.framework/{pdfium, Info.plist}, install name @rpath/…, ad-hoc signiert.
+make_framework() {
+  local dylib="$1" out="$2" platform="$3" version="$4" minos="$5"
+  mkdir -p "$out/pdfium.framework"
+  cp "$dylib" "$out/pdfium.framework/pdfium"
+  chmod u+w "$out/pdfium.framework/pdfium"
+  install_name_tool -id "@rpath/pdfium.framework/pdfium" "$out/pdfium.framework/pdfium"
+  cat >"$out/pdfium.framework/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleExecutable</key><string>pdfium</string>
+  <key>CFBundleIdentifier</key><string>org.pdfium.pdfium</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>pdfium</string>
+  <key>CFBundlePackageType</key><string>FMWK</string>
+  <key>CFBundleShortVersionString</key><string>$version</string>
+  <key>CFBundleVersion</key><string>$version</string>
+  <key>CFBundleSupportedPlatforms</key><array><string>$platform</string></array>
+  <key>MinimumOSVersion</key><string>$minos</string>
+</dict>
+</plist>
+PLIST
+  # Simulator verlangt eine Signatur; Xcode signiert beim Einbetten („Embed & Sign“) mit dem Team neu.
+  codesign --force --sign - --timestamp=none "$out/pdfium.framework" >/dev/null 2>&1 || die "codesign (ad hoc) fehlgeschlagen"
+}
+
+# Mindest-iOS aus LC_BUILD_VERSION der Bibliothek (pdfium-binaries chromium/8100: 17.0).
+ios_minos() {
+  otool -l "$1" | awk '/LC_BUILD_VERSION/ { found = 1 } found && $1 == "minos" { print $2; exit }'
+}
+
+if [ "$XCFRAMEWORK" = 1 ]; then
+  [ "$(uname -s)" = Darwin ] || die "--xcframework nur unter macOS (xcodebuild, lipo, install_name_tool, codesign)"
+  for tool in xcodebuild lipo install_name_tool codesign otool; do
+    command -v "$tool" >/dev/null 2>&1 || die "--xcframework: $tool fehlt (Xcode installieren)"
+  done
+  device="$DEST/ios-device-arm64/lib/libpdfium.dylib"
+  sim_arm="$DEST/ios-simulator-arm64/lib/libpdfium.dylib"
+  sim_x64="$DEST/ios-simulator-x64/lib/libpdfium.dylib"
+  for f in "$device" "$sim_arm" "$sim_x64"; do [ -f "$f" ] || die "--xcframework: $f fehlt"; done
+  version="$(build_version "$DEST/ios-device-arm64/VERSION")"
+  minos="$(ios_minos "$device")"
+  [ -n "$minos" ] || minos=17.0
+  work="$DEST/.tmp-xcframework-$$"
+  rm -rf "$work"
+  mkdir -p "$work/sim"
+  lipo -create "$sim_arm" "$sim_x64" -output "$work/sim/libpdfium.dylib"
+  make_framework "$device" "$work/device" iPhoneOS "$version" "$minos"
+  make_framework "$work/sim/libpdfium.dylib" "$work/simulator" iPhoneSimulator "$version" "$minos"
+  xcf="$DEST/apple/PDFium.xcframework"
+  rm -rf "$xcf"
+  mkdir -p "$DEST/apple"
+  if ! xcodebuild -create-xcframework \
+    -framework "$work/device/pdfium.framework" \
+    -framework "$work/simulator/pdfium.framework" \
+    -output "$xcf" >"$work/xcodebuild.log" 2>&1; then
+    # z. B. „xcodebuild failed to load a required plug-in“ (Xcode ohne `xcodebuild -runFirstLaunch`):
+    # dieselbe Struktur wie xcodebuild schreiben (Info.plist im Format XCFrameworkFormatVersion 1.0)
+    log "xcodebuild -create-xcframework nicht möglich ($(grep -m1 -o 'xcodebuild failed[^.]*' "$work/xcodebuild.log" || echo 'siehe Log')) – xcframework wird direkt zusammengestellt"
+    rm -rf "$xcf"
+    mkdir -p "$xcf/ios-arm64" "$xcf/ios-arm64_x86_64-simulator"
+    cp -R "$work/device/pdfium.framework" "$xcf/ios-arm64/"
+    cp -R "$work/simulator/pdfium.framework" "$xcf/ios-arm64_x86_64-simulator/"
+    cat >"$xcf/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>AvailableLibraries</key>
+  <array>
+    <dict>
+      <key>BinaryPath</key><string>pdfium.framework/pdfium</string>
+      <key>LibraryIdentifier</key><string>ios-arm64</string>
+      <key>LibraryPath</key><string>pdfium.framework</string>
+      <key>SupportedArchitectures</key><array><string>arm64</string></array>
+      <key>SupportedPlatform</key><string>ios</string>
+    </dict>
+    <dict>
+      <key>BinaryPath</key><string>pdfium.framework/pdfium</string>
+      <key>LibraryIdentifier</key><string>ios-arm64_x86_64-simulator</string>
+      <key>LibraryPath</key><string>pdfium.framework</string>
+      <key>SupportedArchitectures</key><array><string>arm64</string><string>x86_64</string></array>
+      <key>SupportedPlatform</key><string>ios</string>
+      <key>SupportedPlatformVariant</key><string>simulator</string>
+    </dict>
+  </array>
+  <key>CFBundlePackageType</key><string>XFWK</string>
+  <key>XCFrameworkFormatVersion</key><string>1.0</string>
+</dict>
+</plist>
+PLIST
+    plutil -lint "$xcf/Info.plist" >/dev/null || { rm -rf "$work"; die "Info.plist des xcframework ungültig"; }
+  fi
+  cp "$DEST/ios-device-arm64/VERSION" "$DEST/apple/VERSION"
+  rm -rf "$work"
+  log "iOS: $xcf (pdfium $version, Mindest-iOS $minos; install name @rpath/pdfium.framework/pdfium)"
+fi
+
+if [ "$JNILIBS" = 1 ]; then
+  jni="$DEST/android/jniLibs"
+  rm -rf "$jni"
+  for pair in android-arm64:arm64-v8a android-arm:armeabi-v7a android-x64:x86_64; do
+    plat="${pair%%:*}"
+    abi="${pair##*:}"
+    so="$DEST/$plat/lib/libpdfium.so"
+    [ -f "$so" ] || die "--jnilibs: $so fehlt"
+    mkdir -p "$jni/$abi"
+    cp "$so" "$jni/$abi/libpdfium.so"
+  done
+  cp "$DEST/android-arm64/VERSION" "$DEST/android/VERSION"
+  log "Android: $jni/{arm64-v8a,armeabi-v7a,x86_64}/libpdfium.so"
 fi
 
 # --- Ausgabe -----------------------------------------------------------------------------------

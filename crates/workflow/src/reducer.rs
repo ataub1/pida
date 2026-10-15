@@ -12,8 +12,9 @@ use crate::output::{ExitCode, OutputDecision, save_dialog};
 use crate::queue::{DocResult, Queue};
 use crate::state::{
     BackendOption, Context, DocFacts, Effect, Event, MSG_BACKEND_CHOICE_REQUIRED, MSG_DEFAULT_BACKEND_UNAVAILABLE,
-    MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, PlaceholderAnswer, PlaceholderFound, PositionChoice, RetryTarget,
-    SignFlow, SigningPhase, State, Step, Transition, WorkflowError, backend_for_choice,
+    MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, PlaceholderAnswer, PlaceholderFound,
+    PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step, Transition, WorkflowError,
+    backend_for_choice,
 };
 
 /// Meldungs-ID des Platzierungshinweises „neue Seite nicht erlaubt“ (`PlacementNotice::code`).
@@ -36,6 +37,8 @@ pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
         Event::Quit => return quit(state),
         Event::FilesAdded(docs) => return files_added(state, docs, ctx),
         Event::SettingsChanged => return settings_changed(state),
+        // Mobile-Lebenszyklus: ein App-Wechsel (etwa in die App „ID Austria“) ist **kein Abbruch** – weder
+        // die Sitzung noch der persistierte Zustand werden angetastet (Plan §3.5)
         Event::Backgrounded | Event::Foregrounded => return Transition::stay(state),
         // ohne Oberfläche gibt es keine Hauptleiste (sonst führte „Positionierung“ in einen Dialog)
         Event::Navigate(_) if ctx.headless => return Transition::stay(state),
@@ -45,6 +48,7 @@ pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
         State::Starting => starting(event, ctx),
         State::Idle { queue } => idle(queue, event),
         State::Analyzing { queue } => analyzing(queue, event, ctx),
+        s @ State::Resuming { .. } => resuming(s, event, ctx),
         s @ State::AnalysisWarning { .. } => analysis_warning(s, event, ctx),
         s @ State::PlaceholderQuestion { .. } => placeholder(s, event, ctx),
         s @ State::Positioning { .. } => positioning(s, event, ctx),
@@ -273,6 +277,10 @@ fn quit(state: State) -> Transition {
             queue.clear();
             finish_with(ExitCode::Cancelled, queue.done, vec![Effect::CancelSession, Effect::DeletePersisted])
         }
+        State::Resuming { mut queue, .. } => {
+            queue.clear();
+            finish_with(ExitCode::Cancelled, queue.done, vec![Effect::DeletePersisted])
+        }
         State::Output { mut queue, saved: Some(output), .. } => {
             // das aktuelle Dokument ist gespeichert; nur noch wartende gelten als abgebrochen
             queue.finish_current(DocResult::Signed { output });
@@ -369,10 +377,54 @@ fn starting(event: Event, ctx: &Context) -> Transition {
     }
 }
 
-fn idle(queue: Queue, event: Event) -> Transition {
+fn idle(mut queue: Queue, event: Event) -> Transition {
     // „Öffnen“ im Auswahl-Screen öffnet den Dateidialog der Shell (kein Zustandswechsel).
-    let _ = event;
-    Transition::stay(State::Idle { queue })
+    match event {
+        Event::ResumeRequested { document, plan, pending } => {
+            // Auswahl-Screen: kein aktuelles Dokument; das fortgesetzte kommt vor die damals wartenden
+            queue.add(std::iter::once(document).chain(pending));
+            match queue.current_id() {
+                Some(id) => Transition::with(State::Resuming { queue, plan, doc: None }, vec![Effect::Analyze(id)]),
+                None => Transition::with(State::Idle { queue }, vec![Effect::DeletePersisted]),
+            }
+        }
+        _ => Transition::stay(State::Idle { queue }),
+    }
+}
+
+/// „Signatur fortsetzen“: Dokument laden (ohne Rückfragen zur Analyse, ohne Platzhalterfrage und
+/// Positionierung – die Position steht im vorbereiteten Dokument fest), dann das gespeicherte
+/// Signiermittel. Abbruch, Fehler oder ein nicht mehr verfügbares Signiermittel verwerfen den
+/// persistierten Zustand.
+fn resuming(state: State, event: Event, ctx: &Context) -> Transition {
+    let State::Resuming { queue, plan, doc } = state else { unreachable!("Resuming") };
+    let current = queue.current_id();
+    match (event, doc) {
+        (Event::Analyzed { doc: id, class, signed, page_count, start, .. }, None) if Some(id) == current => {
+            if matches!(class, AcceptanceClass::K5Rejected | AcceptanceClass::K2Repairable) {
+                let error = WorkflowError::Rejected { class, code: "ng-document-rejected".into() };
+                let from = State::Resuming { queue, plan, doc: None };
+                return fail(from, error, None, ctx, vec![Effect::DeletePersisted]);
+            }
+            let facts = DocFacts { id, page_count, signed, class, start };
+            Transition::with(State::Resuming { queue, plan, doc: Some(facts) }, vec![Effect::ProbeBackends])
+        }
+        (Event::AnalysisFailed { doc: id, error }, None) if Some(id) == current => {
+            fail(State::Resuming { queue, plan, doc: None }, error, None, ctx, vec![Effect::DeletePersisted])
+        }
+        (Event::BackendsProbed(options), Some(doc)) => {
+            let ResumePlan { position, backend } = plan;
+            if options.iter().any(|o| o.id == backend && o.available()) {
+                return choose_backend(queue, doc, position, options, backend, ctx, Vec::new());
+            }
+            // Signiermittel nicht mehr verfügbar (Richtlinie, Keystore entfernt): Auswahl, neu vorbereiten
+            let effects = vec![Effect::Notify(MSG_RESUME_BACKEND_UNAVAILABLE.into()), Effect::DeletePersisted];
+            Transition::with(State::ChoosingBackend { queue, position, options, doc, auto_choice: false }, effects)
+        }
+        (Event::Cancel, _) => next_doc(queue, DocResult::Cancelled, ctx, vec![Effect::DeletePersisted]),
+        (Event::Navigate(Step::Open), _) => discard_all(queue, vec![Effect::DeletePersisted]),
+        (_, doc) => Transition::stay(State::Resuming { queue, plan, doc }),
+    }
 }
 
 fn analyzing(queue: Queue, event: Event, ctx: &Context) -> Transition {
@@ -770,6 +822,14 @@ fn output(state: State, event: Event, ctx: &Context) -> Transition {
             let effects = saved.as_ref().map(|s| vec![Effect::OpenResult(s.path.clone())]).unwrap_or_default();
             Transition::with(mk(queue, saved, decision, doc, position, backend), effects)
         }
+        Event::ShareResultRequested => {
+            let effects = saved.as_ref().map(|s| vec![Effect::ShareResult(s.path.clone())]).unwrap_or_default();
+            Transition::with(mk(queue, saved, decision, doc, position, backend), effects)
+        }
+        Event::ExportResultRequested => {
+            let effects = saved.as_ref().map(|s| vec![Effect::ExportResult(s.path.clone())]).unwrap_or_default();
+            Transition::with(mk(queue, saved, decision, doc, position, backend), effects)
+        }
         Event::Cancel if decision.is_some() && saved.is_none() => {
             if ctx.headless {
                 return next_doc(queue, DocResult::Cancelled, ctx, Vec::new());
@@ -855,7 +915,9 @@ fn error(state: State, event: Event, ctx: &Context) -> Transition {
             Some(State::Starting) | None if matches!(error, WorkflowError::Config(_)) => {
                 finish_with(ExitCode::General, queue.done, Vec::new())
             }
-            Some(State::Analyzing { .. }) => next_doc(queue, DocResult::Failed { error }, ctx, Vec::new()),
+            Some(State::Analyzing { .. }) | Some(State::Resuming { .. }) => {
+                next_doc(queue, DocResult::Failed { error }, ctx, Vec::new())
+            }
             Some(State::Signing { doc, position, .. }) | Some(State::ChoosingBackend { doc, position, .. }) => {
                 to_backend_choice(queue, doc, position, false, Vec::new())
             }

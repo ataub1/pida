@@ -906,8 +906,8 @@
   },
   {
     "id": "ng-ui-position-announce",
-    "de": "Seite { $page } von { $pages }, { $left } mm von links, { $bottom } mm von unten",
-    "en": "Page { $page } of { $pages }, { $left } mm from the left, { $bottom } mm from the bottom"
+    "de": "Seite { $page } von { $pages }, linke Kante { $left } mm von links, Oberkante { $top } mm von unten",
+    "en": "Page { $page } of { $pages }, left edge { $left } mm from the left, top edge { $top } mm from the bottom"
   },
   {
     "id": "ng-ui-position-pages",
@@ -936,13 +936,13 @@
   },
   {
     "id": "ng-ui-position-x",
-    "de": "X von links ({ $unit })",
-    "en": "X from the left ({ $unit })"
+    "de": "X: linke Kante von links ({ $unit })",
+    "en": "X: left edge from the left ({ $unit })"
   },
   {
     "id": "ng-ui-position-y",
-    "de": "Y Oberkante von unten ({ $unit })",
-    "en": "Y top edge from the bottom ({ $unit })"
+    "de": "Y: Oberkante von unten ({ $unit })",
+    "en": "Y: top edge from the bottom ({ $unit })"
   },
   {
     "id": "ng-ui-position-page-field",

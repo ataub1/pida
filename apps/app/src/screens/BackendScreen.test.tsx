@@ -19,10 +19,15 @@ const native: Capabilities = {
 };
 
 const OPTIONS: BackendOptionView[] = [
-  { id: 'atrust_native', available: true, capabilities: native },
-  { id: 'local_bku', available: false, capabilities: null },
-  { id: 'keystore', available: true, capabilities: { ...native, document_leaves_device: false, qualification: 'Unknown', factors: { app: false, sms: false, qr: false, fido2: false, card: false } } },
-  { id: 'csc', available: false, capabilities: null },
+  { id: 'atrust_native', available: true, capabilities: native, notes: [] },
+  { id: 'local_bku', available: false, capabilities: null, notes: [] },
+  {
+    id: 'keystore',
+    available: true,
+    capabilities: { ...native, document_leaves_device: false, qualification: 'Unknown', factors: { app: false, sms: false, qr: false, fido2: false, card: false } },
+    notes: [],
+  },
+  { id: 'csc', available: false, capabilities: null, notes: [] },
 ];
 
 describe('Signiermittel', () => {
@@ -56,7 +61,11 @@ describe('Signiermittel', () => {
   it('Datenschutzhinweis: Dialog mit Link, Zustimmen/Ablehnen', async () => {
     const { mock, user } = renderApp({ view: backendView(OPTIONS, true) });
     const dialog = await screen.findByRole('alertdialog', { name: 'Datenschutzinformation' });
-    const link = within(dialog).getByRole('button', { name: /a-trust\.at\/downloads/ });
+    // Link als echter Inline-Link (Befund: Satzpunkt nicht mehr allein in der nächsten Zeile)
+    const link = within(dialog).getByRole('link', { name: /a-trust\.at\/downloads/ });
+    expect(link.tagName).not.toBe('BUTTON');
+    // der Satzpunkt folgt direkt dem Link im selben Absatz (kein Block dazwischen)
+    expect(link.nextSibling?.textContent).toBe('.');
     await user.click(link);
     expect(mock.openedUrls).toEqual(['https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf']);
     await user.click(within(dialog).getByRole('button', { name: 'Ablehnen' }));

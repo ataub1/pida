@@ -18,12 +18,15 @@ import type {
   DoneItemView,
   FormContext,
   InteractionView,
+  KeystoreImportView,
   Lang,
   MainBarView,
   NativeForm,
   NoticeView,
   Placement,
+  PlatformView,
   QueueItemView,
+  ResumeOfferView,
   SaveDialogView,
   Settings,
   StepView,
@@ -72,6 +75,12 @@ export interface MockOptions {
   migrationSecrets?: boolean;
   /** Einstellungen schreibgeschützt (`-c` mit Altdatei, unlesbare Datei) */
   readOnly?: boolean;
+  /** Plattform (Standard: Desktop/macOS); Mobile: Teilen/Exportieren, PKCS#12-Import, kein FIDO2 */
+  platform?: 'desktop' | 'ios' | 'android';
+  /** Angebot „Signatur fortsetzen“ beim Start (Mobile) */
+  resumeOffer?: ResumeOfferView | null;
+  /** Antwort der Mobile-Dateiauswahl (`[]` = abgebrochen) */
+  pickMobileFilesResult?: string[];
 }
 
 interface MockDoc {
@@ -205,10 +214,15 @@ export class MockCore implements Bridge {
   /** Aufrufe nativer Dienste (Tests) */
   readonly nativeCalls: string[] = [];
 
-  private readonly opts: Required<Omit<MockOptions, 'initialView' | 'settings' | 'language' | 'migrationOffer'>> & {
+  private readonly opts: Required<
+    Omit<MockOptions, 'initialView' | 'settings' | 'language' | 'migrationOffer' | 'resumeOffer' | 'pickMobileFilesResult'>
+  > & {
     language: Lang | undefined;
   };
   private migrationOffer: string | null;
+  private resumeOffer: ResumeOfferView | null;
+  private keystoreImport: KeystoreImportView | null = null;
+  private readonly pickMobileFilesResult: string[] | null;
   private readonly listeners = new Set<(v: ViewState) => void>();
   private readonly dragListeners = new Set<(e: FileDragEvent) => void>();
   private forced: ViewState | null = null;
@@ -259,9 +273,12 @@ export class MockCore implements Bridge {
       warnings: options.warnings ?? [],
       migrationSecrets: options.migrationSecrets ?? false,
       readOnly: options.readOnly ?? false,
+      platform: options.platform ?? 'desktop',
       language: options.language,
     };
     this.migrationOffer = options.migrationOffer ?? null;
+    this.resumeOffer = options.resumeOffer ?? null;
+    this.pickMobileFilesResult = options.pickMobileFilesResult ?? null;
     this.lang = options.language;
     this.settings = options.settings ? structuredClone(options.settings) : defaultSettings();
     if (options.initialView) {
@@ -349,6 +366,31 @@ export class MockCore implements Bridge {
     return this.opts.pickDirectoryResult;
   }
 
+  async pickMobileFiles(options: { kind: 'pdf' | 'pkcs12'; multiple: boolean }): Promise<string[]> {
+    this.nativeCalls.push(`pickMobileFiles:${options.kind}:${options.multiple ? 'multiple' : 'single'}`);
+    if (!this.mobile) throw new Error('ng-mobile-unsupported');
+    const sandbox = '/var/mobile/Containers/Data/Application/DEMO/Library/Caches/import/1';
+    const result =
+      this.pickMobileFilesResult ?? (options.kind === 'pdf' ? [`${sandbox}/Vertrag.pdf`, `${sandbox}/Angebot.pdf`] : [`${sandbox}/test.p12`]);
+    return options.multiple ? [...result] : result.slice(0, 1);
+  }
+
+  /** Mobile-Plattform? */
+  private get mobile(): boolean {
+    return this.opts.platform !== 'desktop';
+  }
+
+  private platformView(): PlatformView {
+    switch (this.opts.platform) {
+      case 'ios':
+        return { os: 'ios', mobile: true };
+      case 'android':
+        return { os: 'android', mobile: true };
+      default:
+        return { os: 'macos', mobile: false };
+    }
+  }
+
   onFileDrag(cb: (e: FileDragEvent) => void): () => void {
     this.dragListeners.add(cb);
     return () => this.dragListeners.delete(cb);
@@ -376,7 +418,7 @@ export class MockCore implements Bridge {
   }
 
   async appInfo() {
-    return { version: '0.1.0', platform: 'mock', core_available: true };
+    return { version: '0.1.0', platform: this.mobile ? this.opts.platform : 'mock', core_available: true };
   }
 
   // ------------------------------------------------------------------------------------------
@@ -434,6 +476,9 @@ export class MockCore implements Bridge {
         ? { legacy_file: this.migrationOffer, plaintext_secrets: this.opts.migrationSecrets }
         : null,
       done: this.done.map((d) => structuredClone(d)),
+      platform: this.platformView(),
+      resume: this.stage === 'open' && this.resumeOffer ? { ...this.resumeOffer } : null,
+      keystore_import: this.keystoreImport ? { ...this.keystoreImport } : null,
     };
     return view;
   }
@@ -520,7 +565,6 @@ export class MockCore implements Bridge {
             };
       case 'position': {
         if (!d || !this.placement) return { step: 'open', queue: this.queueView() };
-        const [pw] = this.pageSize(d, this.page);
         const p = this.placement;
         return {
           step: 'position',
@@ -533,8 +577,7 @@ export class MockCore implements Bridge {
             page: String(this.page + 1),
             pages: String(d.sizes.length + (this.newPage ? 1 : 0)),
             left: ((p.x * 25.4) / 72).toFixed(0),
-            bottom: (((p.y - p.height) * 25.4) / 72).toFixed(0),
-            right: (((pw - p.x - p.width) * 25.4) / 72).toFixed(0),
+            top: ((p.y * 25.4) / 72).toFixed(0),
           },
         };
       }
@@ -595,12 +638,20 @@ export class MockCore implements Bridge {
   private backendOptions(): BackendOptionView[] {
     const ks = this.settings.keystore;
     const ksAvailable = ks.enabled && !!ks.file;
-    const list: { id: BackendId; available: boolean }[] = [
-      { id: 'atrust_native', available: true },
-      { id: 'local_bku', available: this.opts.localBkuAvailable },
-    ];
-    if (ks.enabled) list.push({ id: 'keystore', available: ksAvailable });
-    return list.map(({ id, available }) => ({ id, available, capabilities: available ? capabilitiesFor(id) : null }));
+    const list: { id: BackendId; available: boolean }[] = [{ id: 'atrust_native', available: true }];
+    // Mobile: keine lokale BKU (Plan §5.2)
+    if (!this.mobile) list.push({ id: 'local_bku', available: this.opts.localBkuAvailable });
+    if (ks.enabled || this.mobile) list.push({ id: 'keystore', available: ksAvailable });
+    return list.map(({ id, available }) => {
+      const caps = available ? capabilitiesFor(id) : null;
+      const notes: string[] = [];
+      if (this.mobile && id === 'atrust_native') {
+        // Mobile: ID Austria ohne FIDO2 (Plan §4.7) – Hinweis-ID wie im Kern
+        if (caps) caps.factors.fido2 = false;
+        notes.push('ng-fido2-unavailable-mobile');
+      }
+      return { id, available, capabilities: caps, notes };
+    });
   }
 
   // ------------------------------------------------------------------------------------------
@@ -736,11 +787,60 @@ export class MockCore implements Bridge {
       case 'backgrounded':
       case 'foregrounded':
         return;
+      case 'share_result':
+        if (this.output.path) this.nativeCalls.push(`shareResult:${this.output.path}`);
+        return;
+      case 'export_result':
+        if (this.output.path) {
+          this.nativeCalls.push(`exportResult:${this.output.path}`);
+          this.notify('ng-export-done', { name: baseName(this.output.path) });
+        }
+        return;
+      case 'resume_signature': {
+        const offer = this.resumeOffer;
+        if (!offer || this.stage !== 'open') return;
+        this.resumeOffer = null;
+        return this.openFiles([`/var/mobile/Containers/Data/Application/DEMO/Library/tmp/resume/document/${offer.name}`]);
+      }
+      case 'discard_resume':
+        this.resumeOffer = null;
+        return;
+      case 'import_keystore':
+        return this.importKeystore(e.path, e.password, e.remember);
+      case 'dismiss_keystore_import':
+        this.keystoreImport = null;
+        return;
       case 'quit':
         this.stage = 'finished';
         this.exitCode = 0;
         return;
     }
+  }
+
+  /** PKCS#12-Import (nur Simulation: Endung, Passwort „falsch“ = falsches Passwort). */
+  private importKeystore(path: string, password: string | null, remember: boolean): void {
+    const fileName = baseName(path);
+    if (!/\.(p12|pfx|pkcs12)$/i.test(fileName)) {
+      this.keystoreImport = { file_name: fileName, ok: false, code: 'ng-keystore-import-format', password_stored: false };
+      return;
+    }
+    if (password === 'falsch') {
+      this.keystoreImport = { file_name: fileName, ok: false, code: 'keystore-wrong-password', password_stored: false };
+      return;
+    }
+    const stored = remember && !!password && this.opts.keychainAvailable;
+    const file = `/var/mobile/Containers/Data/Application/DEMO/Library/Application Support/data/keystores/${fileName}`;
+    this.settings = {
+      ...this.settings,
+      keystore: {
+        ...this.settings.keystore,
+        enabled: true,
+        file,
+        declared_type: 'PKCS12',
+        password_storage: stored ? 'keychain' : this.settings.keystore.password_storage === 'keychain' ? 'memory' : this.settings.keystore.password_storage,
+      },
+    };
+    this.keystoreImport = { file_name: fileName, ok: true, code: 'ng-keystore-imported', password_stored: stored };
   }
 
   private openFiles(paths: string[]): void {
@@ -1042,7 +1142,8 @@ export class MockCore implements Bridge {
     d.signed = true;
     this.stage = 'output';
     const name = outputFileName(d.path, this.settings.output.postfix || '_signed');
-    const folder = this.settings.output.folder;
+    // Mobile: ohne Einstellung in die App-Dokumente (CoreOptions::default_output_dir), kein Dialog
+    const folder = this.settings.output.folder ?? (this.mobile ? '/var/mobile/Containers/Data/Application/DEMO/Documents' : null);
     if (folder) {
       const target = joinPath(folder === '.' ? dirName(d.path) : folder, name);
       if (this.opts.existingFiles.includes(target)) {

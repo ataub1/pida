@@ -4,6 +4,10 @@
  * sendet die vollständigen Einstellungen (`UiEvent::SaveSettings`, unbekannte Einträge bleiben
  * erhalten), „Abbrechen“/Escape verwirft (`CloseSettings`). Validierungsprobleme kommen vom Kern
  * (`SettingsView::problems`).
+ *
+ * Mobile (Plan §5.2): kein Ausgabeordner (App-Dokumente), keine Proxy-Einstellungen (System-Proxy), keine
+ * Update-Prüfung und kein Log-Ordner (Stores bzw. Sandbox), keine lokale BKU; Keystore nur über den
+ * PKCS#12-Import-Assistenten, FIDO2 mit Hinweis „auf diesem Gerät nicht verfügbar“.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -26,10 +30,11 @@ import {
 import { useApp } from '../app/context';
 import { IconClose } from '../components/icons';
 import { AccessButton, ConfirmDialog, Markup, Mnemonic } from '../components/ui';
-import { withSection, type SettingsSection } from '../core/defaults';
-import type { BackendChoice, Lang, NoteSetting, Settings, SettingsView, SignatureProfile } from '../core/types';
+import { baseName, withSection, type SettingsSection } from '../core/defaults';
+import { isMobile, type BackendChoice, type Lang, type NoteSetting, type Settings, type SettingsView, type SignatureProfile } from '../core/types';
 import { translator } from '../i18n/catalog';
 import { CheckField, RadioField, SelectField, TextInputField, useProblem } from './fields';
+import { KeystoreImportDialog } from './KeystoreImport';
 import { applyTheme, readTheme, writeTheme, type Theme } from './theme';
 
 /** Ereignis, mit dem `App` eine auf die Blockvorschau gezogene Bilddatei meldet. */
@@ -78,6 +83,11 @@ function stableJson(value: unknown): string {
       ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
       : v,
   );
+}
+
+/** Unterscheiden sich zwei Einstellungsstände nur im Abschnitt `keystore`? */
+export function keystoreOnlyChanged(a: Settings, b: Settings): boolean {
+  return stableJson({ ...a, keystore: null }) === stableJson({ ...b, keystore: null }) && stableJson(a.keystore) !== stableJson(b.keystore);
 }
 
 function langValue(v: Lang | null): 'system' | Lang {
@@ -231,7 +241,8 @@ function SimpleTab({ draft, update, view }: TabProps) {
 }
 
 function AdvancedTab({ draft, update, view }: TabProps) {
-  const { t, bridge, toast } = useApp();
+  const { t, bridge, toast, view: appView } = useApp();
+  const mobile = isMobile(appView);
   const [theme, setTheme] = useState<Theme>(readTheme);
   const folderError = useProblem(view.problems, 'output.folder');
   const postfixError = useProblem(view.problems, 'output.postfix');
@@ -249,7 +260,8 @@ function AdvancedTab({ draft, update, view }: TabProps) {
   const backendOptions: { id: 'none' | BackendChoice; label: string }[] = [
     { id: 'none', label: t.t('BKU-NONE') },
     { id: 'id_austria', label: t.t('BKU-MOBILE') },
-    { id: 'local_bku', label: t.t('BKU-LOCAL') },
+    // Mobile: keine lokale BKU (Plan §5.2)
+    ...(mobile ? [] : [{ id: 'local_bku' as const, label: t.t('BKU-LOCAL') }]),
   ];
   if (draft.keystore.enabled) backendOptions.push({ id: 'keystore', label: t.t('BKU-KS') });
   return (
@@ -352,14 +364,18 @@ function AdvancedTab({ draft, update, view }: TabProps) {
 
       <section className="group">
         <h3 className="group-title">{t.t('advanced_config-OutputFolder_Title')}</h3>
-        <TextInputField
-          label={t.t('advanced_config-OutputFolder')}
-          value={draft.output.folder ?? ''}
-          onChange={(v) => update('output', { folder: v.trim() === '' ? null : v })}
-          description={t.t('advanced_config-OutputFolder_ToolTip')}
-          error={folderError}
-          trailing={<AccessButton msg="common-browse" onPress={() => void browseFolder()} />}
-        />
+        {mobile ? (
+          <p className="hint">{t.t('ng-ui-output-mobile-hint')}</p>
+        ) : (
+          <TextInputField
+            label={t.t('advanced_config-OutputFolder')}
+            value={draft.output.folder ?? ''}
+            onChange={(v) => update('output', { folder: v.trim() === '' ? null : v })}
+            description={t.t('advanced_config-OutputFolder_ToolTip')}
+            error={folderError}
+            trailing={<AccessButton msg="common-browse" onPress={() => void browseFolder()} />}
+          />
+        )}
         <TextInputField
           label={t.t('AdvancedConfigurationComposite-lblSaveFilePostFix-text')}
           value={draft.output.postfix}
@@ -370,6 +386,7 @@ function AdvancedTab({ draft, update, view }: TabProps) {
         />
       </section>
 
+      {mobile ? null : (
       <section className="group">
         <h3 className="group-title">{t.t('advanced_config-Proxy_Title')}</h3>
         <RadioField
@@ -410,6 +427,7 @@ function AdvancedTab({ draft, update, view }: TabProps) {
           description={t.t('ng-ui-proxy-password-hint')}
         />
       </section>
+      )}
 
       <section className="group">
         <h3 className="group-title">{t.t('ng-ui-privacy-title')}</h3>
@@ -425,7 +443,9 @@ function AdvancedTab({ draft, update, view }: TabProps) {
 }
 
 function KeystoreTab({ draft, update, view }: TabProps) {
-  const { t, bridge, toast } = useApp();
+  const { t, bridge, toast, view: appView } = useApp();
+  const mobile = isMobile(appView);
+  const [importing, setImporting] = useState(false);
   const ks = draft.keystore;
   const fileError = useProblem(view.problems, 'keystore.file');
   const aliasError = useProblem(view.problems, 'keystore.alias');
@@ -457,14 +477,27 @@ function KeystoreTab({ draft, update, view }: TabProps) {
     <div className="tab-grid">
       <section className="group">
         <h3 className="group-title">{t.t('keystore_config-Keystore_Title')}</h3>
-        <TextInputField
-          label={t.t('keystore_config-KeystoreFile')}
-          value={ks.file ?? ''}
-          onChange={(v) => (v.trim() === '' ? update('keystore', { file: null }) : setFile(v))}
-          description={t.t('keystore_config-KeystoreFile_ToolTip')}
-          error={fileError}
-          trailing={<AccessButton msg="common-browse" onPress={() => void browse()} />}
-        />
+        {mobile ? (
+          // Mobile: nur PKCS#12, nur über den Import in die App-Sandbox (kein Dateipfad)
+          <>
+            <p>{ks.file ? t.t('ng-ui-keystore-current', { name: baseName(ks.file) }) : t.t('ng-ui-backend-keystore-import-hint')}</p>
+            {fileError ? <p className="message message-error">{fileError}</p> : null}
+            <div className="actions actions-start">
+              <AccessButton msg="ng-ui-keystore-import" onPress={() => setImporting(true)} />
+            </div>
+            {importing ? <KeystoreImportDialog onClose={() => setImporting(false)} /> : null}
+          </>
+        ) : (
+          <TextInputField
+            label={t.t('keystore_config-KeystoreFile')}
+            value={ks.file ?? ''}
+            onChange={(v) => (v.trim() === '' ? update('keystore', { file: null }) : setFile(v))}
+            description={t.t('keystore_config-KeystoreFile_ToolTip')}
+            error={fileError}
+            trailing={<AccessButton msg="common-browse" onPress={() => void browse()} />}
+          />
+        )}
+        {mobile ? null : (
         <SelectField
           label={t.t('keystore_config-KeystoreType')}
           value={type === 'JKS' || type === 'JCEKS' ? type : 'PKCS12'}
@@ -476,6 +509,7 @@ function KeystoreTab({ draft, update, view }: TabProps) {
           ]}
           description={type === 'JKS' || type === 'JCEKS' ? t.t('ng-ui-notice-keystore-conversion') : undefined}
         />
+        )}
         <TextInputField
           label={t.t('keystore_config-KeystoreAlias')}
           value={ks.alias ?? ''}
@@ -508,7 +542,8 @@ function KeystoreTab({ draft, update, view }: TabProps) {
 }
 
 function Fido2Tab({ draft, update, view }: TabProps) {
-  const { t } = useApp();
+  const { t, view: appView } = useApp();
+  const mobile = isMobile(appView);
   return (
     <div className="tab-grid">
       <section className="group">
@@ -526,7 +561,7 @@ function Fido2Tab({ draft, update, view }: TabProps) {
             onChange={(fido2_default) => update('id_austria', { fido2_default })}
           />
         ) : (
-          <p className="message message-warning">{t.t('config-fido2-UnsupportedPlatform')}</p>
+          <p className="message message-warning">{t.t(mobile ? 'ng-fido2-unavailable-mobile' : 'config-fido2-UnsupportedPlatform')}</p>
         )}
       </section>
     </div>
@@ -535,7 +570,8 @@ function Fido2Tab({ draft, update, view }: TabProps) {
 
 /** Über (docs/analyse/05 §2.6): Version, Lizenz, Datenschutz, Update-Prüfung, Logs. */
 function AboutTab({ draft, update }: TabProps) {
-  const { t, bridge, toast } = useApp();
+  const { t, bridge, toast, view: appView } = useApp();
+  const mobile = isMobile(appView);
   const [info, setInfo] = useState<{ version: string; platform: string } | null>(null);
   useEffect(() => {
     let alive = true;
@@ -563,18 +599,23 @@ function AboutTab({ draft, update }: TabProps) {
           <Markup text={t.t('config-DataProtectionStatement')} targets={[{ href: t.t('config-DataProtectionURL') }]} />
         </p>
       </section>
-      <section className="group">
-        <h3 className="group-title">{t.t('advanced_config-UpdateCheck_Title')}</h3>
-        <CheckField
-          label={t.t('advanced_config-UpdateCheck')}
-          description={t.t('advanced_config-UpdateCheck_ToolTip')}
-          isSelected={draft.general.update_check}
-          onChange={(update_check) => update('general', { update_check })}
-        />
-      </section>
+      {mobile ? null : (
+        // Mobile: Updates über die Stores (Plan §5.2)
+        <section className="group">
+          <h3 className="group-title">{t.t('advanced_config-UpdateCheck_Title')}</h3>
+          <CheckField
+            label={t.t('advanced_config-UpdateCheck')}
+            description={t.t('advanced_config-UpdateCheck_ToolTip')}
+            isSelected={draft.general.update_check}
+            onChange={(update_check) => update('general', { update_check })}
+          />
+        </section>
+      )}
       <section className="group">
         <div className="actions actions-start">
-          <AccessButton msg="config-ShowLogDirectory" onPress={() => bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
+          {mobile ? null : (
+            <AccessButton msg="config-ShowLogDirectory" onPress={() => bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
+          )}
           <AccessButton msg="ng-ui-about-notices" onPress={() => bridge.openNotices().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
         </div>
       </section>
@@ -596,18 +637,26 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
   // der Kern nur denselben Stand bzw. das Echo der gesendeten Einstellungen liefert.
   const incoming = settingsView.settings;
   const lastIncoming = useRef<string | null>(null);
+  const lastIncomingValue = useRef<Settings | null>(null);
   const lastSent = useRef<string | null>(null);
   const resetRequested = useRef(false);
   useEffect(() => {
     const json = stableJson(incoming);
     const changed = lastIncoming.current !== null && json !== lastIncoming.current;
+    const previous = lastIncomingValue.current;
     lastIncoming.current = json;
+    lastIncomingValue.current = incoming;
     if (resetRequested.current) {
       resetRequested.current = false;
       setDraft(structuredClone(incoming));
       return;
     }
     if (!changed || json === lastSent.current) return;
+    // PKCS#12-Import (Mobile): der Kern ändert nur den Keystore – übrige Eingaben bleiben erhalten
+    if (previous && keystoreOnlyChanged(previous, incoming)) {
+      setDraft((d) => withSection(d, 'keystore', structuredClone(incoming.keystore)));
+      return;
+    }
     setDraft(structuredClone(incoming));
   }, [incoming]);
   const problemEntries = Object.entries(settingsView.problems);

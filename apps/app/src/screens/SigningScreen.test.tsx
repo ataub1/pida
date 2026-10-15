@@ -96,7 +96,7 @@ describe('Signieren: Anmeldung (ID Austria)', () => {
     const { mock, user } = renderApp({
       view: formView({ Login: { prefill_username: 'max', remember: false, ctx: ctx({ signature_data_url: 'https://a-trust.at/x' }) } }, 4),
     });
-    await user.click(await screen.findByRole('button', { name: 'Signaturdaten anzeigen' }));
+    await user.click(await screen.findByRole('link', { name: 'Signaturdaten anzeigen' }));
     expect(mock.dispatched).toEqual([{ type: 'open_signature_data', request: 4 }]);
   });
 

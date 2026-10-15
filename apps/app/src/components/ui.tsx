@@ -7,6 +7,7 @@ import {
   Button,
   Dialog,
   Heading,
+  Link,
   Modal,
   ModalOverlay,
   type ButtonProps,
@@ -81,6 +82,11 @@ export type LinkTarget = { href: string } | { onPress: () => void };
 /**
  * Text mit Link-Markup. Ziel: explizites `href`, sonst `targets[i]`, sonst der Linktext selbst,
  * wenn er eine `https:`-URL ist. Externe Ziele öffnet die Shell im Systembrowser.
+ *
+ * Links sind echte Inline-Elemente (`role="link"`, React Aria `Link` ohne `href`; Enter löst aus): ein
+ * `<button>` wäre ein atomares Inline-Element – eine lange URL bräche dann als ganzer Block um und der
+ * folgende Satzpunkt landete allein in der nächsten Zeile (Befund Datenschutzhinweis). Als Inline-Text
+ * bricht die URL innerhalb (`overflow-wrap: anywhere`) und Satzzeichen bleiben am Link.
  */
 export function Markup({ text, targets = [] }: { text: string; targets?: LinkTarget[] }) {
   const { bridge, toast, t } = useApp();
@@ -102,10 +108,10 @@ export function Markup({ text, targets = [] }: { text: string; targets?: LinkTar
                 bridge.openUrl(target.href).catch(() => toast(t.t('ng-ui-open-failed'), 'error'));
               };
         return (
-          <Button key={i} className="link" onPress={onPress}>
+          <Link key={i} className="link" onPress={onPress}>
             {seg.text}
             {'href' in target ? <span className="visually-hidden"> {t.t('ng-ui-link-external')}</span> : null}
-          </Button>
+          </Link>
         );
       })}
     </>

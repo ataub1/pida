@@ -61,6 +61,13 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'dismiss_notice', id: 3 },
   { type: 'accept_migration', store_secrets: true },
   { type: 'decline_migration' },
+  // Mobile (Plan §5.2): Teilen/Exportieren, „Signatur fortsetzen“, PKCS#12-Import
+  { type: 'share_result' },
+  { type: 'export_result' },
+  { type: 'resume_signature' },
+  { type: 'discard_resume' },
+  { type: 'import_keystore', path: '/var/mobile/Containers/Data/Application/X/Library/Caches/import/test.p12', password: 'geheim-123', remember: true },
+  { type: 'dismiss_keystore_import' },
 ];
 
 /** Weitere Antworten (alle `FormAnswerView`-Varianten, `save` ohne Pfad, Platzhalter ohne Feld). */
@@ -77,4 +84,5 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'choose_backend', backend: 'keystore' },
   { type: 'answer_warning', proceed: false },
   { type: 'accept_migration', store_secrets: false },
+  { type: 'import_keystore', path: '/data/user/0/at.pdf_over_ng/cache/import/k.p12', password: null, remember: false },
 ];
