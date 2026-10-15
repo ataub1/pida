@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { blockPreviewPath, errorCode, inTauri, isAllowedExternalUrl, pageTilePath, renderBase, resolveRenderBase, tileScale } from './bridge';
 import { mainBar, mmToPt, ptToMm, withSection, defaultSettings, baseName, dirName } from './defaults';
 import { MockCore } from './mock';
-import { notification, outputPrompt } from './extensions';
 
 describe('Bridge-Hilfen', () => {
   it('Custom Protocol je Plattform wie convertFileSrc', () => {
@@ -88,16 +87,6 @@ describe('Standardwerte und Hilfen', () => {
   });
 });
 
-describe('Erweiterungen (Vorschlag)', () => {
-  it('lesen optionale Felder', () => {
-    expect(outputPrompt({ step: 'open', queue: [] })).toBeNull();
-    expect(
-      outputPrompt({ step: 'output', result: { path: null, save_pending: false, prompt: { kind: 'overwrite', path: '/a' } } as never, next: null }),
-    ).toEqual({ kind: 'overwrite', path: '/a' });
-    expect(notification({ step: { step: 'starting' }, main_bar: mainBar(['', '', '', ''], false), settings: null, language: 'de' })).toBeNull();
-  });
-});
-
 describe('Mock-Kern', () => {
   it('startet im Öffnen-Schritt und liefert serde-nahe Zustände', async () => {
     const mock = new MockCore({ delayMs: 0 });
@@ -108,7 +97,7 @@ describe('Mock-Kern', () => {
     await mock.dispatch({ type: 'open_files', paths: ['/a.pdf', '/a.pdf', '/b.pdf'] });
     const v = await mock.view();
     expect(v.step).toEqual({
-      step: 'open',
+      step: 'loading',
       queue: [
         { id: 1, name: 'a.pdf', current: true },
         { id: 2, name: 'b.pdf', current: false },

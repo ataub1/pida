@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderApp } from '../test/render';
-import { QUEUE, viewOf } from '../test/views';
+import { outputResult, QUEUE, viewOf } from '../test/views';
 
 describe('Öffnen', () => {
   it('zeigt Drop-Zone, Durchsuchen und Hauptleiste (DE)', async () => {
@@ -83,7 +83,7 @@ describe('Öffnen', () => {
 describe('Hauptleiste', () => {
   it('klickbare Schritte navigieren, „Fertig“ nie', async () => {
     const { mock, user } = renderApp({
-      view: viewOf({ step: 'output', result: { path: '/x/a_signed.pdf', save_pending: false }, next: null }),
+      view: viewOf({ step: 'output', result: outputResult({ path: '/x/a_signed.pdf' }), next: null }),
     });
     const nav = await screen.findByRole('navigation', { name: 'Arbeitsschritte' });
     await user.click(within(nav).getByRole('button', { name: /^Positionierung/ }));

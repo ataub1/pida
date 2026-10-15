@@ -4,8 +4,7 @@
  */
 import { createContext, useContext } from 'react';
 import type { Bridge } from '../core/bridge';
-import type { UiEventExt } from '../core/extensions';
-import type { ViewState } from '../core/types';
+import type { UiEvent, ViewState } from '../core/types';
 import type { Translator } from '../i18n/catalog';
 
 /** Kurzer Hinweis (Toast). */
@@ -23,7 +22,7 @@ export interface AppContextValue {
    * sendet ein Ereignis; Fehler erscheinen als Hinweis. Das Ergebnis meldet, ob der Kern das Ereignis
    * angenommen hat (Masken geben ihren Doppelklickschutz bei `false` wieder frei).
    */
-  dispatch: (event: UiEventExt) => Promise<boolean>;
+  dispatch: (event: UiEvent) => Promise<boolean>;
   /** Übersetzer der UI-Sprache (`ViewState::language`) */
   t: Translator;
   /** Text für Screenreader (Live-Region, höflich) */

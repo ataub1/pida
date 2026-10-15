@@ -265,6 +265,9 @@ pub fn unavailable_view(detail: &str, language: Lang) -> ViewState {
         },
         settings: None,
         language,
+        notices: Vec::new(),
+        migration: None,
+        done: Vec::new(),
     }
 }
 

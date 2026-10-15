@@ -7,6 +7,10 @@
     ]
   },
   {
+    "type": "answer_warning",
+    "proceed": true
+  },
+  {
     "type": "placeholder_answer",
     "answer": "Yes",
     "field_index": 1
@@ -36,6 +40,9 @@
   },
   {
     "type": "confirm_position"
+  },
+  {
+    "type": "choose_invisible"
   },
   {
     "type": "choose_backend",
@@ -176,6 +183,17 @@
     "type": "quit"
   },
   {
+    "type": "dismiss_notice",
+    "id": 3
+  },
+  {
+    "type": "accept_migration",
+    "store_secrets": true
+  },
+  {
+    "type": "decline_migration"
+  },
+  {
     "type": "submit_form",
     "request": 5,
     "answer": {
@@ -232,5 +250,13 @@
   {
     "type": "choose_backend",
     "backend": "keystore"
+  },
+  {
+    "type": "answer_warning",
+    "proceed": false
+  },
+  {
+    "type": "accept_migration",
+    "store_secrets": false
   }
 ]

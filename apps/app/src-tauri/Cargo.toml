@@ -61,6 +61,7 @@ pdfover-backend-atrust = { workspace = true }
 [dev-dependencies]
 # Serde-Vertragstest Rust ↔ TypeScript (tests/serde_contract.rs)
 pdfover-placement = { workspace = true }
+pdfover-pades = { workspace = true }
 toml = { workspace = true }
 
 [lints]

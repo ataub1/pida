@@ -9,22 +9,25 @@
  */
 import { MAIN_BAR_ORDER, baseName, defaultSettings, dirName, mainBar, mmToPt } from './defaults';
 import type { Bridge, FileDragEvent } from './bridge';
-import type { NotificationView, OutputPromptView, UiEventExt, ViewStateExt } from './extensions';
 import type {
   BackendId,
   BackendOptionView,
   Capabilities,
   DocId,
   DocInfo,
+  DoneItemView,
   FormContext,
   InteractionView,
   Lang,
   MainBarView,
   NativeForm,
+  NoticeView,
   Placement,
   QueueItemView,
+  SaveDialogView,
   Settings,
   StepView,
+  UiEvent,
   ViewState,
 } from './types';
 
@@ -61,6 +64,14 @@ export interface MockOptions {
   keychainAvailable?: boolean;
   /** Start direkt in diesem Zustand (Tests) */
   initialView?: ViewState;
+  /** Warnungen der Eingangsanalyse (Codes, z. B. `pdf-usage-rights`) → Schritt `warning` */
+  warnings?: string[];
+  /** Import-Angebot aus `~/.pdf-over` (Pfad der Altdatei) */
+  migrationOffer?: string | null;
+  /** die Altdatei enthält Klartext-Passwörter */
+  migrationSecrets?: boolean;
+  /** Einstellungen schreibgeschützt (`-c` mit Altdatei, unlesbare Datei) */
+  readOnly?: boolean;
 }
 
 interface MockDoc {
@@ -74,6 +85,8 @@ interface MockDoc {
 type Stage =
   | 'starting'
   | 'open'
+  | 'loading'
+  | 'warning'
   | 'placeholder'
   | 'position'
   | 'backend'
@@ -93,6 +106,16 @@ function outputFileName(input: string, postfix: string): string {
   if (dot <= 0) return `${name}${postfix}`;
   return `${name.slice(0, dot)}${postfix}${name.slice(dot)}`;
 }
+
+/** Ergebnis-Schritt: gespeichert, Speichern-Knopf, Überschreib-Rückfrage, Speichern-Dialog. */
+interface OutputState {
+  path: string | null;
+  savePending: boolean;
+  askOverwrite: string | null;
+  saveDialog: SaveDialogView | null;
+}
+
+const EMPTY_OUTPUT: OutputState = { path: null, savePending: false, askOverwrite: null, saveDialog: null };
 
 function joinPath(dir: string, name: string): string {
   if (!dir) return name;
@@ -176,15 +199,16 @@ export class MockCore implements Bridge {
   readonly kind = 'mock' as const;
 
   /** alle gesendeten Ereignisse (Tests) */
-  readonly dispatched: UiEventExt[] = [];
+  readonly dispatched: UiEvent[] = [];
   /** im Systembrowser geöffnete URLs (Tests) */
   readonly openedUrls: string[] = [];
   /** Aufrufe nativer Dienste (Tests) */
   readonly nativeCalls: string[] = [];
 
-  private readonly opts: Required<Omit<MockOptions, 'initialView' | 'settings' | 'language'>> & {
+  private readonly opts: Required<Omit<MockOptions, 'initialView' | 'settings' | 'language' | 'migrationOffer'>> & {
     language: Lang | undefined;
   };
+  private migrationOffer: string | null;
   private readonly listeners = new Set<(v: ViewState) => void>();
   private readonly dragListeners = new Set<(e: FileDragEvent) => void>();
   private forced: ViewState | null = null;
@@ -204,18 +228,15 @@ export class MockCore implements Bridge {
   private request = 0;
   private loggedIn = false;
   private rememberedPassword = false;
-  private output: { path: string | null; savePending: boolean; prompt: OutputPromptView | null } = {
-    path: null,
-    savePending: false,
-    prompt: null,
-  };
+  private output: OutputState = EMPTY_OUTPUT;
   private error: { code: string; params: Record<string, string>; retry: boolean; onRetry: () => void; onCancel: () => void } | null =
     null;
   private settings: Settings;
   private settingsOpen = false;
   private problems: Record<string, string> = {};
-  private notice: NotificationView | null = null;
+  private notices: NoticeView[] = [];
   private noticeId = 0;
+  private done: DoneItemView[] = [];
   private exitCode = 0;
   private readonly lang: Lang | undefined;
 
@@ -235,8 +256,12 @@ export class MockCore implements Bridge {
       pickDirectoryResult: options.pickDirectoryResult === undefined ? '/Users/demo/Signiert' : options.pickDirectoryResult,
       fido2Available: options.fido2Available ?? true,
       keychainAvailable: options.keychainAvailable ?? true,
+      warnings: options.warnings ?? [],
+      migrationSecrets: options.migrationSecrets ?? false,
+      readOnly: options.readOnly ?? false,
       language: options.language,
     };
+    this.migrationOffer = options.migrationOffer ?? null;
     this.lang = options.language;
     this.settings = options.settings ? structuredClone(options.settings) : defaultSettings();
     if (options.initialView) {
@@ -291,7 +316,7 @@ export class MockCore implements Bridge {
     return svgDataUrl(svg);
   }
 
-  async dispatch(event: UiEventExt): Promise<void> {
+  async dispatch(event: UiEvent): Promise<void> {
     this.dispatched.push(event);
     if (this.forced) {
       // Feste Testzustände reagieren nicht; Tests prüfen `dispatched`.
@@ -385,9 +410,9 @@ export class MockCore implements Bridge {
   // Zustand → ViewState
   // ------------------------------------------------------------------------------------------
 
-  private current(): ViewStateExt {
+  private current(): ViewState {
     if (this.forced) return this.forced;
-    const view: ViewStateExt = {
+    const view: ViewState = {
       step: this.stepView(),
       main_bar: this.bar(),
       settings: this.settingsOpen
@@ -396,11 +421,16 @@ export class MockCore implements Bridge {
             problems: { ...this.problems },
             keychain_available: this.opts.keychainAvailable,
             fido2_available: this.opts.fido2Available,
+            read_only: this.opts.readOnly,
           }
         : null,
       language: this.settings.general.ui_language ?? this.lang ?? 'de',
+      notices: this.notices.map((n) => ({ ...n, params: { ...n.params } })),
+      migration: this.migrationOffer
+        ? { legacy_file: this.migrationOffer, plaintext_secrets: this.opts.migrationSecrets }
+        : null,
+      done: this.done.map((d) => structuredClone(d)),
     };
-    if (this.notice) view.notification = this.notice;
     return view;
   }
 
@@ -418,8 +448,16 @@ export class MockCore implements Bridge {
   }
 
   private notify(code: string, params: Record<string, string> = {}): void {
+    // wie der Kern: gleiche Meldung nicht doppelt stapeln
+    if (this.notices.some((n) => n.code === code && JSON.stringify(n.params) === JSON.stringify(params))) return;
     this.noticeId += 1;
-    this.notice = { id: this.noticeId, code, params };
+    this.notices.push({ id: this.noticeId, code, params });
+  }
+
+  private finishDoc(result: DoneItemView['result']): void {
+    const d = this.doc();
+    if (!d) return;
+    this.done.push({ id: d.id, name: d.name, input: d.path, result });
   }
 
   private doc(): MockDoc | null {
@@ -458,6 +496,11 @@ export class MockCore implements Bridge {
         return { step: 'starting' };
       case 'open':
         return { step: 'open', queue: this.queueView() };
+      case 'loading':
+        return { step: 'loading', queue: this.queueView() };
+      case 'warning':
+        if (!d) return { step: 'open', queue: [] };
+        return { step: 'warning', doc: this.docInfo(d), codes: [...this.opts.warnings] };
       case 'placeholder':
         if (!d) return { step: 'open', queue: [] };
         return this.opts.placeholder === 'qr'
@@ -500,7 +543,12 @@ export class MockCore implements Bridge {
       case 'signing':
         return { step: 'signing', interaction: this.interaction, queue: this.queueView() };
       case 'output': {
-        const result = { path: this.output.path, save_pending: this.output.savePending, prompt: this.output.prompt };
+        const result = {
+          path: this.output.path,
+          save_pending: this.output.savePending,
+          ask_overwrite: this.output.askOverwrite,
+          save_dialog: this.output.saveDialog ? { ...this.output.saveDialog } : null,
+        };
         const next = this.queue[1];
         return { step: 'output', result, next: next ? this.docInfo(next) : null };
       }
@@ -523,6 +571,8 @@ export class MockCore implements Bridge {
       case 'finished':
         return mainBar(['', '', '', ''], false);
       case 'open':
+      case 'loading':
+      case 'warning':
       case 'placeholder':
         return mainBar(['AE', '', '', ''], s);
       case 'position':
@@ -553,17 +603,33 @@ export class MockCore implements Bridge {
   // Ereignisse
   // ------------------------------------------------------------------------------------------
 
-  private handle(e: UiEventExt): void {
-    if (e.type !== 'open_settings' && e.type !== 'close_settings') this.notice = null;
+  private handle(e: UiEvent): void {
     switch (e.type) {
       case 'open_files':
         return this.openFiles(e.paths);
+      case 'answer_warning':
+        if (this.stage !== 'warning') return;
+        if (e.proceed) return this.afterAnalysis();
+        this.finishDoc({ kind: 'cancelled' });
+        return this.dropCurrent();
+      case 'dismiss_notice':
+        this.notices = this.notices.filter((n) => n.id !== e.id);
+        return;
+      case 'accept_migration':
+        if (!this.migrationOffer) return;
+        this.migrationOffer = null;
+        this.notify('ng-migrate-done', { imported: '12', skipped: e.store_secrets ? '0' : '1' });
+        return;
+      case 'decline_migration':
+        this.migrationOffer = null;
+        return;
       case 'placeholder_answer':
         if (e.answer === 'Yes') {
           this.positionChoice = 'placeholder';
           return this.toBackend();
         }
         if (e.answer === 'No') return this.toPosition(true);
+        this.finishDoc({ kind: 'cancelled' });
         return this.dropCurrent();
       case 'move_block':
         return this.move(e.page, e.x, e.y);
@@ -619,6 +685,10 @@ export class MockCore implements Bridge {
         return;
       case 'cancel':
         if (this.stage === 'signing') return this.cancelSigning();
+        if (this.stage === 'loading' || this.stage === 'warning' || this.stage === 'position') {
+          this.finishDoc({ kind: 'cancelled' });
+          return this.dropCurrent();
+        }
         if (this.stage === 'error') {
           const cancel = this.error?.onCancel;
           this.error = null;
@@ -635,9 +705,9 @@ export class MockCore implements Bridge {
       case 'save':
         return this.save(e.path);
       case 'confirm_overwrite':
-        if (this.output.prompt?.kind !== 'overwrite') return;
-        if (e.overwrite) return this.saved(this.output.prompt.path);
-        this.output = { path: null, savePending: true, prompt: null };
+        if (!this.output.askOverwrite) return;
+        if (e.overwrite) return this.saved(this.output.askOverwrite);
+        this.output = { ...EMPTY_OUTPUT, savePending: true };
         return;
       case 'open_result':
         if (this.output.path) this.nativeCalls.push(`openResult:${this.output.path}`);
@@ -681,6 +751,7 @@ export class MockCore implements Bridge {
       this.analyze();
     } else if (this.stage === 'output' && this.output.path && before <= 1 && this.queue.length > 1) {
       // F-89: auf dem Ergebnis-Screen abgelegt und zuletzt gespeichert → sofort weiter
+      this.finishDoc({ kind: 'signed', output: { path: this.output.path, len: 1024, sha256: '00' } });
       this.queue.shift();
       this.analyze();
     }
@@ -692,21 +763,31 @@ export class MockCore implements Bridge {
       this.stage = 'open';
       return;
     }
-    // Während der Analyse bleibt der Öffnen-Schritt mit der Warteschlange sichtbar.
-    this.stage = 'open';
+    // Laden und Analyse (Platzhaltersuche) – Schritt `loading`
+    this.stage = 'loading';
     this.later(() => {
+      if (this.stage !== 'loading' || this.doc() !== d) return;
       if (!/\.pdf$/i.test(d.name)) {
         this.fail('error-MayNotBeAPDF', {}, true, () => this.analyze(), () => this.dropCurrent());
-      } else if (this.opts.placeholder !== 'none' && this.settings.placeholder.search) {
-        this.stage = 'placeholder';
-      } else if (this.settings.signature.auto_position || this.settings.signature.profile === 'INVISIBLE') {
-        this.positionChoice = this.settings.signature.profile === 'INVISIBLE' ? 'invisible' : 'auto';
-        this.toBackend();
+      } else if (this.opts.warnings.length > 0) {
+        this.stage = 'warning';
       } else {
-        this.toPosition(false);
+        this.afterAnalysis();
       }
       this.emit();
     });
+  }
+
+  /** Nach der Analyse (bzw. „Trotzdem signieren“): Platzhalter, Positionierung oder Signiermittel. */
+  private afterAnalysis(): void {
+    if (this.opts.placeholder !== 'none' && this.settings.placeholder.search) {
+      this.stage = 'placeholder';
+    } else if (this.settings.signature.auto_position || this.settings.signature.profile === 'INVISIBLE') {
+      this.positionChoice = this.settings.signature.profile === 'INVISIBLE' ? 'invisible' : 'auto';
+      this.toBackend();
+    } else {
+      this.toPosition(false);
+    }
   }
 
   private toPosition(keep: boolean): void {
@@ -961,34 +1042,43 @@ export class MockCore implements Bridge {
     if (folder) {
       const target = joinPath(folder === '.' ? dirName(d.path) : folder, name);
       if (this.opts.existingFiles.includes(target)) {
-        this.output = { path: null, savePending: false, prompt: { kind: 'overwrite', path: target } };
+        this.output = { ...EMPTY_OUTPUT, askOverwrite: target };
       } else {
         this.saved(target);
       }
     } else {
-      this.output = { path: null, savePending: false, prompt: { kind: 'save_path', directory: dirName(d.path), file_name: name } };
+      this.output = { ...EMPTY_OUTPUT, saveDialog: { directory: dirName(d.path), file_name: name } };
     }
   }
 
   private save(path: string | null): void {
     if (this.stage !== 'output') return;
     if (path === null) {
-      this.output = { path: null, savePending: true, prompt: null };
+      if (this.output.saveDialog) {
+        // Dialog abgebrochen → Knopf „Speichern“ (F-86)
+        this.output = { ...EMPTY_OUTPUT, savePending: true };
+      } else {
+        // Knopf „Speichern“ → Speichern-Dialog (F-86)
+        const d = this.doc();
+        const name = outputFileName(d?.path ?? 'signiert.pdf', this.settings.output.postfix || '_signed');
+        this.output = { ...EMPTY_OUTPUT, saveDialog: { directory: dirName(d?.path ?? ''), file_name: name } };
+      }
       return;
     }
     if (this.opts.existingFiles.includes(path)) {
-      this.output = { path: null, savePending: false, prompt: { kind: 'overwrite', path } };
+      this.output = { ...EMPTY_OUTPUT, askOverwrite: path };
       return;
     }
     this.saved(path);
   }
 
   private saved(path: string): void {
-    this.output = { path, savePending: false, prompt: null };
+    this.output = { ...EMPTY_OUTPUT, path };
     this.stage = 'output';
     if (this.queue.length > 1) {
       // F-88: Batch – nächstes Dokument ohne Ergebnis-Screen
       this.notify('ng-ui-output-saved-next', { file: baseName(path) });
+      this.finishDoc({ kind: 'signed', output: { path, len: 1024, sha256: '00' } });
       this.queue.shift();
       this.analyze();
     }
@@ -1005,8 +1095,11 @@ export class MockCore implements Bridge {
       case 'Open':
         if (this.stage === 'output') {
           // F-16: aus dem Ergebnis das nächste Dokument
+          this.finishDoc(
+            this.output.path ? { kind: 'signed', output: { path: this.output.path, len: 1024, sha256: '00' } } : { kind: 'cancelled' },
+          );
           this.queue.shift();
-          this.output = { path: null, savePending: false, prompt: null };
+          this.output = EMPTY_OUTPUT;
           if (this.queue.length > 0) this.analyze();
           else this.stage = 'open';
         } else if (this.stage !== 'open') {

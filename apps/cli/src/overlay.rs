@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use pdfover_config::{BackendChoice, Overlay};
 use zeroize::Zeroizing;
 
+#[cfg(feature = "run")]
 use crate::term::Terminal;
 use crate::{Cli, Command, LegacyBku};
 
@@ -96,6 +97,7 @@ pub fn check(cli: &Cli) -> Result<(), ArgError> {
 }
 
 /// Keystore-Passwort aus `-kspass`, `--kspass-env` bzw. `--kspass-stdin` (erste Quelle gewinnt).
+#[cfg(feature = "run")]
 pub fn keystore_password(cli: &Cli, term: &dyn Terminal) -> Result<Option<Zeroizing<String>>, ArgError> {
     if let Some(p) = &cli.legacy.keystore_password {
         return Ok(Some(Zeroizing::new(p.clone())));
@@ -260,6 +262,7 @@ mod tests {
         assert_eq!(check(&cli(&["-e", "/nicht/da.png"])).unwrap_err().id, "error-FileNotExist");
     }
 
+    #[cfg(feature = "run")]
     #[test]
     fn keystore_password_sources() {
         let term = crate::term::Scripted::new(false, &["vom-stdin"]);

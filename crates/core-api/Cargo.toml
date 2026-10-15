@@ -11,6 +11,8 @@ publish.workspace = true
 [features]
 # Test-Hilfen (Fake-PAdES-Engine, `testing`-Modul) für die eigenen Tests und die CLI-Tests.
 testing = []
+# TypeScript-Typen der Bridge (`ts::typescript_bindings`, Vertragstest `tests/ts_bindings.rs`).
+ts = ["dep:ts-rs", "pdfover-workflow/ts", "pdfover-backend-api/ts", "pdfover-i18n/ts"]
 
 [dependencies]
 pdfover-workflow = { workspace = true }
@@ -37,13 +39,13 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 time = { workspace = true }
 jiff = { workspace = true }
-# Logdatei (nicht blockierend) mit Rotation beim Start (Plan §7.1). MIT. Noch nicht in
-# [workspace.dependencies] – die Integration hebt die Abhängigkeit dorthin (ADR 0001 §4 Regel 2).
-tracing-appender = "=0.2.5"
+# Logdatei (nicht blockierend) mit Rotation beim Start (Plan §7.1). MIT.
+tracing-appender = { workspace = true }
+ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
 # eigene Test-Hilfen auch für die Integrationstests unter tests/
-pdfover-core-api = { workspace = true, features = ["testing"] }
+pdfover-core-api = { workspace = true, features = ["testing", "ts"] }
 pdfover-backend-api = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

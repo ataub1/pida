@@ -9,8 +9,7 @@ import { MainBar } from '../components/MainBar';
 import { Toasts } from '../components/Toasts';
 import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar } from '../core/defaults';
-import { notification, type UiEventExt } from '../core/extensions';
-import type { StepView, ViewState } from '../core/types';
+import type { StepView, UiEvent, ViewState } from '../core/types';
 import { translator } from '../i18n/catalog';
 import { BackendScreen } from '../screens/BackendScreen';
 import { OpenScreen } from '../screens/OpenScreen';
@@ -18,21 +17,27 @@ import { OutputScreen } from '../screens/OutputScreen';
 import { PlaceholderScreen } from '../screens/PlaceholderScreen';
 import { PositionScreen } from '../screens/PositionScreen';
 import { SigningScreen } from '../screens/SigningScreen';
-import { ErrorScreen, FinishedScreen, StartingScreen } from '../screens/StatusScreens';
+import { ErrorScreen, FinishedScreen, LoadingScreen, StartingScreen, WarningScreen } from '../screens/StatusScreens';
 import { EMBLEM_DROP_EVENT, SettingsDialog } from '../settings/SettingsDialog';
 import { applyTheme, readTheme } from '../settings/theme';
 import { AppContext, type AppContextValue, type Toast } from './context';
+import { MigrationDialog } from './MigrationDialog';
 
 const STARTING: ViewState = {
   step: { step: 'starting' },
   main_bar: mainBar(['', '', '', ''], false),
   settings: null,
   language: 'de',
+  notices: [],
+  migration: null,
+  done: [],
 };
 
 const STEP_TITLE: Record<StepView['step'], string> = {
   starting: 'ng-ui-starting',
   open: 'ng-ui-open-title',
+  loading: 'ng-ui-open-analyzing',
+  warning: 'ng-ui-warning-title',
   placeholder: 'ng-ui-placeholder-title',
   position: 'ng-ui-position-title',
   backend: 'ng-ui-backend-title',
@@ -131,7 +136,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, []);
 
   const dispatch = useCallback(
-    (event: UiEventExt): Promise<boolean> =>
+    (event: UiEvent): Promise<boolean> =>
       bridge.dispatch(event).then(
         () => true,
         (e: unknown) => {
@@ -142,15 +147,6 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       ),
     [bridge, toast, current.language],
   );
-
-  // Hinweise ohne Rückfrage (vorgeschlagene Erweiterung `ViewState::notification`)
-  const note = notification(current);
-  const lastNote = useRef<number | null>(null);
-  useEffect(() => {
-    if (!note || note.id === lastNote.current) return;
-    lastNote.current = note.id;
-    toast(t.code(note.code, note.params, 'ng-ui-error-unknown'));
-  }, [note, t, toast]);
 
   // --- Dateien öffnen --------------------------------------------------------------------------
   const browse = useCallback(async () => {
@@ -191,7 +187,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         }
         return;
       }
-      if (s === 'open' || s === 'output') {
+      if (s === 'open' || s === 'loading' || s === 'output') {
         void dispatch({ type: 'open_files', paths: e.paths });
       } else {
         toast(translator(current.language).t('ng-ui-drop-not-here'));
@@ -271,7 +267,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
             <Screen step={current.step} onBrowse={() => void browse()} />
           </main>
           {current.settings ? <SettingsDialog settingsView={current.settings} /> : null}
-          <Toasts toasts={toasts} onDismiss={dismiss} />
+          {current.migration && !current.settings ? <MigrationDialog offer={current.migration} /> : null}
+          <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />
           <div className="visually-hidden" aria-live="polite" aria-atomic="true" data-testid="live-region">
             {liveText}
           </div>
@@ -287,6 +284,10 @@ function Screen({ step, onBrowse }: { step: StepView; onBrowse: () => void }) {
       return <StartingScreen />;
     case 'open':
       return <OpenScreen queue={step.queue} onBrowse={onBrowse} />;
+    case 'loading':
+      return <LoadingScreen queue={step.queue} />;
+    case 'warning':
+      return <WarningScreen doc={step.doc} codes={step.codes} />;
     case 'placeholder':
       return <PlaceholderScreen doc={step.doc} fields={step.fields} qr={step.qr} />;
     case 'position':
@@ -296,7 +297,7 @@ function Screen({ step, onBrowse }: { step: StepView; onBrowse: () => void }) {
     case 'signing':
       return <SigningScreen interaction={step.interaction} queue={step.queue} />;
     case 'output':
-      return <OutputScreen step={step} result={step.result} next={step.next} />;
+      return <OutputScreen result={step.result} next={step.next} />;
     case 'error':
       return <ErrorScreen code={step.code} params={step.params} retry={step.retry} />;
     case 'finished':

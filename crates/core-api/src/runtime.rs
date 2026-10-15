@@ -102,6 +102,7 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::ToggleNewPage => "toggle_new_page",
         UiEvent::AutoPlace => "auto_place",
         UiEvent::ConfirmPosition => "confirm_position",
+        UiEvent::ChooseInvisible => "choose_invisible",
         UiEvent::ChooseBackend { .. } => "choose_backend",
         UiEvent::AcknowledgePrivacy { .. } => "acknowledge_privacy",
         UiEvent::SubmitForm { .. } => "submit_form",
@@ -259,6 +260,8 @@ pub(crate) struct CoreTask {
     options: Vec<BackendOption>,
     dialog: Option<OutputDialog>,
     queue: VecDeque<Event>,
+    /// Import-Angebot mit „enthält Klartext-Passwörter“ (einmal je Altdatei ermittelt)
+    migration_view: Option<MigrationOfferView>,
 }
 
 impl CoreTask {
@@ -291,7 +294,28 @@ impl CoreTask {
             options: Vec::new(),
             dialog: None,
             queue: VecDeque::new(),
+            migration_view: None,
         }
+    }
+
+    /// Import-Angebot für die Ansicht (Klartext-Passwörter einmal je Altdatei ermitteln).
+    fn refresh_migration_view(&mut self) {
+        let Some(file) = self.cfg.migration_offer.clone() else {
+            self.migration_view = None;
+            return;
+        };
+        if self.migration_view.as_ref().is_some_and(|m| m.legacy_file == file) {
+            return;
+        }
+        let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
+        let plaintext_secrets = pdfover_config::LegacyConfig::load(&file)
+            .map(|legacy| {
+                let ctx =
+                    pdfover_config::MigrationContext { legacy_dir, system_language: Lang::system(), check_paths: false };
+                !pdfover_config::migrate(&legacy, &ctx).report.secrets_found.is_empty()
+            })
+            .unwrap_or(false);
+        self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets });
     }
 
     /// Hauptschleife.
@@ -325,7 +349,10 @@ impl CoreTask {
     /// `error.Unexpected` (F-106): mit Oberfläche Fehleranzeige und weiter mit der Dokumentauswahl,
     /// ohne Oberfläche Programmende mit Exit-Code 1.
     fn guarded(&mut self, f: impl FnOnce(&mut CoreTask)) {
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f(self);
+            self.refresh_migration_view();
+        }));
         if result.is_err() {
             self.recover_from_panic();
         }
@@ -1097,6 +1124,7 @@ impl CoreTask {
             UiEvent::ToggleNewPage => self.apply(Event::NewPageToggled),
             UiEvent::AutoPlace => self.auto_place(),
             UiEvent::ConfirmPosition => self.apply(Event::PositionConfirmed),
+            UiEvent::ChooseInvisible => self.apply(Event::InvisibleChosen),
             UiEvent::ChooseBackend { backend } => self.apply(Event::BackendChosen(backend)),
             UiEvent::AcknowledgePrivacy { accepted } => self.apply(Event::PrivacyAnswered(accepted)),
             UiEvent::SubmitForm { request, answer } => {
@@ -1431,7 +1459,7 @@ impl CoreTask {
             settings: self.settings_view.clone(),
             language: self.cfg.language(),
             notices: self.notices.clone(),
-            migration: self.cfg.migration_offer.clone().map(|legacy_file| MigrationOfferView { legacy_file }),
+            migration: self.migration_view.clone().filter(|m| self.cfg.migration_offer.as_ref() == Some(&m.legacy_file)),
             done,
         }
     }
@@ -1469,8 +1497,8 @@ impl CoreTask {
                 announce.insert("page".into(), (placement.page_index + 1).to_string());
                 announce.insert("pages".into(), (doc.page_count + usize::from(*new_page)).to_string());
                 let mm = |pt: f32| format!("{:.0}", pt * 25.4 / 72.0);
-                announce.insert("x_mm".into(), mm(placement.x));
-                announce.insert("y_mm".into(), mm(placement.y - placement.height));
+                announce.insert("left".into(), mm(placement.x));
+                announce.insert("bottom".into(), mm(placement.y - placement.height));
                 StepView::Position {
                     doc: self.doc_info(doc.id),
                     page: *page,

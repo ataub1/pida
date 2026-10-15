@@ -1199,6 +1199,47 @@ code {
   color: var(--danger);
 }
 
+.warning-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.warning-card .error-icon {
+  color: var(--warning);
+}
+
+.warning-list {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.done-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.done-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.done-item[data-result='failed'] .done-state {
+  color: var(--danger);
+}
+
+.settings-readonly {
+  border: 1px solid var(--warning);
+  background: var(--warning-soft);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
 .details summary {
   cursor: pointer;
   min-height: 32px;

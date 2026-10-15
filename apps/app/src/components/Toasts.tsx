@@ -1,15 +1,18 @@
 /**
- * Hinweise ohne Rückfrage (Toasts). Info als `status`, Fehler als `alert`; schließen per Knopf,
+ * Hinweise ohne Rückfrage (Toasts): die des Kerns (`ViewState::notices`) und eigene der Oberfläche.
+ * Info als `status`, Fehler als `alert`; schließen per Knopf,
  * Info verschwindet nach 8 s (Fehler bleiben, WCAG 2.2.1). Jeder Hinweis hat seine eigene Frist –
  * neue Hinweise verlängern ältere nicht.
  */
 import { useEffect } from 'react';
 import { Button } from 'react-aria-components';
 import { useT, type Toast } from '../app/context';
+import type { NoticeView } from '../core/types';
+import { CoreNotice } from './CoreNotices';
 import { IconAlert, IconClose, IconInfo } from './icons';
+import { INFO_TOAST_MS } from './toast-timing';
 
-/** Anzeigedauer eines Info-Hinweises. */
-export const INFO_TOAST_MS = 8000;
+export { INFO_TOAST_MS };
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) => void }) {
   const t = useT();
@@ -29,9 +32,13 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
   );
 }
 
-export function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
+/** Hinweise des Kerns (`ViewState::notices`, älteste zuerst) und eigene Hinweise der Oberfläche. */
+export function Toasts({ toasts, onDismiss, notices = [] }: { toasts: Toast[]; onDismiss: (id: number) => void; notices?: NoticeView[] }) {
   return (
     <div className="toasts" aria-live="polite">
+      {notices.map((n) => (
+        <CoreNotice key={`core-${n.id}`} notice={n} />
+      ))}
       {toasts.map((x) => (
         <ToastItem key={x.id} toast={x} onDismiss={onDismiss} />
       ))}

@@ -1,16 +1,17 @@
 /**
  * Ergebnis (docs/analyse/01 §4.8, F-80…F-91): Erfolgsmeldung, Öffnen (F-87), im Ordner anzeigen,
- * Speichern bei Fehlschlag/Abbruch (F-86), Speichern-Dialog (F-83) und Überschreiben-Rückfrage (F-84)
- * – sofern der Kern die Rückfrage meldet (vorgeschlagene Erweiterung `OutputView::prompt`) –,
- * nächstes Dokument der Warteschlange; Dateien lassen sich weiter ablegen (F-89).
+ * Speichern bei Fehlschlag/Abbruch (F-86), Speichern-Dialog (F-83, `OutputView::save_dialog` – der
+ * Dialog öffnet sich automatisch, die Antwort geht als `save{path}` bzw. `save{null}` zurück) und
+ * Überschreiben-Rückfrage (F-84, `OutputView::ask_overwrite` → `confirm_overwrite`), nächstes Dokument
+ * der Warteschlange; Dateien lassen sich weiter ablegen (F-89).
  */
 import { useEffect, useRef } from 'react';
 import { useApp } from '../app/context';
+import { DonePanel } from '../components/DonePanel';
 import { IconCheck, IconFolder } from '../components/icons';
 import { AccessButton, ConfirmDialog, Markup, ScreenHeading } from '../components/ui';
 import { baseName, dirName } from '../core/defaults';
-import { outputPrompt } from '../core/extensions';
-import type { DocInfo, OutputView, StepView } from '../core/types';
+import type { DocInfo, OutputView } from '../core/types';
 
 function joinPath(dir: string, name: string): string {
   if (!dir) return name;
@@ -18,9 +19,8 @@ function joinPath(dir: string, name: string): string {
   return dir.endsWith(sep) ? dir + name : dir + sep + name;
 }
 
-export function OutputScreen({ step, result, next }: { step: StepView; result: OutputView; next: DocInfo | null }) {
+export function OutputScreen({ result, next }: { result: OutputView; next: DocInfo | null }) {
   const { t, dispatch, bridge, toast, dragActive } = useApp();
-  const prompt = outputPrompt(step);
   const filters = [
     { name: t.t('common-PDFExtension_Description'), extensions: ['pdf'] },
     { name: t.t('common-AllExtension_Description'), extensions: ['*'] },
@@ -29,15 +29,17 @@ export function OutputScreen({ step, result, next }: { step: StepView; result: O
   const askSave = async (defaultPath: string | null) => {
     try {
       const path = await bridge.pickSavePath({ title: t.t('common-Save'), filters, defaultPath });
-      dispatch({ type: 'save', path });
+      void dispatch({ type: 'save', path });
     } catch {
       toast(t.t('ng-ui-dialog-failed'), 'error');
+      // Dialog nicht verfügbar: wie abgebrochen (Knopf „Speichern“ bleibt, F-86)
+      void dispatch({ type: 'save', path: null });
     }
   };
 
   // Speichern-Dialog automatisch, wenn der Kern ihn anfordert (einmal je Rückfrage).
   const asked = useRef<string | null>(null);
-  const saveTarget = prompt?.kind === 'save_path' ? joinPath(prompt.directory, prompt.file_name) : null;
+  const saveTarget = result.save_dialog ? joinPath(result.save_dialog.directory, result.save_dialog.file_name) : null;
   const askSaveRef = useRef(askSave);
   askSaveRef.current = askSave;
   useEffect(() => {
@@ -102,7 +104,9 @@ export function OutputScreen({ step, result, next }: { step: StepView; result: O
         )}
       </div>
 
-      {prompt?.kind === 'overwrite' ? (
+      <DonePanel />
+
+      {result.ask_overwrite ? (
         <ConfirmDialog
           title={t.t('common-warning')}
           tone="warning"
@@ -114,7 +118,7 @@ export function OutputScreen({ step, result, next }: { step: StepView; result: O
             </>
           }
         >
-          <p>{t.t('output-file_ask_overwrite', { arg1: prompt.path })}</p>
+          <p>{t.t('output-file_ask_overwrite', { arg1: result.ask_overwrite })}</p>
         </ConfirmDialog>
       ) : null}
     </div>

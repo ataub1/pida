@@ -30,6 +30,7 @@ const settings: Settings = {
 
 export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'open_files', paths: ['/Users/demo/Vertrag.pdf', 'C:\\Users\\demo\\Angebot.pdf'] },
+  { type: 'answer_warning', proceed: true },
   { type: 'placeholder_answer', answer: 'Yes', field_index: 1 },
   { type: 'move_block', page: 1, x: 100.5, y: 210 },
   { type: 'nudge_block', dx: -1, dy: 1, fine: true, coarse: false },
@@ -37,6 +38,7 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'toggle_new_page' },
   { type: 'auto_place' },
   { type: 'confirm_position' },
+  { type: 'choose_invisible' },
   { type: 'choose_backend', backend: 'atrust_native' },
   { type: 'acknowledge_privacy', accepted: true },
   { type: 'submit_form', request: 1, answer: { kind: 'login', username: '+43664123456789', password: 'geheim-123', remember: true } },
@@ -56,6 +58,9 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'backgrounded' },
   { type: 'foregrounded' },
   { type: 'quit' },
+  { type: 'dismiss_notice', id: 3 },
+  { type: 'accept_migration', store_secrets: true },
+  { type: 'decline_migration' },
 ];
 
 /** Weitere Antworten (alle `FormAnswerView`-Varianten, `save` ohne Pfad, Platzhalter ohne Feld). */
@@ -70,4 +75,6 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'answer_notice', request: 10, answer: 'Ok' },
   { type: 'navigate', step: 'Open' },
   { type: 'choose_backend', backend: 'keystore' },
+  { type: 'answer_warning', proceed: false },
+  { type: 'accept_migration', store_secrets: false },
 ];

@@ -8,6 +8,10 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[features]
+# TypeScript-Typen der Bridge (ts-rs, nur für `pdfover-core-api/ts`).
+ts = ["dep:ts-rs"]
+
 [dependencies]
 pdfover-backend-api = { workspace = true }
 pdfover-placement = { workspace = true }
@@ -15,6 +19,8 @@ pdfover-pades = { workspace = true }
 pdfover-config = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+ts-rs = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

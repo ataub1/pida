@@ -7,6 +7,7 @@ import type {
   InteractionView,
   Lang,
   NativeForm,
+  OutputView,
   QueueItemView,
   Settings,
   SettingsView,
@@ -34,6 +35,8 @@ export const QUEUE: QueueItemView[] = [
 const BARS: Record<StepView['step'], [string, string, string, string]> = {
   starting: ['', '', '', ''],
   open: ['AE', '', '', ''],
+  loading: ['AE', '', '', ''],
+  warning: ['AE', '', '', ''],
   placeholder: ['AE', '', '', ''],
   position: ['AE', 'A', '', ''],
   backend: ['AE', 'AE', 'A', ''],
@@ -45,7 +48,16 @@ const BARS: Record<StepView['step'], [string, string, string, string]> = {
 
 export function viewOf(step: StepView, extra: Partial<ViewState> = {}): ViewState {
   const settingsEnabled = !['starting', 'signing', 'finished'].includes(step.step);
-  return { step, main_bar: mainBar(BARS[step.step], settingsEnabled), settings: null, language: 'de', ...extra };
+  return {
+    step,
+    main_bar: mainBar(BARS[step.step], settingsEnabled),
+    settings: null,
+    language: 'de',
+    notices: [],
+    migration: null,
+    done: [],
+    ...extra,
+  };
 }
 
 export function positionView(extra: Partial<Extract<StepView, { step: 'position' }>> = {}, lang: Lang = 'de'): ViewState {
@@ -96,8 +108,13 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
     { step: 'open', queue: [] },
     {
       language: lang,
-      settings: { settings, problems: {}, keychain_available: true, fido2_available: true, ...extra },
+      settings: { settings, problems: {}, keychain_available: true, fido2_available: true, read_only: false, ...extra },
       main_bar: mainBar(['AE', '', '', ''], false),
     },
   );
+}
+
+/** Ergebnis des Ausgabe-Schritts (ohne Rückfragen, sofern nicht angegeben). */
+export function outputResult(extra: Partial<OutputView> = {}): OutputView {
+  return { path: null, save_pending: false, ask_overwrite: null, save_dialog: null, ...extra };
 }

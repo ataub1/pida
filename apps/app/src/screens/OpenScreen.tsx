@@ -3,6 +3,7 @@
  * Dateidialog mit Mehrfachauswahl, Warteschlange.
  */
 import { useApp } from '../app/context';
+import { DonePanel } from '../components/DonePanel';
 import { IconUpload } from '../components/icons';
 import { QueuePanel } from '../components/QueuePanel';
 import { AccessButton, ScreenHeading, Spinner } from '../components/ui';
@@ -39,6 +40,7 @@ export function OpenScreen({ queue, onBrowse }: { queue: QueueItemView[]; onBrow
         </p>
       ) : null}
       <QueuePanel queue={queue} />
+      <DonePanel />
     </div>
   );
 }

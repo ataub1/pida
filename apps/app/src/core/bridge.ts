@@ -6,8 +6,7 @@
  * `pdfover:view`, Custom Protocol `pdfover-render://`) und der TS-Mock-Kern (`mock.ts`, für
  * `VITE_MOCK=1`, Browser-Vorschau und Tests).
  */
-import type { DocId, ViewState } from './types';
-import type { UiEventExt } from './extensions';
+import type { DocId, UiEvent, ViewState } from './types';
 
 /** Name des Ereignisses mit dem aktuellen ViewState (`pdfover_app_lib::VIEW_EVENT`). */
 export const VIEW_EVENT = 'pdfover:view';
@@ -41,7 +40,7 @@ export interface CoreBridge {
   /** Aktueller Zustand (beim Start). */
   view(): Promise<ViewState>;
   /** Sendet ein Ereignis; Fehler tragen einen stabilen Code (i18n-ID). */
-  dispatch(event: UiEventExt): Promise<void>;
+  dispatch(event: UiEvent): Promise<void>;
   /** Abo auf Zustandsänderungen; liefert die Abmeldung. */
   onState(cb: (view: ViewState) => void): () => void;
   /** URL einer Seitenkachel (`scale` relativ zu 72 dpi). */

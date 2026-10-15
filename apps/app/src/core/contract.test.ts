@@ -50,7 +50,7 @@ const capabilities = obj({
 });
 
 const formProblem = ext(
-  { Fido2Failed: str, Atrust: str },
+  { Fido2Failed: str, Atrust: str, Fido2Error: obj({ code: str, detail: str }) },
   ['PasswordTooShort', 'PasswordTooLong', 'NoTan', 'TanTooLong', 'EnteredReferenceValue', 'QrImageFailed', 'LoginRejected'] as const,
 );
 
@@ -104,7 +104,10 @@ const notice = obj({
 const interaction = tagged('kind', {
   waiting: { progress },
   form: { request: int, form: nativeForm },
-  secret: { request: int, prompt: obj({ kind: lit('KeystorePassword', 'KeyPassword', 'ProxyPassword'), subject: str, retry: bool }) },
+  secret: {
+    request: int,
+    prompt: obj({ kind: lit('KeystorePassword', 'KeyPassword', 'ProxyPassword', 'Fido2Pin'), subject: str, retry: bool }),
+  },
   notice: { request: int, notice },
 });
 
@@ -114,6 +117,8 @@ const queueItem = obj({ id: int, name: str, current: bool });
 const stepView = tagged('step', {
   starting: {},
   open: { queue: arr(queueItem) },
+  loading: { queue: arr(queueItem) },
+  warning: { doc: docInfo, codes: arr(str) },
   placeholder: {
     doc: docInfo,
     fields: arr(obj({ name: str, page: nullable(int) })),
@@ -132,7 +137,15 @@ const stepView = tagged('step', {
     privacy_notice: nullable(obj({ backend: backendId, version: int, custom_text: nullable(str) })),
   },
   signing: { interaction, queue: arr(queueItem) },
-  output: { result: obj({ path: nullable(str), save_pending: bool }), next: nullable(docInfo) },
+  output: {
+    result: obj({
+      path: nullable(str),
+      save_pending: bool,
+      ask_overwrite: nullable(str),
+      save_dialog: nullable(obj({ directory: str, file_name: str })),
+    }),
+    next: nullable(docInfo),
+  },
   error: { code: str, params: record(str), retry: bool },
   finished: { exit_code: int },
 });
@@ -171,11 +184,36 @@ const settings = objOpen({
   certificate_cache: obj({ enabled: bool }),
 });
 
+const workflowError = ext({
+  Rejected: obj({ class: lit('K1Regular', 'K2Repairable', 'K3Encrypted', 'K4Restricted', 'K5Rejected'), code: str }),
+  Backend: obj({ code: str, detail: str }),
+  Invariant: obj({
+    invariant: lit('I1Prefix', 'I2ByteRange', 'I3Cms', 'I4PriorSignatures', 'I5Reparse', 'I6AllowedChanges'),
+    detail: str,
+  }),
+  CmsTooLarge: obj({ needed: int, reserve: int }),
+  Config: str,
+  Save: str,
+  Prepare: obj({ code: str, detail: str }),
+  Unexpected: str,
+});
+
+const docResult = tagged('kind', {
+  signed: { output: obj({ path: str, len: int, sha256: str }) },
+  cancelled: {},
+  failed: { error: workflowError },
+});
+
 const viewState = obj({
   step: stepView,
   main_bar: obj({ steps: arr(obj({ step, active: bool, enabled: bool })), settings_enabled: bool }),
-  settings: nullable(obj({ settings, problems: record(str), keychain_available: bool, fido2_available: bool })),
+  settings: nullable(
+    obj({ settings, problems: record(str), keychain_available: bool, fido2_available: bool, read_only: bool }),
+  ),
   language: lang,
+  notices: arr(obj({ id: int, code: str, params: record(str) })),
+  migration: nullable(obj({ legacy_file: str, plaintext_secrets: bool })),
+  done: arr(obj({ id: int, name: str, input: str, result: docResult })),
 });
 
 const formAnswer = tagged('kind', {
@@ -189,6 +227,7 @@ const formAnswer = tagged('kind', {
 
 const uiEvent = tagged('type', {
   open_files: { paths: arr(str) },
+  answer_warning: { proceed: bool },
   placeholder_answer: { answer: lit('Yes', 'No', 'Cancel'), field_index: nullable(int) },
   move_block: { page: int, x: num, y: num },
   nudge_block: { dx: num, dy: num, fine: bool, coarse: bool },
@@ -196,6 +235,7 @@ const uiEvent = tagged('type', {
   toggle_new_page: {},
   auto_place: {},
   confirm_position: {},
+  choose_invisible: {},
   choose_backend: { backend: backendId },
   acknowledge_privacy: { accepted: bool },
   submit_form: { request: int, answer: formAnswer },
@@ -215,6 +255,9 @@ const uiEvent = tagged('type', {
   backgrounded: {},
   foregrounded: {},
   quit: {},
+  dismiss_notice: { id: int },
+  accept_migration: { store_secrets: bool },
+  decline_migration: {},
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -243,7 +286,19 @@ describe('Vertrag ViewState (Rust → TS)', () => {
   it('deckt alle Schritte, Interaktionen und Masken ab', () => {
     const views = fixture.map((f) => f.view as ViewState);
     const steps = new Set(views.map((v) => v.step.step));
-    expect([...steps].sort()).toEqual(['backend', 'error', 'finished', 'open', 'output', 'placeholder', 'position', 'signing', 'starting']);
+    expect([...steps].sort()).toEqual([
+      'backend',
+      'error',
+      'finished',
+      'loading',
+      'open',
+      'output',
+      'placeholder',
+      'position',
+      'signing',
+      'starting',
+      'warning',
+    ]);
     const forms = new Set(
       views.flatMap((v) => (v.step.step === 'signing' && v.step.interaction.kind === 'form' ? [Object.keys(v.step.interaction.form)[0]] : [])),
     );
@@ -262,12 +317,19 @@ describe('Vertrag ViewState (Rust → TS)', () => {
   });
 
   it('Schema erkennt Abweichungen', () => {
-    expect(validate(viewState, { step: { step: 'open' }, main_bar: { steps: [], settings_enabled: true }, settings: null, language: 'fr' })).toEqual([
-      '$.step<open>.queue: fehlt',
-      '$.language: eines von de|en erwartet, "fr" gefunden',
-    ]);
+    expect(
+      validate(viewState, {
+        step: { step: 'open' },
+        main_bar: { steps: [], settings_enabled: true },
+        settings: null,
+        language: 'fr',
+        notices: [],
+        migration: null,
+        done: [],
+      }),
+    ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);
-    expect(validate(uiEvent, { type: 'choose_invisible' })).toHaveLength(1);
+    expect(validate(uiEvent, { type: 'frobnicate' })).toHaveLength(1);
   });
 });
 
@@ -278,8 +340,8 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(validate(uiEvent, sample)).toEqual([]);
   });
 
-  it('alle 27 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(27);
+  it('alle 32 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(32);
   });
 
   it('ui-events.json ist aktuell (für den Rust-Test)', () => {
