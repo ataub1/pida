@@ -33,10 +33,11 @@ use crate::engine::{PadesEngine, PreparedDoc, SignedDoc};
 use crate::plan::{self, BlockSpec, PlanInput, SpecInput};
 use crate::resume;
 use crate::view::{
-    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, KeystoreImportView, MainBarView,
-    MigrationOfferView, NoticeView, OutputView, PlatformView, QrInfo, QueueItemView, ResumeOfferView, SaveDialogView,
-    SettingsView, StepView, UiEvent, ViewState,
+    BackendOptionView, BlockView, CertificateSource, DocInfo, DoneItemView, FieldInfo, InteractionView,
+    KeystoreImportView, MainBarView, MigrationOfferView, NoticeView, OutputView, PlacementTarget, PlatformView, QrInfo,
+    QueueItemView, ResumeOfferView, SaveDialogView, SettingsView, SignersView, StepView, UiEvent, ViewState,
 };
+use crate::workspace::{Selection, WorkspaceRuntime};
 
 /// Nachricht an den Kern-Task.
 pub(crate) enum Msg {
@@ -54,6 +55,12 @@ pub(crate) enum Msg {
     Notices(Vec<(String, BTreeMap<String, String>)>),
     Refresh,
     BackendEvent(BackendEvent),
+    /// Belegungsraster einer Seite fertig (Arbeitsbereich, ADR 0004 §3.3; `None` = nicht berechenbar)
+    GridReady {
+        doc: DocId,
+        page: usize,
+        grid: Option<Arc<pida_placement::OccupancyGrid>>,
+    },
     Shutdown,
 }
 
@@ -134,6 +141,30 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::DismissNotice { .. } => "dismiss_notice",
         UiEvent::AcceptMigration { .. } => "accept_migration",
         UiEvent::DeclineMigration => "decline_migration",
+        // ADR 0004 (Vertrag E0)
+        UiEvent::SetInvisible { .. } => "set_invisible",
+        UiEvent::UseTarget { .. } => "use_target",
+        UiEvent::InspectPages { .. } => "inspect_pages",
+        UiEvent::SelectSigner { .. } => "select_signer",
+        UiEvent::SignWith { .. } => "sign_with",
+        UiEvent::ShowBatch => "show_batch",
+        UiEvent::OpenBatchItem { .. } => "open_batch_item",
+        UiEvent::BackToBatch => "back_to_batch",
+        UiEvent::RemoveFromBatch { .. } => "remove_from_batch",
+        UiEvent::StartBatch { .. } => "start_batch",
+        UiEvent::SkipBatchDocument => "skip_batch_document",
+        UiEvent::AbortBatch => "abort_batch",
+        UiEvent::OpenVerify { .. } => "open_verify",
+        UiEvent::VerifyRecent { .. } => "verify_recent",
+        UiEvent::CloseVerify => "close_verify",
+        UiEvent::SignVerified => "sign_verified",
+        UiEvent::RemoveRecent { .. } => "remove_recent",
+        UiEvent::ClearRecent => "clear_recent",
+        UiEvent::ApplySettings { .. } => "apply_settings",
+        UiEvent::SetUiLanguage { .. } => "set_ui_language",
+        UiEvent::UpdateFirstRun { .. } => "update_first_run",
+        UiEvent::FinishFirstRun => "finish_first_run",
+        UiEvent::OfferMigration => "offer_migration",
     }
 }
 
@@ -160,6 +191,46 @@ pub(crate) struct SignSlot {
     signed: Option<Arc<dyn SignedDoc>>,
     /// Zertifikats-Cache (Opt-in) dieses Vorgangs: Cache, Schlüssel und ob `chain` aus dem Cache stammt
     cert_cache: Option<(CertificateCache, CertCacheKey, bool)>,
+    /// Signiermittel der Sitzung (Wiederverwendung beim Wiederholen, ADR 0004 §3.6)
+    backend: Option<BackendId>,
+    /// Abbruch nur des laufenden Jobs (`sign_one`; „Dokument überspringen“ ab K2)
+    job_cancel: CancelToken,
+    /// Sitzung für „Erneut versuchen“ wiederverwendet: die Kette der Sitzung gilt weiter
+    reused: bool,
+    /// Herkunft des Zertifikats (Signierkarte)
+    cert_source: CertificateSource,
+    /// Seite des sichtbaren Blocks laut Plan (`Some(None)` = unsichtbar)
+    block_page: Option<Option<usize>>,
+    /// Zusammenfassung „Fertig“ (nach der Selbstprüfung)
+    pub(crate) summary: Option<SummaryInfo>,
+}
+
+impl SignSlot {
+    /// Herkunft des Zertifikats für die Signierkarte.
+    pub(crate) fn certificate_source(&self) -> CertificateSource {
+        self.cert_source
+    }
+}
+
+/// Angaben für `SignedSummaryView` (ADR 0004 §3.7). `Debug` ohne den Unterzeichner (Regel 9).
+#[derive(Clone)]
+pub(crate) struct SummaryInfo {
+    /// CN des Signaturzertifikats
+    pub signer: Option<String>,
+    /// `/M` als RFC 3339
+    pub signing_time: String,
+    /// Seite des sichtbaren Blocks (`None` = unsichtbar)
+    pub page: Option<usize>,
+}
+
+impl std::fmt::Debug for SummaryInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SummaryInfo")
+            .field("signer", &self.signer.as_ref().map(|_| "<redigiert>"))
+            .field("signing_time", &self.signing_time)
+            .field("page", &self.page)
+            .finish()
+    }
 }
 
 /// Meldungs-ID: das Zertifikat aus dem Zertifikats-Cache passt nicht mehr (erneuert, anderes Konto);
@@ -207,7 +278,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl Shared {
-    fn send(&self, msg: Msg) {
+    pub(crate) fn send(&self, msg: Msg) {
         let _ = self.tx.send(msg);
     }
 
@@ -311,13 +382,13 @@ pub(crate) struct CoreTask {
     next_notice: u64,
     next_doc: u64,
     settings_view: Option<SettingsView>,
-    options: Vec<BackendOption>,
+    pub(crate) options: Vec<BackendOption>,
     dialog: Option<OutputDialog>,
     queue: VecDeque<Event>,
     /// Import-Angebot mit „enthält Klartext-Passwörter“ (einmal je Altdatei ermittelt)
     migration_view: Option<MigrationOfferView>,
     /// Plattform und Mobile-Optionen
-    mobile: MobileSetup,
+    pub(crate) mobile: MobileSetup,
     /// App im Hintergrund (Lebenszyklus; kein Abbruch)
     backgrounded: bool,
     /// gespeicherter, noch nicht angenommener Vorgang („Signatur fortsetzen“)
@@ -331,6 +402,8 @@ pub(crate) struct CoreTask {
     persist_owned: bool,
     /// Ergebnis des PKCS#12-Imports
     keystore_import: Option<KeystoreImportView>,
+    /// Oberfläche „Arbeitsbereich“ (ADR 0004)
+    pub(crate) ws: WorkspaceRuntime,
 }
 
 impl CoreTask {
@@ -344,8 +417,15 @@ impl CoreTask {
         startup: Option<StartupProblem>,
         fido2_available: bool,
         mobile: MobileSetup,
+        workspace_ui: bool,
     ) -> CoreTask {
-        let ctx = cfg.context(headless);
+        let overlay = &cfg.overlay;
+        // Startargument-Automatik der GUI (D-06): `-b` und (`-a` oder `-v`), nicht `signature.auto_position`
+        let cli_auto = overlay.backend.is_some() && (overlay.auto_position || overlay.invisible == Some(true));
+        let ws = WorkspaceRuntime { enabled: workspace_ui && !headless, cli_auto, ..WorkspaceRuntime::default() };
+        let mut ctx = cfg.context(headless);
+        ctx.workspace = ws.enabled;
+        ctx.cli_auto = ws.enabled && cli_auto;
         CoreTask {
             shared,
             state: State::Starting,
@@ -372,7 +452,15 @@ impl CoreTask {
             resume_active: None,
             persist_owned: false,
             keystore_import: None,
+            ws,
         }
+    }
+
+    /// Reducer-Kontext aus den Einstellungen neu bilden (mit dem Arbeitsbereich-Modus).
+    fn refresh_ctx(&mut self) {
+        self.ctx = self.cfg.context(self.headless);
+        self.ctx.workspace = self.ws.enabled;
+        self.ctx.cli_auto = self.ws.enabled && self.ws.cli_auto;
     }
 
     /// Ordner des persistierten Signierzustands (App-Sandbox, nicht der Cache).
@@ -496,6 +584,7 @@ impl CoreTask {
     fn foregrounded(&mut self) {
         let was_background = std::mem::replace(&mut self.backgrounded, false);
         self.apply(Event::Foregrounded);
+        self.refresh_signers();
         if was_background && matches!(self.state, State::Signing { .. }) && self.shared.broker.restart_long_poll() {
             tracing::info!("nach der Rückkehr in die App: Long-Poll neu gestartet");
         }
@@ -600,8 +689,9 @@ impl CoreTask {
         if self.settings_view.is_some() {
             self.settings_view = Some(self.settings_view_for(self.cfg.settings.clone(), BTreeMap::new()));
         }
-        self.ctx = self.cfg.context(self.headless);
+        self.refresh_ctx();
         self.registry.configure(&self.cfg);
+        self.refresh_signers();
         self.apply(Event::SettingsChanged);
         // Die Kopie aus der Dateiauswahl (Shell, `mobile_pick_files` → Cache) ist jetzt überzählig: ein
         // zweites Exemplar des privaten Schlüssels bleibt nicht im Cache liegen.
@@ -638,12 +728,13 @@ impl CoreTask {
             tracing::error!("Altkonfiguration nicht auswertbar (Programmfehler) – Angebot ohne Passwortfrage");
             false
         });
-        self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets });
+        self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets, items: Vec::new() });
     }
 
     /// Hauptschleife.
     pub(crate) async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Msg>) {
         self.guarded(|t| t.start());
+        self.guarded(|t| t.after_message());
         self.publish();
         // Backend-Auswahl aktuell halten (lokale BKU erscheint, sobald sie erreichbar ist, F-51)
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
@@ -653,6 +744,10 @@ impl CoreTask {
                 m = rx.recv() => m,
                 _ = tick.tick() => {
                     self.guarded(|t| t.refresh_backend_options());
+                    // Konto-Chip aktuell halten (lokale BKU erscheint bzw. verschwindet), nicht im Signieren
+                    if !matches!(self.state, State::Signing { .. } | State::Resuming { .. }) {
+                        self.guarded(|t| t.refresh_signers());
+                    }
                     self.publish();
                     continue;
                 }
@@ -662,9 +757,16 @@ impl CoreTask {
                 break;
             }
             self.guarded(|t| t.handle(msg));
+            self.guarded(|t| t.after_message());
             self.publish();
         }
         self.cancel_session();
+    }
+
+    /// Nach jeder Nachricht (Arbeitsbereich): Revision der Platzierung, Belegungsraster anfordern.
+    fn after_message(&mut self) {
+        self.track_revision();
+        self.request_layout();
     }
 
     /// Führt `f` aus; eine Panik (Programmfehler, feindliche Eingabe in einer Bibliothek) beendet nicht
@@ -713,7 +815,19 @@ impl CoreTask {
             Msg::Ui(e) => self.on_ui(e),
             Msg::Event { epoch, event } => {
                 if epoch.is_none_or(|e| e == lock(&self.shared.sign).epoch) {
-                    self.apply(event);
+                    // Arbeitsbereich: ein `Cancelled`, das core-api nicht selbst ausgelöst hat (SL 6000/6001,
+                    // „Abbrechen“ in einer A-Trust-Meldung), ist eine Ablehnung (ADR 0004 §3.6)
+                    let declined = self.ws.enabled
+                        && epoch.is_some()
+                        && event == Event::BackendFailed(BackendError::Cancelled)
+                        && !self.ws.own_cancel
+                        && matches!(self.state, State::Signing { .. });
+                    if declined {
+                        tracing::info!("Signieren abgelehnt bzw. abgelaufen (nicht in PIDA abgebrochen)");
+                        self.apply(Event::SigningDeclined);
+                    } else {
+                        self.apply(event);
+                    }
                 } else {
                     tracing::debug!("veraltetes Ergebnis eines abgebrochenen Vorgangs verworfen");
                 }
@@ -721,7 +835,10 @@ impl CoreTask {
             Msg::Loaded(loaded, event) => self.on_loaded(*loaded, event),
             Msg::AutoPlaced(doc, placement) => {
                 if matches!(&self.state, State::Positioning { doc: facts, .. } if facts.id == doc) {
-                    self.apply(Event::PlacementChanged(placement));
+                    // Arbeitsbereich: Herkunft „automatisch“ (verspätet verworfen, wenn inzwischen bewegt)
+                    let event =
+                        if self.ws.enabled { Event::AutoPlaced(placement) } else { Event::PlacementChanged(placement) };
+                    self.apply(event);
                 }
             }
             Msg::BlockBuilt(info) => self.on_block(info),
@@ -730,8 +847,9 @@ impl CoreTask {
                     self.notify(&code, params);
                 }
             }
-            Msg::Refresh => {}
+            Msg::Refresh => self.on_interaction_changed(),
             Msg::BackendEvent(e) => self.on_backend_event(e),
+            Msg::GridReady { doc, page, grid } => self.on_grid_ready(doc, page, grid),
         }
     }
 
@@ -794,6 +912,7 @@ impl CoreTask {
         }
         self.relocate_sandbox_files();
         self.registry.configure(&self.cfg);
+        self.refresh_signers();
         // Schlüsselbund gewünscht, aber nicht verfügbar (z. B. Linux ohne Secret Service): Hinweis
         if self.cfg.settings.keystore.password_storage == pida_config::PasswordStorage::Keychain
             && !self.cfg.secrets.is_persistent()
@@ -843,8 +962,14 @@ impl CoreTask {
         while let Some(event) = self.queue.pop_front() {
             // Kopie statt `mem::replace`: bricht der Reducer ab, bleibt der bisherige Zustand erhalten
             let t = reduce(self.state.clone(), event, &self.ctx);
+            let was_error = matches!(self.state, State::Error { .. });
             self.state = t.state;
             tracing::debug!(state = self.state.name(), effects = t.effects.len(), "Übergang");
+            match (&self.state, was_error) {
+                (State::Error { .. }, false) => self.ws.error_at = Some(crate::workspace::rfc3339_now()),
+                (State::Error { .. }, true) => {}
+                _ => self.ws.error_at = None,
+            }
             if !matches!(self.state, State::Output { decision: Some(_), saved: None, .. }) {
                 self.dialog = None;
             }
@@ -917,12 +1042,22 @@ impl CoreTask {
             Effect::ProbeBackends => {
                 let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
                 self.options = self.registry.options(&env);
+                if self.ws.enabled {
+                    self.ws.signer_options = self.options.clone();
+                }
                 self.queue.push_back(Event::BackendsProbed(self.options.clone()));
             }
             Effect::OpenSession(id) => self.effect_open(id),
             Effect::ReadCertificate => self.effect_certificate(),
             Effect::Prepare { doc, position, min_reserve } => self.effect_prepare(doc, position, min_reserve),
-            Effect::Sign => self.effect_sign(),
+            Effect::Sign => self.effect_sign(false),
+            Effect::SignDocument => self.effect_sign(true),
+            Effect::ReleaseDocument => self.release_document(),
+            Effect::AutoPlace(doc) => {
+                if matches!(&self.state, State::Positioning { doc: facts, .. } if facts.id == doc) {
+                    self.auto_place();
+                }
+            }
             Effect::Finish => self.effect_finish(),
             Effect::CloseSession => {
                 let session = lock(&self.shared.sign).session.take();
@@ -944,7 +1079,10 @@ impl CoreTask {
             Effect::Notify(code) => self.notify(&code, BTreeMap::new()),
             Effect::ResetSettings => self.reset_settings(true),
             Effect::DeletePersisted => self.delete_persisted(),
-            Effect::Discard(id) => self.shared.docs.remove(id),
+            Effect::Discard(id) => {
+                self.shared.docs.remove(id);
+                self.ws.layouts.remove(id);
+            }
             Effect::RememberDirectory(dir) => self.cfg.remember_directory(&dir),
             Effect::Exit(code) => {
                 self.cancel_session();
@@ -986,6 +1124,9 @@ impl CoreTask {
                         page_count: loaded.data.pages.len(),
                         start,
                         warnings: loaded.warnings.clone(),
+                        // Arbeitsbereich: leere Felder immer anbieten, unabhängig von `placeholder.*` (§3.3)
+                        fields: pida_placement::find_empty_sig_fields(&report.fields),
+                        new_visible_field_allowed: report.allows_new_visible_field(),
                     };
                     Msg::Loaded(Box::new(loaded), event)
                 }
@@ -1033,14 +1174,16 @@ impl CoreTask {
             info.revision = block.revision + 1;
             *block = info.clone();
         }
-        // Blockgröße geändert (Profil, Hinweis, Logo): Position anpassen und klemmen (F-43)
-        if let State::Positioning { placement: Some(p), doc, .. } = &self.state
+        // Blockgröße geändert (Profil, Hinweis, Logo): Position anpassen und klemmen (F-43); im Arbeitsbereich
+        // behalten Herkunft und Ziel ihren Wert, automatisch platzierte Blöcke werden neu gesetzt (§3.3)
+        if let State::Positioning { placement: Some(p), doc, edit, .. } = &self.state
             && info.doc == Some(doc.id)
             && ((p.width - info.width).abs() > 0.01 || (p.height - info.height).abs() > 0.01)
         {
+            let workspace = edit.is_some();
             let moved = Placement { width: info.width, height: info.height, ..*p };
             if let Some(clamped) = self.clamp(&moved) {
-                self.apply(Event::PlacementChanged(clamped));
+                self.apply(if workspace { Event::BlockResized(clamped) } else { Event::PlacementChanged(clamped) });
             }
         }
     }
@@ -1068,10 +1211,40 @@ impl CoreTask {
     }
 
     fn effect_open(&mut self, id: BackendId) {
+        self.ws.own_cancel = false;
+        let caps = self.options.iter().find(|o| o.id == id).and_then(|o| o.capabilities.clone());
+        // Arbeitsbereich, „Erneut versuchen“: eine offene, unversehrte Sitzung desselben Signiermittels wird
+        // wiederverwendet – ohne neue Anmeldung und ohne zweites Lesen des Zertifikats (ADR 0004 §3.6)
+        if self.ws.enabled {
+            let mut slot = lock(&self.shared.sign);
+            if slot.session.is_some() && slot.backend == Some(id) && !slot.cancel.is_cancelled() {
+                slot.epoch += 1;
+                slot.prepared = None;
+                slot.attrs = None;
+                slot.result = None;
+                slot.signed = None;
+                slot.summary = None;
+                slot.block_page = None;
+                slot.job_cancel = CancelToken::new();
+                slot.reused = true;
+                if caps.is_some() {
+                    slot.caps = caps;
+                }
+                drop(slot);
+                tracing::info!(backend = id.as_str(), "Sitzung für „Erneut versuchen“ wiederverwendet");
+                self.queue.push_back(Event::PhaseCompleted(pida_workflow::SigningPhase::OpeningSession));
+                return;
+            }
+        }
         // neuer Vorgang: alte Reste verwerfen, neue Epoche
         self.cancel_session();
-        let caps = self.options.iter().find(|o| o.id == id).and_then(|o| o.capabilities.clone());
-        lock(&self.shared.sign).caps = caps;
+        self.ws.login_done = false;
+        self.ws.last_method = None;
+        {
+            let mut slot = lock(&self.shared.sign);
+            slot.caps = caps;
+            slot.backend = Some(id);
+        }
         let epoch = self.sign_epoch();
         let Some(backend) = self.registry.get(id) else {
             self.queue.push_back(Event::BackendFailed(BackendError::Unavailable(id.as_str().into())));
@@ -1132,6 +1305,19 @@ impl CoreTask {
     }
 
     fn effect_certificate(&mut self) {
+        {
+            let mut slot = lock(&self.shared.sign);
+            if slot.reused && slot.chain.is_some() {
+                // wiederverwendete Sitzung: Zertifikat bereits gelesen (kein zweites InfoboxRead)
+                if slot.cert_source == CertificateSource::Read {
+                    slot.cert_source = CertificateSource::Session;
+                }
+                drop(slot);
+                self.queue.push_back(Event::PhaseCompleted(pida_workflow::SigningPhase::ReadingCertificate));
+                return;
+            }
+            slot.cert_source = CertificateSource::Read;
+        }
         let cache = self.certificate_cache();
         if let Some((cache, key)) = &cache
             && let Some(chain) = Self::cached_certificate(cache, key)
@@ -1142,6 +1328,7 @@ impl CoreTask {
             let mut slot = lock(&self.shared.sign);
             slot.chain = Some(chain);
             slot.cert_cache = Some((cache.clone(), key.clone(), true));
+            slot.cert_source = CertificateSource::Cache;
             drop(slot);
             self.queue.push_back(Event::PhaseCompleted(pida_workflow::SigningPhase::ReadingCertificate));
             return;
@@ -1294,6 +1481,17 @@ impl CoreTask {
             if !built.notices.is_empty() {
                 shared.send(Msg::Notices(built.notices.iter().map(|c| (c.clone(), BTreeMap::new())).collect()));
             }
+            // Seite des sichtbaren Blocks für „Fertig“ (§3.7)
+            let block_page = match &built.plan.visibility {
+                pida_pades::Visibility::Visible(p) => Some(p.page_index),
+                pida_pades::Visibility::Invisible => None,
+            };
+            {
+                let mut slot = lock(&shared.sign);
+                if slot.epoch == epoch {
+                    slot.block_page = Some(block_page);
+                }
+            }
             let prepared = match shared.engine.prepare(&data.src, &built.plan, chain.as_ref()) {
                 Ok(p) => p,
                 Err(e) => return Event::SigningFailed(pades_error(&e)),
@@ -1305,11 +1503,15 @@ impl CoreTask {
         });
     }
 
-    fn effect_sign(&mut self) {
+    /// Backend `sign` (klassisch) bzw. `sign_one` mit eigenem Job-Abbruch (`one`, Arbeitsbereich).
+    fn effect_sign(&mut self, one: bool) {
         let shared = self.shared.clone();
         let name = self.current_doc().map(|d| d.name.clone()).unwrap_or_default();
-        let (epoch, session, prepared, chain, caps, cancel, cms_profile) = {
+        let (epoch, session, prepared, chain, caps, cancel, cms_profile, job_cancel) = {
             let mut slot = lock(&shared.sign);
+            if slot.job_cancel.is_cancelled() {
+                slot.job_cancel = CancelToken::new();
+            }
             (
                 slot.epoch,
                 slot.session.take(),
@@ -1318,6 +1520,7 @@ impl CoreTask {
                 slot.caps.clone(),
                 slot.cancel.clone(),
                 slot.cms_profile.unwrap_or_else(|| plan::cms_profile(self.cfg.settings.signature.cms_profile)),
+                slot.job_cancel.clone(),
             )
         };
         let (Some(mut session), Some(prepared)) = (session, prepared) else {
@@ -1343,10 +1546,18 @@ impl CoreTask {
                 });
                 (job, PreparedHolder::Shared(source), None)
             };
-            let r = tokio::select! {
-                biased;
-                _ = cancel.cancelled() => Err(BackendError::Cancelled),
-                r = session.sign(vec![job]) => r,
+            let r = if one {
+                tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => Err(BackendError::Cancelled),
+                    r = session.sign_one(job, job_cancel) => r.map(|r| vec![r]),
+                }
+            } else {
+                tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => Err(BackendError::Cancelled),
+                    r = session.sign(vec![job]) => r,
+                }
             };
             if r.is_err() && cancel.is_cancelled() {
                 session.cancel().await;
@@ -1394,6 +1605,15 @@ impl CoreTask {
             let (Some(data), Some(prepared), Some(result)) = (data, prepared, result) else {
                 return Event::SigningFailed(WorkflowError::Unexpected("Signaturergebnis fehlt".into()));
             };
+            // Zusammenfassung „Fertig“ (§3.7): Unterzeichner aus der Kette bzw. dem Ergebnis, Zeit wie `/M`
+            let signing_time = crate::workspace::rfc3339(prepared.signing_time());
+            let signer = match (&result, &chain) {
+                (_, Some(c)) => c.signer.subject_cn(),
+                (SignResult::Raw { chain: c, .. }, None) => c.signer.subject_cn(),
+                (SignResult::Cms(cms), None) => pida_cades::parse_cms(cms).ok().and_then(|info| {
+                    crate::workspace::leaf_certificate(&info.certificates).and_then(|c| c.subject_cn())
+                }),
+            };
             let finished = match (result, attrs) {
                 (SignResult::Cms(cms), _) => {
                     let expect = Expect {
@@ -1422,6 +1642,13 @@ impl CoreTask {
                         // „Wiederholen“ liest das Zertifikat neu und baut den Block neu (Plan §4.2).
                         tracing::warn!(code = e.code(), "Zertifikat aus dem Cache passt nicht – Eintrag gelöscht");
                         let _ = cache.remove(key);
+                        // „Erneut versuchen“ in derselben Sitzung liest das Zertifikat neu
+                        let mut slot = lock(&shared.sign);
+                        if slot.epoch == epoch {
+                            slot.chain = None;
+                            slot.cert_cache = None;
+                            slot.reused = false;
+                        }
                         return Event::SigningFailed(prepare_error(MSG_CERT_CACHE_MISMATCH, e.code()));
                     }
                     return Event::SelfCheckFailed(InvariantViolation {
@@ -1457,6 +1684,8 @@ impl CoreTask {
                 return Event::BackendFailed(BackendError::Cancelled);
             }
             slot.signed = Some(Arc::from(signed));
+            let page = slot.block_page.unwrap_or(None);
+            slot.summary = Some(SummaryInfo { signer, signing_time, page });
             Event::PhaseCompleted(pida_workflow::SigningPhase::Finishing)
         });
     }
@@ -1565,8 +1794,9 @@ impl CoreTask {
             Ok((cfg, _)) => self.cfg = cfg,
             Err(e) => tracing::warn!(id = e.message_id(), "Einstellungen nach Zurücksetzen nicht geladen"),
         }
-        self.ctx = self.cfg.context(self.headless);
+        self.refresh_ctx();
         self.registry.configure(&self.cfg);
+        self.refresh_signers();
         if restart {
             let docs = self.input_documents(&self.cfg.overlay.input_files.clone());
             self.queue.push_back(Event::Started { documents: docs });
@@ -1591,18 +1821,19 @@ impl CoreTask {
                 self.apply(Event::PlaceholderAnswered { answer, field_index });
             }
             UiEvent::MoveBlock { page, x, y } => {
-                if let State::Positioning { placement: Some(p), .. } = &self.state
+                if let Some(p) = self.move_base()
                     && x.is_finite()
                     && y.is_finite()
                 {
-                    let moved = Placement { page_index: page, x, y, ..*p };
+                    let moved = Placement { page_index: page, x, y, ..p };
                     if let Some(c) = self.clamp(&moved) {
+                        self.ws.clamped = (c.x - moved.x).abs() > 0.01 || (c.y - moved.y).abs() > 0.01;
                         self.apply(Event::PlacementChanged(c));
                     }
                 }
             }
             UiEvent::NudgeBlock { dx, dy, fine, coarse } => {
-                if let State::Positioning { placement: Some(p), .. } = &self.state {
+                if let Some(p) = self.move_base() {
                     let step = if coarse {
                         pida_placement::KEYBOARD_COARSE_STEP_PT
                     } else if fine {
@@ -1610,15 +1841,31 @@ impl CoreTask {
                     } else {
                         pida_placement::KEYBOARD_STEP_PT
                     };
-                    let moved = Placement { x: p.x + dx as f32 * step, y: p.y + dy as f32 * step, ..*p };
+                    let moved = Placement { x: p.x + dx as f32 * step, y: p.y + dy as f32 * step, ..p };
                     if let Some(c) = self.clamp(&moved) {
+                        self.ws.clamped = (c.x - moved.x).abs() > 0.01 || (c.y - moved.y).abs() > 0.01;
                         self.apply(Event::PlacementChanged(c));
                     }
                 }
             }
             UiEvent::ChangePage { page } => self.apply(Event::PageChanged(page)),
             UiEvent::ToggleNewPage => self.apply(Event::NewPageToggled),
+            // Arbeitsbereich: „Freie Fläche suchen“ = automatische Platzierung, Ziel frei (§3.3)
+            UiEvent::AutoPlace if self.ws.enabled => self.apply(Event::TargetChosen(pida_workflow::Target::Free)),
             UiEvent::AutoPlace => self.auto_place(),
+            // Arbeitsbereich: Altereignisse → „Signieren mit“ dem gewählten Signiermittel; ohne Auswahl ohne
+            // Wirkung (ADR 0004 §3.2, A1)
+            UiEvent::ConfirmPosition if self.ws.enabled => {
+                if let Some(backend) = self.signers_view().selected {
+                    self.sign_with(backend);
+                }
+            }
+            UiEvent::ChooseInvisible if self.ws.enabled => {
+                if let Some(backend) = self.signers_view().selected {
+                    self.apply(Event::InvisibleSet(true));
+                    self.sign_with(backend);
+                }
+            }
             UiEvent::ConfirmPosition => self.apply(Event::PositionConfirmed),
             UiEvent::ChooseInvisible => self.apply(Event::InvisibleChosen),
             UiEvent::ChooseBackend { backend } => self.apply(Event::BackendChosen(backend)),
@@ -1636,12 +1883,30 @@ impl CoreTask {
                 }
             }
             UiEvent::AnswerNotice { request, answer } => {
+                // Arbeitsbereich: „Abbrechen“ in einer Meldung, die nicht von A-Trust stammt (Proxy, HTTP,
+                // Keystore …), ist ein eigener Abbruch – nur die A-Trust-Fehlerseite zählt als Ablehnung
+                // bzw. Zeitablauf (ADR 0004 §3.6); sonst hieße es beim Keystore „In der App abgelehnt“
+                if self.ws.enabled
+                    && answer == pida_backend_api::NoticeAnswer::Cancel
+                    && matches!(self.state, State::Signing { .. })
+                    && matches!(
+                        self.shared.broker.current(),
+                        InteractionView::Notice { request: r, notice } if r == request
+                            && notice.code != pida_backend_api::NoticeCode::AtrustError
+                    )
+                {
+                    self.ws.own_cancel = true;
+                }
                 if !self.shared.broker.answer_notice(request, answer) {
                     tracing::debug!(request, "Antwort ohne offene Meldung");
                 }
             }
             UiEvent::OpenSignatureData { request } => self.open_signature_data(request),
             UiEvent::Cancel => {
+                // eigener Abbruch: ein folgendes `Cancelled` ist keine Ablehnung (ADR 0004 §3.6)
+                if matches!(self.state, State::Signing { .. }) {
+                    self.ws.own_cancel = true;
+                }
                 // Signieren mit offener Maske: Maske abbrechen (das Backend meldet den Abbruch, F-72)
                 if matches!(self.state, State::Signing { .. }) && self.shared.broker.cancel_current() {
                     return;
@@ -1718,7 +1983,10 @@ impl CoreTask {
                 self.import_keystore(&path, password, remember);
             }
             UiEvent::DismissKeystoreImport => self.keystore_import = None,
-            UiEvent::Quit => self.apply(Event::Quit),
+            UiEvent::Quit => {
+                self.ws.own_cancel = true;
+                self.apply(Event::Quit);
+            }
             UiEvent::DismissNotice { id } => self.notices.retain(|n| n.id != id),
             UiEvent::AcceptMigration { store_secrets } => self.accept_migration(store_secrets),
             UiEvent::DeclineMigration => {
@@ -1727,6 +1995,146 @@ impl CoreTask {
                     tracing::warn!(id = e.message_id(), "Standardeinstellungen nicht gespeichert");
                 }
             }
+            // ADR 0004, Arbeitsbereich (K1): nur im Arbeitsbereich-Modus; keines dieser Ereignisse außer
+            // `sign_with` startet etwas (A1)
+            UiEvent::SetInvisible { invisible } if self.ws.enabled => self.apply(Event::InvisibleSet(invisible)),
+            UiEvent::UseTarget { target } if self.ws.enabled => {
+                let target = match target {
+                    PlacementTarget::Free => pida_workflow::Target::Free,
+                    PlacementTarget::Field { index } => pida_workflow::Target::Field(index as usize),
+                    PlacementTarget::Qr => pida_workflow::Target::Qr,
+                };
+                self.apply(Event::TargetChosen(target));
+            }
+            UiEvent::InspectPages { mut pages } if self.ws.enabled => {
+                pages.truncate(crate::workspace::MAX_INSPECTED);
+                pages.sort_unstable();
+                pages.dedup();
+                self.ws.inspected = pages;
+            }
+            UiEvent::SelectSigner { backend, make_default } if self.ws.enabled => {
+                self.select_signer(backend, make_default)
+            }
+            UiEvent::SignWith { backend } if self.ws.enabled => self.sign_with(backend),
+            // Oberflächensprache (Kopfzeile, Palette): in beiden Modi; schreibgeschützt nur im Speicher
+            UiEvent::SetUiLanguage { language } => self.set_ui_language(language),
+            // ADR 0004: Stapel (K2), Prüfmodus/Ersteinrichtung (K4), Zuletzt signiert/sofort wirksam (K3) –
+            // bis dahin ohne Wirkung; im klassischen Ablauf auch die Ereignisse des Arbeitsbereichs.
+            // Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
+            e @ (UiEvent::SetInvisible { .. }
+            | UiEvent::UseTarget { .. }
+            | UiEvent::InspectPages { .. }
+            | UiEvent::SelectSigner { .. }
+            | UiEvent::SignWith { .. }
+            | UiEvent::ShowBatch
+            | UiEvent::OpenBatchItem { .. }
+            | UiEvent::BackToBatch
+            | UiEvent::RemoveFromBatch { .. }
+            | UiEvent::StartBatch { .. }
+            | UiEvent::SkipBatchDocument
+            | UiEvent::AbortBatch
+            | UiEvent::OpenVerify { .. }
+            | UiEvent::VerifyRecent { .. }
+            | UiEvent::CloseVerify
+            | UiEvent::SignVerified
+            | UiEvent::RemoveRecent { .. }
+            | UiEvent::ClearRecent
+            | UiEvent::ApplySettings { .. }
+            | UiEvent::UpdateFirstRun { .. }
+            | UiEvent::FinishFirstRun
+            | UiEvent::OfferMigration) => {
+                tracing::debug!(event = ui_event_kind(&e), "noch nicht umgesetzt (ADR 0004) – ignoriert");
+            }
+        }
+    }
+
+    /// Ausgangslage für Ziehen und Tastatur: frei die Lage, bei Feld/QR die linke obere Ecke des Ziels
+    /// (mit der Blockgröße) – danach ist das Ziel frei (§3.3).
+    fn move_base(&self) -> Option<Placement> {
+        let State::Positioning { placement: Some(p), edit, doc, .. } = &self.state else { return None };
+        let target = edit.as_ref().map(|e| e.target).unwrap_or(pida_workflow::Target::Free);
+        if target == pida_workflow::Target::Free {
+            return Some(*p);
+        }
+        let view = self.document_view()?;
+        let sticker = view.sticker?;
+        let block = lock(&self.shared.block).clone();
+        let (w, h) = if block.doc == Some(doc.id) { (block.width, block.height) } else { (p.width, p.height) };
+        Some(Placement { page_index: view.placement.page_index, x: sticker.left, y: sticker.top, width: w, height: h })
+    }
+
+    /// Konto-Chip (§3.4): Auswahl für diese Sitzung bzw. dieses Dokument; `make_default` speichert den
+    /// Standard. Startet nichts (A1).
+    fn select_signer(&mut self, backend: Option<BackendId>, make_default: bool) {
+        let doc = self.state.queue().and_then(|q| q.current_id());
+        self.ws.selection = Some(Selection { backend, doc });
+        if make_default {
+            self.cfg.settings.backend.default = backend.and_then(crate::workspace::choice_for);
+            if let Some(v) = &mut self.settings_view {
+                v.settings.backend.default = self.cfg.settings.backend.default;
+            }
+            // schreibgeschützt (`-c`): nur im Speicher
+            if let Err(e) = self.cfg.save() {
+                tracing::warn!(id = e.message_id(), "Standard-Signiermittel nicht gespeichert");
+                self.notify("error-FailedToSaveSettings", BTreeMap::new());
+            }
+            self.refresh_ctx();
+        }
+    }
+
+    /// „Signieren mit X“ (§3.5): ausdrückliche Nutzeraktion mit den aktuellen Optionen.
+    fn sign_with(&mut self, backend: BackendId) {
+        if !matches!(self.state, State::Positioning { .. } | State::ChoosingBackend { .. }) {
+            tracing::debug!(state = self.state.name(), "sign_with in diesem Zustand ohne Wirkung");
+            return;
+        }
+        let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
+        self.options = self.registry.options(&env);
+        self.ws.signer_options = self.options.clone();
+        // „Jedes Mal fragen“ ohne Auswahl: die Wahl im Menü gilt für dieses Dokument (§8 F12); mit Standard
+        // bleibt der Konto-Chip beim Standard bzw. bei der Auswahl
+        let default = self.cfg.effective().default_backend();
+        if self.ws.selection.is_none() && default.is_none() {
+            let doc = self.state.queue().and_then(|q| q.current_id());
+            self.ws.selection = Some(Selection { backend: Some(backend), doc });
+        }
+        self.apply(Event::SignRequested { backend, options: self.options.clone() });
+    }
+
+    /// Oberflächensprache setzen (`SetUiLanguage`, §3.11).
+    fn set_ui_language(&mut self, language: Option<Lang>) {
+        self.cfg.settings.general.ui_language = language;
+        if let Some(v) = &mut self.settings_view {
+            v.settings.general.ui_language = language;
+        }
+        if let Err(e) = self.cfg.save() {
+            tracing::warn!(id = e.message_id(), "Oberflächensprache nicht gespeichert");
+        }
+    }
+
+    /// Vorbereitetes Dokument, Attribute und Ergebnis verwerfen, Sitzung und Kette behalten (§3.6).
+    fn release_document(&mut self) {
+        let mut slot = lock(&self.shared.sign);
+        slot.prepared = None;
+        slot.attrs = None;
+        slot.result = None;
+        slot.signed = None;
+        slot.summary = None;
+        slot.block_page = None;
+    }
+
+    /// Interaktion geändert (Broker): Anmeldung erneut verlangt bzw. Bestätigungsweg merken.
+    fn on_interaction_changed(&mut self) {
+        if !self.ws.enabled {
+            return;
+        }
+        let current = self.shared.broker.current();
+        if matches!(current, InteractionView::Form { form: pida_backend_api::NativeForm::Login { .. }, .. }) {
+            // A-Trust zeigt die Anmeldung erneut (Fehlerseite, abgelehnte Anmeldung): Stepper zurück
+            self.ws.login_done = false;
+        }
+        if let Some(m) = crate::workspace::remembered_method(&current) {
+            self.ws.last_method = Some(m);
         }
     }
 
@@ -1738,6 +2146,8 @@ impl CoreTask {
             fido2_available: self.fido2_available,
             read_only: self.cfg.read_only(),
             preview_revision: 0,
+            applied_revision: 0,
+            examples: BTreeMap::new(),
         }
     }
 
@@ -1761,8 +2171,9 @@ impl CoreTask {
             p.insert("field".into(), field);
             self.notify(&code, p);
         }
-        self.ctx = self.cfg.context(self.headless);
+        self.refresh_ctx();
         self.registry.configure(&self.cfg);
+        self.refresh_signers();
         self.apply(Event::SettingsChanged);
     }
 
@@ -1784,8 +2195,9 @@ impl CoreTask {
                 p.insert("skipped".into(), r.report.skipped.len().to_string());
                 self.notify("ng-migrate-done", p);
                 self.cfg.settings = r.settings;
-                self.ctx = self.cfg.context(self.headless);
+                self.refresh_ctx();
                 self.registry.configure(&self.cfg);
+                self.refresh_signers();
                 self.apply(Event::SettingsChanged);
             }
             Err(e) => {
@@ -1867,6 +2279,7 @@ impl CoreTask {
     fn on_backend_event(&mut self, event: BackendEvent) {
         match event {
             BackendEvent::LoginSucceeded { username, remember } => {
+                self.ws.login_done = true;
                 if remember {
                     let normalized = pida_backend_atrust::validate::normalize_phone_number(&username);
                     let s = &mut self.cfg.settings.id_austria;
@@ -1929,7 +2342,7 @@ impl CoreTask {
             .collect()
     }
 
-    fn doc_info(&self, id: DocId) -> DocInfo {
+    pub(crate) fn doc_info(&self, id: DocId) -> DocInfo {
         match self.shared.docs.get(id) {
             Some(d) => DocInfo {
                 id,
@@ -1957,6 +2370,11 @@ impl CoreTask {
             steps: self.state.main_bar().to_vec(),
             settings_enabled: !settings_open && self.state.settings_enabled(),
         };
+        let mut actions = crate::actions::actions_for(&self.state, main_bar.settings_enabled);
+        if self.ws.enabled {
+            // Arbeitsbereich: keine Hauptleiste Positionieren/Signieren; „Signieren“ nur mit zulässiger Platzierung
+            actions.sign = actions.sign && crate::actions::workspace_sign_allowed(&self.state);
+        }
         let done = self
             .state
             .results()
@@ -1994,6 +2412,15 @@ impl CoreTask {
             }),
             keystore_import: self.keystore_import.clone(),
             privacy_text: self.cfg.privacy_text(),
+            // ADR 0004: K1 document, signers (Arbeitsbereich); Standardwerte bis K2 (batch), K3 (recent),
+            // K4 (verify, first_run)
+            document: self.document_view(),
+            signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
+            batch: None,
+            verify: None,
+            recent: None,
+            first_run: None,
+            actions,
         }
     }
 
@@ -2013,10 +2440,11 @@ impl CoreTask {
                 StepView::Loading { queue: self.queue_items() }
             }
             // Fortsetzen: Dokument geladen, Signiermittel wird geprüft
-            State::Resuming { doc: Some(_), plan, .. } => StepView::Signing {
+            State::Resuming { doc: Some(doc), plan, .. } => StepView::Signing {
                 interaction: self.shared.broker.current(),
                 queue: self.queue_items(),
                 document_leaves_device: self.leaves_device(plan.backend),
+                progress: self.progress_view(plan.backend, None, doc, None),
             },
             State::AnalysisWarning { warnings, doc, .. } => {
                 StepView::Warning { doc: self.doc_info(doc.id), codes: warnings.clone() }
@@ -2066,12 +2494,13 @@ impl CoreTask {
             State::ChoosingBackend { options, .. } => {
                 StepView::Backend { options: option_views(options, self.mobile.platform) }
             }
-            State::Signing { backend, .. } => StepView::Signing {
+            State::Signing { backend, phase, doc, flow, .. } => StepView::Signing {
                 interaction: self.shared.broker.current(),
                 queue: self.queue_items(),
                 document_leaves_device: self.leaves_device(*backend),
+                progress: self.progress_view(*backend, Some(*phase), doc, Some(flow)),
             },
-            State::Output { saved, decision, queue, .. } => {
+            State::Output { saved, decision, queue, backend, .. } => {
                 let (ask_overwrite, save_dialog) = match &self.dialog {
                     Some(OutputDialog::Overwrite(p)) => (Some(p.clone()), None),
                     Some(OutputDialog::Save(d)) => (None, Some(d.clone())),
@@ -2083,8 +2512,14 @@ impl CoreTask {
                         save_pending: saved.is_none() && decision.is_none(),
                         ask_overwrite,
                         save_dialog,
+                        summary: saved.as_ref().and_then(|info| {
+                            let caps =
+                                self.options.iter().find(|o| o.id == *backend).and_then(|o| o.capabilities.as_ref());
+                            self.signed_summary(info, *backend, caps)
+                        }),
                     },
                     next: queue.pending.front().map(|d| self.doc_info(d.id)),
+                    pending: queue.pending.len(),
                 }
             }
             State::Error { error, retry, from, .. } => {
@@ -2109,7 +2544,12 @@ impl CoreTask {
                         params.insert("hint".into(), hint);
                     }
                 }
-                StepView::Error { code: error.code(), params, retry: retry.is_some() }
+                StepView::Error {
+                    code: error.code(),
+                    params,
+                    retry: retry.is_some(),
+                    context: self.error_context(error, from.as_deref()),
+                }
             }
             State::Finished { exit, .. } => StepView::Finished { exit_code: *exit as u8 },
         }

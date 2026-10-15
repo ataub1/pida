@@ -895,6 +895,23 @@ pub fn widget_rect_with(pos: &ResolvedPosition, page: &PageInfo, compat: CompatM
     bounding(visible_corners(pos).map(|c| mapping.to_user(c)))
 }
 
+/// Rechteck im Benutzerraum der Seite (z. B. Widget-`/Rect`, QR-Bild) → sichtbare Seitenkoordinaten
+/// (`PAGE_ABS`, CropBox-Ursprung und `/Rotate` berücksichtigt; Umkehrung von [`widget_rect`]).
+pub fn user_rect_to_visible(page: &PageInfo, rect: Rect) -> Rect {
+    let [a, b, c, d, e, f] = PageMapping::new(page, CompatMode::Corrected).user_to_visible_matrix();
+    let r = rect.normalized();
+    bounding(
+        [(r.llx, r.lly), (r.urx, r.lly), (r.llx, r.ury), (r.urx, r.ury)]
+            .map(|(x, y)| (a * x + c * y + e, b * x + d * y + f)),
+    )
+}
+
+/// Rechteck des Einheitsquadrats unter der Matrix `ctm` (Bild-`Do`) im Benutzerraum.
+pub fn matrix_unit_rect(ctm: &[f32; 6]) -> Rect {
+    let [a, b, c, d, e, f] = *ctm;
+    bounding([(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)].map(|(x, y)| (a * x + c * y + e, b * x + d * y + f)))
+}
+
 /// Rotation für die Holder-`/Matrix`: Blockrotation + Seitenrotation.
 pub fn appearance_rotation(block_rotation: i32, page: &PageInfo) -> i32 {
     (block_rotation + i32::from(page.rotation.degrees())).rem_euclid(360)

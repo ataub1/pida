@@ -326,6 +326,11 @@ impl<'a> Effective<'a> {
         self.policy.and_then(|p| p.update_check).unwrap_or(self.settings.general.update_check)
     }
 
+    /// „Zuletzt signiert“ merken (ADR 0004 §3.10): Richtlinie vor Einstellung.
+    pub fn recent_documents(&self) -> bool {
+        self.policy.and_then(|p| p.recent_documents).unwrap_or(self.settings.general.recent_documents)
+    }
+
     /// Benutzername ID Austria.
     pub fn username(&self) -> Option<&'a str> {
         self.overlay.username.as_deref().or(self.settings.id_austria.username.as_deref())
@@ -564,6 +569,15 @@ mod tests {
         assert!(e.update_check());
         let pol = Policy { update_check: Some(false), ..Default::default() };
         assert!(!Effective::new(&s, &o, Some(&pol)).update_check());
+        // „Zuletzt signiert“ (ADR 0004 §3.10): Standard ein, Richtlinie gewinnt in beide Richtungen
+        assert!(e.recent_documents());
+        let off = Policy { recent_documents: Some(false), ..Default::default() };
+        assert!(!Effective::new(&s, &o, Some(&off)).recent_documents());
+        let mut s_off = s.clone();
+        s_off.general.recent_documents = false;
+        assert!(!Effective::new(&s_off, &o, None).recent_documents());
+        let on = Policy { recent_documents: Some(true), ..Default::default() };
+        assert!(Effective::new(&s_off, &o, Some(&on)).recent_documents());
         assert!(!format!("{o:?}").contains("geheim-test"));
     }
 

@@ -1,0 +1,188 @@
+/*
+ * Fertig (aus dem Prototyp, `styles/views.css` Abschnitt „Fertig“, ADR 0004 §4.2). Angepasst: Vorschau aus
+ * Kachel und Blockvorschau des Kerns, Wortlaut nach §8 F3, Speichern-Zustand, Responsiv.
+ */
+/* ------------------------------------------------------------ Fertig */
+/* Kompakt, damit „Nächstes Dokument“ auch bei 1280 × 720 ohne Scrollen sichtbar ist */
+.done-view {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: var(--sp-6) var(--gutter) var(--sp-8);
+}
+.done-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  width: min(740px, 100%);
+  text-align: center;
+}
+.done-seal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: var(--sp-2);
+  border-radius: 50%;
+  background: var(--c-success);
+  color: var(--c-on-primary);
+  animation: check-pop var(--dur-4) var(--ease-spring);
+}
+.done-seal-ring {
+  position: absolute;
+  inset: -7px;
+  border: 2px solid var(--c-success-border);
+  border-radius: 50%;
+  animation: ring-out 1.4s var(--ease-out) 0.2s both;
+}
+@keyframes ring-out {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
+.done-title {
+  font-size: var(--fs-30);
+  line-height: var(--lh-tight);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.done-title:focus {
+  outline: none;
+}
+.seal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px 14px;
+  border: 1px solid var(--c-success-border);
+  border-radius: var(--r-pill);
+  background: var(--c-success-soft);
+  color: var(--c-success-on-soft);
+  font-weight: var(--fw-semibold);
+}
+.done-text {
+  max-width: 56ch;
+  color: var(--c-text-2);
+}
+.done-file {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+  width: 100%;
+  margin-top: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-6);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-2);
+  text-align: left;
+}
+.done-preview {
+  flex: none;
+  padding: var(--sp-3);
+  border-radius: var(--r-4);
+  background: var(--c-sunken);
+}
+.done-preview-page {
+  position: relative;
+  box-shadow: var(--shadow-page);
+}
+.done-preview-sticker {
+  position: absolute;
+}
+.done-file-info {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.done-file-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+.done-file-name svg {
+  flex: none;
+  color: var(--c-text-3);
+}
+.done-file-meta {
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+.done-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  width: 100%;
+  margin-top: var(--sp-4);
+}
+
+/* ------------------------------------------------------------ App: Vorschau aus Kacheln, Speichern */
+.done-preview-page {
+  overflow: hidden;
+  background: var(--c-page);
+}
+.done-preview-page > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: var(--page-filter);
+}
+.done-preview-sticker > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.done-seal.is-pending {
+  background: var(--c-surface-2);
+  color: var(--c-text-2);
+  border: 1px solid var(--c-border);
+}
+.done-next {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+.done-next-hint {
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+}
+.done-qual {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+}
+
+/* ------------------------------------------------------------ Responsiv */
+@media (max-width: 760px) {
+  .done-file {
+    flex-direction: column;
+    text-align: center;
+  }
+  .done-file-name,
+  .done-actions {
+    justify-content: center;
+  }
+  .done-footer {
+    flex-direction: column-reverse;
+  }
+  .done-next {
+    justify-items: stretch;
+    width: 100%;
+    text-align: center;
+  }
+}

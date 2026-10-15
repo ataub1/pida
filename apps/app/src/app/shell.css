@@ -1,0 +1,206 @@
+/*
+ * App-Rahmen: Kopfzeile mit Wortmarke, Dokumentkontext und Aktionen, Hauptbereich (aus dem Prototyp,
+ * `styles/views.css` Abschnitt „App-Rahmen“, ADR 0004 §4.2; ohne „Prototyp“-Plakette). Ergänzt: Safe Area
+ * oben (Notch), Responsiv der Kopfzeile.
+ */
+/* ------------------------------------------------------------ App-Rahmen */
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: calc(var(--header-h) + env(safe-area-inset-top)) minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+}
+.app-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: env(safe-area-inset-top) var(--sp-4) 0;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+/* dezentes Rot-Weiß-Rot an der Oberkante */
+.app-header::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(to bottom, #c8102e 0 1px, #ffffff 1px 2px, #c8102e 2px 3px);
+  opacity: 0.9;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px 8px 4px 4px;
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  cursor: pointer;
+  flex: none;
+}
+.brand[data-hovered] {
+  background: var(--c-hover);
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wordmark-text {
+  display: grid;
+  line-height: 1.05;
+  text-align: left;
+}
+.wordmark-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+.wordmark-tag {
+  font-size: 10.5px;
+  color: var(--c-text-3);
+  letter-spacing: 0.03em;
+}
+.logo-bg {
+  fill: var(--c-logo-bg);
+}
+.logo-fold {
+  fill: var(--c-logo-fold);
+}
+.header-context {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--c-border);
+}
+.header-doc {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.header-doc-icon {
+  flex: none;
+  color: var(--c-text-3);
+}
+.header-doc-name {
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-doc-meta {
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+  white-space: nowrap;
+}
+.header-spacer {
+  flex: 1 0 0;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+.command-button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 34px;
+  min-width: 190px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-3);
+  background: var(--c-surface-2);
+  color: var(--c-text-3);
+  cursor: pointer;
+}
+.command-button[data-hovered] {
+  background: var(--c-hover);
+  color: var(--c-text-2);
+}
+.command-button-text {
+  flex: 1;
+  text-align: left;
+  font-weight: var(--fw-medium);
+}
+.app-main {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+}
+.view-workspace .app-main,
+.view-verify .app-main {
+  overflow: hidden;
+}
+.header-theme-icon {
+  display: grid;
+  place-items: center;
+}
+
+/* ------------------------------------------------------------ Responsiv (Kopfzeile, Hinweise) */
+@media (max-width: 960px) {
+  .command-button {
+    min-width: 0;
+  }
+  .command-button-text {
+    display: none;
+  }
+  .header-doc-meta {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .hide-narrow,
+  .wordmark-tag {
+    display: none !important;
+  }
+  .app-header {
+    gap: var(--sp-1);
+    padding: env(safe-area-inset-top) var(--sp-2) 0;
+  }
+  .header-context {
+    padding-left: var(--sp-2);
+  }
+  .command-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    border-color: transparent;
+    background: transparent;
+  }
+  .command-button .keys {
+    display: none;
+  }
+  .header-actions {
+    gap: 0;
+  }
+  .header-theme {
+    display: none;
+  }
+  .brand {
+    padding-right: 4px;
+  }
+  .wordmark-name {
+    font-size: 15px;
+  }
+  .toasts {
+    right: var(--gutter);
+    left: var(--gutter);
+    width: auto;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  .view-workspace .toasts {
+    right: var(--gutter);
+    bottom: calc(132px + env(safe-area-inset-bottom));
+  }
+}

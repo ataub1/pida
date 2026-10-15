@@ -170,7 +170,7 @@ async fn real_engine_certificate_cache_mismatch_is_caught_and_retried() {
     choose_id_austria(&core).await;
     submit_tan(&core).await;
     let v = wait_for(&core, "Fehler", |v| matches!(&v.step, StepView::Error { .. })).await;
-    let StepView::Error { code, params, retry } = v.step else { unreachable!() };
+    let StepView::Error { code, params, retry, .. } = v.step else { unreachable!() };
     assert_eq!((code.as_str(), retry), ("ng-certcache-mismatch", true), "{params:?}");
     assert_eq!(params.get("detail").map(String::as_str), Some("cms-unexpected-signer"));
     assert!(!out.join("a_signed.pdf").exists(), "nichts gespeichert");

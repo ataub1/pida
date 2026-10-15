@@ -1673,3 +1673,180 @@ async fn security_key_plugged_in_later_can_be_used_after_retry() {
     assert_eq!(provider.inner.requests.lock().unwrap().len(), 1);
     assert!(server.requests().iter().any(|r| is(r, "POST", "fido.aspx")));
 }
+
+// ------------------------------------------------------------------------------------------------
+// `sign_one` (ADR 0004 §3.8): ein Dokument je Aufruf, Zugangsdaten bleiben bei Job-Abbruch und SL 6001,
+// HTTP-Fehler ohne eigene Meldung
+// ------------------------------------------------------------------------------------------------
+
+/// Was der Mock beim SL-Request `k` (CreateCMS) tut.
+#[derive(Clone, Copy, PartialEq)]
+enum OneDoc {
+    Cms,
+    /// SL 6001 (Ablehnung bzw. Zeitablauf in der App)
+    Declined,
+    /// SMS-TAN-Maske (die Bestätigung bleibt offen; Job-Abbruch währenddessen)
+    Slow,
+    /// A-Trust-Fehlerseite (mit „Zurück“) vor der Bestätigung; danach wieder Login
+    ErrorPage,
+    /// HTTP 413
+    TooLarge,
+}
+
+fn one_doc_server(plan: Vec<OneDoc>) -> impl Fn(&RecordedRequest) -> MockResponse + Send + Sync + 'static {
+    let sl = Arc::new(Counter::default());
+    let errored = Arc::new(Mutex::new(Vec::<String>::new()));
+    move |req| {
+        let what = |sid: &str| {
+            let k: usize = sid.trim_start_matches('S').parse().unwrap_or(0);
+            plan.get(k).copied().unwrap_or(OneDoc::Cms)
+        };
+        if is(req, "POST", "default.aspx") {
+            let k = sl.next();
+            if plan.get(k) == Some(&OneDoc::TooLarge) {
+                return MockResponse::status(413);
+            }
+            return start_session(k);
+        }
+        if is(req, "GET", "Login.aspx") {
+            return page("login.html", &[("SID", &sid(req))]);
+        }
+        if is(req, "POST", "Login.aspx") {
+            assert!(credentials_ok(req));
+            return MockResponse::redirect(302, &format!("app.aspx?sid={}", sid(req)));
+        }
+        if is(req, "GET", "app.aspx") {
+            let s = sid(req);
+            return match what(&s) {
+                OneDoc::ErrorPage if !errored.lock().unwrap().contains(&s) => {
+                    errored.lock().unwrap().push(s.clone());
+                    MockResponse::redirect(302, &format!("error.aspx?sid={s}"))
+                }
+                OneDoc::Declined => sl_error_xml(6001),
+                OneDoc::Slow => page("sms.html", &[("SID", &s), ("REF", "AB12")]),
+                _ => cms_xml_with(s.as_bytes()),
+            };
+        }
+        if is(req, "GET", "error.aspx") {
+            let s = sid(req);
+            return page(
+                "error.html",
+                &[("ACTION", &format!("error.aspx?sid={s}")), ("BUTTONS", &error_buttons(true, true))],
+            );
+        }
+        if is(req, "POST", "error.aspx") {
+            assert!(req.part("ctl00$Main$Button_Back").is_some());
+            return MockResponse::redirect(302, &format!("Login.aspx?sid={}", sid(req)));
+        }
+        MockResponse::status(404)
+    }
+}
+
+fn logins(broker: &ScriptedBroker) -> usize {
+    forms(broker).iter().filter(|f| matches!(f, NativeForm::Login { .. })).count()
+}
+
+#[tokio::test]
+async fn sign_one_three_documents_one_login() {
+    let server = MockServer::start(one_doc_server(vec![])).await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    for k in 0..3 {
+        let (_, job) = document();
+        let r = session.sign_one(job, pida_backend_api::CancelToken::new()).await.unwrap();
+        assert_eq!(r, SignResult::Cms(format!("S{k}").into_bytes()));
+    }
+    assert_eq!(logins(&broker), 1, "eine Anmeldung, drei Bestätigungen");
+}
+
+/// SL 6001 (in der App abgelehnt bzw. abgelaufen): `Cancelled`, aber das Passwort bleibt – das nächste
+/// Dokument braucht keine neue Anmeldung (§8 F10). Mit `sign` (klassisch) wird es dagegen gelöscht.
+#[tokio::test]
+async fn sign_one_declined_keeps_the_password() {
+    let server = MockServer::start(one_doc_server(vec![OneDoc::Cms, OneDoc::Declined, OneDoc::Cms])).await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    let token = pida_backend_api::CancelToken::new;
+    assert!(session.sign_one(document().1, token()).await.is_ok());
+    assert_eq!(session.sign_one(document().1, token()).await, Err(BackendError::Cancelled));
+    assert_eq!(session.sign_one(document().1, token()).await, Ok(SignResult::Cms(b"S2".to_vec())));
+    assert_eq!(logins(&broker), 1);
+
+    // klassisch: SL 6001 löscht das Passwort (F-72), die nächste Anmeldung fragt wieder
+    let server = MockServer::start(one_doc_server(vec![OneDoc::Declined, OneDoc::Cms])).await;
+    let backend = support::backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false), login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.sign(vec![document().1]).await, Err(BackendError::Cancelled));
+    assert!(session.sign(vec![document().1]).await.is_ok());
+    assert_eq!(logins(&broker), 2);
+}
+
+/// „Dokument überspringen“: der Job-Abbruch beendet die laufende Bestätigung (hier die offene SMS-TAN-
+/// Maske); die Sitzung bleibt benutzbar und angemeldet.
+#[tokio::test]
+async fn sign_one_job_cancel_keeps_the_session_logged_in() {
+    let server = MockServer::start(one_doc_server(vec![OneDoc::Cms, OneDoc::Slow, OneDoc::Cms])).await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(SlowBroker {
+        inner: ScriptedBroker::new([login_reply(PASSWORD, false)]),
+        delay: Duration::from_millis(400),
+    });
+    let mut session = backend.open(ctx(), broker.clone()).await.unwrap();
+    assert!(session.sign_one(document().1, pida_backend_api::CancelToken::new()).await.is_ok());
+    let job_cancel = pida_backend_api::CancelToken::new();
+    let trigger = job_cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        trigger.cancel();
+    });
+    let started = std::time::Instant::now();
+    assert_eq!(session.sign_one(document().1, job_cancel).await, Err(BackendError::Cancelled));
+    assert!(started.elapsed() < Duration::from_millis(350), "abgebrochen, nicht abgewartet: {:?}", started.elapsed());
+    assert!(session.sign_one(document().1, pida_backend_api::CancelToken::new()).await.is_ok());
+    assert_eq!(logins(&broker.inner), 1, "kein Login nach dem Überspringen");
+}
+
+/// A-Trust-Fehlerseite: das Backend löscht das Passwort (wie PDF-Over), die nächste Login-Seite fragt
+/// wieder – auch mit `sign_one`.
+#[tokio::test]
+async fn sign_one_error_page_asks_for_the_password_again() {
+    let server = MockServer::start(one_doc_server(vec![OneDoc::Cms, OneDoc::ErrorPage])).await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([
+        login_reply(PASSWORD, false),
+        ScriptedReply::Notice(NoticeAnswer::Retry),
+        login_reply(PASSWORD, false),
+    ]));
+    let mut session = open(&backend, &broker).await;
+    assert!(session.sign_one(document().1, pida_backend_api::CancelToken::new()).await.is_ok());
+    assert_eq!(
+        session.sign_one(document().1, pida_backend_api::CancelToken::new()).await,
+        Ok(SignResult::Cms(b"S1".to_vec()))
+    );
+    assert_eq!(logins(&broker), 2, "nach der Fehlerseite erneut angemeldet");
+}
+
+/// HTTP 413 ohne eigene Meldung als `DocumentTooLarge` (sonst käme `Cancelled` und würde als Ablehnung
+/// gedeutet); die Sitzung signiert danach weiter.
+#[tokio::test]
+async fn sign_one_http_errors_without_notice() {
+    let server = MockServer::start(one_doc_server(vec![OneDoc::Cms, OneDoc::TooLarge, OneDoc::Cms])).await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    let token = pida_backend_api::CancelToken::new;
+    assert!(session.sign_one(document().1, token()).await.is_ok());
+    assert_eq!(session.sign_one(document().1, token()).await, Err(BackendError::DocumentTooLarge));
+    assert!(notices(&broker).is_empty(), "keine Meldung");
+    assert!(session.sign_one(document().1, token()).await.is_ok());
+    assert_eq!(logins(&broker), 1);
+    // ein bereits abgebrochener Job sendet nichts
+    let cancelled = token();
+    cancelled.cancel();
+    let before = server.requests().len();
+    assert_eq!(session.sign_one(document().1, cancelled).await, Err(BackendError::Cancelled));
+    assert_eq!(server.requests().len(), before);
+}

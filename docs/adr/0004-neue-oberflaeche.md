@@ -2052,3 +2052,52 @@ V0 (Datenschutz) → K0 → U0 ─┬─ K1 → A1            = E1
 | **F12** | Standard-Signiermittel **„Jedes Mal fragen“** (ux-konzept §12 Frage 2): Auswahl als Schritt der Signierkarte oder über den Konto-Chip – und wie lange gilt sie? | **Konto-Chip** (wie der Prototyp): ohne Auswahl öffnet „Signieren“ das Menü; die Wahl gilt für das aktuelle Dokument bzw. den Stapellauf, danach wird wieder gefragt. |
 | **F13** | **QR-Platzhaltersuche** bei Neuinstallation einschalten? Der Prototyp setzt QR-Platzhalter immer automatisch; der Kern sucht sie nur mit `placeholder.search` (Standard aus wie PDF-Over, kostet Ladezeit für die Bildsuche). | **Aus lassen** (PDF-Over-Verhalten, Ladezeit); leere Signaturfelder bietet der Arbeitsbereich ohnehin immer an; die Einstellung bleibt unter „Erweitert“. |
 | **F14** | **A1 für alle Signiermittel:** Im Arbeitsbereich startet auch der Keystore bzw. die lokale BKU nie ohne „Signieren“ (bisher F-53: Standard-Signiermittel + automatische Positionierung signierte beim Öffnen). D3 verlangt das nur für ID Austria. | **Ja, für alle** (das Dokument ist vor dem Signieren immer sichtbar, einheitliche Bedienung); wer Automatik braucht, nutzt `-b … -a` bzw. die CLI. |
+
+## 9. Nachträge
+
+### Nachtrag 1 (Merge E1, 15.10.2026): Zahl der wartenden Dokumente auf „Fertig“
+
+E1 verlangt für A1 „Fertig (mit „Nächstes Dokument“ und Zahl der wartenden Dokumente, solange
+`batch_overview` aus ist)“; der Vertrag aus K0 lieferte nur `StepView::Output::next`. Additiv nach §3.0
+Regel 2:
+
+```rust
+Output {
+    result: OutputView,
+    next: Option<DocInfo>,
+    /// Zahl der wartenden Dokumente nach diesem (`queue.pending.len()`)
+    #[serde(default)] pending: usize,
+},
+```
+
+Umgesetzt im Merge-Commit von A1 (Kern: `view.rs`, `runtime.rs`, `serde_contract.rs`; UI: `DoneView`
+„Weiter mit „…“ · n Dokumente warten“, Text `ng-ui-fin-waiting` in `ui-workspace.ftl`; TS-Literale in
+`test/views.ts`, `core/mock/index.ts` und den Tests nach §3.0 Regel 10).
+
+### Nachtrag 2 (Merge E1, 15.10.2026): Zustände des echten Kerns als UI-Probe
+
+Zur Verhaltensgleichheit (§6.2 Punkt 4) erzeugt der Kerntest
+`crates/core-api/tests/workspace.rs::real_core_views_for_the_ui` echte `ViewState`s (Keystore mit echter
+Engine; ID-Austria-artiges Skript-Backend mit Anmeldung, Netzfehler, „Erneut versuchen“, SMS-TAN; Abbruch)
+in `apps/app/src/core/fixtures/real-core-views.json` (Pfade und Zeitpunkte ersetzt; neu mit
+`PIDA_BLESS=1 cargo test -p pida-core-api --test workspace real_core_views`, mit `PIDA_PDFIUM_DIR`). Der
+UI-Test `apps/app/src/app/RealCore.test.tsx` rendert sie: Seitenansicht vom Bearbeiten bis „Fertig“
+eingehängt, Karte je Schritt, Wortlaut F3, kein Zustand stößt von sich aus eine Sitzung an (F-54). Die
+Datei gehört wie die übrigen Fixtures K (§6.1), der UI-Test UI-A.
+
+### Nachtrag 3 (Merge E1, 15.10.2026): angenommene Abweichungen aus K1 und A1
+
+- K1: `WorkspaceEdit::parked`, `State::AnalysisWarning::fields` und `Event::BlockResized` (interne
+  Workflow-Details, nicht im Bridge-Vertrag); die Sitzung schließt im Arbeitsbereich erst beim Übergang nach
+  `Output` (Wiederholen bei „CMS zu groß“ in derselben Sitzung, §3.6); `ErrorOrigin::Prepare` wird nicht
+  erzeugt (alle Fehler beim Signieren erscheinen in der Karte); `FieldTargetView::selectable` ist immer
+  `true` (gesperrte Felder bietet `find_empty_sig_fields` nicht an).
+- A1: „Befehle ⌘K“ erscheint erst mit der Palette (B4), bis dahin ohne Knopf und Kürzel; die Blockvorschau
+  wird erst ab `preview_revision > 0` abgerufen (Revision 0 = noch keine Vorschau, z. B. Startargument-
+  Automatik ohne Positionieren); leere Signaturfelder werden nach §8 F2 nur angeboten (der Prototyp setzt
+  den Block im Szenario „Signaturfeld“ hinein); auf Telefonen ist die Vorschau auf „Fertig“ kleiner, damit
+  die Aktionen ohne Scrollen sichtbar bleiben.
+- Merge: A1 hatte `screens/PositionScreen.tsx`/`PlaceholderScreen.tsx` und `styles/legacy/screens.css` als
+  Rückfall für den klassischen Ablauf behalten. Mit eingeschaltetem `workspace_ui` sind sie in der App nicht
+  mehr erreichbar und werden nach §3.15 im Merge-Commit gelöscht; ein klassischer Zustand ohne `document`
+  zeigt die Startansicht.

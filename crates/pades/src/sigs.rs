@@ -149,14 +149,46 @@ fn verifiable_sub_filter(sf: Option<&str>) -> bool {
 /// Status einer Signatur über `data` (ganze Datei): gültig, ungültig oder nicht prüfbar; dazu
 /// der Fehlercode bei ungültigen bzw. nicht prüfbaren Signaturen.
 pub(crate) fn signature_status(data: &[u8], info: &SigDictInfo) -> (PriorStatus, Option<String>) {
+    let check = signature_check(data, info);
+    (check.status, check.code)
+}
+
+/// Ergebnis von [`signature_check`]. `Debug` ohne den Namen des Unterzeichners (Regel 9).
+pub(crate) struct SignatureCheck {
+    /// Status
+    pub status: PriorStatus,
+    /// Fehlercode bei ungültiger bzw. nicht prüfbarer Signatur
+    pub code: Option<String>,
+    /// CN des Signerzertifikats (nur bei kryptografisch geprüfter Signatur)
+    pub signer_cn: Option<String>,
+    /// `signing-time` des CMS (Angabe des Signierenden, kein geprüfter Zeitstempel)
+    pub signing_time: Option<time::OffsetDateTime>,
+}
+
+impl std::fmt::Debug for SignatureCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SignatureCheck")
+            .field("status", &self.status)
+            .field("code", &self.code)
+            .field("signer_cn", &self.signer_cn.as_ref().map(|_| "<redigiert>"))
+            .field("signing_time", &self.signing_time)
+            .finish()
+    }
+}
+
+/// Wie [`signature_status`], zusätzlich mit Unterzeichner (CN) und `signing-time` aus derselben
+/// Prüfung (`verify_detached`, ADR 0004 §3.3 „vorhandene Signaturen“).
+pub(crate) fn signature_check(data: &[u8], info: &SigDictInfo) -> SignatureCheck {
+    let fail =
+        |status, code: &str| SignatureCheck { status, code: Some(code.into()), signer_cn: None, signing_time: None };
     if info.kind.as_deref() == Some(b"DocTimeStamp") || !verifiable_sub_filter(info.sub_filter.as_deref()) {
-        return (PriorStatus::NotVerifiable, Some("pdf-signature-subfilter".into()));
+        return fail(PriorStatus::NotVerifiable, "pdf-signature-subfilter");
     }
     let Some(pairs) = info.byte_range_raw.as_deref() else {
-        return (PriorStatus::Invalid, Some("pdf-signature-byterange".into()));
+        return fail(PriorStatus::Invalid, "pdf-signature-byterange");
     };
     let Some(mut reader) = RangeReader::new(data, pairs) else {
-        return (PriorStatus::Invalid, Some("pdf-signature-byterange".into()));
+        return fail(PriorStatus::Invalid, "pdf-signature-byterange");
     };
     let expect = Expect {
         signer: ExpectedSigner::Any,
@@ -165,9 +197,14 @@ pub(crate) fn signature_status(data: &[u8], info: &SigDictInfo) -> (PriorStatus,
         policy: AlgorithmPolicy::PriorSignature,
     };
     match verify_detached(&info.contents, &mut reader, &expect) {
-        Ok(_) => (PriorStatus::Valid, None),
-        Err(e @ CmsError::UnsupportedAlgorithm(_)) => (PriorStatus::NotVerifiable, Some(e.code().into())),
-        Err(e) => (PriorStatus::Invalid, Some(e.code().into())),
+        Ok(report) => SignatureCheck {
+            status: PriorStatus::Valid,
+            code: None,
+            signer_cn: report.signer.subject_cn(),
+            signing_time: report.signing_time,
+        },
+        Err(e @ CmsError::UnsupportedAlgorithm(_)) => fail(PriorStatus::NotVerifiable, e.code()),
+        Err(e) => fail(PriorStatus::Invalid, e.code()),
     }
 }
 

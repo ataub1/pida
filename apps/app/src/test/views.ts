@@ -1,8 +1,12 @@
 /** Bausteine für Test-Zustände (serde-Format wie `pida-core-api`). */
-import { defaultSettings, mainBar } from '../core/defaults';
+import { defaultErrorContext, defaultSettings, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../core/defaults';
+import { capabilitiesFor } from '../core/mock/shared';
 import type {
+  ActionsView,
   BackendOptionView,
   DocInfo,
+  DocumentView,
+  ErrorContextView,
   PlatformView,
   FormContext,
   InteractionView,
@@ -12,6 +16,9 @@ import type {
   QueueItemView,
   Settings,
   SettingsView,
+  SignedSummaryView,
+  SignersView,
+  SigningProgressView,
   StepView,
   ViewState,
 } from '../core/types';
@@ -45,6 +52,8 @@ const BARS: Record<StepView['step'], [string, string, string, string]> = {
   output: ['AE', 'AE', 'AE', 'A'],
   error: ['AE', '', '', ''],
   finished: ['', '', '', ''],
+  // Stapelübersicht (ADR 0004 §3.8, Kern ab K2)
+  batch: ['AE', '', '', ''],
 };
 
 /** Plattform der Tests (Standard: Desktop). */
@@ -66,9 +75,13 @@ export function viewOf(step: StepView, extra: Partial<ViewState> = {}): ViewStat
     resume: null,
     keystore_import: null,
     privacy_text: null,
+    ...workspaceDefaults(),
     ...extra,
   };
 }
+
+/** Fehlerkontext des Kerns bis K1 (ADR 0004 §3.6). */
+export const NO_ERROR_CONTEXT = defaultErrorContext();
 
 /** Derselbe Zustand auf einer Mobile-Plattform. */
 export function onMobile(view: ViewState, platform: PlatformView = IOS): ViewState {
@@ -105,7 +118,10 @@ export function ctx(extra: Partial<FormContext> = {}): FormContext {
 
 /** Signieren; `leaves` = das Dokument geht an A-Trust (Kurzhinweis, Standard: Masken von ID Austria). */
 export function signingView(interaction: InteractionView, lang: Lang = 'de', leaves = interaction.kind !== 'secret'): ViewState {
-  return viewOf({ step: 'signing', interaction, queue: QUEUE, document_leaves_device: leaves }, { language: lang });
+  return viewOf(
+    { step: 'signing', interaction, queue: QUEUE, document_leaves_device: leaves, progress: defaultSigningProgress() },
+    { language: lang },
+  );
 }
 
 export function formView(form: NativeForm, request = 1, lang: Lang = 'de'): ViewState {
@@ -121,7 +137,17 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
     { step: 'open', queue: [] },
     {
       language: lang,
-      settings: { settings, problems: {}, keychain_available: true, fido2_available: true, read_only: false, preview_revision: 0, ...extra },
+      settings: {
+        settings,
+        problems: {},
+        keychain_available: true,
+        fido2_available: true,
+        read_only: false,
+        preview_revision: 0,
+        applied_revision: 0,
+        examples: {},
+        ...extra,
+      },
       main_bar: mainBar(['AE', '', '', ''], false),
     },
   );
@@ -129,5 +155,133 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
 
 /** Ergebnis des Ausgabe-Schritts (ohne Rückfragen, sofern nicht angegeben). */
 export function outputResult(extra: Partial<OutputView> = {}): OutputView {
-  return { path: null, save_pending: false, ask_overwrite: null, save_dialog: null, ...extra };
+  return { path: null, save_pending: false, ask_overwrite: null, save_dialog: null, summary: null, ...extra };
+}
+
+/* ---------------------------------------------------------------- Arbeitsbereich (ADR 0004) */
+
+/** Signiermittel wie im Kern (ID Austria mit gemerktem Benutzer, lokale BKU, Keystore). */
+export function signersView(extra: Partial<SignersView> = {}, mobile = false): SignersView {
+  return {
+    options: [
+      {
+        backend: 'atrust_native',
+        available: true,
+        account: '+43 660 ···123',
+        capabilities: capabilitiesFor('atrust_native', mobile),
+        notes: mobile ? ['ng-fido2-unavailable-mobile'] : [],
+        unavailable_reason: null,
+      },
+      ...(mobile ? [] : [{ backend: 'local_bku' as const, available: true, account: null, capabilities: capabilitiesFor('local_bku'), notes: [], unavailable_reason: null }]),
+      mobile
+        ? { backend: 'keystore' as const, available: false, account: null, capabilities: null, notes: [], unavailable_reason: 'ng-signer-keystore-import' }
+        : { backend: 'keystore' as const, available: true, account: 'max.p12 · max', capabilities: capabilitiesFor('keystore'), notes: [], unavailable_reason: null },
+    ],
+    selected: 'atrust_native',
+    default: 'atrust_native',
+    ...extra,
+  };
+}
+
+/** Freigaben im Arbeitsbereich (Positionieren). */
+export function editActions(extra: Partial<ActionsView> = {}): ActionsView {
+  return { ...noActions(), open_files: true, sign: true, edit_placement: true, settings: true, home: true, ...extra };
+}
+
+/**
+ * Dokument im Arbeitsbereich: Vertrag mit 3 A4-Seiten, Block 230 × 82 pt auf Seite 3 (linke Kante 182,64 pt,
+ * Oberkante 300 pt von unten), Layout der Seite 3 mit Inhaltsrahmen, freier Fläche und Einrastlinien.
+ */
+export function documentView(extra: Partial<DocumentView> = {}): DocumentView {
+  const placement = { page_index: 2, x: 182.64, y: 300, width: 230, height: 82 };
+  return {
+    doc: DOC,
+    size_bytes: 214 * 1024,
+    phase: 'editing',
+    revision: 1,
+    block: { width: 230, height: 82, preview_revision: 1 },
+    placement,
+    origin: 'auto',
+    target: { kind: 'free' },
+    invisible: false,
+    new_page: false,
+    sticker: { left: 182.64, right: 412.64, top: 300, bottom: 218 },
+    fields: [],
+    qr: null,
+    existing: [],
+    constraints: { new_page_allowed: true, visible_allowed: true, new_visible_field_allowed: true, reasons: [] },
+    layout: [
+      {
+        page: 2,
+        content: { left: 56, right: 539, top: 786, bottom: 340 },
+        free: [{ left: 56, right: 539, top: 334, bottom: 36 }],
+        guides: [
+          { axis: 'x', at: 297.64, kind: 'center_x' },
+          { axis: 'y', at: 420.95, kind: 'center_y' },
+          { axis: 'x', at: 56, kind: 'content_left' },
+          { axis: 'x', at: 539, kind: 'content_right' },
+          { axis: 'y', at: 786, kind: 'content_top' },
+          { axis: 'y', at: 340, kind: 'content_bottom' },
+          { axis: 'y', at: 322, kind: 'below_content' },
+        ],
+      },
+    ],
+    check: { for_revision: 1, overlaps_content: false, overlaps_widget: false, clamped: false },
+    announce: { page: '3', pages: '3', left: '64', top: '106', bottom: '77' },
+    ...extra,
+  };
+}
+
+/** Arbeitsbereich (Schritt `position` als Phasenmarker, Inhalt in `document`). */
+export function workspaceView(doc: DocumentView = documentView(), extra: Partial<ViewState> = {}, lang: Lang = 'de'): ViewState {
+  const p = doc.placement;
+  return viewOf(
+    { step: 'position', doc: doc.doc, page: p.page_index, block: doc.block, placement: p, new_page: doc.new_page, announce: { page: doc.announce.page ?? '1', pages: doc.announce.pages ?? '1', left: doc.announce.left ?? '0', top: doc.announce.top ?? '0' } },
+    { language: lang, document: doc, signers: signersView(), actions: editActions(), ...extra },
+  );
+}
+
+/** Fortschritt der Signierkarte (ID Austria, Einzeldokument). */
+export function progress(extra: Partial<SigningProgressView> = {}): SigningProgressView {
+  return { ...defaultSigningProgress(), backend: 'atrust_native', stage: 'login', doc: { id: DOC.id, name: DOC.name }, index: 1, total: 1, confirmations_total: 1, ...extra };
+}
+
+/** Signieren über dem Arbeitsbereich (Dokument in der Phase `signing`). */
+export function cardView(interaction: InteractionView, p: Partial<SigningProgressView> = {}, extra: Partial<ViewState> = {}, lang: Lang = 'de'): ViewState {
+  const backend = p.backend ?? 'atrust_native';
+  return viewOf(
+    { step: 'signing', interaction, queue: [QUEUE[0] as QueueItemView], document_leaves_device: backend === 'atrust_native', progress: progress(p) },
+    { language: lang, document: documentView({ phase: 'signing' }), signers: signersView(), actions: { ...noActions() }, ...extra },
+  );
+}
+
+/** Fehlerschritt in der Karte (Herkunft Signieren). */
+export function cardErrorView(code: string, params: Record<string, string> = {}, retry = true, context: Partial<ErrorContextView> = {}): ViewState {
+  return viewOf(
+    { step: 'error', code, params, retry, context: { ...defaultErrorContext(), origin: 'signing', occurred_at: '2026-10-15T10:42:17+02:00', backend: 'atrust_native', doc: { id: DOC.id, name: DOC.name }, ...context } },
+    { document: documentView({ phase: 'signing' }), signers: signersView(), actions: { ...noActions(), open_files: true, settings: true, home: true } },
+  );
+}
+
+/** Zusammenfassung „Fertig“. */
+export function summary(extra: Partial<SignedSummaryView> = {}): SignedSummaryView {
+  return {
+    file_name: 'Vertrag_signed.pdf',
+    folder_display: '/Users/demo/Dokumente',
+    signer: 'Max Mustermann',
+    signing_time: '2026-10-15T10:42:17+02:00',
+    backend: 'atrust_native',
+    qualification: 'Qes',
+    self_check: true,
+    page: 2,
+    ...extra,
+  };
+}
+
+/** Fertig (gespeichert). */
+export function doneView(result: Partial<OutputView> = {}, next: DocInfo | null = null, extra: Partial<ViewState> = {}, pending = next ? 1 : 0): ViewState {
+  return viewOf(
+    { step: 'output', result: outputResult({ path: '/Users/demo/Dokumente/Vertrag_signed.pdf', summary: summary(), ...result }), next, pending },
+    { document: documentView({ phase: 'done' }), signers: signersView(), actions: { ...noActions(), open_files: true, settings: true, home: true }, ...extra },
+  );
 }

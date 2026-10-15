@@ -291,10 +291,39 @@ impl Shell {
         }
     }
 
+    /// Ausgabe des Dokuments `doc` für „Im Ordner zeigen“ (ADR 0004 §3.14) – nur Pfade, die der Kern
+    /// geschrieben hat: das gespeicherte Ergebnis des aktuellen Schritts bzw. ein signiertes Dokument der
+    /// Ergebnisliste (`done`). Ohne `doc` wie [`Shell::output_path`].
+    pub fn output_path_for(&self, doc: Option<pida_workflow::DocId>) -> Option<PathBuf> {
+        let Some(doc) = doc else { return self.output_path() };
+        let view = self.view();
+        if let StepView::Output { result, .. } = &view.step
+            && view.document.as_ref().is_some_and(|d| d.doc.id == doc)
+            && let Some(path) = &result.path
+        {
+            return Some(path.clone());
+        }
+        view.done.iter().find(|d| d.id == doc).and_then(|d| match &d.result {
+            pida_workflow::DocResult::Signed { output } => Some(output.path.clone()),
+            _ => None,
+        })
+    }
+
     /// Log-Ordner (Über-Dialog „Logs anzeigen“); ohne Konfiguration keiner.
     pub fn log_dir(&self) -> Option<PathBuf> {
         self.config.as_ref().map(|c| c.paths.log_dir.clone())
     }
+}
+
+/// Oberfläche „Arbeitsbereich“ für die Abnahme vor dem Merge (ADR 0004 §3.14): `PIDA_UI=workspace` (bzw.
+/// `workspace,batch`) schaltet in **Debug-Builds** `CoreOptions::workspace_ui` ein; in Release-Builds ohne
+/// Wirkung (dort setzt der Merge-Commit von A1 den Schalter). Liefert `None`, wenn nichts zu setzen ist.
+pub fn workspace_ui_from_env(value: Option<&str>, debug_build: bool) -> Option<bool> {
+    if !debug_build {
+        return None;
+    }
+    let value = value?;
+    value.split(',').map(str::trim).any(|p| p.eq_ignore_ascii_case("workspace")).then_some(true)
 }
 
 /// Ergebnis von [`Shell::dispatch_json`].
@@ -320,7 +349,12 @@ pub fn unavailable_view(detail: &str, language: Lang) -> ViewState {
 /// Fehlerschritt ohne Kern (gesperrte Hauptleiste, keine Einstellungen).
 pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, language: Lang) -> ViewState {
     ViewState {
-        step: StepView::Error { code: code.to_owned(), params, retry },
+        step: StepView::Error {
+            code: code.to_owned(),
+            params,
+            retry,
+            context: pida_core_api::ErrorContextView::default(),
+        },
         main_bar: MainBarView {
             steps: [Step::Open, Step::Positioning, Step::Signing, Step::Finish]
                 .into_iter()
@@ -337,6 +371,14 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         resume: None,
         keystore_import: None,
         privacy_text: None,
+        // ohne Kern: nichts freigegeben, keine Inhalte der neuen Oberfläche (ADR 0004)
+        document: None,
+        signers: pida_core_api::SignersView::default(),
+        batch: None,
+        verify: None,
+        recent: None,
+        first_run: None,
+        actions: pida_core_api::ActionsView::default(),
     }
 }
 
@@ -362,7 +404,7 @@ mod tests {
     fn unavailable_view_blocks_navigation_and_offers_retry() {
         let v = unavailable_view("not yet implemented: Integration", Lang::En);
         match &v.step {
-            StepView::Error { code, params, retry } => {
+            StepView::Error { code, params, retry, .. } => {
                 assert_eq!(code, CORE_UNAVAILABLE);
                 assert_eq!(params.get("detail").map(String::as_str), Some("not yet implemented: Integration"));
                 assert!(retry);
@@ -429,6 +471,26 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
+    /// `PIDA_UI` nur in Debug-Builds (ADR 0004 §3.14).
+    #[test]
+    fn workspace_ui_switch_from_the_environment() {
+        assert_eq!(workspace_ui_from_env(Some("workspace"), true), Some(true));
+        assert_eq!(workspace_ui_from_env(Some("workspace,batch"), true), Some(true));
+        assert_eq!(workspace_ui_from_env(Some(" Workspace "), true), Some(true));
+        assert_eq!(workspace_ui_from_env(Some("classic"), true), None);
+        assert_eq!(workspace_ui_from_env(None, true), None);
+        assert_eq!(workspace_ui_from_env(Some("workspace"), false), None, "Release: ohne Wirkung");
+    }
+
+    /// „Im Ordner zeigen“ mit Dokument: nur Pfade, die der Kern geschrieben hat.
+    #[test]
+    fn reveal_output_only_for_written_documents() {
+        let (shell, root) = test_shell();
+        assert_eq!(shell.output_path_for(None), None);
+        assert_eq!(shell.output_path_for(Some(pida_workflow::DocId(1))), None, "ohne Kern bzw. Ergebnis nichts");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
     /// Die Shell gibt Lebenszyklus-Ereignisse nur an einen laufenden Kern; Optionen gelten für den
     /// nächsten Start.
     #[test]
@@ -475,7 +537,7 @@ mod tests {
         shell.mark_stopped(crate::CORE_STOPPED);
         assert!(shell.core().is_none());
         match shell.view().step {
-            StepView::Error { code, params, retry } => {
+            StepView::Error { code, params, retry, .. } => {
                 assert_eq!(code, crate::CORE_STOPPED);
                 assert!(params.is_empty());
                 assert!(retry);
@@ -493,7 +555,7 @@ mod tests {
         assert!(matches!(shell.start(), Started::Unavailable));
         assert!(shell.log_dir().is_none());
         match shell.view().step {
-            StepView::Error { code, params, retry } => {
+            StepView::Error { code, params, retry, .. } => {
                 assert_eq!(code, CORE_UNAVAILABLE);
                 assert_eq!(params.get("detail").map(String::as_str), Some("Konfigurationsordner nicht ermittelbar"));
                 assert!(retry);

@@ -139,7 +139,7 @@ proptest! {
                 23 => {
                     let id = state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1);
                     let Event::Analyzed { doc, class, placeholder, signed, page_count, start, .. } = analyzed(id, 2, None, false) else { unreachable!() };
-                    Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings: vec!["pdf-usage-rights".into()] }
+                    Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings: vec!["pdf-usage-rights".into()], fields: Vec::new(), new_visible_field_allowed: true }
                 }
                 24 => Event::WarningAnswered(e % 2 == 0),
                 25 => Event::WarningAnswered(true),
@@ -251,7 +251,7 @@ proptest! {
                 32 => Event::WarningAnswered(true),
                 33 => {
                     let Event::Analyzed { doc, class, placeholder, signed, page_count, start, .. } = analyzed(current, 2, None, false) else { unreachable!() };
-                    Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings: vec!["pdf-usage-rights".into()] }
+                    Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings: vec!["pdf-usage-rights".into()], fields: Vec::new(), new_visible_field_allowed: true }
                 }
                 34 => Event::Backgrounded,
                 _ => Event::Foregrounded,
@@ -279,6 +279,147 @@ proptest! {
                 let resumed = matches!(event, Event::ResumeRequested { .. }) || matches!(before, State::Resuming { .. });
                 prop_assert!(resumed, "{event:?} in {}", before.name());
             }
+            state = t.state;
+        }
+    }
+
+    /// Invariante A1 (ADR 0004 §3.2, D3, §8 F14): Im Arbeitsbereich-Modus erzeugt der Reducer
+    /// `Effect::OpenSession` – für **jedes** Signiermittel – bei beliebigen Ereignisfolgen (inklusive der
+    /// neuen Ereignisse) und beliebigen Einstellungen (`auto_position`, `invisible`, Standard-Signiermittel,
+    /// Platzhaltersuche, Startargument-Automatik) nur in den Paaren der Tabelle: `SignRequested` in
+    /// `Positioning`/`ChoosingBackend`, `BackendChosen` in `ChoosingBackend`, `BackendsProbed` in `Resuming`,
+    /// `Retry` im Fehler des Signierens und – nur mit `cli_auto` – `BackendsProbed` in `ChoosingBackend` mit
+    /// einem Signiermittel, bei dem das Dokument auf dem Gerät bleibt. Zusätzlich: `Resuming` nur nach
+    /// `ResumeRequested`; ohne `cli_auto` nie eine automatische Wahl; `Positioning` immer mit
+    /// Bearbeitungszustand.
+    #[test]
+    fn workspace_session_only_after_explicit_action(
+        events in prop::collection::vec(0u8..50, 0..90),
+        auto_position in any::<bool>(),
+        invisible in any::<bool>(),
+        placeholder_search in any::<bool>(),
+        placeholder_fields in any::<bool>(),
+        cli_auto in any::<bool>(),
+        default in 0u8..4,
+    ) {
+        use pida_backend_api::BackendId;
+        let default_backend = match default {
+            0 => None,
+            1 => Some(pida_config::BackendChoice::IdAustria),
+            2 => Some(pida_config::BackendChoice::LocalBku),
+            _ => Some(pida_config::BackendChoice::Keystore),
+        };
+        let ctx = Context {
+            auto_position,
+            invisible,
+            placeholder_search,
+            placeholder_fields,
+            default_backend,
+            workspace: true,
+            cli_auto,
+            ..Context::default()
+        };
+        let mut state = State::Starting;
+        let mut next_id = 2u64;
+        let some_placement = pida_placement::Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+        for e in events {
+            let current = state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1);
+            let with = |fields: usize, warnings: Vec<String>, placeholder| {
+                let Event::Analyzed { doc, class, signed, page_count, start, .. } = analyzed(current, 2, None, false) else { unreachable!() };
+                Event::Analyzed {
+                    doc, class, placeholder, signed, page_count, start, warnings,
+                    fields: (0..fields).map(|i| field(&format!("F{i}"))).collect(),
+                    new_visible_field_allowed: fields.is_multiple_of(2),
+                }
+            };
+            let event = match e {
+                0 => Event::Started { documents: vec![doc(1), doc(2)] },
+                1 => { next_id += 1; Event::FilesAdded(vec![doc(next_id)]) }
+                2 => with(0, Vec::new(), None),
+                3 => with(0, Vec::new(), Some(pida_workflow::PlaceholderFound::Qr(qr()))),
+                4 => with(1, Vec::new(), Some(pida_workflow::PlaceholderFound::Fields(vec![field("F0")]))),
+                5 => Event::PlaceholderAnswered { answer: pida_workflow::PlaceholderAnswer::Yes, field_index: None },
+                6 => Event::PositionConfirmed,
+                7 => Event::InvisibleChosen,
+                8 => Event::BackendsProbed(only_id_austria()),
+                9 => Event::BackendsProbed(options(true, true)),
+                10 => Event::BackendsProbed(options(false, false)),
+                11 => Event::BackendsProbed(options(false, true)),
+                12 => Event::BackendChosen(BackendId::AtrustNative),
+                13 => Event::BackendChosen(BackendId::Keystore),
+                14 => Event::PhaseCompleted(SigningPhase::OpeningSession),
+                15 => Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+                16 => Event::PhaseCompleted(SigningPhase::Preparing),
+                17 => Event::PhaseCompleted(SigningPhase::Signing),
+                18 => Event::PhaseCompleted(SigningPhase::Finishing),
+                19 => Event::BackendFailed(BackendError::Timeout),
+                20 => Event::BackendFailed(BackendError::Cancelled),
+                21 => Event::BackendFailed(BackendError::UnknownPage { diagnostic: "x".into() }),
+                22 => Event::Retry,
+                23 => Event::Cancel,
+                24 => Event::Navigate(Step::Open),
+                25 => Event::Navigate(Step::Positioning),
+                26 => Event::Navigate(Step::Signing),
+                27 => Event::SettingsChanged,
+                28 => Event::Saved(output_info(current)),
+                29 => Event::OutputDecided(OutputDecision::Save { path: "/o.pdf".into(), exists: false }),
+                30 => {
+                    next_id += 1;
+                    let backend = if next_id.is_multiple_of(2) { BackendId::AtrustNative } else { BackendId::Keystore };
+                    let plan = pida_workflow::ResumePlan { position: pida_workflow::PositionChoice::Auto, backend };
+                    Event::ResumeRequested { document: doc(next_id), plan, pending: vec![] }
+                }
+                31 => Event::PreviewUnavailable { doc: DocId(current) },
+                32 => Event::WarningAnswered(true),
+                33 => with(1, vec!["pdf-usage-rights".into()], None),
+                34 => Event::Backgrounded,
+                35 => Event::Foregrounded,
+                36 => Event::SignRequested { backend: BackendId::AtrustNative, options: options(true, true) },
+                37 => Event::SignRequested { backend: BackendId::Keystore, options: options(false, true) },
+                38 => Event::SignRequested { backend: BackendId::LocalBku, options: options(false, false) },
+                39 => Event::InvisibleSet(true),
+                40 => Event::InvisibleSet(false),
+                41 => Event::TargetChosen(pida_workflow::Target::Free),
+                42 => Event::TargetChosen(pida_workflow::Target::Field(0)),
+                43 => Event::TargetChosen(pida_workflow::Target::Qr),
+                44 => Event::AutoPlaced(some_placement),
+                45 => Event::BlockResized(some_placement),
+                46 => Event::SigningDeclined,
+                47 => Event::PlacementChanged(some_placement),
+                48 => Event::CmsTooLarge { needed: 20_000, reserve: 16_384 },
+                _ => Event::SigningFailed(pida_workflow::WorkflowError::Prepare { code: "x".into(), detail: String::new() }),
+            };
+            let before = state.clone();
+            let t = reduce(state, event.clone(), &ctx);
+            for eff in &t.effects {
+                let Effect::OpenSession(id) = eff else { continue };
+                let local = |options: &[pida_workflow::BackendOption]| {
+                    options.iter().any(|o| o.id == *id && o.capabilities.as_ref().is_some_and(|c| !c.document_leaves_device))
+                };
+                let allowed = match (&event, &before) {
+                    (Event::SignRequested { .. }, State::Positioning { .. } | State::ChoosingBackend { .. }) => true,
+                    (Event::BackendChosen(_), State::ChoosingBackend { .. }) => true,
+                    (Event::BackendsProbed(_), State::Resuming { .. }) => true,
+                    (Event::Retry, State::Error { from: Some(f), .. }) => matches!(**f, State::Signing { .. }),
+                    (Event::BackendsProbed(options), State::ChoosingBackend { .. }) => cli_auto && local(options),
+                    _ => false,
+                };
+                prop_assert!(allowed, "OpenSession({id:?}) ohne Nutzeraktion: {event:?} in {} ({:?})", before.name(), t.effects);
+            }
+            if matches!(t.state, State::Resuming { .. }) {
+                let resumed = matches!(event, Event::ResumeRequested { .. }) || matches!(before, State::Resuming { .. });
+                prop_assert!(resumed, "{event:?} in {}", before.name());
+            }
+            if !cli_auto {
+                prop_assert!(
+                    !matches!(t.state, State::ChoosingBackend { auto_choice: true, .. }),
+                    "automatische Wahl ohne Startargument-Automatik: {event:?} in {}", before.name()
+                );
+            }
+            prop_assert!(
+                !matches!(t.state, State::Positioning { edit: None, .. } | State::PlaceholderQuestion { .. }),
+                "klassischer Schritt im Arbeitsbereich: {event:?} in {} → {}", before.name(), t.state.name()
+            );
             state = t.state;
         }
     }

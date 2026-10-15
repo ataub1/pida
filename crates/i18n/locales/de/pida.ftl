@@ -100,8 +100,12 @@ keystore-key-mismatch = Schlüssel und Zertifikat im Keystore passen nicht zusam
 ## Signatur-Backends (`pida_backend_api::BackendError::code`); Variablen = Felder der Variante
 
 backend-cancelled = Der Vorgang wurde abgebrochen.
+    .title = Vorgang abgebrochen
+    .action = Erneut versuchen
 backend-unavailable = Das Signiermittel ist nicht verfügbar: { $detail }
 backend-network = Die Verbindung zum Signaturdienst ist fehlgeschlagen: { $detail }
+    .title = Der Signaturdienst ist gerade nicht erreichbar
+    .action = Erneut versuchen
 backend-proxy-auth = Der Proxy-Server verlangt eine Anmeldung.
 backend-document-too-large = Das Dokument überschreitet die Größengrenze des Signaturdienstes.
 backend-http = Der Signaturdienst hat die Anfrage abgelehnt: HTTP { $status } { $reason }
@@ -115,6 +119,8 @@ backend-keystore-format = Das Keystore-Format { $format } wird nicht unterstütz
 backend-certificate-mismatch = Die Signatur wurde mit einem anderen als dem erwarteten Zertifikat erstellt.
 backend-fido2 = FIDO2-Fehler: { $detail }
 backend-timeout = Zeitüberschreitung: Der Signaturdienst hat nicht rechtzeitig geantwortet.
+    .title = Die Zeit ist abgelaufen
+    .action = Neue Bestätigung anfordern
 backend-internal = Interner Fehler: { $detail }
 
 ## Meldungen und Masken der Backends ohne PDF-Over-Key (`NoticeCode::AtrustInterstitial` als Titel,
@@ -481,10 +487,14 @@ ng-verify-byte-range = Die /ByteRange der Signatur ist ungültig.
 
 ng-invariant-violated = Die Selbstprüfung der Signatur ist fehlgeschlagen ({ $invariant }: { $detail }). Es wurde nichts gespeichert.
 ng-cms-too-large = Die Signatur ist größer als der reservierte Platz ({ $needed } statt { $reserve } Bytes). „Wiederholen“ bereitet das Dokument mit mehr Platz neu vor; dafür ist eine erneute Bestätigung nötig.
+    .title = Die Signatur braucht mehr Platz
+    .action = Erneut versuchen
 ng-backend-choice-required = Mehrere Signiermittel verfügbar ({ $detail }) – bitte mit -b wählen.
 ng-no-backend-available = Kein Signiermittel verfügbar.
 ng-default-backend-unavailable = Das gewählte Signiermittel ({ $detail }) ist nicht verfügbar.
 ng-document-rejected = Das Dokument kann nicht signiert werden.
+    .title = Dieses Dokument kann nicht signiert werden
+    .action = Anderes Dokument öffnen
 ng-pdf-no-sign-rights = Die Rechte des Dokuments erlauben kein Signieren.
 ng-field-already-signed = Das Signaturfeld ist bereits signiert.
 ng-field-locked = Das Signaturfeld ist gesperrt.
@@ -580,3 +590,53 @@ ng-ui-privacy-local = Mit einem Keystore oder der Bürgerkarte (lokale BKU) wird
 ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.
 ng-ui-certcache-title = Zertifikats-Cache
+
+## Neue Oberfläche „Arbeitsbereich“ (ADR 0004 §3.16): Meldungen des Kerns. Wortlaut nach ADR 0004 §8 F3 –
+## nie „gültig“ oder „rechtsgültig“. UI-Texte der Pakete stehen in `ui-workspace.ftl` bzw. `ui-tools.ftl`.
+
+ng-signer-unavailable = Das gewählte Signiermittel ist gerade nicht verfügbar. Bitte wählen Sie ein anderes.
+ng-signer-localbku-not-running = Die Bürgerkartenumgebung (lokale BKU) läuft nicht. Starten Sie sie und versuchen Sie es erneut.
+ng-signer-keystore-missing = Es ist kein Keystore eingerichtet oder die Datei fehlt (Einstellungen › Signiermittel).
+ng-signer-keystore-import = Auf diesem Gerät ist noch kein Keystore – importieren Sie eine PKCS#12-Datei.
+ng-signer-policy = Dieses Signiermittel ist von Ihrer Organisation nicht freigegeben.
+ng-signing-cancelled = Signieren abgebrochen – es wurde nichts signiert.
+ng-signing-declined = In der App abgelehnt oder abgelaufen – es wurde nichts signiert.
+    .title = In der App abgelehnt oder abgelaufen
+    .action = Erneut versuchen
+ng-constraint-signed = Das Dokument ist bereits signiert; eine neue Seite würde die vorhandenen Signaturen verändern.
+ng-constraint-certified = Das Dokument ist zertifiziert; es darf nur in vorhandenen Signaturfeldern oder unsichtbar signiert werden.
+ng-constraint-invisible-profile = Das gewählte Profil signiert unsichtbar (Einstellungen › Signaturbild).
+ng-batch-added =
+    { $count ->
+        [one] Ein weiteres Dokument wurde hinzugefügt.
+       *[other] { $count } weitere Dokumente wurden hinzugefügt.
+    }
+ng-batch-item-signed = „{ $file }“ wurde signiert.
+ng-batch-done = { $signed } von { $total } Dokumenten signiert.
+ng-batch-nothing-to-sign = Im Stapel ist kein Dokument zum Signieren bereit.
+ng-batch-output-folder-required = Bitte wählen Sie vor dem Start einen Ordner für die signierten Dokumente.
+ng-batch-aborted =
+    { $signed ->
+        [one] Stapel abgebrochen – ein Dokument wurde bereits signiert und gespeichert.
+       *[other] Stapel abgebrochen – { $signed } Dokumente wurden bereits signiert und gespeichert.
+    }
+ng-batch-paused = Der Stapel ist angehalten. Bitte entscheiden Sie, wie es weitergeht.
+ng-batch-large = { $count } Dokumente: Jedes Dokument wird einzeln in der App bestätigt.
+ng-batch-pending-app-request = Eine noch offene Anfrage in der App lehnen Sie bitte ab; vergleichen Sie immer den Vergleichswert.
+ng-verify-open-failed = Die Datei konnte nicht zum Prüfen geöffnet werden.
+ng-verify-busy = Während des Signierens kann kein Dokument geprüft werden.
+ng-verify-warning-sha1 = Die Signatur verwendet das veraltete Hashverfahren SHA-1; sie ist unverändert, gilt aber nach heutigem Stand nicht mehr als sicher.
+ng-verify-warning-signing-certificate-v1 = Die Signatur bindet ihr Zertifikat nur über das ältere Attribut „signing-certificate“ (SHA-1).
+ng-verify-warning-weak-key = Der Schlüssel dieser Signatur ist nach heutigem Stand zu kurz.
+ng-recent-missing = Die Datei ist nicht mehr am gespeicherten Ort.
+ng-recent-policy = „Zuletzt signiert“ ist von Ihrer Organisation abgeschaltet.
+ng-migration-item-block = Signaturbild (Profil, Sprache, Hinweistext)
+ng-migration-item-emblem = Bildmarke
+ng-migration-item-username = Benutzername für ID Austria
+ng-migration-item-output = Speicherort und Dateiname
+ng-migration-item-keystore = Keystore
+ng-migration-item-proxy = Proxy
+ng-migration-item-placeholder = Platzhaltersuche
+ng-migration-item-language = Sprache
+ng-firstrun-done = Einrichtung abgeschlossen. Sie können alles jederzeit in den Einstellungen ändern.
+ng-settings-field-unknown = Unbekannte Einstellung.

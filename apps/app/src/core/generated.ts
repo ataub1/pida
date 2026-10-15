@@ -134,6 +134,25 @@ output: OutputInfo, } | { "kind": "cancelled" } | { "kind": "failed",
 error: WorkflowError, };
 
 /**
+ * Herkunft der Platzierung im Arbeitsbereich (ADR 0004 §3.3; Typ für Reducer **und** Bridge, §3.0
+ * Regel 9). Der Reducer erzeugt die Werte ab K1; bis dahin dient der Typ nur dem Vertrag.
+ */
+export type PlacementOrigin = "auto" | "user" | "field" | "qr";
+
+/**
+ * Umgang mit bereits vorhandenen Zieldateien im Stapellauf (ADR 0004 §3.8, §3.0 Regel 9). Standard im
+ * Startdialog: „Beide behalten“ (§8 F11).
+ */
+export type ExistingPolicy = "overwrite" | "keep_both" | "skip";
+
+/**
+ * Ausgabeziel eines Stapellaufs (ADR 0004 §3.8, §3.0 Regel 9): nach den Einstellungen
+ * (`output.folder`, F-82; Mobile: App-Dokumente) oder ein vor dem Start gewählter Ordner.
+ * Serde: `{ "kind": "configured" }` bzw. `{ "kind": "folder", "path": "…" }`.
+ */
+export type BatchOutput = { "kind": "configured" } | { "kind": "folder", "path": string };
+
+/**
  * Kennung eines Backends.
  */
 export type BackendId = "atrust_native" | "atrust_browser" | "csc" | "local_bku" | "keystore" | "wallet";
@@ -512,7 +531,15 @@ window_size: WindowSize | null,
 /**
  * letzter Ordner (Dateidialog, F-11)
  */
-last_source_directory: string | null, };
+last_source_directory: string | null, 
+/**
+ * „Zuletzt signiert“ merken (ADR 0004 §3.10)
+ */
+recent_documents: boolean, 
+/**
+ * Ersteinrichtung abgeschlossen (ADR 0004 §3.12)
+ */
+first_run_completed: boolean, };
 
 /**
  * Spiegel von `pida_config::CmsProfileChoice`.
@@ -772,7 +799,12 @@ legacy_file: string,
  * die Altdatei enthält Klartext-Passwörter (Keystore/Proxy): Zustimmung zum Übernehmen in den
  * Schlüsselbund erfragen (`UiEvent::AcceptMigration::store_secrets`)
  */
-plaintext_secrets: boolean, };
+plaintext_secrets: boolean, 
+/**
+ * Was übernommen würde (Ersteinrichtung Schritt 1, ADR 0004 §3.12): i18n-IDs `ng-migration-item-*`
+ * mit Detail; ab K4 per Probelauf von `pida_config::migrate` (bis dahin leer)
+ */
+items: Array<MigrationItemView>, };
 
 /**
  * Abgeschlossenes Dokument (Warteschlangen-Panel, CLI-Ergebnis).
@@ -1025,7 +1057,11 @@ ask_overwrite: string | null,
 /**
  * Speichern-Dialog öffnen (F-83/F-86) – Antwort über [`UiEvent::Save`]
  */
-save_dialog: SaveDialogView | null, };
+save_dialog: SaveDialogView | null, 
+/**
+ * Zusammenfassung für „Fertig“, sobald gespeichert (ADR 0004 §3.7; ab K1, bis dahin `None`)
+ */
+summary: SignedSummaryView | null, };
 
 /**
  * Hauptleiste.
@@ -1113,7 +1149,11 @@ queue: Array<QueueItemView>,
  * Das Dokument verlässt mit dem laufenden Signiermittel das Gerät (`document_leaves_device`, z. B.
  * ID Austria): Kurzhinweis „wird an A-Trust übermittelt“ im Signierbereich (ADR 0003)
  */
-document_leaves_device: boolean, } | { "step": "output", 
+document_leaves_device: boolean, 
+/**
+ * Fortschritt für Stepper und Stapel (ADR 0004 §3.6; ab K1, bis dahin Standardwerte)
+ */
+progress: SigningProgressView, } | { "step": "output", 
 /**
  * Ergebnis
  */
@@ -1121,7 +1161,12 @@ result: OutputView,
 /**
  * nächstes Dokument
  */
-next: DocInfo | null, } | { "step": "error", 
+next: DocInfo | null, 
+/**
+ * Zahl der wartenden Dokumente nach diesem (ADR 0004 E1 „Fertig“: „Nächstes Dokument“ mit Anzahl,
+ * solange `batch_overview` aus ist; Nachtrag 1 im ADR)
+ */
+pending: number, } | { "step": "error", 
 /**
  * Fehlercode (i18n-ID)
  */
@@ -1133,11 +1178,15 @@ params: { [key in string]: string },
 /**
  * Wiederholen möglich
  */
-retry: boolean, } | { "step": "finished", 
+retry: boolean, 
+/**
+ * Herkunft, Zeitpunkt, Dokument (ADR 0004 §3.6; ab K1, bis dahin Standardwerte)
+ */
+context: ErrorContextView, } | { "step": "finished", 
 /**
  * Exit-Code
  */
-exit_code: number, };
+exit_code: number, } | { "step": "batch" };
 
 /**
  * Einstellungen (Overlay über jedem Schritt).
@@ -1168,7 +1217,16 @@ read_only: boolean,
  * Revision der Blockvorschau (Cache-Busting für `blockPreviewUrl` im Einstellungsdialog);
  * der Kern baut die Vorschau beim Öffnen auch ohne Dokument (A4, Beispielzertifikat) wie PDF-Over
  */
-preview_revision: number, };
+preview_revision: number, 
+/**
+ * Revision des zuletzt übernommenen [`UiEvent::ApplySettings`] (ADR 0004 §3.11; ab K3, bis dahin 0)
+ */
+applied_revision: number, 
+/**
+ * Vom Kern berechnete Beispiele (ADR 0004 §3.11): Schlüssel `output.postfix` → Ausgabename für die
+ * Beispieldatei `Vertrag.pdf` (F-81); ab K3, bis dahin leer
+ */
+examples: { [key in string]: string }, };
 
 /**
  * Gesamtzustand für die UI.
@@ -1219,7 +1277,37 @@ keystore_import: KeystoreImportView | null,
  * Datenschutz und die „Details“ des Kurzhinweises; `None` = Text aus PDF-Over
  * (`ng-ui-privacy-statement`, PIDA-Fassung des PDF-Over-Texts `config-DataProtectionStatement`, ADR 0003)
  */
-privacy_text: string | null, };
+privacy_text: string | null, 
+/**
+ * Aktuelles Dokument im Arbeitsbereich (Warnung, Positionieren, Signieren, Fertig; ADR 0004 §3.1,
+ * §3.3); sonst `None`. Ab K1, bis dahin `None`.
+ */
+document: DocumentView | null, 
+/**
+ * Signiermittel für Konto-Chip, Menü und Stapel (ADR 0004 §3.4); ab K1 nach dem Start immer befüllt,
+ * bis dahin leer
+ */
+signers: SignersView, 
+/**
+ * Stapel (nur mit `batch_overview`, ADR 0004 §3.8); ab K2, bis dahin `None`
+ */
+batch: BatchView | null, 
+/**
+ * Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9); ab K4
+ */
+verify: VerifyView | null, 
+/**
+ * „Zuletzt signiert“; `None` = Funktion abgeschaltet bzw. (bis K3) noch nicht umgesetzt (ADR 0004 §3.10)
+ */
+recent: Array<RecentItemView> | null, 
+/**
+ * Ersteinrichtung, nur beim ersten Start (ADR 0004 §3.12); ab K4
+ */
+first_run: FirstRunView | null, 
+/**
+ * Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (ADR 0004 §3.13), aus dem Zustand berechnet
+ */
+actions: ActionsView, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1362,4 +1450,1093 @@ id: number, } | { "type": "accept_migration",
 /**
  * Klartext-Passwörter in den Schlüsselbund übernehmen (Zustimmung)
  */
-store_secrets: boolean, } | { "type": "decline_migration" };
+store_secrets: boolean, } | { "type": "decline_migration" } | { "type": "set_invisible", 
+/**
+ * unsichtbar
+ */
+invisible: boolean, } | { "type": "use_target", 
+/**
+ * Ziel
+ */
+target: PlacementTarget, } | { "type": "inspect_pages", 
+/**
+ * Seiten (0-basiert)
+ */
+pages: Array<number>, } | { "type": "select_signer", 
+/**
+ * Signiermittel (`None` = keine Auswahl)
+ */
+backend: BackendId | null, 
+/**
+ * als Standard speichern
+ */
+make_default: boolean, } | { "type": "sign_with", 
+/**
+ * Signiermittel
+ */
+backend: BackendId, } | { "type": "show_batch" } | { "type": "open_batch_item", 
+/**
+ * Dokument
+ */
+doc: DocId, } | { "type": "back_to_batch" } | { "type": "remove_from_batch", 
+/**
+ * Dokument
+ */
+doc: DocId, } | { "type": "start_batch", 
+/**
+ * Signiermittel
+ */
+backend: BackendId, 
+/**
+ * genau diese Dokumente (später hinzugefügte gehören nicht zum Lauf)
+ */
+docs: Array<DocId>, 
+/**
+ * nur bei `BatchOutputView::needs_folder` (Ordnerwahl einmal vor dem Start)
+ */
+output_dir: string | null, 
+/**
+ * Umgang mit vorhandenen Zieldateien
+ */
+on_existing: ExistingPolicy, } | { "type": "skip_batch_document" } | { "type": "abort_batch" } | { "type": "open_verify", 
+/**
+ * Datei
+ */
+path: string, } | { "type": "verify_recent", 
+/**
+ * Kennung ([`RecentItemView::id`])
+ */
+id: number, } | { "type": "close_verify" } | { "type": "sign_verified" } | { "type": "remove_recent", 
+/**
+ * Kennung
+ */
+id: number, } | { "type": "clear_recent" } | { "type": "apply_settings", 
+/**
+ * geänderte Felder (Pfad → Wert)
+ */
+changes: Record<string, unknown>, 
+/**
+ * Revision der UI (zurück in `SettingsView::applied_revision`)
+ */
+revision: number, } | { "type": "set_ui_language", 
+/**
+ * Sprache (`None` = System)
+ */
+language: Lang | null, } | { "type": "update_first_run", 
+/**
+ * Standard-Signiermittel (`None` = „Jedes Mal fragen“)
+ */
+default_backend: BackendChoice | null, 
+/**
+ * Profil des Signaturblocks
+ */
+profile: SignatureProfile, 
+/**
+ * Sprache des Signaturblocks (`None` = System)
+ */
+block_language: Lang | null, } | { "type": "finish_first_run" } | { "type": "offer_migration" };
+
+/**
+ * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).
+ */
+export type RectPt = { 
+/**
+ * linke Kante
+ */
+left: number, 
+/**
+ * Unterkante
+ */
+bottom: number, 
+/**
+ * rechte Kante
+ */
+right: number, 
+/**
+ * Oberkante
+ */
+top: number, };
+
+/**
+ * Kurzverweis auf ein Dokument (§3.1).
+ */
+export type DocRefView = { 
+/**
+ * Kennung
+ */
+id: DocId, 
+/**
+ * Name
+ */
+name: string, };
+
+/**
+ * Phase des Dokuments im Arbeitsbereich (Tabelle §3.1).
+ */
+export type DocumentPhase = "warning" | "editing" | "signing" | "done";
+
+/**
+ * Ziel der Platzierung (§3.3).
+ */
+export type PlacementTarget = { "kind": "free" } | { "kind": "field", 
+/**
+ * Index in [`DocumentView::fields`]
+ */
+index: number, } | { "kind": "qr" };
+
+/**
+ * Leeres, angebotenes Signaturfeld („Hier signieren“; §3.3, §8 F2: nur angeboten, nie automatisch).
+ */
+export type FieldTargetView = { 
+/**
+ * Index (für [`PlacementTarget::Field`])
+ */
+index: number, 
+/**
+ * qualifizierter Feldname
+ */
+name: string, 
+/**
+ * Seite des Widgets
+ */
+page: number | null, 
+/**
+ * Widget-Rechteck (`PAGE_ABS`)
+ */
+rect: RectPt | null, 
+/**
+ * wählbar (`false` bei gesperrten Feldern: `/Lock`, FieldMDP)
+ */
+selectable: boolean, };
+
+/**
+ * QR-Platzhalter (nur mit `placeholder.search` und `kind = marker`; §3.3).
+ */
+export type QrTargetView = { 
+/**
+ * Seite
+ */
+page: number, 
+/**
+ * Rechteck des Platzhalters (`PAGE_ABS`)
+ */
+rect: RectPt, 
+/**
+ * id des Platzhalters
+ */
+id: string | null, };
+
+/**
+ * Status einer vorhandenen Signatur (aus `pades::PriorStatus`; §3.3).
+ */
+export type PriorStatusView = "valid" | "invalid" | "not_verifiable";
+
+/**
+ * Vorhandene Signatur im Inspektor (§3.3; „Rolle“ ist nicht ermittelbar und entfällt).
+ */
+export type ExistingSignatureView = { 
+/**
+ * Feldname
+ */
+field_name: string, 
+/**
+ * CN des Signerzertifikats
+ */
+signer: string | null, 
+/**
+ * RFC 3339 (`signing-time` des CMS, kein geprüfter Zeitstempel)
+ */
+signing_time: string | null, 
+/**
+ * Status
+ */
+status: PriorStatusView, 
+/**
+ * Seite des Signaturbilds
+ */
+page: number | null, 
+/**
+ * Rechteck des Signaturbilds (`None` = unsichtbar)
+ */
+rect: RectPt | null, };
+
+/**
+ * Einschränkungen des Dokuments mit Begründung (§3.3).
+ */
+export type DocConstraintsView = { 
+/**
+ * „Auf neuer Seite“ erlaubt (`false` bei bereits signierten Dokumenten)
+ */
+new_page_allowed: boolean, 
+/**
+ * sichtbarer Block erlaubt (`false` beim unsichtbaren Profil)
+ */
+visible_allowed: boolean, 
+/**
+ * neues sichtbares Feld erlaubt (`false` bei DocMDP-Zertifizierung: nur vorhandene Felder/unsichtbar)
+ */
+new_visible_field_allowed: boolean, 
+/**
+ * Begründungen (i18n-IDs): `ng-constraint-signed`, `ng-constraint-certified`,
+ * `ng-constraint-invisible-profile`
+ */
+reasons: Array<string>, };
+
+/**
+ * Achse einer Einrastlinie (§3.3).
+ */
+export type GuideAxis = "x" | "y";
+
+/**
+ * Art einer Einrastlinie (§3.3): `X`-Linien gelten für die linke (`ContentLeft`, `MarginLeft`) bzw.
+ * rechte Blockkante (`ContentRight`, `MarginRight`) bzw. die Blockmitte (`CenterX`); `Y`-Linien für die
+ * Ober- (`ContentTop`, `BelowContent`, `MarginTop`) bzw. Unterkante (`ContentBottom`, `MarginBottom`)
+ * bzw. Mitte (`CenterY`).
+ */
+export type GuideKind = "content_left" | "content_right" | "content_top" | "content_bottom" | "center_x" | "center_y" | "below_content" | "margin_left" | "margin_right" | "margin_top" | "margin_bottom";
+
+/**
+ * Einrastlinie (§3.3).
+ */
+export type GuideView = { 
+/**
+ * Achse
+ */
+axis: GuideAxis, 
+/**
+ * Lage in pt
+ */
+at: number, 
+/**
+ * Art
+ */
+kind: GuideKind, };
+
+/**
+ * Layout einer Seite (§3.3): Inhaltsrahmen, freie Flächen, Einrastlinien.
+ */
+export type PageLayoutView = { 
+/**
+ * Seite
+ */
+page: number, 
+/**
+ * Begrenzungsrahmen des Inhalts (`None` = leere Seite)
+ */
+content: RectPt | null, 
+/**
+ * freie Rechtecke, in die der Block in aktueller Größe passt (6 pt Abstand zum Inhalt), absteigend
+ * nach Eignung, höchstens 16
+ */
+free: Array<RectPt>, 
+/**
+ * Einrastlinien
+ */
+guides: Array<GuideView>, };
+
+/**
+ * Ergebnis der Live-Prüfung der Platzierung (§3.3).
+ */
+export type PlacementCheckView = { 
+/**
+ * Revision der Platzierung, auf die sich die Prüfung bezieht ([`DocumentView::revision`])
+ */
+for_revision: number, 
+/**
+ * überdeckt Inhalt; `None` = unbekannt (kein Renderer, Raster noch nicht berechnet, neue Seite)
+ */
+overlaps_content: boolean | null, 
+/**
+ * überdeckt ein Formularfeld
+ */
+overlaps_widget: boolean, 
+/**
+ * vom Kern an die Seite geklemmt
+ */
+clamped: boolean, };
+
+/**
+ * Aktuelles Dokument im Arbeitsbereich (§3.3) – einzige Inhaltsquelle der neuen Oberfläche;
+ * `StepView::Position` bleibt Phasenmarker.
+ */
+export type DocumentView = { 
+/**
+ * Dokument (id, name, page_count, page_sizes, signed)
+ */
+doc: DocInfo, 
+/**
+ * Größe der Datei in Bytes
+ */
+size_bytes: number, 
+/**
+ * Phase
+ */
+phase: DocumentPhase, 
+/**
+ * Revision der Platzierung (steigt bei jeder Änderung)
+ */
+revision: number, 
+/**
+ * Blockgröße und Vorschau-Revision
+ */
+block: BlockView, 
+/**
+ * maßgebliche Lage (`PAGE_ABS`, linke obere Ecke)
+ */
+placement: Placement, 
+/**
+ * Herkunft der Lage
+ */
+origin: PlacementOrigin, 
+/**
+ * Ziel
+ */
+target: PlacementTarget, 
+/**
+ * unsichtbar signieren (nur dieses Dokument)
+ */
+invisible: boolean, 
+/**
+ * virtuelle neue Seite
+ */
+new_page: boolean, 
+/**
+ * tatsächliches Rechteck des Blocks auf `placement.page_index` (bei Feld/QR das Ziel-Rechteck);
+ * `None` = unsichtbar bzw. keine Vorschau
+ */
+sticker: RectPt | null, 
+/**
+ * leere, nicht gesperrte Signaturfelder – im Arbeitsbereich immer angeboten, nie automatisch benutzt
+ */
+fields: Array<FieldTargetView>, 
+/**
+ * QR-Platzhalter (nur mit Platzhaltersuche)
+ */
+qr: QrTargetView | null, 
+/**
+ * vorhandene Signaturen
+ */
+existing: Array<ExistingSignatureView>, 
+/**
+ * Einschränkungen
+ */
+constraints: DocConstraintsView, 
+/**
+ * Layout der zuletzt angefragten Seiten (`InspectPages`, ≤ 8) und der Seite des Stickers, aufsteigend
+ * nach `page`, höchstens 9; Seiten ohne fertiges Raster fehlen
+ */
+layout: Array<PageLayoutView>, 
+/**
+ * Live-Prüfung
+ */
+check: PlacementCheckView, 
+/**
+ * Live-Region: `page`, `pages`, `left`, `top` (wie `StepView::Position`) und `bottom` (mm der
+ * Unterkante von unten)
+ */
+announce: { [key in string]: string }, };
+
+/**
+ * Signiermittel für Konto-Chip, Menü und Stapel (§3.4).
+ */
+export type SignersView = { 
+/**
+ * Optionen (ohne reservierte Backends)
+ */
+options: Array<SignerView>, 
+/**
+ * Auswahl des Konto-Chips (Start = Standard, sofern verfügbar; bei Richtlinie `forced_backend` fest);
+ * mit „Jedes Mal fragen“ nur bis zum Ende des Dokuments bzw. Stapellaufs (§8 F12)
+ */
+selected: BackendId | null, 
+/**
+ * Standard aus den Einstellungen (`None` = „Jedes Mal fragen“)
+ */
+default: BackendId | null, };
+
+/**
+ * Ein Signiermittel im Konto-Chip (§3.4).
+ */
+export type SignerView = { 
+/**
+ * Backend
+ */
+backend: BackendId, 
+/**
+ * verfügbar
+ */
+available: boolean, 
+/**
+ * Kontoanzeige: ID Austria „+43 660 ···123“ (nur bei gemerktem Benutzer, im Kern maskiert),
+ * Keystore „max.p12 · alias“; lokale BKU `None`
+ */
+account: string | null, 
+/**
+ * Fähigkeiten (u. a. `document_leaves_device`, Faktoren, Qualifikation)
+ */
+capabilities: Capabilities | null, 
+/**
+ * Hinweise (i18n-IDs) wie [`BackendOptionView::notes`]
+ */
+notes: Array<string>, 
+/**
+ * Grund, falls nicht verfügbar (i18n-ID): `ng-signer-localbku-not-running`,
+ * `ng-signer-keystore-missing`, `ng-signer-keystore-import` (Mobile), `ng-signer-policy`
+ */
+unavailable_reason: string | null, };
+
+/**
+ * Phase der Signierkarte (§3.6).
+ */
+export type SigningStage = "connecting" | "login" | "certificate" | "preparing" | "confirming" | "finishing" | "saving" | "paused";
+
+/**
+ * Bestätigungsweg (§3.6).
+ */
+export type ConfirmMethod = "app" | "qr" | "sms" | "fido2" | "password" | "card";
+
+/**
+ * Herkunft des Signaturzertifikats in dieser Sitzung (§3.6).
+ */
+export type CertificateSource = "read" | "cache" | "session" | "not_needed";
+
+/**
+ * Wirkungsbereich einer Stapelpause (§3.8).
+ */
+export type PauseScope = "document" | "session";
+
+/**
+ * Pause eines Stapellaufs mit ausdrücklicher Entscheidung (§3.8).
+ */
+export type BatchPauseView = { 
+/**
+ * Dokument (`None` = Sitzungsfehler vor dem ersten Dokument)
+ */
+doc: DocRefView | null, 
+/**
+ * Fehlercode (i18n-ID)
+ */
+code: string, 
+/**
+ * Parameter
+ */
+params: { [key in string]: string }, 
+/**
+ * Wirkungsbereich
+ */
+scope: PauseScope, 
+/**
+ * „Erneut versuchen“ möglich
+ */
+can_retry: boolean, 
+/**
+ * „Erneut versuchen“ öffnet eine neue Sitzung (ggf. neue Anmeldung)
+ */
+new_session: boolean, };
+
+/**
+ * Fortschritt der Signierkarte (Stepper „Anmelden → Bestätigen k/n → Signiert“; §3.6).
+ */
+export type SigningProgressView = { 
+/**
+ * Signiermittel
+ */
+backend: BackendId | null, 
+/**
+ * Phase
+ */
+stage: SigningStage, 
+/**
+ * Bestätigungsweg der offenen Maske bzw. des Backends
+ */
+method: ConfirmMethod | null, 
+/**
+ * Dokument der laufenden Bestätigung
+ */
+doc: DocRefView | null, 
+/**
+ * 1-basiert; Einzeldokument 1
+ */
+index: number, 
+/**
+ * Einzeldokument 1
+ */
+total: number, 
+/**
+ * Anmeldung dieser Sitzung erfolgreich; wird wieder `false`, sobald das Backend erneut die
+ * Login-Maske zeigt
+ */
+login_done: boolean, 
+/**
+ * abgeschlossene Bestätigungen
+ */
+confirmations_done: number, 
+/**
+ * Bestätigungen gesamt (je Dokument eine)
+ */
+confirmations_total: number, 
+/**
+ * Herkunft des Zertifikats
+ */
+certificate: CertificateSource, 
+/**
+ * Stapellauf
+ */
+batch: boolean, 
+/**
+ * Stapelpause; bei Einzeldokumenten immer `None` (dort `StepView::Error`)
+ */
+pause: BatchPauseView | null, };
+
+/**
+ * Herkunft eines Fehlers (§3.6).
+ */
+export type ErrorOrigin = "load" | "analysis" | "prepare" | "signing" | "output" | "config" | "other";
+
+/**
+ * Kontext eines Fehlers für „Technische Details“ (§3.6).
+ */
+export type ErrorContextView = { 
+/**
+ * Herkunft
+ */
+origin: ErrorOrigin, 
+/**
+ * RFC 3339, lokale Zeit mit Offset
+ */
+occurred_at: string | null, 
+/**
+ * Signiermittel
+ */
+backend: BackendId | null, 
+/**
+ * Dokument
+ */
+doc: DocRefView | null, };
+
+/**
+ * Zusammenfassung „Fertig“ (§3.7). Wortlaut nach §8 F3: nie „gültig“, sondern „Signatur erstellt und
+ * geprüft (Selbstprüfung)“, Qualifikation „laut Zertifikat“.
+ */
+export type SignedSummaryView = { 
+/**
+ * Dateiname der Ausgabe
+ */
+file_name: string, 
+/**
+ * Desktop: Ordner der Ausgabe; Mobile: `None` („in den Dokumenten dieser App“)
+ */
+folder_display: string | null, 
+/**
+ * CN des verwendeten Signaturzertifikats
+ */
+signer: string | null, 
+/**
+ * RFC 3339 wie `/M`
+ */
+signing_time: string, 
+/**
+ * Signiermittel
+ */
+backend: BackendId, 
+/**
+ * bis K4 aus den Fähigkeiten des Backends, ab K4 aus den qcStatements des Signerzertifikats
+ */
+qualification: Qualification, 
+/**
+ * Selbstprüfung I1–I6 bestanden (ohne Bestehen wird nie gespeichert – dient der Anzeige)
+ */
+self_check: boolean, 
+/**
+ * Seite des sichtbaren Blocks (`None` = unsichtbar)
+ */
+page: number | null, };
+
+/**
+ * Status eines Stapeleintrags (§3.8).
+ */
+export type BatchItemStatusView = { "state": "analyzing" } | { "state": "ready" } | { "state": "positioned" } | { "state": "rejected", 
+/**
+ * Code
+ */
+code: string, } | { "state": "needs_review", 
+/**
+ * Codes der Warnungen
+ */
+codes: Array<string>, } | { "state": "queued" } | { "state": "active", 
+/**
+ * Phase
+ */
+stage: SigningStage, } | { "state": "signed", 
+/**
+ * Ausgabe
+ */
+path: string, } | { "state": "failed", 
+/**
+ * Code
+ */
+code: string, 
+/**
+ * Parameter
+ */
+params: { [key in string]: string }, } | { "state": "skipped", 
+/**
+ * Ziel existierte
+ */
+existing: boolean, } | { "state": "cancelled" };
+
+/**
+ * Kurzfassung der Platzierung eines Stapeleintrags (§3.8).
+ */
+export type PositionSummaryView = { "kind": "auto" } | { "kind": "manual", 
+/**
+ * Seite
+ */
+page: number, } | { "kind": "field", 
+/**
+ * Feldname
+ */
+name: string, } | { "kind": "qr" } | { "kind": "invisible" };
+
+/**
+ * Eintrag der Stapelübersicht (§3.8).
+ */
+export type BatchItemView = { 
+/**
+ * Dokument
+ */
+doc: DocId, 
+/**
+ * Name
+ */
+name: string, 
+/**
+ * Seitenzahl (nach der Voranalyse)
+ */
+page_count: number | null, 
+/**
+ * Größe in Bytes
+ */
+size_bytes: number | null, 
+/**
+ * Status
+ */
+status: BatchItemStatusView, 
+/**
+ * Platzierung
+ */
+position: PositionSummaryView, 
+/**
+ * Ausgabedateiname nach F-81
+ */
+target_name: string | null, 
+/**
+ * Ziel existiert bereits (Vorabprüfung)
+ */
+target_exists: boolean, 
+/**
+ * Miniatur über `pida-render://thumb/<doc>` verfügbar
+ */
+thumbnail: boolean, };
+
+/**
+ * Ausgabeart des Stapels (§3.8).
+ */
+export type OutputModeView = "next_to_source" | "folder" | "ask" | "app_documents";
+
+/**
+ * Ausgabe des Stapels (§3.8).
+ */
+export type BatchOutputView = { 
+/**
+ * Art
+ */
+mode: OutputModeView, 
+/**
+ * Ordner zur Anzeige
+ */
+folder_display: string | null, 
+/**
+ * `StartBatch` braucht `output_dir` („jedes Mal fragen“ oder kein vorhandener Ordner)
+ */
+needs_folder: boolean, };
+
+/**
+ * Schätzung „n Dokumente · 1 Anmeldung · n Bestätigungen“ für das gewählte Signiermittel (§3.8).
+ */
+export type BatchEstimateView = { 
+/**
+ * Signiermittel
+ */
+backend: BackendId, 
+/**
+ * Dokumente
+ */
+documents: number, 
+/**
+ * erwartete Anmeldungen (0 oder 1; eine Erwartung, keine Zusage)
+ */
+logins: number, 
+/**
+ * Bestätigungen (= `documents` bei `max_batch == 1`)
+ */
+confirmations: number, 
+/**
+ * ggf. eine weitere Bestätigung für das Zertifikat
+ */
+certificate_confirmation_possible: boolean, 
+/**
+ * ab 20 Dokumenten mit ID Austria: Hinweis `ng-batch-large` (§8 F9)
+ */
+large: boolean, };
+
+/**
+ * Zusammenfassung über **alle** Einträge der Übersicht nach dem letzten Lauf (§3.8).
+ */
+export type BatchSummaryView = { 
+/**
+ * Einträge gesamt
+ */
+total: number, 
+/**
+ * signiert (auch vorher einzeln signierte)
+ */
+signed: number, 
+/**
+ * abgelehnt
+ */
+rejected: number, 
+/**
+ * fehlgeschlagen
+ */
+failed: number, 
+/**
+ * übersprungen
+ */
+skipped: number, 
+/**
+ * abgebrochen
+ */
+cancelled: number, 
+/**
+ * nicht begonnen
+ */
+not_started: number, 
+/**
+ * Speicherort zur Anzeige
+ */
+folder_display: string | null, };
+
+/**
+ * Stapel (§3.8; nur mit `batch_overview`).
+ */
+export type BatchView = { 
+/**
+ * Einträge
+ */
+items: Array<BatchItemView>, 
+/**
+ * gerade im Arbeitsbereich geöffnetes Dokument (`OpenBatchItem`)
+ */
+open_item: DocId | null, 
+/**
+ * Lauf aktiv (Details in `StepView::Signing::progress`)
+ */
+running: boolean, 
+/**
+ * nach dem letzten Lauf
+ */
+summary: BatchSummaryView | null, 
+/**
+ * Ausgabe
+ */
+output: BatchOutputView, 
+/**
+ * für `signers.selected` (`None` = kein Signiermittel gewählt)
+ */
+estimate: BatchEstimateView | null, };
+
+/**
+ * Ladezustand des Prüfmodus (§3.9).
+ */
+export type VerifyStatus = { "state": "loading" } | { "state": "ready" } | { "state": "failed", 
+/**
+ * Code
+ */
+code: string, };
+
+/**
+ * Gesamtergebnis (§3.9; Wortlaut §8 F3 – PIDA behauptet nie Rechtsgültigkeit).
+ */
+export type VerifySummaryView = "no_signatures" | "all_intact" | "some_broken" | "some_not_verifiable" | "modified_after_last_signature";
+
+/**
+ * Integrität einer Signatur (§3.9).
+ */
+export type SignatureIntegrity = { "kind": "intact" } | { "kind": "broken", 
+/**
+ * Code
+ */
+code: string, } | { "kind": "not_verifiable", 
+/**
+ * Code
+ */
+code: string, };
+
+/**
+ * Abdeckung einer Signatur (§3.9).
+ */
+export type SignatureCoverage = { "kind": "whole_document" } | { "kind": "revision", 
+/**
+ * spätere Revisionen
+ */
+later_revisions: number, 
+/**
+ * Signaturen in späteren Revisionen
+ */
+later_signatures: number, };
+
+/**
+ * Qualifikation **laut Zertifikat** (qcStatements; nicht gegen die EU-Vertrauensliste geprüft; §3.9).
+ */
+export type QualificationClaim = { "kind": "qualified", 
+/**
+ * qualifizierte Signaturerstellungseinheit laut Zertifikat
+ */
+qscd: boolean, } | { "kind": "not_qualified" } | { "kind": "unknown" };
+
+/**
+ * Format einer Signatur (`/SubFilter`; §3.9).
+ */
+export type SignatureFormat = "pades" | "pkcs7_detached" | "pkcs7_sha1" | "other";
+
+/**
+ * Lage eines Signaturbilds (`PAGE_ABS`; §3.9).
+ */
+export type AppearanceView = { 
+/**
+ * Seite
+ */
+page: number, 
+/**
+ * Rechteck
+ */
+rect: RectPt, };
+
+/**
+ * Prüfung von Vertrauenskette und Sperrstatus (§3.9): in v1 nie (Hinweis auf signaturpruefung.gv.at).
+ */
+export type TrustCheck = "not_checked";
+
+/**
+ * Eine geprüfte Signatur (§3.9).
+ */
+export type VerifiedSignatureView = { 
+/**
+ * 1-basiert in Dokumentreihenfolge
+ */
+index: number, 
+/**
+ * Feldname
+ */
+field_name: string, 
+/**
+ * CN des Unterzeichners
+ */
+signer: string | null, 
+/**
+ * O des Subjects
+ */
+organization: string | null, 
+/**
+ * CN des Ausstellers
+ */
+issuer: string | null, 
+/**
+ * Seriennummer (dezimal)
+ */
+serial: string | null, 
+/**
+ * Gültigkeit des Zertifikats ab (RFC 3339)
+ */
+cert_valid_from: string | null, 
+/**
+ * Gültigkeit des Zertifikats bis (RFC 3339)
+ */
+cert_valid_to: string | null, 
+/**
+ * Angabe des Signierenden (`signing-time`), kein geprüfter Zeitstempel
+ */
+signing_time: string | null, 
+/**
+ * Zertifikat zum angegebenen Zeitpunkt gültig
+ */
+cert_valid_at_signing: boolean | null, 
+/**
+ * Integrität
+ */
+integrity: SignatureIntegrity, 
+/**
+ * Abdeckung
+ */
+coverage: SignatureCoverage, 
+/**
+ * Qualifikation laut Zertifikat
+ */
+qualification: QualificationClaim, 
+/**
+ * Format
+ */
+format: SignatureFormat, 
+/**
+ * Hashverfahren, z. B. „SHA-256“
+ */
+digest: string | null, 
+/**
+ * Signaturverfahren, z. B. „ECDSA P-256“
+ */
+algorithm: string | null, 
+/**
+ * Signaturbild (`None` = unsichtbar)
+ */
+appearance: AppearanceView | null, 
+/**
+ * Hinweise zu einer intakten Signatur (i18n-IDs): `ng-verify-warning-sha1`,
+ * `ng-verify-warning-signing-certificate-v1`, `ng-verify-warning-weak-key`
+ */
+warnings: Array<string>, 
+/**
+ * Vertrauenskette/Sperrstatus (in v1 immer `not_checked`)
+ */
+trust: TrustCheck, };
+
+/**
+ * Prüfmodus (§3.9) – liegt über dem Workflow-Zustand.
+ */
+export type VerifyView = { 
+/**
+ * Dateiname
+ */
+file_name: string, 
+/**
+ * Ladezustand
+ */
+status: VerifyStatus, 
+/**
+ * für Kacheln über `pida-render://page/<doc.id>/<page>` (eigene `DocId`, nicht in der Warteschlange)
+ */
+doc: DocInfo | null, 
+/**
+ * Signaturen
+ */
+signatures: Array<VerifiedSignatureView>, 
+/**
+ * Gesamtergebnis
+ */
+summary: VerifySummaryView, 
+/**
+ * Revisionen der Datei
+ */
+revisions: number, };
+
+/**
+ * Eintrag „Zuletzt signiert“ (§3.10; gespeichert werden nur Dateiname, Pfad und Zeitpunkt).
+ */
+export type RecentItemView = { 
+/**
+ * Kennung
+ */
+id: number, 
+/**
+ * Dateiname
+ */
+file_name: string, 
+/**
+ * Desktop: Ordner; Mobile: `None`
+ */
+folder_display: string | null, 
+/**
+ * RFC 3339, lokale Zeit mit Offset
+ */
+signed_at: string, 
+/**
+ * Datei noch vorhanden (beim Projizieren geprüft, gecacht)
+ */
+exists: boolean, };
+
+/**
+ * Eintrag der Übernahmeliste (§3.12): i18n-ID `ng-migration-item-{block,emblem,username,output,keystore,
+ * proxy,placeholder,language}` mit Detail (z. B. Dateiname der Bildmarke).
+ */
+export type MigrationItemView = { 
+/**
+ * i18n-ID
+ */
+code: string, 
+/**
+ * Detail
+ */
+detail: string | null, };
+
+/**
+ * Ersteinrichtung (§3.12; nur beim ersten Start).
+ */
+export type FirstRunView = { 
+/**
+ * Migrationsangebot (gleich [`ViewState::migration`]); `None` = Schritt 1 entfällt
+ */
+migration: MigrationOfferView | null, 
+/**
+ * Standard-Signiermittel (`None` = „Jedes Mal fragen“)
+ */
+default_backend: BackendChoice | null, 
+/**
+ * Profil des Signaturblocks
+ */
+profile: SignatureProfile, 
+/**
+ * Sprache des Signaturblocks (`None` = System)
+ */
+block_language: Lang | null, 
+/**
+ * Revision der Blockvorschau
+ */
+preview_revision: number, };
+
+/**
+ * Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (§3.13), berechnet aus dem Zustand
+ * (`actions::actions_for`).
+ */
+export type ActionsView = { 
+/**
+ * Dateidialog/Ablegen sinnvoll (nicht während des Signierens)
+ */
+open_files: boolean, 
+/**
+ * `sign_with` möglich (ohne `signers.selected` öffnet die UI das Signiermittel-Menü)
+ */
+sign: boolean, 
+/**
+ * Sticker und Optionen bedienbar
+ */
+edit_placement: boolean, 
+/**
+ * Stapelübersicht mit mindestens einem signierbaren Dokument
+ */
+start_batch: boolean, 
+/**
+ * weitere Dokumente in der Warteschlange (`show_batch`)
+ */
+show_batch: boolean, 
+/**
+ * `open_verify` erlaubt
+ */
+verify: boolean, 
+/**
+ * Einstellungen erreichbar (= `main_bar.settings_enabled`)
+ */
+settings: boolean, 
+/**
+ * `navigate{Open}` erlaubt (Startansicht)
+ */
+home: boolean, };

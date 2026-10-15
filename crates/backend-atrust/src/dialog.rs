@@ -65,6 +65,9 @@ pub(crate) struct Dialog {
     remember: bool,
     fido2_default_pending: bool,
     announced_login: Option<String>,
+    /// HTTP 407/413/sonstige ohne eigene Meldung als spezifischen Fehler melden (`sign_one`, ADR 0004
+    /// §3.8): sonst käme nach der Meldung `Cancelled`, das der Kern als Ablehnung deutete
+    quiet_fatal: bool,
 }
 
 impl std::fmt::Debug for Dialog {
@@ -187,7 +190,22 @@ impl Dialog {
     ) -> Self {
         let remember = config.remember;
         let fido2_default_pending = config.fido2_default && fido2_available;
-        Self { config, remembered, ui, ctx, fido2_available, remember, fido2_default_pending, announced_login: None }
+        Self {
+            config,
+            remembered,
+            ui,
+            ctx,
+            fido2_available,
+            remember,
+            fido2_default_pending,
+            announced_login: None,
+            quiet_fatal: false,
+        }
+    }
+
+    /// HTTP-Fehler ohne eigene Meldung melden (siehe [`Dialog::fatal`]).
+    pub(crate) fn set_quiet_fatal(&mut self, quiet: bool) {
+        self.quiet_fatal = quiet;
     }
 
     /// Löscht das Passwort der Sitzung und des „Merken“-Speichers (Benutzername bleibt).
@@ -394,7 +412,7 @@ impl Dialog {
 
     /// Fehlermeldung mit OK; danach wie PDF-Over Abbruch (siehe Crate-Doku).
     async fn fatal(&self, code: NoticeCode, text: Option<String>, error: BackendError) -> BackendError {
-        if self.ctx.headless {
+        if self.ctx.headless || self.quiet_fatal {
             return error;
         }
         let notice = Notice { kind: NoticeKind::Error, code, text, buttons: NoticeButtons::Ok };

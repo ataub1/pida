@@ -15,7 +15,9 @@
 //!
 //! QR-Platzhalter: [`find_qr_placeholders`] (Bilder aus dem Renderer, Namen/CTM aus `pdf-cos`)
 //! und [`select_placeholder`]; leere Signaturfelder: [`find_empty_sig_fields`]. Startzustand der
-//! UI-Positionierung: [`default_start_placement`] (letzte Seite, 50 %/25 %).
+//! UI-Positionierung: [`default_start_placement`] (letzte Seite, 50 %/25 %). Seitenlayout der Oberfläche
+//! „Arbeitsbereich“ (ADR 0004 §3.3): [`OccupancyGrid`] aus dem Forced-Color-Raster und [`page_layout`]
+//! (Inhaltsrahmen, freie Flächen, Einrastlinien) – rein und ohne Renderer testbar.
 //!
 //! # Kompatibilitätsregister (Paket F, Plan §6.5)
 //!
@@ -37,10 +39,15 @@
 //! Ownership: Paket **F** (zusammen mit `pida-render`).
 
 pub mod coords;
+pub mod layout;
 pub mod placeholder;
 pub mod position;
 
 pub use coords::{CoordSpace, KeyStep, PageTransform, Point, ScreenGeometry};
+pub use layout::{
+    BELOW_CONTENT_PT, EMPTY_PAGE_MARGIN_PT, FREE_GAP_PT, GRID_CELL_PT, Guide, GuideAxis, GuideKind, LayoutOptions,
+    MAX_FREE_RECTS, OccupancyGrid, PageLayout, page_layout,
+};
 pub use placeholder::{
     EmptyFieldCandidate, MATRIX_TOLERANCE, MIN_QR_IMAGE_PX, PlaceholderMode, PlaceholderQuery,
     QR_PLACEHOLDER_IDENTIFIER, QR_UPSCALE_MAX_PIXELS, QrPayload, QrPlaceholder, decode_qr, find_empty_sig_fields,
@@ -50,8 +57,8 @@ pub use position::{
     BlockGeometry, Coord, FreeSpaceScanner, PageSelector, Placement, PlacementNotice, PositionContext, RasterScanner,
     ResolvedPosition, SCAN_TOLERANCE, SignaturePosition, TablePos, WidthDecision, appearance_rotation, auto_place,
     default_start_placement, default_start_position, detect_background, lowest_content_row,
-    lowest_content_row_with_tolerance, new_page_geometry, resolve_position, resolve_width, visible_block_rect,
-    widget_overlaps, widget_rect, widget_rect_with,
+    lowest_content_row_with_tolerance, matrix_unit_rect, new_page_geometry, resolve_position, resolve_width,
+    user_rect_to_visible, visible_block_rect, widget_overlaps, widget_rect, widget_rect_with,
 };
 
 /// Tastatur-Schrittweiten (Plan §6.7): Pfeile 15 pt (Original), Shift 1 pt, Strg/⌘ 50 pt.

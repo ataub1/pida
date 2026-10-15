@@ -31,18 +31,21 @@ import {
   type Key,
 } from 'react-aria-components';
 import { useApp, type SettingsTab } from '../app/context';
-import { IconClose } from '../components/icons';
-import { PrivacyInfo } from '../components/Privacy';
-import { AccessButton, ConfirmDialog, Markup, Mnemonic } from '../components/ui';
+import { EMBLEM_DROP_EVENT } from '../app/events';
+import { applyTheme, readTheme, writeTheme, type Theme } from '../app/theme';
 import { baseName, withSection, type SettingsSection } from '../core/defaults';
 import { isMobile, type BackendChoice, type Lang, type NoteSetting, type Settings, type SettingsView, type SignatureProfile } from '../core/types';
+import { KeystoreImportDialog } from '../features/settings/KeystoreImport';
+import { PrivacyInfo } from '../features/settings/privacy';
 import { translator } from '../i18n/catalog';
+import { AccessButton, Mnemonic } from '../ui/controls';
+import { ConfirmDialog } from '../ui/Dialog';
+import { IconClose } from '../ui/Icons';
+import { Markup } from '../ui/Markup';
 import { CheckField, RadioField, SelectField, TextInputField, useProblem } from './fields';
-import { KeystoreImportDialog } from './KeystoreImport';
-import { applyTheme, readTheme, writeTheme, type Theme } from './theme';
 
-/** Ereignis, mit dem `App` eine auf die Blockvorschau gezogene Bilddatei meldet. */
-export const EMBLEM_DROP_EVENT = 'pida:emblem-drop';
+/** Ereignis, mit dem `App` eine auf die Blockvorschau gezogene Bilddatei meldet (verlegt nach `app/events.ts`). */
+export { EMBLEM_DROP_EVENT };
 
 type Update = <K extends SettingsSection>(section: K, patch: Partial<Settings[K]>) => void;
 

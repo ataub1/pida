@@ -9,9 +9,11 @@ Oberfläche und Shell von PIDA: **React 19 + TypeScript (strict) + React Aria Co
 |---|---|
 | Bridge-Typen: **erzeugt** aus `crates/core-api/src/view.rs` (ts-rs; einzige Quelle des Vertrags) | `src/core/generated.ts` (über `src/core/types.ts`) |
 | Bridge zu Tauri (`core_view`, `core_dispatch`, Ereignis `pida:view`, `pida-render://`) | `src/core/bridge.ts` |
-| TS-Mock-Kern (Ablauf wie PDF-Over, für `VITE_MOCK=1`, Browser und Tests) | `src/core/mock.ts` |
+| TS-Mock-Kern (Arbeitsbereich wie der echte Kern, Bereiche je Etappe, `?scenario=` wie im Prototyp; für `VITE_MOCK=1`, Browser und Tests) | `src/core/mock/` |
 | Fluent-Kataloge (zur Build-Zeit aus `crates/i18n/locales/{de,en}/*.ftl`, auch die UI-Texte `ng-ui-*`) | `src/i18n/` |
-| Schritte, Masken, Einstellungen | `src/screens/`, `src/settings/` |
+| Oberfläche „Arbeitsbereich“ (ADR 0004): Shell und Kopfzeile, Start, Arbeitsbereich, Signierkarte, Fertig; Bausteine und Design-Tokens aus dem Prototyp | `src/app/`, `src/features/`, `src/ui/`, `src/styles/` |
+| Einstellungen (bisheriger Dialog bis E3) | `src/settings/` hinter `src/features/settings/` |
+| Echte Kernzustände als UI-Probe (`RealCore.test.tsx`, erzeugt von `crates/core-api/tests/workspace.rs`) | `src/core/fixtures/real-core-views.json` |
 | Shell (PDF-Over-Startargumente, Single-Instance, „Öffnen mit“, Drag & Drop, Fensterzustand, Dialoge, Shell-Funktionen des Kerns, Custom Protocol, Startprüfung) | `src-tauri/` |
 
 ## Befehle

@@ -9,7 +9,14 @@ import type { Settings, UiEvent } from '../types';
 
 const settings: Settings = {
   ...defaultSettings(),
-  general: { ui_language: 'en', update_check: false, window_size: { width: 860, height: 900 }, last_source_directory: '/Users/demo' },
+  general: {
+    ui_language: 'en',
+    update_check: false,
+    window_size: { width: 860, height: 900 },
+    last_source_directory: '/Users/demo',
+    recent_documents: false,
+    first_run_completed: true,
+  },
   signature: {
     profile: 'BASE_LOGO',
     block_language: 'de',
@@ -66,6 +73,34 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'discard_resume' },
   { type: 'import_keystore', path: '/var/mobile/Containers/Data/Application/X/Library/Caches/import/test.p12', password: 'geheim-123', remember: true },
   { type: 'dismiss_keystore_import' },
+  // ADR 0004 (neue Oberfläche „Arbeitsbereich“, Vertrag E0)
+  { type: 'set_invisible', invisible: true },
+  { type: 'use_target', target: { kind: 'field', index: 1 } },
+  { type: 'inspect_pages', pages: [0, 1, 2] },
+  { type: 'select_signer', backend: 'atrust_native', make_default: true },
+  { type: 'sign_with', backend: 'atrust_native' },
+  { type: 'show_batch' },
+  { type: 'open_batch_item', doc: 8 },
+  { type: 'back_to_batch' },
+  { type: 'remove_from_batch', doc: 9 },
+  { type: 'start_batch', backend: 'atrust_native', docs: [7, 8, 10], output_dir: '/Users/demo/Signiert', on_existing: 'keep_both' },
+  { type: 'skip_batch_document' },
+  { type: 'abort_batch' },
+  { type: 'open_verify', path: '/Users/demo/Vertrag_signed.pdf' },
+  { type: 'verify_recent', id: 2 },
+  { type: 'close_verify' },
+  { type: 'sign_verified' },
+  { type: 'remove_recent', id: 1 },
+  { type: 'clear_recent' },
+  {
+    type: 'apply_settings',
+    changes: { 'signature.profile': 'AMTSSIGNATURBLOCK', 'proxy.port': 3128, 'output.folder': null, 'signature.note': { mode: 'none' } },
+    revision: 7,
+  },
+  { type: 'set_ui_language', language: 'en' },
+  { type: 'update_first_run', default_backend: 'id_austria', profile: 'SIGNATURBLOCK_SMALL', block_language: 'de' },
+  { type: 'finish_first_run' },
+  { type: 'offer_migration' },
 ];
 
 /** Weitere Antworten (alle `FormAnswerView`-Varianten, `save` ohne Pfad, Platzhalter ohne Feld). */
@@ -83,4 +118,15 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'answer_warning', proceed: false },
   { type: 'accept_migration', store_secrets: false },
   { type: 'import_keystore', path: '/data/user/0/at.pida/cache/import/k.p12', password: null, remember: false },
+  // ADR 0004: übrige Varianten der neuen Datentypen
+  { type: 'use_target', target: { kind: 'free' } },
+  { type: 'use_target', target: { kind: 'qr' } },
+  { type: 'inspect_pages', pages: [] },
+  { type: 'select_signer', backend: null, make_default: true },
+  { type: 'sign_with', backend: 'keystore' },
+  { type: 'start_batch', backend: 'keystore', docs: [7], output_dir: null, on_existing: 'overwrite' },
+  { type: 'start_batch', backend: 'local_bku', docs: [], output_dir: null, on_existing: 'skip' },
+  { type: 'apply_settings', changes: {}, revision: 0 },
+  { type: 'set_ui_language', language: null },
+  { type: 'update_first_run', default_backend: null, profile: 'AMTSSIGNATURBLOCK', block_language: null },
 ];

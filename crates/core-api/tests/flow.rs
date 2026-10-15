@@ -370,7 +370,7 @@ async fn cms_too_large_retry_with_bigger_reserve() {
         core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
         if round == 0 {
             let v = wait_for(&core, "Fehler", |v| matches!(v.step, StepView::Error { .. })).await;
-            let StepView::Error { code, params, retry } = v.step else { unreachable!() };
+            let StepView::Error { code, params, retry, .. } = v.step else { unreachable!() };
             assert_eq!(code, "ng-cms-too-large");
             assert!(retry);
             assert_eq!(params["reserve"], "64");
@@ -396,7 +396,7 @@ async fn self_check_failure_writes_nothing() {
     let core = fx.start(keystore_overlay(vec![a]), false, options(&engine));
     // GUI-Modus ohne Positionierung? auto ist aus → Positionierung ohne PDFium nicht möglich → automatisch
     let v = wait_for(&core, "Fehler", |v| matches!(v.step, StepView::Error { .. })).await;
-    let StepView::Error { code, params, retry } = v.step else { unreachable!() };
+    let StepView::Error { code, params, retry, .. } = v.step else { unreachable!() };
     assert_eq!(code, "ng-invariant-violated");
     assert_eq!(params["invariant"], "I1Prefix");
     assert!(!retry);
@@ -508,7 +508,7 @@ async fn unreadable_settings_offer_reset() {
     let engine = FakeEngine::new();
     let core = fx.start(Overlay::default(), false, options(&engine));
     let v = wait_for(&core, "Fehler", |v| matches!(v.step, StepView::Error { .. })).await;
-    let StepView::Error { code, retry, params } = v.step else { unreachable!() };
+    let StepView::Error { code, retry, params, .. } = v.step else { unreachable!() };
     assert_eq!(code, "error-Initialization");
     assert!(retry);
     assert!(params["detail"].contains("99"), "{params:?}");
@@ -981,4 +981,94 @@ async fn certificate_cache_without_opt_in_stores_nothing() {
     wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
         .await;
     assert!(!fx.paths.certificate_cache_dir().exists(), "ohne Opt-in kein Cache-Ordner");
+}
+
+/// ADR 0004: Im **klassischen** Ablauf (ohne `workspace_ui`) bleiben die Ereignisse der neuen Oberfläche
+/// ohne Wirkung, ebenso die Ereignisse späterer Etappen (Stapel K2, Zuletzt signiert/sofort wirksam K3,
+/// Prüfmodus/Ersteinrichtung K4) – der Kern bleibt im Zustand, öffnet **keine** Sitzung (A1, auch nicht mit
+/// `sign_with`) und liefert die neuen Felder mit Standardwerten; die Freigaben (`actions`) folgen dem
+/// Zustand. Nur `set_ui_language` (Kopfzeile, K1) wirkt in beiden Modi.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn classic_mode_ignores_workspace_and_later_stage_events() {
+    use pida_core_api::{PlacementTarget, SignersView};
+    let fx = Fixture::new();
+    let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let core = fx.start(Overlay::default(), false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    let v = wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    assert!(v.actions.open_files && v.actions.home && v.actions.settings);
+    assert!(!v.actions.sign && !v.actions.edit_placement && !v.actions.verify && !v.actions.start_batch);
+    assert_eq!((v.document.as_ref(), v.batch.as_ref(), v.verify.as_ref()), (None, None, None));
+    assert_eq!((v.recent.as_ref(), v.first_run.as_ref()), (None, None));
+    assert_eq!(v.signers, SignersView::default());
+    let language = v.language;
+
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    // ohne PDFium (isolierter Kern) automatische Position → Signiermittel-Auswahl (klassischer Ablauf)
+    let v = wait_for(&core, "Positionieren/Auswahl", |v| {
+        matches!(&v.step, StepView::Position { .. })
+            || matches!(&v.step, StepView::Backend { options } if !options.is_empty())
+    })
+    .await;
+    let positioning = matches!(v.step, StepView::Position { .. });
+    assert_eq!(v.actions.sign, positioning);
+    assert!(v.actions.open_files && !v.actions.verify);
+    let events = vec![
+        UiEvent::SetInvisible { invisible: true },
+        UiEvent::UseTarget { target: PlacementTarget::Qr },
+        UiEvent::InspectPages { pages: vec![0] },
+        UiEvent::SelectSigner { backend: Some(BackendId::AtrustNative), make_default: true },
+        UiEvent::SignWith { backend: BackendId::AtrustNative },
+        UiEvent::ShowBatch,
+        UiEvent::OpenBatchItem { doc: pida_workflow::DocId(1) },
+        UiEvent::BackToBatch,
+        UiEvent::RemoveFromBatch { doc: pida_workflow::DocId(1) },
+        UiEvent::StartBatch {
+            backend: BackendId::AtrustNative,
+            docs: vec![pida_workflow::DocId(1)],
+            output_dir: None,
+            on_existing: pida_workflow::ExistingPolicy::KeepBoth,
+        },
+        UiEvent::SkipBatchDocument,
+        UiEvent::AbortBatch,
+        UiEvent::OpenVerify { path: a },
+        UiEvent::VerifyRecent { id: 1 },
+        UiEvent::CloseVerify,
+        UiEvent::SignVerified,
+        UiEvent::RemoveRecent { id: 1 },
+        UiEvent::ClearRecent,
+        UiEvent::ApplySettings {
+            changes: [("signature.profile".to_owned(), serde_json::json!("AMTSSIGNATURBLOCK"))].into(),
+            revision: 1,
+        },
+        UiEvent::UpdateFirstRun {
+            default_backend: Some(pida_config::BackendChoice::IdAustria),
+            profile: pida_config::SignatureProfile::Amtssignaturblock,
+            block_language: None,
+        },
+        UiEvent::FinishFirstRun,
+        UiEvent::OfferMigration,
+    ];
+    for e in events {
+        core.dispatch(e);
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let after = core.view();
+    assert_eq!(std::mem::discriminant(&after.step), std::mem::discriminant(&v.step), "{:?}", after.step);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung ohne umgesetztes Ereignis (A1)");
+    assert_eq!(after.language, language);
+    assert!(after.settings.is_none() && after.document.is_none() && after.batch.is_none());
+    assert!(after.verify.is_none() && after.recent.is_none() && after.first_run.is_none());
+    let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap_or_default();
+    assert!(!saved.contains("AMTSSIGNATURBLOCK"), "apply_settings/update_first_run speichern noch nichts");
+    // Oberflächensprache aus der Kopfzeile: sofort wirksam und gespeichert
+    let other = if language == pida_i18n::Lang::En { pida_i18n::Lang::De } else { pida_i18n::Lang::En };
+    core.dispatch(UiEvent::SetUiLanguage { language: Some(other) });
+    wait_for(&core, "Sprache", |v| v.language == other).await;
+    let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap_or_default();
+    assert!(saved.contains("ui_language"), "{saved}");
+    core.dispatch(UiEvent::Quit);
+    assert_eq!(core.wait_finished().await, ExitCode::Cancelled);
 }

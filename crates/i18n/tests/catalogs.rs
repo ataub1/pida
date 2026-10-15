@@ -3,6 +3,7 @@
 //!
 //! Neu erzeugen der `locales/<lang>/pdfover.ftl`: `PIDA_I18N_BLESS=1 cargo test -p pida-i18n --test catalogs`.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -73,7 +74,7 @@ fn de_and_en_are_complete_with_same_variables() {
     let de = convert::prepare_pdfover_messages(&source(Lang::De), Lang::De).unwrap().props;
     let en = convert::prepare_pdfover_messages(&source(Lang::En), Lang::En).unwrap().props;
     assert_eq!(convert::compare_catalogs(&en, &de), Vec::<String>::new());
-    for file in ["pdfover.ftl", "pida.ftl"] {
+    for file in ["pdfover.ftl", "pida.ftl", "ui-workspace.ftl", "ui-tools.ftl"] {
         let problems = convert::compare_ftl(&read(&locale_file(Lang::En, file)), &read(&locale_file(Lang::De, file)))
             .expect("gültiges FTL");
         assert_eq!(problems, Vec::<String>::new(), "{file}");
@@ -83,6 +84,56 @@ fn de_and_en_are_complete_with_same_variables() {
     let en_ids: Vec<&str> = catalog.message_ids(Lang::En).collect();
     assert_eq!(de_ids, en_ids);
     assert!(de_ids.iter().filter(|id| id.starts_with("ng-")).count() >= 30);
+}
+
+/// Nachrichten-IDs eines FTL-Texts (ohne Terme).
+fn message_ids(ftl: &str) -> BTreeSet<String> {
+    let resource = fluent_syntax::parser::parse(ftl).unwrap_or_else(|(_, e)| panic!("ungültiges FTL: {e:?}"));
+    resource
+        .body
+        .iter()
+        .filter_map(|e| match e {
+            fluent_syntax::ast::Entry::Message(m) => Some(m.id.name.to_owned()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// ADR 0004 §3.16/§4.5: Die UI-Kataloge der neuen Oberfläche – `ui-workspace.ftl` (Paket UI-A) und
+/// `ui-tools.ftl` (UI-B) – bilden mit `pdfover.ftl` und `pida.ftl` **ein** Fluent-Bündel je Sprache
+/// (`apps/app/src/i18n/catalog.ts`): Keine Datei teilt eine ID mit einer anderen (doppelte IDs wären ein
+/// Ladefehler), jede `ui-*.ftl`-ID heißt `ng-ui-<bereich>-…` mit einem Bereich des Pakets, der in
+/// `pida.ftl` nicht belegt ist; DE und EN mit denselben Variablen prüft
+/// `de_and_en_are_complete_with_same_variables`.
+#[test]
+fn ui_catalogs_are_disjoint_and_use_their_own_areas() {
+    const FILES: [&str; 4] = ["pdfover.ftl", "pida.ftl", "ui-workspace.ftl", "ui-tools.ftl"];
+    const AREAS: [(&str, &[&str]); 2] = [
+        ("ui-workspace.ftl", &["shell", "start", "ws", "insp", "sc", "fin", "batch"]),
+        ("ui-tools.ftl", &["set", "vf", "pal", "sh", "ob", "recent"]),
+    ];
+    let area = |id: &str| id.strip_prefix("ng-ui-").and_then(|r| r.split('-').next()).map(str::to_owned);
+    for lang in Lang::ALL {
+        let ids: Vec<(&str, BTreeSet<String>)> =
+            FILES.iter().map(|f| (*f, message_ids(&read(&locale_file(lang, f))))).collect();
+        for (i, (a, ia)) in ids.iter().enumerate() {
+            for (b, ib) in &ids[i + 1..] {
+                let shared: Vec<&String> = ia.intersection(ib).collect();
+                assert!(shared.is_empty(), "{lang:?}: {a} und {b} teilen IDs: {shared:?}");
+            }
+        }
+        let pida_areas: BTreeSet<String> = ids[1].1.iter().filter_map(|id| area(id)).collect();
+        for (file, areas) in AREAS {
+            for a in areas {
+                assert!(!pida_areas.contains(*a), "Bereich {a} ({file}) ist in pida.ftl schon belegt");
+            }
+            let (_, file_ids) = ids.iter().find(|(f, _)| *f == file).expect("Datei");
+            for id in file_ids {
+                let ok = area(id).is_some_and(|a| areas.contains(&a.as_str()));
+                assert!(ok, "{lang:?} {file}: {id} liegt nicht in den Bereichen {areas:?}");
+            }
+        }
+    }
 }
 
 /// Unabhängige Referenz: Java-Wert → erwarteter Text (Mnemonics entfernt, `%s`/`%d` → `<n>`).

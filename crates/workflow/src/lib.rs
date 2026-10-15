@@ -54,6 +54,27 @@
 //! | Erfolg, Abbruch, Fehler | [`Effect::DeletePersisted`] (der persistierte Zustand gilt nur für genau diesen Vorgang) |
 //! | Ergebnis teilen / exportieren | [`Event::ShareResultRequested`] / [`Event::ExportResultRequested`] → [`Effect::ShareResult`] / [`Effect::ExportResult`] |
 //!
+//! # Arbeitsbereich-Modus (ADR 0004 §3.2–§3.7, [`Context::workspace`])
+//!
+//! | Ereignis / Weg | hier |
+//! |---|---|
+//! | Analyse fertig (auch unsichtbares Profil, `auto_position`, Platzhalter, ohne Vorschau) | **keine** Platzhalterfrage, **keine** automatische Backend-Wahl: `Positioning { edit }` mit [`WorkspaceEdit`]; QR-Platzhalter (nur Platzhaltersuche, `kind = marker`) → Ziel QR, sonst frei mit [`Effect::AutoPlace`]; leere Felder nur angeboten; ohne Vorschau `placement = None` mit Hinweis |
+//! | Startargument-Automatik ([`Context::cli_auto`]: `-b` und `-a`/`-v`) | klassischer automatischer Weg (D-06, F-88); [`Effect::OpenSession`] bei `BackendsProbed` nur für ein Signiermittel ohne `document_leaves_device`, sonst Arbeitsbereich |
+//! | [`Event::InvisibleSet`], [`Event::TargetChosen`], [`Event::AutoPlaced`], [`Event::BlockResized`] | Bearbeitungszustand; Ziehen/Tastatur setzen `target = Free`, `origin = User`; verspätete automatische Lagen werden verworfen |
+//! | [`Event::SignRequested`] („Signieren mit X“) | Position aus dem Bearbeitungszustand (unsichtbar, QR, Feld, frei = `Manual`, ohne Vorschau `Auto`), direkt `Signing` (kein Auswahlschritt); nicht verfügbar bzw. DocMDP-unzulässig → bleibt mit Hinweis |
+//! | Signieren | [`Effect::SignDocument`] (`sign_one`); Sitzung bleibt bis nach der Selbstprüfung offen |
+//! | Abbruch (`Cancel`, eigenes `Cancelled`) | zurück in den Arbeitsbereich mit unverändertem Bearbeitungszustand, [`MSG_SIGNING_CANCELLED`] |
+//! | [`Event::SigningDeclined`] (SL 6000/6001 ohne eigenen Abbruch) | Fehler [`MSG_SIGNING_DECLINED`] mit „Erneut versuchen“, Sitzung bleibt offen |
+//! | wiederholbare Fehler (Verbindung, Dokument, „CMS zu groß“, Vorbereiten) | [`Effect::ReleaseDocument`] statt `CloseSession`; „Erneut versuchen“ öffnet dieselbe Sitzung wieder (core-api) |
+//! | „Schließen“ im Fehler, „Öffnen“, Dateien, Beenden | Arbeitsbereich bzw. Start; offen gehaltene Sitzung wird verworfen (F-72) |
+//! | gespeichert mit wartenden Dokumenten | kein F-88: „Fertig“ mit „Nächstes Dokument“ (außer `cli_auto`) |
+//! | Hauptleiste Positionieren/Signieren | ohne Wirkung |
+//!
+//! Invariante **A1** (Property-Test `workspace_session_only_after_explicit_action`): `Effect::OpenSession`
+//! entsteht nur in den Paaren (`SignRequested`, `Positioning`/`ChoosingBackend`), (`BackendChosen`,
+//! `ChoosingBackend`), (`BackendsProbed`, `Resuming`), (`Retry`, Fehler des Signierens) und – mit `cli_auto` –
+//! (`BackendsProbed`, `ChoosingBackend`) für ein Signiermittel ohne `document_leaves_device`.
+//!
 //! Ohne grafische Oberfläche ([`Context::headless`], CLI) gelten feste Regeln: automatische
 //! Positionierung, QR-Platzhalter bzw. genau ein leeres Feld werden verwendet, kein Speichern-Dialog
 //! (neben der Quelle), Fehler werden je Dokument verbucht ([`queue::DocResult`]) und es geht mit dem
@@ -76,9 +97,11 @@ pub use output::{
 pub use queue::{DocId, DocOutcome, DocResult, InputDocument, Queue};
 pub use reducer::{grown_reserve, reduce};
 pub use state::{
-    BackendOption, Context, DocFacts, Effect, Event, MSG_BACKEND_CHOICE_REQUIRED, MSG_CMS_TOO_LARGE,
-    MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_DOCUMENT_LEAVES_DEVICE, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND,
-    MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_UNEXPECTED, MainBarStep,
-    PlaceholderAnswer, PlaceholderFound, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step,
-    Transition, WorkflowError, backend_for_choice,
+    BackendOption, BatchOutput, Context, DocFacts, Effect, Event, ExistingPolicy, MSG_BACKEND_CHOICE_REQUIRED,
+    MSG_CMS_TOO_LARGE, MSG_CONSTRAINT_CERTIFIED, MSG_CONSTRAINT_INVISIBLE_PROFILE, MSG_CONSTRAINT_SIGNED,
+    MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_DOCUMENT_LEAVES_DEVICE, MSG_FIELD_LOCKED, MSG_INITIALIZATION, MSG_INVARIANT,
+    MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED,
+    MSG_SIGNER_UNAVAILABLE, MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, MSG_UNEXPECTED, MainBarStep, ParkedPlacement,
+    PlaceholderAnswer, PlaceholderFound, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget, SignFlow,
+    SigningPhase, State, Step, Target, Transition, WorkflowError, WorkspaceEdit, backend_for_choice,
 };

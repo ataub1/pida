@@ -1,0 +1,253 @@
+/*
+ * PIDA Design-Tokens. Farben als semantische Rollen; Hell/Dunkel über `prefers-color-scheme`
+ * (sofern nicht per `data-theme` überschrieben) und `:root[data-theme="dark"]`.
+ * Kontraste der Textpaare werden in `src/test/tokens.test.ts` gegen WCAG 2.2 AA geprüft.
+ * Akzent Rot-Weiß-Rot bewusst sparsam: Wortmarke, Kopfzeilenlinie, Stepper, Einrastlinien.
+ * Fokus bewusst in Blau: ein roter Fokusrahmen sähe auf Eingabefeldern wie ein Fehler aus.
+ */
+:root {
+  color-scheme: light;
+
+  /* Flächen */
+  --c-bg: #f4f5f7;
+  --c-surface: #ffffff;
+  --c-surface-2: #f7f8fa;
+  --c-sunken: #e9ebef;
+  --c-hover: #eef0f3;
+  --c-active: #e3e6eb;
+  --c-border: #e0e3e8;
+  --c-border-strong: #c4cad3;
+  /* Ränder von Eingabefeldern, Kästchen, Schaltern: ≥ 3:1 (WCAG 1.4.11) */
+  --c-control-border: #868e9a;
+
+  /* Text */
+  --c-text: #14171c;
+  --c-text-2: #444b57;
+  --c-text-3: #5f6673;
+
+  /* Marke und Interaktion */
+  --c-accent: #b0102a;
+  --c-accent-hover: #920c22;
+  --c-accent-soft: #fbeaed;
+  --c-accent-on-soft: #8f0d22;
+  --c-primary: #16191f;
+  --c-primary-hover: #2b313b;
+  --c-on-primary: #ffffff;
+  /* Fokus: blau statt rot – sonst nicht von Fehlerzuständen (--c-danger) zu unterscheiden */
+  --c-focus: #1c5fd4;
+  --c-link: #8f0d22;
+
+  /* Status */
+  --c-success: #0b7a43;
+  --c-success-soft: #e7f5ed;
+  --c-success-on-soft: #0a6a3a;
+  --c-success-border: #9fd6b7;
+  --c-warning: #9a5800;
+  --c-warning-soft: #fdf3e1;
+  --c-warning-on-soft: #7a4600;
+  --c-warning-border: #e8b25a;
+  --c-danger: #b42318;
+  --c-danger-soft: #fdecea;
+  --c-danger-on-soft: #951d13;
+  --c-danger-border: #f1aaa3;
+  --c-info: #1d5fb8;
+  --c-info-soft: #e9f1fc;
+  --c-info-on-soft: #1a4f99;
+  --c-info-border: #a9c6ee;
+
+  /* Dokument (Papier bleibt hell) */
+  --c-page: #ffffff;
+  --c-page-text: #1a1d22;
+  --c-page-muted: #5b616c;
+  --c-page-rule: #d5d9df;
+  --page-filter: none;
+
+  /* Platzierung */
+  --c-snap: #e0123a;
+  --c-free-fill: rgb(11 122 67 / 0.07);
+  --c-free-line: rgb(11 122 67 / 0.38);
+  --c-overlay: rgb(14 17 22 / 0.42);
+
+  /* Logo */
+  --c-logo-bg: #16191f;
+  --c-logo-fold: #d6dae0;
+
+  /* Schatten (sparsam) */
+  --shadow-1: 0 1px 2px rgb(16 20 26 / 0.06), 0 0 0 1px rgb(16 20 26 / 0.02);
+  --shadow-2: 0 4px 12px rgb(16 20 26 / 0.08), 0 1px 3px rgb(16 20 26 / 0.06);
+  --shadow-3: 0 24px 56px rgb(16 20 26 / 0.18), 0 6px 16px rgb(16 20 26 / 0.08);
+  --shadow-page: 0 1px 2px rgb(16 20 26 / 0.1), 0 8px 24px rgb(16 20 26 / 0.07);
+
+  /* Typografie */
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Segoe UI Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-doc: 'Helvetica Neue', Helvetica, Arial, 'Liberation Sans', sans-serif;
+  --fs-12: 0.75rem;
+  --fs-13: 0.8125rem;
+  --fs-14: 0.875rem;
+  --fs-15: 0.9375rem;
+  --fs-16: 1rem;
+  --fs-18: 1.125rem;
+  --fs-20: 1.25rem;
+  --fs-24: 1.5rem;
+  --fs-30: 1.875rem;
+  --fs-36: 2.25rem;
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-base: 1.5;
+  --fw-regular: 400;
+  --fw-medium: 520;
+  --fw-semibold: 620;
+  --fw-bold: 700;
+
+  /* Abstände (4/8-pt-Raster) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* Radien */
+  --r-1: 4px;
+  --r-2: 6px;
+  --r-3: 8px;
+  --r-4: 12px;
+  --r-5: 16px;
+  --r-6: 20px;
+  --r-pill: 999px;
+
+  /* Bewegung */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --dur-4: 520ms;
+
+  /* Layout */
+  --header-h: 56px;
+  --thumbs-w: 148px;
+  --insp-w: 328px;
+  --gutter: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --c-bg: #0f1114;
+    --c-surface: #171a1f;
+    --c-surface-2: #1c2026;
+    --c-sunken: #0b0d10;
+    --c-hover: #242931;
+    --c-active: #2d333c;
+    --c-border: #2a2f37;
+    --c-border-strong: #424954;
+    --c-control-border: #6f7784;
+    --c-text: #eceef1;
+    --c-text-2: #b8bec8;
+    --c-text-3: #9aa1ae;
+    --c-accent: #ff6b81;
+    --c-accent-hover: #ff8a9b;
+    --c-accent-soft: #3a1820;
+    --c-accent-on-soft: #ffb8c2;
+    --c-primary: #eceef1;
+    --c-primary-hover: #ffffff;
+    --c-on-primary: #111317;
+    --c-focus: #7fb2ff;
+    --c-link: #ff9aaa;
+    --c-success: #4cc38a;
+    --c-success-soft: #12301f;
+    --c-success-on-soft: #9be5bf;
+    --c-success-border: #23603f;
+    --c-warning: #f0b45a;
+    --c-warning-soft: #33250e;
+    --c-warning-on-soft: #f6cd8b;
+    --c-warning-border: #7d5a1c;
+    --c-danger: #ff7b6e;
+    --c-danger-soft: #3a1714;
+    --c-danger-on-soft: #ffb4ab;
+    --c-danger-border: #7a2a22;
+    --c-info: #7fb0ff;
+    --c-info-soft: #142640;
+    --c-info-on-soft: #b8d2ff;
+    --c-info-border: #2b4a78;
+    --page-filter: brightness(0.94);
+    --c-snap: #ff4d6a;
+    --c-free-fill: rgb(76 195 138 / 0.1);
+    --c-free-line: rgb(76 195 138 / 0.5);
+    --c-overlay: rgb(0 0 0 / 0.6);
+    --c-logo-bg: #2b313b;
+    --c-logo-fold: #b9bfc8;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 4px 14px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.4);
+    --shadow-3: 0 24px 56px rgb(0 0 0 / 0.6), 0 6px 16px rgb(0 0 0 / 0.4);
+    --shadow-page: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 28px rgb(0 0 0 / 0.45);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-bg: #0f1114;
+  --c-surface: #171a1f;
+  --c-surface-2: #1c2026;
+  --c-sunken: #0b0d10;
+  --c-hover: #242931;
+  --c-active: #2d333c;
+  --c-border: #2a2f37;
+  --c-border-strong: #424954;
+  --c-control-border: #6f7784;
+  --c-text: #eceef1;
+  --c-text-2: #b8bec8;
+  --c-text-3: #9aa1ae;
+  --c-accent: #ff6b81;
+  --c-accent-hover: #ff8a9b;
+  --c-accent-soft: #3a1820;
+  --c-accent-on-soft: #ffb8c2;
+  --c-primary: #eceef1;
+  --c-primary-hover: #ffffff;
+  --c-on-primary: #111317;
+  --c-focus: #7fb2ff;
+  --c-link: #ff9aaa;
+  --c-success: #4cc38a;
+  --c-success-soft: #12301f;
+  --c-success-on-soft: #9be5bf;
+  --c-success-border: #23603f;
+  --c-warning: #f0b45a;
+  --c-warning-soft: #33250e;
+  --c-warning-on-soft: #f6cd8b;
+  --c-warning-border: #7d5a1c;
+  --c-danger: #ff7b6e;
+  --c-danger-soft: #3a1714;
+  --c-danger-on-soft: #ffb4ab;
+  --c-danger-border: #7a2a22;
+  --c-info: #7fb0ff;
+  --c-info-soft: #142640;
+  --c-info-on-soft: #b8d2ff;
+  --c-info-border: #2b4a78;
+  --page-filter: brightness(0.94);
+  --c-snap: #ff4d6a;
+  --c-free-fill: rgb(76 195 138 / 0.1);
+  --c-free-line: rgb(76 195 138 / 0.5);
+  --c-overlay: rgb(0 0 0 / 0.6);
+  --c-logo-bg: #2b313b;
+  --c-logo-fold: #b9bfc8;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 4px 14px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.4);
+  --shadow-3: 0 24px 56px rgb(0 0 0 / 0.6), 0 6px 16px rgb(0 0 0 / 0.4);
+  --shadow-page: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 28px rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0.01ms;
+    --dur-2: 0.01ms;
+    --dur-3: 0.01ms;
+    --dur-4: 0.01ms;
+  }
+}

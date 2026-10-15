@@ -2,13 +2,30 @@
  * Standardwerte wie in Rust (`pida_config::Settings::default()`, docs/analyse/01 §3.5) und kleine
  * Hilfen zur unveränderlichen Bearbeitung der Einstellungen.
  */
-import type { MainBarStep, MainBarView, Settings, Step } from './types';
+import type {
+  ActionsView,
+  ErrorContextView,
+  MainBarStep,
+  MainBarView,
+  Settings,
+  SignersView,
+  SigningProgressView,
+  Step,
+  ViewState,
+} from './types';
 
 /** Entspricht `Settings::default()` (crates/config/src/settings.rs). */
 export function defaultSettings(): Settings {
   return {
     schema_version: 1,
-    general: { ui_language: null, update_check: true, window_size: null, last_source_directory: null },
+    general: {
+      ui_language: null,
+      update_check: true,
+      window_size: null,
+      last_source_directory: null,
+      recent_documents: true,
+      first_run_completed: true,
+    },
     signature: {
       profile: 'SIGNATURBLOCK_SMALL',
       block_language: null,
@@ -27,6 +44,53 @@ export function defaultSettings(): Settings {
     proxy: { mode: 'system', host: null, port: null, user: null },
     certificate_cache: { enabled: false },
   };
+}
+
+/** Entspricht `SigningProgressView::default()` (ADR 0004 §3.6; bis K1 liefert der Kern nur diesen Wert). */
+export function defaultSigningProgress(): SigningProgressView {
+  return {
+    backend: null,
+    stage: 'connecting',
+    method: null,
+    doc: null,
+    index: 0,
+    total: 0,
+    login_done: false,
+    confirmations_done: 0,
+    confirmations_total: 0,
+    certificate: 'read',
+    batch: false,
+    pause: null,
+  };
+}
+
+/** Entspricht `ErrorContextView::default()` (ADR 0004 §3.6). */
+export function defaultErrorContext(): ErrorContextView {
+  return { origin: 'other', occurred_at: null, backend: null, doc: null };
+}
+
+/** Entspricht `SignersView::default()` (ADR 0004 §3.4). */
+export function defaultSigners(): SignersView {
+  return { options: [], selected: null, default: null };
+}
+
+/** Entspricht `ActionsView::default()`: nichts freigegeben (ADR 0004 §3.13). */
+export function noActions(): ActionsView {
+  return {
+    open_files: false,
+    sign: false,
+    edit_placement: false,
+    start_batch: false,
+    show_batch: false,
+    verify: false,
+    settings: false,
+    home: false,
+  };
+}
+
+/** Felder der neuen Oberfläche (ADR 0004) mit den Standardwerten des Kerns bis zur Umsetzung in K1–K4. */
+export function workspaceDefaults(): Pick<ViewState, 'document' | 'signers' | 'batch' | 'verify' | 'recent' | 'first_run' | 'actions'> {
+  return { document: null, signers: defaultSigners(), batch: null, verify: null, recent: null, first_run: null, actions: noActions() };
 }
 
 /** Bekannte Abschnitte der Einstellungen (alles andere ist `Settings::unknown`). */
