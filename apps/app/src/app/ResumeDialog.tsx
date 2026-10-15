@@ -3,9 +3,12 @@
  * Signiervorgangs vom System beendet (z. B. beim Wechsel in die App „ID Austria“). Der Kern hat das
  * vorbereitete Dokument gesichert und bietet es im Schritt „Öffnen“ an; Fortsetzen signiert mit
  * derselben Position und demselben Signiermittel weiter (Anmeldung und Bestätigung erneut),
- * Verwerfen löscht den gesicherten Zustand.
+ * Verwerfen löscht den gesicherten Zustand. Geht das Dokument mit dem Signiermittel an A-Trust
+ * (`document_leaves_device`, ID Austria), steht der Kurzhinweis mit „Details“ auch hier (ADR 0003):
+ * „Fortsetzen“ startet die Sitzung.
  */
 import { useState } from 'react';
+import { PrivacyNote } from '../components/Privacy';
 import { AccessButton, ConfirmDialog } from '../components/ui';
 import type { ResumeOfferView } from '../core/types';
 import { useApp } from './context';
@@ -35,6 +38,7 @@ export function ResumeDialog({ offer }: { offer: ResumeOfferView }) {
         // Zahlen gehen als Text an Fluent (wie in Rust) – Einzahl deshalb als eigene Meldung
         <p className="hint">{offer.pending === 1 ? t.t('ng-ui-resume-pending-one') : t.t('ng-ui-resume-pending', { count: offer.pending })}</p>
       ) : null}
+      {offer.document_leaves_device ? <PrivacyNote /> : null}
     </ConfirmDialog>
   );
 }

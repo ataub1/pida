@@ -28,7 +28,7 @@ function mockOptionsFromUrl(search: string): import('./core/mock').MockOptions {
   const platform = params.get('platform');
   return {
     platform: platform === 'ios' || platform === 'android' ? platform : 'desktop',
-    resumeOffer: params.get('resume') === '1' ? { name: 'Vertrag.pdf', backend: 'atrust_native', age_minutes: 4, pending: 1 } : null,
+    resumeOffer: params.get('resume') === '1' ? { name: 'Vertrag.pdf', backend: 'atrust_native', age_minutes: 4, pending: 1, document_leaves_device: true } : null,
   };
 }
 

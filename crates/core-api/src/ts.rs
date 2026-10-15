@@ -239,13 +239,6 @@ pub struct ProxySettings {
     pub user: Option<String>,
 }
 
-/// Spiegel von `pida_config::PrivacySettings`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-pub struct PrivacySettings {
-    /// bestätigte Textversion je Backend
-    pub acknowledged: BTreeMap<String, u32>,
-}
-
 /// Spiegel von `pida_config::CertificateCacheSettings`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct CertificateCacheSettings {
@@ -281,8 +274,6 @@ pub struct Settings {
     pub output: OutputSettings,
     /// Proxy
     pub proxy: ProxySettings,
-    /// Datenschutzhinweise
-    pub privacy: PrivacySettings,
     /// Zertifikats-Cache
     pub certificate_cache: CertificateCacheSettings,
     /// unbekannte Einträge
@@ -303,7 +294,6 @@ impl From<&pida_config::Settings> for Settings {
             keystore,
             output,
             proxy,
-            privacy,
             certificate_cache,
             unknown,
         } = v;
@@ -324,7 +314,6 @@ impl From<&pida_config::Settings> for Settings {
         let c::KeystoreSettings { enabled, file, declared_type, alias, password_storage } = keystore;
         let c::OutputSettings { folder, postfix } = output;
         let c::ProxySettings { mode, host, port, user } = proxy;
-        let c::PrivacySettings { acknowledged } = privacy;
         let c::CertificateCacheSettings { enabled: cache_enabled } = certificate_cache;
         Settings {
             schema_version: *schema_version,
@@ -391,7 +380,6 @@ impl From<&pida_config::Settings> for Settings {
                 port: *port,
                 user: user.clone(),
             },
-            privacy: PrivacySettings { acknowledged: acknowledged.clone() },
             certificate_cache: CertificateCacheSettings { enabled: *cache_enabled },
             unknown: unknown
                 .iter()
@@ -515,7 +503,6 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         OutputSettings,
         ProxyMode,
         ProxySettings,
-        PrivacySettings,
         CertificateCacheSettings,
         Settings,
         // pida-core-api (view.rs)
@@ -533,7 +520,6 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         PlatformView,
         ResumeOfferView,
         KeystoreImportView,
-        PrivacyNoticeView,
         InteractionView,
         OutputView,
         MainBarView,
@@ -585,7 +571,6 @@ mod tests {
         s.keystore.file = Some("/k.p12".into());
         s.proxy.mode = c::ProxyMode::Manual;
         s.proxy.port = Some(3128);
-        s.privacy.acknowledged.insert("atrust_native".into(), 1);
         s.unknown.insert("future".into(), toml::Value::Integer(5));
         let mut table = toml::map::Map::new();
         table.insert("x".into(), toml::Value::String("y".into()));

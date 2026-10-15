@@ -68,7 +68,7 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | S-06 | QR-Platzhalter mit `profile=…` | signiert mit dem Profil des Platzhalters; unbekanntes Profil → Hinweis `ng-placeholder-profile-unknown`, eingestelltes Profil |
 | S-07 | Positionieren: Ziehen, Pfeiltasten, Seitenwechsel, „Neue Seite“, „Automatisch platzieren“, „Unsichtbar“ (manuelle Koordinatenfelder gibt es seit 15.10.2026 nicht mehr) | Block folgt; Live-Region nennt Seite/Position; „Neue Seite“ auf bereits signiertem Dokument bleibt auf der letzten Seite und zeigt `placement.notice.new_page_not_allowed` |
 | S-08 | „Unsichtbar signieren“ | nur dieses Dokument ohne sichtbaren Block (Profil-Einstellung unverändert) |
-| S-09 | Signiermittel-Auswahl | ID Austria, lokale BKU (nur wenn erreichbar), Keystore (wenn eingerichtet); Datenschutzhinweis einmal je Backend vor dem ersten Upload |
+| S-09 | Signiermittel-Auswahl | ID Austria, lokale BKU (nur wenn erreichbar), Keystore (wenn eingerichtet); bei ID Austria Kurzhinweis „Das Dokument wird zum Signieren an A-Trust übermittelt.“ mit „Details“ (→ Einstellungen › Datenschutz), kein Zustimmungsdialog (ADR 0003); ohne „Signieren“ (automatische Position) startet ID Austria nie von selbst |
 | S-10 | Keystore-Signatur mit Test-Keystore | Passwortabfrage, Signatur, Ergebnis-Schritt; Datei `<name>_signed.pdf` neben der Quelle bzw. im Ausgabeordner |
 | S-11 | Ergebnis: Öffnen, Im Ordner anzeigen, weiteres Dokument | Standard-PDF-Anzeige öffnet die Ausgabe; Finder zeigt sie; Warteschlange führt zum nächsten Dokument |
 | S-12 | Ausgabe existiert bereits | Rückfrage „Überschreiben?“; Nein → Speichern-Knopf bleibt |
@@ -76,7 +76,7 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | S-14 | Fehler (z. B. falsches Keystore-Passwort, defektes PDF) | Fehlerschritt mit verständlichem Text, „Details“ (Code), Wiederholen wo sinnvoll |
 | S-15 | Einstellungen (⌘,): alle Tabs, Speichern, Verwerfen, Zurücksetzen | Feldfehler am Feld (z. B. Proxy ohne Host); Blockvorschau; Zurücksetzen mit Bestätigung |
 | S-16 | Start mit `-c alt.config` (Altdatei) | Einstellungen mit Hinweis „werden nicht gespeichert“ (schreibgeschützt), Änderungen gelten bis Programmende |
-| S-17 | Über: Version, Datenschutz, Log-Ordner, **„Drittlizenzen anzeigen“** | öffnet `THIRD-PARTY-NOTICES.md` aus dem Bundle |
+| S-17 | Über: Version, Verweis auf „Datenschutz“, Log-Ordner, **„Drittlizenzen anzeigen“** | öffnet `THIRD-PARTY-NOTICES.md` aus dem Bundle; Tab „Datenschutz“: Text aus PDF-Over mit Link zu A-Trust, Hinweis auf lokales Signieren, Zertifikats-Cache |
 | S-18 | Hinweise (Toasts) | Hinweise des Kerns stapeln, einzeln schließbar; Info-Hinweise verschwinden nach 8 s, Fehler bleiben |
 | S-19 | Beenden während einer offenen Maske (⌘Q / Fenster schließen) | Vorgang wird abgebrochen, Einstellungen gesichert, App endet (spätestens nach 5 s) |
 | S-20 | Fenstergröße/-position | bleibt nach Neustart erhalten |
@@ -113,7 +113,7 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 ### 2.4 ID Austria mit Testkonto (nur durch den Auftraggeber)
 
 Nur mit dem A-Trust-Testkonto bzw. Testtelefon des Auftraggebers; keine echten Zugangsdaten in Tickets
-oder Logs. Vorab Datenschutzhinweis bestätigen.
+oder Logs. Einen Zustimmungsdialog gibt es nicht mehr (ADR 0003); der Kurzhinweis steht bei ID Austria.
 
 | Nr. | Prüfschritt | Erwartung |
 |---|---|---|
@@ -147,7 +147,7 @@ oder Logs. Vorab Datenschutzhinweis bestätigen.
   `cfg(mobile)`, Plugin `pida-mobile` mit leeren nativen Seiten, Oberfläche); native Seiten, Projekte
   und Start im Simulator/Emulator folgen mit M-iOS/M-Android (docs/integration/mobile.md).
 - Positionsanzeige (Befund aus der Abnahme): Live-Region und Felder nennen jetzt dieselben Kanten
-  („linke Kante … von links, Oberkante … von unten“); Link im Datenschutzhinweis ist ein Inline-Link, der
-  Satzpunkt bleibt in derselben Zeile.
+  („linke Kante … von links, Oberkante … von unten“); der Link im Datenschutztext (seit ADR 0003 in
+  Einstellungen › Datenschutz) ist ein Inline-Link, der Satzpunkt bleibt in derselben Zeile.
 - Barrierefreiheit: Komponententests prüfen Rollen/Namen/Tastatur; axe-core und Screenreader-Protokolle
   (K-06) stehen aus.

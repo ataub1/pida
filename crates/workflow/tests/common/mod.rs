@@ -162,8 +162,35 @@ pub fn output_state(ids: &[u64]) -> State {
     }
 }
 
+/// Backend-Auswahl ohne „Signieren“ (automatische Position, Platzhalter bzw. nach Abbruch).
 pub fn choosing(ids: &[u64], position: PositionChoice, auto_choice: bool) -> State {
-    State::ChoosingBackend { queue: queue(ids), position, options: Vec::new(), doc: facts(ids[0], 3), auto_choice }
+    State::ChoosingBackend {
+        queue: queue(ids),
+        position,
+        options: Vec::new(),
+        doc: facts(ids[0], 3),
+        auto_choice,
+        sign_requested: false,
+    }
+}
+
+/// Backend-Auswahl nach „Signieren“ (Position bestätigt bzw. „Unsichtbar signieren“).
+pub fn choosing_after_sign(ids: &[u64], position: PositionChoice) -> State {
+    State::ChoosingBackend {
+        queue: queue(ids),
+        position,
+        options: Vec::new(),
+        doc: facts(ids[0], 3),
+        auto_choice: true,
+        sign_requested: true,
+    }
+}
+
+/// Optionen ohne lokale BKU und ohne eingeschalteten Keystore: nur ID Austria (F-54).
+pub fn only_id_austria() -> Vec<BackendOption> {
+    let mut opts = options(false, false);
+    opts.retain(|o| o.id != BackendId::Keystore);
+    opts
 }
 
 pub fn positioning(ids: &[u64]) -> State {

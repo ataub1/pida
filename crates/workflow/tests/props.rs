@@ -186,4 +186,100 @@ proptest! {
             }
         }
     }
+
+    /// Autostart-Befund F-54 ohne Datenschutzdialog (ADR 0003): Mit Oberfläche öffnet der Reducer bei
+    /// beliebigen Ereignisfolgen und Einstellungen (Standard-Signiermittel, automatische Position,
+    /// unsichtbares Profil, Platzhalter) eine Sitzung bei ID Austria **nur** auf eine ausdrückliche
+    /// Nutzeraktion hin: Wahl in der Auswahl, „Wiederholen“, „Signatur fortsetzen“ oder die automatische
+    /// Wahl nach „Signieren“ bzw. „Unsichtbar signieren“.
+    #[test]
+    fn id_austria_session_only_after_explicit_user_action(
+        events in prop::collection::vec(0u8..36, 0..80),
+        auto_position in any::<bool>(),
+        invisible in any::<bool>(),
+        default in 0u8..4,
+    ) {
+        let default_backend = match default {
+            0 => None,
+            1 => Some(pida_config::BackendChoice::IdAustria),
+            2 => Some(pida_config::BackendChoice::LocalBku),
+            _ => Some(pida_config::BackendChoice::Keystore),
+        };
+        let ctx = Context { auto_position, invisible, placeholder_search: true, default_backend, ..Context::default() };
+        let atrust = pida_backend_api::BackendId::AtrustNative;
+        let mut state = State::Starting;
+        let mut next_id = 2u64;
+        for e in events {
+            let current = state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1);
+            let event = match e {
+                0 => Event::Started { documents: vec![doc(1), doc(2)] },
+                1 => { next_id += 1; Event::FilesAdded(vec![doc(next_id)]) }
+                2 => analyzed(current, 2, None, false),
+                3 => analyzed(current, 1, Some(pida_workflow::PlaceholderFound::Qr(qr())), false),
+                4 => Event::PlaceholderAnswered { answer: pida_workflow::PlaceholderAnswer::Yes, field_index: None },
+                5 => Event::PlaceholderAnswered { answer: pida_workflow::PlaceholderAnswer::No, field_index: None },
+                6 => Event::PositionConfirmed,
+                7 => Event::InvisibleChosen,
+                8 => Event::BackendsProbed(only_id_austria()),
+                9 => Event::BackendsProbed(options(true, true)),
+                10 => Event::BackendsProbed(options(false, false)),
+                11 => Event::BackendsProbed(options(false, true)),
+                12 => Event::BackendChosen(atrust),
+                13 => Event::BackendChosen(pida_backend_api::BackendId::Keystore),
+                14 => Event::BackendChosen(pida_backend_api::BackendId::LocalBku),
+                15 => Event::PhaseCompleted(SigningPhase::OpeningSession),
+                16 => Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+                17 => Event::PhaseCompleted(SigningPhase::Preparing),
+                18 => Event::PhaseCompleted(SigningPhase::Signing),
+                19 => Event::PhaseCompleted(SigningPhase::Finishing),
+                20 => Event::BackendFailed(BackendError::Timeout),
+                21 => Event::BackendFailed(BackendError::Cancelled),
+                22 => Event::Retry,
+                23 => Event::Cancel,
+                24 => Event::Navigate(Step::Open),
+                25 => Event::Navigate(Step::Positioning),
+                26 => Event::Navigate(Step::Signing),
+                27 => Event::SettingsChanged,
+                28 => Event::Saved(output_info(current)),
+                29 => Event::OutputDecided(OutputDecision::Save { path: "/o.pdf".into(), exists: false }),
+                30 => {
+                    next_id += 1;
+                    let plan = pida_workflow::ResumePlan { position: pida_workflow::PositionChoice::Auto, backend: atrust };
+                    Event::ResumeRequested { document: doc(next_id), plan, pending: vec![] }
+                }
+                31 => Event::PreviewUnavailable { doc: DocId(current) },
+                32 => Event::WarningAnswered(true),
+                33 => {
+                    let Event::Analyzed { doc, class, placeholder, signed, page_count, start, .. } = analyzed(current, 2, None, false) else { unreachable!() };
+                    Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings: vec!["pdf-usage-rights".into()] }
+                }
+                34 => Event::Backgrounded,
+                _ => Event::Foregrounded,
+            };
+            let before = state.clone();
+            let t = reduce(state, event.clone(), &ctx);
+            if t.effects.contains(&Effect::OpenSession(atrust)) {
+                let explicit = match (&event, &before) {
+                    (Event::BackendChosen(id), State::ChoosingBackend { .. }) => *id == atrust,
+                    (Event::Retry, State::Error { .. }) => true,
+                    (Event::BackendsProbed(_), State::Resuming { .. }) => true,
+                    (Event::BackendsProbed(_), State::ChoosingBackend { sign_requested, .. }) => *sign_requested,
+                    _ => false,
+                };
+                prop_assert!(explicit, "ID Austria ohne Nutzeraktion: {event:?} in {} → {:?}", before.name(), t.effects);
+            }
+            // „Signieren“ ist die einzige Quelle von `sign_requested`, „Signatur fortsetzen“ die von `Resuming`
+            if matches!(t.state, State::ChoosingBackend { sign_requested: true, .. }) {
+                let sign = matches!(event, Event::PositionConfirmed | Event::InvisibleChosen)
+                    && matches!(before, State::Positioning { .. });
+                let kept = matches!(before, State::ChoosingBackend { sign_requested: true, .. });
+                prop_assert!(sign || kept, "{event:?} in {}", before.name());
+            }
+            if matches!(t.state, State::Resuming { .. }) {
+                let resumed = matches!(event, Event::ResumeRequested { .. }) || matches!(before, State::Resuming { .. });
+                prop_assert!(resumed, "{event:?} in {}", before.name());
+            }
+            state = t.state;
+        }
+    }
 }

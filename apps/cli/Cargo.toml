@@ -51,6 +51,7 @@ serde_json = { workspace = true, optional = true }
 rpassword = { workspace = true, optional = true }
 
 [dev-dependencies]
+async-trait = { workspace = true }
 pida-core-api = { workspace = true, features = ["testing"] }
 pida-backend-api = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }

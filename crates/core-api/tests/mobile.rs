@@ -217,7 +217,7 @@ async fn returning_from_the_id_austria_app_restarts_the_long_poll() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn app_kill_offers_resume_and_restores_the_prepared_document() {
     let fx = Fixture::new();
-    fx.write_settings("[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n");
+    fx.write_settings("[signature]\nauto_position = true\n");
     let docs = fx.dir("docs");
     let inbox = fx.dir("inbox");
     let a = copy_pdf(PDF, &inbox, "Vertrag.pdf");
@@ -233,6 +233,7 @@ async fn app_kill_offers_resume_and_restores_the_prepared_document() {
     assert!(core.view().platform.mobile);
     assert_eq!(core.view().platform.os, PlatformOs::Android);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), b.clone()] });
+    choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
     assert_eq!(engine.prepares.load(Ordering::SeqCst), 1);
@@ -252,6 +253,9 @@ async fn app_kill_offers_resume_and_restores_the_prepared_document() {
     assert_eq!(offer.backend, BackendId::AtrustNative);
     assert_eq!(offer.pending, 1);
     assert!(offer.age_minutes <= 1);
+    // Kurzhinweis „wird an A-Trust übermittelt“ beim Angebot; erst „Fortsetzen“ öffnet die Sitzung (ADR 0003)
+    assert!(offer.document_leaves_device);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "vor „Fortsetzen“ keine Sitzung");
     core.dispatch(UiEvent::ResumeSignature);
     // ohne Positionierung: Sitzung neu (Anmeldung, Passwort nie gespeichert), Zertifikat, dann wiederherstellen
     login(&core).await;
@@ -264,6 +268,8 @@ async fn app_kill_offers_resume_and_restores_the_prepared_document() {
     let target = docs.join("Vertrag_signed.pdf");
     wait_for(&core, "erstes Dokument gespeichert", |v| v.done.iter().any(|d| d.name == "Vertrag.pdf")).await;
     verify_fake_output(&target, &original);
+    // nächstes Dokument: wieder die Auswahl (je Dokument eine Nutzeraktion, ADR 0003)
+    choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN für das wartende Dokument", |f| matches!(f, NativeForm::SmsTan { .. })).await;
     assert_eq!(engine.prepares.load(Ordering::SeqCst), 1, "wartendes Dokument wird normal vorbereitet");
@@ -272,7 +278,7 @@ async fn app_kill_offers_resume_and_restores_the_prepared_document() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn resume_can_be_discarded_and_expires() {
     let fx = Fixture::new();
-    fx.write_settings("[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n");
+    fx.write_settings("[signature]\nauto_position = true\n");
     let docs = fx.dir("docs");
     let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
     let run_until_tan = |fx: &Fixture| {
@@ -283,6 +289,7 @@ async fn resume_can_be_discarded_and_expires() {
     // gesichert, verworfen
     let core = run_until_tan(&fx);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
     drop(core);
@@ -295,6 +302,7 @@ async fn resume_can_be_discarded_and_expires() {
     // gesichert, zu alt
     let core = run_until_tan(&fx);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
     drop(core);
@@ -313,7 +321,7 @@ async fn resume_can_be_discarded_and_expires() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn cancel_deletes_only_the_state_of_the_running_signature() {
     let fx = Fixture::new();
-    fx.write_settings("[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n");
+    fx.write_settings("[signature]\nauto_position = true\n");
     let docs = fx.dir("docs");
     let inbox = fx.dir("inbox");
     let a = copy_pdf(PDF, &inbox, "a.pdf");
@@ -323,6 +331,7 @@ async fn cancel_deletes_only_the_state_of_the_running_signature() {
     };
     let core = new_core();
     core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
     drop(core);
@@ -330,6 +339,7 @@ async fn cancel_deletes_only_the_state_of_the_running_signature() {
     let core = new_core();
     wait_for(&core, "Angebot", |v| v.resume.is_some()).await;
     core.dispatch(UiEvent::OpenFiles { paths: vec![b.clone()] });
+    choose_id_austria(&core).await;
     wait_form(&core, "Login", |f| matches!(f, NativeForm::Login { .. })).await;
     core.dispatch(UiEvent::Cancel);
     wait_for(&core, "Auswahl", |v| matches!(v.step, StepView::Backend { .. })).await;
@@ -348,7 +358,7 @@ async fn cancel_deletes_only_the_state_of_the_running_signature() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn desktop_does_not_persist_the_prepared_state() {
     let fx = Fixture::new();
-    fx.write_settings("[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n");
+    fx.write_settings("[signature]\nauto_position = true\n");
     let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
     let options = CoreOptions {
         engine: Some(FakeEngine::new()),
@@ -358,6 +368,7 @@ async fn desktop_does_not_persist_the_prepared_state() {
     let core = start(&fx, Platform::Linux, options);
     assert!(!core.view().platform.mobile);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
     assert!(!resume_dir(&fx).exists());
@@ -381,13 +392,16 @@ async fn mobile_backend_list_has_no_local_bku_and_marks_fido2() {
         let v =
             wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()))
                 .await;
-        let StepView::Backend { options, privacy_notice } = v.step else { unreachable!() };
+        let StepView::Backend { options } = v.step else { unreachable!() };
         let ids: Vec<BackendId> = options.iter().map(|o| o.id).collect();
         if mobile {
             assert_eq!(ids, vec![BackendId::AtrustNative], "{platform:?}");
             assert_eq!(options[0].notes, vec!["ng-fido2-unavailable-mobile".to_owned()]);
-            // nur ID Austria → automatisch gewählt (F-54) → Datenschutzhinweis
-            assert!(privacy_notice.is_some());
+            // nur ID Austria, aber ohne „Signieren“ (automatische Position) kein Autostart (F-54, ADR 0003):
+            // die Auswahl mit Kurzhinweis bleibt stehen – gleiche Oberfläche wie auf dem Desktop
+            assert!(options[0].capabilities.as_ref().is_some_and(|c| c.document_leaves_device));
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            assert!(matches!(core.view().step, StepView::Backend { .. }), "{platform:?}: {:?}", core.view().step);
         } else {
             assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::LocalBku], "{platform:?}");
             assert!(options.iter().all(|o| o.notes.is_empty()));
@@ -553,7 +567,7 @@ async fn pkcs12_import_is_refused_while_signing_and_redacts_the_password() {
     let debug = format!("{event:?}");
     assert!(!debug.contains("geheim") && !debug.contains("/x/k.p12"), "{debug}");
     let fx = Fixture::new();
-    fx.write_settings("[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n");
+    fx.write_settings("[signature]\nauto_position = true\n");
     let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
     let p12 = fx.dir("import").join("k.p12");
     std::fs::copy(testdata(P12), &p12).unwrap();
@@ -563,6 +577,7 @@ async fn pkcs12_import_is_refused_while_signing_and_redacts_the_password() {
         mobile_options(&FakeEngine::new(), &fx.dir("docs"), Some(vec![FakeAtrust::new().backend()])),
     );
     core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    choose_id_austria(&core).await;
     wait_form(&core, "Login", |f| matches!(f, NativeForm::Login { .. })).await;
     core.dispatch(UiEvent::ImportKeystore { path: p12, password: None, remember: false });
     let v = wait_for(&core, "abgelehnt", |v| v.keystore_import.is_some()).await;
@@ -582,10 +597,8 @@ async fn pkcs12_import_from_the_backend_selection_offers_the_keystore() {
     let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
     let core = start(&fx, Platform::Android, options);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
-    // nur ID Austria → automatisch gewählt → Datenschutzhinweis; Ablehnen führt zur Auswahl
-    wait_for(&core, "Hinweis", |v| matches!(&v.step, StepView::Backend { privacy_notice: Some(_), .. })).await;
-    core.dispatch(UiEvent::AcknowledgePrivacy { accepted: false });
-    wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { privacy_notice: None, .. })).await;
+    // nur ID Austria, ohne „Signieren“ kein Autostart: die Auswahl erscheint (kein Zustimmungsdialog)
+    wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options } if !options.is_empty())).await;
     core.dispatch(UiEvent::ImportKeystore { path: p12, password: Some("test".into()), remember: false });
     let v = wait_for(&core, "Keystore verfügbar", |v| {
         matches!(&v.step, StepView::Backend { options, .. }
@@ -657,9 +670,8 @@ async fn imported_keystore_follows_a_moved_sandbox() {
                 |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()),
             )
             .await;
-            let StepView::Backend { options, privacy_notice } = v.step else { unreachable!() };
+            let StepView::Backend { options } = v.step else { unreachable!() };
             assert!(options.iter().any(|o| o.id == BackendId::Keystore && !o.available));
-            assert!(privacy_notice.is_none(), "kein automatisches ID Austria bei eingeschaltetem Keystore");
             let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
             assert_eq!(saved.keystore.file.as_deref(), Some(old.as_path()));
             continue;
@@ -692,8 +704,7 @@ async fn missing_keystore_does_not_start_id_austria_automatically() {
     core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
     let v = wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()))
         .await;
-    let StepView::Backend { options, privacy_notice } = v.step else { unreachable!() };
-    assert!(privacy_notice.is_none(), "kein automatisches ID Austria");
+    let StepView::Backend { options } = v.step else { unreachable!() };
     let ids: Vec<BackendId> = options.iter().map(|o| o.id).collect();
     assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::Keystore]);
     assert!(!options[1].available);

@@ -86,8 +86,8 @@ nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
   `pades::Prepared::persist` (Platzhalter-PDF + Begleitdatei). Beim nächsten Start bietet der Kern
   im Schritt `open` `ViewState.resume` an (höchstens 60 min alt, sonst Hinweis `ng-resume-expired`).
   `resume_signature` → `Event::ResumeRequested` → `State::Resuming`: Dokument laden, **ohne**
-  Platzhalterfrage/Positionierung, gespeichertes Signiermittel (Datenschutzhinweis nur, falls nicht
-  bestätigt). Sitzung, Anmeldung und Bestätigung laufen neu (das ID-Austria-Passwort wird nie
+  Platzhalterfrage/Positionierung, gespeichertes Signiermittel („Signatur fortsetzen“ ist die
+  Nutzeraktion; kein Zustimmungsschritt, das Angebot zeigt bei ID Austria den Kurzhinweis, ADR 0003). Sitzung, Anmeldung und Bestätigung laufen neu (das ID-Austria-Passwort wird nie
   persistiert); `Effect::Prepare` wird durch `Prepared::restore` ersetzt – Signaturzeitpunkt `/M`, Block
   und Position bleiben die des ersten Versuchs. Scheitert die Wiederherstellung (Prüfsumme, Original),
   wird mit Hinweis `ng-resume-restore-failed` neu vorbereitet. `discard_resume` löscht den Zustand.

@@ -240,6 +240,17 @@ impl Fixture {
     }
 }
 
+/// Wartet auf die Signiermittel-Auswahl mit verfügbarem ID Austria und wählt es dort – die ausdrückliche
+/// Nutzeraktion. Ohne „Signieren“ (automatische Position) startet ID Austria nie von selbst (ADR 0003).
+pub async fn choose_id_austria(core: &Core) {
+    let available = |v: &ViewState| {
+        matches!(&v.step, pida_core_api::StepView::Backend { options }
+            if options.iter().any(|o| o.id == BackendId::AtrustNative && o.available))
+    };
+    wait_for(core, "Auswahl mit ID Austria", available).await;
+    core.dispatch(pida_core_api::UiEvent::ChooseBackend { backend: BackendId::AtrustNative });
+}
+
 /// Wartet, bis der ViewState `pred` erfüllt (höchstens 20 s).
 pub async fn wait_for(core: &Core, what: &str, pred: impl Fn(&ViewState) -> bool) -> ViewState {
     let mut rx = core.subscribe();

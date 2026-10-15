@@ -33,7 +33,15 @@ export interface AppContextValue {
   dragActive: boolean;
   /** macOS (Zugriffstasten mit ⌃⌥) */
   isMac: boolean;
+  /**
+   * Einstellungen öffnen, optional bei einem Tab (z. B. `privacy` aus dem Kurzhinweis „Details“). Welcher
+   * Tab gezeigt wird, ist reiner UI-Zustand; der Kern öffnet nur das Overlay (`open_settings`).
+   */
+  openSettings: (tab?: SettingsTab) => void;
 }
+
+/** Tabs der Einstellungen (`SettingsDialog`). */
+export type SettingsTab = 'simple' | 'advanced' | 'keystore' | 'fido2' | 'privacy' | 'about';
 
 export const AppContext = createContext<AppContextValue | null>(null);
 

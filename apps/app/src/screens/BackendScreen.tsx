@@ -1,6 +1,8 @@
 /**
- * Auswahl des Signiermittels (docs/analyse/01 §4.4, F-50…F-56) mit Datenschutzhinweis vor dem ersten
- * Upload (`document_leaves_device`, Plan §4.2/§7.8).
+ * Auswahl des Signiermittels (docs/analyse/01 §4.4, F-50…F-56). Beim Signiermittel mit
+ * `document_leaves_device` (ID Austria) steht unter der Karte der nicht blockierende Kurzhinweis „Das
+ * Dokument wird zum Signieren an A-Trust übermittelt.“ mit „Details“ (Einstellungen › Datenschutz); einen
+ * Zustimmungsdialog gibt es nicht mehr (ADR 0003). Keystore und lokale BKU signieren lokal – ohne Hinweis.
  *
  * Mobile (Plan §5.2): keine lokale BKU (liefert der Kern nicht), FIDO2 bei ID Austria ausgegraut mit dem
  * Hinweis aus `BackendOptionView::notes` (`ng-fido2-unavailable-mobile`), Keystore erst nach dem
@@ -9,9 +11,10 @@
 import { useState, type ReactElement } from 'react';
 import { Button } from 'react-aria-components';
 import { useApp } from '../app/context';
-import { IconCard, IconKey, IconPhone, IconShield } from '../components/icons';
-import { AccessButton, ConfirmDialog, Markup, Mnemonic, ScreenHeading } from '../components/ui';
-import { isMobile, type BackendId, type BackendOptionView, type PrivacyNoticeView } from '../core/types';
+import { IconCard, IconKey, IconPhone } from '../components/icons';
+import { PrivacyNote } from '../components/Privacy';
+import { AccessButton, Mnemonic, ScreenHeading } from '../components/ui';
+import { isMobile, type BackendId, type BackendOptionView } from '../core/types';
 import { KeystoreImportDialog } from '../settings/KeystoreImport';
 
 interface BackendMeta {
@@ -61,13 +64,15 @@ function BackendCard({ option }: { option: BackendOptionView }) {
   const title = t.t(meta.title);
   const Icon = meta.icon;
   const descId = `backend-desc-${option.id}`;
+  const leaves = caps?.document_leaves_device === true;
+  const noteId = `backend-privacy-${option.id}`;
   return (
     <li className="backend-item">
       <Button
         className="backend-card"
         isDisabled={!option.available}
         onPress={() => dispatch({ type: 'choose_backend', backend: option.id })}
-        aria-describedby={descId}
+        aria-describedby={leaves ? `${descId} ${noteId}` : descId}
         data-accesskey={key ?? undefined}
         ref={(el) => {
           if (el && key) el.setAttribute('aria-keyshortcuts', `${isMac ? 'Control+Alt' : 'Alt'}+${key.toUpperCase()}`);
@@ -82,7 +87,6 @@ function BackendCard({ option }: { option: BackendOptionView }) {
           </span>
           <span id={descId} className="backend-desc">
             {option.available ? t.t(desc) : t.t(option.id === 'keystore' && mobile ? 'ng-ui-backend-keystore-import-hint' : meta.unavailable)}
-            {caps?.document_leaves_device ? <span className="backend-note"> {t.t('ng-ui-backend-leaves-device')}</span> : null}
           </span>
           {caps ? (
             <span className="badges">
@@ -101,35 +105,13 @@ function BackendCard({ option }: { option: BackendOptionView }) {
           {fido2Note ? <span className="backend-note block">{t.t(FIDO2_UNAVAILABLE)}</span> : null}
         </span>
       </Button>
+      {/* Kurzhinweis außerhalb der Karte: „Details“ ist ein eigenes Bedienelement (kein Link im Knopf) */}
+      {leaves ? <PrivacyNote id={noteId} /> : null}
     </li>
   );
 }
 
-function PrivacyDialog({ notice }: { notice: PrivacyNoticeView }) {
-  const { t, dispatch } = useApp();
-  const text = notice.custom_text ?? t.t('config-DataProtectionStatement');
-  return (
-    <ConfirmDialog
-      title={t.t('config-DataProtection')}
-      onCancel={() => dispatch({ type: 'acknowledge_privacy', accepted: false })}
-      actions={
-        <>
-          <AccessButton msg="ng-ui-privacy-decline" variant="quiet" onPress={() => dispatch({ type: 'acknowledge_privacy', accepted: false })} />
-          <AccessButton msg="ng-ui-privacy-accept" variant="primary" onPress={() => dispatch({ type: 'acknowledge_privacy', accepted: true })} />
-        </>
-      }
-    >
-      <p className="privacy-lead">
-        <IconShield size={20} /> {t.t('ng-ui-privacy-lead')}
-      </p>
-      <p>
-        <Markup text={text} targets={[{ href: t.t('config-DataProtectionURL') }]} />
-      </p>
-    </ConfirmDialog>
-  );
-}
-
-export function BackendScreen({ options, privacyNotice }: { options: BackendOptionView[]; privacyNotice: PrivacyNoticeView | null }) {
+export function BackendScreen({ options }: { options: BackendOptionView[] }) {
   const { t, view } = useApp();
   const [importing, setImporting] = useState(false);
   // Reservierte Backends (Szenario B/C/D) haben in v1 keine Oberfläche.
@@ -150,7 +132,6 @@ export function BackendScreen({ options, privacyNotice }: { options: BackendOpti
         </div>
       ) : null}
       <p className="hint">{t.t('ng-ui-backend-hint')}</p>
-      {privacyNotice ? <PrivacyDialog notice={privacyNotice} /> : null}
       {importing ? <KeystoreImportDialog onClose={() => setImporting(false)} /> : null}
     </div>
   );

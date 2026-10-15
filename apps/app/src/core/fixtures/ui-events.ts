@@ -22,7 +22,6 @@ const settings: Settings = {
   },
   keystore: { enabled: true, file: '/Users/demo/keystore.p12', declared_type: 'PKCS12', alias: 'signer', password_storage: 'keychain' },
   proxy: { mode: 'manual', host: 'proxy.example.invalid', port: 3128, user: 'demo' },
-  privacy: { acknowledged: { atrust_native: 1 } },
   // unbekannte Einträge (Settings::unknown, flatten) müssen den Rundlauf überstehen
   'signature.future_key': 'bleibt',
   future: 42,
@@ -40,7 +39,6 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'confirm_position' },
   { type: 'choose_invisible' },
   { type: 'choose_backend', backend: 'atrust_native' },
-  { type: 'acknowledge_privacy', accepted: true },
   { type: 'submit_form', request: 1, answer: { kind: 'login', username: '+43664123456789', password: 'geheim-123', remember: true } },
   { type: 'submit_secret', request: 2, secret: 'geheim-123' },
   { type: 'answer_notice', request: 3, answer: 'Retry' },

@@ -65,6 +65,7 @@ export function viewOf(step: StepView, extra: Partial<ViewState> = {}): ViewStat
     platform: DESKTOP,
     resume: null,
     keystore_import: null,
+    privacy_text: null,
     ...extra,
   };
 }
@@ -102,20 +103,17 @@ export function ctx(extra: Partial<FormContext> = {}): FormContext {
   };
 }
 
-export function signingView(interaction: InteractionView, lang: Lang = 'de'): ViewState {
-  return viewOf({ step: 'signing', interaction, queue: QUEUE }, { language: lang });
+/** Signieren; `leaves` = das Dokument geht an A-Trust (Kurzhinweis, Standard: Masken von ID Austria). */
+export function signingView(interaction: InteractionView, lang: Lang = 'de', leaves = interaction.kind !== 'secret'): ViewState {
+  return viewOf({ step: 'signing', interaction, queue: QUEUE, document_leaves_device: leaves }, { language: lang });
 }
 
 export function formView(form: NativeForm, request = 1, lang: Lang = 'de'): ViewState {
   return signingView({ kind: 'form', request, form }, lang);
 }
 
-export function backendView(options: BackendOptionView[], privacy = false): ViewState {
-  return viewOf({
-    step: 'backend',
-    options,
-    privacy_notice: privacy ? { backend: 'atrust_native', version: 1, custom_text: null } : null,
-  });
+export function backendView(options: BackendOptionView[], extra: Partial<ViewState> = {}): ViewState {
+  return viewOf({ step: 'backend', options }, extra);
 }
 
 export function settingsView(settings: Settings = defaultSettings(), extra: Partial<SettingsView> = {}, lang: Lang = 'de'): ViewState {

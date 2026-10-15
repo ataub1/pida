@@ -29,8 +29,8 @@
 //! | `warning` | Warnung der Analyse (`codes`, z. B. `pdf-usage-rights`) mit Abbruchmöglichkeit | `answer_warning{proceed}`, `cancel` |
 //! | `placeholder` | „Platzhalter verwenden?“ (Felder bzw. QR) | `placeholder_answer{answer, field_index}` |
 //! | `position` | Seite (`pida-render://` → [`Core::page_tile`]), Block ([`Core::block_preview`], `preview_revision`), `announce` | `move_block`, `nudge_block`, `change_page`, `toggle_new_page`, `auto_place`, `confirm_position`, `choose_invisible` |
-//! | `backend` | Optionen; `privacy_notice` = Datenschutzhinweis | `choose_backend`, `acknowledge_privacy{accepted}` |
-//! | `signing` | `interaction`: `waiting`/`form`/`secret`/`notice` | `submit_form`, `submit_secret`, `answer_notice`, `open_signature_data`, `cancel` |
+//! | `backend` | Optionen; bei `capabilities.document_leaves_device` Kurzhinweis „wird an A-Trust übermittelt“ (nicht blockierend, ADR 0003) | `choose_backend` |
+//! | `signing` | `interaction`: `waiting`/`form`/`secret`/`notice`; `document_leaves_device` = Kurzhinweis | `submit_form`, `submit_secret`, `answer_notice`, `open_signature_data`, `cancel` |
 //! | `output` | Ergebnis; `ask_overwrite` = Rückfrage, `save_dialog` = Speichern-Dialog öffnen, `save_pending` = Knopf „Speichern“ | `confirm_overwrite`, `save{path}` (`null` = Dialog abgebrochen bzw. Knopf), `open_result`, `share_result`/`export_result` (Mobile), `navigate` |
 //! | `error` | `code` + `params` (i18n), `retry` | `retry`, `cancel` |
 //! | `finished` | Exit-Code | – |
@@ -41,7 +41,9 @@
 //! `reset_settings`), `done` (Ergebnisliste), `main_bar` (Matrix docs/analyse/01 §3.5), `platform`
 //! (Desktop/Mobile), `resume` („Signatur fortsetzen“: `resume_signature`/`discard_resume`),
 //! `keystore_import` (Ergebnis von `import_keystore{path, password, remember}`, schließen mit
-//! `dismiss_keystore_import`). Lebenszyklus: `backgrounded`/`foregrounded` (kein Abbruch).
+//! `dismiss_keystore_import`), `privacy_text` (eigener Datenschutztext per Richtlinie für Einstellungen ›
+//! Datenschutz). Lebenszyklus: `backgrounded`/`foregrounded` (kein Abbruch). `acknowledge_privacy` ist
+//! veraltet und ohne Wirkung (kein Zustimmungsschritt mehr, ADR 0003).
 //! Dateien öffnen bzw. URLs im Browser, Teilen und Exportieren übernimmt die Shell über [`ShellHooks`]
 //! ([`Core::set_shell`]).
 //!
@@ -101,12 +103,10 @@ use std::sync::{Arc, Mutex};
 
 pub use backends::{SecretStoreCache, password_storage};
 pub use broker::ShellHooks;
-pub use config::PRIVACY_TEXT_VERSION;
 pub use view::{
     BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, FormAnswerView, InteractionView,
-    KeystoreImportView, MainBarView, MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView,
-    PrivacyNoticeView, QrInfo, QueueItemView, ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent,
-    ViewState,
+    KeystoreImportView, MainBarView, MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView, QrInfo,
+    QueueItemView, ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
 };
 
 use pida_backend_api::{Platform, SignatureBackend};
@@ -314,6 +314,7 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         platform: PlatformView::from(platform),
         resume: None,
         keystore_import: None,
+        privacy_text: None,
     }
 }
 

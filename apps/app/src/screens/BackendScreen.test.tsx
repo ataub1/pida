@@ -58,37 +58,67 @@ describe('Signiermittel', () => {
     ]);
   });
 
-  it('Datenschutzhinweis: Dialog mit Link, Zustimmen/Ablehnen', async () => {
-    const { mock, user } = renderApp({ view: backendView(OPTIONS, true) });
-    const dialog = await screen.findByRole('alertdialog', { name: 'Datenschutzinformation' });
-    // Link als echter Inline-Link (Befund: Satzpunkt nicht mehr allein in der nächsten Zeile)
-    const link = within(dialog).getByRole('link', { name: /a-trust\.at\/downloads/ });
+  it('Kurzhinweis bei ID Austria, nicht beim Keystore; kein Zustimmungsdialog (ADR 0003)', async () => {
+    renderApp({ view: backendView(OPTIONS) });
+    const idA = await screen.findByRole('button', { name: /^ID Austria/ });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    const notes = screen.getAllByTestId('privacy-note');
+    expect(notes).toHaveLength(1);
+    const note = notes[0] as HTMLElement;
+    expect(note).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt. Details');
+    // beim Signiermittel ID Austria (dieselbe Listenzeile), nicht beim Keystore
+    expect(idA.closest('li')).toContainElement(note);
+    expect(screen.getByRole('button', { name: /^Keystore/ }).closest('li')?.querySelector('[data-testid="privacy-note"]')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Keystore/ })).not.toHaveAccessibleDescription(/A-Trust/);
+    // „Details“ ist ein eigener Link außerhalb der Karte (kein Bedienelement im Knopf)
+    const details = within(note).getByRole('link', { name: 'Details zum Datenschutz' });
+    expect(idA).not.toContainElement(details);
+    expect(details).toHaveTextContent('Details');
+  });
+
+  it('Kurzhinweis „Details“ öffnet die Einstellungen (ohne Ereignis an den Signiervorgang)', async () => {
+    const { mock, user } = renderApp({ view: backendView(OPTIONS) });
+    await user.click(await screen.findByRole('link', { name: 'Details zum Datenschutz' }));
+    expect(mock.dispatched).toEqual([{ type: 'open_settings' }]);
+  });
+
+  it('ohne Signiermittel mit Upload kein Kurzhinweis', async () => {
+    const localOnly = OPTIONS.filter((o) => o.id !== 'atrust_native');
+    renderApp({ view: backendView(localOnly) });
+    await screen.findByRole('button', { name: /^Keystore/ });
+    expect(screen.queryByTestId('privacy-note')).not.toBeInTheDocument();
+  });
+});
+
+describe('Datenschutz: Kurzhinweis → Einstellungen › Datenschutz (Mock-Kern)', () => {
+  it('„Details“ in der Signiermittel-Auswahl öffnet die Einstellungen beim Tab Datenschutz', async () => {
+    const { mock, user } = renderApp({ pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    await user.click(await screen.findByRole('button', { name: /Durchsuchen/ }));
+    await screen.findByRole('application', { name: 'Signatur' });
+    await user.click(screen.getByRole('button', { name: 'Signieren' }));
+    await screen.findByRole('heading', { level: 1, name: 'Signiermittel wählen' });
+    await user.click(screen.getByRole('link', { name: 'Details zum Datenschutz' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
+    expect(within(dialog).getByRole('tab', { name: 'Datenschutz' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('heading', { name: 'Datenschutzinformation' })).toBeInTheDocument();
+    // vollständiger Text aus PDF-Over mit Link zur Datenschutzerklärung von A-Trust, Hinweis auf lokales Signieren
+    expect(within(dialog).getByText(/zu signierende PDF Dokument an die Firma A-Trust gesendet/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Keystore oder der Bürgerkarte .* nicht hochgeladen/)).toBeInTheDocument();
+    const link = within(dialog).getByRole('link', { name: /a-trust\.at\/downloads\/documents\/datenschutzerklaerung\.pdf/ });
+    // Link als echter Inline-Link; der Satzpunkt folgt direkt im selben Absatz
     expect(link.tagName).not.toBe('BUTTON');
-    // der Satzpunkt folgt direkt dem Link im selben Absatz (kein Block dazwischen)
     expect(link.nextSibling?.textContent).toBe('.');
     await user.click(link);
     expect(mock.openedUrls).toEqual(['https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf']);
-    await user.click(within(dialog).getByRole('button', { name: 'Ablehnen' }));
-    await user.click(within(dialog).getByRole('button', { name: 'Zustimmen und fortfahren' }));
-    expect(mock.dispatched).toEqual([
-      { type: 'acknowledge_privacy', accepted: false },
-      { type: 'acknowledge_privacy', accepted: true },
-    ]);
-  });
-
-  it('Escape im Datenschutzhinweis lehnt ab', async () => {
-    const { mock, user } = renderApp({ view: backendView(OPTIONS, true) });
-    await screen.findByRole('alertdialog');
-    await user.keyboard('{Escape}');
-    await waitFor(() => expect(mock.dispatched).toEqual([{ type: 'acknowledge_privacy', accepted: false }]));
-  });
-
-  it('eigener Datenschutztext per Richtlinie', async () => {
-    renderApp({
-      view: viewOf({ step: 'backend', options: OPTIONS, privacy_notice: { backend: 'atrust_native', version: 2, custom_text: 'Hinweis der Organisation' } }),
-    });
-    const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText('Hinweis der Organisation')).toBeInTheDocument();
+    // Schließen: zurück zur Auswahl, nichts wurde gestartet
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('heading', { level: 1, name: 'Signiermittel wählen' })).toBeInTheDocument();
+    expect(mock.dispatched.some((e) => e.type === 'choose_backend')).toBe(false);
+    // erneutes Öffnen über die Hauptleiste beginnt wieder bei „Einfach“
+    await user.click(screen.getByRole('button', { name: 'Konfiguration' }));
+    const again = await screen.findByRole('dialog', { name: 'Konfiguration' });
+    expect(within(again).getByRole('tab', { name: 'Einfach' })).toHaveAttribute('aria-selected', 'true');
   });
 });
 

@@ -235,7 +235,8 @@ max_batch: number,
  */
 login_once_per_batch: boolean, 
 /**
- * Dokument verlässt das Gerät → Pflicht-Datenschutzhinweis vor dem ersten Upload
+ * Dokument verlässt das Gerät (z. B. ID Austria → A-Trust): nicht blockierender Kurzhinweis beim
+ * Signiermittel; die automatische Wahl startet es nur nach „Signieren“ (ADR 0003)
  */
 document_leaves_device: boolean, 
 /**
@@ -674,15 +675,6 @@ port: number | null,
 user: string | null, };
 
 /**
- * Spiegel von `pida_config::PrivacySettings`.
- */
-export type PrivacySettings = { 
-/**
- * bestätigte Textversion je Backend
- */
-acknowledged: { [key in string]: number }, };
-
-/**
  * Spiegel von `pida_config::CertificateCacheSettings`.
  */
 export type CertificateCacheSettings = { 
@@ -732,10 +724,6 @@ output: OutputSettings,
  * Proxy
  */
 proxy: ProxySettings, 
-/**
- * Datenschutzhinweise
- */
-privacy: PrivacySettings, 
 /**
  * Zertifikats-Cache
  */
@@ -955,7 +943,12 @@ age_minutes: number,
 /**
  * weitere Dokumente des unterbrochenen Batches
  */
-pending: number, };
+pending: number, 
+/**
+ * Das Dokument verlässt mit diesem Signiermittel das Gerät (`document_leaves_device`, z. B. ID Austria):
+ * Kurzhinweis „wird an A-Trust übermittelt“ beim Angebot – „Fortsetzen“ startet die Sitzung (ADR 0003)
+ */
+document_leaves_device: boolean, };
 
 /**
  * Ergebnis des PKCS#12-Imports in die App-Sandbox (Mobile, Import-Assistent; Plan §5.2) – schließen
@@ -979,23 +972,6 @@ code: string,
  * Passwort im sicheren Speicher abgelegt (Keychain bzw. Android Keystore)
  */
 password_stored: boolean, };
-
-/**
- * Datenschutzhinweis.
- */
-export type PrivacyNoticeView = { 
-/**
- * Backend
- */
-backend: BackendId, 
-/**
- * Textversion
- */
-version: number, 
-/**
- * eigener Text per Richtlinie
- */
-custom_text: string | null, };
 
 /**
  * Interaktion während des Signierens.
@@ -1124,11 +1100,7 @@ announce: { [key in string]: string }, } | { "step": "backend",
 /**
  * Optionen
  */
-options: Array<BackendOptionView>, 
-/**
- * Datenschutzhinweis
- */
-privacy_notice: PrivacyNoticeView | null, } | { "step": "signing", 
+options: Array<BackendOptionView>, } | { "step": "signing", 
 /**
  * Interaktion
  */
@@ -1136,7 +1108,12 @@ interaction: InteractionView,
 /**
  * Warteschlange
  */
-queue: Array<QueueItemView>, } | { "step": "output", 
+queue: Array<QueueItemView>, 
+/**
+ * Das Dokument verlässt mit dem laufenden Signiermittel das Gerät (`document_leaves_device`, z. B.
+ * ID Austria): Kurzhinweis „wird an A-Trust übermittelt“ im Signierbereich (ADR 0003)
+ */
+document_leaves_device: boolean, } | { "step": "output", 
 /**
  * Ergebnis
  */
@@ -1236,7 +1213,13 @@ resume: ResumeOfferView | null,
 /**
  * Ergebnis des PKCS#12-Imports (Import-Assistent)
  */
-keystore_import: KeystoreImportView | null, };
+keystore_import: KeystoreImportView | null, 
+/**
+ * Eigener Datenschutztext der Organisation (Richtlinie `privacy_notice_text`) für Einstellungen ›
+ * Datenschutz und die „Details“ des Kurzhinweises; `None` = Text aus PDF-Over
+ * (`config-DataProtectionStatement`, ADR 0003)
+ */
+privacy_text: string | null, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1315,11 +1298,7 @@ page: number, } | { "type": "toggle_new_page" } | { "type": "auto_place" } | { "
 /**
  * Backend
  */
-backend: BackendId, } | { "type": "acknowledge_privacy", 
-/**
- * angenommen
- */
-accepted: boolean, } | { "type": "submit_form", 
+backend: BackendId, } | { "type": "submit_form", 
 /**
  * Anfrage-ID
  */

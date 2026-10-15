@@ -1,6 +1,6 @@
 /**
  * Ablauf Ende-zu-Ende mit dem Mock-Kern (ohne festen Zustand): Öffnen → Positionieren →
- * Signiermittel → Datenschutz → Anmeldung → App-Bestätigung → Speichern → nächstes Dokument;
+ * Signiermittel (Kurzhinweis, kein Zustimmungsdialog) → Anmeldung → App-Bestätigung → Speichern → nächstes Dokument;
  * außerdem Keystore-Ablauf, Abbruch, Einstellungen mit Sprachwechsel und Fokusführung.
  */
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -22,12 +22,13 @@ describe('Ablauf mit dem Mock-Kern', () => {
     await user.keyboard('{ArrowRight}');
     expect(mock.dispatched.at(-1)).toEqual({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });
     await user.keyboard('{Enter}');
-    // Signiermittel: Datenschutzhinweis vor dem ersten Upload
-    await user.click(await screen.findByRole('button', { name: /^ID Austria/ }));
-    const privacy = await screen.findByRole('alertdialog');
-    await user.click(within(privacy).getByRole('button', { name: 'Zustimmen und fortfahren' }));
-    // Anmeldung
+    // Signiermittel: Kurzhinweis beim Signiermittel, kein Zustimmungsdialog (ADR 0003)
+    expect(await screen.findByTestId('privacy-note')).toHaveTextContent('an A-Trust übermittelt');
+    await user.click(screen.getByRole('button', { name: /^ID Austria/ }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    // Anmeldung (der Signierbereich zeigt den Kurzhinweis weiter)
     const username = await screen.findByLabelText('Benutzername:');
+    expect(screen.getByTestId('privacy-note')).toHaveTextContent('an A-Trust übermittelt');
     await user.type(username, 'max.muster');
     await user.type(screen.getByLabelText('Passwort:'), 'demo-passwort');
     await user.click(screen.getByRole('checkbox', { name: /Daten merken/ }));

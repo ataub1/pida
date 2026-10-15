@@ -81,6 +81,8 @@ export interface MockOptions {
   resumeOffer?: ResumeOfferView | null;
   /** Antwort der Mobile-Dateiauswahl (`[]` = abgebrochen) */
   pickMobileFilesResult?: string[];
+  /** eigener Datenschutztext per Richtlinie (`ViewState::privacy_text`) */
+  privacyText?: string | null;
 }
 
 interface MockDoc {
@@ -215,7 +217,7 @@ export class MockCore implements Bridge {
   readonly nativeCalls: string[] = [];
 
   private readonly opts: Required<
-    Omit<MockOptions, 'initialView' | 'settings' | 'language' | 'migrationOffer' | 'resumeOffer' | 'pickMobileFilesResult'>
+    Omit<MockOptions, 'initialView' | 'settings' | 'language' | 'migrationOffer' | 'resumeOffer' | 'pickMobileFilesResult' | 'privacyText'>
   > & {
     language: Lang | undefined;
   };
@@ -237,7 +239,6 @@ export class MockCore implements Bridge {
   private blockRevision = 1;
   private positionChoice: 'manual' | 'auto' | 'placeholder' | 'invisible' = 'manual';
   private backend: BackendId | null = null;
-  private privacyFor: BackendId | null = null;
   private interaction: InteractionView = { kind: 'waiting', progress: 'Connecting' };
   private request = 0;
   private loggedIn = false;
@@ -253,6 +254,7 @@ export class MockCore implements Bridge {
   private done: DoneItemView[] = [];
   private exitCode = 0;
   private readonly lang: Lang | undefined;
+  private readonly privacyText: string | null;
 
   constructor(options: MockOptions = {}) {
     this.opts = {
@@ -279,6 +281,7 @@ export class MockCore implements Bridge {
     this.migrationOffer = options.migrationOffer ?? null;
     this.resumeOffer = options.resumeOffer ?? null;
     this.pickMobileFilesResult = options.pickMobileFilesResult ?? null;
+    this.privacyText = options.privacyText ?? null;
     this.lang = options.language;
     this.settings = options.settings ? structuredClone(options.settings) : defaultSettings();
     if (options.initialView) {
@@ -480,6 +483,7 @@ export class MockCore implements Bridge {
       platform: this.platformView(),
       resume: this.stage === 'open' && this.resumeOffer ? { ...this.resumeOffer } : null,
       keystore_import: this.keystoreImport ? { ...this.keystoreImport } : null,
+      privacy_text: this.privacyText,
     };
     return view;
   }
@@ -583,13 +587,9 @@ export class MockCore implements Bridge {
         };
       }
       case 'backend':
-        return {
-          step: 'backend',
-          options: this.backendOptions(),
-          privacy_notice: this.privacyFor ? { backend: this.privacyFor, version: 1, custom_text: null } : null,
-        };
+        return { step: 'backend', options: this.backendOptions() };
       case 'signing':
-        return { step: 'signing', interaction: this.interaction, queue: this.queueView() };
+        return { step: 'signing', interaction: this.interaction, queue: this.queueView(), document_leaves_device: this.leavesDevice(this.backend) };
       case 'output': {
         const result = {
           path: this.output.path,
@@ -682,7 +682,7 @@ export class MockCore implements Bridge {
       case 'placeholder_answer':
         if (e.answer === 'Yes') {
           this.positionChoice = 'placeholder';
-          return this.toBackend();
+          return this.toBackend('automatic');
         }
         if (e.answer === 'No') return this.toPosition(true);
         this.finishDoc({ kind: 'cancelled' });
@@ -702,27 +702,15 @@ export class MockCore implements Bridge {
         return this.autoPlace();
       case 'choose_invisible':
         this.positionChoice = 'invisible';
-        return this.toBackend();
+        return this.toBackend('sign');
       case 'confirm_position':
         if (this.stage === 'position') {
           this.positionChoice = 'manual';
-          this.toBackend();
+          this.toBackend('sign');
         }
         return;
       case 'choose_backend':
         return this.chooseBackend(e.backend);
-      case 'acknowledge_privacy': {
-        const b = this.privacyFor;
-        this.privacyFor = null;
-        if (e.accepted && b) {
-          this.settings = {
-            ...this.settings,
-            privacy: { acknowledged: { ...this.settings.privacy.acknowledged, [b]: 1 } },
-          };
-          this.startSigning(b);
-        }
-        return;
-      }
       case 'submit_form':
         return this.submitForm(e.request, e.answer);
       case 'submit_secret':
@@ -889,7 +877,7 @@ export class MockCore implements Bridge {
       this.stage = 'placeholder';
     } else if (this.settings.signature.auto_position || this.settings.signature.profile === 'INVISIBLE') {
       this.positionChoice = this.settings.signature.profile === 'INVISIBLE' ? 'invisible' : 'auto';
-      this.toBackend();
+      this.toBackend('automatic');
     } else {
       this.toPosition(false);
     }
@@ -958,17 +946,33 @@ export class MockCore implements Bridge {
     this.notify('ng-ui-position-auto-done');
   }
 
-  private toBackend(): void {
+  /** Verlässt das Dokument mit diesem Signiermittel das Gerät (Kurzhinweis)? */
+  private leavesDevice(id: BackendId | null): boolean {
+    if (!id) return false;
+    return this.backendOptions().find((o) => o.id === id)?.capabilities?.document_leaves_device === true;
+  }
+
+  /**
+   * Signiermittel-Auswahl wie `pida-workflow`: Standard-Signiermittel (F-53) bzw. nur ID Austria (F-54)
+   * automatisch – ein Signiermittel, bei dem das Dokument das Gerät verlässt, aber nur nach „Signieren“
+   * (`sign`, ADR 0003); nach Abbruch bzw. über die Hauptleiste wird immer gefragt (`ask`, F-55).
+   */
+  private toBackend(mode: 'automatic' | 'sign' | 'ask'): void {
     const def = this.settings.backend.default;
-    const options = this.backendOptions();
-    const available = options.filter((o) => o.available).map((o) => o.id);
+    const available = this.backendOptions()
+      .filter((o) => o.available)
+      .map((o) => o.id);
     this.backend = null;
-    this.privacyFor = null;
-    if (def) {
-      const id: BackendId = def === 'id_austria' ? 'atrust_native' : def;
-      if (available.includes(id)) return this.chooseBackend(id); // F-53
+    let auto: BackendId | null = null;
+    if (mode !== 'ask') {
+      if (def) {
+        const id: BackendId = def === 'id_austria' ? 'atrust_native' : def;
+        if (available.includes(id)) auto = id; // F-53
+      } else if (available.length === 1 && available[0] === 'atrust_native') {
+        auto = 'atrust_native'; // F-54
+      }
     }
-    if (available.length === 1 && available[0] === 'atrust_native') return this.chooseBackend('atrust_native'); // F-54
+    if (auto && (mode === 'sign' || !this.leavesDevice(auto))) return this.chooseBackend(auto);
     this.stage = 'backend';
   }
 
@@ -979,11 +983,6 @@ export class MockCore implements Bridge {
       return;
     }
     this.backend = id;
-    if (option.capabilities?.document_leaves_device && !((this.settings.privacy.acknowledged[id] ?? 0) >= 1)) {
-      this.stage = 'backend';
-      this.privacyFor = id;
-      return;
-    }
     this.startSigning(id);
   }
 
@@ -1134,7 +1133,6 @@ export class MockCore implements Bridge {
     this.rememberedPassword = false;
     this.loggedIn = false;
     this.stage = 'backend';
-    this.privacyFor = null;
   }
 
   private finishSigning(): void {
@@ -1217,7 +1215,7 @@ export class MockCore implements Bridge {
         if (this.stage === 'backend' || this.stage === 'output') this.toPosition(true); // F-43, F-91
         return;
       case 'Signing':
-        if (this.stage === 'output') this.toBackend(); // F-55
+        if (this.stage === 'output') this.toBackend('ask'); // F-55
         return;
       case 'Finish':
         return;

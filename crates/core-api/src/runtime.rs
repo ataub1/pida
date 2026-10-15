@@ -27,15 +27,15 @@ use pida_workflow::{
 use tokio::sync::{mpsc, watch};
 
 use crate::broker::{BrokerSink, CoreBroker, ShellHooks};
-use crate::config::{ConfigState, PRIVACY_TEXT_VERSION, StartupProblem, validate};
+use crate::config::{ConfigState, StartupProblem, validate};
 use crate::docs::{DocData, DocStore, Loaded};
 use crate::engine::{PadesEngine, PreparedDoc, SignedDoc};
 use crate::plan::{self, BlockSpec, PlanInput, SpecInput};
 use crate::resume;
 use crate::view::{
     BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, KeystoreImportView, MainBarView,
-    MigrationOfferView, NoticeView, OutputView, PlatformView, PrivacyNoticeView, QrInfo, QueueItemView,
-    ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
+    MigrationOfferView, NoticeView, OutputView, PlatformView, QrInfo, QueueItemView, ResumeOfferView, SaveDialogView,
+    SettingsView, StepView, UiEvent, ViewState,
 };
 
 /// Nachricht an den Kern-Task.
@@ -322,6 +322,8 @@ pub(crate) struct CoreTask {
     backgrounded: bool,
     /// gespeicherter, noch nicht angenommener Vorgang („Signatur fortsetzen“)
     resume_offer: Option<resume::Persisted>,
+    /// beim Angebot ermittelt: Das Dokument verlässt mit dessen Signiermittel das Gerät (Kurzhinweis)
+    resume_offer_leaves_device: bool,
     /// angenommener Vorgang: Dokument und Zustand für die Wiederherstellung beim nächsten `Prepare`
     resume_active: Option<(DocId, resume::Persisted)>,
     /// der Ordner des persistierten Zustands gehört dem laufenden Vorgang (sonst hält er ein noch nicht
@@ -366,6 +368,7 @@ impl CoreTask {
             mobile,
             backgrounded: false,
             resume_offer: None,
+            resume_offer_leaves_device: false,
             resume_active: None,
             persist_owned: false,
             keystore_import: None,
@@ -387,6 +390,13 @@ impl CoreTask {
             resume::Loaded::Nothing => {}
             resume::Loaded::Offer(p) => {
                 tracing::info!("unterbrochener Signiervorgang gefunden – „Signatur fortsetzen“ wird angeboten");
+                // Kurzhinweis beim Angebot (ADR 0003): Capability des gespeicherten Signiermittels
+                let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
+                self.resume_offer_leaves_device = self
+                    .registry
+                    .get(p.record.backend)
+                    .and_then(|b| b.capabilities(&env))
+                    .is_some_and(|c| c.document_leaves_device);
                 self.resume_offer = Some(*p);
             }
             resume::Loaded::Expired => {
@@ -932,10 +942,6 @@ impl CoreTask {
             Effect::ShareResult(p) => self.effect_share(p),
             Effect::ExportResult(p) => self.effect_export(p),
             Effect::Notify(code) => self.notify(&code, BTreeMap::new()),
-            Effect::AcknowledgePrivacy(id) => {
-                self.cfg.acknowledge_privacy(id);
-                self.ctx = self.cfg.context(self.headless);
-            }
             Effect::ResetSettings => self.reset_settings(true),
             Effect::DeletePersisted => self.delete_persisted(),
             Effect::Discard(id) => self.shared.docs.remove(id),
@@ -1616,7 +1622,8 @@ impl CoreTask {
             UiEvent::ConfirmPosition => self.apply(Event::PositionConfirmed),
             UiEvent::ChooseInvisible => self.apply(Event::InvisibleChosen),
             UiEvent::ChooseBackend { backend } => self.apply(Event::BackendChosen(backend)),
-            UiEvent::AcknowledgePrivacy { accepted } => self.apply(Event::PrivacyAnswered(accepted)),
+            // veraltet (ADR 0003): kein Zustimmungsschritt mehr – ohne Wirkung
+            UiEvent::AcknowledgePrivacy { .. } => tracing::debug!("acknowledge_privacy ist veraltet und ohne Wirkung"),
             UiEvent::SubmitForm { request, answer } => {
                 if !self.shared.broker.answer_form(request, answer) {
                     tracing::debug!(request, "Maskenantwort ohne offene Anfrage");
@@ -1982,10 +1989,20 @@ impl CoreTask {
                     backend: p.record.backend,
                     age_minutes: p.age_minutes(SystemTime::now()),
                     pending: u32::try_from(p.record.pending.len()).unwrap_or(u32::MAX),
+                    document_leaves_device: self.resume_offer_leaves_device,
                 }
             }),
             keystore_import: self.keystore_import.clone(),
+            privacy_text: self.cfg.privacy_text(),
         }
+    }
+
+    /// Verlässt das Dokument mit diesem Signiermittel das Gerät (Capability der letzten Prüfung)? Steuert
+    /// den Kurzhinweis im Signierbereich (ADR 0003).
+    fn leaves_device(&self, backend: BackendId) -> bool {
+        self.options
+            .iter()
+            .any(|o| o.id == backend && o.capabilities.as_ref().is_some_and(|c| c.document_leaves_device))
     }
 
     fn step_view(&self, state: &State) -> StepView {
@@ -1996,9 +2013,11 @@ impl CoreTask {
                 StepView::Loading { queue: self.queue_items() }
             }
             // Fortsetzen: Dokument geladen, Signiermittel wird geprüft
-            State::Resuming { doc: Some(_), .. } => {
-                StepView::Signing { interaction: self.shared.broker.current(), queue: self.queue_items() }
-            }
+            State::Resuming { doc: Some(_), plan, .. } => StepView::Signing {
+                interaction: self.shared.broker.current(),
+                queue: self.queue_items(),
+                document_leaves_device: self.leaves_device(plan.backend),
+            },
             State::AnalysisWarning { warnings, doc, .. } => {
                 StepView::Warning { doc: self.doc_info(doc.id), codes: warnings.clone() }
             }
@@ -2045,19 +2064,13 @@ impl CoreTask {
                 }
             }
             State::ChoosingBackend { options, .. } => {
-                StepView::Backend { options: option_views(options, self.mobile.platform), privacy_notice: None }
+                StepView::Backend { options: option_views(options, self.mobile.platform) }
             }
-            State::PrivacyNotice { backend, options, .. } => StepView::Backend {
-                options: option_views(options, self.mobile.platform),
-                privacy_notice: Some(PrivacyNoticeView {
-                    backend: *backend,
-                    version: PRIVACY_TEXT_VERSION,
-                    custom_text: self.cfg.policy.as_ref().and_then(|p| p.privacy_notice_text.clone()),
-                }),
+            State::Signing { backend, .. } => StepView::Signing {
+                interaction: self.shared.broker.current(),
+                queue: self.queue_items(),
+                document_leaves_device: self.leaves_device(*backend),
             },
-            State::Signing { .. } => {
-                StepView::Signing { interaction: self.shared.broker.current(), queue: self.queue_items() }
-            }
             State::Output { saved, decision, queue, .. } => {
                 let (ask_overwrite, save_dialog) = match &self.dialog {
                     Some(OutputDialog::Overwrite(p)) => (Some(p.clone()), None),

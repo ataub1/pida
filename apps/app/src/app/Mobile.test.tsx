@@ -83,7 +83,7 @@ describe('Touch-Positionierung', () => {
 });
 
 describe('Signatur fortsetzen', () => {
-  const offer = { name: 'Vertrag.pdf', backend: 'atrust_native' as const, age_minutes: 3, pending: 1 };
+  const offer = { name: 'Vertrag.pdf', backend: 'atrust_native' as const, age_minutes: 3, pending: 1, document_leaves_device: true };
 
   it('Dialog im Schritt Öffnen: Fortsetzen bzw. Verwerfen', async () => {
     const { mock, user } = renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: offer })) });
@@ -101,6 +101,30 @@ describe('Signatur fortsetzen', () => {
     expect(mock.dispatched).toEqual([]);
     await user.click(within(dialog).getByRole('button', { name: 'Verwerfen' }));
     expect(mock.dispatched).toEqual([{ type: 'discard_resume' }]);
+  });
+
+  it('Kurzhinweis zum Datenschutz bei ID Austria (Fortsetzen startet die Sitzung)', async () => {
+    renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: offer })) });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
+    expect(within(dialog).getByTestId('privacy-note')).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
+  });
+
+  it('kein Kurzhinweis beim Fortsetzen mit dem Keystore (lokal)', async () => {
+    const keystore = { ...offer, backend: 'keystore' as const, document_leaves_device: false };
+    renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: keystore })) });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
+    expect(within(dialog).queryByTestId('privacy-note')).not.toBeInTheDocument();
+  });
+
+  it('Mock-Kern: „Details“ im Angebot öffnet Einstellungen › Datenschutz, danach ist das Angebot wieder da', async () => {
+    const { mock, user } = renderApp({ platform: 'ios', resumeOffer: offer });
+    const dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
+    await user.click(within(dialog).getByRole('link', { name: 'Details zum Datenschutz' }));
+    const settings = await screen.findByRole('dialog', { name: 'Konfiguration' });
+    expect(within(settings).getByRole('tab', { name: 'Datenschutz' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(within(settings).getByRole('button', { name: 'Abbrechen' }));
+    expect(await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' })).toBeInTheDocument();
+    expect(mock.dispatched.some((e) => e.type === 'resume_signature')).toBe(false);
   });
 
   it('Mock-Kern: Angebot verschwindet nach dem Fortsetzen', async () => {
@@ -210,6 +234,15 @@ describe('Mobile-Bedienelemente', () => {
     expect(card).toHaveTextContent('FIDO2 nicht verfügbar');
     expect(card).toHaveTextContent('FIDO2-Sicherheitsschlüssel sind auf diesem Gerät nicht verfügbar.');
     expect(screen.queryByText(/Bürgerkarte|lokal installierte/)).not.toBeInTheDocument();
+  });
+
+  it('Signiermittel: derselbe Kurzhinweis zum Datenschutz wie auf dem Desktop (kein Dialog)', async () => {
+    const { mock, user } = renderApp({ view: onMobile(backendView(MOBILE_OPTIONS), IOS) });
+    const note = await screen.findByTestId('privacy-note');
+    expect(note).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await user.click(within(note).getByRole('link', { name: 'Details zum Datenschutz' }));
+    expect(mock.dispatched).toEqual([{ type: 'open_settings' }]);
   });
 
   it('Warten auf die App: FIDO2-Knopf gesperrt mit Hinweis, wenn A-Trust FIDO2 anbietet', async () => {

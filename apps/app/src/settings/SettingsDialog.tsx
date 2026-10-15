@@ -1,6 +1,9 @@
 /**
  * Einstellungen als Overlay über jedem Schritt (F-101, docs/analyse/05 §2): Tabs Einfach, Erweitert,
- * Keystore (nur wenn aktiviert), FIDO2, Über. Bearbeitet wird eine **Arbeitskopie**; „Speichern“
+ * Keystore (nur wenn aktiviert), FIDO2, Datenschutz, Über. „Datenschutz“ trägt den vollständigen
+ * Datenschutztext (früher ein blockierender Dialog vor dem ersten Upload, ADR 0003) und den
+ * Zertifikats-Cache; „Details“ des Kurzhinweises beim Signiermittel öffnet die Einstellungen dort
+ * (`initialTab`), „Über“ verweist darauf. Bearbeitet wird eine **Arbeitskopie**; „Speichern“
  * sendet die vollständigen Einstellungen (`UiEvent::SaveSettings`, unbekannte Einträge bleiben
  * erhalten), „Abbrechen“/Escape verwirft (`CloseSettings`). Validierungsprobleme kommen vom Kern
  * (`SettingsView::problems`).
@@ -27,8 +30,9 @@ import {
   Tabs,
   type Key,
 } from 'react-aria-components';
-import { useApp } from '../app/context';
+import { useApp, type SettingsTab } from '../app/context';
 import { IconClose } from '../components/icons';
+import { PrivacyInfo } from '../components/Privacy';
 import { AccessButton, ConfirmDialog, Markup, Mnemonic } from '../components/ui';
 import { baseName, withSection, type SettingsSection } from '../core/defaults';
 import { isMobile, type BackendChoice, type Lang, type NoteSetting, type Settings, type SettingsView, type SignatureProfile } from '../core/types';
@@ -46,7 +50,12 @@ interface TabProps {
   draft: Settings;
   update: Update;
   view: SettingsView;
+  /** anderen Tab zeigen (Verweis aus „Über“ auf „Datenschutz“) */
+  showTab: (tab: SettingsTab) => void;
 }
+
+/** Überschrift des Tabs „Datenschutz“ (Fokusziel nach dem Verweis aus „Über“). */
+const PRIVACY_HEADING_ID = 'settings-privacy-heading';
 
 const PROFILES: SignatureProfile[] = ['SIGNATURBLOCK_SMALL', 'AMTSSIGNATURBLOCK', 'BASE_LOGO', 'INVISIBLE'];
 const NOTE_IDS: Partial<Record<SignatureProfile, string>> = {
@@ -428,16 +437,6 @@ function AdvancedTab({ draft, update, view }: TabProps) {
         />
       </section>
       )}
-
-      <section className="group">
-        <h3 className="group-title">{t.t('ng-ui-privacy-title')}</h3>
-        <CheckField
-          label={t.t('ng-ui-certcache')}
-          description={t.t('ng-ui-certcache-hint')}
-          isSelected={draft.certificate_cache.enabled}
-          onChange={(enabled) => update('certificate_cache', { enabled })}
-        />
-      </section>
     </div>
   );
 }
@@ -568,8 +567,35 @@ function Fido2Tab({ draft, update, view }: TabProps) {
   );
 }
 
-/** Über (docs/analyse/05 §2.6): Version, Lizenz, Datenschutz, Update-Prüfung, Logs. */
-function AboutTab({ draft, update }: TabProps) {
+/**
+ * Datenschutz (ADR 0003): vollständiger Text (PDF-Over bzw. Richtlinie), lokales Signieren mit Keystore und
+ * Bürgerkarte, Datenschutzerklärung von A-Trust; dazu der Zertifikats-Cache (früher unter „Erweitert“).
+ */
+function PrivacyTab({ draft, update }: TabProps) {
+  const { t } = useApp();
+  return (
+    <div className="tab-grid">
+      <section className="group" aria-labelledby={PRIVACY_HEADING_ID}>
+        <h3 id={PRIVACY_HEADING_ID} className="group-title" tabIndex={-1}>
+          {t.t('config-DataProtection')}
+        </h3>
+        <PrivacyInfo />
+      </section>
+      <section className="group">
+        <h3 className="group-title">{t.t('ng-ui-certcache-title')}</h3>
+        <CheckField
+          label={t.t('ng-ui-certcache')}
+          description={t.t('ng-ui-certcache-hint')}
+          isSelected={draft.certificate_cache.enabled}
+          onChange={(enabled) => update('certificate_cache', { enabled })}
+        />
+      </section>
+    </div>
+  );
+}
+
+/** Über (docs/analyse/05 §2.6): Version, Lizenz, Verweis auf „Datenschutz“, Update-Prüfung, Logs. */
+function AboutTab({ draft, update, showTab }: TabProps) {
   const { t, bridge, toast, view: appView } = useApp();
   const mobile = isMobile(appView);
   const [info, setInfo] = useState<{ version: string; platform: string } | null>(null);
@@ -596,7 +622,7 @@ function AboutTab({ draft, update }: TabProps) {
       <section className="group">
         <h3 className="group-title">{t.t('config-DataProtection')}</h3>
         <p>
-          <Markup text={t.t('config-DataProtectionStatement')} targets={[{ href: t.t('config-DataProtectionURL') }]} />
+          <Markup text={t.t('ng-ui-privacy-about')} targets={[{ onPress: () => showTab('privacy') }]} />
         </p>
       </section>
       {mobile ? null : (
@@ -623,12 +649,23 @@ function AboutTab({ draft, update }: TabProps) {
   );
 }
 
-/** Einstellungen-Overlay. */
-export function SettingsDialog({ settingsView }: { settingsView: SettingsView }) {
+/** Einstellungen-Overlay; `initialTab` = Tab beim Öffnen (Kurzhinweis „Details“ → `privacy`). */
+export function SettingsDialog({ settingsView, initialTab = 'simple' }: { settingsView: SettingsView; initialTab?: SettingsTab }) {
   const { t, dispatch } = useApp();
   const [draft, setDraft] = useState<Settings>(() => structuredClone(settingsView.settings));
-  const [tab, setTab] = useState<Key>('simple');
+  const [tab, setTab] = useState<Key>(initialTab);
   const [confirmReset, setConfirmReset] = useState(false);
+  // Die Tableiste läuft auf schmalen Bildschirmen (Mobile) quer: Öffnen bei einem späteren Tab (z. B.
+  // „Datenschutz“ aus dem Kurzhinweis) bzw. der Verweis aus „Über“ macht den gewählten Tab sichtbar
+  const tabListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // nach dem Einblenden des Dialogs (Layout und Fokus stehen erst dann fest)
+    const frame = requestAnimationFrame(() => {
+      const selected = tabListRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+      selected?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab]);
   const update: Update = (section, patch) => setDraft((d) => withSection(d, section, patch));
 
   // Arbeitskopie nachführen, wenn der Kern andere Einstellungen meldet, während der Dialog offen ist
@@ -695,9 +732,15 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
     { id: 'advanced', msg: 'config-Advanced' },
     ...(draft.keystore.enabled ? [{ id: 'keystore', msg: 'config-Keystore' }] : []),
     { id: 'fido2', msg: 'config-FIDO2' },
+    { id: 'privacy', msg: 'ng-ui-privacy-title' },
     { id: 'about', msg: 'config-About', args: { arg1: 'PIDA' } },
   ];
-  const props: TabProps = { draft, update, view: settingsView };
+  const showTab = (next: SettingsTab) => {
+    setTab(next);
+    // Der Verweis verschwindet mit dem alten Tab: Fokus auf die Überschrift des neuen
+    if (next === 'privacy') setTimeout(() => document.getElementById(PRIVACY_HEADING_ID)?.focus(), 0);
+  };
+  const props: TabProps = { draft, update, view: settingsView, showTab };
 
   return (
     <ModalOverlay className="modal-overlay" isOpen isDismissable={false} onOpenChange={(open) => !open && cancel()}>
@@ -729,7 +772,7 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
             </div>
           ) : null}
           <Tabs className="tabs" selectedKey={tab} onSelectionChange={setTab}>
-            <TabList className="tab-list" aria-label={t.t('main-configuration')}>
+            <TabList ref={tabListRef} className="tab-list" aria-label={t.t('main-configuration')}>
               {tabs.map((x) => {
                 const key = t.accessKey(x.msg);
                 return (
@@ -754,6 +797,9 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
             ) : null}
             <TabPanel id="fido2" className="tab-panel">
               <Fido2Tab {...props} />
+            </TabPanel>
+            <TabPanel id="privacy" className="tab-panel">
+              <PrivacyTab {...props} />
             </TabPanel>
             <TabPanel id="about" className="tab-panel">
               <AboutTab {...props} />

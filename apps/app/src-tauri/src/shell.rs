@@ -336,6 +336,7 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         platform: pida_core_api::PlatformView::default(),
         resume: None,
         keystore_import: None,
+        privacy_text: None,
     }
 }
 

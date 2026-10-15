@@ -25,7 +25,6 @@ export function defaultSettings(): Settings {
     keystore: { enabled: false, file: null, declared_type: null, alias: null, password_storage: 'memory' },
     output: { folder: null, postfix: '_signed' },
     proxy: { mode: 'system', host: null, port: null, user: null },
-    privacy: { acknowledged: {} },
     certificate_cache: { enabled: false },
   };
 }
@@ -40,7 +39,6 @@ export const SETTINGS_SECTIONS = [
   'keystore',
   'output',
   'proxy',
-  'privacy',
   'certificate_cache',
 ] as const;
 

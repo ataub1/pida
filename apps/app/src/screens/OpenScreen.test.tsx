@@ -104,7 +104,7 @@ describe('Hauptleiste', () => {
   });
 
   it('während des Signierens ist nichts klickbar', async () => {
-    renderApp({ view: viewOf({ step: 'signing', interaction: { kind: 'waiting', progress: 'Connecting' }, queue: [] }) });
+    renderApp({ view: viewOf({ step: 'signing', interaction: { kind: 'waiting', progress: 'Connecting' }, queue: [], document_leaves_device: false }) });
     const nav = await screen.findByRole('navigation', { name: 'Arbeitsschritte' });
     for (const b of within(nav).getAllByRole('button')) expect(b).toBeDisabled();
   });

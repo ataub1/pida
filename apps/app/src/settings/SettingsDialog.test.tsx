@@ -13,11 +13,11 @@ function savedSettings(dispatched: unknown[]): Settings {
 }
 
 describe('Einstellungen', () => {
-  it('modaler Dialog mit Tabs Einfach/Erweitert/FIDO2/Über; Keystore-Tab nur wenn aktiviert', async () => {
+  it('modaler Dialog mit Tabs Einfach/Erweitert/FIDO2/Datenschutz/Über; Keystore-Tab nur wenn aktiviert', async () => {
     renderApp({ view: settingsView() });
     const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
     const tabs = within(dialog).getAllByRole('tab').map((t) => t.textContent);
-    expect(tabs).toEqual(['Einfach', 'Erweitert', 'FIDO2', 'Über PIDA']);
+    expect(tabs).toEqual(['Einfach', 'Erweitert', 'FIDO2', 'Datenschutz', 'Über PIDA']);
     expect(within(dialog).getByRole('tab', { name: 'Einfach' })).toHaveAttribute('aria-selected', 'true');
   });
 
@@ -220,6 +220,48 @@ describe('Einstellungen', () => {
     expect(within(dialog).getByText('Ihr System unterstützt keine Authentifizierung mittels FIDO2-Token.')).toBeInTheDocument();
   });
 
+  it('Datenschutz: vollständiger Text, lokales Signieren, Link zu A-Trust, Zertifikats-Cache', async () => {
+    const { mock, user } = renderApp({ view: settingsView() });
+    const dialog = await screen.findByRole('dialog');
+    // der Zertifikats-Cache steht nicht mehr unter „Erweitert“
+    await user.click(within(dialog).getByRole('tab', { name: 'Erweitert' }));
+    expect(within(dialog).queryByRole('checkbox', { name: /Signaturzertifikat zwischenspeichern/ })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('tab', { name: 'Datenschutz' }));
+    const panel = within(dialog).getByRole('tabpanel');
+    expect(within(panel).getByRole('heading', { name: 'Datenschutzinformation' })).toBeInTheDocument();
+    expect(within(panel).getByText(/Beim Signaturvorgang mittels ID-Austria wird das zu signierende PDF Dokument an die Firma A-Trust gesendet/)).toBeInTheDocument();
+    expect(within(panel).getByText(/Mit einem Keystore oder der Bürgerkarte/)).toBeInTheDocument();
+    // ohne eigenen Text nur ein Link (im Text aus PDF-Over)
+    const links = within(panel).getAllByRole('link');
+    expect(links).toHaveLength(1);
+    await user.click(links[0] as HTMLElement);
+    expect(mock.openedUrls).toEqual(['https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf']);
+    await user.click(within(panel).getByRole('checkbox', { name: /Signaturzertifikat zwischenspeichern/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Speichern' }));
+    const saved = savedSettings(mock.dispatched);
+    expect(saved.certificate_cache.enabled).toBe(true);
+    expect('privacy' in saved).toBe(false);
+  });
+
+  it('Datenschutz: eigener Text per Richtlinie, dazu der Link zur Datenschutzerklärung von A-Trust (EN)', async () => {
+    const { user } = renderApp({ view: { ...settingsView(defaultSettings(), {}, 'en'), privacy_text: 'Hinweis der Organisation\nZweite Zeile' } });
+    const dialog = await screen.findByRole('dialog', { name: 'Configuration' });
+    await user.click(within(dialog).getByRole('tab', { name: 'Privacy' }));
+    const panel = within(dialog).getByRole('tabpanel');
+    expect(within(panel).getByText(/Hinweis der Organisation/)).toBeInTheDocument();
+    expect(within(panel).queryByText(/The software PDF-Over processes/)).not.toBeInTheDocument();
+    expect(within(panel).getByText(/signed on this device and is not uploaded/)).toBeInTheDocument();
+    expect(within(panel).getByText(/A-Trust privacy policy/)).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: /datenschutzerklaerung\.pdf/ })).toBeInTheDocument();
+  });
+
+  it('Zugriffstaste des Tabs Datenschutz (DE: t, EN: y)', async () => {
+    renderApp({ view: settingsView() });
+    const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
+    fireEvent.keyDown(window, { key: 't', code: 'KeyT', altKey: true });
+    await waitFor(() => expect(within(dialog).getByRole('tab', { name: 'Datenschutz' })).toHaveAttribute('aria-selected', 'true'));
+  });
+
   it('Über: Version, Lizenz- und Datenschutzlinks, Logs anzeigen', async () => {
     const { mock, user } = renderApp({ view: settingsView() });
     const dialog = await screen.findByRole('dialog');
@@ -236,6 +278,11 @@ describe('Einstellungen', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Speichern' }));
     const ev = mock.dispatched.find((e) => (e as UiEvent).type === 'save_settings') as Extract<UiEvent, { type: 'save_settings' }>;
     expect(ev.settings.general.update_check).toBe(false);
+    // Verweis auf den Abschnitt „Datenschutz“ (statt des vollständigen Texts)
+    expect(within(dialog).queryByText(/an die Firma A-Trust gesendet/)).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('link', { name: 'Datenschutz' }));
+    expect(within(dialog).getByRole('tab', { name: 'Datenschutz' })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(within(dialog).getByRole('heading', { name: 'Datenschutzinformation' })).toHaveFocus());
   });
 
   it('Validierungsprobleme vom Kern: Zusammenfassung und am Feld', async () => {

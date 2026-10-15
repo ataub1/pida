@@ -120,9 +120,10 @@ async fn wrong_keystore_password_headless_is_backend_error() {
     assert_eq!(engine.prepares.load(Ordering::SeqCst), 0, "ohne Schlüssel kein prepare");
 }
 
-/// GUI-Ablauf mit Szenario-A-artigem Backend: Datenschutzhinweis, Anmeldung, TAN, Speichern-Dialog.
+/// GUI-Ablauf mit Szenario-A-artigem Backend: Auswahl (kein Autostart, kein Zustimmungsdialog),
+/// Anmeldung, TAN, Speichern-Dialog.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn gui_model_b_with_forms_privacy_and_save_dialog() {
+async fn gui_model_b_with_forms_and_save_dialog() {
     let fx = Fixture::new();
     fx.write_settings("[signature]\nauto_position = true\n");
     let input = fx.dir("in");
@@ -134,14 +135,18 @@ async fn gui_model_b_with_forms_privacy_and_save_dialog() {
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
     assert!(core.view().main_bar.settings_enabled);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), input.join("fehlt.pdf")] });
-    // nur ID Austria verfügbar → automatisch gewählt (F-54) → Datenschutzhinweis
+    // nur ID Austria verfügbar, aber ohne „Signieren“ (automatische Position): kein Autostart (F-54,
+    // ADR 0003) – die Auswahl erscheint, die Option trägt `document_leaves_device` (Kurzhinweis der UI)
     let v =
-        wait_for(&core, "Datenschutzhinweis", |v| matches!(&v.step, StepView::Backend { privacy_notice: Some(_), .. }))
-            .await;
-    let StepView::Backend { privacy_notice: Some(p), .. } = v.step else { unreachable!() };
-    assert_eq!(p.backend, BackendId::AtrustNative);
+        wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options } if !options.is_empty())).await;
+    let StepView::Backend { options } = v.step else { unreachable!() };
+    assert_eq!(options.len(), 1);
+    assert!(options[0].capabilities.as_ref().is_some_and(|c| c.document_leaves_device));
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung ohne Nutzeraktion");
+    // veraltetes Ereignis: ohne Wirkung, kein Fehler
     core.dispatch(UiEvent::AcknowledgePrivacy { accepted: true });
-    // Anmeldung
+    core.dispatch(UiEvent::ChooseBackend { backend: BackendId::AtrustNative });
+    // Anmeldung (ohne Zustimmungsschritt); der Signierbereich zeigt den Kurzhinweis
     let v = wait_for(&core, "Login", |v| {
         matches!(
             &v.step,
@@ -149,7 +154,12 @@ async fn gui_model_b_with_forms_privacy_and_save_dialog() {
         )
     })
     .await;
-    let StepView::Signing { interaction: InteractionView::Form { request, .. }, .. } = v.step else { unreachable!() };
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1);
+    let StepView::Signing { interaction: InteractionView::Form { request, .. }, document_leaves_device, .. } = v.step
+    else {
+        unreachable!()
+    };
+    assert!(document_leaves_device, "Kurzhinweis im Signierbereich");
     // „Signaturdaten anzeigen“ ohne Shell: Hinweis statt Absturz
     core.dispatch(UiEvent::OpenSignatureData { request });
     core.dispatch(UiEvent::SubmitForm {
@@ -184,9 +194,10 @@ async fn gui_model_b_with_forms_privacy_and_save_dialog() {
     let StepView::Output { result, .. } = v.step else { unreachable!() };
     assert_eq!(result.path.as_deref(), Some(target.as_path()));
     verify_fake_output(&target, &std::fs::read(&a).unwrap());
-    // Bestätigung des Datenschutzhinweises und Benutzername (normalisiert, „Merken“) gespeichert
-    let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
-    assert_eq!(saved.privacy.acknowledged.get("atrust_native"), Some(&pida_core_api::PRIVACY_TEXT_VERSION));
+    // Benutzername (normalisiert, „Merken“) gespeichert; keine Zustimmung (kein `[privacy]`)
+    let text = std::fs::read_to_string(fx.paths.settings_file()).unwrap();
+    assert!(!text.contains("privacy"), "{text}");
+    let saved = Settings::from_toml(&text).unwrap();
     assert_eq!(saved.id_austria.username.as_deref(), Some("+436641234567"));
     assert!(saved.id_austria.remember);
     // Hinweis „Signaturdaten“ ohne Shell
@@ -197,17 +208,13 @@ async fn gui_model_b_with_forms_privacy_and_save_dialog() {
     assert!(plan.name.is_some());
     // F-91: dasselbe Dokument erneut signieren → Auswahl erzwungen (F-55)
     core.dispatch(UiEvent::Navigate { step: pida_workflow::Step::Signing });
-    wait_for(
-        &core,
-        "Auswahl",
-        |v| matches!(&v.step, StepView::Backend { privacy_notice: None, options } if !options.is_empty()),
-    )
-    .await;
+    wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options } if !options.is_empty())).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn cancel_in_login_form_returns_to_backend_selection() {
     let fx = Fixture::new();
+    // alte Einstellungen mit der Zustimmung des früheren Datenschutzdialogs laden weiter (ADR 0003)
     fx.write_settings("[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n");
     let input = fx.dir("in");
     let a = copy_pdf(PDF, &input, "a.pdf");
@@ -219,6 +226,8 @@ async fn cancel_in_login_form_returns_to_backend_selection() {
         false,
         CoreOptions { backends: Some(backends), ..options(&engine) },
     );
+    // die alte Zustimmung startet nichts: Auswahl, erst die Wahl öffnet die Sitzung
+    choose_id_austria(&core).await;
     wait_for(&core, "Login", |v| {
         matches!(&v.step, StepView::Signing { interaction: InteractionView::Form { .. }, .. })
     })
@@ -226,8 +235,7 @@ async fn cancel_in_login_form_returns_to_backend_selection() {
     core.dispatch(UiEvent::Cancel);
     let v = wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()))
         .await;
-    let StepView::Backend { options, privacy_notice } = v.step else { unreachable!() };
-    assert!(privacy_notice.is_none());
+    let StepView::Backend { options } = v.step else { unreachable!() };
     assert!(options[0].available);
     assert_eq!(engine.prepares.load(Ordering::SeqCst), 0);
     // erneut wählen → neue Sitzung
@@ -239,10 +247,90 @@ async fn cancel_in_login_form_returns_to_backend_selection() {
     assert_eq!(fake.opened.load(Ordering::SeqCst), 2);
 }
 
+/// CLI (ohne Oberfläche, mit Terminal, `-b MOBILE`): Der Aufruf ist die Nutzeraktion, ID Austria startet
+/// ohne Rückfrage; statt des früheren Datenschutzhinweises ein einzeiliger Hinweis (ADR 0003).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn headless_interactive_id_austria_shows_a_one_line_notice() {
+    let fx = Fixture::new();
+    let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let overlay =
+        Overlay { input_files: vec![a], backend: Some(pida_config::BackendChoice::IdAustria), ..Overlay::default() };
+    let opts = CoreOptions { interactive: Some(true), backends: Some(backends), ..options(&engine) };
+    let core = fx.start(overlay, true, opts);
+    let v = wait_for(&core, "Login", |v| {
+        matches!(
+            &v.step,
+            StepView::Signing { interaction: InteractionView::Form { form: NativeForm::Login { .. }, .. }, .. }
+        )
+    })
+    .await;
+    let notices: Vec<&str> = v.notices.iter().map(|n| n.code.as_str()).collect();
+    assert_eq!(notices, vec![pida_workflow::MSG_DOCUMENT_LEAVES_DEVICE]);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1);
+    core.dispatch(UiEvent::Quit);
+    assert_eq!(core.wait_finished().await, ExitCode::Cancelled);
+}
+
+/// GUI-Start mit `-b MOBILE` (Overlay → Standard-Signiermittel, F-53) und automatischer Position: ID Austria
+/// startet nicht von selbst – die Auswahl erscheint, erst die Wahl dort öffnet die Sitzung (Autostart-Befund
+/// F-54, ADR 0003).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn gui_start_with_b_mobile_waits_for_the_choice() {
+    let fx = Fixture::new();
+    fx.write_settings("[signature]\nauto_position = true\n");
+    let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let overlay =
+        Overlay { input_files: vec![a], backend: Some(pida_config::BackendChoice::IdAustria), ..Overlay::default() };
+    let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options } if !options.is_empty())).await;
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert!(matches!(core.view().step, StepView::Backend { .. }), "{:?}", core.view().step);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung ohne Nutzeraktion");
+    let cli_notice =
+        |v: &pida_core_api::ViewState| v.notices.iter().any(|n| n.code == pida_workflow::MSG_DOCUMENT_LEAVES_DEVICE);
+    assert!(!cli_notice(&core.view()), "die Oberfläche zeigt den Kurzhinweis selbst, nicht den CLI-Hinweis");
+    choose_id_austria(&core).await;
+    let v = wait_for(&core, "Login", |v| {
+        matches!(
+            &v.step,
+            StepView::Signing { interaction: InteractionView::Form { form: NativeForm::Login { .. }, .. }, .. }
+        )
+    })
+    .await;
+    assert!(matches!(v.step, StepView::Signing { document_leaves_device: true, .. }));
+    assert!(!cli_notice(&v));
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1);
+    core.dispatch(UiEvent::Quit);
+    assert_eq!(core.wait_finished().await, ExitCode::Cancelled);
+}
+
+/// Eigener Datenschutztext per Richtlinie erreicht die Oberfläche (Einstellungen › Datenschutz); ohne
+/// Richtlinie gilt der Text aus PDF-Over.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn policy_privacy_text_reaches_the_view() {
+    let fx = Fixture::new();
+    let engine = FakeEngine::new();
+    let policy =
+        pida_config::Policy { privacy_notice_text: Some("Hinweis der Organisation".into()), ..Default::default() };
+    let core = fx.start(Overlay::default(), false, CoreOptions { policy: Some(policy), ..options(&engine) });
+    let v = wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    assert_eq!(v.privacy_text.as_deref(), Some("Hinweis der Organisation"));
+    let fx = Fixture::new();
+    let core = fx.start(Overlay::default(), false, options(&engine));
+    let v = wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    assert_eq!(v.privacy_text, None);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn cms_too_large_retry_with_bigger_reserve() {
     let fx = Fixture::new();
-    fx.write_settings("[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n");
+    fx.write_settings("[signature]\nauto_position = true\n");
     let input = fx.dir("in");
     let out = fx.dir("out");
     let a = copy_pdf(PDF, &input, "a.pdf");
@@ -252,6 +340,8 @@ async fn cms_too_large_retry_with_bigger_reserve() {
     let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
     let overlay = Overlay { input_files: vec![a], output: Some(out.clone()), ..Overlay::default() };
     let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    // „Wiederholen“ öffnet die Sitzung neu – ohne erneute Auswahl
+    choose_id_austria(&core).await;
     for round in 0..2 {
         let v = wait_for(&core, "Login", |v| {
             matches!(
@@ -768,7 +858,7 @@ async fn analysis_warning_asks_before_signing() {
 // Ergebnis verwerfen, Eintrag löschen, „Wiederholen“ liest neu
 // ------------------------------------------------------------------------------------------------
 
-const CACHE_SETTINGS: &str = "[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n\
+const CACHE_SETTINGS: &str = "[signature]\nauto_position = true\n\
 [id_austria]\nusername = \"+436641234567\"\n[certificate_cache]\nenabled = true\n";
 
 fn cache_key() -> pida_config::CertCacheKey {
@@ -801,6 +891,7 @@ async fn certificate_cache_skips_the_certificate_request() {
     let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
     let overlay = Overlay { input_files: vec![a.clone()], output: Some(out.clone()), ..Overlay::default() };
     let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    choose_id_austria(&core).await;
     // ohne InfoboxRead (Anmeldung) direkt zur Signatur
     answer_tan(&core).await;
     wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
@@ -827,6 +918,7 @@ async fn certificate_cache_mismatch_discards_result_and_rereads() {
     let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
     let overlay = Overlay { input_files: vec![a.clone()], output: Some(out.clone()), ..Overlay::default() };
     let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    choose_id_austria(&core).await;
     answer_tan(&core).await;
     // Ergebnis verworfen, nichts gespeichert; Begründung mit „Wiederholen“
     let v = wait_for(&core, "Fehler", |v| matches!(&v.step, StepView::Error { .. })).await;
@@ -872,6 +964,7 @@ async fn certificate_cache_without_opt_in_stores_nothing() {
     let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
     let overlay = Overlay { input_files: vec![a], output: Some(out.clone()), ..Overlay::default() };
     let core = fx.start(overlay, false, CoreOptions { backends: Some(backends), ..options(&engine) });
+    choose_id_austria(&core).await;
     let v = wait_for(&core, "Login", |v| {
         matches!(
             &v.step,

@@ -498,16 +498,101 @@ mod run_tests {
         }
 
         fn run(&self, args: &[&str], term: Arc<Scripted>) -> ExitCode {
+            self.run_with_options(
+                args,
+                term,
+                CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() },
+            )
+        }
+
+        fn run_with_options(&self, args: &[&str], term: Arc<Scripted>, options: CoreOptions) -> ExitCode {
             let mut v = vec!["pida-cli"];
             v.extend_from_slice(args);
             let (config_file, cli) = parse(v).expect("parse");
-            let env = RunEnv {
-                term,
-                paths: Some(pida_config::Paths::under(&self.tmp.path().join("app"))),
-                options: CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() },
-            };
+            let env = RunEnv { term, paths: Some(pida_config::Paths::under(&self.tmp.path().join("app"))), options };
             run_with(config_file, cli, env)
         }
+    }
+
+    /// Fake-ID-Austria ohne Netz (`document_leaves_device`): Die Sitzung öffnet, das Zertifikat wird
+    /// „abgebrochen“ – so endet der Lauf ohne Kontakt zu A-Trust.
+    #[derive(Debug, Default)]
+    struct FakeIdAustria {
+        opened: std::sync::atomic::AtomicUsize,
+    }
+
+    struct CancelledSession;
+
+    #[async_trait::async_trait]
+    impl pida_backend_api::SignatureBackend for FakeIdAustria {
+        fn id(&self) -> pida_backend_api::BackendId {
+            pida_backend_api::BackendId::AtrustNative
+        }
+
+        fn capabilities(&self, env: &pida_backend_api::Environment) -> Option<pida_backend_api::Capabilities> {
+            use pida_backend_api as b;
+            (!env.headless).then(|| b::Capabilities {
+                input: b::SignInput::Document,
+                output: b::SignOutput::Cms,
+                certificate: b::CertNeed::OnlyForVisibleBlock,
+                interaction: b::Interaction::NativeForms,
+                server: b::ServerNeed::None,
+                max_batch: 1,
+                login_once_per_batch: true,
+                document_leaves_device: true,
+                qualification: b::Qualification::Qes,
+                factors: b::FactorSet { app: true, sms: true, ..b::FactorSet::default() },
+                cms_reserve: Some(16 * 1024),
+            })
+        }
+
+        async fn open(
+            &self,
+            _ctx: pida_backend_api::SessionContext,
+            _ui: Arc<dyn pida_backend_api::InteractionBroker>,
+        ) -> Result<Box<dyn pida_backend_api::BackendSession>, pida_backend_api::BackendError> {
+            self.opened.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(Box::new(CancelledSession))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl pida_backend_api::BackendSession for CancelledSession {
+        async fn certificate(&mut self) -> Result<pida_backend_api::CertChain, pida_backend_api::BackendError> {
+            Err(pida_backend_api::BackendError::Cancelled)
+        }
+
+        async fn sign(
+            &mut self,
+            _jobs: Vec<pida_backend_api::SignJob>,
+        ) -> Result<Vec<pida_backend_api::SignResult>, pida_backend_api::BackendError> {
+            Err(pida_backend_api::BackendError::Cancelled)
+        }
+
+        async fn cancel(&mut self) {}
+    }
+
+    /// `-b MOBILE` im Terminal: kein Datenschutzdialog mehr, stattdessen eine einzeilige Info (nicht
+    /// blockierend, keine „[j/N]“-Rückfrage); die Sitzung startet ohne weitere Eingabe (ADR 0003).
+    #[test]
+    fn id_austria_prints_a_one_line_privacy_info_without_asking() {
+        let fx = Fx::new();
+        let a = fx.pdf("a.pdf");
+        let term = Arc::new(Scripted::new(true, &[]));
+        let fake = Arc::new(FakeIdAustria::default());
+        let options = CoreOptions {
+            engine: Some(FakeEngine::new()),
+            backends: Some(vec![fake.clone() as Arc<dyn pida_backend_api::SignatureBackend>]),
+            ..CoreOptions::isolated()
+        };
+        let code = fx.run_with_options(&["-b", "MOBILE", a.to_str().unwrap()], term.clone(), options);
+        assert_eq!(code, ExitCode::Cancelled, "{}", term.stderr());
+        assert_eq!(fake.opened.load(std::sync::atomic::Ordering::SeqCst), 1, "Sitzung ohne Rückfrage geöffnet");
+        let info: Vec<String> =
+            term.err.lock().unwrap().iter().filter(|l| l.contains("an A-Trust übermittelt")).cloned().collect();
+        assert_eq!(info.len(), 1, "{}", term.stderr());
+        assert!(!info[0].contains('\n') && info[0].contains("datenschutzerklaerung.pdf"), "{}", info[0]);
+        assert!(term.prompts.lock().unwrap().is_empty(), "keine Rückfrage: {:?}", term.prompts.lock().unwrap());
     }
 
     fn ks() -> String {

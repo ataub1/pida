@@ -168,7 +168,8 @@ pub struct Capabilities {
     pub max_batch: u16,
     /// Eine Anmeldung für den ganzen Batch (Szenario A wie PDF-Over)
     pub login_once_per_batch: bool,
-    /// Dokument verlässt das Gerät → Pflicht-Datenschutzhinweis vor dem ersten Upload
+    /// Dokument verlässt das Gerät (z. B. ID Austria → A-Trust): nicht blockierender Kurzhinweis beim
+    /// Signiermittel; die automatische Wahl startet es nur nach „Signieren“ (ADR 0003)
     pub document_leaves_device: bool,
     /// Qualifikation
     pub qualification: Qualification,
