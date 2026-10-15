@@ -273,6 +273,10 @@ jobs:
   mobile:
     name: Mobile-Ziele (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    env:
+      # Wie die App (tauri.conf.json, minimumSystemVersion): ohne Angabe übersetzt swift-rs das
+      # Swift-Paket des Plugins für eine alte iOS-Version (UTType & Co. erst ab iOS 14).
+      IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     strategy:
       fail-fast: false
       matrix:

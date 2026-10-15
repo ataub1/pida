@@ -45,7 +45,7 @@
 //!   ([`mobile::secret_store`]), PDFium aus dem Bundle bzw. `jniLibs` ([`pdfium::mobile_dir`]).
 //! - Lebenszyklus `WindowEvent::Suspended`/`Resumed` → `UiEvent::Backgrounded`/`Foregrounded` (kein
 //!   Abbruch); Schließen/Beenden geht nie als `Quit` an den Kern. Die App beendet sich nie selbst:
-//!   `Finished` des Kerns bzw. „Beenden“ ohne Kern starten einen neuen Kern ([`finish_on_mobile`]).
+//!   `Finished` des Kerns bzw. „Beenden“ ohne Kern starten einen neuen Kern (`finish_on_mobile`).
 //! - Aufräumen: alte Kopien im Eingangs- und Import-Ordner des Caches beim Start
 //!   ([`mobile::purge_stale_copies`]).
 //! - Dokument-Eingang: `RunEvent::Opened` (URLs, keine Pfade) und Intents über das Plugin
