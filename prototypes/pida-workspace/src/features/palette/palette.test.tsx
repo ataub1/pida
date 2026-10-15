@@ -60,10 +60,11 @@ describe('Ersteinrichtung', () => {
     expect(within(dialog).getByText('PDF-Over-Einstellungen gefunden')).toBeInTheDocument();
     expect(within(dialog).getByText('Schritt 1 von 3')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Übernehmen' }));
-    expect(await screen.findByText('4 Einstellungen übernommen')).toBeInTheDocument();
+    expect(await screen.findByText('3 Einstellungen übernommen')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('radio', { name: /Keystore/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Weiter' }));
-    expect(within(dialog).getByRole('img', { name: 'Vorschau des Signaturblocks' }).querySelector('img')).not.toBeNull();
+    // Die Übernahme ersetzt die Standard-Bildmarke nicht: im Signaturbild steht weiter das PIDA-Siegel.
+    expect(within(dialog).getByRole('img', { name: 'Vorschau des Signaturblocks' }).querySelector('img')).toBeNull();
     await user.click(within(dialog).getByRole('button', { name: 'Los geht’s' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 

@@ -12,11 +12,6 @@ import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconCard, IconCheck, IconFileKey, IconFolder, IconPhone } from '../../ui/Icons';
 import { SignatureBlock } from '../sigblock/SignatureBlock';
 
-/** Bildmarke aus der „gefundenen“ PDF-Over-Konfiguration (Demo, frei erfunden). */
-export const DEMO_COMPANY_LOGO = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="8" fill="#24496e"/><path d="M9 29V11h4.5l6.5 9 6.5-9H31v18h-4.5V18.5L20 27l-6.5-8.5V29z" fill="#fff"/></svg>',
-)}`;
-
 export function Onboarding() {
   const state = useAppState();
   const dispatch = useDispatch();
@@ -49,7 +44,7 @@ export function Onboarding() {
             <p className="step-text">{t('ob.import.text')}</p>
             <p className="mono-small ob-path">~/.pdf-over/PDF-Over.config</p>
             <ul className="check-list">
-              {(['ob.import.item.block', 'ob.import.item.logo', 'ob.import.item.user', 'ob.import.item.folder'] as const).map((k) => (
+              {(['ob.import.item.block', 'ob.import.item.user', 'ob.import.item.folder'] as const).map((k) => (
                 <li key={k}>
                   <IconCheck size={16} />
                   {t(k)}
@@ -70,7 +65,6 @@ export function Onboarding() {
                 variant="primary"
                 onPress={() => {
                   setImported(true);
-                  dispatch({ type: 'sigBlock', patch: { logo: DEMO_COMPANY_LOGO, logoName: 'firmenlogo.png' } });
                   dispatch({ type: 'toast', toast: { kind: 'success', title: t('ob.import.done') } });
                   setStep(1);
                 }}
