@@ -49,10 +49,6 @@
     "backend": "atrust_native"
   },
   {
-    "type": "acknowledge_privacy",
-    "accepted": true
-  },
-  {
     "type": "submit_form",
     "request": 1,
     "answer": {
@@ -154,11 +150,6 @@
         "host": "proxy.example.invalid",
         "port": 3128,
         "user": "demo"
-      },
-      "privacy": {
-        "acknowledged": {
-          "atrust_native": 1
-        }
       },
       "certificate_cache": {
         "enabled": false

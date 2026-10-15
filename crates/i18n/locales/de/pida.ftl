@@ -271,11 +271,7 @@ ng-ui-factor-app = App
 ng-ui-factor-sms = SMS
 ng-ui-factor-card = Karte
 ng-ui-privacy-title = Datenschutz
-ng-ui-privacy-lead = Bitte lesen Sie den Datenschutzhinweis, bevor das Dokument übermittelt wird.
-ng-ui-privacy-accept = Zustimmen und fortfahren
-    .accesskey = Z
-ng-ui-privacy-decline = Ablehnen
-    .accesskey = b
+    .accesskey = t
 
 ## Oberfläche: Signieren
 
@@ -438,7 +434,6 @@ ng-cli-signed = signiert: { $input } → { $output }
 ng-cli-cancelled = abgebrochen: { $input }
 ng-cli-failed = fehlgeschlagen: { $input }: { $message }
 ng-cli-overwrite = Datei { $name } existiert bereits. Überschreiben? [j/N]{ " " }
-ng-cli-privacy = Das Dokument wird zum Signieren an A-Trust übermittelt (Datenschutzerklärung: https://www.a-trust.at/datenschutz). Fortfahren? [j/N]{ " " }
 ng-cli-retry = Wiederholen? [j/N]{ " " }
 ng-cli-continue = Fortfahren? [j/N]{ " " }
 ng-cli-username = Benutzername/Telefonnummer:{ " " }
@@ -574,3 +569,13 @@ ng-ui-browse-mobile = Dokument wählen …
     .accesskey = w
 ng-ui-dropzone-hint-mobile = Sie können PDF-Dokumente auch aus anderen Apps über „Teilen“ bzw. „Öffnen in“ an PIDA senden.
 ng-ui-position-help-mobile = Tippen Sie auf die gewünschte Stelle oder ziehen Sie den Signaturblock mit dem Finger; er bleibt dabei über dem Finger sichtbar.
+
+## Datenschutz ohne Zustimmungsdialog (ADR 0003): Kurzhinweis beim Signiermittel, Einstellungen › Datenschutz, CLI
+
+ng-document-leaves-device = Hinweis: Das Dokument wird zum Signieren an A-Trust übermittelt (Datenschutzerklärung von A-Trust: https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
+ng-ui-privacy-details = Details
+ng-ui-privacy-details-label = Details zum Datenschutz
+ng-ui-privacy-local = Mit einem Keystore oder der Bürgerkarte (lokale BKU) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
+ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
+ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.
+ng-ui-certcache-title = Zertifikats-Cache

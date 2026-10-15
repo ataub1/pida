@@ -28,6 +28,9 @@
 //!   Map auch den JSON-Rundlauf über die Tauri-Bridge. Ein unbekannter Eintrag, der beim Wiedereinsetzen
 //!   einen bekannten Wert verändern oder die Datei unlesbar machen würde (z. B. `signature.note.text`
 //!   bei `mode = "default"`), wird verworfen ([`Settings::to_toml`]).
+//! - **Ausgemusterte Keys** ([`RETIRED_KEYS`]) werden beim Lesen ohne neue `schema_version` verworfen
+//!   (nicht als unbekannt mitgeschleppt): `privacy.acknowledged` – die Bestätigungen des früheren
+//!   blockierenden Datenschutzhinweises (ADR 0003). Ältere Versionen lesen die Datei weiter.
 //! - **Ungültige Werte** werden beim Lesen und Schreiben bereinigt ([`Settings::sanitize`]):
 //!   `logo_only_size_mm` muss endlich und > 0 sein, sonst gilt der Standard 23 mm.
 //! - **Speichern** atomar (Temp-Datei, `fsync`, Umbenennen); Rechte 0600 unter Unix.
@@ -381,14 +384,6 @@ pub struct ProxySettings {
     pub user: Option<String>,
 }
 
-/// Bestätigte Datenschutzhinweise (`document_leaves_device`, Plan §4.2/§7.8).
-#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-#[serde(default)]
-pub struct PrivacySettings {
-    /// Hinweis-ID (z. B. Backend) → bestätigte Textversion.
-    pub acknowledged: BTreeMap<String, u32>,
-}
-
 /// Zertifikats-Cache (Opt-in, nur öffentliches Zertifikat, [`crate::CertificateCache`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -419,8 +414,6 @@ pub struct Settings {
     pub output: OutputSettings,
     /// Proxy.
     pub proxy: ProxySettings,
-    /// Datenschutz.
-    pub privacy: PrivacySettings,
     /// Zertifikats-Cache.
     pub certificate_cache: CertificateCacheSettings,
     /// Unbekannte Tabellen/Keys (bleiben beim Speichern erhalten). Schlüssel = TOML-Pfad in
@@ -441,7 +434,6 @@ impl Default for Settings {
             keystore: KeystoreSettings::default(),
             output: OutputSettings::default(),
             proxy: ProxySettings::default(),
-            privacy: PrivacySettings::default(),
             certificate_cache: CertificateCacheSettings::default(),
             unknown: BTreeMap::new(),
         }
@@ -493,6 +485,7 @@ impl Settings {
             return Err(ConfigError::UnsupportedSchema { found: version, supported: SCHEMA_VERSION });
         }
         upgrade(&mut table, version)?;
+        drop_retired(&mut table);
         table.insert("schema_version".into(), toml::Value::Integer(i64::from(SCHEMA_VERSION)));
 
         let mut settings = known_part(&table)?;
@@ -625,6 +618,34 @@ fn upgrade(_table: &mut toml::Table, from: u32) -> Result<()> {
         v += 1;
     }
     Ok(())
+}
+
+/// Ausgemusterte Einträge (TOML-Pfade): Sie werden beim Lesen verworfen, damit sie nicht als unbekannte
+/// Einträge erhalten bleiben. Eine neue `schema_version` ist dafür nicht nötig (der Wertebereich ändert
+/// sich nicht; ältere Versionen lesen die Datei weiter und nehmen den Standardwert).
+pub const RETIRED_KEYS: &[&[&str]] = &[
+    // Bestätigungen des früheren blockierenden Datenschutzhinweises (bis 15.10.2026, ADR 0003)
+    &["privacy", "acknowledged"],
+];
+
+/// Entfernt die [`RETIRED_KEYS`]; dadurch leer gewordene Tabellen entlang des Pfads ebenso.
+fn drop_retired(table: &mut toml::Table) {
+    fn remove(table: &mut toml::Table, path: &[&str]) {
+        let Some((first, rest)) = path.split_first() else { return };
+        if rest.is_empty() {
+            table.remove(*first);
+            return;
+        }
+        if let Some(toml::Value::Table(child)) = table.get_mut(*first) {
+            remove(child, rest);
+            if child.is_empty() {
+                table.remove(*first);
+            }
+        }
+    }
+    for path in RETIRED_KEYS {
+        remove(table, path);
+    }
 }
 
 fn known_top_level_keys() -> &'static [String] {

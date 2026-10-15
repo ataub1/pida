@@ -20,7 +20,7 @@ import { SigningScreen } from '../screens/SigningScreen';
 import { ErrorScreen, FinishedScreen, LoadingScreen, StartingScreen, WarningScreen } from '../screens/StatusScreens';
 import { EMBLEM_DROP_EVENT, SettingsDialog } from '../settings/SettingsDialog';
 import { applyTheme, readTheme } from '../settings/theme';
-import { AppContext, type AppContextValue, type Toast } from './context';
+import { AppContext, type AppContextValue, type SettingsTab, type Toast } from './context';
 import { MigrationDialog } from './MigrationDialog';
 import { ResumeDialog } from './ResumeDialog';
 
@@ -36,6 +36,7 @@ const STARTING: ViewState = {
   platform: { os: 'linux', mobile: false },
   resume: null,
   keystore_import: null,
+  privacy_text: null,
 };
 
 const STEP_TITLE: Record<StepView['step'], string> = {
@@ -100,6 +101,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [liveText, setLiveText] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  // Tab, mit dem sich die Einstellungen öffnen (UI-Zustand; „Details“ des Kurzhinweises → Datenschutz)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('simple');
   const toastId = useRef(0);
   const isMac = isMacProp ?? (typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
 
@@ -151,6 +154,14 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         },
       ),
     [bridge, toast, current.language],
+  );
+
+  const openSettings = useCallback(
+    (tab: SettingsTab = 'simple') => {
+      setSettingsTab(tab);
+      void dispatch({ type: 'open_settings' });
+    },
+    [dispatch],
   );
 
   // --- Dateien öffnen --------------------------------------------------------------------------
@@ -218,16 +229,16 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, [bridge, dispatch, toast, current.language]);
 
   // --- Tastatur --------------------------------------------------------------------------------
-  const keyState = useRef({ current, browse, dispatch });
-  keyState.current = { current, browse, dispatch };
+  const keyState = useRef({ current, browse, dispatch, openSettings });
+  keyState.current = { current, browse, dispatch, openSettings };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { current: v, browse: b, dispatch: d } = keyState.current;
+      const { current: v, browse: b, dispatch: d, openSettings: settings } = keyState.current;
       const mod = isMac ? e.metaKey : e.ctrlKey;
       if (mod && !e.altKey && !e.shiftKey && e.key === ',') {
         if (v.main_bar.settings_enabled && !v.settings) {
           e.preventDefault();
-          void d({ type: 'open_settings' });
+          settings();
         }
         return;
       }
@@ -267,8 +278,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, [stepName]);
 
   const ctx = useMemo<AppContextValue>(
-    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac }),
-    [bridge, current, dispatch, t, announce, toast, dragActive, isMac],
+    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac, openSettings }),
+    [bridge, current, dispatch, t, announce, toast, dragActive, isMac, openSettings],
   );
 
   return (
@@ -288,7 +299,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           <main id="main" className="content" tabIndex={-1}>
             <Screen step={current.step} onBrowse={() => void browse()} />
           </main>
-          {current.settings ? <SettingsDialog settingsView={current.settings} /> : null}
+          {current.settings ? <SettingsDialog settingsView={current.settings} initialTab={settingsTab} /> : null}
           {current.migration && !current.settings ? <MigrationDialog offer={current.migration} /> : null}
           {current.resume && !current.settings && !current.migration ? <ResumeDialog offer={current.resume} /> : null}
           <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />
@@ -316,9 +327,9 @@ function Screen({ step, onBrowse }: { step: StepView; onBrowse: () => void }) {
     case 'position':
       return <PositionScreen view={step} />;
     case 'backend':
-      return <BackendScreen options={step.options} privacyNotice={step.privacy_notice} />;
+      return <BackendScreen options={step.options} />;
     case 'signing':
-      return <SigningScreen interaction={step.interaction} queue={step.queue} />;
+      return <SigningScreen interaction={step.interaction} queue={step.queue} documentLeavesDevice={step.document_leaves_device} />;
     case 'output':
       return <OutputScreen result={step.result} next={step.next} />;
     case 'error':

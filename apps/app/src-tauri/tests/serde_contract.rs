@@ -20,8 +20,8 @@ use pida_backend_api::{
 use pida_config::{NoteSetting, Settings};
 use pida_core_api::{
     BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, InteractionView, KeystoreImportView, MainBarView,
-    MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView, PrivacyNoticeView, QrInfo, QueueItemView,
-    ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
+    MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView, QrInfo, QueueItemView, ResumeOfferView,
+    SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -52,6 +52,7 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         platform: PlatformView { os: PlatformOs::Macos, mobile: false },
         resume: None,
         keystore_import: None,
+        privacy_text: None,
     }
 }
 
@@ -115,7 +116,10 @@ fn caps_keystore() -> Capabilities {
 }
 
 fn signing(interaction: InteractionView) -> ViewState {
-    view(StepView::Signing { interaction, queue: queue() }, bar(["A", "A", "A", ""], false))
+    // Masken und Meldungen von ID Austria: das Dokument verlässt das Gerät (Kurzhinweis); Passwortabfragen
+    // stammen vom Keystore (lokal)
+    let document_leaves_device = !matches!(interaction, InteractionView::Secret { .. });
+    view(StepView::Signing { interaction, queue: queue(), document_leaves_device }, bar(["A", "A", "A", ""], false))
 }
 
 fn form(request: u64, form: NativeForm) -> ViewState {
@@ -260,26 +264,6 @@ fn samples() -> Vec<(&'static str, ViewState)> {
                     },
                     BackendOptionView { id: BackendId::Csc, available: false, capabilities: None, notes: Vec::new() },
                 ],
-                privacy_notice: None,
-            },
-            bar(["AE", "AE", "A", ""], true),
-        ),
-    ));
-    out.push((
-        "backend_privacy",
-        view(
-            StepView::Backend {
-                options: vec![BackendOptionView {
-                    id: BackendId::AtrustNative,
-                    available: true,
-                    capabilities: Some(caps_native()),
-                    notes: Vec::new(),
-                }],
-                privacy_notice: Some(PrivacyNoticeView {
-                    backend: BackendId::AtrustNative,
-                    version: 1,
-                    custom_text: Some("Eigener Text der Organisation".into()),
-                }),
             },
             bar(["AE", "AE", "A", ""], true),
         ),
@@ -503,7 +487,6 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     settings.keystore.file = Some(PathBuf::from("/Users/demo/keystore.p12"));
     settings.output.folder = Some(PathBuf::from("."));
     settings.proxy.port = Some(8080);
-    settings.privacy.acknowledged.insert("atrust_native".into(), 1);
     settings.unknown.insert("signature.future_key".into(), toml::Value::String("bleibt".into()));
     settings.unknown.insert("future".into(), toml::Value::Integer(42));
     let mut problems = BTreeMap::new();
@@ -518,6 +501,8 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         preview_revision: 3,
     });
     with_settings.language = Lang::En;
+    // eigener Datenschutztext per Richtlinie (Einstellungen › Datenschutz, ADR 0003)
+    with_settings.privacy_text = Some("Eigener Datenschutztext der Organisation".into());
     out.push(("settings_open", with_settings));
     let mut defaults = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], false));
     defaults.settings = Some(SettingsView {
@@ -542,7 +527,6 @@ fn samples() -> Vec<(&'static str, ViewState)> {
                 capabilities: Some(mobile_caps),
                 notes: vec!["ng-fido2-unavailable-mobile".into()],
             }],
-            privacy_notice: None,
         },
         bar(["AE", "AE", "A", ""], true),
     );
@@ -661,8 +645,25 @@ fn typescript_events_deserialize_into_ui_event() {
     assert_eq!(types.len(), UI_EVENT_VARIANTS, "alle UiEvent-Varianten: {types:?}");
 }
 
-/// Anzahl der `UiEvent`-Varianten (die TS-Beispiele müssen jede abdecken).
-const UI_EVENT_VARIANTS: usize = 38;
+/// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
+/// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
+const UI_EVENT_VARIANTS: usize = 37;
+
+/// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
+/// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).
+#[test]
+fn deprecated_acknowledge_privacy_still_deserializes() {
+    for json in [
+        serde_json::json!({ "type": "acknowledge_privacy", "accepted": true }),
+        serde_json::json!({ "type": "acknowledge_privacy" }),
+    ] {
+        let event: UiEvent = serde_json::from_value(json.clone()).unwrap_or_else(|e| panic!("{json}: {e}"));
+        assert!(matches!(event, UiEvent::AcknowledgePrivacy { .. }));
+    }
+    let generated = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../src/core/generated.ts"))
+        .expect("generated.ts lesen");
+    assert!(!generated.contains("acknowledge_privacy"), "veraltetes Ereignis in den TS-Typen");
+}
 
 #[test]
 fn unknown_events_are_rejected() {

@@ -41,7 +41,6 @@ fn full_settings() -> Settings {
     s.proxy.host = Some("proxy.example.test".into());
     s.proxy.port = Some(3128);
     s.proxy.user = Some("u".into());
-    s.privacy.acknowledged.insert("atrust-native".into(), 2);
     s.certificate_cache.enabled = true;
     s
 }
@@ -84,9 +83,6 @@ future_key = ["a", "b"]
 [signature.future_table]
 x = 1
 
-[privacy.acknowledged]
-atrust-native = 1
-
 [future]
 name = "Zukunft"
 
@@ -103,7 +99,6 @@ fn unknown_keys_survive_in_all_tables() {
     assert!(!s.general.update_check);
     assert_eq!(s.signature.profile, SignatureProfile::BaseLogo);
     assert_eq!(s.signature.logo_only_size_mm, 30.0, "Ganzzahl als f64 gelesen");
-    assert_eq!(s.privacy.acknowledged.get("atrust-native"), Some(&1));
     let keys: Vec<&str> = s.unknown.keys().map(String::as_str).collect();
     assert_eq!(
         keys,
@@ -135,6 +130,30 @@ fn unknown_keys_survive_in_all_tables() {
     assert_eq!(table["signature"]["profile"].as_str(), Some("INVISIBLE"));
     let back = Settings::from_toml(&text).unwrap();
     assert_eq!(back, changed);
+}
+
+/// Einstellungen mit der Bestätigung des früheren Datenschutzdialogs (bis 15.10.2026, ADR 0003) laden
+/// weiter; die Bestätigung wird verworfen, andere Einträge unter `[privacy]` bleiben wie unbekannte.
+#[test]
+fn retired_privacy_acknowledgement_still_loads_and_is_dropped() {
+    let old = "schema_version = 1\n[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n";
+    let s = Settings::from_toml(old).unwrap();
+    assert!(s.signature.auto_position);
+    assert!(s.unknown.is_empty(), "{:?}", s.unknown);
+    let text = s.to_toml().unwrap();
+    assert!(!text.contains("privacy") && !text.contains("acknowledged"), "{text}");
+    assert_eq!(Settings::from_toml(&text).unwrap(), s);
+    // JSON-Rundlauf über die Bridge: keine Spur des alten Felds
+    let json = serde_json::to_value(&s).unwrap();
+    assert!(json.get("privacy").is_none(), "{json}");
+    // fremde Einträge unter [privacy] bleiben (Vorwärtskompatibilität)
+    let mixed = "[privacy]\nfuture = 7\n[privacy.acknowledged]\natrust_native = 1\n";
+    let s = Settings::from_toml(mixed).unwrap();
+    assert_eq!(s.unknown.keys().collect::<Vec<_>>(), vec!["privacy"]);
+    let table: toml::Table = toml::from_str(&s.to_toml().unwrap()).unwrap();
+    assert_eq!(table["privacy"]["future"].as_integer(), Some(7));
+    assert!(table["privacy"].get("acknowledged").is_none());
+    assert_eq!(pida_config::RETIRED_KEYS, &[&["privacy", "acknowledged"][..]]);
 }
 
 #[test]

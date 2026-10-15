@@ -62,7 +62,7 @@ fn signing_continues_after_returning_from_the_id_austria_app() {
 
 #[test]
 fn resume_loads_document_and_signs_with_the_saved_backend() {
-    let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
+    let ctx = gui();
     let t = step(idle(), resume(BackendId::AtrustNative, vec![doc(2)]), &ctx);
     let State::Resuming { queue, doc: None, .. } = &t.state else { panic!("{:?}", t.state) };
     assert_eq!(queue.current_id(), Some(DocId(1)));
@@ -80,7 +80,7 @@ fn resume_loads_document_and_signs_with_the_saved_backend() {
     assert!(matches!(&t.state, State::Resuming { doc: Some(d), .. } if d.id == DocId(1)));
     assert_eq!(t.effects, vec![Effect::ProbeBackends]);
     assert!(t.state.doc().is_some());
-    // gespeichertes Signiermittel verfügbar → direkt Signieren (Hinweis bereits bestätigt)
+    // gespeichertes Signiermittel verfügbar → direkt Signieren („Signatur fortsetzen“ ist die Nutzeraktion)
     let t = step(t.state, Event::BackendsProbed(options(false, true)), &ctx);
     let State::Signing { backend, position, phase, flow, .. } = &t.state else { panic!("{:?}", t.state) };
     assert_eq!(*backend, BackendId::AtrustNative);
@@ -90,15 +90,19 @@ fn resume_loads_document_and_signs_with_the_saved_backend() {
     assert_eq!(t.effects, vec![Effect::OpenSession(BackendId::AtrustNative)]);
 }
 
+/// Ohne Zustimmungsschritt (ADR 0003): Fortsetzen mit ID Austria startet die Sitzung direkt – auch bei
+/// einem eingeschalteten Keystore (kein F-54, das Signiermittel steht im fortgesetzten Vorgang fest).
 #[test]
-fn resume_asks_privacy_when_not_yet_acknowledged() {
+fn resume_signs_without_consent_step() {
     let events = [
         resume(BackendId::AtrustNative, vec![]),
         analyzed(1, 2, None, false),
-        Event::BackendsProbed(options(false, false)),
+        Event::BackendsProbed(options(false, true)),
     ];
-    let (s, _) = run(idle(), events, &gui());
-    assert!(matches!(s, State::PrivacyNotice { backend: BackendId::AtrustNative, .. }), "{s:?}");
+    let (s, effects) = run(idle(), events, &gui());
+    assert!(matches!(s, State::Signing { backend: BackendId::AtrustNative, .. }), "{s:?}");
+    assert_eq!(effects.last(), Some(&Effect::OpenSession(BackendId::AtrustNative)));
+    assert!(!effects.iter().any(|e| matches!(e, Effect::Notify(_))), "{effects:?}");
 }
 
 #[test]
@@ -174,7 +178,7 @@ fn resume_is_only_accepted_in_the_open_screen() {
 
 #[test]
 fn successful_resumed_signature_deletes_persisted_state() {
-    let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
+    let ctx = gui();
     let events = [
         resume(BackendId::AtrustNative, vec![]),
         analyzed(1, 2, None, false),

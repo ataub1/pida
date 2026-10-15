@@ -14,9 +14,6 @@ use pida_config::{
 use pida_i18n::Lang;
 use pida_workflow::Context;
 
-/// Version des Datenschutzhinweises; eine neue Textversion verlangt eine neue Bestätigung.
-pub const PRIVACY_TEXT_VERSION: u32 = 1;
-
 /// Ergebnis des Ladens beim Start.
 #[derive(Debug)]
 pub(crate) enum StartupProblem {
@@ -133,22 +130,9 @@ impl ConfigState {
         self.settings.effective_ui_language()
     }
 
-    /// Bestätigte Datenschutzhinweise (aktuelle Textversion).
-    pub(crate) fn privacy_acknowledged(&self) -> Vec<BackendId> {
-        [BackendId::AtrustNative, BackendId::AtrustBrowser, BackendId::Csc, BackendId::Wallet]
-            .into_iter()
-            .filter(|id| {
-                self.settings.privacy.acknowledged.get(id.as_str()).is_some_and(|v| *v >= PRIVACY_TEXT_VERSION)
-            })
-            .collect()
-    }
-
-    /// Bestätigung speichern.
-    pub(crate) fn acknowledge_privacy(&mut self, id: BackendId) {
-        self.settings.privacy.acknowledged.insert(id.as_str().to_owned(), PRIVACY_TEXT_VERSION);
-        if let Err(e) = self.save() {
-            tracing::warn!(id = e.message_id(), "Bestätigung des Datenschutzhinweises nicht gespeichert");
-        }
+    /// Eigener Datenschutztext der Organisation (Richtlinie), sonst `None` (Text aus PDF-Over).
+    pub(crate) fn privacy_text(&self) -> Option<String> {
+        self.policy.as_ref().and_then(|p| p.privacy_notice_text.clone()).filter(|t| !t.trim().is_empty())
     }
 
     /// Reducer-Kontext.
@@ -162,7 +146,6 @@ impl ConfigState {
             default_backend: eff.default_backend(),
             skip_finish: eff.skip_finish(),
             headless,
-            privacy_acknowledged: self.privacy_acknowledged(),
             output_postfix: self.settings.output.postfix.clone(),
         }
     }
@@ -275,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn context_follows_settings_overlay_and_privacy() {
+    fn context_follows_settings_and_overlay() {
         let tmp = tempfile::tempdir().unwrap();
         let overlay = Overlay { auto_position: true, invisible: Some(true), ..Overlay::default() };
         let (mut s, _) = state(tmp.path(), overlay);
@@ -285,12 +268,18 @@ mod tests {
         let ctx = s.context(true);
         assert!(ctx.auto_position && ctx.invisible && ctx.placeholder_search && ctx.placeholder_fields && ctx.headless);
         assert_eq!(ctx.output_postfix, "_x");
-        assert!(ctx.privacy_acknowledged.is_empty());
-        s.acknowledge_privacy(BackendId::AtrustNative);
-        assert_eq!(s.context(false).privacy_acknowledged, vec![BackendId::AtrustNative]);
-        // gespeichert
-        let saved = Settings::from_toml(&std::fs::read_to_string(s.paths.settings_file()).unwrap()).unwrap();
-        assert_eq!(saved.privacy.acknowledged["atrust_native"], PRIVACY_TEXT_VERSION);
+        assert!(!s.context(false).headless);
+    }
+
+    #[test]
+    fn privacy_text_comes_from_the_policy() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (mut s, _) = state(tmp.path(), Overlay::default());
+        assert_eq!(s.privacy_text(), None);
+        s.policy = Some(Policy { privacy_notice_text: Some("  ".into()), ..Policy::default() });
+        assert_eq!(s.privacy_text(), None, "leerer Text = Text aus PDF-Over");
+        s.policy = Some(Policy { privacy_notice_text: Some("Hinweis der Organisation".into()), ..Policy::default() });
+        assert_eq!(s.privacy_text().as_deref(), Some("Hinweis der Organisation"));
     }
 
     #[test]

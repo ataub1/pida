@@ -2,7 +2,10 @@
  * Signieren (docs/analyse/01 §4.5–§4.7, §4.10): Warten mit Fortschritt, die nativen ID-Austria-Masken
  * (Szenario A: Anmeldung mit „Merken“, SMS-TAN mit Vergleichswert, QR-Code, App-Bestätigung mit
  * Countdown, FIDO2), Passwortabfragen (Keystore, Proxy), Meldungen (A-Trust-Interstitial/-Fehler,
- * HTTP/Netz, lokale BKU, Keystore) und „Signaturdaten anzeigen“ (F-68).
+ * HTTP/Netz, lokale BKU, Keystore) und „Signaturdaten anzeigen“ (F-68). Verlässt das Dokument mit dem
+ * laufenden Signiermittel das Gerät (`document_leaves_device`, ID Austria), steht unter der Maske bzw. dem
+ * Fortschritt der Kurzhinweis „wird an A-Trust übermittelt“ mit „Details“ (ADR 0003) – auch dann, wenn
+ * das Signiermittel ohne Auswahl gestartet wurde (Standard-Signiermittel bzw. F-54 nach „Signieren“).
  *
  * Passwörter und TANs bleiben nur im Formularzustand, werden nie geloggt und nach dem Senden
  * verworfen (Komponente wird je Anfrage neu aufgebaut).
@@ -11,6 +14,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Checkbox, Form, Input, Label, ProgressBar, Text, TextField } from 'react-aria-components';
 import { useApp } from '../app/context';
 import { IconFido, IconPhone, IconQr } from '../components/icons';
+import { PrivacyNote } from '../components/Privacy';
 import { QueuePanel } from '../components/QueuePanel';
 import { AccessButton, ConfirmDialog, Countdown, Markup, ReferenceValue, ScreenHeading, Spinner } from '../components/ui';
 import type { Translator } from '../i18n/catalog';
@@ -505,7 +509,15 @@ function FormFor({ request, form, lastUsername, onUsername }: { request: number;
   return <Fido2Form key={request} request={request} data={form.Fido2} />;
 }
 
-export function SigningScreen({ interaction, queue }: { interaction: InteractionView; queue: QueueItemView[] }) {
+export function SigningScreen({
+  interaction,
+  queue,
+  documentLeavesDevice = false,
+}: {
+  interaction: InteractionView;
+  queue: QueueItemView[];
+  documentLeavesDevice?: boolean;
+}) {
   const { t } = useApp();
   // Benutzername der letzten Anmeldung (für eine erneute Login-Seite, nicht persistent)
   const [lastUsername, setLastUsername] = useState('');
@@ -514,17 +526,20 @@ export function SigningScreen({ interaction, queue }: { interaction: Interaction
     <div className="screen screen-signing" data-interaction={interaction.kind === 'form' ? variantName(interaction.form) : interaction.kind}>
       <ScreenHeading subtitle={current?.name}>{t.t('main-signature')}</ScreenHeading>
       <div className="signing-layout">
-        {interaction.kind === 'waiting' ? <Waiting progress={interaction.progress} /> : null}
-        {interaction.kind === 'form' ? (
-          <FormFor request={interaction.request} form={interaction.form} lastUsername={lastUsername} onUsername={setLastUsername} />
-        ) : null}
-        {interaction.kind === 'secret' ? <SecretForm key={interaction.request} request={interaction.request} prompt={interaction.prompt} /> : null}
-        {interaction.kind === 'notice' ? (
-          <>
-            <Waiting progress="WaitingForServer" />
-            <NoticeDialog key={interaction.request} request={interaction.request} notice={interaction.notice} />
-          </>
-        ) : null}
+        <div className="signing-main">
+          {interaction.kind === 'waiting' ? <Waiting progress={interaction.progress} /> : null}
+          {interaction.kind === 'form' ? (
+            <FormFor request={interaction.request} form={interaction.form} lastUsername={lastUsername} onUsername={setLastUsername} />
+          ) : null}
+          {interaction.kind === 'secret' ? <SecretForm key={interaction.request} request={interaction.request} prompt={interaction.prompt} /> : null}
+          {interaction.kind === 'notice' ? (
+            <>
+              <Waiting progress="WaitingForServer" />
+              <NoticeDialog key={interaction.request} request={interaction.request} notice={interaction.notice} />
+            </>
+          ) : null}
+          {documentLeavesDevice ? <PrivacyNote /> : null}
+        </div>
         <QueuePanel queue={queue.length > 1 ? queue : []} />
       </div>
     </div>

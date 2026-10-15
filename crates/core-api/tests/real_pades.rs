@@ -81,7 +81,7 @@ fn real_engine_keystore_invisible_xref_stream() {
 // echte Selbstprüfung (I3, `cms-unexpected-signer`) verwirft das Ergebnis, „Wiederholen“ liest neu.
 // ------------------------------------------------------------------------------------------------
 
-const CACHE_SETTINGS: &str = "[signature]\nauto_position = true\n[privacy.acknowledged]\natrust_native = 1\n\
+const CACHE_SETTINGS: &str = "[signature]\nauto_position = true\n\
 [id_austria]\nusername = \"+436641234567\"\n[certificate_cache]\nenabled = true\n";
 
 fn cache_key() -> pida_config::CertCacheKey {
@@ -148,6 +148,7 @@ async fn real_engine_certificate_cache_hit_is_valid() {
     let fx = Fixture::new();
     let out = fx.dir("out");
     let (core, fake) = start_cached(&fx, &out, "keystores/test-rsa2048.crt.der");
+    choose_id_austria(&core).await;
     // kein Lesen des Zertifikats (keine Anmeldung), direkt die Bestätigung
     submit_tan(&core).await;
     wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
@@ -166,6 +167,7 @@ async fn real_engine_certificate_cache_mismatch_is_caught_and_retried() {
     let out = fx.dir("out");
     // im Cache ein anderes Zertifikat (z. B. vor der Erneuerung); A-Trust signiert mit dem RSA-Testschlüssel
     let (core, fake) = start_cached(&fx, &out, "keystores/test-ecp256.crt.der");
+    choose_id_austria(&core).await;
     submit_tan(&core).await;
     let v = wait_for(&core, "Fehler", |v| matches!(&v.step, StepView::Error { .. })).await;
     let StepView::Error { code, params, retry } = v.step else { unreachable!() };

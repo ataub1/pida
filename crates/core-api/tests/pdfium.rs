@@ -3,21 +3,37 @@
 
 mod common;
 
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+
 use common::*;
+use pida_backend_api::{NativeForm, SignatureBackend};
 use pida_config::Overlay;
-use pida_core_api::{CoreOptions, StepView, UiEvent};
+use pida_core_api::{CoreOptions, InteractionView, StepView, UiEvent};
 use pida_workflow::DocId;
 
 fn pdfium_dir() -> Option<std::path::PathBuf> {
     std::env::var_os("PIDA_PDFIUM_DIR").map(Into::into)
 }
 
-fn start(fx: &Fixture, overlay: Overlay) -> Option<pida_core_api::Core> {
+/// Kern mit PDFium und einem Fake-ID-Austria als einzigem Signiermittel (nach „Signieren“ startet F-54
+/// eine Sitzung – nie gegen A-Trust).
+fn start_with(fx: &Fixture, overlay: Overlay, atrust: &Arc<FakeAtrust>) -> Option<pida_core_api::Core> {
     let dir = pdfium_dir()?;
     let mut cfg = fx.config(overlay, false);
     cfg.pdfium_dir = Some(dir);
-    let opts = CoreOptions { engine: Some(FakeEngine::new()), use_pdfium: true, ..CoreOptions::isolated() };
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![atrust.backend()];
+    let opts = CoreOptions {
+        engine: Some(FakeEngine::new()),
+        use_pdfium: true,
+        backends: Some(backends),
+        ..CoreOptions::isolated()
+    };
     Some(pida_core_api::Core::new_with(cfg, opts).expect("Kern"))
+}
+
+fn start(fx: &Fixture, overlay: Overlay) -> Option<pida_core_api::Core> {
+    start_with(fx, overlay, &FakeAtrust::new())
 }
 
 fn is_png(b: &[u8]) -> bool {
@@ -29,7 +45,8 @@ async fn positioning_with_tiles_preview_and_auto_place() {
     let fx = Fixture::new();
     let input = fx.dir("in");
     let a = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &input, "simple.pdf");
-    let Some(core) = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }) else {
+    let atrust = FakeAtrust::new();
+    let Some(core) = start_with(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, &atrust) else {
         eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
         return;
     };
@@ -86,8 +103,19 @@ async fn positioning_with_tiles_preview_and_auto_place() {
     let StepView::Position { page: np, .. } = v.step else { unreachable!() };
     assert_eq!(np, doc.page_count);
     assert!(is_png(&core.page_tile(doc.id, np, 0.25).unwrap()));
+    assert_eq!(atrust.opened.load(Ordering::SeqCst), 0, "vor „Signieren“ keine Sitzung");
+    // „Signieren“ ist die ausdrückliche Nutzeraktion: nur ID Austria verfügbar → F-54 startet es ohne
+    // Auswahl und ohne Zustimmungsschritt (ADR 0003); der Signierbereich zeigt den Kurzhinweis
     core.dispatch(UiEvent::ConfirmPosition);
-    wait_for(&core, "Auswahl", |v| matches!(v.step, StepView::Backend { .. })).await;
+    let v = wait_for(&core, "Anmeldung", |v| {
+        matches!(
+            &v.step,
+            StepView::Signing { interaction: InteractionView::Form { form: NativeForm::Login { .. }, .. }, .. }
+        )
+    })
+    .await;
+    assert!(matches!(v.step, StepView::Signing { document_leaves_device: true, .. }));
+    assert_eq!(atrust.opened.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

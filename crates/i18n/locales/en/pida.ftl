@@ -271,11 +271,7 @@ ng-ui-factor-app = App
 ng-ui-factor-sms = SMS
 ng-ui-factor-card = Card
 ng-ui-privacy-title = Privacy
-ng-ui-privacy-lead = Please read the data protection notice before the document is sent.
-ng-ui-privacy-accept = Agree and continue
-    .accesskey = A
-ng-ui-privacy-decline = Decline
-    .accesskey = D
+    .accesskey = y
 
 ## Oberfläche: Signing
 
@@ -438,7 +434,6 @@ ng-cli-signed = signed: { $input } → { $output }
 ng-cli-cancelled = cancelled: { $input }
 ng-cli-failed = failed: { $input }: { $message }
 ng-cli-overwrite = File { $name } already exists. Overwrite? [y/N]{ " " }
-ng-cli-privacy = The document is sent to A-Trust for signing (privacy policy: https://www.a-trust.at/datenschutz). Continue? [y/N]{ " " }
 ng-cli-retry = Retry? [y/N]{ " " }
 ng-cli-continue = Continue? [y/N]{ " " }
 ng-cli-username = Username/phone number:{ " " }
@@ -574,3 +569,13 @@ ng-ui-browse-mobile = Choose document …
     .accesskey = C
 ng-ui-dropzone-hint-mobile = You can also send PDF documents from other apps to PIDA with "Share" or "Open in".
 ng-ui-position-help-mobile = Tap the desired place or drag the signature block with your finger; it stays visible above your finger.
+
+## Datenschutz ohne Zustimmungsdialog (ADR 0003): Kurzhinweis beim Signiermittel, Einstellungen › Datenschutz, CLI
+
+ng-document-leaves-device = Note: the document is sent to A-Trust for signing (A-Trust privacy policy: https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
+ng-ui-privacy-details = Details
+ng-ui-privacy-details-label = Privacy details
+ng-ui-privacy-local = With a keystore or the citizen card (local citizen card environment) the document is signed on this device and is not uploaded.
+ng-ui-privacy-atrust-link = A-Trust privacy policy: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
+ng-ui-privacy-about = Where your documents go when signing is described in the <a>Privacy</a> section.
+ng-ui-certcache-title = Certificate cache

@@ -319,9 +319,6 @@ pub struct Context {
     /// ohne grafische Oberfläche (CLI): automatische Positionierung, Platzhalter nach festen Regeln,
     /// kein Speichern-Dialog, Fehler ohne Wiederholen, Ende nach dem letzten Dokument
     pub headless: bool,
-    /// Backends, deren Datenschutzhinweis in der aktuellen Textversion bereits bestätigt ist
-    /// (`Settings::privacy`, Richtlinie) – dann entfällt [`State::PrivacyNotice`]
-    pub privacy_acknowledged: Vec<BackendId>,
     /// Postfix der Ausgabedatei (`SAVE_FILE_POSTFIX`, Standard `_signed`) für den Speichern-Dialog (F-86)
     pub output_postfix: String,
 }
@@ -336,7 +333,6 @@ impl Default for Context {
             default_backend: None,
             skip_finish: false,
             headless: false,
-            privacy_acknowledged: Vec::new(),
             output_postfix: "_signed".into(),
         }
     }
@@ -402,6 +398,11 @@ pub struct ResumePlan {
 /// Meldungs-ID: Das Signiermittel des fortgesetzten Vorgangs ist nicht mehr verfügbar; die Auswahl
 /// wird gezeigt und das Dokument neu vorbereitet.
 pub const MSG_RESUME_BACKEND_UNAVAILABLE: &str = "ng-resume-backend-unavailable";
+
+/// Meldungs-ID: einzeiliger Hinweis ohne Rückfrage, dass das Dokument zum Signieren an A-Trust geht
+/// (`document_leaves_device`). Nur ohne grafische Oberfläche ([`Context::headless`], CLI); die Oberfläche
+/// zeigt den Kurzhinweis selbst beim Signiermittel (ADR 0003).
+pub const MSG_DOCUMENT_LEAVES_DEVICE: &str = "ng-document-leaves-device";
 
 /// Zustand.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -476,19 +477,12 @@ pub enum State {
         /// Standard-Backend bzw. automatische Wahl anwenden (nur auf dem Weg Öffnen/Positionieren →
         /// Signieren, F-53/F-54; nach Abbruch, Fehler oder Hauptleiste wird gefragt, F-55)
         auto_choice: bool,
-    },
-    /// Datenschutzhinweis vor dem ersten Upload (`document_leaves_device`)
-    PrivacyNotice {
-        /// Warteschlange
-        queue: Queue,
-        /// Position
-        position: PositionChoice,
-        /// Backend
-        backend: BackendId,
-        /// Dokument
-        doc: DocFacts,
-        /// Optionen der Auswahl (Rückkehr bei „Ablehnen“)
-        options: Vec<BackendOption>,
+        /// Die Nutzerin hat ausdrücklich „Signieren“ gewählt (Position bestätigt bzw. „Unsichtbar
+        /// signieren“). Nur dann startet die automatische Wahl ein Signiermittel, bei dem das Dokument
+        /// das Gerät verlässt (`document_leaves_device`, z. B. ID Austria); sonst erscheint die Auswahl
+        /// mit dem Kurzhinweis – nie ohne Nutzeraktion zu A-Trust (Autostart-Befund F-54, ADR 0003).
+        #[serde(default)]
+        sign_requested: bool,
     },
     /// Signieren
     Signing {
@@ -576,7 +570,6 @@ impl State {
             | State::PlaceholderQuestion { queue, .. }
             | State::Positioning { queue, .. }
             | State::ChoosingBackend { queue, .. }
-            | State::PrivacyNotice { queue, .. }
             | State::Signing { queue, .. }
             | State::Output { queue, .. }
             | State::Error { queue, .. } => Some(queue),
@@ -594,7 +587,6 @@ impl State {
             | State::PlaceholderQuestion { queue, .. }
             | State::Positioning { queue, .. }
             | State::ChoosingBackend { queue, .. }
-            | State::PrivacyNotice { queue, .. }
             | State::Signing { queue, .. }
             | State::Output { queue, .. }
             | State::Error { queue, .. } => Some(queue),
@@ -608,7 +600,6 @@ impl State {
             | State::PlaceholderQuestion { doc, .. }
             | State::Positioning { doc, .. }
             | State::ChoosingBackend { doc, .. }
-            | State::PrivacyNotice { doc, .. }
             | State::Signing { doc, .. }
             | State::Output { doc, .. } => Some(doc),
             State::Resuming { doc, .. } => doc.as_ref(),
@@ -628,7 +619,7 @@ impl State {
             // Fortsetzen: Dokument wird geladen, danach direkt Signieren
             State::Resuming { .. } => Some(Step::Signing),
             State::Positioning { .. } => Some(Step::Positioning),
-            State::ChoosingBackend { .. } | State::PrivacyNotice { .. } | State::Signing { .. } => Some(Step::Signing),
+            State::ChoosingBackend { .. } | State::Signing { .. } => Some(Step::Signing),
             State::Output { .. } => Some(Step::Finish),
             State::Error { from, .. } => from.as_deref().and_then(State::step).or(Some(Step::Open)),
         }
@@ -648,9 +639,7 @@ impl State {
             State::Positioning { .. } => [(true, true), (true, false), (false, false), (false, false)],
             // „Öffnen“ verwirft den fortgesetzten Vorgang; Positionieren entfällt (Position steht fest)
             State::Resuming { .. } => [(true, true), (true, false), (true, false), (false, false)],
-            State::ChoosingBackend { .. } | State::PrivacyNotice { .. } => {
-                [(true, true), (true, true), (true, false), (false, false)]
-            }
+            State::ChoosingBackend { .. } => [(true, true), (true, true), (true, false), (false, false)],
             State::Signing { .. } => [(true, false), (true, false), (true, false), (false, false)],
             State::Output { .. } => [(true, true), (true, true), (true, true), (true, false)],
             State::Error { from, .. } => {
@@ -682,7 +671,6 @@ impl State {
                 | State::PlaceholderQuestion { .. }
                 | State::Positioning { .. }
                 | State::ChoosingBackend { .. }
-                | State::PrivacyNotice { .. }
                 | State::Output { .. }
         )
     }
@@ -703,7 +691,6 @@ impl State {
             State::PlaceholderQuestion { .. } => "PlaceholderQuestion",
             State::Positioning { .. } => "Positioning",
             State::ChoosingBackend { .. } => "ChoosingBackend",
-            State::PrivacyNotice { .. } => "PrivacyNotice",
             State::Signing { .. } => "Signing",
             State::Output { .. } => "Output",
             State::Error { .. } => "Error",
@@ -781,8 +768,6 @@ pub enum Event {
     BackendsProbed(Vec<BackendOption>),
     /// Backend gewählt
     BackendChosen(BackendId),
-    /// Datenschutzhinweis beantwortet
-    PrivacyAnswered(bool),
     /// Phase abgeschlossen
     PhaseCompleted(SigningPhase),
     /// Backend-Fehler
@@ -904,8 +889,6 @@ pub enum Effect {
     CloseSession,
     /// Hinweis ohne Rückfrage anzeigen (i18n-ID, z. B. `error-PositioningNotPossible`)
     Notify(String),
-    /// Datenschutzhinweis für dieses Backend als bestätigt speichern (einmalig je Textversion)
-    AcknowledgePrivacy(BackendId),
     /// Einstellungen zurücksetzen (`Paths::reset`) und Kern neu initialisieren
     ResetSettings,
     /// persistierten Zustand löschen (Mobile: vorbereitetes Dokument und „Signatur fortsetzen“-Datensatz;

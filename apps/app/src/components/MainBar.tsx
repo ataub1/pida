@@ -19,7 +19,7 @@ const LABEL: Record<Step, string> = {
 
 /** Hauptleiste. */
 export function MainBar({ onOpenFiles }: { onOpenFiles: () => void }) {
-  const { view, dispatch, t, isMac } = useApp();
+  const { view, dispatch, t, isMac, openSettings } = useApp();
   const steps = view.main_bar.steps;
   // aktueller Schritt = letzter erreichter
   const currentIndex = steps.reduce((acc, s, i) => (s.active ? i : acc), -1);
@@ -43,7 +43,7 @@ export function MainBar({ onOpenFiles }: { onOpenFiles: () => void }) {
         ref={settingsRef}
         className="mainbar-settings"
         isDisabled={!view.main_bar.settings_enabled}
-        onPress={() => dispatch({ type: 'open_settings' })}
+        onPress={() => openSettings()}
         aria-label={t.t('main-configuration')}
       >
         <IconSettings size={22} />

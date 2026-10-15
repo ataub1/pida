@@ -47,8 +47,7 @@ pub use secrets::{
 pub use settings::{
     BackendChoice, BackendSettings, CertificateCacheSettings, CmsProfileChoice, GeneralSettings, IdAustriaSettings,
     KeystoreSettings, LoadOutcome, NoteSetting, OutputSettings, PasswordStorage, PlaceholderKind, PlaceholderSettings,
-    PrivacySettings, ProxyMode, ProxySettings, SCHEMA_VERSION, Settings, SignatureProfile, SignatureSettings,
-    WindowSize,
+    ProxyMode, ProxySettings, RETIRED_KEYS, SCHEMA_VERSION, Settings, SignatureProfile, SignatureSettings, WindowSize,
 };
 pub use source::{
     ConfigSource, SessionSecrets, load_config_source, load_config_source_with_secrets, resolve_config_file,

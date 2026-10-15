@@ -134,9 +134,8 @@ const stepView = tagged('step', {
   },
   backend: {
     options: arr(obj({ id: backendId, available: bool, capabilities: nullable(capabilities), notes: arr(str) })),
-    privacy_notice: nullable(obj({ backend: backendId, version: int, custom_text: nullable(str) })),
   },
-  signing: { interaction, queue: arr(queueItem) },
+  signing: { interaction, queue: arr(queueItem), document_leaves_device: bool },
   output: {
     result: obj({
       path: nullable(str),
@@ -180,7 +179,6 @@ const settings = objOpen({
   }),
   output: obj({ folder: nullable(str), postfix: str }),
   proxy: obj({ mode: lit('system', 'none', 'manual'), host: nullable(str), port: nullable(int), user: nullable(str) }),
-  privacy: obj({ acknowledged: record(int) }),
   certificate_cache: obj({ enabled: bool }),
 });
 
@@ -217,6 +215,7 @@ const viewState = obj({
   platform: obj({ os: lit('windows', 'macos', 'linux', 'ios', 'android'), mobile: bool }),
   resume: nullable(obj({ name: str, backend: backendId, age_minutes: int, pending: int })),
   keystore_import: nullable(obj({ file_name: str, ok: bool, code: str, password_stored: bool })),
+  privacy_text: nullable(str),
 });
 
 const formAnswer = tagged('kind', {
@@ -240,7 +239,6 @@ const uiEvent = tagged('type', {
   confirm_position: {},
   choose_invisible: {},
   choose_backend: { backend: backendId },
-  acknowledge_privacy: { accepted: bool },
   submit_form: { request: int, answer: formAnswer },
   submit_secret: { request: int, secret: str },
   answer_notice: { request: int, answer: lit('Ok', 'Retry', 'Cancel') },
@@ -338,6 +336,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         platform: { os: 'ios', mobile: true },
         resume: null,
         keystore_import: null,
+        privacy_text: null,
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);
@@ -352,8 +351,9 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(validate(uiEvent, sample)).toEqual([]);
   });
 
-  it('alle 38 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(38);
+  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003)
+  it('alle 37 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(37);
   });
 
   it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen, Import)', () => {

@@ -1,6 +1,8 @@
 //! Signieren über die Kommandozeile: der Kern läuft ohne grafische Oberfläche
 //! (`CoreConfig::headless`), die CLI ist die „UI“ und beantwortet Masken, Passwortabfragen,
-//! Meldungen, Datenschutzhinweis und Überschreib-Rückfragen im Terminal (Terminal-Broker).
+//! Meldungen und Überschreib-Rückfragen im Terminal (Terminal-Broker). Hinweise des Kerns erscheinen als
+//! einzeilige Info – darunter `ng-document-leaves-device`, wenn das Dokument zum Signieren an A-Trust
+//! geht (nicht blockierend; der frühere Datenschutzdialog mit „[j/N]“ entfällt, ADR 0003).
 //!
 //! - `--headless` bzw. kein Terminal: keine Rückfragen (Keystore mit Passwort aus `-kspass`,
 //!   `--kspass-stdin`, `--kspass-env`; lokale BKU); ID Austria ist dann nicht verfügbar.
@@ -155,7 +157,6 @@ enum Prompt {
     Tan { request: u64, reference: String },
     Secret { request: u64, kind: SecretKind, subject: String },
     Notice { request: u64, text: String, buttons: NoticeButtons },
-    Privacy,
     Overwrite(PathBuf),
 }
 
@@ -199,10 +200,6 @@ fn ask(term: &dyn Terminal, lang: Lang, prompt: &Prompt) -> Option<UiEvent> {
             };
             Some(UiEvent::AnswerNotice { request: *request, answer })
         }
-        Prompt::Privacy => {
-            let ok = term.line(&tr(lang, "ng-cli-privacy", &[])).is_some_and(|a| is_yes(&a));
-            Some(UiEvent::AcknowledgePrivacy { accepted: ok })
-        }
         Prompt::Overwrite(p) => {
             let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             let ok = term.line(&tr(lang, "ng-cli-overwrite", &[("name", name)])).is_some_and(|a| is_yes(&a));
@@ -219,7 +216,6 @@ struct Ui {
     handled: HashSet<u64>,
     notices: HashSet<u64>,
     progress: Option<Progress>,
-    privacy_asked: bool,
     overwrite_asked: Option<PathBuf>,
     countdown: Option<tokio::task::JoinHandle<()>>,
     /// geschriebene QR-Bilder (Anfrage, Datei): enthalten den Sitzungsbezug des Signiervorgangs und werden
@@ -259,7 +255,6 @@ impl Ui {
             handled: HashSet::new(),
             notices: HashSet::new(),
             progress: None,
-            privacy_asked: false,
             overwrite_asked: None,
             countdown: None,
             qr_files: Vec::new(),
@@ -307,9 +302,6 @@ impl Ui {
     /// Wertet den ViewState aus; liefert eine blockierende Rückfrage oder ein sofortiges Ereignis.
     fn next(&mut self, step: &StepView, term: &Arc<dyn Terminal>) -> (Option<Prompt>, Option<UiEvent>) {
         let lang = self.lang;
-        if !matches!(step, StepView::Backend { privacy_notice: Some(_), .. }) {
-            self.privacy_asked = false;
-        }
         // QR-Bild nur so lange behalten, wie die QR-Maske offen ist
         let open_qr = match step {
             StepView::Signing {
@@ -373,14 +365,6 @@ impl Ui {
                         (Some(Prompt::Notice { request: *request, text, buttons: notice.buttons }), None)
                     }
                     _ => (None, None),
-                }
-            }
-            StepView::Backend { privacy_notice: Some(_), .. } if !self.privacy_asked => {
-                self.privacy_asked = true;
-                if self.interactive {
-                    (Some(Prompt::Privacy), None)
-                } else {
-                    (None, Some(UiEvent::AcknowledgePrivacy { accepted: false }))
                 }
             }
             StepView::Output { result, .. } => match &result.ask_overwrite {
@@ -595,6 +579,19 @@ mod tests {
                 },
             },
             queue: Vec::new(),
+            document_leaves_device: true,
+        }
+    }
+
+    /// Die Signiermittel-Auswahl ist keine Rückfrage mehr (kein Datenschutzdialog, ADR 0003): weder mit
+    /// noch ohne Terminal entsteht ein Prompt oder ein Ereignis.
+    #[tokio::test]
+    async fn backend_step_asks_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        for interactive in [true, false] {
+            let term: Arc<dyn Terminal> = Arc::new(crate::term::Scripted::new(interactive, &[]));
+            let mut ui = Ui::new(Lang::De, interactive, tmp.path().to_path_buf());
+            assert!(matches!(ui.next(&StepView::Backend { options: Vec::new() }, &term), (None, None)));
         }
     }
 
@@ -616,8 +613,11 @@ mod tests {
         ui.next(&qr_step(7), &term);
         assert!(path.is_file());
         // Maske geschlossen (Long-Poll fertig) → gelöscht
-        let waiting =
-            StepView::Signing { interaction: InteractionView::Waiting { progress: Progress::Signing }, queue: vec![] };
+        let waiting = StepView::Signing {
+            interaction: InteractionView::Waiting { progress: Progress::Signing },
+            queue: vec![],
+            document_leaves_device: true,
+        };
         ui.next(&waiting, &term);
         assert!(!path.exists());
         // am Ende (Drop) werden auch offene Bilder gelöscht

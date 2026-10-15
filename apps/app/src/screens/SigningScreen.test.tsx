@@ -34,6 +34,42 @@ describe('Signieren: Warten', () => {
   });
 });
 
+describe('Signieren: Kurzhinweis zum Datenschutz (ADR 0003)', () => {
+  it('ID Austria: Kurzhinweis unter der Maske; „Details“ zeigt die Angaben, solange die Einstellungen gesperrt sind', async () => {
+    const { mock, user } = renderApp({ view: formView({ SmsTan: { reference_value: 'ab', ctx: ctx() } }) });
+    const note = await screen.findByTestId('privacy-note');
+    expect(note).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt. Details');
+    await user.click(within(note).getByRole('link', { name: 'Details zum Datenschutz' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Datenschutzinformation' });
+    expect(dialog).toHaveTextContent('an die Firma A-Trust gesendet');
+    expect(dialog).toHaveTextContent('Mit einem Keystore oder der Bürgerkarte');
+    await user.click(within(dialog).getByRole('link', { name: /datenschutzerklaerung\.pdf/ }));
+    expect(mock.openedUrls).toEqual(['https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf']);
+    await user.click(within(dialog).getByRole('button', { name: 'Schließen' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    // weder Einstellungen (während des Signierens gesperrt) noch ein Abbruch
+    expect(mock.dispatched).toEqual([]);
+    expect(screen.getByLabelText('TAN:')).toBeInTheDocument();
+  });
+
+  it('auch während des Wartens auf A-Trust; Escape schließt die Angaben', async () => {
+    const { user } = renderApp({ view: signingView({ kind: 'waiting', progress: 'WaitingForServer' }) });
+    await user.click(await screen.findByRole('link', { name: 'Details zum Datenschutz' }));
+    await screen.findByRole('alertdialog', { name: 'Datenschutzinformation' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  });
+
+  it('Keystore (lokal): kein Kurzhinweis', async () => {
+    renderApp({ view: signingView({ kind: 'secret', request: 4, prompt: { kind: 'KeystorePassword', subject: 'id.p12', retry: false } }) });
+    await screen.findByLabelText(/Keystore-Passwort/, { selector: 'input' });
+    expect(screen.queryByTestId('privacy-note')).not.toBeInTheDocument();
+    renderApp({ view: signingView({ kind: 'waiting', progress: 'Signing' }, 'de', false) });
+    await screen.findAllByRole('progressbar');
+    expect(screen.queryByTestId('privacy-note')).not.toBeInTheDocument();
+  });
+});
+
 describe('Signieren: Anmeldung (ID Austria)', () => {
   it('lehnt die Bridge das Absenden ab, wird OK wieder frei (kein Hängenbleiben)', async () => {
     const { mock, user } = renderApp({ view: formView({ Login: { prefill_username: 'max', remember: false, ctx: ctx() } }) });

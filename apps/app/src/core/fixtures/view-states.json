@@ -36,6 +36,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -80,6 +81,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -125,6 +127,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -181,6 +184,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -237,6 +241,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -353,6 +358,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -398,6 +404,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -469,6 +476,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -534,6 +542,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -614,6 +623,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -689,6 +699,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -761,82 +772,6 @@
             "notes": []
           }
         ],
-        "privacy_notice": null,
-        "step": "backend"
-      }
-    }
-  },
-  {
-    "name": "backend_privacy",
-    "view": {
-      "done": [],
-      "keystore_import": null,
-      "language": "de",
-      "main_bar": {
-        "settings_enabled": true,
-        "steps": [
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Open"
-          },
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Positioning"
-          },
-          {
-            "active": true,
-            "enabled": false,
-            "step": "Signing"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Finish"
-          }
-        ]
-      },
-      "migration": null,
-      "notices": [],
-      "platform": {
-        "mobile": false,
-        "os": "macos"
-      },
-      "resume": null,
-      "settings": null,
-      "step": {
-        "options": [
-          {
-            "available": true,
-            "capabilities": {
-              "certificate": "OnlyForVisibleBlock",
-              "cms_reserve": 16384,
-              "document_leaves_device": true,
-              "factors": {
-                "app": true,
-                "card": false,
-                "fido2": true,
-                "qr": true,
-                "sms": true
-              },
-              "input": "Document",
-              "interaction": "NativeForms",
-              "login_once_per_batch": true,
-              "max_batch": 1,
-              "output": "Cms",
-              "qualification": "Qes",
-              "server": "None"
-            },
-            "id": "atrust_native",
-            "notes": []
-          }
-        ],
-        "privacy_notice": {
-          "backend": "atrust_native",
-          "custom_text": "Eigener Text der Organisation",
-          "version": 1
-        },
         "step": "backend"
       }
     }
@@ -878,9 +813,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "waiting",
           "progress": "Connecting"
@@ -938,9 +875,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "waiting",
           "progress": "ReadingCertificate"
@@ -998,9 +937,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "waiting",
           "progress": "WaitingForServer"
@@ -1058,9 +999,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "waiting",
           "progress": "Signing"
@@ -1118,9 +1061,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "waiting",
           "progress": {
@@ -1183,9 +1128,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "waiting",
           "progress": "Done"
@@ -1243,9 +1190,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Login": {
@@ -1316,9 +1265,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Login": {
@@ -1389,9 +1340,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Login": {
@@ -1462,9 +1415,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Login": {
@@ -1535,9 +1490,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Login": {
@@ -1610,9 +1567,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Login": {
@@ -1688,9 +1647,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "SmsTan": {
@@ -1760,9 +1721,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "SmsTan": {
@@ -1832,9 +1795,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "SmsTan": {
@@ -1904,9 +1869,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "SmsTan": {
@@ -1976,9 +1943,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "QrCode": {
@@ -2058,9 +2027,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "QrCode": {
@@ -2132,9 +2103,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "WaitForApp": {
@@ -2205,9 +2178,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "WaitForApp": {
@@ -2278,9 +2253,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Fido2": {
@@ -2350,9 +2327,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "form": {
             "Fido2": {
@@ -2424,9 +2403,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": false,
         "interaction": {
           "kind": "secret",
           "prompt": {
@@ -2489,9 +2470,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": false,
         "interaction": {
           "kind": "secret",
           "prompt": {
@@ -2554,9 +2537,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": false,
         "interaction": {
           "kind": "secret",
           "prompt": {
@@ -2619,9 +2604,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": false,
         "interaction": {
           "kind": "secret",
           "prompt": {
@@ -2684,9 +2671,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -2750,9 +2739,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -2816,9 +2807,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -2882,9 +2875,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -2948,9 +2943,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -3018,9 +3015,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -3084,9 +3083,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -3150,9 +3151,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -3216,9 +3219,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -3282,9 +3287,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -3348,9 +3355,11 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
+        "document_leaves_device": true,
         "interaction": {
           "kind": "notice",
           "notice": {
@@ -3414,6 +3423,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -3465,6 +3475,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -3531,6 +3542,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -3582,6 +3594,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -3636,6 +3649,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -3685,6 +3699,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -3730,6 +3745,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": "Eigener Datenschutztext der Organisation",
       "resume": null,
       "settings": {
         "fido2_available": false,
@@ -3772,11 +3788,6 @@
           "placeholder": {
             "kind": "marker",
             "search": false
-          },
-          "privacy": {
-            "acknowledged": {
-              "atrust_native": 1
-            }
           },
           "proxy": {
             "host": null,
@@ -3844,6 +3855,7 @@
         "mobile": false,
         "os": "macos"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": {
         "fido2_available": true,
@@ -3883,9 +3895,6 @@
           "placeholder": {
             "kind": "marker",
             "search": false
-          },
-          "privacy": {
-            "acknowledged": {}
           },
           "proxy": {
             "host": null,
@@ -3951,6 +3960,7 @@
         "mobile": true,
         "os": "android"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {
@@ -3982,7 +3992,6 @@
             ]
           }
         ],
-        "privacy_notice": null,
         "step": "backend"
       }
     }
@@ -4024,6 +4033,7 @@
         "mobile": true,
         "os": "ios"
       },
+      "privacy_text": null,
       "resume": {
         "age_minutes": 3,
         "backend": "atrust_native",
@@ -4079,6 +4089,7 @@
         "mobile": true,
         "os": "android"
       },
+      "privacy_text": null,
       "resume": null,
       "settings": null,
       "step": {

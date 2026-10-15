@@ -38,7 +38,8 @@ pub struct Policy {
     pub profile: Option<SignatureProfile>,
     /// Amtssignatur-Profil ausblenden.
     pub hide_amtssignatur: bool,
-    /// Eigener Text des Datenschutzhinweises.
+    /// Eigener Datenschutztext der Organisation; ersetzt den Text aus PDF-Over in Einstellungen ›
+    /// Datenschutz und in den „Details“ des Kurzhinweises (ADR 0003). Eine Zustimmung erzwingt er nicht.
     pub privacy_notice_text: Option<String>,
 }
 

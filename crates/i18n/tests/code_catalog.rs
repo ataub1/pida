@@ -655,11 +655,20 @@ fn translate_calls_use_existing_ids() {
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
-/// Später bewusst entfernte IDs der Welle-2-Liste (die Liste bleibt als Bericht unverändert): der
-/// Abschnitt „Position“ der Positionierung (manuelle Koordinaten in mm/pt, Seitenfeld), entfernt am
-/// 15.10.2026. Sie dürfen nicht mehr im Katalog stehen.
-const RETIRED_WAVE2_IDS: &[&str] =
-    &["ng-ui-unit", "ng-ui-position-coordinates", "ng-ui-position-x", "ng-ui-position-y", "ng-ui-position-page-field"];
+/// Später bewusst entfernte IDs der Welle-2-Liste (die Liste bleibt als Bericht unverändert), entfernt am
+/// 15.10.2026: der Abschnitt „Position“ der Positionierung (manuelle Koordinaten in mm/pt, Seitenfeld) und
+/// der blockierende Datenschutzdialog samt CLI-Rückfrage (ADR 0003). Sie dürfen nicht mehr im Katalog stehen.
+const RETIRED_WAVE2_IDS: &[&str] = &[
+    "ng-ui-unit",
+    "ng-ui-position-coordinates",
+    "ng-ui-position-x",
+    "ng-ui-position-y",
+    "ng-ui-position-page-field",
+    "ng-ui-privacy-lead",
+    "ng-ui-privacy-accept",
+    "ng-ui-privacy-decline",
+    "ng-cli-privacy",
+];
 
 /// Welle 2 (Integration, 274 IDs): jede ID steht in DE und EN mit den Variablen des Berichts (die
 /// Texte dürfen nach Review angepasst sein); ausgenommen [`RETIRED_WAVE2_IDS`].

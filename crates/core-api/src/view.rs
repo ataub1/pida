@@ -212,18 +212,6 @@ pub struct KeystoreImportView {
     pub password_stored: bool,
 }
 
-/// Datenschutzhinweis.
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct PrivacyNoticeView {
-    /// Backend
-    pub backend: BackendId,
-    /// Textversion
-    pub version: u32,
-    /// eigener Text per Richtlinie
-    pub custom_text: Option<String>,
-}
-
 /// Interaktion während des Signierens.
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -334,12 +322,11 @@ pub enum StepView {
         /// linken Kante von links), `top` (mm der Oberkante von unten – wie das Zahlenfeld Y), ganzzahlig
         announce: BTreeMap<String, String>,
     },
-    /// Backend-Auswahl
+    /// Backend-Auswahl; beim Signiermittel mit `capabilities.document_leaves_device` zeigt die UI den
+    /// nicht blockierenden Kurzhinweis (ADR 0003)
     Backend {
         /// Optionen
         options: Vec<BackendOptionView>,
-        /// Datenschutzhinweis
-        privacy_notice: Option<PrivacyNoticeView>,
     },
     /// Signieren
     Signing {
@@ -347,6 +334,10 @@ pub enum StepView {
         interaction: InteractionView,
         /// Warteschlange
         queue: Vec<QueueItemView>,
+        /// Das Dokument verlässt mit dem laufenden Signiermittel das Gerät (`document_leaves_device`, z. B.
+        /// ID Austria): Kurzhinweis „wird an A-Trust übermittelt“ im Signierbereich (ADR 0003)
+        #[serde(default)]
+        document_leaves_device: bool,
     },
     /// Ergebnis
     Output {
@@ -424,6 +415,11 @@ pub struct ViewState {
     /// Ergebnis des PKCS#12-Imports (Import-Assistent)
     #[serde(default)]
     pub keystore_import: Option<KeystoreImportView>,
+    /// Eigener Datenschutztext der Organisation (Richtlinie `privacy_notice_text`) für Einstellungen ›
+    /// Datenschutz und die „Details“ des Kurzhinweises; `None` = Text aus PDF-Over
+    /// (`config-DataProtectionStatement`, ADR 0003)
+    #[serde(default)]
+    pub privacy_text: Option<String>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -536,9 +532,13 @@ pub enum UiEvent {
         /// Backend
         backend: BackendId,
     },
-    /// Datenschutzhinweis
+    /// **Veraltet, ohne Wirkung** (ADR 0003): Antwort auf den früheren blockierenden Datenschutzhinweis.
+    /// Wird nur noch gelesen und ignoriert, damit ältere Aufrufer nicht an `ng-ui-event-invalid`
+    /// scheitern; fehlt in den TypeScript-Typen.
+    #[cfg_attr(feature = "ts", ts(skip))]
     AcknowledgePrivacy {
-        /// angenommen
+        /// ohne Bedeutung
+        #[serde(default)]
         accepted: bool,
     },
     /// Maskenantwort

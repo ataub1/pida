@@ -393,7 +393,8 @@ Ergänzt, damit die Übergangstabelle aus analyse/01 §3.4 und Plan §6.2/§7.1 
 `Event::CmsTooLarge` + `WorkflowError::CmsTooLarge` + `RetryTarget::PrepareWithReserve`,
 `Event::SettingsUnreadable` + `WorkflowError::Config` + `RetryTarget::ResetSettings` + `Effect::ResetSettings`
 (F-05), `Effect::Notify`, `Effect::Prepare::min_reserve`, `Context::privacy_acknowledged`
-(Datenschutzhinweis nur bis zur Bestätigung). Einstellungen bleiben ein Overlay in `core-api`.
+(Datenschutzhinweis nur bis zur Bestätigung; seit ADR 0003 entfallen – kein Zustimmungsschritt, dafür
+`State::ChoosingBackend::sign_requested`). Einstellungen bleiben ein Overlay in `core-api`.
 
 ### 8.9 CLI `-v`
 

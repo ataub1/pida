@@ -3979,6 +3979,7 @@ dependencies = [
 name = "pida-cli"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "clap",
  "pida-backend-api",
  "pida-config",

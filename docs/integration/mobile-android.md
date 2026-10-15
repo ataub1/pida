@@ -211,8 +211,9 @@ auf PIDA auf.
    („A_b_lehnen“) erscheinen auch auf Touch-Geräten; die Überschreiben-Rückfrage nennt den vollen Pfad
    `/storage/emulated/0/Android/data/…`; der englische Text „Browse for PDF on your computer“ passt nicht zu
    Mobile; beim Laden erscheint einmal `WARN Rendern fehlgeschlagen error=keine Blockvorschau verfügbar`.
-6. **Datenschutzhinweis:** Ist ID Austria das einzige Signiermittel, startet „Zustimmen und fortfahren“ sofort
-   die ID-Austria-Anmeldung (wie PDF-Over). Bei den Tests wurde so einmal unbeabsichtigt für etwa 2 s eine
+6. **Datenschutzhinweis (seit ADR 0003 ohne Dialog):** Ist ID Austria das einzige Signiermittel, startete
+   „Zustimmen und fortfahren“ sofort die ID-Austria-Anmeldung (wie PDF-Over). Heute startet ID Austria ohne
+   „Signieren“ nie von selbst – die Auswahl mit Kurzhinweis erscheint. Bei den Tests wurde so einmal unbeabsichtigt für etwa 2 s eine
    ID-Austria-Sitzung begonnen (Emulator online, keine Zugangsdaten eingegeben, sofort abgebrochen); danach lief
    der Emulator im Flugmodus.
 7. **ABIs:** `tools/fetch-pdfium.sh --jnilibs` liefert arm64-v8a, armeabi-v7a, x86_64; ein Universal-Build ohne

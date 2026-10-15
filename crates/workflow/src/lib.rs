@@ -11,8 +11,8 @@
 //! `BackendError::Cancelled` gilt als Abbruch) behoben.
 //!
 //! Zustände (ohne Re-Entry): `Starting → Idle → Analyzing → AnalysisWarning? → PlaceholderQuestion? → Positioning? →
-//! ChoosingBackend → PrivacyNotice? → Signing{phase} → Output → (nächstes Dokument | Idle | Finished)`;
-//! auf Mobile zusätzlich `Idle → Resuming → PrivacyNotice? → Signing{phase}` („Signatur fortsetzen“).
+//! ChoosingBackend → Signing{phase} → Output → (nächstes Dokument | Idle | Finished)`;
+//! auf Mobile zusätzlich `Idle → Resuming → Signing{phase}` („Signatur fortsetzen“).
 //! Einstellungen sind ein Overlay ([`State::settings_open`]) und kein eigener Zustand.
 //!
 //! # Abbildung der PDF-Over-Übergänge (docs/analyse/01 §3.4)
@@ -32,7 +32,7 @@
 //! | Positioning: „Neue Seite“ auf signiertem Dokument | wie PDF-AS (docs/analyse/04 §4.5) dieselben Koordinaten auf der letzten Seite, zusätzlich Hinweis `placement.notice.new_page_not_allowed` |
 //! | „Unsichtbar signieren“ (neu) | [`Event::InvisibleChosen`] → `ChoosingBackend` mit [`PositionChoice::Invisible`] (nur dieses Dokument) |
 //! | BKUSelection: Default/automatisch/Auswahl | [`Event::BackendsProbed`] wendet Standard-Backend (F-53) bzw. „nur ID Austria verfügbar“ (F-54) an; [`Event::BackendChosen`] |
-//! | Datenschutzhinweis (neu, Plan §3.3) | `document_leaves_device` und nicht bestätigt → `PrivacyNotice`; „Ja“ speichert die Bestätigung ([`Effect::AcknowledgePrivacy`]) |
+//! | Autostart nur nach Nutzeraktion (neu, ADR 0003) | Ein Signiermittel mit `document_leaves_device` (ID Austria) startet die automatische Wahl nur nach „Signieren“ (`PositionConfirmed`, `InvisibleChosen`; `State::ChoosingBackend::sign_requested`), sonst erscheint die Auswahl; kein Zustimmungsschritt, ohne Oberfläche ein einzeiliger Hinweis [`MSG_DOCUMENT_LEAVES_DEVICE`] |
 //! | PrepareSigning/LocalBKU/MobileBKU/KS/Signing | `Signing{OpeningSession → ReadingCertificate? → Preparing → Signing → Finishing}` |
 //! | Signing: Erfolg → Output | `Finishing` fertig → `Output` + [`Effect::DecideOutput`] |
 //! | Signing: Nutzerabbruch → BKUSelection | `BackendError::Cancelled` bzw. [`Event::Cancel`] → `ChoosingBackend` ohne automatische Wahl (F-55, F-72) |
@@ -50,7 +50,7 @@
 //! | Ereignis | hier |
 //! |---|---|
 //! | App in den Hintergrund / zurück (z. B. Wechsel in die App „ID Austria“) | [`Event::Backgrounded`] / [`Event::Foregrounded`]: **kein Abbruch**, Zustand und Effekte unverändert (den Long-Poll startet `pida-core-api` nach der Rückkehr neu) |
-//! | App vom System beendet, Neustart | [`Event::ResumeRequested`] (nur in `Idle`) → [`State::Resuming`]: Dokument laden, dann direkt das gespeicherte Signiermittel (Datenschutzhinweis nur, falls noch nicht bestätigt); ist es nicht verfügbar, Auswahl mit Hinweis [`MSG_RESUME_BACKEND_UNAVAILABLE`] und [`Effect::DeletePersisted`] |
+//! | App vom System beendet, Neustart | [`Event::ResumeRequested`] (nur in `Idle`) → [`State::Resuming`]: Dokument laden, dann direkt das gespeicherte Signiermittel („Signatur fortsetzen“ ist die Nutzeraktion); ist es nicht verfügbar, Auswahl mit Hinweis [`MSG_RESUME_BACKEND_UNAVAILABLE`] und [`Effect::DeletePersisted`] |
 //! | Erfolg, Abbruch, Fehler | [`Effect::DeletePersisted`] (der persistierte Zustand gilt nur für genau diesen Vorgang) |
 //! | Ergebnis teilen / exportieren | [`Event::ShareResultRequested`] / [`Event::ExportResultRequested`] → [`Effect::ShareResult`] / [`Effect::ExportResult`] |
 //!
@@ -77,8 +77,8 @@ pub use queue::{DocId, DocOutcome, DocResult, InputDocument, Queue};
 pub use reducer::{grown_reserve, reduce};
 pub use state::{
     BackendOption, Context, DocFacts, Effect, Event, MSG_BACKEND_CHOICE_REQUIRED, MSG_CMS_TOO_LARGE,
-    MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE,
-    MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_UNEXPECTED, MainBarStep, PlaceholderAnswer, PlaceholderFound,
-    PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step, Transition, WorkflowError,
-    backend_for_choice,
+    MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_DOCUMENT_LEAVES_DEVICE, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND,
+    MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_UNEXPECTED, MainBarStep,
+    PlaceholderAnswer, PlaceholderFound, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step,
+    Transition, WorkflowError, backend_for_choice,
 };

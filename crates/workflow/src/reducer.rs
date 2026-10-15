@@ -12,9 +12,9 @@ use crate::output::{ExitCode, OutputDecision, save_dialog};
 use crate::queue::{DocResult, Queue};
 use crate::state::{
     BackendOption, Context, DocFacts, Effect, Event, MSG_BACKEND_CHOICE_REQUIRED, MSG_DEFAULT_BACKEND_UNAVAILABLE,
-    MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, PlaceholderAnswer, PlaceholderFound,
-    PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step, Transition, WorkflowError,
-    backend_for_choice,
+    MSG_DOCUMENT_LEAVES_DEVICE, MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE,
+    PlaceholderAnswer, PlaceholderFound, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step,
+    Transition, WorkflowError, backend_for_choice,
 };
 
 /// Meldungs-ID des Platzierungshinweises „neue Seite nicht erlaubt“ (`PlacementNotice::code`).
@@ -53,7 +53,6 @@ pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
         s @ State::PlaceholderQuestion { .. } => placeholder(s, event, ctx),
         s @ State::Positioning { .. } => positioning(s, event, ctx),
         s @ State::ChoosingBackend { .. } => choosing_backend(s, event, ctx),
-        s @ State::PrivacyNotice { .. } => privacy(s, event, ctx),
         s @ State::Signing { .. } => signing(s, event, ctx),
         s @ State::Output { .. } => output(s, event, ctx),
         s @ State::Error { .. } => error(s, event, ctx),
@@ -143,10 +142,10 @@ fn fail(
 /// Vorschau möglich ist – direkt die Backend-Auswahl.
 fn after_position_question(queue: Queue, doc: DocFacts, ctx: &Context, effects: Vec<Effect>) -> Transition {
     if ctx.invisible {
-        return to_backend_choice(queue, doc, PositionChoice::Invisible, true, effects);
+        return to_backend_choice(queue, doc, PositionChoice::Invisible, Entry::Automatic, effects);
     }
     if ctx.auto_position || ctx.headless {
-        return to_backend_choice(queue, doc, PositionChoice::Auto, true, effects);
+        return to_backend_choice(queue, doc, PositionChoice::Auto, Entry::Automatic, effects);
     }
     to_positioning(queue, doc, None, ctx, effects)
 }
@@ -164,7 +163,7 @@ fn to_positioning(
     let Some(placement) = placement else {
         // keine Vorschau möglich (F-44): Hinweis und automatische Positionierung
         effects.push(Effect::Notify(MSG_POSITIONING_NOT_POSSIBLE.into()));
-        return to_backend_choice(queue, doc, PositionChoice::Auto, true, effects);
+        return to_backend_choice(queue, doc, PositionChoice::Auto, Entry::Automatic, effects);
     };
     let _ = ctx;
     let new_page = doc.page_count > 0 && placement.page_index >= doc.page_count;
@@ -176,16 +175,44 @@ fn to_positioning(
     Transition::with(State::Positioning { queue, page, placement: Some(placement), new_page, doc }, effects)
 }
 
+/// Wie die Backend-Auswahl erreicht wird – steuert die automatische Wahl (F-53/F-54/F-55).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Entry {
+    /// Weg Öffnen → Signieren ohne „Signieren“ (automatische Position, unsichtbares Profil, Platzhalter):
+    /// automatische Wahl nur für Signiermittel, bei denen das Dokument auf dem Gerät bleibt
+    Automatic,
+    /// nach „Signieren“ (Position bestätigt bzw. „Unsichtbar signieren“): automatische Wahl ohne
+    /// Einschränkung
+    SignRequested,
+    /// nach Abbruch, Fehler oder Hauptleiste: immer fragen (F-55)
+    Ask,
+}
+
 /// Backend-Auswahl; die Optionen kommen über [`Effect::ProbeBackends`].
 fn to_backend_choice(
     queue: Queue,
     doc: DocFacts,
     position: PositionChoice,
-    auto_choice: bool,
+    entry: Entry,
     mut effects: Vec<Effect>,
 ) -> Transition {
     effects.push(Effect::ProbeBackends);
-    Transition::with(State::ChoosingBackend { queue, position, options: Vec::new(), doc, auto_choice }, effects)
+    let auto_choice = entry != Entry::Ask;
+    let sign_requested = entry == Entry::SignRequested;
+    let state = State::ChoosingBackend { queue, position, options: Vec::new(), doc, auto_choice, sign_requested };
+    Transition::with(state, effects)
+}
+
+/// Backend-Auswahl ohne automatische Wahl (mit bekannten Optionen).
+fn ask_backend(
+    queue: Queue,
+    doc: DocFacts,
+    position: PositionChoice,
+    options: Vec<BackendOption>,
+    effects: Vec<Effect>,
+) -> Transition {
+    let state = State::ChoosingBackend { queue, position, options, doc, auto_choice: false, sign_requested: false };
+    Transition::with(state, effects)
 }
 
 /// Ergebnis der automatischen Backend-Wahl.
@@ -236,7 +263,14 @@ fn auto_choice(options: &[BackendOption], ctx: &Context) -> AutoChoice {
     }
 }
 
-/// Backend gewählt: Datenschutzhinweis (einmalig je Textversion) oder Signieren.
+/// Verlässt das Dokument mit diesem Signiermittel das Gerät (`document_leaves_device`)?
+fn leaves_device(options: &[BackendOption], id: BackendId) -> bool {
+    options.iter().any(|o| o.id == id && o.capabilities.as_ref().is_some_and(|c| c.document_leaves_device))
+}
+
+/// Backend gewählt (ausdrücklich, automatisch nach „Signieren“ bzw. beim Fortsetzen): Signieren – ohne
+/// Zustimmungsschritt (ADR 0003). Ohne Oberfläche erscheint bei `document_leaves_device` ein einzeiliger
+/// Hinweis ([`MSG_DOCUMENT_LEAVES_DEVICE`]); die Oberfläche zeigt den Kurzhinweis selbst.
 fn choose_backend(
     queue: Queue,
     doc: DocFacts,
@@ -244,15 +278,15 @@ fn choose_backend(
     options: Vec<BackendOption>,
     id: BackendId,
     ctx: &Context,
-    effects: Vec<Effect>,
+    mut effects: Vec<Effect>,
 ) -> Transition {
     let caps = options.iter().find(|o| o.id == id).and_then(|o| o.capabilities.clone());
     let Some(caps) = caps else {
         // nicht verfügbar – Auswahl bleibt
-        return Transition::with(State::ChoosingBackend { queue, position, options, doc, auto_choice: false }, effects);
+        return ask_backend(queue, doc, position, options, effects);
     };
-    if caps.document_leaves_device && !ctx.privacy_acknowledged.contains(&id) {
-        return Transition::with(State::PrivacyNotice { queue, position, backend: id, doc, options }, effects);
+    if caps.document_leaves_device && ctx.headless {
+        effects.push(Effect::Notify(MSG_DOCUMENT_LEAVES_DEVICE.into()));
     }
     let flow = SignFlow::new(&caps, &position);
     start_signing(queue, doc, position, id, flow, effects)
@@ -360,7 +394,7 @@ fn files_added(state: State, docs: Vec<crate::queue::InputDocument>, ctx: &Conte
 fn settings_changed(state: State) -> Transition {
     let effects = match &state {
         State::Positioning { doc, .. } => vec![Effect::BuildBlockPreview(doc.id)],
-        State::ChoosingBackend { .. } | State::PrivacyNotice { .. } => vec![Effect::ProbeBackends],
+        State::ChoosingBackend { .. } => vec![Effect::ProbeBackends],
         _ => Vec::new(),
     };
     Transition::with(state, effects)
@@ -426,7 +460,7 @@ fn resuming(state: State, event: Event, ctx: &Context) -> Transition {
             }
             // Signiermittel nicht mehr verfügbar (Richtlinie, Keystore entfernt): Auswahl, neu vorbereiten
             let effects = vec![Effect::Notify(MSG_RESUME_BACKEND_UNAVAILABLE.into()), Effect::DeletePersisted];
-            Transition::with(State::ChoosingBackend { queue, position, options, doc, auto_choice: false }, effects)
+            ask_backend(queue, doc, position, options, effects)
         }
         (Event::Cancel, _) => next_doc(queue, DocResult::Cancelled, ctx, vec![Effect::DeletePersisted]),
         (Event::Navigate(Step::Open), _) => discard_all(queue, vec![Effect::DeletePersisted]),
@@ -472,11 +506,11 @@ fn after_analysis(queue: Queue, doc: DocFacts, placeholder: Option<PlaceholderFo
             // ohne Oberfläche: QR-Platzhalter bzw. genau ein Feld verwenden, sonst automatisch
             match found {
                 PlaceholderFound::Qr(qr) => {
-                    to_backend_choice(queue, doc, PositionChoice::Placeholder(qr), true, Vec::new())
+                    to_backend_choice(queue, doc, PositionChoice::Placeholder(qr), Entry::Automatic, Vec::new())
                 }
                 PlaceholderFound::Fields(mut fields) if fields.len() == 1 => {
                     let field = fields.remove(0);
-                    to_backend_choice(queue, doc, PositionChoice::Field(field), true, Vec::new())
+                    to_backend_choice(queue, doc, PositionChoice::Field(field), Entry::Automatic, Vec::new())
                 }
                 PlaceholderFound::Fields(_) => after_position_question(queue, doc, ctx, Vec::new()),
             }
@@ -501,7 +535,7 @@ fn placeholder(state: State, event: Event, ctx: &Context) -> Transition {
     match event {
         Event::PlaceholderAnswered { answer: PlaceholderAnswer::Yes, field_index } => match found {
             PlaceholderFound::Qr(qr) => {
-                to_backend_choice(queue, doc, PositionChoice::Placeholder(qr), true, Vec::new())
+                to_backend_choice(queue, doc, PositionChoice::Placeholder(qr), Entry::Automatic, Vec::new())
             }
             PlaceholderFound::Fields(fields) => {
                 let index = match (fields.len(), field_index) {
@@ -513,7 +547,7 @@ fn placeholder(state: State, event: Event, ctx: &Context) -> Transition {
                     // Feldwahl gilt nur für diese Signatur (B-05), keine globalen Flags (B-04)
                     Some(i) => {
                         let field = fields[i].clone();
-                        to_backend_choice(queue, doc, PositionChoice::Field(field), true, Vec::new())
+                        to_backend_choice(queue, doc, PositionChoice::Field(field), Entry::Automatic, Vec::new())
                     }
                     // Feldauswahl abgebrochen bzw. ungültig → erneut fragen (OpenState.java:165-171)
                     None => Transition::stay(State::PlaceholderQuestion {
@@ -605,14 +639,17 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 if !new_page && p.page_index >= n {
                     p.page_index = n.saturating_sub(1);
                 }
-                to_backend_choice(queue, doc, PositionChoice::Manual(p), true, Vec::new())
+                // „Signieren“: ausdrückliche Nutzeraktion (automatische Wahl auch für ID Austria)
+                to_backend_choice(queue, doc, PositionChoice::Manual(p), Entry::SignRequested, Vec::new())
             }
             None => stay(queue, page, placement, new_page, doc, Vec::new()),
         },
-        Event::InvisibleChosen => to_backend_choice(queue, doc, PositionChoice::Invisible, true, Vec::new()),
+        Event::InvisibleChosen => {
+            to_backend_choice(queue, doc, PositionChoice::Invisible, Entry::SignRequested, Vec::new())
+        }
         Event::PreviewUnavailable { doc: d } if d == doc.id => {
             let effects = vec![Effect::Notify(MSG_POSITIONING_NOT_POSSIBLE.into())];
-            to_backend_choice(queue, doc, PositionChoice::Auto, true, effects)
+            to_backend_choice(queue, doc, PositionChoice::Auto, Entry::Automatic, effects)
         }
         Event::Navigate(Step::Open) => discard_all(queue, Vec::new()),
         Event::Cancel => next_doc(queue, DocResult::Cancelled, ctx, Vec::new()),
@@ -621,21 +658,32 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
 }
 
 fn choosing_backend(state: State, event: Event, ctx: &Context) -> Transition {
-    let State::ChoosingBackend { queue, position, options, doc, auto_choice: auto } = state else {
+    let State::ChoosingBackend { queue, position, options, doc, auto_choice: auto, sign_requested } = state else {
         unreachable!("ChoosingBackend")
     };
     match event {
         Event::BackendsProbed(options) => {
             if !auto {
-                return Transition::stay(State::ChoosingBackend { queue, position, options, doc, auto_choice: false });
+                return ask_backend(queue, doc, position, options, Vec::new());
             }
             match auto_choice(&options, ctx) {
-                AutoChoice::Choose(id) => choose_backend(queue, doc, position, options, id, ctx, Vec::new()),
-                AutoChoice::Ask => {
-                    Transition::stay(State::ChoosingBackend { queue, position, options, doc, auto_choice: false })
+                // Autostart-Befund F-54: ohne „Signieren“ startet kein Signiermittel automatisch, bei dem
+                // das Dokument das Gerät verlässt – die Auswahl (mit Kurzhinweis) ist dann die Nutzeraktion.
+                // Ohne Oberfläche ist der Aufruf `pida-cli sign …` selbst die Nutzeraktion.
+                AutoChoice::Choose(id) if !sign_requested && !ctx.headless && leaves_device(&options, id) => {
+                    ask_backend(queue, doc, position, options, Vec::new())
                 }
+                AutoChoice::Choose(id) => choose_backend(queue, doc, position, options, id, ctx, Vec::new()),
+                AutoChoice::Ask => ask_backend(queue, doc, position, options, Vec::new()),
                 AutoChoice::Fail(error) => {
-                    let from = State::ChoosingBackend { queue, position, options, doc, auto_choice: false };
+                    let from = State::ChoosingBackend {
+                        queue,
+                        position,
+                        options,
+                        doc,
+                        auto_choice: false,
+                        sign_requested: false,
+                    };
                     fail(from, error, None, ctx, Vec::new())
                 }
             }
@@ -650,33 +698,14 @@ fn choosing_backend(state: State, event: Event, ctx: &Context) -> Transition {
             PositionChoice::Manual(p) if !ctx.headless => to_positioning(queue, doc, Some(p), ctx, Vec::new()),
             _ => next_doc(queue, DocResult::Cancelled, ctx, Vec::new()),
         },
-        _ => Transition::stay(State::ChoosingBackend { queue, position, options, doc, auto_choice: auto }),
-    }
-}
-
-fn privacy(state: State, event: Event, ctx: &Context) -> Transition {
-    let State::PrivacyNotice { queue, position, backend, doc, options } = state else { unreachable!("PrivacyNotice") };
-    match event {
-        Event::PrivacyAnswered(true) => {
-            let caps = options.iter().find(|o| o.id == backend).and_then(|o| o.capabilities.clone());
-            let Some(caps) = caps else {
-                return Transition::stay(State::ChoosingBackend { queue, position, options, doc, auto_choice: false });
-            };
-            let flow = SignFlow::new(&caps, &position);
-            start_signing(queue, doc, position, backend, flow, vec![Effect::AcknowledgePrivacy(backend)])
-        }
-        Event::PrivacyAnswered(false) | Event::Cancel => {
-            if ctx.headless {
-                return next_doc(queue, DocResult::Cancelled, ctx, Vec::new());
-            }
-            Transition::stay(State::ChoosingBackend { queue, position, options, doc, auto_choice: false })
-        }
-        Event::Navigate(Step::Open) => discard_all(queue, Vec::new()),
-        Event::Navigate(Step::Positioning) if !ctx.invisible => {
-            let previous = position.manual().copied();
-            to_positioning(queue, doc, previous, ctx, Vec::new())
-        }
-        _ => Transition::stay(State::PrivacyNotice { queue, position, backend, doc, options }),
+        _ => Transition::stay(State::ChoosingBackend {
+            queue,
+            position,
+            options,
+            doc,
+            auto_choice: auto,
+            sign_requested,
+        }),
     }
 }
 
@@ -691,7 +720,7 @@ fn back_to_backend(state: State, ctx: &Context, effects: Vec<Effect>) -> Transit
     if ctx.headless {
         return next_doc(queue, DocResult::Cancelled, ctx, effects);
     }
-    to_backend_choice(queue, doc, position, false, effects)
+    to_backend_choice(queue, doc, position, Entry::Ask, effects)
 }
 
 fn signing(state: State, event: Event, ctx: &Context) -> Transition {
@@ -858,7 +887,7 @@ fn output(state: State, event: Event, ctx: &Context) -> Transition {
         }
         Event::Navigate(Step::Signing) => {
             // F-55: Auswahl erzwingen
-            to_backend_choice(queue, doc, position, false, Vec::new())
+            to_backend_choice(queue, doc, position, Entry::Ask, Vec::new())
         }
         _ => Transition::stay(mk(queue, saved, decision, doc, position, backend)),
     }
@@ -926,7 +955,7 @@ fn error(state: State, event: Event, ctx: &Context) -> Transition {
                 next_doc(queue, DocResult::Failed { error }, ctx, Vec::new())
             }
             Some(State::Signing { doc, position, .. }) | Some(State::ChoosingBackend { doc, position, .. }) => {
-                to_backend_choice(queue, doc, position, false, Vec::new())
+                to_backend_choice(queue, doc, position, Entry::Ask, Vec::new())
             }
             Some(State::Output { doc, position, backend, .. }) => {
                 // nicht gespeichert: Knopf „Speichern“ (F-86); der Batch läuft über „Öffnen“ weiter (B-14:

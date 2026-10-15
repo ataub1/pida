@@ -471,32 +471,97 @@ fn unavailable_default_backend_shows_selection() {
     assert!(!auto_choice);
 }
 
+/// F-54 nach „Signieren“ (Position bestätigt): nur ID Austria verfügbar → direkt ID Austria, ohne
+/// Zustimmungsschritt (ADR 0003).
 #[test]
-fn only_id_austria_is_chosen_automatically_f54() {
-    let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
+fn only_id_austria_is_chosen_automatically_after_sign_f54() {
     // Keystore nicht eingeschaltet (die Registry listet ihn dann nicht), lokale BKU nicht erreichbar
-    let mut opts = options(false, false);
-    opts.retain(|o| o.id != BackendId::Keystore);
-    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(opts), &ctx);
-    let State::Signing { backend, .. } = &t.state else { panic!("{:?}", t.state) };
+    let p = start_placement(3);
+    let t =
+        step(choosing_after_sign(&[1], PositionChoice::Manual(p)), Event::BackendsProbed(only_id_austria()), &gui());
+    let State::Signing { backend, phase, .. } = &t.state else { panic!("{:?}", t.state) };
     assert_eq!(*backend, BackendId::AtrustNative);
+    assert_eq!(*phase, SigningPhase::OpeningSession);
+    assert_eq!(t.effects, vec![Effect::OpenSession(BackendId::AtrustNative)], "kein Hinweis-Effekt mit Oberfläche");
+}
+
+/// Autostart-Befund F-54 ohne Datenschutzdialog (ADR 0003): Ohne „Signieren“ (automatische Position,
+/// unsichtbares Profil, Platzhalter) startet ID Austria **nie** automatisch – weder über F-54 noch über
+/// das Standard-Signiermittel (F-53). Die Auswahl erscheint; erst die Wahl dort startet die Sitzung.
+#[test]
+fn id_austria_never_starts_without_user_action() {
+    let id_austria = Context { default_backend: Some(BackendChoice::IdAustria), ..gui() };
+    for position in [PositionChoice::Auto, PositionChoice::Invisible, PositionChoice::Placeholder(qr())] {
+        for (ctx, opts) in [(gui(), only_id_austria()), (id_austria.clone(), options(true, true))] {
+            let t = step(choosing(&[1], position.clone(), true), Event::BackendsProbed(opts.clone()), &ctx);
+            let State::ChoosingBackend { auto_choice, options: shown, .. } = &t.state else {
+                panic!("{position:?}: {:?}", t.state)
+            };
+            assert!(!auto_choice, "{position:?}");
+            assert_eq!(shown, &opts);
+            assert!(t.effects.is_empty(), "keine Sitzung ohne Nutzeraktion: {:?}", t.effects);
+            // erneute Prüfung (Einstellungen geändert, BKU-Polling) startet ebenfalls nichts
+            let again = step(t.state.clone(), Event::BackendsProbed(opts), &ctx);
+            assert!(matches!(again.state, State::ChoosingBackend { .. }) && again.effects.is_empty());
+            // ausdrückliche Wahl in der Auswahl → Signieren ohne Zustimmungsschritt
+            let chosen = step(t.state, Event::BackendChosen(BackendId::AtrustNative), &ctx);
+            assert!(matches!(&chosen.state, State::Signing { backend: BackendId::AtrustNative, .. }));
+            assert_eq!(chosen.effects, vec![Effect::OpenSession(BackendId::AtrustNative)]);
+        }
+    }
+}
+
+/// Signiermittel, bei denen das Dokument auf dem Gerät bleibt, starten weiter automatisch (F-53).
+#[test]
+fn local_default_backend_still_starts_without_sign_action() {
+    let ctx = Context { default_backend: Some(BackendChoice::LocalBku), ..gui() };
+    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(true, true)), &ctx);
+    assert!(matches!(&t.state, State::Signing { backend: BackendId::LocalBku, .. }), "{:?}", t.state);
+}
+
+/// Der ganze Weg: Öffnen mit automatischer Position → Auswahl (kein Autostart), mit Positionierung →
+/// „Signieren“ → ID Austria startet; „Unsichtbar signieren“ ebenso.
+#[test]
+fn sign_action_decides_about_automatic_id_austria() {
+    let auto = Context { auto_position: true, ..gui() };
+    let (s, effects) = run(
+        State::Analyzing { queue: queue(&[1]) },
+        [analyzed(1, 3, None, false), Event::BackendsProbed(only_id_austria())],
+        &auto,
+    );
+    assert!(matches!(s, State::ChoosingBackend { auto_choice: false, .. }), "{s:?}");
+    assert!(!effects.iter().any(|e| matches!(e, Effect::OpenSession(_))), "{effects:?}");
+    for sign in [Event::PositionConfirmed, Event::InvisibleChosen] {
+        let (s, effects) = run(positioning(&[1]), [sign.clone(), Event::BackendsProbed(only_id_austria())], &gui());
+        assert!(matches!(s, State::Signing { backend: BackendId::AtrustNative, .. }), "{sign:?}: {s:?}");
+        assert!(effects.contains(&Effect::OpenSession(BackendId::AtrustNative)));
+    }
 }
 
 /// F-54 wie PDF-Over (`KEYSTORE_ENABLED`): Ein eingeschalteter Keystore, dessen Datei gerade fehlt (z. B.
 /// neuer Sandbox-Pfad nach einem App-Update), führt zur Auswahl – nie ohne Rückfrage zu ID Austria
-/// (das öffnete sofort eine Sitzung bei A-Trust).
+/// (das öffnete sofort eine Sitzung bei A-Trust), auch nicht nach „Signieren“.
 #[test]
 fn enabled_but_missing_keystore_prevents_automatic_id_austria() {
-    let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
-    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(false, false)), &ctx);
+    let ctx = gui();
+    let p = PositionChoice::Manual(start_placement(3));
+    let t = step(choosing_after_sign(&[1], p), Event::BackendsProbed(options(false, false)), &ctx);
     let State::ChoosingBackend { auto_choice, options: shown, .. } = &t.state else { panic!("{:?}", t.state) };
     assert!(!auto_choice);
     assert!(shown.iter().any(|o| o.id == BackendId::Keystore && !o.available()));
     assert!(t.effects.is_empty(), "keine Sitzung: {:?}", t.effects);
-    // ohne Oberfläche (CLI) bleibt es bei „genau ein verfügbares Backend“
+    // ohne Oberfläche (CLI) bleibt es bei „genau ein verfügbares Backend“; der Aufruf ist die Nutzeraktion,
+    // statt einer Rückfrage erscheint ein einzeiliger Hinweis
     let ctx = Context { headless: true, ..ctx };
     let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(false, false)), &ctx);
     assert!(matches!(&t.state, State::Signing { backend: BackendId::AtrustNative, .. }), "{:?}", t.state);
+    assert_eq!(
+        t.effects,
+        vec![
+            Effect::Notify(pida_workflow::MSG_DOCUMENT_LEAVES_DEVICE.into()),
+            Effect::OpenSession(BackendId::AtrustNative)
+        ]
+    );
 }
 
 #[test]
@@ -523,36 +588,36 @@ fn unavailable_backend_cannot_be_chosen() {
     assert!(t.effects.is_empty());
 }
 
+/// Kein Zustimmungsschritt mehr (ADR 0003): Die Wahl von ID Austria startet sofort die Sitzung, ohne
+/// Hinweis-Effekt (die Oberfläche zeigt den Kurzhinweis selbst) und ohne gespeicherte Bestätigung.
 #[test]
-fn privacy_notice_before_first_upload() {
+fn choosing_id_austria_signs_without_consent_step() {
     let s =
         step(choosing(&[1], PositionChoice::Auto, false), Event::BackendsProbed(options(true, false)), &gui()).state;
     let t = step(s, Event::BackendChosen(BackendId::AtrustNative), &gui());
-    assert!(matches!(&t.state, State::PrivacyNotice { backend: BackendId::AtrustNative, .. }));
-    // Ablehnen → zurück zur Auswahl
-    let no = step(t.state.clone(), Event::PrivacyAnswered(false), &gui());
-    assert!(matches!(no.state, State::ChoosingBackend { .. }));
-    // Annehmen → Bestätigung speichern, Signieren (unsichtbar wäre ohne Zertifikat)
-    let yes = step(t.state, Event::PrivacyAnswered(true), &gui());
-    let State::Signing { flow, .. } = &yes.state else { panic!() };
+    let State::Signing { backend, flow, .. } = &t.state else { panic!("{:?}", t.state) };
+    assert_eq!(*backend, BackendId::AtrustNative);
     assert!(flow.needs_certificate, "automatische Position ist sichtbar: Zertifikat für den Block");
-    assert_eq!(
-        yes.effects,
-        vec![Effect::AcknowledgePrivacy(BackendId::AtrustNative), Effect::OpenSession(BackendId::AtrustNative)]
-    );
+    assert_eq!(t.effects, vec![Effect::OpenSession(BackendId::AtrustNative)]);
+    assert_eq!(t.state.step(), Some(Step::Signing));
 }
 
+/// Ohne Oberfläche (CLI, `-b MOBILE`) ein einzeiliger Hinweis statt der früheren Rückfrage; Keystore und
+/// lokale BKU ohne Hinweis (kein Upload).
 #[test]
-fn privacy_notice_skipped_when_acknowledged() {
-    let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
-    let s = step(choosing(&[1], PositionChoice::Auto, false), Event::BackendsProbed(options(true, false)), &ctx).state;
-    let t = step(s, Event::BackendChosen(BackendId::AtrustNative), &ctx);
-    assert!(matches!(t.state, State::Signing { .. }));
+fn headless_upload_gets_a_one_line_notice() {
+    let ctx = Context { default_backend: Some(BackendChoice::IdAustria), ..headless() };
+    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(true, true)), &ctx);
+    assert!(matches!(&t.state, State::Signing { backend: BackendId::AtrustNative, .. }), "{:?}", t.state);
+    assert_eq!(t.effects[0], Effect::Notify(pida_workflow::MSG_DOCUMENT_LEAVES_DEVICE.into()));
+    let ctx = Context { default_backend: Some(BackendChoice::Keystore), ..headless() };
+    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(true, true)), &ctx);
+    assert_eq!(t.effects, vec![Effect::OpenSession(BackendId::Keystore)]);
 }
 
 #[test]
 fn certificate_need_follows_visibility() {
-    let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
+    let ctx = gui();
     // Modell B, unsichtbar: kein InfoboxRead (ein einziger SL-Durchlauf)
     let s = step(choosing(&[1], PositionChoice::Invisible, false), Event::BackendsProbed(options(false, false)), &ctx)
         .state;

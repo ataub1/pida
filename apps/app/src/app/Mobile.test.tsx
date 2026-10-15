@@ -212,6 +212,15 @@ describe('Mobile-Bedienelemente', () => {
     expect(screen.queryByText(/Bürgerkarte|lokal installierte/)).not.toBeInTheDocument();
   });
 
+  it('Signiermittel: derselbe Kurzhinweis zum Datenschutz wie auf dem Desktop (kein Dialog)', async () => {
+    const { mock, user } = renderApp({ view: onMobile(backendView(MOBILE_OPTIONS), IOS) });
+    const note = await screen.findByTestId('privacy-note');
+    expect(note).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await user.click(within(note).getByRole('link', { name: 'Details zum Datenschutz' }));
+    expect(mock.dispatched).toEqual([{ type: 'open_settings' }]);
+  });
+
   it('Warten auf die App: FIDO2-Knopf gesperrt mit Hinweis, wenn A-Trust FIDO2 anbietet', async () => {
     const form = { WaitForApp: { reference_value: 'AB12', timeout_secs: 300, ctx: ctx({ fido2_visible: false, can_switch_to_fido2: true }) } };
     renderApp({ view: onMobile(formView(form)) });
