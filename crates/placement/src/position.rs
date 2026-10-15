@@ -665,7 +665,11 @@ pub fn resolve_position(
         page += 1;
         ph - MARGIN_V
     } else {
-        let lowest = match scanner.lowest_content(page - 1, footer) {
+        let quirk = match ctx.compat {
+            CompatMode::PdfasQuirks => pdfas_rotated_scan(&ctx.pages[page - 1], footer),
+            CompatMode::Corrected => None,
+        };
+        let lowest = match quirk.map_or_else(|| scanner.lowest_content(page - 1, footer), Ok) {
             Ok(v) => v,
             Err(_) => {
                 notices.push(PlacementNotice::ScanFailed);
@@ -702,6 +706,38 @@ pub fn resolve_position(
         }
     }
     Ok(result)
+}
+
+/// Ergebnis des PDF-AS-Rasterscans auf Seiten mit `/Rotate 90/270`, soweit es nicht vom
+/// Seiteninhalt abhängt (Register KR-F04, nur [`CompatMode::PdfasQuirks`]; Golden PDF-AS 4.4.2).
+///
+/// `PDFUtilities.getMaxYPosition` legt das Rasterbild mit den **ungedrehten** CropBox-Maßen an
+/// (`(int) w × (int) h`), `PDFRenderer.renderPageToGraphics` zeichnet die Seite aber gedreht und
+/// löscht mit `clearRect(0, 0, (int) w, (int) h)` im gedrehten Raum nur die Zeilen der gedrehten
+/// Seite; die übrigen Zeilen bleiben transparent (≠ Hintergrund) und zählen als Inhalt. Bei 90°
+/// beginnt das gelöschte Rechteck zudem bei `x = h − (int) h`: liegt dieser Bruchteil bei
+/// mindestens einem halben Pixel, bleibt Spalte 0 transparent und **jede** Zeile gilt als belegt.
+/// Liegt die Startzeile `(int) h − 1 − (int) f` in einer transparenten Zeile, ist sie das Ergebnis;
+/// sonst `None` (normaler Scan, PDF-AS sähe dort nur die linken `(int) w` Spalten).
+fn pdfas_rotated_scan(page: &PageInfo, footer: f32) -> Option<f32> {
+    let crop = page.crop_box.normalized();
+    let (w, h) = (crop.width(), crop.height());
+    let start = (h as i64) - 1 - (footer as i64);
+    let first_transparent_row = match page.rotation {
+        Rotation::R90 => {
+            if h - h.trunc() >= 0.5 {
+                // Spalte 0 transparent: die Startzeile selbst ist belegt (Zeile 0 bzw. ein
+                // negativer Start beenden die Suche ebenfalls mit dem Startwert)
+                return Some(start as f32);
+            }
+            // gelöscht: y ∈ [0, (int) w] ⇒ Zeilen 0 … (int) w − 1
+            w as i64
+        }
+        // gelöscht: y ∈ [w − (int) w, w] ⇒ Zeilen mit Mittelpunkt ≤ w
+        Rotation::R270 => (w - 0.5).floor() as i64 + 1,
+        _ => return None,
+    };
+    (start >= first_transparent_row || start < 0).then_some(start as f32)
 }
 
 /// Bequemlichkeit: [`resolve_position`] mit [`RasterScanner`].
@@ -862,4 +898,43 @@ pub fn default_start_placement(pages: &[PageInfo], block: BlockGeometry) -> Opti
     let page = pages.last()?;
     let p = default_start_position(page, block);
     Some(Placement { page_index: pages.len() - 1, x: p.x, y: p.y, width: block.width, height: block.height })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn page(w: f32, h: f32, rotation: Rotation) -> PageInfo {
+        let r = Rect::new(0.0, 0.0, w, h);
+        PageInfo {
+            index: 0,
+            object_id: (1, 0),
+            media_box: r,
+            crop_box: r,
+            rotation,
+            user_unit: 1.0,
+            annots_indirect: None,
+        }
+    }
+
+    /// KR-F04 (PdfasQuirks): Ergebnis des PDF-AS-Rasters auf gedrehten Seiten (Golden PDF-AS 4.4.2:
+    /// A4 595,32 × 841,92 mit /Rotate 90/270 und f:80 ⇒ immer neue Seite).
+    #[test]
+    fn pdfas_rotated_scan_like_pdfas() {
+        // 90°: Bruchteil 0,92 ≥ 0,5 ⇒ Spalte 0 transparent ⇒ Startzeile 841 − 1 − f
+        assert_eq!(pdfas_rotated_scan(&page(595.32, 841.92, Rotation::R90), 80.0), Some(760.0));
+        assert_eq!(pdfas_rotated_scan(&page(595.32, 841.92, Rotation::R90), 300.0), Some(540.0));
+        // 90° ganzzahlig: Zeilen 0 … 594 gelöscht; Start 761 transparent, Start 541 ⇒ normaler Scan
+        assert_eq!(pdfas_rotated_scan(&page(595.0, 842.0, Rotation::R90), 80.0), Some(761.0));
+        assert_eq!(pdfas_rotated_scan(&page(595.0, 842.0, Rotation::R90), 300.0), None);
+        // 270°: Zeilen 0 … 594 gelöscht (Mittelpunkt 594,5 ≤ 595,32), Zeile 595 transparent
+        assert_eq!(pdfas_rotated_scan(&page(595.32, 841.92, Rotation::R270), 80.0), Some(760.0));
+        assert_eq!(pdfas_rotated_scan(&page(595.32, 841.92, Rotation::R270), 245.0), Some(595.0));
+        assert_eq!(pdfas_rotated_scan(&page(595.32, 841.92, Rotation::R270), 246.0), None);
+        // ungedreht und 180°: kein Sonderfall
+        assert_eq!(pdfas_rotated_scan(&page(595.32, 841.92, Rotation::R0), 80.0), None);
+        assert_eq!(pdfas_rotated_scan(&page(595.32, 841.92, Rotation::R180), 80.0), None);
+        // Fußzeile höher als das Bild: negativer Start wie PDF-AS
+        assert_eq!(pdfas_rotated_scan(&page(100.0, 100.0, Rotation::R270), 200.0), Some(-101.0));
+    }
 }
