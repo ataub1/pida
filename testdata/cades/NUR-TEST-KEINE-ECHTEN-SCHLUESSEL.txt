@@ -1,0 +1,5 @@
+NUR FÜR TESTS – KEINE ECHTEN SCHLÜSSEL
+=====================================
+Alle Dateien in diesem Ordner wurden von testdata/cades/make-testdata.sh mit openssl/asn1crypto erzeugt.
+Eigene Test-PKI, unverschlüsselte PKCS#8-Testschlüssel, Subject enthält "(NUR TEST)".
+Niemals für echte Signaturen, Zugänge oder Produktivsysteme verwenden.

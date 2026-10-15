@@ -1,0 +1,7 @@
+NUR FÜR TESTS – KEINE ECHTEN SCHLÜSSEL
+=====================================
+Alle Dateien in diesem Ordner wurden von testdata/backend-keystore/make-testdata.sh (openssl und
+GenKeystores.java) aus den Test-Schlüsseln in testdata/keystores und testdata/cades erzeugt.
+Passwort "test" (Ausnahmen: openssl-empty-password.p12 = leer, openssl-umlaut-password.p12 = "Pässwörd €!",
+java-separate-keypass.p12: Store "test", Schlüssel "schluessel").
+Niemals für echte Signaturen, Zugänge oder Produktivsysteme verwenden.

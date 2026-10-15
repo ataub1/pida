@@ -16,21 +16,35 @@
 //! Bereits im Fundament implementiert (ADR 0001 §5.1, damit Paket D ohne Paket B testen kann):
 //! [`DigestAlg`]-Hashing, [`Certificate::from_der`] und die einfachen Zertifikats-Getter.
 //!
+//! Zusätzlich (additiv): [`LocalSigner`] (PKCS#8 → [`RawSigner`] für RSA PKCS#1 v1.5 und ECDSA
+//! P-256/384/521), [`verify_raw`] (Selbstprüfung einer Rohsignatur), [`pdfas_algorithm`] (exakte
+//! PDF-AS-Regel ohne die Abweichungen aus Plan §4.9), [`CmsWarning`], [`CmsError::code`],
+//! [`Certificate::from_pem_all`].
+//!
+//! DER wird mit einem eigenen, kleinen Kodierer erzeugt und mit einem BER-toleranten TLV-Leser
+//! gelesen (`der_util`): Signiert und geprüft wird immer über die **Originalbytes** der
+//! SignedAttributes.
+//!
 //! Ownership: Paket **B** (zusammen mit `pdfover-backend-keystore`).
 
 mod cert;
 mod cms_build;
+mod der_util;
 mod digest;
+mod oids;
+mod signer;
 mod verify;
 
 pub use cert::{CertChain, Certificate, EcCurve, KeyType, RdnAttr};
 pub use cms_build::{
     AssembleOptions, CmsProfile, RawSignature, RawSigner, SignedAttrs, SignedAttrsBuilder, SigningTime, assemble,
-    estimate_cms_len, select_algorithm, sign_detached,
+    estimate_cms_len, pdfas_algorithm, select_algorithm, sign_detached,
 };
 pub use digest::{Digest, DigestAlg, Hasher, SignatureAlg};
+pub use signer::{LocalSigner, verify_raw};
 pub use verify::{
-    AlgorithmPolicy, CmsInfo, CmsReport, Expect, ExpectedSigner, parse_cms, trim_contents_padding, verify_detached,
+    AlgorithmPolicy, CmsInfo, CmsReport, CmsWarning, Expect, ExpectedSigner, parse_cms, trim_contents_padding,
+    verify_detached,
 };
 
 /// Fehler in CMS/X.509.
@@ -72,6 +86,9 @@ pub enum CmsError {
     /// Schlüssel nicht verwendbar.
     #[error("Schlüsselfehler: {0}")]
     Key(String),
+    /// Privater Schlüssel passt nicht zum Signerzertifikat ([`LocalSigner::from_pkcs8_der`]).
+    #[error("privater Schlüssel passt nicht zum Zertifikat")]
+    KeyMismatch,
     /// CMS länger als erlaubt.
     #[error("CMS zu groß: {len} > {max}")]
     TooLarge {
@@ -83,6 +100,29 @@ pub enum CmsError {
     /// E/A beim Lesen des Inhalts.
     #[error("E/A-Fehler: {0}")]
     Io(#[from] std::io::Error),
+}
+
+impl CmsError {
+    /// Stabiler Fehlercode für i18n (`cms-…`) und Diagnose (ADR 0001 Regel 11).
+    pub fn code(&self) -> &'static str {
+        match self {
+            CmsError::Der(_) => "cms-der",
+            CmsError::Certificate(_) => "cms-certificate",
+            CmsError::UnsupportedAlgorithm(_) => "cms-unsupported-algorithm",
+            CmsError::NotSignedData => "cms-not-signed-data",
+            CmsError::SignerCount(_) => "cms-signer-count",
+            CmsError::MissingAttribute(_) => "cms-missing-attribute",
+            CmsError::DigestMismatch => "cms-digest-mismatch",
+            CmsError::InvalidSignature => "cms-invalid-signature",
+            CmsError::SignerCertificateMissing => "cms-signer-certificate-missing",
+            CmsError::SigningCertificateMismatch => "cms-signing-certificate-mismatch",
+            CmsError::UnexpectedSigner => "cms-unexpected-signer",
+            CmsError::Key(_) => "cms-key",
+            CmsError::KeyMismatch => "cms-key-mismatch",
+            CmsError::TooLarge { .. } => "cms-too-large",
+            CmsError::Io(_) => "cms-io",
+        }
+    }
 }
 
 /// Ergebnis-Alias.
