@@ -138,6 +138,7 @@ fido2-pin-unsupported = This security key requires a PIN; PIN entry is not yet a
 fido2-no-credential = This security key does not hold an ID Austria registration.
 fido2-timeout = Timeout: the security key was not touched.
 fido2-locked = The security key is locked.
+fido2-pin-auth-blocked = Too many wrong PIN entries in a row. Please unplug the security key, plug it back in and try again.
 fido2-u2f-only = The security key does not support FIDO2 (U2F only).
 fido2-no-user-verification = The security key cannot verify the user (no PIN or biometrics set up).
 fido2-hid-permission = No access to the security key – the udev rule (uaccess) for FIDO devices is missing.
@@ -181,6 +182,7 @@ placement-notice-scan_failed = The free space on the page could not be determine
 pdf-xref-repaired = The document's cross-reference table is damaged and was repaired while reading. Signing is possible but does not fix the damage.
 pdf-xref-reconstructed = The document's cross-reference table is missing or unreadable. The document cannot be signed without repair.
 pdf-tail-garbage = There is extraneous data after the end-of-file marker (%%EOF).
+pdf-prior-signature-beyond-eof = An existing signature extends beyond the end of the file – the document was truncated or damaged after signing and cannot be signed again.
 pdf-docmdp-p1 = The document is certified and does not allow any changes (DocMDP P=1); it cannot be signed.
 pdf-user-password = The document is protected by an open password and cannot be signed.
 pdf-xfa-dynamic = The document is a dynamic XFA form and cannot be signed.

@@ -138,6 +138,7 @@ fido2-pin-unsupported = Dieser Sicherheitsschlüssel verlangt eine PIN; die PIN-
 fido2-no-credential = Auf diesem Sicherheitsschlüssel ist keine ID-Austria-Registrierung vorhanden.
 fido2-timeout = Zeitüberschreitung: Der Sicherheitsschlüssel wurde nicht berührt.
 fido2-locked = Der Sicherheitsschlüssel ist gesperrt.
+fido2-pin-auth-blocked = Zu viele falsche PIN-Eingaben in Folge. Bitte den Sicherheitsschlüssel ab- und wieder anstecken und es erneut versuchen.
 fido2-u2f-only = Der Sicherheitsschlüssel unterstützt kein FIDO2 (nur U2F).
 fido2-no-user-verification = Der Sicherheitsschlüssel kann die Nutzerin nicht verifizieren (keine PIN oder Biometrie eingerichtet).
 fido2-hid-permission = Kein Zugriff auf den Sicherheitsschlüssel – die udev-Regel (uaccess) für FIDO-Geräte fehlt.
@@ -181,6 +182,7 @@ placement-notice-scan_failed = Der freie Platz auf der Seite konnte nicht ermitt
 pdf-xref-repaired = Der Querverweis des Dokuments ist beschädigt und wurde beim Lesen korrigiert. Das Signieren ist möglich, ändert die Beschädigung aber nicht.
 pdf-xref-reconstructed = Der Querverweis des Dokuments fehlt oder ist unlesbar. Das Dokument kann ohne Reparatur nicht signiert werden.
 pdf-tail-garbage = Nach dem Dateiende-Marker (%%EOF) stehen fremde Daten.
+pdf-prior-signature-beyond-eof = Eine vorhandene Signatur reicht über das Dateiende hinaus – das Dokument wurde nach dem Signieren gekürzt oder beschädigt und kann nicht weiter signiert werden.
 pdf-docmdp-p1 = Das Dokument ist zertifiziert und erlaubt keine Änderungen (DocMDP P=1); es kann nicht signiert werden.
 pdf-user-password = Das Dokument ist mit einem Kennwort zum Öffnen geschützt und kann nicht signiert werden.
 pdf-xfa-dynamic = Das Dokument ist ein dynamisches XFA-Formular und kann nicht signiert werden.
