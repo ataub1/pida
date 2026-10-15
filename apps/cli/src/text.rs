@@ -120,7 +120,12 @@ mod tests {
         let line = |text: &str, opt: &str| text.lines().find(|l| l.trim_start().starts_with(opt)).unwrap().to_owned();
         assert!(line(&en, "-kskeypass").to_lowercase().contains("key password"), "{}", line(&en, "-kskeypass"));
         assert!(!line(&en, "-kspass").to_lowercase().contains("key password"), "{}", line(&en, "-kspass"));
-        assert!(!de.contains("!argument"), "fehlende Katalogeinträge");
+        // fehlende Katalogeinträge erschienen als rohe ID (`tr` fällt auf die ID zurück)
+        for text in [&de, &en] {
+            for raw in ["argument-help-", "ng-cli-help-"] {
+                assert!(!text.contains(raw), "fehlender Katalogeintrag ({raw}…): {text}");
+            }
+        }
     }
 
     /// Eingabeaufforderungen behalten das Leerzeichen am Ende (`{ " " }` im Katalog).

@@ -4,7 +4,8 @@
 //!
 //! Der Kern prüft bereits, was geöffnet werden darf (nur die Ergebnisdatei, nur `https://`-Links von
 //! A-Trust); die Shell prüft zusätzlich das Schema, damit kein anderer Pfad über diese Naht einen
-//! beliebigen Handler startet. Fehler enthalten keine Pfade (Regel 9; der Kern meldet sie als Hinweis).
+//! beliebigen Handler startet. Fehler enthalten keine Pfade oder URLs ([`opener_error_kind`]; der Kern
+//! loggt sie und meldet einen Hinweis).
 
 use std::path::Path;
 
@@ -38,13 +39,25 @@ impl<R: Runtime> std::fmt::Debug for TauriHooks<R> {
     }
 }
 
+/// Fehlerangabe ohne Pfad/URL (Regel 9): Der Kern loggt sie. `opener`-Fehler nennen sonst u. a. den
+/// gestarteten Befehl samt Dateipfad (`Launcher "open" "/…/Vertrag_signed.pdf" failed …`) bzw. die URL.
+pub fn opener_error_kind(e: &tauri_plugin_opener::Error) -> String {
+    match e {
+        tauri_plugin_opener::Error::Io(io) => format!("opener-io-{:?}", io.kind()),
+        tauri_plugin_opener::Error::ForbiddenPath { .. } | tauri_plugin_opener::Error::ForbiddenUrl { .. } => {
+            "opener-forbidden".to_owned()
+        }
+        _ => "opener-failed".to_owned(),
+    }
+}
+
 impl<R: Runtime> ShellHooks for TauriHooks<R> {
     fn open_path(&self, path: &Path) -> Result<(), String> {
         use tauri_plugin_opener::OpenerExt;
         if !path.is_file() {
             return Err("keine Datei".into());
         }
-        self.app.opener().open_path(path.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
+        self.app.opener().open_path(path.to_string_lossy(), None::<&str>).map_err(|e| opener_error_kind(&e))
     }
 
     fn open_url(&self, url: &str) -> Result<(), String> {
@@ -52,7 +65,7 @@ impl<R: Runtime> ShellHooks for TauriHooks<R> {
         if !allowed_url(url) {
             return Err("nur https".into());
         }
-        self.app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+        self.app.opener().open_url(url, None::<&str>).map_err(|e| opener_error_kind(&e))
     }
 
     fn parent_window(&self) -> Option<WindowHandle> {
@@ -77,6 +90,17 @@ fn parent_window<R: Runtime>(_app: &AppHandle<R>) -> Option<WindowHandle> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opener_errors_carry_no_paths() {
+        let io = std::io::Error::other("Launcher \"open\" \"/geheim/Vertrag_signed.pdf\" failed");
+        let text = opener_error_kind(&tauri_plugin_opener::Error::Io(io));
+        assert_eq!(text, "opener-io-Other");
+        let forbidden = tauri_plugin_opener::Error::ForbiddenPath { path: "/geheim/a.pdf".into(), with: None };
+        assert_eq!(opener_error_kind(&forbidden), "opener-forbidden");
+        let unknown = tauri_plugin_opener::Error::UnknownProgramName("/geheim/prog".into());
+        assert!(!opener_error_kind(&unknown).contains("geheim"));
+    }
 
     #[test]
     fn only_https_urls_with_host_are_opened() {

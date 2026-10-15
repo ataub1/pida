@@ -44,17 +44,23 @@ PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src
 
 ## Laufzeit
 
-- **PDFium** wird gesucht in `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**; ein Release-Build lädt keine
-  Bibliothek aus einem per Umgebung genannten Ordner), neben der Binary, in `../Frameworks`
-  (macOS-Bundle) und im Ressourcenordner (`pdfium/`); sonst entscheidet der Kern.
-- **Kern nicht verfügbar** (Startfehler, Panik, unerwartet beendeter Kern-Task) bzw. Konfiguration
-  nicht ermittelbar: Die Shell zeigt den Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“
-  (Abbrechen = Beenden) statt abzustürzen; „Öffnen mit“-Dokumente aus dieser Zeit werden für den
-  nächsten Start vorgemerkt.
+- **PDFium** wird gesucht in `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**), neben der Binary, in
+  `../Frameworks` (macOS-Bundle) und im Ressourcenordner (`pdfium/`). Ohne Treffer entscheidet in
+  Debug-Builds der Kern; ein Release-Build lädt nie aus der Umgebung oder Systempfaden (dann ohne
+  Vorschau, automatische Position; `src/pdfium.rs`).
+- **Kern nicht verfügbar** (Startfehler, Panik) bzw. Konfiguration nicht ermittelbar: Die Shell zeigt
+  den Fehlerschritt `ng-ui-core-unavailable`, ein unerwartet beendeter Kern-Task `ng-core-stopped` –
+  jeweils mit „Wiederholen“ (Abbrechen = Beenden) statt abzustürzen; „Öffnen mit“-Dokumente aus dieser
+  Zeit werden für den nächsten Start vorgemerkt.
+- **„Öffnen mit“ beim Kaltstart (macOS)**: `RunEvent::Opened` kommt vor `setup`; die Dokumente merkt
+  `instance::EarlyDocuments` vor und übergibt sie mit dem Kernstart.
+- **Single-Instance**: Plugin `single-instance`; unter macOS nur, wenn dessen Socket im gemeinsamen
+  `/tmp` fehlt oder dem eigenen Konto gehört (sonst erhielte ein fremdes Konto die Startargumente samt
+  Passwörtern) – „Öffnen mit“/Dock übergibt dort ohnehin LaunchServices (`src/instance.rs`).
 - **Beenden** (Fenster schließen, ⌘Q) läuft über den Kern (`UiEvent::Quit` → `Finished`): laufende
   Dialoge werden abgebrochen (F-73), Einstellungen gesichert (F-105); spätestens nach 5 s endet die App.
 - **Logs**: Log-Ordner der Plattform (`pdfover_config::Paths`), rotierend (`pdfover_core_api::logging`);
-  Filter über `PDFOVER_LOG`.
+  Filter über `--log-level`, sonst `PDFOVER_LOG`.
   Keine Passwörter, TANs oder Dokumentinhalte (ADR 0001 Regel 9).
 - **Sicherheit**: CSP `default-src 'self'`, minimale Capabilities (`capabilities/default.json`: nur
   Ereignisse empfangen, eigene Commands, Datei-/Speichern-Dialog, Links; kein `core:default`),

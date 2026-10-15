@@ -9,7 +9,9 @@
 //! - ungültige Argumente bzw. fehlende Dateien (`error-CmdLineArgs`, `error-FileNotExist`): Fehleranzeige,
 //!   „Abbrechen“ beendet (PDF-Over: Fehlerdialog + Ende, `PrepareConfigurationState.java:264-300`).
 //!
-//! NG-Ergänzungen: `--kspass-env <VAR>` liest das Keystore-Passwort aus der Umgebung; die
+//! NG-Ergänzungen: `--kspass-env <VAR>` liest das Keystore-Passwort aus der Umgebung,
+//! `--log-level <filter>` setzt den Log-Filter (Vorrang vor `PDFOVER_LOG`), Datei-URLs (`file:///…`,
+//! Linux-Starter mit `%U`) gelten als Pfade; die
 //! CLI-Befehle (`verify`, `profiles`, `migrate`, `render-block`) und die Terminal-Optionen
 //! (`--headless`, `--json`, `--kspass-stdin`) gibt es nur in `pdfover-cli` – in der GUI sind sie ein
 //! Argumentfehler. `sign <eingaben…>` öffnet die Eingaben (Ordner, Muster) wie in der CLI.
@@ -35,7 +37,12 @@ pub const CLI_ONLY: &str = "ng-ui-args-cli-only";
 #[derive(Debug)]
 pub enum GuiArgs {
     /// Starten mit diesem Overlay (Eingabedateien absolut, `-c` übernommen).
-    Start(Box<Overlay>),
+    Start {
+        /// Overlay des Kerns
+        overlay: Box<Overlay>,
+        /// `--log-level` (Filter wie `PDFOVER_LOG`, hat Vorrang)
+        log_level: Option<String>,
+    },
     /// Hilfe ausgeben und beenden.
     Help(String),
     /// Version ausgeben und beenden.
@@ -102,7 +109,8 @@ where
             return invalid(e.id, &params);
         }
     }
-    GuiArgs::Start(Box::new(overlay))
+    let log_level = cli.modern.log_level.clone().filter(|l| !l.trim().is_empty());
+    GuiArgs::Start { overlay: Box::new(overlay), log_level }
 }
 
 /// Dokumente einer zweiten Instanz („Öffnen mit“, „Senden an“): dieselbe Semantik (`-i` und freie
@@ -132,9 +140,27 @@ pub fn second_instance_documents(argv: &[String], cwd: &Path) -> Vec<PathBuf> {
     }
 }
 
-/// macOS übergibt älteren Startern `-psn_<nr>` (Process Serial Number) – kein Dokument.
+/// Plattform-Eigenheiten der Starter: macOS übergibt älteren Startern `-psn_<nr>` (Process Serial
+/// Number, kein Dokument); Desktop-Starter unter Linux übergeben mit `%U` Datei-URLs (`file:///…`, mit
+/// Prozentkodierung) statt Pfaden – sie werden zu Pfaden (sonst hieße es `error-FileNotExist`).
 fn without_platform_tokens(raw: impl Iterator<Item = OsString>) -> Vec<OsString> {
-    raw.enumerate().filter(|(i, t)| *i == 0 || !t.to_string_lossy().starts_with("-psn_")).map(|(_, t)| t).collect()
+    raw.enumerate()
+        .filter_map(|(i, t)| {
+            if i == 0 {
+                return Some(t);
+            }
+            let text = t.to_string_lossy();
+            if text.starts_with("-psn_") {
+                return None;
+            }
+            if text.starts_with("file://")
+                && let Ok(path) = url::Url::parse(&text).map_err(|_| ()).and_then(|u| u.to_file_path())
+            {
+                return Some(path.into_os_string());
+            }
+            Some(t)
+        })
+        .collect()
 }
 
 /// Optionen bzw. Befehle, die es nur in der Kommandozeile gibt.
@@ -216,7 +242,7 @@ mod tests {
         let mut raw = vec!["pdf-over-ng"];
         raw.extend_from_slice(args);
         match parse_gui_args(raw, cwd, &no_env) {
-            GuiArgs::Start(o) => *o,
+            GuiArgs::Start { overlay, .. } => *overlay,
             other => panic!("erwartet Start: {other:?}"),
         }
     }
@@ -353,10 +379,19 @@ mod tests {
         assert_eq!(o.input_files, vec![dir.join("./a.pdf"), dir.join("./b.pdf")]);
         let env = |name: &str| (name == "KSPW").then(|| OsString::from("pw123"));
         let r = parse_gui_args(["x", "-ks", "ks.p12", "--kspass-env", "KSPW"], &dir, &env);
-        let GuiArgs::Start(o) = r else { panic!("{r:?}") };
+        let GuiArgs::Start { overlay: o, .. } = r else { panic!("{r:?}") };
         assert_eq!(o.keystore_store_password.as_deref().map(String::as_str), Some("pw123"));
         let r = parse_gui_args(["x", "--kspass-env", "FEHLT"], &dir, &env);
         assert!(matches!(&r, GuiArgs::Invalid { code, .. } if code == "ng-cli-kspass-env-missing"), "{r:?}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn log_level_option_is_passed_to_the_shell() {
+        let dir = fixture("log");
+        let r = parse_gui_args(["x", "--log-level", "debug"], &dir, &no_env);
+        assert!(matches!(&r, GuiArgs::Start { log_level: Some(l), .. } if l == "debug"), "{r:?}");
+        assert!(matches!(parse_gui_args(["x"], &dir, &no_env), GuiArgs::Start { log_level: None, .. }));
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -365,6 +400,21 @@ mod tests {
         let dir = fixture("psn");
         let o = start(&["-psn_0_12345", "a.pdf"], &dir);
         assert_eq!(o.input_files, vec![dir.join("a.pdf")]);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Linux-Starter mit `%U`: Datei-URLs (auch mit Leerzeichen) sind Dokumente.
+    #[test]
+    fn file_urls_become_paths() {
+        let dir = fixture("url");
+        std::fs::write(dir.join("mit leer.pdf"), b"%PDF-1.7\n").expect("Datei");
+        let a = url::Url::from_file_path(dir.join("a.pdf")).expect("url").to_string();
+        let spaced = url::Url::from_file_path(dir.join("mit leer.pdf")).expect("url").to_string();
+        assert!(spaced.contains("%20"), "{spaced}");
+        let o = start(&[a.as_str(), spaced.as_str()], &dir);
+        assert_eq!(o.input_files, vec![dir.join("a.pdf"), dir.join("mit leer.pdf")]);
+        let argv: Vec<String> = vec!["pdf-over-ng".into(), a];
+        assert_eq!(second_instance_documents(&argv, &dir), vec![dir.join("a.pdf")]);
         let _ = std::fs::remove_dir_all(dir);
     }
 

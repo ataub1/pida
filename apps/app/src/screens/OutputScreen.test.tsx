@@ -50,6 +50,22 @@ describe('Ergebnis', () => {
     expect(mock.nativeCalls).toHaveLength(1);
   });
 
+  it('Knopf „Speichern“ nach abgebrochenem Dialog nutzt den Vorschlag des Kerns erneut', async () => {
+    const view = viewOf({
+      step: 'output',
+      result: outputResult({ save_dialog: { directory: '/Users/demo', file_name: 'Vertrag_signed.pdf' } }),
+      next: null,
+    });
+    const { mock, user } = renderApp({ view, pickSaveResult: null });
+    await waitFor(() => expect(mock.dispatched).toEqual([{ type: 'save', path: null }]));
+    // Kern: Dialog abgebrochen → Knopf „Speichern“ (save_pending), kein save_dialog mehr
+    act(() => mock.setView(viewOf({ step: 'output', result: outputResult({ path: null, save_pending: true }), next: null })));
+    await user.click(await screen.findByRole('button', { name: 'Speichern' }));
+    await waitFor(() =>
+      expect(mock.nativeCalls).toEqual(['pickSavePath:/Users/demo/Vertrag_signed.pdf', 'pickSavePath:/Users/demo/Vertrag_signed.pdf']),
+    );
+  });
+
   it('Überschreiben-Rückfrage (ask_overwrite)', async () => {
     const view = viewOf({
       step: 'output',

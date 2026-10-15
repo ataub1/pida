@@ -12,8 +12,8 @@ PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft di
 
 | Nr. | Prüfung | Befehl | Ergebnis |
 |---|---|---|---|
-| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 236 Tests |
-| N-02 | Shell-Crate | `cargo test -p pdfover-app` | grün: 32 Tests (Startargumente, Kernstart/Fehlerschritt, Shell-Funktionen, Startprüfung, Custom Protocol, Dateien, Sicherheitskonfiguration, Serde-Vertrag) |
+| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review) |
+| N-02 | Shell-Crate | `cargo test -p pdfover-app` | grün: 40 Tests nach dem Review (Startargumente, Kernstart/Fehlerschritt, Shell-Funktionen, Startprüfung, Custom Protocol, Dateien, frühe Dokumente/Single-Instance-Socket, PDFium-Auflösung, Sicherheitskonfiguration, Serde-Vertrag) |
 | N-03 | Vertrag Kern ↔ UI | `cargo test -p pdfover-core-api --test ts_bindings` | grün: `generated.ts` entspricht den Rust-Typen (ts-rs 12.0.1) |
 | N-04 | Debug-Bundle mit PDFium und Drittlizenzen | `npm run notices && PDFOVER_PDFIUM_DIR=… npm run bundle:mac:debug` | `PDF-Over NG.app` **121,3 MiB** (Binary 112 MiB unoptimiert mit Debug-Infos, `Contents/Frameworks/libpdfium.dylib` 7,0 MiB, `Contents/Resources/THIRD-PARTY-NOTICES.md` + `RUST-STD-COPYRIGHT.html`) |
 | N-05 | Release-Bundle | `PDFOVER_PDFIUM_DIR=… CI=true npm run bundle:mac:release` | `PDF-Over NG.app` **28,6 MiB** (Binary 19 MiB), `PDF-Over NG_0.1.0_aarch64.dmg` **12,1 MiB** – unter dem Größen-Gate ≤ 25 MB je Installer (Plan §9.1) |
@@ -23,6 +23,10 @@ PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft di
 | N-09 | Ungültige Startargumente | `… pdf-over-ng /gibt/es/nicht.pdf` bzw. `-b FALSCH` | `ok step=error` (Fehlerschritt `error-FileNotExist` bzw. `error-CmdLineArgs`, Kern startet nicht) |
 | N-10 | Hilfe/Version ohne Fenster | `… pdf-over-ng -h`, `--version` | zweisprachige Hilfe (Systemsprache) bzw. `PDF-Over NG 0.1.0` auf stdout, Ende ohne Fenster |
 | N-11 | Lizenz-Gate | `cargo deny --locked check`, `node tools/npm-licenses.mjs apps/app/package-lock.json` | grün (begründete Ausnahmen in `deny.toml`/`tools/npm-licenses.mjs`) |
+| N-12 | „Öffnen mit“ beim Kaltstart (Review) | `open -n -W -a "…/PDF-Over NG.app" --env PDFOVER_SMOKE=1 --env HOME=<leer> --stdout <datei> doc.pdf` | `ok step=position` (Dokument geöffnet); der Stand vor dem Review (58e072b) lieferte `step=open` – das Dokument ging verloren, weil `RunEvent::Opened` vor `setup` kam |
+| N-13 | Fremder Single-Instance-Socket (Review) | Datei `/tmp/at_pdf_over_ng_si.sock` anlegen, App starten | `ok step=open`, Log: Warnung „Start ohne Single-Instance“; die App sendet nichts an den Pfad |
+| N-14 | Zertifikats-Cache mit echter Engine (Review) | `cargo test -p pdfover-core-api --test real_pades` | Treffer ohne InfoboxRead, qpdf/pyHanko intakt, Signer = Testzertifikat; abweichendes Zertifikat → `ng-certcache-mismatch` (`cms-unexpected-signer`), nichts gespeichert, „Wiederholen“ signiert gültig |
+| N-15 | Startargumente (Review) | `… pdf-over-ng "file://…/a%20b.pdf"`, `--log-level warn` | `ok step=position` bzw. nur Warnungen im Log |
 
 Hinweise zur Messung:
 
@@ -36,8 +40,9 @@ Hinweise zur Messung:
   ein und wartet dabei ohne Freigabe „Automation → Finder“ unbegrenzt. In CI und Terminal-Sitzungen
   `CI=true` setzen (Tauri überspringt dann die Finder-Gestaltung); auf einem Arbeitsplatz mit Freigabe
   geht es ohne.
-- Ein Release-Build lädt PDFium **nie** aus `PDFOVER_PDFIUM_DIR`, nur aus dem Bundle (ADR 0060 §1);
-  N-07 belegt, dass die Bibliothek dort gefunden wird.
+- Ein Release-Build lädt PDFium **nie** aus `PDFOVER_PDFIUM_DIR` oder Systempfaden, nur aus dem Bundle
+  (ADR 0060 §1; fehlt sie dort, nennt die Shell dem Kern den Ordner der Binary – dann ohne Vorschau,
+  `apps/app/src-tauri/src/pdfium.rs::resolve`); N-07 belegt, dass die Bibliothek im Bundle gefunden wird.
 - Signieren und Codesignatur/Notarisierung sind nicht Teil dieser Abnahme (Signier-Secrets beim
   Auftraggeber, Plan §9.3). Das ungesignierte Bundle startet lokal; nach einem Download blockiert
   Gatekeeper es.
@@ -97,10 +102,13 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | D-03 | Bild auf das Bildmarken-Feld in den Einstellungen ziehen | Bildmarke übernommen |
 | D-04 | Finder: „Öffnen mit › PDF-Over NG“ bzw. PDF auf das Dock-Symbol (App läuft nicht) | App startet mit dem Dokument |
 | D-05 | wie D-04, App läuft bereits | Dokument geht an die laufende Instanz, Fenster kommt nach vorn (keine zweite Instanz) |
+| D-05a | macOS, zweites Benutzerkonto: dort läuft PDF-Over NG bzw. `/tmp/at_pdf_over_ng_si.sock` gehört dem anderen Konto; App im eigenen Konto starten | App startet normal (ohne Single-Instance, Warnung im Log); keine Startargumente an das andere Konto |
+| D-05b | Linux: Start über den Desktop-Eintrag mit Datei-URL (`pdf-over-ng file:///…/a%20b.pdf`) | Dokument wird geöffnet (Datei-URL = Pfad) |
 | D-06 | Terminal: `pdf-over-ng -b KS -ks test-rsa2048.p12 -kspass test -a -s -o <ordner> a.pdf b.pdf` | beide Dokumente ohne Rückfragen signiert, App endet nach dem letzten Speichern (`-s`) |
 | D-07 | `pdf-over-ng -v true a.pdf`, `-e logo.png`, `-n 0664…`, `-proxy host -proxyport 8080` | unsichtbar; Bildmarke; Benutzername vorbelegt (`+43664…`); Proxy nur für diese Sitzung (nicht gespeichert) |
 | D-08 | `pdf-over-ng fehlt.pdf`, `pdf-over-ng -b FALSCH`, `pdf-over-ng --headless` | Fehlerschritt ohne Wiederholen (`error-FileNotExist`, `error-CmdLineArgs`, `ng-ui-args-cli-only`), Abbrechen beendet; Passwörter erscheinen nie in der Anzeige oder im Log |
 | D-09 | `pdf-over-ng -h` | Hilfe auf stdout, kein Fenster |
+| D-10 | `pdf-over-ng --log-level debug` | ausführlicheres Log (Vorrang vor `PDFOVER_LOG`), weiterhin ohne Passwörter/Dokumentinhalte |
 
 ### 2.4 ID Austria mit Testkonto (nur durch den Auftraggeber)
 

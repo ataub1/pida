@@ -11,9 +11,10 @@
 //!   `pdfover-cli`): `-i -o -b -n -p -ks… -proxy… -e -a -s -c -v` als Overlay des Kerns; ungültige
 //!   Argumente zeigen den Fehlerschritt (`error-CmdLineArgs`), `-h` gibt die Hilfe aus.
 //! - **Single-Instance** (Desktop): eine zweite Instanz übergibt ihre Dokumente an die erste (F-13,
-//!   [`args::second_instance_documents`]).
+//!   [`args::second_instance_documents`]); unter macOS nur mit eigenem Socket ([`instance`]).
 //! - **„Öffnen mit“**: Startargumente unter Windows/Linux und `RunEvent::Opened`
-//!   (macOS-Apple-Events zur Datei-Zuordnung `.pdf` im Bundle; iOS/Android „Öffnen in“).
+//!   (macOS-Apple-Events zur Datei-Zuordnung `.pdf` im Bundle; iOS/Android „Öffnen in“). Dokumente, die
+//!   vor `setup` eintreffen (macOS-Kaltstart über ein Dokument), merkt [`instance::EarlyDocuments`] vor.
 //! - **Shell-Funktionen** des Kerns ([`hooks`]): Ergebnis öffnen (F-87), „Signaturdaten anzeigen“ im
 //!   Browser (F-68), Elternfenster für Windows-Hello/FIDO2.
 //! - **Sprache**: `Lang::set_system` aus `sys-locale` (unter Windows/macOS-GUI fehlen POSIX-Variablen). Das Plugin `deep-link` kommt erst mit eigenen URL-Schemata bzw. App Links (Szenario C/D,
@@ -22,9 +23,9 @@
 //! - **Fensterzustand** (Plugin `window-state`), Dialoge (`dialog`), Öffnen im System (`opener`).
 //! - Logs: Datei im Log-Ordner der Plattform ([`pdfover_config::Paths`]) über
 //!   `pdfover_core_api::logging` (rotierend auch während des Laufs), ohne Secrets und Dokumentinhalte
-//!   (Regel 9); Filter über `PDFOVER_LOG` bzw. `RUST_LOG`.
-//! - **Kernfehler**: Startfehler, Paniken und ein unerwartet beendeter Kern-Task erscheinen als
-//!   Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“ (Neustart des Kerns).
+//!   (Regel 9); Filter über `--log-level`, sonst `PDFOVER_LOG`.
+//! - **Kernfehler**: Startfehler und Paniken erscheinen als Fehlerschritt `ng-ui-core-unavailable`, ein
+//!   unerwartet beendeter Kern-Task als [`CORE_STOPPED`] – jeweils mit „Wiederholen“ (Neustart des Kerns).
 //! - **Startprüfung** (`PDFOVER_SMOKE=1`): beendet die App, sobald die Oberfläche den ersten
 //!   ViewState abgefragt hat und der Kern bereit ist; gibt die Startzeiten auf stdout aus ([`smoke`]).
 //! - **Beenden** (Fenster schließen, ⌘Q): läuft über den Kern (`UiEvent::Quit` → `Finished`), damit
@@ -39,6 +40,7 @@
 pub mod args;
 pub mod files;
 pub mod hooks;
+pub mod instance;
 pub mod pdfium;
 pub mod protocol;
 pub mod shell;
@@ -55,6 +57,7 @@ use pdfover_i18n::Lang;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use args::GuiArgs;
+use instance::EarlyDocuments;
 use shell::{DispatchOutcome, QuitRequest, Shell, Started};
 
 /// Meldungs-ID: der Kern-Task hat unerwartet geendet (Detail im Fehlerschritt).
@@ -165,7 +168,7 @@ fn start_core(app: &AppHandle, shell: &Shell) {
                         // Kern-Task beendet, ohne `Finished` zu melden: Fehlerschritt mit „Wiederholen“
                         tracing::error!("Kern-Task unerwartet beendet");
                         if let Some(shell) = app.try_state::<Shell>() {
-                            shell.mark_unavailable(CORE_STOPPED);
+                            shell.mark_stopped(CORE_STOPPED);
                             let _ = app.emit(VIEW_EVENT, shell.view());
                         }
                         break;
@@ -205,7 +208,8 @@ fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pdfover_
     let env_dir = pdfium::env_override();
     let exe = std::env::current_exe().ok();
     let resources = app.path().resource_dir().ok();
-    let pdfium_dir = pdfium::find(&pdfium::candidates(env_dir, exe.as_deref(), resources.as_deref()));
+    let candidates = pdfium::candidates(env_dir, exe.as_deref(), resources.as_deref());
+    let pdfium_dir = pdfium::resolve(&candidates, exe.as_deref(), !cfg!(debug_assertions));
     Ok(CoreConfig {
         paths,
         overlay,
@@ -230,10 +234,12 @@ fn fido2_provider() -> Option<Arc<dyn pdfover_backend_atrust::Fido2Provider>> {
 /// Hält den Schreib-Thread der Logdatei bis zum Programmende (beim Drop wird geleert).
 struct LogState(Mutex<Option<pdfover_core_api::logging::LogGuard>>);
 
-/// Logdatei im Log-Ordner der Plattform (rotierend, Plan §7.1); Filter über `PDFOVER_LOG` (bzw.
-/// `RUST_LOG`). In Debug-Builds zusätzlich stderr.
-fn init_logging(paths: &Paths) -> pdfover_core_api::logging::LogGuard {
-    let level = std::env::var("PDFOVER_LOG").ok().filter(|l| !l.trim().is_empty()).unwrap_or_else(|| "info".into());
+/// Logdatei im Log-Ordner der Plattform (rotierend, Plan §7.1); Filter aus `--log-level`, sonst
+/// `PDFOVER_LOG`, sonst `info`. In Debug-Builds zusätzlich stderr.
+fn init_logging(paths: &Paths, log_level: Option<String>) -> pdfover_core_api::logging::LogGuard {
+    let level = log_level
+        .or_else(|| std::env::var("PDFOVER_LOG").ok().filter(|l| !l.trim().is_empty()))
+        .unwrap_or_else(|| "info".into());
     pdfover_core_api::logging::init(
         paths,
         &pdfover_core_api::logging::LogOptions { level, stderr: cfg!(debug_assertions), file: true },
@@ -254,6 +260,18 @@ fn init_language() -> Option<Lang> {
         Lang::set_system(lang);
     }
     lang
+}
+
+/// Dokumente aus „Öffnen mit“ bzw. einer zweiten Instanz: vor `setup` vormerken, danach an die Shell.
+fn deliver_documents(app: &AppHandle, docs: Vec<std::path::PathBuf>) {
+    let early = app.try_state::<EarlyDocuments>();
+    instance::deliver(early.as_deref(), docs, |docs| match app.try_state::<Shell>() {
+        Some(shell) => {
+            shell.open_files(docs);
+            true
+        }
+        None => false,
+    });
 }
 
 fn focus_main_window(app: &AppHandle) {
@@ -285,18 +303,20 @@ pub fn run() {
         other => other,
     };
 
-    let mut builder = tauri::Builder::default();
+    // vor `build` registriert: `RunEvent::Opened` kann unter macOS vor `setup` eintreffen
+    let mut builder = tauri::Builder::default().manage(EarlyDocuments::default());
 
+    let single_instance = cfg!(desktop) && instance::single_instance_allowed();
     #[cfg(desktop)]
     {
-        // Muss als erstes Plugin registriert werden.
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            let docs = args::second_instance_documents(&argv, std::path::Path::new(&cwd));
-            if let Some(shell) = app.try_state::<Shell>() {
-                shell.open_files(docs);
-            }
-            focus_main_window(app);
-        }));
+        // Muss als erstes Plugin registriert werden (macOS: nur mit eigenem Socket, siehe `instance`).
+        if single_instance {
+            builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+                let docs = args::second_instance_documents(&argv, std::path::Path::new(&cwd));
+                deliver_documents(app, docs);
+                focus_main_window(app);
+            }));
+        }
         builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
     }
 
@@ -325,14 +345,14 @@ pub fn run() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            let (overlay, args_error) = match start_args {
-                GuiArgs::Start(overlay) => (*overlay, None),
-                GuiArgs::Invalid { code, params } => (Overlay::default(), Some((code, params))),
-                GuiArgs::Help(_) | GuiArgs::Version(_) => (Overlay::default(), None),
+            let (overlay, log_level, args_error) = match start_args {
+                GuiArgs::Start { overlay, log_level } => (*overlay, log_level, None),
+                GuiArgs::Invalid { code, params } => (Overlay::default(), None, Some((code, params))),
+                GuiArgs::Help(_) | GuiArgs::Version(_) => (Overlay::default(), None, None),
             };
             let shell = match core_config(&handle, overlay) {
                 Ok(config) => {
-                    app.manage(LogState(Mutex::new(Some(init_logging(&config.paths)))));
+                    app.manage(LogState(Mutex::new(Some(init_logging(&config.paths, log_level)))));
                     match args_error {
                         Some((code, params)) => {
                             tracing::warn!(code = %code, "Startargumente ungültig – Kern startet nicht");
@@ -349,10 +369,16 @@ pub fn run() {
                 }
             };
             tracing::info!(version = %handle.package_info().version, "PDF-Over NG startet");
+            if cfg!(desktop) && !single_instance {
+                tracing::warn!("Single-Instance-Socket gehört nicht diesem Konto – Start ohne Single-Instance");
+            }
             shell.set_system_language(system_language);
             shell.set_hooks(Arc::new(hooks::TauriHooks::new(handle.clone())));
             app.manage(shell);
             let shell = handle.state::<Shell>();
+            // vor `setup` eingetroffene Dokumente (macOS-Kaltstart über ein Dokument) gehen mit dem Start
+            // an den Kern; ab hier liefert `deliver_documents` direkt an die Shell
+            shell.open_files(handle.state::<EarlyDocuments>().close());
             start_core(&handle, &shell);
             smoke::arm_watchdog(&handle);
             Ok(())
@@ -382,9 +408,7 @@ pub fn run() {
         }
         #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
         tauri::RunEvent::Opened { urls } => {
-            if let Some(shell) = app.try_state::<Shell>() {
-                shell.open_files(files::documents_from_urls(&urls));
-            }
+            deliver_documents(app, files::documents_from_urls(&urls));
             focus_main_window(app);
         }
         _ => {}

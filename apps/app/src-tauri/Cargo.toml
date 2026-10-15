@@ -59,6 +59,10 @@ pdfover-backend-atrust = { workspace = true, features = ["fido2-windows"] }
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pdfover-backend-atrust = { workspace = true, features = ["fido2-hid"] }
 
+# macOS: Besitzer des Single-Instance-Sockets im gemeinsamen /tmp prüfen (src/instance.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+rustix = { workspace = true }
+
 [target.'cfg(not(any(windows, target_os = "macos", target_os = "linux")))'.dependencies]
 pdfover-backend-atrust = { workspace = true }
 

@@ -160,6 +160,17 @@ impl Shell {
         *lock(&self.fallback) = unavailable_view(detail, Lang::system());
     }
 
+    /// Der Kern-Task hat ohne `Finished` geendet: Kern verwerfen, Fehlerschritt `code` (eigene
+    /// Meldungs-ID, z. B. `ng-core-stopped`) mit „Wiederholen“ (Neustart) in der zuletzt gezeigten
+    /// Sprache.
+    pub fn mark_stopped(&self, code: &str) {
+        let language = self.core().map_or_else(Lang::system, |core| {
+            catch_unwind(AssertUnwindSafe(|| core.view().language)).unwrap_or_else(|_| Lang::system())
+        });
+        *lock(&self.core) = None;
+        *lock(&self.fallback) = error_view(code, BTreeMap::new(), true, language);
+    }
+
     /// Laufender Kern.
     pub fn core(&self) -> Option<Arc<Core>> {
         lock(&self.core).clone()
@@ -422,6 +433,26 @@ mod tests {
             (0..MAX_PENDING_DOCUMENTS + 50).map(|i| PathBuf::from(format!("/x/{i}.pdf"))).collect();
         shell.open_files(many);
         assert_eq!(shell.pending_documents(), MAX_PENDING_DOCUMENTS);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Endet der Kern-Task ohne `Finished`, zeigt die Shell `ng-core-stopped` als eigenen Fehlerschritt
+    /// (nicht als Detail von `ng-ui-core-unavailable`); „Wiederholen“ startet den Kern neu.
+    #[test]
+    fn stopped_core_yields_its_own_error_step_with_retry() {
+        let (shell, root) = test_shell();
+        let _ = shell.start();
+        shell.mark_stopped(crate::CORE_STOPPED);
+        assert!(shell.core().is_none());
+        match shell.view().step {
+            StepView::Error { code, params, retry } => {
+                assert_eq!(code, crate::CORE_STOPPED);
+                assert!(params.is_empty());
+                assert!(retry);
+            }
+            other => panic!("unerwartet: {other:?}"),
+        }
+        assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "retry" })), Ok(DispatchOutcome::Restart));
         let _ = std::fs::remove_dir_all(root);
     }
 

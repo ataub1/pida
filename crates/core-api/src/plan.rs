@@ -558,6 +558,29 @@ mod tests {
         assert_eq!((sp.profile_id.as_str(), notice), ("SIGNATURBLOCK_SMALL_DE_NOTE", None));
     }
 
+    /// Jedes bekannte Profil, das ein QR-Platzhalter nennen kann, ergibt ohne die PDF-Over-Overrides
+    /// einen baubaren Block (Vorschau = Ergebnis); sichtbare Profile haben eine Fläche.
+    #[test]
+    fn every_known_placeholder_profile_builds_a_block() {
+        let mut s = Settings::default();
+        s.signature.block_language = Some(Lang::De);
+        let o = Overlay::default();
+        let store = store();
+        let fonts = FontProvider::builtin();
+        let pages = [a4_page()];
+        let ids: Vec<String> = store.ids().map(str::to_owned).collect();
+        assert!(ids.len() >= 4, "{ids:?}");
+        for id in &ids {
+            let (sp, notice) =
+                placeholder_block_spec(&store, spec_input(Effective::new(&s, &o, None)), Some(id)).unwrap();
+            assert_eq!((sp.profile_id.as_str(), notice), (id.as_str(), None));
+            let g = block_geometry(&sp, &pages, 0, &store, &fonts).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+            if sp.visible() {
+                assert!(g.width > 1.0 && g.height > 1.0, "{id}: {g:?}");
+            }
+        }
+    }
+
     #[test]
     fn small_block_geometry_matches_pdfas() {
         let mut s = Settings::default();

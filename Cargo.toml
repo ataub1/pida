@@ -170,6 +170,10 @@ tauri-plugin-dialog = "=2.8.3"
 tauri-plugin-opener = "=2.7.2"
 tauri-plugin-single-instance = "=2.5.4"
 tauri-plugin-window-state = "=2.5.0"
+# Eigene Benutzerkennung (geteuid ohne unsafe) für die Prüfung des Single-Instance-Sockets unter macOS
+# (apps/app/src-tauri/src/instance.rs). Bereits im Abhängigkeitsbaum; Apache-2.0 WITH LLVM-exception OR
+# Apache-2.0 OR MIT.
+rustix = { version = "=1.1.5", default-features = false, features = ["std", "process"] }
 # OS-Sprache der Shell (`Lang::set_system`). MIT OR Apache-2.0.
 sys-locale = "=0.3.2"
 # TypeScript-Typen der Bridge aus Rust (Feature `ts` in backend-api, i18n, workflow, core-api; nur

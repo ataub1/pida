@@ -326,16 +326,25 @@ impl CoreTask {
             return;
         }
         let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
-        let plaintext_secrets = pdfover_config::LegacyConfig::load(&file)
-            .map(|legacy| {
-                let ctx = pdfover_config::MigrationContext {
-                    legacy_dir,
-                    system_language: Lang::system(),
-                    check_paths: false,
-                };
-                !pdfover_config::migrate(&legacy, &ctx).report.secrets_found.is_empty()
-            })
-            .unwrap_or(false);
+        // eigene Panik-Grenze: Diese Prüfung läuft nach jedem Ereignis (`guarded`); ein Programmfehler
+        // beim Lesen der Altdatei darf das gerade verarbeitete Ereignis nicht verwerfen und sich nicht
+        // bei jedem weiteren Ereignis wiederholen (dann: ohne Rückfrage zu Passwörtern)
+        let probe = std::panic::catch_unwind(|| {
+            pdfover_config::LegacyConfig::load(&file)
+                .map(|legacy| {
+                    let ctx = pdfover_config::MigrationContext {
+                        legacy_dir,
+                        system_language: Lang::system(),
+                        check_paths: false,
+                    };
+                    !pdfover_config::migrate(&legacy, &ctx).report.secrets_found.is_empty()
+                })
+                .unwrap_or(false)
+        });
+        let plaintext_secrets = probe.unwrap_or_else(|_| {
+            tracing::error!("Altkonfiguration nicht auswertbar (Programmfehler) – Angebot ohne Passwortfrage");
+            false
+        });
         self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets });
     }
 

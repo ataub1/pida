@@ -37,8 +37,10 @@ export function OutputScreen({ result, next }: { result: OutputView; next: DocIn
     }
   };
 
-  // Speichern-Dialog automatisch, wenn der Kern ihn anfordert (einmal je Rückfrage).
+  // Speichern-Dialog automatisch, wenn der Kern ihn anfordert (einmal je Rückfrage). Der Vorschlag
+  // (Startordner + Name) gilt auch für den Knopf „Speichern“ nach einem abgebrochenen Dialog (F-86).
   const asked = useRef<string | null>(null);
+  const lastSuggestion = useRef<string | null>(null);
   const saveTarget = result.save_dialog ? joinPath(result.save_dialog.directory, result.save_dialog.file_name) : null;
   const askSaveRef = useRef(askSave);
   askSaveRef.current = askSave;
@@ -47,6 +49,7 @@ export function OutputScreen({ result, next }: { result: OutputView; next: DocIn
       asked.current = null;
       return;
     }
+    lastSuggestion.current = saveTarget;
     if (asked.current === saveTarget) return;
     asked.current = saveTarget;
     void askSaveRef.current(saveTarget);
@@ -83,7 +86,7 @@ export function OutputScreen({ result, next }: { result: OutputView; next: DocIn
             {result.save_pending ? <p>{t.t('output-link_save_message')}</p> : <p>{t.t('ng-ui-output-saving')}</p>}
             {result.save_pending ? (
               <div className="actions actions-start">
-                <AccessButton msg="common-Save" variant="primary" onPress={() => void askSave(null)} />
+                <AccessButton msg="common-Save" variant="primary" onPress={() => void askSave(lastSuggestion.current)} />
               </div>
             ) : null}
           </div>
