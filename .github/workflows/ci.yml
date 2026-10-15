@@ -34,6 +34,10 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
+  # Weniger Debug-Infos in Dev-/Test-Builds: Der volle Workspace inkl. Tauri sprengte auf
+  # ubuntu-latest sonst den Plattenplatz (ld: Bus error beim Linken, erster CI-Lauf).
+  CARGO_PROFILE_DEV_DEBUG: "line-tables-only"
+  CARGO_PROFILE_TEST_DEBUG: "line-tables-only"
   RUST_BACKTRACE: "1"
   RUST_TOOLCHAIN: "1.99.0"
   # Clippy läuft mit --no-deps und -D warnings für alle Crates außer diesen (für sie nur Warnungen):
@@ -85,6 +89,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Plattenplatz freigeben (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - name: Rust-Toolchain
         run: |

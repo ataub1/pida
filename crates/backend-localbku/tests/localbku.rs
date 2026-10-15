@@ -118,7 +118,8 @@ fn openssl_verify(cms: &[u8], content: &[u8], dir: &Path) -> bool {
         .arg(&s)
         .arg("-content")
         .arg(&c)
-        .args(["-out", "/dev/null"])
+        .arg("-out")
+        .arg(dir.join("verify-out.bin")) // kein /dev/null: Windows-CI
         .output()
         .unwrap()
         .status

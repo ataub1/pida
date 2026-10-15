@@ -705,7 +705,8 @@ async fn model_a_cms_passes_openssl() {
             .arg(&cms)
             .arg("-content")
             .arg(&content)
-            .args(["-out", "/dev/null"])
+            .arg("-out")
+            .arg(dir.join("verify-out.bin")) // kein /dev/null: Windows-CI
             .output()
             .unwrap();
         assert!(verify.status.success(), "{profile}: {}", String::from_utf8_lossy(&verify.stderr));

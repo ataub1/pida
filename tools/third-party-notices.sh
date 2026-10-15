@@ -28,7 +28,10 @@ PDFIUM_PLATFORM=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --out | --pdfium)
-      [ $# -ge 2 ] && [ -n "$2" ] || { echo "third-party-notices: $1 braucht einen Wert" >&2; exit 2; }
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo "third-party-notices: $1 braucht einen Wert" >&2
+        exit 2
+      fi
       if [ "$1" = --out ]; then OUT="$2"; else PDFIUM_PLATFORM="$2"; fi
       shift ;;
     -h | --help) sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
