@@ -53,6 +53,18 @@ pub enum BackendError {
     /// Keystore-Fehler (Datei fehlt, Alias fehlt, unlesbares PBE …).
     #[error("Keystore: {0}")]
     Keystore(String),
+    /// Keystore-Fehler mit stabilem Untercode (additiv, Welle 2): `code` =
+    /// `pdfover_backend_keystore::KeystoreError::code` (`keystore-different-key-password`,
+    /// `keystore-unsupported-pbe`, …) für die Übersetzung, `message` nur für Diagnose (ohne
+    /// Pfade, Regel 9). [`BackendError::code`] bleibt `backend-keystore`, den Untercode liefert
+    /// [`BackendError::detail_code`].
+    #[error("Keystore: {message}")]
+    KeystoreDetail {
+        /// stabiler Untercode (`keystore-…`)
+        code: String,
+        /// Diagnosetext
+        message: String,
+    },
     /// JKS/JCEKS erkannt: Konvertierungshinweis statt Reader (Plan §4.9).
     #[error("Keystore-Format {format} wird nicht unterstützt – bitte nach PKCS#12 konvertieren")]
     UnsupportedKeystoreFormat {
@@ -105,12 +117,40 @@ impl BackendError {
             BackendError::LoopDetected => "backend-loop",
             BackendError::Protocol(_) => "backend-protocol",
             BackendError::WrongPassword => "backend-wrong-password",
-            BackendError::Keystore(_) => "backend-keystore",
+            BackendError::Keystore(_) | BackendError::KeystoreDetail { .. } => "backend-keystore",
             BackendError::UnsupportedKeystoreFormat { .. } => "backend-keystore-format",
             BackendError::CertificateMismatch => "backend-certificate-mismatch",
             BackendError::Fido2(_) => "backend-fido2",
             BackendError::Timeout => "backend-timeout",
             BackendError::Internal(_) => "backend-internal",
         }
+    }
+
+    /// Feinerer, stabiler Untercode, falls vorhanden (additiv, Welle 2) – z. B.
+    /// `keystore-different-key-password` bei [`BackendError::KeystoreDetail`]. Die UI übersetzt
+    /// bevorzugt diesen Code und fällt sonst auf [`BackendError::code`] zurück.
+    pub fn detail_code(&self) -> Option<&str> {
+        match self {
+            BackendError::KeystoreDetail { code, .. } => Some(code),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keystore_detail_keeps_family_code() {
+        let e = BackendError::KeystoreDetail {
+            code: "keystore-different-key-password".into(),
+            message: "abweichendes Schlüsselpasswort".into(),
+        };
+        assert_eq!(e.code(), "backend-keystore");
+        assert_eq!(e.detail_code(), Some("keystore-different-key-password"));
+        assert_eq!(e.to_string(), "Keystore: abweichendes Schlüsselpasswort");
+        assert!(!e.is_retryable() && !e.is_user_cancel());
+        assert_eq!(BackendError::Keystore("x".into()).detail_code(), None);
     }
 }

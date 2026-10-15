@@ -2764,16 +2764,26 @@ dependencies = [
 name = "pdfover-pades"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "flate2",
+ "hex",
+ "jiff",
+ "pdfover-backend-api",
+ "pdfover-backend-keystore",
  "pdfover-cades",
  "pdfover-pdf-cos",
  "pdfover-pdf-incremental",
+ "pdfover-placement",
  "pdfover-render",
  "pdfover-sigblock",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "time",
+ "tokio",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]

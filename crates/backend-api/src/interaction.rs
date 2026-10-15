@@ -40,6 +40,36 @@ pub enum FormProblem {
     LoginRejected,
     /// Text von A-Trust
     Atrust(String),
+    /// FIDO2 fehlgeschlagen, mit stabilem Code für die Übersetzung (additiv, Welle 2): `code` =
+    /// `pdfover_backend_atrust::Fido2Error::code` (`fido2-unavailable`, `fido2-device`,
+    /// `fido2-invalid-options`, `fido2-pin-required`, `fido2-pin-invalid`, …), `detail` nur für
+    /// Diagnose (ohne Personendaten). Backends melden FIDO2-Fehler mit dieser Variante;
+    /// [`FormProblem::Fido2Failed`] bleibt für Altaufrufer.
+    Fido2Error {
+        /// stabiler Code (`fido2-…`)
+        code: String,
+        /// Diagnosetext
+        detail: String,
+    },
+}
+
+impl FormProblem {
+    /// Stabiler Meldungscode für die Übersetzung (ADR 0001 Regel 11), falls die Variante einen
+    /// trägt bzw. einer PDF-Over-Meldung entspricht; `None` für Freitext (`Atrust`,
+    /// `Fido2Failed`).
+    pub fn code(&self) -> Option<&str> {
+        match self {
+            FormProblem::PasswordTooShort => Some("exception-PasswordTooShort"),
+            FormProblem::PasswordTooLong => Some("exception-PasswordTooLong"),
+            FormProblem::NoTan => Some("error-NoTan"),
+            FormProblem::TanTooLong => Some("error-TanTooLong"),
+            FormProblem::EnteredReferenceValue => Some("error-EnteredReferenceValue"),
+            FormProblem::QrImageFailed => Some("error-FailedToLoadQRCode"),
+            FormProblem::LoginRejected => Some("backend-login-rejected"),
+            FormProblem::Fido2Error { code, .. } => Some(code),
+            FormProblem::Fido2Failed(_) | FormProblem::Atrust(_) => None,
+        }
+    }
 }
 
 /// Gemeinsamer Kontext der A-Trust-Masken.
@@ -166,6 +196,10 @@ pub enum SecretKind {
     KeyPassword,
     /// Proxy-Passwort
     ProxyPassword,
+    /// PIN eines FIDO2-Sicherheitsschlüssels (CTAP2 `clientPIN`, macOS/Linux; unter Windows fragt
+    /// `webauthn.dll` selbst). Additiv (Welle 2); die PIN lebt nur im RAM und wird dem
+    /// `pdfover_backend_atrust::Fido2Provider` über `get_assertion_with_pin` übergeben.
+    Fido2Pin,
 }
 
 /// Passwortabfrage.
@@ -368,5 +402,21 @@ pub trait InteractionBroker: Send + Sync {
     async fn system_browser(&self, request: BrowserRequest) -> Result<CallbackData, InteractionError> {
         let _ = request;
         Err(InteractionError::Unsupported)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn form_problem_codes() {
+        let p = FormProblem::Fido2Error { code: "fido2-pin-required".into(), detail: "x".into() };
+        assert_eq!(p.code(), Some("fido2-pin-required"));
+        assert_eq!(FormProblem::NoTan.code(), Some("error-NoTan"));
+        assert_eq!(FormProblem::PasswordTooShort.code(), Some("exception-PasswordTooShort"));
+        assert_eq!(FormProblem::LoginRejected.code(), Some("backend-login-rejected"));
+        assert_eq!(FormProblem::Fido2Failed("x".into()).code(), None);
+        assert_ne!(SecretKind::Fido2Pin, SecretKind::KeystorePassword);
     }
 }

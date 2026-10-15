@@ -199,7 +199,10 @@ async fn headless_rules() {
     let b = KeystoreBackend::new(cfg);
     let broker = Arc::new(ScriptedBroker::new([]));
     let e = b.open(ctx(true), broker.clone()).await.err().unwrap();
-    assert!(matches!(&e, BackendError::Keystore(m) if m.contains("k.p12") && !m.contains("/nicht/")), "{e:?}");
+    assert!(
+        matches!(&e, BackendError::KeystoreDetail { message: m, .. } if m.contains("k.p12") && !m.contains("/nicht/")),
+        "{e:?}"
+    );
     assert!(broker.calls().is_empty());
 }
 
@@ -283,7 +286,7 @@ async fn missing_alias_dialog() {
     assert!(secret_prompts(&broker.calls()).is_empty(), "Passwort wird bei Wiederholen behalten");
     // headless → Fehler
     let e = b.open(ctx(true), Arc::new(ScriptedBroker::new([]))).await.err().unwrap();
-    assert!(matches!(&e, BackendError::Keystore(m) if m.contains("dritter")));
+    assert!(matches!(&e, BackendError::KeystoreDetail { message: m, .. } if m.contains("dritter")));
     // gültiger Alias ohne Groß-/Kleinschreibung
     let mut cfg = config(td("backend-keystore/java-two-keys.p12"));
     cfg.alias = Some("Zweiter".into());
@@ -307,19 +310,28 @@ async fn terminal_errors_without_prompt() {
     let b = KeystoreBackend::new(config(td("backend-keystore/openssl-md5-des.p12")));
     let broker = Arc::new(ScriptedBroker::new([ScriptedReply::Secret("test".into())]));
     let e = b.open(ctx(false), broker.clone()).await.err().unwrap();
-    assert!(matches!(&e, BackendError::Keystore(m) if m.contains("pbeWithMD5AndDES-CBC")), "{e:?}");
+    assert!(
+        matches!(&e, BackendError::KeystoreDetail { message: m, .. } if m.contains("pbeWithMD5AndDES-CBC")),
+        "{e:?}"
+    );
+    assert_eq!((e.code(), e.detail_code()), ("backend-keystore", Some("keystore-unsupported-pbe")));
     assert!(broker.calls().is_empty());
     // getrennte Passwörter: klare Meldung statt Passwortschleife
     let mut cfg = config(td("backend-keystore/java-separate-keypass.p12"));
     cfg.store_password = Some(Zeroizing::new("test".into()));
     cfg.key_password = Some(Zeroizing::new("schluessel".into()));
     let e = KeystoreBackend::new(cfg).open(ctx(false), Arc::new(ScriptedBroker::new([]))).await.err().unwrap();
-    assert!(matches!(&e, BackendError::Keystore(m) if m.contains("einheitlichem Passwort")), "{e:?}");
+    assert!(
+        matches!(&e, BackendError::KeystoreDetail { message: m, .. } if m.contains("einheitlichem Passwort")),
+        "{e:?}"
+    );
+    assert_eq!(e.detail_code(), Some("keystore-different-key-password"));
     // nicht unterstützter Schlüssel
     let mut cfg = config(td("backend-keystore/openssl-dsa.p12"));
     cfg.store_password = Some(Zeroizing::new("test".into()));
     let e = KeystoreBackend::new(cfg).open(ctx(false), Arc::new(ScriptedBroker::new([]))).await.err().unwrap();
-    assert!(matches!(&e, BackendError::Keystore(m) if m.contains("DSA")), "{e:?}");
+    assert!(matches!(&e, BackendError::KeystoreDetail { message: m, .. } if m.contains("DSA")), "{e:?}");
+    assert_eq!(e.detail_code(), Some("keystore-unsupported-key"));
 }
 
 async fn open_rsa() -> (Box<dyn BackendSession>, Arc<ScriptedBroker>) {

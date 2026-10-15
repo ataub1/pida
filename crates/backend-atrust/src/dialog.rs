@@ -11,7 +11,7 @@ use std::time::Instant;
 use pdfover_backend_api::{
     BackendError, BackendEvent, CertChain, Certificate, FormAnswer, FormContext, FormProblem, InteractionBroker,
     InteractionError, NativeForm, Notice, NoticeAnswer, NoticeButtons, NoticeCode, NoticeKind, Progress, QrImage,
-    SessionContext, SignJob, SignResult,
+    SecretKind, SecretPrompt, SessionContext, SignJob, SignResult,
 };
 use pdfover_net::{Body, FormPart, HttpClient, NetError, Purpose, Request, Response, Url};
 use pdfover_sl12::{CreateCmsRequest, DocumentContent, HttpBody, PartOrder, SlRequest, SlResponse};
@@ -777,11 +777,18 @@ impl Dialog {
         let configured = self.config.fido2.clone();
         let mut problem = None;
         let mut start = true;
+        // PIN (CTAP2 `clientPIN`) nur im RAM, nur für diese Maske (Welle 2: `SecretKind::Fido2Pin`)
+        let mut pin: Option<Zeroizing<String>> = None;
         loop {
+            // nach `PinRequired`/`PinInvalid`: PIN abfragen (die FIDO2-Maske ist dann geschlossen)
+            let mut ask_pin: Option<Fido2Error> = None;
             let available = if start { configured.clone().filter(|p| p.is_available()) } else { None };
             if start && available.is_none() {
                 start = false;
-                problem = Some(FormProblem::Fido2Failed("FIDO2 ist auf diesem Gerät nicht verfügbar".into()));
+                problem = Some(FormProblem::Fido2Error {
+                    code: Fido2Error::Unavailable.code().into(),
+                    detail: "FIDO2 ist auf diesem Gerät nicht verfügbar".into(),
+                });
             }
             if start && let Some(provider) = &available {
                 start = false;
@@ -791,7 +798,10 @@ impl Dialog {
                 let parent = self.ui.parent_window();
                 let worker = Arc::clone(provider);
                 let mut guard = CancelFido2OnDrop { provider: Some(Arc::clone(provider)) };
-                let task = tokio::task::spawn_blocking(move || worker.get_assertion(&request, parent));
+                let task_pin = pin.clone();
+                let task = tokio::task::spawn_blocking(move || {
+                    worker.get_assertion_with_pin(&request, parent, task_pin.as_deref().map(String::as_str))
+                });
                 let ui = Arc::clone(&self.ui);
                 let cancel = self.ctx.cancel.clone();
                 let form_future = ui.native_form(form);
@@ -805,8 +815,16 @@ impl Dialog {
                                 return Ok(form_submit(page, submit));
                             }
                             Ok(Err(Fido2Error::Cancelled)) => problem = None,
-                            Ok(Err(e)) => problem = Some(FormProblem::Fido2Failed(e.to_string())),
-                            Err(e) => problem = Some(FormProblem::Fido2Failed(format!("interner Fehler: {e}"))),
+                            Ok(Err(e @ (Fido2Error::PinRequired | Fido2Error::PinInvalid))) if provider.supports_pin() => {
+                                ask_pin = Some(e);
+                            }
+                            Ok(Err(e)) => problem = Some(fido2_problem(&e)),
+                            Err(e) => {
+                                problem = Some(FormProblem::Fido2Error {
+                                    code: "fido2-internal".into(),
+                                    detail: format!("interner Fehler: {e}"),
+                                })
+                            }
                         }
                     }
                     answer = &mut form_future => {
@@ -834,6 +852,33 @@ impl Dialog {
                     }
                     _ = cancel.cancelled() => return Err(BackendError::Cancelled),
                 }
+                if ask_pin.is_none() {
+                    continue;
+                }
+            }
+            if let Some(e) = ask_pin {
+                let retry = matches!(e, Fido2Error::PinInvalid) || pin.is_some();
+                let prompt = SecretPrompt { kind: SecretKind::Fido2Pin, subject: "FIDO2".into(), retry };
+                let answer = tokio::select! {
+                    a = self.ui.secret(prompt) => a,
+                    _ = self.ctx.cancel.cancelled() => return Err(BackendError::Cancelled),
+                };
+                match answer {
+                    Ok(p) => {
+                        pin = Some(p);
+                        problem = None;
+                        start = true;
+                    }
+                    // abgebrochen: Maske mit aktivem „erneut“-Knopf, PIN vergessen
+                    Err(InteractionError::Cancelled) => {
+                        pin = None;
+                        problem = None;
+                    }
+                    Err(InteractionError::Unsupported) => {
+                        pin = None;
+                        problem = Some(fido2_problem(&e));
+                    }
+                }
                 continue;
             }
             let form = NativeForm::Fido2 { in_progress: false, ctx: self.context(page, problem.clone()) };
@@ -849,6 +894,18 @@ impl Dialog {
                 other => tracing::debug!(answer = answer_kind(&other), "Antwort auf die FIDO2-Maske ohne Wirkung"),
             }
         }
+    }
+}
+
+/// FIDO2-Fehler als Maskenhinweis mit stabilem Code (`FormProblem::Fido2Error`, Welle 2). Verlangt
+/// der Schlüssel eine PIN, die der Provider nicht übernehmen kann, gilt `fido2-pin-unsupported`.
+fn fido2_problem(e: &Fido2Error) -> FormProblem {
+    match e {
+        Fido2Error::PinRequired => FormProblem::Fido2Error {
+            code: "fido2-pin-unsupported".into(),
+            detail: "Dieser Sicherheitsschlüssel verlangt eine PIN; die PIN-Eingabe ist auf diesem System nicht verfügbar – bitte App oder SMS verwenden".into(),
+        },
+        other => FormProblem::Fido2Error { code: other.code().into(), detail: other.to_string() },
     }
 }
 

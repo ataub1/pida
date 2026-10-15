@@ -81,6 +81,14 @@ pub enum Fido2Error {
     /// Fehler des Authenticators.
     #[error("Authenticator-Fehler: {0}")]
     Device(String),
+    /// Der Sicherheitsschlüssel verlangt eine PIN (CTAP2 `PIN_REQUIRED`; additiv, Welle 2). Kann
+    /// der Provider eine PIN übernehmen ([`Fido2Provider::supports_pin`]), fragt das Backend sie
+    /// über `SecretKind::Fido2Pin` ab und wiederholt mit [`Fido2Provider::get_assertion_with_pin`].
+    #[error("Sicherheitsschlüssel verlangt eine PIN")]
+    PinRequired,
+    /// Die übergebene PIN ist falsch (CTAP2 `PIN_INVALID`; additiv, Welle 2).
+    #[error("PIN des Sicherheitsschlüssels falsch")]
+    PinInvalid,
 }
 
 impl Fido2Error {
@@ -91,6 +99,8 @@ impl Fido2Error {
             Fido2Error::Cancelled => "fido2-cancelled",
             Fido2Error::InvalidOptions(_) => "fido2-invalid-options",
             Fido2Error::Device(_) => "fido2-device",
+            Fido2Error::PinRequired => "fido2-pin-required",
+            Fido2Error::PinInvalid => "fido2-pin-invalid",
         }
     }
 }
@@ -106,6 +116,26 @@ pub trait Fido2Provider: Send + Sync + std::fmt::Debug {
 
     /// Bricht eine laufende Anfrage ab.
     fn cancel(&self);
+
+    /// Kann der Provider eine PIN übernehmen ([`Self::get_assertion_with_pin`])? Default: nein
+    /// (Windows fragt selbst; der CTAP2-HID-Provider kennt das `clientPIN`-Protokoll noch nicht).
+    /// Additiv (Welle 2).
+    fn supports_pin(&self) -> bool {
+        false
+    }
+
+    /// Wie [`Self::get_assertion`], mit der PIN für Schlüssel, die eine verlangen (nach
+    /// [`Fido2Error::PinRequired`]; das Backend fragt sie über `SecretKind::Fido2Pin` ab, sie lebt
+    /// nur im RAM). `None` = ohne PIN. Default: die PIN wird ignoriert. Additiv (Welle 2).
+    fn get_assertion_with_pin(
+        &self,
+        request: &Fido2Request,
+        parent: Option<WindowHandle>,
+        pin: Option<&str>,
+    ) -> Result<Fido2Assertion, Fido2Error> {
+        let _ = pin;
+        self.get_assertion(request, parent)
+    }
 }
 
 /// Plattform-Provider der eingeschalteten Features: Windows `webauthn.dll` (`fido2-windows`),

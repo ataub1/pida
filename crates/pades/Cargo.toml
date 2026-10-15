@@ -14,13 +14,30 @@ pdfover-pdf-incremental = { workspace = true }
 pdfover-cades = { workspace = true }
 pdfover-sigblock = { workspace = true }
 pdfover-render = { workspace = true }
+# Welle 2 (I1): Positionierung, QR-Platzhalter und leere Felder für den Signierplan
+# (`plan_signature`, `find_placeholder`); kein Zyklus (placement hängt nur von pdf-cos/render ab).
+pdfover-placement = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 serde = { workspace = true }
+# Persistenz des vorbereiteten Zustands (Mobile-Lebenszyklus, `Prepared::persist`)
+serde_json = { workspace = true }
 tracing = { workspace = true }
+# sRGB-ICC-Profil des OutputIntents (FlateDecode)
+flate2 = { workspace = true }
+# lokale Zeit mit Offset für `/M` und signing-time (ADR 0001 §8.7)
+jiff = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# Ende-zu-Ende: PDFium als Renderer (Rasterscan, I5, Pixelprüfung), Keystore-Backend (Modell A)
+pdfover-render = { workspace = true, features = ["pdfium"] }
+pdfover-backend-api = { workspace = true, features = ["testing"] }
+pdfover-backend-keystore = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros"] }
+zeroize = { workspace = true }
+async-trait = { workspace = true }
 
 [lints]
 workspace = true
