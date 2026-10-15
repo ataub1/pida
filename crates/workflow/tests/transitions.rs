@@ -216,6 +216,45 @@ fn placeholder_choice_is_per_document_b04_b05() {
     assert!(matches!(t.state, State::Positioning { .. }), "{:?}", t.state);
 }
 
+/// Plan §6.1: `/Perms /UR3`, Hybrid-XFA, Seed Values → Warnung mit Abbruchmöglichkeit vor dem Weiter.
+#[test]
+fn analysis_warning_can_be_accepted_or_aborts() {
+    let warned_with = |id, placeholder| Event::Analyzed {
+        doc: DocId(id),
+        class: AcceptanceClass::K1Regular,
+        placeholder,
+        signed: false,
+        page_count: 3,
+        start: Some(start_placement(3)),
+        warnings: vec!["pdf-usage-rights".into()],
+    };
+    let warned = |id| warned_with(id, None);
+    let t = step(State::Analyzing { queue: queue(&[1, 2]) }, warned(1), &gui());
+    let State::AnalysisWarning { warnings, .. } = &t.state else { panic!("{:?}", t.state) };
+    assert_eq!(warnings, &vec!["pdf-usage-rights".to_owned()]);
+    assert!(t.effects.is_empty());
+    assert!(t.state.settings_enabled());
+    assert_eq!(t.state.step(), Some(Step::Open));
+    // Fortfahren → normaler Ablauf (Positionierung auf der letzten Seite)
+    let y = step(t.state.clone(), Event::WarningAnswered(true), &gui());
+    assert!(matches!(y.state, State::Positioning { page: 2, .. }), "{:?}", y.state);
+    // Abbrechen → Dokument verworfen, nächstes Dokument
+    let n = step(t.state.clone(), Event::WarningAnswered(false), &gui());
+    let State::Analyzing { queue: q } = &n.state else { panic!("{:?}", n.state) };
+    assert_eq!(q.current_id(), Some(DocId(2)));
+    assert_eq!(q.done[0].result, DocResult::Cancelled);
+    assert_eq!(n.effects, vec![Effect::Discard(DocId(1)), Effect::Analyze(DocId(2))]);
+    // Platzhalter gilt nach dem Fortfahren
+    let ctx = Context { placeholder_search: true, ..gui() };
+    let ev = warned_with(1, Some(PlaceholderFound::Fields(vec![field("Sig1")])));
+    let t = step(State::Analyzing { queue: queue(&[1]) }, ev, &ctx);
+    let y = step(t.state, Event::WarningAnswered(true), &ctx);
+    assert!(matches!(y.state, State::PlaceholderQuestion { .. }), "{:?}", y.state);
+    // ohne Oberfläche: keine Rückfrage (der Kern zeigt die Warnung als Hinweis)
+    let h = step(State::Analyzing { queue: queue(&[1]) }, warned(1), &headless());
+    assert!(matches!(h.state, State::ChoosingBackend { position: PositionChoice::Auto, .. }), "{:?}", h.state);
+}
+
 #[test]
 fn rejected_document_shows_error_without_retry() {
     let s = State::Analyzing { queue: queue(&[1]) };
@@ -226,6 +265,7 @@ fn rejected_document_shows_error_without_retry() {
         signed: false,
         page_count: 1,
         start: None,
+        warnings: Vec::new(),
     };
     let t = step(s, ev, &gui());
     let State::Error { error, retry, .. } = &t.state else { panic!() };
@@ -285,6 +325,7 @@ fn no_start_placement_means_automatic_position() {
         signed: false,
         page_count: 2,
         start: None,
+        warnings: Vec::new(),
     };
     let t = step(s, ev, &gui());
     assert!(matches!(&t.state, State::ChoosingBackend { position: PositionChoice::Auto, .. }));
@@ -310,7 +351,8 @@ fn page_navigation_moves_block_and_renders() {
     let State::Positioning { page, placement, .. } = &t.state else { panic!() };
     assert_eq!(*page, 0);
     assert_eq!(placement.unwrap().page_index, 0);
-    assert_eq!(t.effects, vec![Effect::RenderPage { doc: DocId(1), page: 0 }]);
+    // Blockvorschau für die neue Seite neu (Breite hängt bei Profilen ohne `w` von der Seite ab, KR-F01)
+    assert_eq!(t.effects, vec![Effect::RenderPage { doc: DocId(1), page: 0 }, Effect::BuildBlockPreview(DocId(1))]);
     // außerhalb des Bereichs ignoriert (ohne neue Seite höchstens letzte Seite)
     let t2 = step(t.state.clone(), Event::PageChanged(3), &gui());
     assert_eq!(t2.state, t.state);
@@ -323,6 +365,7 @@ fn new_page_toggle_and_undo() {
     assert!(*new_page);
     assert_eq!(*page, 3, "virtuelle Seite numPages");
     assert_eq!(placement.unwrap().page_index, 3);
+    assert_eq!(t.effects, vec![Effect::BuildBlockPreview(DocId(1))]);
     // Bestätigen → manuelle Position auf der neuen Seite
     let c = step(t.state.clone(), Event::PositionConfirmed, &gui());
     let State::ChoosingBackend { position: PositionChoice::Manual(p), .. } = &c.state else { panic!() };
@@ -333,6 +376,7 @@ fn new_page_toggle_and_undo() {
     assert!(!new_page);
     assert_eq!(*page, 2);
     assert_eq!(placement.unwrap().page_index, 2);
+    assert_eq!(u.effects, vec![Effect::RenderPage { doc: DocId(1), page: 2 }, Effect::BuildBlockPreview(DocId(1))]);
 }
 
 #[test]
@@ -679,6 +723,18 @@ fn save_failure_retry_and_cancel_f85() {
 }
 
 #[test]
+fn retry_without_fixed_target_reopens_save_dialog() {
+    // Fehler im Ergebnis-Screen, während der Speichern-Dialog offen war: „Wiederholen“ zeigt ihn erneut
+    let t = step(output_state(&[1]), Event::SaveRequested, &gui());
+    let State::Output { decision: Some(ask @ OutputDecision::Ask { .. }), .. } = &t.state else { panic!() };
+    let ask = ask.clone();
+    let t = step(t.state, Event::SaveFailed("Zugriff verweigert".into()), &gui());
+    let r = step(t.state, Event::Retry, &gui());
+    assert_eq!(r.effects, vec![Effect::AskSavePath(ask)]);
+    assert!(matches!(r.state, State::Output { saved: None, decision: Some(OutputDecision::Ask { .. }), .. }));
+}
+
+#[test]
 fn retry_after_confirmed_overwrite_overwrites_again() {
     let d = OutputDecision::Save { path: "/out/x.pdf".into(), exists: true };
     let t = step(output_state(&[1]), Event::OutputDecided(d), &gui());
@@ -796,6 +852,26 @@ fn quit_during_signing_cancels_session() {
     assert_eq!(t.state.exit_code(), Some(ExitCode::Success));
 }
 
+#[test]
+fn quit_after_saving_keeps_the_saved_document_signed() {
+    // gespeichert, weitere Dokumente warten: das gespeicherte bleibt „signiert“, die wartenden gelten als
+    // abgebrochen
+    let t = step(output_state(&[1]), Event::Saved(output_info(1)), &gui());
+    let State::Output { mut queue, saved, decision, doc, position, backend } = t.state else { panic!() };
+    queue.add([pdfover_workflow::InputDocument::new(DocId(2), "/in/doc2.pdf")]);
+    let s = State::Output { queue, saved, decision, doc, position, backend };
+    let q = step(s, Event::Quit, &gui());
+    assert_eq!(q.state.exit_code(), Some(ExitCode::Cancelled));
+    let results = q.state.results();
+    assert_eq!(results.len(), 2);
+    assert!(matches!(results[0].result, DocResult::Signed { .. }), "{results:?}");
+    assert_eq!(results[1].result, DocResult::Cancelled);
+    // ohne wartende Dokumente: Erfolg
+    let t = step(output_state(&[1]), Event::Saved(output_info(1)), &gui());
+    let q = step(t.state, Event::Quit, &gui());
+    assert_eq!(q.state.exit_code(), Some(ExitCode::Success));
+}
+
 /// Hauptleisten-Matrix docs/analyse/01 §3.5 („A“ aktiv, „E“ klickbar).
 #[test]
 fn main_bar_matrix() {
@@ -882,6 +958,20 @@ fn headless_batch_runs_through_and_reports_first_failure() {
     assert!(matches!(s.results()[0].result, DocResult::Signed { .. }));
     assert!(matches!(&s.results()[1].result, DocResult::Failed { error } if error.code() == "backend-wrong-password"));
     assert_eq!(effects.last(), Some(&Effect::Exit(ExitCode::Backend)));
+}
+
+/// Ohne Oberfläche gibt es keine Hauptleiste: „Positionierung“ führte sonst in einen Dialog.
+#[test]
+fn headless_ignores_main_bar_navigation() {
+    let s = choosing(&[1], PositionChoice::Auto, false);
+    for step_ in [Step::Open, Step::Positioning, Step::Signing] {
+        let t = step(s.clone(), Event::Navigate(step_), &headless());
+        assert_eq!(t.state, s, "{step_:?}");
+        assert!(t.effects.is_empty());
+    }
+    // mit Oberfläche wirkt dieselbe Navigation
+    let t = step(s, Event::Navigate(Step::Positioning), &gui());
+    assert!(matches!(t.state, State::Positioning { .. }));
 }
 
 #[test]

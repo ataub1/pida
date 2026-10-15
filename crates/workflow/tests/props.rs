@@ -32,6 +32,10 @@ fn name_strategy() -> impl Strategy<Value = String> {
     "[a-zA-Z0-9äöü ._-]{1,20}".prop_filter("kein . oder ..", |s| s != "." && s != "..")
 }
 
+fn state_name(s: &State) -> &'static str {
+    s.name()
+}
+
 proptest! {
     #[test]
     fn queue_never_holds_duplicate_paths(paths in prop::collection::vec(0u8..12, 0..40)) {
@@ -103,7 +107,7 @@ proptest! {
     /// Beliebige Ereignisfolgen: der Reducer paniert nie, die Warteschlange enthält keine Duplikate
     /// und ohne Oberfläche wird nie ein Dialog-Effekt erzeugt.
     #[test]
-    fn reducer_is_total_and_keeps_queue_consistent(events in prop::collection::vec(0u8..24, 0..60), headless in any::<bool>()) {
+    fn reducer_is_total_and_keeps_queue_consistent(events in prop::collection::vec(0u8..28, 0..60), headless in any::<bool>()) {
         let ctx = Context { headless, placeholder_search: true, ..Context::default() };
         let mut state = State::Starting;
         let mut next_id = 1u64;
@@ -132,6 +136,14 @@ proptest! {
                 20 => Event::Navigate(Step::Open),
                 21 => Event::Navigate(Step::Positioning),
                 22 => Event::OverwriteAnswered(true),
+                23 => {
+                    let id = state.queue().and_then(Queue::current_id).map(|d| d.0).unwrap_or(1);
+                    let Event::Analyzed { doc, class, placeholder, signed, page_count, start, .. } = analyzed(id, 2, None, false) else { unreachable!() };
+                    Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings: vec!["pdf-usage-rights".into()] }
+                }
+                24 => Event::WarningAnswered(e % 2 == 0),
+                25 => Event::WarningAnswered(true),
+                26 => Event::PageChanged(0),
                 _ => Event::Navigate(Step::Signing),
             };
             let t = reduce(state, event, &ctx);
@@ -140,6 +152,10 @@ proptest! {
                     let dialog = matches!(eff, Effect::AskSavePath(_));
                     prop_assert!(!dialog, "Dialog ohne Oberfläche: {eff:?}");
                 }
+            }
+            if headless {
+                let name = state_name(&t.state);
+                prop_assert!(!matches!(name, "AnalysisWarning" | "PlaceholderQuestion" | "Positioning"), "Rückfrage ohne Oberfläche: {name}");
             }
             state = t.state;
             if let Some(q) = state.queue() {

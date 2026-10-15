@@ -107,8 +107,13 @@ fn split_name(name: &str) -> (&str, &str) {
 }
 
 /// `<Basisname><Postfix>.<Erweiterung>`; ohne Erweiterung kein abschließender Punkt (B-10 behoben).
+///
+/// Pfadtrenner und NUL im Postfix werden durch `_` ersetzt: Ein Postfix aus einer importierten bzw. von
+/// Hand bearbeiteten Konfiguration (`SAVE_FILE_POSTFIX=/../x`) darf das Ziel nie aus dem Ausgabeordner
+/// herausführen (die Einstellungsansicht lehnt solche Werte ohnehin ab).
 pub fn output_file_name(input: &Path, postfix: &str) -> String {
     let name = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let postfix: String = postfix.chars().map(|c| if matches!(c, '/' | '\\' | '\0') { '_' } else { c }).collect();
     let (base, ext) = split_name(&name);
     if ext.is_empty() { format!("{base}{postfix}") } else { format!("{base}{postfix}.{ext}") }
 }
@@ -193,6 +198,20 @@ mod tests {
         assert_eq!(p("/a/.hidden"), "_signed.hidden");
         assert_eq!(output_file_name(Path::new("d.pdf"), ""), "d.pdf");
         assert_eq!(output_file_name(Path::new("d.pdf"), "-sig"), "d-sig.pdf");
+    }
+
+    #[test]
+    fn postfix_cannot_leave_the_output_folder() {
+        let p = |s: &str, postfix: &str| output_file_name(Path::new(s), postfix);
+        assert_eq!(p("/a/doc.pdf", "/../../etc/x"), "doc_.._.._etc_x.pdf");
+        assert_eq!(p("/a/doc.pdf", "..\\x"), "doc.._x.pdf");
+        assert_eq!(p("/a/doc.pdf", "a\0b"), "doca_b.pdf");
+        let mut fs = FakeFs::default();
+        fs.dirs.insert("/out".into());
+        let d = decide_output(Path::new("/in/d.pdf"), Some(Path::new("/out")), "/../../evil", &fs);
+        let OutputDecision::Save { path, .. } = d else { panic!("Ordner erwartet") };
+        assert_eq!(path.parent(), Some(Path::new("/out")));
+        assert!(path.components().all(|c| c != std::path::Component::ParentDir));
     }
 
     #[test]

@@ -10,7 +10,7 @@
 //! B-14 (Batch nach Speicherfehler) und B-15 (`IllegalStateException` als Abbruch: nur
 //! `BackendError::Cancelled` gilt als Abbruch) behoben.
 //!
-//! Zustände (ohne Re-Entry): `Starting → Idle → Analyzing → PlaceholderQuestion? → Positioning? →
+//! Zustände (ohne Re-Entry): `Starting → Idle → Analyzing → AnalysisWarning? → PlaceholderQuestion? → Positioning? →
 //! ChoosingBackend → PrivacyNotice? → Signing{phase} → Output → (nächstes Dokument | Idle | Finished)`.
 //! Einstellungen sind ein Overlay ([`State::settings_open`]) und kein eigener Zustand.
 //!
@@ -20,6 +20,7 @@
 //! |---|---|
 //! | PrepareConfiguration → Open | `Starting` + [`Event::Started`] → `Idle` bzw. `Analyzing` (Dateien aus CLI/„Öffnen mit“) |
 //! | Init-Fehler, `error.Initialization` (Ja = Werksreset) | [`Event::SettingsUnreadable`] → `Error{Config, ResetSettings}`; Wiederholen → [`Effect::ResetSettings`], Abbrechen → Ende |
+//! | Warnung der Analyse (neu, Plan §6.1: `/Perms /UR3`, Hybrid-XFA, Seed Values) | `Analyzed{warnings}` → `AnalysisWarning`; [`Event::WarningAnswered`] `true` → weiter, `false`/Abbrechen → Dokument verworfen; ohne Oberfläche nur Hinweis |
 //! | Open: Feld „Ja“ / QR „Ja“ | `PlaceholderQuestion` + `PlaceholderAnswered{Yes}` → `ChoosingBackend` mit [`PositionChoice::Field`] bzw. [`PositionChoice::Placeholder`] (Positionierung entfällt) |
 //! | Open: Feldauswahl abgebrochen | `Yes` ohne gültigen Index bei mehreren Feldern → Frage bleibt |
 //! | Open: „Abbrechen“ | Dokument verworfen, nächstes Dokument bzw. `Idle` (B-06) |

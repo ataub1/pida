@@ -397,6 +397,18 @@ pub enum State {
         /// Warteschlange (aktuelles Dokument wird analysiert)
         queue: Queue,
     },
+    /// Warnung der Eingangsanalyse mit Abbruchmöglichkeit (Plan §6.1: `/Perms /UR3`, Hybrid-XFA,
+    /// inkompatible Seed Values – `pades::Finding::warning`): „Fortfahren“ oder Dokument verwerfen
+    AnalysisWarning {
+        /// Warteschlange
+        queue: Queue,
+        /// Codes der Warnungen (i18n-IDs, z. B. `pdf-usage-rights`)
+        warnings: Vec<String>,
+        /// Dokument
+        doc: DocFacts,
+        /// Fund der Platzhaltersuche (gilt nach „Fortfahren“)
+        placeholder: Option<PlaceholderFound>,
+    },
     /// Frage „Platzhalter verwenden?“ bzw. Feldauswahl
     PlaceholderQuestion {
         /// Warteschlange
@@ -527,6 +539,7 @@ impl State {
             State::Starting | State::Finished { .. } => None,
             State::Idle { queue }
             | State::Analyzing { queue }
+            | State::AnalysisWarning { queue, .. }
             | State::PlaceholderQuestion { queue, .. }
             | State::Positioning { queue, .. }
             | State::ChoosingBackend { queue, .. }
@@ -543,6 +556,7 @@ impl State {
             State::Starting | State::Finished { .. } => None,
             State::Idle { queue }
             | State::Analyzing { queue }
+            | State::AnalysisWarning { queue, .. }
             | State::PlaceholderQuestion { queue, .. }
             | State::Positioning { queue, .. }
             | State::ChoosingBackend { queue, .. }
@@ -556,7 +570,8 @@ impl State {
     /// Dokumentdaten des aktuellen Dokuments (nach der Analyse).
     pub fn doc(&self) -> Option<&DocFacts> {
         match self {
-            State::PlaceholderQuestion { doc, .. }
+            State::AnalysisWarning { doc, .. }
+            | State::PlaceholderQuestion { doc, .. }
             | State::Positioning { doc, .. }
             | State::ChoosingBackend { doc, .. }
             | State::PrivacyNotice { doc, .. }
@@ -571,7 +586,10 @@ impl State {
     pub fn step(&self) -> Option<Step> {
         match self {
             State::Starting | State::Finished { .. } => None,
-            State::Idle { .. } | State::Analyzing { .. } | State::PlaceholderQuestion { .. } => Some(Step::Open),
+            State::Idle { .. }
+            | State::Analyzing { .. }
+            | State::AnalysisWarning { .. }
+            | State::PlaceholderQuestion { .. } => Some(Step::Open),
             State::Positioning { .. } => Some(Step::Positioning),
             State::ChoosingBackend { .. } | State::PrivacyNotice { .. } | State::Signing { .. } => Some(Step::Signing),
             State::Output { .. } => Some(Step::Finish),
@@ -586,9 +604,10 @@ impl State {
         // (aktiv, klickbar) für Open, Positioning, Signing, Finish
         let flags: [(bool, bool); 4] = match self {
             State::Starting | State::Finished { .. } => [(false, false); 4],
-            State::Idle { .. } | State::Analyzing { .. } | State::PlaceholderQuestion { .. } => {
-                [(true, true), (false, false), (false, false), (false, false)]
-            }
+            State::Idle { .. }
+            | State::Analyzing { .. }
+            | State::AnalysisWarning { .. }
+            | State::PlaceholderQuestion { .. } => [(true, true), (false, false), (false, false), (false, false)],
             State::Positioning { .. } => [(true, true), (true, false), (false, false), (false, false)],
             State::ChoosingBackend { .. } | State::PrivacyNotice { .. } => {
                 [(true, true), (true, true), (true, false), (false, false)]
@@ -620,6 +639,7 @@ impl State {
             self,
             State::Idle { .. }
                 | State::Analyzing { .. }
+                | State::AnalysisWarning { .. }
                 | State::PlaceholderQuestion { .. }
                 | State::Positioning { .. }
                 | State::ChoosingBackend { .. }
@@ -639,6 +659,7 @@ impl State {
             State::Starting => "Starting",
             State::Idle { .. } => "Idle",
             State::Analyzing { .. } => "Analyzing",
+            State::AnalysisWarning { .. } => "AnalysisWarning",
             State::PlaceholderQuestion { .. } => "PlaceholderQuestion",
             State::Positioning { .. } => "Positioning",
             State::ChoosingBackend { .. } => "ChoosingBackend",
@@ -679,6 +700,8 @@ pub enum Event {
         page_count: usize,
         /// Startposition für die manuelle Positionierung (`None` = keine Vorschau)
         start: Option<Placement>,
+        /// Warnungen mit Abbruchmöglichkeit (`pades::Finding::warning`, Codes)
+        warnings: Vec<String>,
     },
     /// Analyse/Laden fehlgeschlagen
     AnalysisFailed {
@@ -694,6 +717,8 @@ pub enum Event {
         /// Dokument
         doc: DocId,
     },
+    /// Antwort auf die Warnung der Analyse (`true` = trotzdem signieren, `false` = Dokument verwerfen)
+    WarningAnswered(bool),
     /// Antwort auf die Platzhalterfrage; bei Feldern mit gewähltem Index
     PlaceholderAnswered {
         /// Antwort

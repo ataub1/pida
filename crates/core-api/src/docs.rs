@@ -259,6 +259,11 @@ impl DocStore {
         self.docs.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(&id).cloned()
     }
 
+    /// Anzahl geöffneter Dokumente (Diagnose, Tests).
+    pub(crate) fn len(&self) -> usize {
+        self.docs.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len()
+    }
+
     pub(crate) fn remove(&self, id: DocId) {
         self.docs.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&id);
         self.tiles.lock().unwrap_or_else(std::sync::PoisonError::into_inner).purge(id);

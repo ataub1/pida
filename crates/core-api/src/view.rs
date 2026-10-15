@@ -197,6 +197,14 @@ pub enum StepView {
         /// Warteschlange
         queue: Vec<QueueItemView>,
     },
+    /// Warnung der Eingangsanalyse mit Abbruchmöglichkeit (Plan §6.1: `/Perms /UR3`, Hybrid-XFA, Seed
+    /// Values) – Antwort über [`UiEvent::AnswerWarning`]
+    Warning {
+        /// Dokument
+        doc: DocInfo,
+        /// Meldungs-IDs der Warnungen (`pades::Finding::code`)
+        codes: Vec<String>,
+    },
     /// Platzhalter-Frage/Feldauswahl
     Placeholder {
         /// Dokument
@@ -351,6 +359,12 @@ pub enum UiEvent {
     OpenFiles {
         /// Pfade
         paths: Vec<PathBuf>,
+    },
+    /// Antwort auf die Warnung der Analyse ([`StepView::Warning`]): trotzdem signieren bzw. Dokument
+    /// verwerfen
+    AnswerWarning {
+        /// `true` = fortfahren
+        proceed: bool,
     },
     /// Platzhalter-Antwort
     PlaceholderAnswer {

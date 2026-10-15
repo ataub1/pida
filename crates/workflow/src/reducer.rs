@@ -37,12 +37,15 @@ pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
         Event::FilesAdded(docs) => return files_added(state, docs, ctx),
         Event::SettingsChanged => return settings_changed(state),
         Event::Backgrounded | Event::Foregrounded => return Transition::stay(state),
+        // ohne Oberfläche gibt es keine Hauptleiste (sonst führte „Positionierung“ in einen Dialog)
+        Event::Navigate(_) if ctx.headless => return Transition::stay(state),
         _ => {}
     }
     match state {
         State::Starting => starting(event, ctx),
         State::Idle { queue } => idle(queue, event),
         State::Analyzing { queue } => analyzing(queue, event, ctx),
+        s @ State::AnalysisWarning { .. } => analysis_warning(s, event, ctx),
         s @ State::PlaceholderQuestion { .. } => placeholder(s, event, ctx),
         s @ State::Positioning { .. } => positioning(s, event, ctx),
         s @ State::ChoosingBackend { .. } => choosing_backend(s, event, ctx),
@@ -270,9 +273,14 @@ fn quit(state: State) -> Transition {
             queue.clear();
             finish_with(ExitCode::Cancelled, queue.done, vec![Effect::CancelSession, Effect::DeletePersisted])
         }
-        State::Output { mut queue, saved: Some(output), .. } if queue.pending.is_empty() => {
+        State::Output { mut queue, saved: Some(output), .. } => {
+            // das aktuelle Dokument ist gespeichert; nur noch wartende gelten als abgebrochen
             queue.finish_current(DocResult::Signed { output });
-            finish(queue, Vec::new())
+            if queue.is_empty() {
+                return finish(queue, Vec::new());
+            }
+            queue.clear();
+            finish_with(ExitCode::Cancelled, queue.done, Vec::new())
         }
         State::Idle { queue } if queue.is_empty() => finish(queue, Vec::new()),
         State::Starting => finish_with(ExitCode::Success, Vec::new(), Vec::new()),
@@ -370,12 +378,16 @@ fn idle(queue: Queue, event: Event) -> Transition {
 fn analyzing(queue: Queue, event: Event, ctx: &Context) -> Transition {
     let current = queue.current_id();
     match event {
-        Event::Analyzed { doc, class, placeholder, signed, page_count, start } if Some(doc) == current => {
+        Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings } if Some(doc) == current => {
             if matches!(class, AcceptanceClass::K5Rejected | AcceptanceClass::K2Repairable) {
                 let error = WorkflowError::Rejected { class, code: "ng-document-rejected".into() };
                 return fail(State::Analyzing { queue }, error, None, ctx, Vec::new());
             }
             let facts = DocFacts { id: doc, page_count, signed, class, start };
+            // Warnung mit Abbruchmöglichkeit (Plan §6.1); ohne Oberfläche nur Hinweis (core-api), weiter
+            if !warnings.is_empty() && !ctx.headless {
+                return Transition::stay(State::AnalysisWarning { queue, warnings, doc: facts, placeholder });
+            }
             after_analysis(queue, facts, placeholder, ctx)
         }
         Event::AnalysisFailed { doc, error } if Some(doc) == current => {
@@ -412,6 +424,16 @@ fn after_analysis(queue: Queue, doc: DocFacts, placeholder: Option<PlaceholderFo
         }
         Some(found) => Transition::stay(State::PlaceholderQuestion { queue, found, doc }),
         None => after_position_question(queue, doc, ctx, Vec::new()),
+    }
+}
+
+fn analysis_warning(state: State, event: Event, ctx: &Context) -> Transition {
+    let State::AnalysisWarning { queue, warnings, doc, placeholder } = state else { unreachable!("AnalysisWarning") };
+    match event {
+        Event::WarningAnswered(true) => after_analysis(queue, doc, placeholder, ctx),
+        Event::WarningAnswered(false) | Event::Cancel => next_doc(queue, DocResult::Cancelled, ctx, Vec::new()),
+        Event::Navigate(Step::Open) => discard_all(queue, Vec::new()),
+        _ => Transition::stay(State::AnalysisWarning { queue, warnings, doc, placeholder }),
     }
 }
 
@@ -479,7 +501,11 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 return stay(queue, page, placement, new_page, doc, Vec::new());
             }
             let placement = placement.map(|p| Placement { page_index: target, ..p });
-            let effects = if target < n { vec![Effect::RenderPage { doc: doc.id, page: target }] } else { Vec::new() };
+            let mut effects =
+                if target < n { vec![Effect::RenderPage { doc: doc.id, page: target }] } else { Vec::new() };
+            // Die Blockbreite hängt bei Profilen ohne `w` von der Seitenbreite ab (KR-F01: Vorschau =
+            // Ergebnis) – Vorschau für die neue Seite neu bauen.
+            effects.push(Effect::BuildBlockPreview(doc.id));
             stay(queue, target, placement, new_page, doc, effects)
         }
         Event::NewPageToggled => {
@@ -487,13 +513,14 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 let last = n.saturating_sub(1);
                 let placement = placement.map(|p| Placement { page_index: p.page_index.min(last), ..p });
                 let page = page.min(last);
-                let effects = vec![Effect::RenderPage { doc: doc.id, page }];
+                let effects = vec![Effect::RenderPage { doc: doc.id, page }, Effect::BuildBlockPreview(doc.id)];
                 stay(queue, page, placement, false, doc, effects)
             } else if !doc.new_page_allowed() {
                 stay(queue, page, placement, false, doc, vec![Effect::Notify(MSG_NEW_PAGE_NOT_ALLOWED.into())])
             } else {
                 let placement = placement.map(|p| Placement { page_index: n, ..p });
-                stay(queue, n, placement, true, doc, Vec::new())
+                let effects = vec![Effect::BuildBlockPreview(doc.id)];
+                stay(queue, n, placement, true, doc, effects)
             }
         }
         Event::PositionConfirmed => match placement {
@@ -792,12 +819,17 @@ fn error(state: State, event: Event, ctx: &Context) -> Transition {
             (Some(RetryTarget::Save), Some(f)) if matches!(*f, State::Output { .. }) => {
                 let State::Output { decision, doc, position, backend, .. } = *f else { unreachable!("Output") };
                 let effect = match &decision {
-                    Some(OutputDecision::Save { path, exists: true }) => Some(Effect::Overwrite(path.clone())),
-                    Some(OutputDecision::Save { path, exists: false }) => Some(Effect::Write(path.clone())),
-                    _ => None,
+                    Some(OutputDecision::Save { path, exists: true }) => Effect::Overwrite(path.clone()),
+                    Some(OutputDecision::Save { path, exists: false }) => Effect::Write(path.clone()),
+                    // ohne festes Ziel: Speichern-Dialog erneut zeigen (sonst wartete der Schritt ohne Dialog)
+                    Some(ask @ OutputDecision::Ask { .. }) => Effect::AskSavePath(ask.clone()),
+                    None => {
+                        let s = State::Output { queue, saved: None, decision: None, doc, position, backend };
+                        return Transition::stay(s);
+                    }
                 };
                 let s = State::Output { queue, saved: None, decision, doc, position, backend };
-                Transition::with(s, effect.into_iter().collect())
+                Transition::with(s, vec![effect])
             }
             (retry, from) => Transition::stay(State::Error { queue, error, retry, from }),
         },

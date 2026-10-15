@@ -167,6 +167,27 @@ impl BackendSession for FakeAtrustSession {
     }
 }
 
+/// Backend mit Programmfehler: `capabilities` bricht ab (Panik im Kern-Task, F-106).
+#[derive(Debug)]
+pub struct PanickingBackend;
+
+#[async_trait]
+impl SignatureBackend for PanickingBackend {
+    fn id(&self) -> BackendId {
+        BackendId::Keystore
+    }
+    fn capabilities(&self, _env: &Environment) -> Option<Capabilities> {
+        panic!("Programmfehler im Backend (Test)")
+    }
+    async fn open(
+        &self,
+        _ctx: SessionContext,
+        _ui: Arc<dyn InteractionBroker>,
+    ) -> Result<Box<dyn BackendSession>, BackendError> {
+        Err(BackendError::Internal("nie".into()))
+    }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Kern starten, warten
 // ------------------------------------------------------------------------------------------------

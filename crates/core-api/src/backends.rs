@@ -161,6 +161,25 @@ impl Registry {
         }
     }
 
+    fn atrust_key(cfg: &ConfigState) -> AtrustKey {
+        let eff = cfg.effective();
+        AtrustKey {
+            username: eff.username().map(str::to_owned),
+            remember: cfg.settings.id_austria.remember,
+            fido2_default: cfg.settings.id_austria.fido2_default,
+            proxy: proxy_config(cfg),
+        }
+    }
+
+    /// Das ID-Austria-Backend hat Benutzername bzw. „Merken“ selbst geändert (`BackendEvent`) und der Kern
+    /// hat das gespeichert: Schlüssel übernehmen, **ohne** das Backend neu zu bauen – sonst ginge das im
+    /// RAM gemerkte Passwort beim nächsten [`Registry::configure`] verloren.
+    pub(crate) fn adopt_atrust_settings(&mut self, cfg: &ConfigState) {
+        if let Some((key, _)) = &mut self.atrust {
+            *key = Self::atrust_key(cfg);
+        }
+    }
+
     /// Baut die Backends aus der aktuellen Konfiguration (nach Start und nach jeder Änderung).
     pub(crate) fn configure(&mut self, cfg: &ConfigState) {
         if self.fixed.is_some() {
@@ -168,13 +187,8 @@ impl Registry {
         }
         let eff = cfg.effective();
         // ID Austria (Szenario A)
-        let proxy = proxy_config(cfg);
-        let key = AtrustKey {
-            username: eff.username().map(str::to_owned),
-            remember: cfg.settings.id_austria.remember,
-            fido2_default: cfg.settings.id_austria.fido2_default,
-            proxy: proxy.clone(),
-        };
+        let key = Self::atrust_key(cfg);
+        let proxy = key.proxy.clone();
         if self.atrust.as_ref().is_none_or(|(k, _)| *k != key) {
             let mut c = AtrustConfig::production();
             c.net = NetConfig { proxy, ..c.net };
@@ -356,5 +370,34 @@ mod tests {
         assert!(ks.available());
         // ohne Oberfläche kein ID Austria
         assert!(!opts.iter().find(|o| o.id == BackendId::AtrustNative).unwrap().available());
+    }
+
+    /// „Merken“ bei der Anmeldung: der Kern speichert den Benutzernamen; das ID-Austria-Backend (mit dem
+    /// im RAM gemerkten Passwort) bleibt bei der nächsten Konfiguration erhalten.
+    #[test]
+    fn remembered_login_keeps_the_atrust_instance() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (mut cfg, _) = ConfigState::load(
+            Paths::under(tmp.path()),
+            Overlay::default(),
+            None,
+            Arc::new(MemorySecretStore::default()),
+            None,
+            false,
+        )
+        .unwrap();
+        let mut reg = Registry::new(Platform::Linux, None, "0.1.0", None, false);
+        reg.configure(&cfg);
+        let before = reg.atrust().unwrap();
+        // BackendEvent::LoginSucceeded { remember: true } → Kern speichert
+        cfg.settings.id_austria.username = Some("+436641234567".into());
+        cfg.settings.id_austria.remember = true;
+        reg.adopt_atrust_settings(&cfg);
+        reg.configure(&cfg);
+        assert!(Arc::ptr_eq(&before, &reg.atrust().unwrap()), "gemerktes Passwort bliebe sonst nicht erhalten");
+        // echte Änderung der Einstellungen (Proxy) baut neu
+        cfg.settings.proxy.mode = ProxyMode::None;
+        reg.configure(&cfg);
+        assert!(!Arc::ptr_eq(&before, &reg.atrust().unwrap()));
     }
 }

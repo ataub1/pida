@@ -2,12 +2,15 @@
 //!
 //! `pdfover-config` liefert Ordner, Dateinamen und Rotation ([`Paths::rotate_logs`],
 //! [`pdfover_config::paths::LOG_MAX_FILE_BYTES`] × [`pdfover_config::paths::LOG_KEEP`]); hier wird die
-//! Datei beim Start rotiert und über `tracing-appender` (nicht blockierend) beschrieben. Die Shell
-//! bzw. die CLI ruft [`init`] einmal je Prozess auf; ist bereits ein globaler Subscriber gesetzt,
-//! bleibt er bestehen.
+//! Datei beim Start **und während des Laufs** rotiert (sobald sie die Größe erreicht, damit auch eine
+//! lange laufende Sitzung mit Debug-Stufe die Obergrenze einhält) und über `tracing-appender` (nicht
+//! blockierend) beschrieben. Die Shell bzw. die CLI ruft [`init`] einmal je Prozess auf; ist bereits
+//! ein globaler Subscriber gesetzt, bleibt er bestehen.
+
+use std::io::Write;
 
 use pdfover_config::Paths;
-use pdfover_config::paths::{LOG_FILE, LOG_KEEP, LOG_MAX_FILE_BYTES};
+use pdfover_config::paths::{LOG_KEEP, LOG_MAX_FILE_BYTES};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -44,6 +47,59 @@ impl Default for LogOptions {
     }
 }
 
+/// Schreiber der Logdatei mit Rotation während des Laufs (läuft im Schreib-Thread von
+/// `tracing-appender`, deshalb ohne Sperren).
+struct RotatingWriter {
+    paths: Paths,
+    file: Option<std::fs::File>,
+    written: u64,
+    max: u64,
+    keep: u32,
+}
+
+impl RotatingWriter {
+    fn open(paths: Paths, max: u64, keep: u32) -> std::io::Result<RotatingWriter> {
+        let mut w = RotatingWriter { paths, file: None, written: 0, max, keep };
+        w.reopen()?;
+        Ok(w)
+    }
+
+    fn reopen(&mut self) -> std::io::Result<()> {
+        let path = self.paths.log_file();
+        let file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+        self.written = file.metadata().map(|m| m.len()).unwrap_or(0);
+        self.file = Some(file);
+        Ok(())
+    }
+
+    fn rotate(&mut self) -> std::io::Result<()> {
+        if let Some(mut f) = self.file.take() {
+            f.flush()?;
+        }
+        self.paths.rotate_logs(self.max, self.keep).map_err(std::io::Error::other)?;
+        self.reopen()
+    }
+}
+
+impl Write for RotatingWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if self.written >= self.max {
+            // Rotation fehlgeschlagen (z. B. Datei gesperrt): weiter in die bisherige Datei
+            let _ = self.rotate();
+        }
+        if self.file.is_none() {
+            self.reopen()?;
+        }
+        let n = self.file.as_mut().map_or(Ok(0), |f| f.write(buf))?;
+        self.written += n as u64;
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.file.as_mut().map_or(Ok(()), std::fs::File::flush)
+    }
+}
+
 fn filter(level: &str) -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level))
 }
@@ -53,9 +109,11 @@ pub fn init(paths: &Paths, opts: &LogOptions) -> LogGuard {
     let mut guard = None;
     let mut file = None;
     let file_layer = if opts.file {
-        match paths.rotate_logs(LOG_MAX_FILE_BYTES, LOG_KEEP) {
-            Ok(path) => {
-                let appender = tracing_appender::rolling::never(&paths.log_dir, LOG_FILE);
+        match paths
+            .rotate_logs(LOG_MAX_FILE_BYTES, LOG_KEEP)
+            .and_then(|path| Ok((path, RotatingWriter::open(paths.clone(), LOG_MAX_FILE_BYTES, LOG_KEEP)?)))
+        {
+            Ok((path, appender)) => {
                 let (writer, g) = tracing_appender::non_blocking(appender);
                 guard = Some(g);
                 file = Some(path);
@@ -93,6 +151,30 @@ pub fn init(paths: &Paths, opts: &LogOptions) -> LogGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pdfover_config::paths::LOG_FILE;
+
+    /// Lange Sitzung: die Datei rotiert auch während des Laufs; insgesamt höchstens
+    /// `(LOG_KEEP + 1) × LOG_MAX_FILE_BYTES` (+ ein Eintrag) – Plan §7.1 (≤ 2 MB).
+    #[test]
+    fn rotates_while_running() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = Paths::under(tmp.path());
+        std::fs::create_dir_all(&paths.log_dir).unwrap();
+        let mut w = RotatingWriter::open(paths.clone(), 1000, 2).unwrap();
+        let line = [b'x'; 99];
+        for _ in 0..100 {
+            w.write_all(&line).unwrap();
+            w.write_all(b"\n").unwrap();
+        }
+        w.flush().unwrap();
+        let size = |p: &std::path::Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+        assert!(size(&paths.log_file()) <= 1000 + 100, "{}", size(&paths.log_file()));
+        assert!(paths.log_dir.join(format!("{LOG_FILE}.1")).is_file());
+        assert!(paths.log_dir.join(format!("{LOG_FILE}.2")).is_file());
+        assert!(!paths.log_dir.join(format!("{LOG_FILE}.3")).exists(), "nur `keep` alte Dateien");
+        let total: u64 = std::fs::read_dir(&paths.log_dir).unwrap().map(|e| size(&e.unwrap().path())).sum();
+        assert!(total <= 3 * 1100, "{total}");
+    }
 
     #[test]
     fn rotates_and_creates_log_dir() {

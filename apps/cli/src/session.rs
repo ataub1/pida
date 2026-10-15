@@ -65,6 +65,12 @@ pub fn sign(config_file: Option<PathBuf>, cli: &Cli, env: RunEnv) -> ExitCode {
         Ok(None) => {}
         Err(e) => return usage_error(term.as_ref(), lang, &e),
     }
+    // Plan §4.9: abweichendes Schlüssel-Passwort auch bei `--kspass-env`/`--kspass-stdin` ein klarer Fehler
+    if let (Some(key), Some(store)) = (&ov.keystore_key_password, &ov.keystore_store_password)
+        && key.as_str() != store.as_str()
+    {
+        return usage_error(term.as_ref(), lang, &ArgError { id: "ng-cli-keypass-mismatch", args: vec![] });
+    }
     match overlay::inputs(cli) {
         Ok(inputs) if !inputs.is_empty() => ov.input_files = inputs,
         Ok(_) => return usage_error(term.as_ref(), lang, &ArgError { id: "ng-cli-no-input", args: vec![] }),
@@ -217,9 +223,65 @@ struct Ui {
     privacy_asked: bool,
     overwrite_asked: Option<PathBuf>,
     countdown: Option<tokio::task::JoinHandle<()>>,
+    /// geschriebene QR-Bilder (Anfrage, Datei): enthalten den Sitzungsbezug des Signiervorgangs und werden
+    /// gelöscht, sobald die Maske geschlossen ist bzw. am Ende (Plan §7.7)
+    qr_files: Vec<(u64, PathBuf)>,
+}
+
+/// Schreibt das QR-Bild nur für die Nutzerin lesbar (Unix 0600).
+fn write_private(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let _ = std::fs::remove_file(path);
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(path)?;
+    f.write_all(bytes)?;
+    f.sync_all()
+}
+
+impl Drop for Ui {
+    fn drop(&mut self) {
+        self.stop_countdown();
+        self.remove_qr_files(None);
+    }
 }
 
 impl Ui {
+    fn new(lang: Lang, interactive: bool, temp_dir: PathBuf) -> Ui {
+        Ui {
+            lang,
+            interactive,
+            temp_dir,
+            handled: HashSet::new(),
+            notices: HashSet::new(),
+            progress: None,
+            privacy_asked: false,
+            overwrite_asked: None,
+            countdown: None,
+            qr_files: Vec::new(),
+        }
+    }
+
+    /// Löscht die QR-Bilder aller Anfragen außer `keep`.
+    fn remove_qr_files(&mut self, keep: Option<u64>) {
+        self.qr_files.retain(|(request, path)| {
+            if Some(*request) == keep {
+                return true;
+            }
+            if let Err(e) = std::fs::remove_file(path)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(error = %e.kind(), "QR-Bild nicht gelöscht");
+            }
+            false
+        });
+    }
+
     fn stop_countdown(&mut self) {
         if let Some(h) = self.countdown.take() {
             h.abort();
@@ -249,6 +311,15 @@ impl Ui {
         if !matches!(step, StepView::Backend { privacy_notice: Some(_), .. }) {
             self.privacy_asked = false;
         }
+        // QR-Bild nur so lange behalten, wie die QR-Maske offen ist
+        let open_qr = match step {
+            StepView::Signing {
+                interaction: InteractionView::Form { request, form: NativeForm::QrCode { .. } },
+                ..
+            } => Some(*request),
+            _ => None,
+        };
+        self.remove_qr_files(open_qr);
         match step {
             StepView::Signing { interaction, .. } => {
                 if !matches!(
@@ -362,8 +433,11 @@ impl Ui {
                 let path = self.temp_dir.join(format!("pdfover-qr-{}-{request}.png", std::process::id()));
                 let shown = match image {
                     Some(img) => {
-                        match std::fs::create_dir_all(&self.temp_dir).and_then(|_| std::fs::write(&path, &img.bytes)) {
-                            Ok(()) => path.display().to_string(),
+                        match std::fs::create_dir_all(&self.temp_dir).and_then(|_| write_private(&path, &img.bytes)) {
+                            Ok(()) => {
+                                self.qr_files.push((request, path.clone()));
+                                path.display().to_string()
+                            }
                             Err(_) => "-".into(),
                         }
                     }
@@ -394,17 +468,7 @@ impl Ui {
 /// Schleife der Terminal-„UI“ bis zum Programmende.
 pub async fn ui_loop(core: &Arc<Core>, term: Arc<dyn Terminal>, lang: Lang, interactive: bool, temp_dir: PathBuf) {
     let mut rx = core.subscribe();
-    let mut ui = Ui {
-        lang,
-        interactive,
-        temp_dir,
-        handled: HashSet::new(),
-        notices: HashSet::new(),
-        progress: None,
-        privacy_asked: false,
-        overwrite_asked: None,
-        countdown: None,
-    };
+    let mut ui = Ui::new(lang, interactive, temp_dir);
     loop {
         let view = rx.borrow_and_update().clone();
         for n in &view.notices {
@@ -452,6 +516,7 @@ pub async fn ui_loop(core: &Arc<Core>, term: Arc<dyn Terminal>, lang: Lang, inte
         }
     }
     ui.stop_countdown();
+    ui.remove_qr_files(None);
 }
 
 /// Nach einer abgebrochenen verdeckten Eingabe das Echo des Terminals wieder einschalten.
@@ -511,5 +576,56 @@ pub fn report(term: &dyn Terminal, lang: Lang, results: &[DoneItemView], code: E
                 term.info(&tr(lang, "ng-cli-failed", &[("input", input), ("message", message)]));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pdfover_backend_api::{FormContext, QrImage};
+
+    fn qr_step(request: u64) -> StepView {
+        StepView::Signing {
+            interaction: InteractionView::Form {
+                request,
+                form: NativeForm::QrCode {
+                    reference_value: "AB12".into(),
+                    image: Some(QrImage { bytes: b"\x89PNG-test".to_vec(), mime: Some("image/png".into()) }),
+                    timeout_secs: None,
+                    ctx: FormContext::default(),
+                },
+            },
+            queue: Vec::new(),
+        }
+    }
+
+    /// Das QR-Bild (Sitzungsbezug) ist nur für die Nutzerin lesbar und verschwindet mit der Maske.
+    #[tokio::test]
+    async fn qr_image_is_private_and_removed_with_the_form() {
+        let tmp = tempfile::tempdir().unwrap();
+        let term: Arc<dyn Terminal> = Arc::new(crate::term::Scripted::new(true, &[]));
+        let mut ui = Ui::new(Lang::De, true, tmp.path().join("tmp"));
+        assert!(matches!(ui.next(&qr_step(7), &term), (None, None)));
+        let (_, path) = ui.qr_files.first().cloned().expect("QR-Bild geschrieben");
+        assert_eq!(std::fs::read(&path).unwrap(), b"\x89PNG-test");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        }
+        // gleiche Maske erneut veröffentlicht: Bild bleibt
+        ui.next(&qr_step(7), &term);
+        assert!(path.is_file());
+        // Maske geschlossen (Long-Poll fertig) → gelöscht
+        let waiting =
+            StepView::Signing { interaction: InteractionView::Waiting { progress: Progress::Signing }, queue: vec![] };
+        ui.next(&waiting, &term);
+        assert!(!path.exists());
+        // am Ende (Drop) werden auch offene Bilder gelöscht
+        ui.next(&qr_step(8), &term);
+        let (_, second) = ui.qr_files.first().cloned().unwrap();
+        assert!(second.is_file());
+        drop(ui);
+        assert!(!second.exists());
     }
 }

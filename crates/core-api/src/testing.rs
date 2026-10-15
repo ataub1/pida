@@ -3,12 +3,12 @@
 //! fehlt – damit lassen sich alle Abläufe des Kerns ohne `pdfover-pades` prüfen.
 
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use pdfover_cades::{AssembleOptions, CertChain, Digest, DigestAlg, Expect, ExpectedSigner, RawSignature, SignedAttrs};
 use pdfover_pades::{
-    AcceptanceClass, CheckContext, CheckReport, DocReport, ExcludedRange, FinishError, Invariant, InvariantViolation,
-    OutputInfo, OutputTarget, PadesError, Reserve, SignPlan, XfaKind,
+    AcceptanceClass, CheckContext, CheckReport, DocReport, ExcludedRange, Finding, FinishError, Invariant,
+    InvariantViolation, OutputInfo, OutputTarget, PadesError, Reserve, SignPlan, XfaKind,
 };
 use pdfover_pdf_cos::SourcePdf;
 use time::OffsetDateTime;
@@ -28,6 +28,10 @@ pub struct FakeEngine {
     pub fail_check: AtomicBool,
     /// Anzahl `prepare`
     pub prepares: AtomicUsize,
+    /// Verzögerung der Analyse in Millisekunden (Wettläufe mit Nutzeraktionen prüfen)
+    pub analyze_delay_ms: AtomicU64,
+    /// Befunde der Analyse (z. B. Warnungen mit Abbruchmöglichkeit)
+    pub findings: Mutex<Vec<Finding>>,
 }
 
 impl Default for FakeEngine {
@@ -38,6 +42,8 @@ impl Default for FakeEngine {
             model_b_reserve: AtomicUsize::new(32 * 1024),
             fail_check: AtomicBool::new(false),
             prepares: AtomicUsize::new(0),
+            analyze_delay_ms: AtomicU64::new(0),
+            findings: Mutex::new(Vec::new()),
         }
     }
 }
@@ -61,11 +67,15 @@ impl FakeEngine {
 
 impl PadesEngine for FakeEngine {
     fn analyze(&self, src: &SourcePdf) -> Result<DocReport, PadesError> {
+        let delay = self.analyze_delay_ms.load(Ordering::SeqCst);
+        if delay > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(delay));
+        }
         let class =
             self.class.lock().unwrap_or_else(std::sync::PoisonError::into_inner).unwrap_or(AcceptanceClass::K1Regular);
         Ok(DocReport {
             class,
-            findings: vec![],
+            findings: self.findings.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone(),
             page_count: src.page_count(),
             xref_kind: src.xref_kind(),
             tail: src.tail().kind,

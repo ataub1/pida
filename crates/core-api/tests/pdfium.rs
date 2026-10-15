@@ -119,3 +119,59 @@ async fn block_preview_without_document_uses_a4() {
     // ohne Positionierung wurde noch keine Vorschau gebaut
     assert!(core.block_preview(1.0).is_err());
 }
+
+/// Minimales PDF mit zwei unterschiedlich breiten Seiten (A4 quer, A4 hoch).
+fn mixed_size_pdf() -> Vec<u8> {
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >>".to_owned(),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes());
+    for off in offsets {
+        out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes(),
+    );
+    out
+}
+
+/// KR-F01 (Vorschau = Ergebnis): Bei Profilen ohne `w` hängt die Blockbreite von der Seitenbreite ab;
+/// ein Seitenwechsel baut die Vorschau für die angezeigte Seite neu.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn block_width_follows_the_displayed_page() {
+    let fx = Fixture::new();
+    fx.write_settings("[signature]\nprofile = \"AMTSSIGNATURBLOCK\"\nblock_language = \"de\"\n");
+    let input = fx.dir("in");
+    let a = input.join("gemischt.pdf");
+    std::fs::write(&a, mixed_size_pdf()).unwrap();
+    let Some(core) = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }) else {
+        eprintln!("PDFOVER_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    let near = |a: f32, b: f32| (a - b).abs() < 1.0;
+    // Startseite = letzte (595 pt breit): Breite 595 − 2 × 50
+    let v = wait_for(&core, "Vorschau letzte Seite", |v| {
+        matches!(&v.step, StepView::Position { block, page: 1, .. } if block.preview_revision > 0 && near(block.width, 495.0))
+    })
+    .await;
+    let StepView::Position { block: last, .. } = v.step else { unreachable!() };
+    core.dispatch(UiEvent::ChangePage { page: 0 });
+    // erste Seite (842 pt breit): 742 pt, Vorschau neu gebaut, Position mitgezogen
+    let v = wait_for(&core, "Vorschau erste Seite", |v| {
+        matches!(&v.step, StepView::Position { block, page: 0, placement, .. }
+            if block.preview_revision > last.preview_revision && near(block.width, 742.0) && near(placement.width, 742.0))
+    })
+    .await;
+    let StepView::Position { placement, .. } = v.step else { unreachable!() };
+    assert!(placement.x + placement.width <= 842.0 + 0.01, "auf die Seite geklemmt: {placement:?}");
+}

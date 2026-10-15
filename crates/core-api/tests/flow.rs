@@ -432,6 +432,21 @@ async fn unreadable_settings_offer_reset() {
     assert!(backup.join("settings.toml").is_file());
 }
 
+/// Ohne Oberfläche: keine Rückfrage, aber der Grund erscheint als Hinweis (CLI gibt ihn aus), Exit 1.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn unreadable_settings_headless_explain_and_end() {
+    let fx = Fixture::new();
+    fx.write_settings("schema_version = 99\n");
+    let engine = FakeEngine::new();
+    let core = fx.start(Overlay::default(), true, CoreOptions { interactive: Some(false), ..options(&engine) });
+    assert_eq!(core.wait_finished().await, ExitCode::General);
+    let v = core.view();
+    let n = v.notices.iter().find(|n| n.code == "ng-config-error-unsupported-schema").expect("Hinweis");
+    assert_eq!(n.params["found"], "99");
+    // die Datei bleibt unverändert (kein Werksreset ohne Zustimmung)
+    assert_eq!(std::fs::read_to_string(fx.paths.settings_file()).unwrap(), "schema_version = 99\n");
+}
+
 #[test]
 fn missing_config_file_fails_start() {
     let fx = Fixture::new();
@@ -578,4 +593,171 @@ async fn open_files_ignores_missing_and_navigation_discards() {
     // gespeicherter letzter Ordner (LAST_SOURCE_DIRECTORY)
     let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
     assert_eq!(saved.general.last_source_directory.as_deref(), Some(input.as_path()));
+}
+
+/// Ein spätes Analyse-Ergebnis eines bereits verworfenen Dokuments bleibt nicht im Speicher.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn discarded_document_is_not_kept_after_late_analysis() {
+    let fx = Fixture::new();
+    let input = fx.dir("in");
+    let a = copy_pdf(PDF, &input, "a.pdf");
+    let engine = FakeEngine::new();
+    engine.analyze_delay_ms.store(400, Ordering::SeqCst);
+    let core = fx.start(Overlay { input_files: vec![a], ..Overlay::default() }, false, options(&engine));
+    wait_for(&core, "Laden", |v| matches!(v.step, StepView::Loading { .. })).await;
+    // Hauptleiste „Öffnen“, während die Analyse noch läuft
+    core.dispatch(UiEvent::Navigate { step: pdfover_workflow::Step::Open });
+    wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+    assert_eq!(core.open_document_count(), 0, "verworfenes Dokument im Speicher");
+    assert!(matches!(core.view().step, StepView::Open { .. }), "{:?}", core.view().step);
+    // ein neu geöffnetes Dokument wird normal geladen
+    engine.analyze_delay_ms.store(0, Ordering::SeqCst);
+    let b = copy_pdf(PDF, &input, "b.pdf");
+    core.dispatch(UiEvent::OpenFiles { paths: vec![b] });
+    wait_for(&core, "nächster Schritt", |v| matches!(v.step, StepView::Backend { .. } | StepView::Position { .. }))
+        .await;
+    assert_eq!(core.open_document_count(), 1);
+}
+
+/// Programmfehler im Kern-Task (F-106): mit Oberfläche Fehleranzeige statt hängender UI, danach weiter
+/// mit der Dokumentauswahl; ohne Oberfläche Ende mit Exit-Code 1.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn panic_in_core_task_becomes_unexpected_error() {
+    let fx = Fixture::new();
+    let input = fx.dir("in");
+    let a = copy_pdf(PDF, &input, "a.pdf");
+    let engine = FakeEngine::new();
+    let opts = || CoreOptions {
+        backends: Some(vec![Arc::new(PanickingBackend) as Arc<dyn SignatureBackend>]),
+        ..options(&engine)
+    };
+    let overlay = Overlay { input_files: vec![a.clone()], auto_position: true, ..Overlay::default() };
+    let core = fx.start(overlay.clone(), false, opts());
+    let v = wait_for(&core, "Fehler", |v| matches!(v.step, StepView::Error { .. })).await;
+    let StepView::Error { code, retry, .. } = v.step else { unreachable!() };
+    assert_eq!(code, "error-Unexpected");
+    assert!(!retry);
+    assert_eq!(core.open_document_count(), 0);
+    core.dispatch(UiEvent::Cancel);
+    let v = wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    assert!(matches!(&v.done[0].result, DocResult::Failed { error } if error.code() == "error-Unexpected"));
+    drop(core);
+    // ohne Oberfläche
+    let core = fx.start(overlay, true, CoreOptions { interactive: Some(false), ..opts() });
+    let code = tokio::time::timeout(std::time::Duration::from_secs(20), core.wait_finished()).await.unwrap();
+    assert_eq!(code, ExitCode::General);
+    assert!(matches!(&core.results()[0].result, DocResult::Failed { error } if error.code() == "error-Unexpected"));
+}
+
+/// Einstellungen werden nur aus der geöffneten Einstellungsansicht übernommen.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn save_settings_requires_the_settings_overlay() {
+    let fx = Fixture::new();
+    let engine = FakeEngine::new();
+    let core = fx.start(Overlay::default(), false, options(&engine));
+    wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    let mut s = Settings::default();
+    s.output.postfix = "_ohne_ansicht".into();
+    core.dispatch(UiEvent::SaveSettings { settings: Box::new(s.clone()) });
+    core.dispatch(UiEvent::OpenSettings);
+    let v = wait_for(&core, "Einstellungen", |v| v.settings.is_some()).await;
+    assert_eq!(v.settings.unwrap().settings.output.postfix, "_signed", "ohne Ansicht nicht übernommen");
+    s.output.postfix = "_mit_ansicht".into();
+    core.dispatch(UiEvent::SaveSettings { settings: Box::new(s) });
+    wait_for(&core, "geschlossen", |v| v.settings.is_none()).await;
+    let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
+    assert_eq!(saved.output.postfix, "_mit_ansicht");
+}
+
+fn openssl() -> bool {
+    std::process::Command::new("openssl").arg("version").output().is_ok_and(|o| o.status.success())
+}
+
+/// Externes Orakel (openssl cms) für das CMS aus Modell A (Keystore): Signaturwert, message-digest über
+/// den Inhalt und die signierten Attribute je CMS-Profil (PDF-AS-kompatibel bzw. PAdES-B-B).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn model_a_cms_passes_openssl() {
+    if !openssl() {
+        eprintln!("openssl fehlt – Orakel übersprungen");
+        return;
+    }
+    for (profile, signing_time) in [("pdfas_compat", true), ("pades_bb", false)] {
+        let fx = Fixture::new();
+        fx.write_settings(&format!("[signature]\ncms_profile = \"{profile}\"\n"));
+        let input = fx.dir("in");
+        let a = copy_pdf(PDF, &input, "a.pdf");
+        let engine = FakeEngine::new();
+        let core = fx.start(
+            keystore_overlay(vec![a.clone()]),
+            true,
+            CoreOptions { interactive: Some(false), ..options(&engine) },
+        );
+        assert_eq!(core.wait_finished().await, ExitCode::Success, "{:#?}", core.view());
+        let original = std::fs::read(&a).unwrap();
+        let signed = std::fs::read(input.join("a_signed.pdf")).unwrap();
+        let dir = fx.dir("oracle");
+        let (content, cms) = (dir.join("content.bin"), dir.join("sig.der"));
+        std::fs::write(&content, &original).unwrap();
+        std::fs::write(&cms, &signed[original.len()..]).unwrap();
+        let verify = std::process::Command::new("openssl")
+            .args(["cms", "-verify", "-binary", "-inform", "DER", "-noverify", "-purpose", "any", "-in"])
+            .arg(&cms)
+            .arg("-content")
+            .arg(&content)
+            .args(["-out", "/dev/null"])
+            .output()
+            .unwrap();
+        assert!(verify.status.success(), "{profile}: {}", String::from_utf8_lossy(&verify.stderr));
+        let print = std::process::Command::new("openssl")
+            .args(["cms", "-cmsout", "-print", "-inform", "DER", "-in"])
+            .arg(&cms)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&print.stdout);
+        assert!(text.contains("messageDigest"), "{profile}: {text}");
+        assert!(text.contains("contentType"), "{profile}");
+        assert!(
+            text.contains("signingCertificateV2") || text.contains("1.2.840.113549.1.9.16.2.47"),
+            "{profile}: {text}"
+        );
+        assert_eq!(text.contains("signingTime"), signing_time, "{profile}: signingTime");
+        // genau ein SignerInfo (I3)
+        assert_eq!(text.matches("signatureAlgorithm:").count(), 1, "{profile}");
+    }
+}
+
+/// Plan §6.1: Warnungen der Analyse (`/Perms /UR3` …) mit Abbruchmöglichkeit; ohne Oberfläche Hinweis.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn analysis_warning_asks_before_signing() {
+    let fx = Fixture::new();
+    let input = fx.dir("in");
+    let a = copy_pdf(PDF, &input, "a.pdf");
+    let engine = FakeEngine::new();
+    engine.findings.lock().unwrap().push(pdfover_pades::Finding {
+        code: "pdf-usage-rights".into(),
+        class: AcceptanceClass::K1Regular,
+        warning: true,
+    });
+    let core = fx.start(Overlay { input_files: vec![a.clone()], ..Overlay::default() }, false, options(&engine));
+    let v = wait_for(&core, "Warnung", |v| matches!(v.step, StepView::Warning { .. })).await;
+    let StepView::Warning { codes, doc } = v.step else { unreachable!() };
+    assert_eq!(codes, vec!["pdf-usage-rights".to_owned()]);
+    assert_eq!(doc.name, "a.pdf");
+    assert!(v.notices.is_empty(), "mit Oberfläche keine doppelte Meldung");
+    // Abbrechen verwirft das Dokument
+    core.dispatch(UiEvent::AnswerWarning { proceed: false });
+    let v = wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    assert_eq!(v.done[0].result, DocResult::Cancelled);
+    assert_eq!(core.open_document_count(), 0);
+    // Fortfahren → weiter im Ablauf
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    wait_for(&core, "Warnung", |v| matches!(v.step, StepView::Warning { .. })).await;
+    core.dispatch(UiEvent::AnswerWarning { proceed: true });
+    wait_for(&core, "weiter", |v| matches!(v.step, StepView::Backend { .. } | StepView::Position { .. })).await;
+    drop(core);
+    // ohne Oberfläche: Hinweis, Signatur läuft durch
+    let core = fx.start(keystore_overlay(vec![a]), true, CoreOptions { interactive: Some(false), ..options(&engine) });
+    assert_eq!(core.wait_finished().await, ExitCode::Success);
+    assert!(core.view().notices.iter().any(|n| n.code == "pdf-usage-rights"));
 }

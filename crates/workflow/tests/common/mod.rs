@@ -44,6 +44,7 @@ pub fn analyzed(id: u64, page_count: usize, placeholder: Option<PlaceholderFound
         signed,
         page_count,
         start: Some(start_placement(page_count)),
+        warnings: Vec::new(),
     }
 }
 

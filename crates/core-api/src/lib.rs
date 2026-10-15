@@ -26,6 +26,7 @@
 //! |---|---|---|
 //! | `open` | Drop-Zone, Warteschlange | `open_files` (nicht vorhandene Pfade werden ignoriert, F-12) |
 //! | `loading` | Dokument wird geladen/analysiert | `cancel`, `navigate{open}` |
+//! | `warning` | Warnung der Analyse (`codes`, z. B. `pdf-usage-rights`) mit Abbruchmöglichkeit | `answer_warning{proceed}`, `cancel` |
 //! | `placeholder` | „Platzhalter verwenden?“ (Felder bzw. QR) | `placeholder_answer{answer, field_index}` |
 //! | `position` | Seite (`pdfover-render://` → [`Core::page_tile`]), Block ([`Core::block_preview`], `preview_revision`), `announce` | `move_block`, `nudge_block`, `change_page`, `toggle_new_page`, `auto_place`, `confirm_position` |
 //! | `backend` | Optionen; `privacy_notice` = Datenschutzhinweis | `choose_backend`, `acknowledge_privacy{accepted}` |
@@ -461,6 +462,12 @@ impl Core {
     /// Ergebnisse der abgeschlossenen Dokumente (CLI `--json`, Warteschlangen-Panel).
     pub fn results(&self) -> Vec<DoneItemView> {
         self.view().done
+    }
+
+    /// Anzahl der im Speicher gehaltenen Dokumente (Diagnose; Feature `testing`).
+    #[cfg(any(test, feature = "testing"))]
+    pub fn open_document_count(&self) -> usize {
+        self.shared.docs.len()
     }
 }
 

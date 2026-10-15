@@ -46,6 +46,18 @@ fn as_i64(o: &Object) -> Option<i64> {
     }
 }
 
+/// `/ByteRange [a b c d]` → die beiden signierten Bereiche, wenn sie in der Datei liegen und sich nicht
+/// überlappen (`a + b ≤ c`). Überlaufsicher: Werte aus einem feindlichen PDF (z. B. `i64::MAX`) führen zu
+/// `None` statt zu einer Panik beim Slicen.
+fn byte_range_slices(br: &[i64], len: usize) -> Option<(std::ops::Range<usize>, std::ops::Range<usize>)> {
+    let [a, b, c, d] = br else { return None };
+    let conv = |v: i64| usize::try_from(v).ok();
+    let (a, b, c, d) = (conv(*a)?, conv(*b)?, conv(*c)?, conv(*d)?);
+    let first_end = a.checked_add(b)?;
+    let second_end = c.checked_add(d)?;
+    (first_end <= c && second_end <= len).then_some((a..first_end, c..second_end))
+}
+
 /// Prüft alle Signaturen eines PDFs mit dem eigenen Verifier (Algorithmuspolitik für
 /// Vorsignaturen, ohne Vertrauensanker – QA-Werkzeug, Selbstprüfung wie I3/I4).
 pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
@@ -83,19 +95,12 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
             out.push(check);
             continue;
         };
-        let len = bytes.len() as i64;
-        let valid_range = br.len() == 4
-            && br.iter().all(|v| *v >= 0)
-            && br[0] + br[1] <= len
-            && br[2] + br[3] <= len
-            && br[0] + br[1] <= br[2];
-        if !valid_range {
+        let Some((first, second)) = byte_range_slices(&br, bytes.len()) else {
             check.error = Some("ng-verify-byte-range".into());
             out.push(check);
             continue;
-        }
-        check.covers_whole_file = br[0] == 0 && br[2] + br[3] == len;
-        let (a, b, c, d) = (br[0] as usize, br[1] as usize, br[2] as usize, br[3] as usize);
+        };
+        check.covers_whole_file = first.start == 0 && second.end == bytes.len();
         let cms = match pdfover_cades::trim_contents_padding(&contents) {
             Ok(c) => c,
             Err(e) => {
@@ -104,7 +109,7 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
                 continue;
             }
         };
-        let mut data = std::io::Read::chain(&bytes[a..a + b], &bytes[c..c + d]);
+        let mut data = std::io::Read::chain(&bytes[first], &bytes[second]);
         let expect = Expect {
             signer: ExpectedSigner::Any,
             require_signing_certificate: false,
@@ -162,6 +167,44 @@ mod tests {
     use super::*;
 
     const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata");
+
+    #[test]
+    fn byte_range_is_checked_without_overflow() {
+        assert_eq!(byte_range_slices(&[0, 10, 20, 5], 25), Some((0..10, 20..25)));
+        // Überlauf, negative Werte, außerhalb der Datei, überlappend, falsche Anzahl
+        assert_eq!(byte_range_slices(&[i64::MAX, 1, 0, 0], 25), None);
+        assert_eq!(byte_range_slices(&[0, i64::MAX, i64::MAX, i64::MAX], 25), None);
+        assert_eq!(byte_range_slices(&[1, i64::MAX, 0, 0], usize::MAX), None);
+        assert_eq!(byte_range_slices(&[-1, 10, 20, 5], 25), None);
+        assert_eq!(byte_range_slices(&[0, 10, 20, 6], 25), None);
+        assert_eq!(byte_range_slices(&[0, 21, 20, 5], 25), None);
+        assert_eq!(byte_range_slices(&[0, 10, 20], 25), None);
+    }
+
+    /// Ein PDF mit absurd großer `/ByteRange` bringt `verify` nicht zum Absturz (vorher Überlauf
+    /// `a + b` bzw. Slice außerhalb der Datei).
+    #[test]
+    fn verify_survives_hostile_byte_range() {
+        let p = Path::new(TESTDATA).join("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf");
+        let mut bytes = std::fs::read(&p).unwrap();
+        // PDF-AS füllt `/ByteRange [...]` mit Leerzeichen auf: gleiche Länge, xref-Offsets bleiben gültig
+        let at = bytes.windows(10).position(|w| w == b"/ByteRange").unwrap();
+        let open = at + bytes[at..].iter().position(|b| *b == b'[').unwrap();
+        let mut end = open + bytes[open..].iter().position(|b| *b == b']').unwrap() + 1;
+        while bytes[end] == b' ' {
+            end += 1;
+        }
+        let hostile = b"[1 9223372036854775807 192702 32395]";
+        assert!(hostile.len() <= end - open, "Platz für den Testwert");
+        let mut replacement = hostile.to_vec();
+        replacement.resize(end - open, b' ');
+        bytes[open..end].copy_from_slice(&replacement);
+        let tmp = tempfile::tempdir().unwrap();
+        let t = tmp.path().join("t.pdf");
+        std::fs::write(&t, &bytes).unwrap();
+        let checks = verify_file(&t).expect("Struktur bleibt lesbar");
+        assert!(checks.iter().any(|c| !c.valid && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
+    }
 
     #[test]
     fn profiles_are_all_builtin() {

@@ -258,7 +258,7 @@ pub enum CliError {
 /// die eindeutig verneinenden Werte; alles andere bleibt „unsichtbar“, damit vorhandene Skripte
 /// (`-v x`, `-v 1`) unverändert funktionieren.
 fn parse_invisible(s: &str) -> Result<bool, String> {
-    Ok(!matches!(s.trim().to_ascii_lowercase().as_str(), "false" | "0" | "no" | "nein" | "off"))
+    Ok(pdfover_config::overlay::invisible_from_cli_value(s))
 }
 
 /// Übersetzt PDF-Over-Argumente in eine clap-verständliche Form (Werte immer als `--opt=WERT`,
@@ -630,6 +630,12 @@ mod run_tests {
         assert!(term.stderr().contains("-kskeypass"), "{}", term.stderr());
         let term = Arc::new(Scripted::new(false, &[]));
         assert_eq!(fx.run(&["-p", "kurz", a], term), ExitCode::Usage);
+        // abweichendes -kskeypass auch bei Passwort aus der Umgebung bzw. stdin (Plan §4.9)
+        let term = Arc::new(Scripted::new(false, &[]));
+        assert_eq!(fx.run(&["--kspass-env", "PATH", "-kskeypass", "anders", a], term.clone()), ExitCode::Usage);
+        assert!(term.stderr().contains("-kskeypass"), "{}", term.stderr());
+        let term = Arc::new(Scripted::new(false, &["vom-stdin"]));
+        assert_eq!(fx.run(&["--kspass-stdin", "-kskeypass", "anders", a], term.clone()), ExitCode::Usage);
     }
 
     #[test]

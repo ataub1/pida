@@ -44,6 +44,9 @@ pub(crate) enum Msg {
         event: Event,
     },
     Loaded(Box<Loaded>, Event),
+    /// Ergebnis von „Automatisch platzieren“ für ein Dokument (verworfen, wenn inzwischen ein anderes
+    /// Dokument positioniert wird)
+    AutoPlaced(DocId, Placement),
     BlockBuilt(BlockInfo),
     Notices(Vec<(String, BTreeMap<String, String>)>),
     Refresh,
@@ -91,6 +94,7 @@ impl std::fmt::Debug for Snapshot {
 fn ui_event_kind(e: &UiEvent) -> &'static str {
     match e {
         UiEvent::OpenFiles { .. } => "open_files",
+        UiEvent::AnswerWarning { .. } => "answer_warning",
         UiEvent::PlaceholderAnswer { .. } => "placeholder_answer",
         UiEvent::MoveBlock { .. } => "move_block",
         UiEvent::NudgeBlock { .. } => "nudge_block",
@@ -138,6 +142,9 @@ pub(crate) struct SignSlot {
     session: Option<Box<dyn BackendSession>>,
     chain: Option<CertChain>,
     prepared: Option<Box<dyn PreparedDoc>>,
+    /// CMS-Profil des Plans (Modell A: die SignedAttributes müssen mit genau diesem Profil gebaut werden,
+    /// auch wenn sich die Einstellungen zwischen `prepare` und `sign` ändern)
+    cms_profile: Option<pdfover_cades::CmsProfile>,
     attrs: Option<SignedAttrs>,
     result: Option<SignResult>,
     signed: Option<Arc<dyn SignedDoc>>,
@@ -289,7 +296,7 @@ impl CoreTask {
 
     /// Hauptschleife.
     pub(crate) async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Msg>) {
-        self.start();
+        self.guarded(|t| t.start());
         self.publish();
         // Backend-Auswahl aktuell halten (lokale BKU erscheint, sobald sie erreichbar ist, F-51)
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
@@ -298,41 +305,104 @@ impl CoreTask {
             let msg = tokio::select! {
                 m = rx.recv() => m,
                 _ = tick.tick() => {
-                    self.refresh_backend_options();
+                    self.guarded(|t| t.refresh_backend_options());
                     self.publish();
                     continue;
                 }
             };
             let Some(msg) = msg else { break };
-            match msg {
-                Msg::Shutdown => break,
-                Msg::Ui(e) => self.on_ui(e),
-                Msg::Event { epoch, event } => {
-                    if epoch.is_none_or(|e| e == lock(&self.shared.sign).epoch) {
-                        self.apply(event);
-                    } else {
-                        tracing::debug!("veraltetes Ergebnis eines abgebrochenen Vorgangs verworfen");
-                    }
-                }
-                Msg::Loaded(loaded, event) => {
-                    for w in &loaded.warnings {
-                        self.notify(w, BTreeMap::new());
-                    }
-                    self.shared.docs.insert(loaded.data.clone());
-                    self.apply(event);
-                }
-                Msg::BlockBuilt(info) => self.on_block(info),
-                Msg::Notices(list) => {
-                    for (code, params) in list {
-                        self.notify(&code, params);
-                    }
-                }
-                Msg::Refresh => {}
-                Msg::BackendEvent(e) => self.on_backend_event(e),
+            if matches!(msg, Msg::Shutdown) {
+                break;
             }
+            self.guarded(|t| t.handle(msg));
             self.publish();
         }
         self.cancel_session();
+    }
+
+    /// Führt `f` aus; eine Panik (Programmfehler, feindliche Eingabe in einer Bibliothek) beendet nicht
+    /// den Kern-Task (die UI hinge sonst ohne Rückmeldung), sondern wird wie in PDF-Over zu
+    /// `error.Unexpected` (F-106): mit Oberfläche Fehleranzeige und weiter mit der Dokumentauswahl,
+    /// ohne Oberfläche Programmende mit Exit-Code 1.
+    fn guarded(&mut self, f: impl FnOnce(&mut CoreTask)) {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
+        if result.is_err() {
+            self.recover_from_panic();
+        }
+    }
+
+    fn recover_from_panic(&mut self) {
+        // kein Paniktext im Log: er könnte Pfade oder Werte enthalten (Regel 9)
+        tracing::error!(state = self.state.name(), "unerwarteter Fehler im Kern – Vorgang verworfen");
+        self.queue.clear();
+        self.dialog = None;
+        self.settings_view = None;
+        self.cancel_session();
+        let error = WorkflowError::Unexpected("Programmfehler".into());
+        let mut queue = self.state.queue().cloned().unwrap_or_default();
+        for d in queue.current.iter().chain(queue.pending.iter()) {
+            self.shared.docs.remove(d.id);
+        }
+        if queue.current.is_some() {
+            queue.finish_current(pdfover_workflow::DocResult::Failed { error: error.clone() });
+        }
+        queue.clear();
+        if self.headless {
+            self.state = State::Finished { exit: ExitCode::General, results: queue.done };
+            self.publish();
+            let _ = self.finished_tx.send(Some(ExitCode::General));
+        } else {
+            self.state = State::Error { queue, error, retry: None, from: None };
+        }
+    }
+
+    /// Eine Nachricht verarbeiten.
+    fn handle(&mut self, msg: Msg) {
+        match msg {
+            Msg::Shutdown => {}
+            Msg::Ui(e) => self.on_ui(e),
+            Msg::Event { epoch, event } => {
+                if epoch.is_none_or(|e| e == lock(&self.shared.sign).epoch) {
+                    self.apply(event);
+                } else {
+                    tracing::debug!("veraltetes Ergebnis eines abgebrochenen Vorgangs verworfen");
+                }
+            }
+            Msg::Loaded(loaded, event) => self.on_loaded(*loaded, event),
+            Msg::AutoPlaced(doc, placement) => {
+                if matches!(&self.state, State::Positioning { doc: facts, .. } if facts.id == doc) {
+                    self.apply(Event::PlacementChanged(placement));
+                }
+            }
+            Msg::BlockBuilt(info) => self.on_block(info),
+            Msg::Notices(list) => {
+                for (code, params) in list {
+                    self.notify(&code, params);
+                }
+            }
+            Msg::Refresh => {}
+            Msg::BackendEvent(e) => self.on_backend_event(e),
+        }
+    }
+
+    /// Ergebnis der Analyse übernehmen – nur, wenn das Dokument noch analysiert wird. Wurde es inzwischen
+    /// verworfen (Hauptleiste „Öffnen“, Abbrechen, Beenden), bleiben Dokument, Renderer und Hinweise
+    /// nicht im Speicher zurück.
+    fn on_loaded(&mut self, loaded: Loaded, event: Event) {
+        let id = loaded.data.id;
+        let current = matches!(&self.state, State::Analyzing { queue } if queue.current_id() == Some(id));
+        if !current {
+            tracing::debug!("Analyse eines verworfenen Dokuments verworfen");
+            return;
+        }
+        // Warnungen der Analyse: mit Oberfläche als Rückfrage (State::AnalysisWarning), ohne als Hinweis
+        if self.headless {
+            for w in &loaded.warnings {
+                self.notify(w, BTreeMap::new());
+            }
+        }
+        self.shared.docs.insert(loaded.data.clone());
+        self.apply(event);
     }
 
     /// In der Backend-Auswahl die Verfügbarkeit neu ermitteln (ohne automatische Wahl).
@@ -351,6 +421,21 @@ impl CoreTask {
     /// Start: Einstellungen unlesbar → Rückfrage (F-05), sonst Dokumente aus dem Overlay.
     fn start(&mut self) {
         if let Some(StartupProblem::Unreadable(e)) = self.startup.take() {
+            if self.headless {
+                // ohne Oberfläche gibt es keine Rückfrage (Werksreset): Grund als Hinweis, dann Ende (Exit 1)
+                let params = e
+                    .message_args()
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let v = match v {
+                            pdfover_i18n::ArgValue::Str(s) => s,
+                            pdfover_i18n::ArgValue::Num(n) => n.to_string(),
+                        };
+                        (k.to_owned(), v)
+                    })
+                    .collect();
+                self.notify(e.message_id(), params);
+            }
             self.apply(Event::SettingsUnreadable(e.localized(self.cfg.language())));
             return;
         }
@@ -401,8 +486,8 @@ impl CoreTask {
     pub(crate) fn apply(&mut self, event: Event) {
         self.queue.push_back(event);
         while let Some(event) = self.queue.pop_front() {
-            let state = std::mem::replace(&mut self.state, State::Starting);
-            let t = reduce(state, event, &self.ctx);
+            // Kopie statt `mem::replace`: bricht der Reducer ab, bleibt der bisherige Zustand erhalten
+            let t = reduce(self.state.clone(), event, &self.ctx);
             self.state = t.state;
             tracing::debug!(state = self.state.name(), effects = t.effects.len(), "Übergang");
             if !matches!(self.state, State::Output { decision: Some(_), saved: None, .. }) {
@@ -547,6 +632,7 @@ impl CoreTask {
                         signed: report.is_signed(),
                         page_count: loaded.data.pages.len(),
                         start,
+                        warnings: loaded.warnings.clone(),
                     };
                     Msg::Loaded(Box::new(loaded), event)
                 }
@@ -731,6 +817,7 @@ impl CoreTask {
                 Ok(s) => s,
                 Err(e) => return Event::SigningFailed(prepare_error(&e.code(), &e.to_string())),
             };
+            let cms_profile = plan::cms_profile(snap.settings.signature.cms_profile);
             let built = data.with_renderer_opt(shared.render.as_deref(), |renderer| {
                 plan::build_plan(PlanInput {
                     report: &data.report,
@@ -739,7 +826,7 @@ impl CoreTask {
                     spec: &spec,
                     chain: chain.as_ref(),
                     reserve,
-                    cms_profile: plan::cms_profile(snap.settings.signature.cms_profile),
+                    cms_profile,
                     renderer,
                     store,
                     fonts: &shared.fonts,
@@ -761,6 +848,7 @@ impl CoreTask {
                 return Event::BackendFailed(BackendError::Cancelled);
             }
             slot.prepared = Some(prepared);
+            slot.cms_profile = Some(cms_profile);
             Event::PhaseCompleted(pdfover_workflow::SigningPhase::Preparing)
         });
     }
@@ -768,8 +856,7 @@ impl CoreTask {
     fn effect_sign(&mut self) {
         let shared = self.shared.clone();
         let name = self.current_doc().map(|d| d.name.clone()).unwrap_or_default();
-        let cms_profile = plan::cms_profile(self.cfg.settings.signature.cms_profile);
-        let (epoch, session, prepared, chain, caps, cancel) = {
+        let (epoch, session, prepared, chain, caps, cancel, cms_profile) = {
             let mut slot = lock(&shared.sign);
             (
                 slot.epoch,
@@ -778,6 +865,7 @@ impl CoreTask {
                 slot.chain.clone(),
                 slot.caps.clone(),
                 slot.cancel.clone(),
+                slot.cms_profile.unwrap_or_else(|| plan::cms_profile(self.cfg.settings.signature.cms_profile)),
             )
         };
         let (Some(mut session), Some(prepared)) = (session, prepared) else {
@@ -975,6 +1063,7 @@ impl CoreTask {
                     self.apply(Event::FilesAdded(docs));
                 }
             }
+            UiEvent::AnswerWarning { proceed } => self.apply(Event::WarningAnswered(proceed)),
             UiEvent::PlaceholderAnswer { answer, field_index } => {
                 self.apply(Event::PlaceholderAnswered { answer, field_index });
             }
@@ -1065,7 +1154,15 @@ impl CoreTask {
                     self.settings_view = Some(self.settings_view_for(self.cfg.settings.clone(), BTreeMap::new()));
                 }
             }
-            UiEvent::SaveSettings { settings } => self.save_settings(*settings),
+            UiEvent::SaveSettings { settings } => {
+                // nur aus der geöffneten Einstellungsansicht (Overlay); sonst könnten Einstellungen z. B.
+                // mitten im Signieren wechseln
+                if self.settings_view.is_some() {
+                    self.save_settings(*settings);
+                } else {
+                    tracing::debug!("Einstellungen ohne geöffnete Ansicht verworfen");
+                }
+            }
             UiEvent::CloseSettings => self.settings_view = None,
             UiEvent::ResetSettings => {
                 self.settings_view = None;
@@ -1174,7 +1271,8 @@ impl CoreTask {
     /// „Automatisch platzieren“: Position wie bei `p:auto` berechnen und anzeigen.
     fn auto_place(&mut self) {
         let State::Positioning { doc: facts, .. } = &self.state else { return };
-        let Some(data) = self.shared.docs.get(facts.id) else { return };
+        let doc_id = facts.id;
+        let Some(data) = self.shared.docs.get(doc_id) else { return };
         let shared = self.shared.clone();
         let snap = self.snapshot();
         tokio::task::spawn_blocking(move || {
@@ -1211,7 +1309,7 @@ impl CoreTask {
                 Ok(Some(r)) => {
                     let page_index = if r.new_page { data.pages.len() } else { r.page_index };
                     let p = Placement { page_index, x: r.x, y: r.y, width: r.width, height: r.height };
-                    shared.send(Msg::Event { epoch: None, event: Event::PlacementChanged(p) });
+                    shared.send(Msg::AutoPlaced(doc_id, p));
                 }
                 Ok(None) => {}
                 Err(e) => shared.send(Msg::Notices(vec![(e.code(), BTreeMap::new())])),
@@ -1235,6 +1333,8 @@ impl CoreTask {
                         if let Err(e) = self.cfg.save() {
                             tracing::warn!(id = e.message_id(), "Benutzername nicht gespeichert");
                         }
+                        // das Backend kennt die Daten schon (Passwort im RAM) – nicht neu bauen
+                        self.registry.adopt_atrust_settings(&self.cfg);
                     }
                 }
             }
@@ -1246,6 +1346,7 @@ impl CoreTask {
                     if let Err(e) = self.cfg.save() {
                         tracing::warn!(id = e.message_id(), "Einstellungen nicht gespeichert");
                     }
+                    self.registry.adopt_atrust_settings(&self.cfg);
                 }
             }
             BackendEvent::ServerTime(server) => {
@@ -1340,6 +1441,9 @@ impl CoreTask {
             State::Starting => StepView::Starting,
             State::Idle { .. } => StepView::Open { queue: self.queue_items() },
             State::Analyzing { .. } => StepView::Loading { queue: self.queue_items() },
+            State::AnalysisWarning { warnings, doc, .. } => {
+                StepView::Warning { doc: self.doc_info(doc.id), codes: warnings.clone() }
+            }
             State::PlaceholderQuestion { found, doc, .. } => {
                 let (fields, qr) = match found {
                     pdfover_workflow::PlaceholderFound::Fields(f) => (
