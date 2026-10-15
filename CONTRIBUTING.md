@@ -3,7 +3,12 @@
 *English summary below.*
 
 Danke für Ihr Interesse! PIDA ist ein PDF-Signaturwerkzeug für ID Austria (Rust-Kern + Tauri 2, Lizenz
-**EUPL-1.2**). Beiträge sind willkommen – Fehlerberichte, Verbesserungsvorschläge, Dokumentation und Code.
+**EUPL-1.2**).
+
+> **Derzeit nur auf Einladung:** Issues, Kommentare und Pull-Requests sind vorerst auf eingeladene Mitwirkende
+> beschränkt. Sie können den Code unter der EUPL-1.2 frei nutzen und forken. Sicherheitslücken melden Sie
+> weiterhin vertraulich wie in [SECURITY.md](SECURITY.md) beschrieben. Die folgenden Regeln gelten für
+> eingeladene Mitwirkende.
 
 ## Bevor Sie loslegen
 
@@ -49,7 +54,9 @@ Beiträge werden unter der **EUPL-1.2** veröffentlicht, derselben Lizenz wie da
 
 ## English summary
 
-Contributions are welcome. Please open an issue before large changes, never report security issues publicly
+Contributions are currently by invitation only (issues, comments and pull requests are limited to
+collaborators); you are free to use and fork the code under the EUPL-1.2, and security reports still go through
+private vulnerability reporting. Invited contributors: please open an issue before large changes, never report security issues publicly
 (see [SECURITY.md](SECURITY.md)), send pull requests against `main` with a green CI, add tests, keep texts in
 German and English, use only EUPL-compatible dependencies, never use real credentials or contact A-Trust in
 tests, and sign off your commits (`git commit -s`, DCO). Contributions are licensed under the EUPL-1.2.

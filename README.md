@@ -23,7 +23,7 @@ verbindliche Präzisierungen aus dem Schnittstellen-Review: §8.
 
 ## Mitarbeit und Sicherheit
 
-Beiträge sind willkommen – siehe [CONTRIBUTING.md](CONTRIBUTING.md). Sicherheitslücken bitte vertraulich melden,
+Beiträge derzeit nur auf Einladung – siehe [CONTRIBUTING.md](CONTRIBUTING.md). Sicherheitslücken bitte vertraulich melden,
 wie in [SECURITY.md](SECURITY.md) beschrieben (nicht als öffentliches Issue).
 
 ## Struktur
