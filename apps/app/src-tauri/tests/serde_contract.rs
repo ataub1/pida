@@ -24,8 +24,8 @@ use pdfover_core_api::{
     ViewState,
 };
 use pdfover_i18n::Lang;
-use pdfover_placement::Placement;
 use pdfover_pades::{AcceptanceClass, OutputInfo};
+use pdfover_placement::Placement;
 use pdfover_workflow::{DocId, DocResult, MainBarStep, Step, WorkflowError};
 
 const VIEW_FIXTURE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/core/fixtures/view-states.json");
@@ -170,7 +170,10 @@ fn samples() -> Vec<(&'static str, ViewState)> {
             name: "c.pdf".into(),
             input: PathBuf::from("/Users/demo/c.pdf"),
             result: DocResult::Failed {
-                error: WorkflowError::Rejected { class: AcceptanceClass::K5Rejected, code: "ng-document-rejected".into() },
+                error: WorkflowError::Rejected {
+                    class: AcceptanceClass::K5Rejected,
+                    code: "ng-document-rejected".into(),
+                },
             },
         },
     ];

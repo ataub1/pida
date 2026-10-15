@@ -41,6 +41,22 @@
 //! `reset_settings`), `done` (Ergebnisliste), `main_bar` (Matrix docs/analyse/01 §3.5).
 //! Dateien öffnen bzw. URLs im Browser übernimmt die Shell über [`ShellHooks`] ([`Core::set_shell`]).
 //!
+//! # Vertrag Kern ↔ Oberfläche (Welle 3)
+//!
+//! `view.rs` ist die **einzige Quelle**: die TypeScript-Typen der Oberfläche
+//! (`apps/app/src/core/generated.ts`) entstehen daraus mit ts-rs (Modul `ts`, Feature `ts`); der Test
+//! `tests/ts_bindings.rs` schlägt bei jeder Abweichung fehl. Entscheidungen zu den Vorschlägen der
+//! Oberfläche (`extensions.ts`, entfernt):
+//!
+//! | Vorschlag der UI | Entscheidung |
+//! |---|---|
+//! | `OutputView.prompt` (`save_path`/`overwrite`) | ersetzt durch die vorhandenen Felder [`OutputView::save_dialog`] (Startordner + Namensvorschlag) und [`OutputView::ask_overwrite`]; Antworten `save{path}` bzw. `confirm_overwrite` |
+//! | `ViewState.notification` (ein Toast mit `id`) | ersetzt durch [`ViewState::notices`] (Liste, älteste zuerst, schließen mit `dismiss_notice{id}`) – mehrere Hinweise gehen nicht verloren |
+//! | `UiEvent::ChooseInvisible` | übernommen: [`UiEvent::ChooseInvisible`] → `Event::InvisibleChosen` → unsichtbare Signatur nur für dieses Dokument |
+//! | Schlüssel von `SettingsView::problems` | TOML-Punktpfade der Felder (`proxy.host`, `output.folder`, `keystore.file`, `signature.emblem` …) |
+//! | `Position.announce` | Schlüssel `page`, `pages`, `left`, `bottom` (mm, ganzzahlig) |
+//! | Migrationsassistent | [`MigrationOfferView::plaintext_secrets`] ergänzt: die UI fragt nur dann nach der Übernahme der Passwörter in den Schlüsselbund |
+//!
 //! Ownership: **Integration**.
 
 mod backends;
@@ -415,7 +431,7 @@ impl Core {
             *self.shared.tile_scale.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = scale;
         }
         match self.shared.docs.tile(doc, page, scale, render.as_ref())? {
-            Some(png) => Ok(png.as_ref().clone()),
+            Some(png) => Ok(png.to_vec()),
             None => Err(CoreError::UnknownDocument(doc)),
         }
     }
@@ -436,8 +452,7 @@ impl Core {
             .clone()
             .ok_or(CoreError::NoPreview)?;
         let scale = if scale.is_finite() && scale > 0.0 { scale.min(16.0) } else { 1.0 };
-        let data: Arc<[u8]> = Arc::from(pdf.as_slice());
-        let renderer = render.open(data, None)?;
+        let renderer = render.open(pdf, None)?;
         let image = renderer.render_page(0, scale)?;
         Ok(pdfover_render::encode_png(&image)?)
     }
@@ -453,6 +468,11 @@ impl Core {
                 return ExitCode::General;
             }
         }
+    }
+
+    /// Renderer (PDFium) gebunden? Ohne ihn gibt es keine Vorschau, die Position ist automatisch.
+    pub fn has_renderer(&self) -> bool {
+        self.shared.render.is_some()
     }
 
     /// Setzt die Shell-Funktionen (Öffnen von Dateien/URLs, Elternfenster).

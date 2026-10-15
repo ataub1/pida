@@ -1100,7 +1100,8 @@ export type SettingsView = {
  */
 settings: Settings, 
 /**
- * Validierungsprobleme je Feld (i18n-IDs)
+ * Validierungsprobleme je Feld: Schlüssel = TOML-Punktpfad des Felds (`proxy.host`,
+ * `output.folder`, `keystore.file` …), Wert = i18n-ID
  */
 problems: { [key in string]: string }, 
 /**

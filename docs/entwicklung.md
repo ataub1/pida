@@ -2,7 +2,7 @@
 
 Praktische Anleitung für Setup, Tests, CI, Lizenzen und Releases. Verbindlich bleiben
 [Plan](00-architektur-und-umsetzungsplan.md) und [ADR 0001](adr/0001-workspace-und-schnittstellen.md);
-dieses Dokument beschreibt, *wie* man damit arbeitet. Stand: 15.10.2026 (Welle 2, Paket I4).
+dieses Dokument beschreibt, *wie* man damit arbeitet. Stand: 15.10.2026 (Welle 3, Track T1).
 
 ## 1. Schnellstart
 
@@ -94,6 +94,35 @@ tools/cross-clippy.sh x86_64-pc-windows-msvc        # CI-Clippy für Windows/Lin
   `libsoup-3.0-dev`, `libjavascriptcoregtk-4.1-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`,
   `libxdo-dev` und vor dem Rust-Build ein gebautes Frontend (`npm ci && npm run build` in `apps/app`).
 
+**App (Tauri-Shell, `apps/app`)** – Befehle im Ordner `apps/app`:
+
+```sh
+npm ci && npm run build && npm test           # Oberfläche (tsc strict, Vite, Vitest)
+cargo test -p pdfover-app                     # Shell: Startargumente, Kernstart, Protokoll, Sicherheitskonfiguration
+npm run notices                               # THIRD-PARTY-NOTICES nach target/notices (für das Bundle)
+PDFOVER_PDFIUM_DIR=… npm run bundle:mac:debug     # .app (Debug) mit libpdfium.dylib und Hinweisen
+PDFOVER_PDFIUM_DIR=… npm run bundle:mac:release   # .app + .dmg (Release); verlangt PDFium und Hinweise
+PDFOVER_PDFIUM_DIR=… npm run bundle:debug         # Debug-Bundles der Plattform (alle Formate)
+PDFOVER_SMOKE=1 HOME="$(mktemp -d)" "../../target/debug/bundle/macos/PDF-Over NG.app/Contents/MacOS/pdf-over-ng"
+```
+
+- `scripts/bundle-config.mjs` erzeugt die Tauri-Ergänzung `src-tauri/bundle.conf.json` (nicht
+  versioniert): PDFium aus `PDFOVER_PDFIUM_DIR` (macOS `Contents/Frameworks`, sonst Ressourcen `pdfium/`)
+  und die Hinweise aus `PDFOVER_NOTICES_DIR` (Standard `target/notices`) als Ressourcen; mit
+  `--require-pdfium`/`--require-notices` bricht es ab, wenn etwas fehlt (Release, CI).
+- **Startprüfung** `PDFOVER_SMOKE=1`: Die App beendet sich, sobald die Oberfläche den ersten ViewState
+  abgefragt hat und der Kern bereit ist, und schreibt `pdfover-smoke: ok step=… pdfium=… webview_ms=…
+  core_ms=…` auf stdout (Exit 0; ohne Antwort binnen 60 s Exit 3). `HOME` (Windows: `APPDATA`,
+  `LOCALAPPDATA`) auf einen leeren Ordner setzen – die App legt sonst Log und Fensterzustand im echten
+  Benutzerprofil an.
+- **Bridge-Typen**: `crates/core-api/src/view.rs` ist die einzige Quelle; `apps/app/src/core/generated.ts`
+  entsteht mit ts-rs 12.0.1 (`PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings`), der Test
+  schlägt bei jeder Abweichung fehl. Fremde Typen (Settings, Placement, pades) haben Spiegel mit
+  vollständiger `From`-Abbildung und Serialisierungstest (`core-api/src/ts.rs`, `workflow/src/ts_mirror.rs`,
+  `backend-api/src/ts_mirror.rs`, Feature `ts`). Beispiel-JSON beider Richtungen:
+  `PDFOVER_BLESS=1 cargo test -p pdfover-app --test serde_contract` bzw.
+  `PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts`.
+
 ## 5. Lints und Formatierung
 
 - `cargo fmt --all` (rustfmt.toml: Breite 120). Pakete formatieren nur ihre eigenen Crates (`cargo fmt -p …`).
@@ -109,13 +138,13 @@ tools/cross-clippy.sh x86_64-pc-windows-msvc        # CI-Clippy für Windows/Lin
   `--no-deps` ist nötig, weil `-D warnings` sonst auch für mitübersetzte Workspace-Abhängigkeiten gilt.
   Lokal gleichwertig:
   `cargo clippy --workspace --exclude <je Eintrag aus CLIPPY_LENIENT> --no-deps --all-targets --locked -- -D warnings`.
-- `CLIPPY_LENIENT` (Stand Welle 2): `pdfover-pades`, `pdfover-workflow`, `pdfover-core-api`,
-  `pdfover-cli` (Stubs, Pakete I1/I2) sowie `pdfover-pdf-cos`, `pdfover-sigblock`,
-  `pdfover-backend-keystore` wegen je einer `dead_code`-Warnung in fremder Ownership:
-  `crates/pdf-cos/src/lexer.rs:459` (Feld `end`), `crates/sigblock/src/fonts.rs:169` (Feld `scaling`),
-  `crates/backend-keystore/tests/backend.rs:30` (Funktion `copy_to`). Behebung: entfernen oder mit
-  `#[allow(dead_code, reason = "…")]` begründen, dann das Crate aus der Liste streichen. Ziel ist eine
-  leere Liste.
+- `CLIPPY_LENIENT` (Stand Welle 3): `pdfover-pades`, `pdfover-pdf-cos`, `pdfover-sigblock`,
+  `pdfover-placement`, `pdfover-backend-keystore` wegen je einer `dead_code`-Warnung in fremder Ownership:
+  `crates/pades/src/signed.rs:149` (Feld `written`), `crates/pdf-cos/src/lexer.rs:459` (Feld `end`),
+  `crates/sigblock/src/fonts.rs:169` (Feld `scaling`), `crates/placement/tests/golden_pdfas442.rs:78`
+  (Feld `profile`), `crates/backend-keystore/tests/backend.rs:30` (Funktion `copy_to`). `pdfover-workflow`, `pdfover-core-api`, `pdfover-cli` und `pdfover-app` sind seit
+  Welle 3 streng geprüft. Behebung: entfernen oder mit `#[allow(dead_code, reason = "…")]` begründen,
+  dann das Crate aus der Liste streichen. Ziel ist eine leere Liste.
 
 ## 6. Abhängigkeiten, Lizenzen, Lieferkette
 
@@ -131,29 +160,25 @@ cargo deny --locked check          # advisories bans licenses sources
 ```
 
 - *Lizenzen*: Allowlist nach Plan §2.5/§10.2 (MIT, Apache-2.0, BSD-2/3, ISC, Zlib, MPL-2.0,
-  Unicode-3.0, BSL-1.0, OFL-1.1/Bitstream-Vera), `confidence-threshold = 0.93`, keine Ausnahmen
-  (`webpki-root-certs`/CDLA zieht rustls-platform-verifier nur unter wasm32). Ausgewertet werden genau
-  die 12 Auslieferungsziele und alle Features.
+  Unicode-3.0, BSL-1.0, OFL-1.1/Bitstream-Vera), `confidence-threshold = 0.93`. Einzige Ausnahme (seit
+  Welle 3, Tauri): `target-lexicon` mit `Apache-2.0 WITH LLVM-exception` (Build-Abhängigkeit von
+  `cfg-expr`/`system-deps` unter Linux), gleichlautend in `tools/licenses/about.toml`
+  (`[target-lexicon] accepted`). `webpki-root-certs`/CDLA zieht rustls-platform-verifier nur unter
+  wasm32. Ausgewertet werden genau die 12 Auslieferungsziele und alle Features.
 - *Advisories*: Lücken, `yanked`, `unmaintained` und `unsound` brechen den Build (auch transitiv);
-  einzige Ausnahme RUSTSEC-2023-0071 (rsa/Marvin, nur Entschlüsseln betroffen, Plan §2.1).
-- *Bans*: doppelte Versionen = Fehler; die 26 bekannten Duplikate stehen mit Begründung in `skip`
-  (vor allem die zweite RustCrypto-Generation über p12-keystore/lopdf/secret-service, ADR 0001 §5.2).
+  begründete Ausnahmen: RUSTSEC-2023-0071 (rsa/Marvin, nur Entschlüsseln betroffen, Plan §2.1),
+  RUSTSEC-2024-0370 (proc-macro-error „unmaintained“, nur Build-Zeit über glib-macros 0.18/Tauri, Linux)
+  und RUSTSEC-2024-0429 (glib 0.18 `VariantStrIter` unsound, gtk-rs 0.18 über Tauri unter Linux, ungenutzt).
+- *Bans*: doppelte Versionen = Fehler; die bekannten Duplikate stehen mit Begründung in `skip`
+  (die zweite RustCrypto-Generation über p12-keystore/lopdf/secret-service, ADR 0001 §5.2, und seit
+  Welle 3 die Tauri-Plattformschichten: gtk-rs 0.18, jni 0.21, ico/schemars, windows-sys 0.45/0.60).
   Verboten: GPL/AGPL-PDF-Crates (`pdfium`, `mupdf`, `pdf_signer`, `pdfluent`), `openssl`/`native-tls`,
   `aws-lc-*`; rustls ohne `aws_lc_rs`/`fips`, reqwest ohne `default-tls`/`native-tls`/`rustls`.
 - *Quellen*: nur crates.io.
 - Bringt eine Änderung ein neues Duplikat oder eine neue Lizenz, wird sie bewertet und begründet in
   `deny.toml` eingetragen – nie pauschal (`skip-tree`, globale Lizenz) freigeschaltet.
-- **Erwartet mit der Tauri-Shell** (Probe 15.10.2026: Workspace + `tauri` 2.12.4/`tauri-build` 2.7.3
-  ohne Plugins): eine Lizenz `Apache-2.0 WITH LLVM-exception` (`target-lexicon` 0.12 über
-  `cfg-expr`/`system-deps`, nur Build-Zeit unter Linux → Ausnahme nur für dieses Crate) und 25 weitere
-  doppelte Crates (`alloc-no-stdlib`, `alloc-stdlib`, `base64`, `bitflags`, `brotli-decompressor`,
-  `getrandom`, `hashbrown`, `heck`, `indexmap`, `jni`, `jni-sys`, `png`, `proc-macro-crate`,
-  `serde_spanned`, `syn`, `thiserror`, `thiserror-impl`, `toml`, `toml_datetime`, `toml_edit`,
-  `windows-sys`, `windows-targets`, `windows_aarch64_msvc`, `windows_x86_64_msvc`, `winnow`). Sie
-  werden bei der Aufnahme von `apps/app/src-tauri` mit Begründung in `skip` eingetragen (die genauen
-  Versionen nennt `cargo deny check bans`). Dieselbe Lizenz-Ausnahme braucht `tools/licenses/about.toml`
-  (sonst bricht `cargo about --fail` im Job `notices` ab), dort als crate-bezogene Klarstellung bzw.
-  `accepted`-Eintrag nur für `target-lexicon`.
+- Ein Tauri-Update bringt in der Regel neue bzw. wegfallende Duplikate: `cargo deny --locked check bans`
+  nennt die genauen Versionen; veraltete `skip`-Einträge meldet cargo-deny als Warnung.
 
 **THIRD-PARTY-NOTICES** (Plan §10.2; CI-Job `notices` lädt das Ergebnis als Artefakt hoch):
 
@@ -166,14 +191,17 @@ Enthält PDFium samt mitgebauten Bibliotheken (aus dem PDFium-Paket), die Font-/
 (`tools/licenses/about.toml`, `about.hbs`; Dev-Abhängigkeiten ausgenommen, Build-Abhängigkeiten
 enthalten) mit den NOTICE-Dateien von Apache-2.0-Crates, die Rust-Standardbibliothek (steht nicht in
 `Cargo.lock`, ist aber in jeder Binary: MIT-/Apache-Text aus der Toolchain, vollständige Hinweise als
-`RUST-STD-COPYRIGHT.html` daneben) und – sobald `apps/app/package-lock.json` existiert – die
-npm-Laufzeitabhängigkeiten. Beide Dateien gehören in das Über-Fenster bzw. jedes Paket. PDFium-Lizenzen
-stammen aus dem Paket der Host-Plattform; für ein anderes Paket `--pdfium <plattform>` angeben.
+`RUST-STD-COPYRIGHT.html` daneben) und die npm-Laufzeitabhängigkeiten von `apps/app` (ohne Lizenzdatei
+im Paket, z. B. `@fluent/bundle`: Urheber und Verweis auf den SPDX-Standardtext). Beide Dateien kommen
+über `scripts/bundle-config.mjs` als Ressourcen in jedes App-Bundle; „Drittlizenzen anzeigen“ im
+Über-Tab öffnet sie (Command `open_notices`). PDFium-Lizenzen stammen aus dem Paket der Host-Plattform;
+für ein anderes Paket `--pdfium <plattform>` angeben.
 
 **npm** (Plan §2.5: dieselbe Allowlist für die UI): `node tools/npm-licenses.mjs apps/app/package-lock.json`
 prüft das Lockfile – Laufzeitpakete gegen die Allowlist, reine Build-Werkzeuge (`dev: true`) zusätzlich
 gegen übliche permissive Daten-/Werkzeuglizenzen (CC0, CC-BY, 0BSD, BlueOak, Python-2.0 …); Copyleft und
-fehlende Angaben brechen ab. `devOptional`-Pakete zählen zur Laufzeit (npm installiert sie auch ohne
+fehlende Angaben brechen ab. Ausnahmen je Paket stehen mit Begründung in `RUNTIME_EXCEPTIONS` (derzeit
+`tslib`, 0BSD, Laufzeit-Helfer von react-aria-components). `devOptional`-Pakete zählen zur Laufzeit (npm installiert sie auch ohne
 Dev-Abhängigkeiten), eigene Workspace-Pakete (Einträge außerhalb `node_modules/`) werden übersprungen.
 Alles, was der Bundler in die App übernimmt – auch Framework-Laufzeit –, gehört in `dependencies`, sonst
 fehlt es in den Hinweisen. Mit `--notices <datei>` entstehen die Hinweise; `--self-test` prüft Parser und
@@ -189,8 +217,11 @@ Einordnung (CI-Job `deny`).
   stehen in `pdfover-ng.ftl` unter **ihrem Code als ID**; Codes mit Punkt (`render.failed`) werden mit
   `pdfover_i18n::fluent_id_for_java_key` abgebildet (`render-failed`). Variablen heißen wie die Felder
   der Variante (`$detail` für Freitext, `$status`, `$code` …).
-- `NoticeCode`/`FormProblem` (backend-api) tragen keinen Code-String; die Zuordnung zu Katalog-IDs
-  steht in `crates/i18n/tests/code_catalog.rs` (`NOTICE_CODE_IDS`, `FORM_PROBLEM_IDS`).
+- `NoticeCode::code()`/`FormProblem::code()` (backend-api) liefern die Katalog-ID jeder Variante; der
+  Test `notice_and_form_variants_have_codes` verlangt eine Abbildung je Variante ohne `_ =>`.
+- **Eine Quelle für alle Oberflächen**: Kern, CLI (`apps/cli/src/text.rs`, keine eigenen Texte mehr) und
+  UI (`apps/app/src/i18n`, Texte `ng-ui-*`) lesen dieselben Dateien. Die Welle-2-Liste
+  (`docs/integration/wave2-message-ids.json`) prüft `wave2_message_ids_are_in_catalog`.
 - Neuer Code: im Crate einführen, DE- und EN-Text mit denselben Variablen in beide `pdfover-ng.ftl`
   eintragen, `cargo test -p pdfover-i18n` ausführen. Der Test `code_catalog` findet jeden Code im
   Quelltext (`fn code`/`fn message_id`, `NOTICE_*`, Literale der Familien `ng-`, `cms-`, `keystore-`,
@@ -208,6 +239,7 @@ Einordnung (CI-Job `deny`).
 | `notices` | `tools/third-party-notices.sh`, Artefakt `THIRD-PARTY-NOTICES` (`.md` + `RUST-STD-COPYRIGHT.html`) | ja |
 | `mobile` | `cargo check` für `aarch64-apple-ios` und `aarch64-linux-android` (NDK des Runners) | verifizierte Crates ja, ganzer Workspace informativ |
 | `app` | nur wenn `apps/app/package.json` existiert: Lockfile-Pflicht, npm-Lizenzprüfung, `npm ci`, `lint`/`build`/`test` (falls vorhanden) | ja |
+| `bundle` (ubuntu, macOS, Windows) | Tauri-Debug-Bundle mit PDFium (`deb`/`app`/`nsis`), Hinweise auf Linux/macOS, Größe in der Zusammenfassung, Startprüfung `PDFOVER_SMOKE=1` (Linux mit `xvfb-run`), Bundle als Artefakt | ja; Startprüfung nur unter macOS blockierend |
 
 Caching: `Swatinem/rust-cache` (Speichern nur auf `main`), PDFium, pip, npm. Actions sind auf
 Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lokal
@@ -221,7 +253,7 @@ Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lok
 |---|---|
 | `x86_64-pc-windows-msvc` | ok: java-properties, i18n, pdf-cos, pdf-incremental, cades, sigblock, placement, render, sl12, backend-api, config, backend-keystore, pades, workflow. Fehlschlag nur am C-Build von `ring` (kein MSVC/Windows-SDK auf macOS): net, backend-localbku, backend-atrust (`fido2-windows`), core-api, cli → CI `windows-latest` |
 | `x86_64-unknown-linux-gnu` | wie Windows: alle reinen Rust-Crates ok, `ring`-abhängige nur nativ (CI `ubuntu-latest`) |
-| `aarch64-apple-ios` | ok: alle Crates außer config/workflow/core-api/cli (ring baut mit Xcode). **Blocker:** `keyring` 4 → `apple-native-keyring-store` 1.0.2 verlangt unter iOS das Feature `protected` (`compile_error!`). Behoben in Welle 2: `time` ohne `local-offset` (zog `num_threads` 0.1.7, das für iOS nicht übersetzt) |
+| `aarch64-apple-ios` | ok: alle Crates außer cli (ring baut mit Xcode). Seit Welle 3 bindet `pdfover-config` `keyring` nur auf Desktop-Zielen ein (unter iOS verlangte `apple-native-keyring-store` 1.0.2 das Feature `protected`); auf Mobile liefert `platform_secret_store` den Platzhalter `MobileSecretStorePlaceholder`, bis die Mobile-Shell ihren Speicher setzt. Behoben in Welle 2: `time` ohne `local-offset` |
 | `aarch64-linux-android` | ok: alle reinen Rust-Crates inkl. config/workflow; `ring`-abhängige brauchen das NDK (`CC_aarch64_linux_android`), CI-Job `mobile` setzt es |
 
 **Clippy für Fremdziele** (`tools/cross-clippy.sh <ziel>`, Review Welle 2): stellt die blockierenden
@@ -233,10 +265,15 @@ atrust, core-api und cli geprüft werden. Ergebnis 15.10.2026: beide Ziele grün
 begründetem `allow` versehen wurde – ohne das wäre `clippy -D warnings` auf `windows-latest` rot gewesen.
 Tests und Linken bleiben der nativen CI vorbehalten.
 
+Seit Welle 3 gehört die Tauri-Shell (`pdfover-app`) zum Workspace: Für `x86_64-pc-windows-msvc` braucht
+ihr Build-Skript den Ressourcen-Compiler `llvm-rc` (`brew install llvm` bzw. für die reine Typprüfung ein
+Platzhalter, der eine leere `.res` schreibt) – damit ist der Windows-Lauf am 15.10.2026 grün, einschließlich
+des `cfg(windows)`-Codes der Shell (Elternfenster für Windows Hello). Für `x86_64-unknown-linux-gnu`
+verlangen die gtk-rs-Sys-Crates eine Linux-Sysroot mit `pkg-config`; ohne sie bricht der Lauf an
+`glib-sys` ab – Linux prüft die CI nativ.
+
 Gefunden und behoben: `trivial_numeric_casts` schlug nur für Windows an (`c_ulong` in render/ffi) und
-ist deshalb nicht Teil der Workspace-Lints. Offen für Mobile: `pdfover-config` sollte `keyring` nur auf
-Desktop-Zielen einbinden (`[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]`
-plus `cfg` um `KeyringSecretStore`); Mobile nutzt ohnehin das `secure-store`-Plugin (Plan §3.1).
+ist deshalb nicht Teil der Workspace-Lints.
 
 ## 10. Release-Grundgerüst
 
@@ -256,5 +293,6 @@ Noch kein Release-Workflow; die Bausteine stehen fest:
    Paketquellen/Flathub.
 7. **Abnahme**: Größen-Gate ≤ 25 MB je Desktop-Installer (Plan §9.1), Smoke-Test je Paket.
 
-Ein `.github/workflows/release.yml` folgt, sobald die Tauri-Shell (Paket I3) bündelt; Signier-Secrets
+Die Tauri-Shell bündelt seit Welle 3 (`npm run bundle:mac:release` u. a., Abnahme:
+`docs/integration/app-abnahme.md`); ein `.github/workflows/release.yml` mit Signieren folgt. Signier-Secrets
 gehören dem Auftraggeber (Plan §9.3, E-13).

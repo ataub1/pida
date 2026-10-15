@@ -518,3 +518,7 @@ ng-ui-migrate-accept = Import
 ng-ui-migrate-decline = Do not import
 ng-ui-settings-read-only = These settings are not saved (configuration given with -c or unreadable settings file). Changes apply until the program ends.
 ng-cli-fido2-pin = Security key PIN:{ " " }
+ng-certcache-mismatch = The certificate has changed (for example renewed, or a different account). The signature was discarded. "Retry" reads the certificate again, rebuilds the signature block with the new details and asks for confirmation again.
+ng-placeholder-profile-unknown = The signature placeholder names the unknown profile "{ $profile }"; the configured profile is used for signing.
+ng-ui-args-cli-only = The option { $option } is only available on the command line (pdfover-cli).
+ng-ui-about-notices = Show third-party licenses

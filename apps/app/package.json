@@ -18,8 +18,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri",
-    "bundle:debug": "node scripts/pdfium-config.mjs --out src-tauri/pdfium.conf.json && tauri build --debug --config src-tauri/pdfium.conf.json",
-    "bundle:mac:debug": "node scripts/pdfium-config.mjs --out src-tauri/pdfium.conf.json && tauri build --debug --bundles app --config src-tauri/pdfium.conf.json"
+    "notices": "bash ../../tools/third-party-notices.sh",
+    "bundle:debug": "node scripts/bundle-config.mjs --out src-tauri/bundle.conf.json && tauri build --debug --config src-tauri/bundle.conf.json",
+    "bundle:mac:debug": "node scripts/bundle-config.mjs --out src-tauri/bundle.conf.json && tauri build --debug --bundles app --config src-tauri/bundle.conf.json",
+    "bundle:release": "node scripts/bundle-config.mjs --require-pdfium --require-notices --out src-tauri/bundle.conf.json && tauri build --config src-tauri/bundle.conf.json",
+    "bundle:mac:release": "node scripts/bundle-config.mjs --require-pdfium --require-notices --out src-tauri/bundle.conf.json && tauri build --bundles app,dmg --config src-tauri/bundle.conf.json"
   },
   "dependencies": {
     "@fluent/bundle": "0.19.1",

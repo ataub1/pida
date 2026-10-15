@@ -127,7 +127,8 @@ impl CoreBroker {
         InteractionView::Waiting { progress: inner.progress.clone().unwrap_or(Progress::Connecting) }
     }
 
-    /// Gibt es eine offene Anfrage?
+    /// Gibt es eine offene Anfrage? (Tests)
+    #[cfg(test)]
     pub(crate) fn has_pending(&self) -> bool {
         !self.lock().pending.is_empty()
     }

@@ -3766,8 +3766,10 @@ dependencies = [
 name = "pdfover-app"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "pdfover-backend-api",
  "pdfover-backend-atrust",
+ "pdfover-cli",
  "pdfover-config",
  "pdfover-core-api",
  "pdfover-i18n",
@@ -3787,6 +3789,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "zeroize",
 ]
 
 [[package]]

@@ -64,7 +64,10 @@ fn every_referenced_type_is_declared() {
         }
         if !ident.is_empty() {
             let is_type = ident.starts_with(|c: char| c.is_ascii_uppercase());
-            if is_type && !after_type_keyword && !declared.contains(ident.as_str()) && !BUILTIN.contains(&ident.as_str())
+            if is_type
+                && !after_type_keyword
+                && !declared.contains(ident.as_str())
+                && !BUILTIN.contains(&ident.as_str())
             {
                 missing.insert(ident.clone());
             }

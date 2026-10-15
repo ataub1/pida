@@ -39,7 +39,9 @@ pub use migrate::{
 pub use overlay::{Effective, Overlay};
 pub use paths::Paths;
 pub use policy::Policy;
-pub use secrets::{KeyringSecretStore, MemorySecretStore, SecretId, SecretStore, platform_secret_store};
+pub use secrets::{
+    KeyringSecretStore, MemorySecretStore, MobileSecretStorePlaceholder, SecretId, SecretStore, platform_secret_store,
+};
 pub use settings::{
     BackendChoice, BackendSettings, CertificateCacheSettings, CmsProfileChoice, GeneralSettings, IdAustriaSettings,
     KeystoreSettings, LoadOutcome, NoteSetting, OutputSettings, PasswordStorage, PlaceholderKind, PlaceholderSettings,

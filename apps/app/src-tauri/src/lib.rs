@@ -7,15 +7,26 @@
 //! Components) projiziert nur den Zustand.
 //!
 //! Plattformintegration:
-//! - **Single-Instance** (Desktop): eine zweite Instanz übergibt ihre Dokumente an die erste (F-13).
-//! - **„Öffnen mit“**: Startargumente ([`files::documents_from_args`]) unter Windows/Linux und
-//!   `RunEvent::Opened` (macOS-Apple-Events zur Datei-Zuordnung `.pdf` im Bundle; iOS/Android „Öffnen
-//!   in“). Das Plugin `deep-link` kommt erst mit eigenen URL-Schemata bzw. App Links (Szenario C/D,
+//! - **Startargumente** mit der vollständigen PDF-Over-Semantik ([`args`], derselbe Parser wie
+//!   `pdfover-cli`): `-i -o -b -n -p -ks… -proxy… -e -a -s -c -v` als Overlay des Kerns; ungültige
+//!   Argumente zeigen den Fehlerschritt (`error-CmdLineArgs`), `-h` gibt die Hilfe aus.
+//! - **Single-Instance** (Desktop): eine zweite Instanz übergibt ihre Dokumente an die erste (F-13,
+//!   [`args::second_instance_documents`]).
+//! - **„Öffnen mit“**: Startargumente unter Windows/Linux und `RunEvent::Opened`
+//!   (macOS-Apple-Events zur Datei-Zuordnung `.pdf` im Bundle; iOS/Android „Öffnen in“).
+//! - **Shell-Funktionen** des Kerns ([`hooks`]): Ergebnis öffnen (F-87), „Signaturdaten anzeigen“ im
+//!   Browser (F-68), Elternfenster für Windows-Hello/FIDO2.
+//! - **Sprache**: `Lang::set_system` aus `sys-locale` (unter Windows/macOS-GUI fehlen POSIX-Variablen). Das Plugin `deep-link` kommt erst mit eigenen URL-Schemata bzw. App Links (Szenario C/D,
 //!   Mobile) hinzu; in v1 gäbe es nur tote Abhängigkeiten (u. a. `tiny-keccak`, CC0, im Lizenz-Gate).
 //! - **Drag & Drop** über die Fenster-Ereignisse von Tauri (Oberfläche: `onDragDropEvent`).
 //! - **Fensterzustand** (Plugin `window-state`), Dialoge (`dialog`), Öffnen im System (`opener`).
-//! - Logs: Datei im Log-Ordner der Plattform ([`pdfover_config::Paths`]), rotierend, ohne Secrets und
-//!   Dokumentinhalte (Regel 9).
+//! - Logs: Datei im Log-Ordner der Plattform ([`pdfover_config::Paths`]) über
+//!   `pdfover_core_api::logging` (rotierend auch während des Laufs), ohne Secrets und Dokumentinhalte
+//!   (Regel 9); Filter über `PDFOVER_LOG` bzw. `RUST_LOG`.
+//! - **Kernfehler**: Startfehler, Paniken und ein unerwartet beendeter Kern-Task erscheinen als
+//!   Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“ (Neustart des Kerns).
+//! - **Startprüfung** (`PDFOVER_SMOKE=1`): beendet die App, sobald die Oberfläche den ersten
+//!   ViewState abgefragt hat und der Kern bereit ist; gibt die Startzeiten auf stdout aus ([`smoke`]).
 //! - **Beenden** (Fenster schließen, ⌘Q): läuft über den Kern (`UiEvent::Quit` → `Finished`), damit
 //!   laufende Dialoge abgebrochen (F-73) und Einstellungen gesichert werden (F-105); antwortet der Kern
 //!   nicht binnen [`QUIT_GRACE`], endet die App trotzdem.
@@ -25,13 +36,16 @@
 //!
 //! Ownership: Paket **I3** (Welle 2), danach Integration.
 
+pub mod args;
 pub mod files;
+pub mod hooks;
 pub mod pdfium;
 pub mod protocol;
 pub mod shell;
+pub mod smoke;
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use pdfover_backend_api::Platform;
@@ -40,7 +54,11 @@ use pdfover_core_api::{CoreConfig, ViewState};
 use pdfover_i18n::Lang;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use args::GuiArgs;
 use shell::{DispatchOutcome, QuitRequest, Shell, Started};
+
+/// Meldungs-ID: der Kern-Task hat unerwartet geendet (Detail im Fehlerschritt).
+pub const CORE_STOPPED: &str = "ng-core-stopped";
 
 /// Name des Ereignisses mit dem jeweils aktuellen [`ViewState`].
 pub const VIEW_EVENT: &str = "pdfover:view";
@@ -60,7 +78,9 @@ pub struct AppInfo {
 }
 
 #[tauri::command]
-fn core_view(shell: State<'_, Shell>) -> ViewState {
+fn core_view(app: AppHandle, shell: State<'_, Shell>) -> ViewState {
+    // Startprüfung: die Oberfläche läuft und spricht mit der Shell
+    smoke::ui_ready(&app, &shell);
     shell.view()
 }
 
@@ -99,6 +119,22 @@ fn reveal_output(app: AppHandle, shell: State<'_, Shell>) -> Result<(), String> 
     app.opener().reveal_item_in_dir(path).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
+/// Name der Drittlizenz-Hinweise im Ressourcenordner (scripts/bundle-config.mjs, Plan §2.5).
+pub const NOTICES_FILE: &str = "THIRD-PARTY-NOTICES.md";
+
+/// Öffnet die Drittlizenz-Hinweise des Pakets (Über-Dialog); fehlen sie (Entwicklungsbuild ohne
+/// `npm run notices`), liefert der Command `ng-ui-open-failed`.
+#[tauri::command]
+fn open_notices(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let file = app.path().resource_dir().map(|d| d.join(NOTICES_FILE)).map_err(|_| "ng-ui-open-failed".to_owned())?;
+    if !file.is_file() {
+        tracing::info!("Drittlizenz-Hinweise nicht im Paket");
+        return Err("ng-ui-open-failed".to_owned());
+    }
+    app.opener().open_path(file.to_string_lossy(), None::<&str>).map_err(|_| "ng-ui-open-failed".to_owned())
+}
+
 /// Startet den Kern (bzw. erneut nach „Wiederholen“) und abonniert den ViewState.
 fn start_core(app: &AppHandle, shell: &Shell) {
     // Der Kern darf `tokio::spawn` im Kontext der Tauri-Laufzeit nutzen.
@@ -126,6 +162,12 @@ fn start_core(app: &AppHandle, shell: &Shell) {
                         break;
                     }
                     if rx.changed().await.is_err() {
+                        // Kern-Task beendet, ohne `Finished` zu melden: Fehlerschritt mit „Wiederholen“
+                        tracing::error!("Kern-Task unerwartet beendet");
+                        if let Some(shell) = app.try_state::<Shell>() {
+                            shell.mark_unavailable(CORE_STOPPED);
+                            let _ = app.emit(VIEW_EVENT, shell.view());
+                        }
                         break;
                     }
                 }
@@ -158,7 +200,7 @@ fn quit_via_core(app: &AppHandle) -> bool {
     }
 }
 
-fn core_config(app: &AppHandle) -> Result<CoreConfig, pdfover_config::ConfigError> {
+fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pdfover_config::ConfigError> {
     let paths = Paths::platform()?;
     let env_dir = pdfium::env_override();
     let exe = std::env::current_exe().ok();
@@ -166,7 +208,7 @@ fn core_config(app: &AppHandle) -> Result<CoreConfig, pdfover_config::ConfigErro
     let pdfium_dir = pdfium::find(&pdfium::candidates(env_dir, exe.as_deref(), resources.as_deref()));
     Ok(CoreConfig {
         paths,
-        overlay: Overlay::default(),
+        overlay,
         platform: Platform::current(),
         pdfium_dir,
         headless: false,
@@ -185,19 +227,17 @@ fn fido2_provider() -> Option<Arc<dyn pdfover_backend_atrust::Fido2Provider>> {
     None
 }
 
-/// Logdatei im Log-Ordner der Plattform (rotierend, Plan §7.1); Filter über `PDFOVER_LOG`.
-fn init_logging(paths: &Paths) {
-    use tracing_subscriber::EnvFilter;
-    let filter = EnvFilter::try_from_env("PDFOVER_LOG").unwrap_or_else(|_| EnvFilter::new("info"));
-    let file = paths
-        .rotate_logs(pdfover_config::paths::LOG_MAX_FILE_BYTES, pdfover_config::paths::LOG_KEEP)
-        .ok()
-        .and_then(|log| std::fs::OpenOptions::new().create(true).append(true).open(log).ok());
-    let builder = tracing_subscriber::fmt().with_env_filter(filter).with_ansi(false).with_target(true);
-    let _ = match file {
-        Some(file) => builder.with_writer(std::sync::Mutex::new(file)).try_init(),
-        None => builder.with_writer(std::io::stderr).try_init(),
-    };
+/// Hält den Schreib-Thread der Logdatei bis zum Programmende (beim Drop wird geleert).
+struct LogState(Mutex<Option<pdfover_core_api::logging::LogGuard>>);
+
+/// Logdatei im Log-Ordner der Plattform (rotierend, Plan §7.1); Filter über `PDFOVER_LOG` (bzw.
+/// `RUST_LOG`). In Debug-Builds zusätzlich stderr.
+fn init_logging(paths: &Paths) -> pdfover_core_api::logging::LogGuard {
+    let level = std::env::var("PDFOVER_LOG").ok().filter(|l| !l.trim().is_empty()).unwrap_or_else(|| "info".into());
+    pdfover_core_api::logging::init(
+        paths,
+        &pdfover_core_api::logging::LogOptions { level, stderr: cfg!(debug_assertions), file: true },
+    )
 }
 
 /// Logs nur auf stderr (ohne Konfiguration kein Log-Ordner).
@@ -208,10 +248,12 @@ fn init_logging_stderr() {
 }
 
 /// Systemsprache für `Lang::system` (unter Windows/macOS-GUI fehlen die POSIX-Variablen).
-fn init_language() {
-    if let Some(lang) = sys_locale::get_locale().as_deref().and_then(Lang::from_tag) {
-        Lang::set_system(Some(lang));
+fn init_language() -> Option<Lang> {
+    let lang = sys_locale::get_locale().as_deref().and_then(Lang::from_tag);
+    if lang.is_some() {
+        Lang::set_system(lang);
     }
+    lang
 }
 
 fn focus_main_window(app: &AppHandle) {
@@ -225,7 +267,23 @@ fn focus_main_window(app: &AppHandle) {
 /// Einstieg (Desktop über `main.rs`, Mobile über den Einstiegspunkt der Plattform).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    init_language();
+    smoke::mark_process_start();
+    let system_language = init_language();
+
+    // Startargumente wie PDF-Over (Hilfe/Version ohne Fenster).
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let start_args = args::parse_gui_args(std::env::args_os(), &cwd, &|name| std::env::var_os(name));
+    let start_args = match start_args {
+        GuiArgs::Help(text) => {
+            print!("{text}");
+            return;
+        }
+        GuiArgs::Version(text) => {
+            println!("{text}");
+            return;
+        }
+        other => other,
+    };
 
     let mut builder = tauri::Builder::default();
 
@@ -233,7 +291,7 @@ pub fn run() {
     {
         // Muss als erstes Plugin registriert werden.
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            let docs = files::documents_from_args(argv.iter().skip(1), std::path::Path::new(&cwd));
+            let docs = args::second_instance_documents(&argv, std::path::Path::new(&cwd));
             if let Some(shell) = app.try_state::<Shell>() {
                 shell.open_files(docs);
             }
@@ -257,30 +315,46 @@ pub fn run() {
                 responder.respond(response);
             });
         })
-        .invoke_handler(tauri::generate_handler![core_view, core_dispatch, app_info, open_log_dir, reveal_output])
-        .setup(|app| {
+        .invoke_handler(tauri::generate_handler![
+            core_view,
+            core_dispatch,
+            app_info,
+            open_log_dir,
+            reveal_output,
+            open_notices
+        ])
+        .setup(move |app| {
             let handle = app.handle().clone();
-            let shell = match core_config(&handle) {
+            let (overlay, args_error) = match start_args {
+                GuiArgs::Start(overlay) => (*overlay, None),
+                GuiArgs::Invalid { code, params } => (Overlay::default(), Some((code, params))),
+                GuiArgs::Help(_) | GuiArgs::Version(_) => (Overlay::default(), None),
+            };
+            let shell = match core_config(&handle, overlay) {
                 Ok(config) => {
-                    init_logging(&config.paths);
-                    Shell::new(config)
+                    app.manage(LogState(Mutex::new(Some(init_logging(&config.paths)))));
+                    match args_error {
+                        Some((code, params)) => {
+                            tracing::warn!(code = %code, "Startargumente ungültig – Kern startet nicht");
+                            Shell::start_error(Some(config), &code, params)
+                        }
+                        None => Shell::new(config),
+                    }
                 }
                 Err(e) => {
                     // ohne Benutzerordner: Fehlerschritt statt Panik beim Start
                     init_logging_stderr();
-                    tracing::error!(error = %e, "Konfiguration nicht ermittelbar");
+                    tracing::error!(id = e.message_id(), "Konfiguration nicht ermittelbar");
                     Shell::without_config(&e.to_string())
                 }
             };
             tracing::info!(version = %handle.package_info().version, "PDF-Over NG startet");
+            shell.set_system_language(system_language);
+            shell.set_hooks(Arc::new(hooks::TauriHooks::new(handle.clone())));
             app.manage(shell);
             let shell = handle.state::<Shell>();
             start_core(&handle, &shell);
-            // Dokumente aus den Startargumenten (Windows/Linux „Öffnen mit“, Kommandozeile); `args_os`,
-            // weil Dateinamen unter Unix kein UTF-8 sein müssen.
-            let cwd = std::env::current_dir().unwrap_or_default();
-            let docs = files::documents_from_args(std::env::args_os().skip(1), &cwd);
-            shell.open_files(docs);
+            smoke::arm_watchdog(&handle);
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -298,6 +372,12 @@ pub fn run() {
         tauri::RunEvent::ExitRequested { code: None, api, .. } => {
             if quit_via_core(app) {
                 api.prevent_exit();
+            }
+        }
+        tauri::RunEvent::Exit => {
+            // Logdatei leeren (nicht blockierender Schreiber)
+            if let Some(log) = app.try_state::<LogState>() {
+                drop(log.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take());
             }
         }
         #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]

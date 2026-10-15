@@ -10,6 +10,7 @@ fn main() {
         "app_info",
         "open_log_dir",
         "reveal_output",
+        "open_notices",
     ]));
     tauri_build::try_build(attributes).expect("tauri-build fehlgeschlagen");
 }

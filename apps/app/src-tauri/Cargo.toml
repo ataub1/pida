@@ -19,8 +19,8 @@ name = "pdf-over-ng"
 path = "src/main.rs"
 
 [build-dependencies]
-# Tauri 2.12.x exakt gepinnt (Plan §2.5); die Integration hebt die Einträge in [workspace.dependencies].
-tauri-build = { version = "=2.7.3", features = [] }
+# Tauri 2.12.x exakt gepinnt (Plan §2.5, [workspace.dependencies]).
+tauri-build = { workspace = true }
 
 [dependencies]
 pdfover-core-api = { workspace = true }
@@ -28,14 +28,18 @@ pdfover-config = { workspace = true }
 pdfover-backend-api = { workspace = true }
 pdfover-workflow = { workspace = true }
 pdfover-i18n = { workspace = true }
+# PDF-Over-Startargumente mit dem Parser der CLI (ohne Feature `run`), siehe src/args.rs
+pdfover-cli = { workspace = true }
+clap = { workspace = true }
+zeroize = { workspace = true }
 # Tauri 2.12.4 (Apache-2.0 OR MIT), Plan §2.1 „Tauri 2.12.x, gepinnt“.
-tauri = { version = "=2.12.4", features = [] }
+tauri = { workspace = true }
 # Datei-/Speichern-Dialoge (Apache-2.0 OR MIT).
-tauri-plugin-dialog = { version = "=2.8.3" }
+tauri-plugin-dialog = { workspace = true }
 # Ergebnis/Ordner/Links im System öffnen (Apache-2.0 OR MIT).
-tauri-plugin-opener = { version = "=2.7.2" }
+tauri-plugin-opener = { workspace = true }
 # OS-Sprache für `Lang::set_system` (MIT OR Apache-2.0), siehe docs/integration/wave1-offene-punkte.md.
-sys-locale = { version = "=0.3.2" }
+sys-locale = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
@@ -44,9 +48,9 @@ tracing-subscriber = { workspace = true }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # Nur Desktop: eine Instanz übernimmt „Öffnen mit“/„Senden an“ (Apache-2.0 OR MIT).
-tauri-plugin-single-instance = { version = "=2.5.4" }
+tauri-plugin-single-instance = { workspace = true }
 # Nur Desktop: Fenstergröße/-position merken (Apache-2.0 OR MIT).
-tauri-plugin-window-state = { version = "=2.5.0" }
+tauri-plugin-window-state = { workspace = true }
 
 # Natives FIDO2 nur auf dem Desktop (ADR 0001 §2): Windows über webauthn.dll, macOS/Linux über CTAP-HID.
 [target.'cfg(windows)'.dependencies]

@@ -294,7 +294,8 @@ pub struct SettingsView {
     /// Einstellungen (Schema `pdfover-config`)
     #[cfg_attr(feature = "ts", ts(as = "crate::ts::Settings"))]
     pub settings: pdfover_config::Settings,
-    /// Validierungsprobleme je Feld (i18n-IDs)
+    /// Validierungsprobleme je Feld: Schlüssel = TOML-Punktpfad des Felds (`proxy.host`,
+    /// `output.folder`, `keystore.file` …), Wert = i18n-ID
     pub problems: BTreeMap<String, String>,
     /// Schlüsselbund verfügbar
     pub keychain_available: bool,

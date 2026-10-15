@@ -371,6 +371,10 @@ export class MockCore implements Bridge {
     this.nativeCalls.push('openLogDir');
   }
 
+  async openNotices(): Promise<void> {
+    this.nativeCalls.push('openNotices');
+  }
+
   async appInfo() {
     return { version: '0.1.0', platform: 'mock', core_available: true };
   }

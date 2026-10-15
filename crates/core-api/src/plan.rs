@@ -175,12 +175,66 @@ impl std::fmt::Debug for SpecInput<'_> {
 
 /// Profil und Blockeingabe wie PDF-Over (`PdfAs4SignatureParameter`, docs/analyse/04 §2.8).
 pub fn block_spec(store: &ProfileStore, inp: SpecInput<'_>) -> Result<BlockSpec, PlanError> {
+    let profile_id = inp.effective.pdfas_profile_id(inp.system_language, inp.pdfa.is_some());
+    spec_for(store, profile_id, inp, true)
+}
+
+/// Hinweis beim Planen: Meldungs-ID und Wert des einzigen Parameters (`profile`).
+pub type PlanNotice = (&'static str, String);
+
+/// PDF-AS `placeholder_profile_overwrite` (Standard `true`, PDF-Over ändert ihn nicht): Ein
+/// QR-Platzhalter mit `profile=…` ersetzt das angefragte Profil (`PADESPDFBOXSigner.java:169-178`).
+pub const PLACEHOLDER_PROFILE_OVERWRITE: bool = true;
+
+/// Hinweis: der QR-Platzhalter nennt ein unbekanntes Profil (`$profile`); signiert wird mit dem
+/// eingestellten Profil.
+pub const NOTICE_PLACEHOLDER_PROFILE_UNKNOWN: &str = "ng-placeholder-profile-unknown";
+
+/// Wie [`block_spec`], aber mit dem Profil aus dem QR-Platzhalter (`PDF-AS-POS;…;profile=<ID>`,
+/// docs/analyse/04 §5.2 Punkt 5), wenn [`PLACEHOLDER_PROFILE_OVERWRITE`] gilt:
+///
+/// - gleiche ID wie das angefragte Profil → unverändert (Bildmarke, Hinweis gelten);
+/// - andere bekannte ID → dieses Profil **ohne** die PDF-Over-Overrides (Bildmarke `SIG_LABEL`,
+///   Hinweis `SIG_NOTE`): PDF-Over setzt sie je Profil-ID, für das Platzhalter-Profil gelten sie nicht
+///   (bei `BASE_LOGO` bleibt die Bildmarke, sonst wäre der Block leer);
+/// - unbekannte ID → angefragtes Profil und Hinweis [`NOTICE_PLACEHOLDER_PROFILE_UNKNOWN`]
+///   (PDF-AS bräche mit einem Profilfehler ab; NG signiert wie eingestellt und sagt es).
+///
+/// Liefert den Block und ggf. den Hinweis.
+pub fn placeholder_block_spec(
+    store: &ProfileStore,
+    inp: SpecInput<'_>,
+    qr_profile: Option<&str>,
+) -> Result<(BlockSpec, Option<PlanNotice>), PlanError> {
+    let requested = inp.effective.pdfas_profile_id(inp.system_language, inp.pdfa.is_some());
+    let wanted = qr_profile.map(str::trim).filter(|p| !p.is_empty());
+    match wanted {
+        Some(id) if PLACEHOLDER_PROFILE_OVERWRITE && id != requested => {
+            if store.get(id).is_some() {
+                tracing::info!(profile = id, "Profil aus dem QR-Platzhalter");
+                Ok((spec_for(store, id.to_owned(), inp, id == "BASE_LOGO")?, None))
+            } else {
+                tracing::warn!("QR-Platzhalter nennt ein unbekanntes Profil – eingestelltes Profil");
+                let notice = (NOTICE_PLACEHOLDER_PROFILE_UNKNOWN, id.to_owned());
+                Ok((spec_for(store, requested, inp, true)?, Some(notice)))
+            }
+        }
+        _ => Ok((spec_for(store, requested, inp, true)?, None)),
+    }
+}
+
+/// Block für `profile_id`; `overrides` = PDF-Over-Overrides (Bildmarke, Hinweis, BASE_LOGO-Maße).
+fn spec_for(
+    store: &ProfileStore,
+    profile_id: String,
+    inp: SpecInput<'_>,
+    overrides: bool,
+) -> Result<BlockSpec, PlanError> {
     let eff = inp.effective;
-    let profile_id = eff.pdfas_profile_id(inp.system_language, inp.pdfa.is_some());
     let base = store.profile(&profile_id)?;
     let lang = eff.block_language(inp.system_language);
-    let note = eff.note_text(lang);
-    let emblem = inp.emblem.cloned();
+    let note = if overrides { eff.note_text(lang) } else { None };
+    let emblem = if overrides { inp.emblem.cloned() } else { None };
     let mut overrides = if profile_id == "BASE_LOGO" {
         let px = emblem.as_ref().map(|e| (e.width, e.height)).unwrap_or((1, 1));
         ProfileOverrides::base_logo(emblem.clone(), px, eff.settings.signature.logo_only_size_mm)
@@ -464,6 +518,44 @@ mod tests {
         s.signature.profile = SignatureProfile::Amtssignaturblock;
         s.signature.block_language = Some(Lang::En);
         assert_eq!(spec(&s, &Overlay::default()).profile_id, "AMTSSIGNATURBLOCK_EN_RECOMMENDED");
+    }
+
+    fn spec_input<'a>(eff: Effective<'a>) -> SpecInput<'a> {
+        SpecInput {
+            effective: eff,
+            system_language: Lang::De,
+            pdfa: None,
+            cert: None,
+            signing_time: local_now(),
+            emblem: None,
+        }
+    }
+
+    #[test]
+    fn qr_placeholder_profile_overrides_the_requested_profile() {
+        let mut s = Settings::default();
+        s.signature.block_language = Some(Lang::De);
+        let o = Overlay::default();
+        let eff = || Effective::new(&s, &o, None);
+        // ohne profile=… bzw. gleiches Profil: unverändert (Hinweis bleibt)
+        let (sp, notice) = placeholder_block_spec(&store(), spec_input(eff()), None).unwrap();
+        assert_eq!((sp.profile_id.as_str(), notice), ("SIGNATURBLOCK_SMALL_DE_NOTE", None));
+        let (same, _) =
+            placeholder_block_spec(&store(), spec_input(eff()), Some(" SIGNATURBLOCK_SMALL_DE_NOTE ")).unwrap();
+        assert_eq!(same.profile_id, sp.profile_id);
+        assert_eq!(same.profile.values, sp.profile.values);
+        // anderes bekanntes Profil: ersetzt, ohne PDF-Over-Overrides
+        let (sp, notice) = placeholder_block_spec(&store(), spec_input(eff()), Some("SIGNATURBLOCK_SMALL_EN")).unwrap();
+        assert_eq!(sp.profile_id, "SIGNATURBLOCK_SMALL_EN");
+        assert_eq!(notice, None);
+        assert!(sp.input.emblem.is_none());
+        // unbekanntes Profil: eingestelltes Profil + Hinweis
+        let (sp, notice) = placeholder_block_spec(&store(), spec_input(eff()), Some("GIBT_ES_NICHT")).unwrap();
+        assert_eq!(sp.profile_id, "SIGNATURBLOCK_SMALL_DE_NOTE");
+        assert_eq!(notice, Some((NOTICE_PLACEHOLDER_PROFILE_UNKNOWN, "GIBT_ES_NICHT".to_owned())));
+        // leer = kein Profil
+        let (sp, notice) = placeholder_block_spec(&store(), spec_input(eff()), Some("  ")).unwrap();
+        assert_eq!((sp.profile_id.as_str(), notice), ("SIGNATURBLOCK_SMALL_DE_NOTE", None));
     }
 
     #[test]

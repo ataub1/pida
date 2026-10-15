@@ -65,11 +65,18 @@ pub struct FakeAtrust {
     pub key: Arc<LoadedKey>,
     pub opened: AtomicUsize,
     pub cancelled: AtomicUsize,
+    /// Aufrufe von `certificate()` (InfoboxRead mit eigener Anmeldung)
+    pub certificates: AtomicUsize,
 }
 
 impl FakeAtrust {
     pub fn new() -> Arc<FakeAtrust> {
-        Arc::new(FakeAtrust { key: test_key(), opened: AtomicUsize::new(0), cancelled: AtomicUsize::new(0) })
+        Arc::new(FakeAtrust {
+            key: test_key(),
+            opened: AtomicUsize::new(0),
+            cancelled: AtomicUsize::new(0),
+            certificates: AtomicUsize::new(0),
+        })
     }
 
     pub fn backend(self: &Arc<Self>) -> Arc<dyn SignatureBackend> {
@@ -132,6 +139,7 @@ impl FakeAtrustSession {
 #[async_trait]
 impl BackendSession for FakeAtrustSession {
     async fn certificate(&mut self) -> Result<CertChain, BackendError> {
+        self.backend.certificates.fetch_add(1, Ordering::SeqCst);
         self.login().await?;
         Ok(self.backend.key.chain().clone())
     }

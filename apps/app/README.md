@@ -7,13 +7,12 @@ Oberfläche und Shell von PDF-Over NG: **React 19 + TypeScript (strict) + React 
 
 | Teil | Ort |
 |---|---|
-| Bridge-Typen (exakt serde-Format von `crates/core-api/src/view.rs`) | `src/core/types.ts` |
-| vorgeschlagene additive Erweiterungen (Ausgabe-Rückfragen, Hinweise, „Unsichtbar“) | `src/core/extensions.ts` |
+| Bridge-Typen: **erzeugt** aus `crates/core-api/src/view.rs` (ts-rs; einzige Quelle des Vertrags) | `src/core/generated.ts` (über `src/core/types.ts`) |
 | Bridge zu Tauri (`core_view`, `core_dispatch`, Ereignis `pdfover:view`, `pdfover-render://`) | `src/core/bridge.ts` |
 | TS-Mock-Kern (Ablauf wie PDF-Over, für `VITE_MOCK=1`, Browser und Tests) | `src/core/mock.ts` |
-| Fluent-Kataloge (zur Build-Zeit aus `crates/i18n/locales/{de,en}/*.ftl`) + UI-Texte `ng-ui-*` | `src/i18n/` |
+| Fluent-Kataloge (zur Build-Zeit aus `crates/i18n/locales/{de,en}/*.ftl`, auch die UI-Texte `ng-ui-*`) | `src/i18n/` |
 | Schritte, Masken, Einstellungen | `src/screens/`, `src/settings/` |
-| Shell (Single-Instance, „Öffnen mit“, Drag & Drop, Fensterzustand, Dialoge, Custom Protocol) | `src-tauri/` |
+| Shell (PDF-Over-Startargumente, Single-Instance, „Öffnen mit“, Drag & Drop, Fensterzustand, Dialoge, Shell-Funktionen des Kerns, Custom Protocol, Startprüfung) | `src-tauri/` |
 
 ## Befehle
 
@@ -23,14 +22,22 @@ npm run dev:mock       # Oberfläche mit Mock-Kern im Browser (http://localhost:
 npm run build          # tsc (strict) + Vite → dist/
 npm test               # Vitest + Testing Library (jsdom)
 npm run tauri dev      # App mit Rust-Kern (Vite-Dev-Server + cargo)
-npm run tauri build -- --debug --bundles app   # macOS-.app (Debug), ohne PDFium
-PDFOVER_PDFIUM_DIR=… npm run bundle:mac:debug  # macOS-.app mit libpdfium.dylib in Contents/Frameworks
+npm run notices        # THIRD-PARTY-NOTICES nach ../../target/notices (cargo-about, PDFium, npm)
+PDFOVER_PDFIUM_DIR=… npm run bundle:mac:debug    # macOS-.app (Debug) mit libpdfium.dylib + Hinweisen
+PDFOVER_PDFIUM_DIR=… npm run bundle:mac:release  # .app + .dmg (Release), verlangt PDFium und Hinweise
+PDFOVER_SMOKE=1 HOME="$(mktemp -d)" "../../target/debug/bundle/macos/PDF-Over NG.app/Contents/MacOS/pdf-over-ng"
 ```
 
+Startargumente wie PDF-Over (`-i -o -b -n -p -ks -kstype -kspass -ksalias -kskeypass -proxy -proxyport
+-proxyuser -proxypass -e -a -s -c -v`, freie Tokens = Dokumente), ausgewertet mit dem Parser von
+`pdfover-cli` (`src-tauri/src/args.rs`); `-h` gibt die Hilfe aus, ungültige Argumente zeigen den
+Fehlerschritt. Abnahme-Checkliste: `docs/integration/app-abnahme.md`.
+
 Rust-Seite: `cargo check -p pdfover-app`, `cargo test -p pdfover-app` (Vertragstest
-`tests/serde_contract.rs`). Beide Vertragsdateien neu schreiben:
+`tests/serde_contract.rs`). Typen und Vertragsdateien neu schreiben:
 
 ```sh
+PDFOVER_BLESS=1 cargo test -p pdfover-core-api --test ts_bindings     # Rust-Typen → src/core/generated.ts
 PDFOVER_BLESS=1 cargo test -p pdfover-app --test serde_contract   # Rust → src/core/fixtures/view-states.json
 PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src/core/fixtures/ui-events.json
 ```
@@ -40,12 +47,14 @@ PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src
 - **PDFium** wird gesucht in `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**; ein Release-Build lädt keine
   Bibliothek aus einem per Umgebung genannten Ordner), neben der Binary, in `../Frameworks`
   (macOS-Bundle) und im Ressourcenordner (`pdfium/`); sonst entscheidet der Kern.
-- **Kern nicht verfügbar** (Fehler oder Stub in Welle 2) bzw. Konfiguration nicht ermittelbar: Die
-  Shell zeigt den Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“ (Abbrechen = Beenden) statt
-  abzustürzen; „Öffnen mit“-Dokumente aus dieser Zeit werden für den nächsten Start vorgemerkt.
+- **Kern nicht verfügbar** (Startfehler, Panik, unerwartet beendeter Kern-Task) bzw. Konfiguration
+  nicht ermittelbar: Die Shell zeigt den Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“
+  (Abbrechen = Beenden) statt abzustürzen; „Öffnen mit“-Dokumente aus dieser Zeit werden für den
+  nächsten Start vorgemerkt.
 - **Beenden** (Fenster schließen, ⌘Q) läuft über den Kern (`UiEvent::Quit` → `Finished`): laufende
   Dialoge werden abgebrochen (F-73), Einstellungen gesichert (F-105); spätestens nach 5 s endet die App.
-- **Logs**: Log-Ordner der Plattform (`pdfover_config::Paths`), rotierend; Filter über `PDFOVER_LOG`.
+- **Logs**: Log-Ordner der Plattform (`pdfover_config::Paths`), rotierend (`pdfover_core_api::logging`);
+  Filter über `PDFOVER_LOG`.
   Keine Passwörter, TANs oder Dokumentinhalte (ADR 0001 Regel 9).
 - **Sicherheit**: CSP `default-src 'self'`, minimale Capabilities (`capabilities/default.json`: nur
   Ereignisse empfangen, eigene Commands, Datei-/Speichern-Dialog, Links; kein `core:default`),

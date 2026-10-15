@@ -11,9 +11,12 @@ und [ADR 0001](docs/adr/0001-workspace-und-schnittstellen.md).
 
 ## Stand
 
-Fundament: Workspace, verbindliche Schnittstellen aller Crates (Stubs mit `todo!()`), Testdaten, CI.
-Die Umsetzung erfolgt in sechs parallelen Paketen (A–F) und der anschließenden Integration
-(Ownership und Regeln: ADR 0001 §4, verbindliche Präzisierungen aus dem Schnittstellen-Review: §8).
+Welle 3 (Integration): Rust-Kern mit PAdES-Engine, Backends (ID Austria Szenario A, lokale BKU,
+PKCS#12), Workflow und Kern-Fassade; Kommandozeile `pdfover-cli`; Desktop-App (Tauri 2, React) mit
+denselben PDF-Over-Startargumenten, Bundles für macOS (Windows/Linux über die CI). Mobile folgt.
+Abnahme der App: [docs/integration/app-abnahme.md](docs/integration/app-abnahme.md); Arbeitsweise,
+CI und Lizenzen: [docs/entwicklung.md](docs/entwicklung.md). Ownership und Regeln: ADR 0001 §4,
+verbindliche Präzisierungen aus dem Schnittstellen-Review: §8.
 
 ## Struktur
 
@@ -38,11 +41,11 @@ crates/
   config            Settings (TOML), Legacy-Import, Overlay, Richtlinien, Secrets
   core-api          Fassade für Shell und CLI (dispatch/subscribe)
 apps/
-  cli               pdfover-cli (kompatibel zu den PDF-Over-Argumenten)
-  app               Tauri-2-Shell (folgt in der Integration)
+  cli               pdfover-cli (kompatibel zu den PDF-Over-Argumenten; Parser auch für die GUI)
+  app               Desktop-App: Oberfläche (React 19, React Aria) + Tauri-2-Shell (src-tauri)
 docs/               Plan, Analysen, Recherchen, ADRs
 testdata/           gemeinsame Testdaten (Test-Keystores NUR TEST, PDF-AS-PDFs, qpdf-Varianten)
-tools/              env.sh, make-testdata.sh, make-hybrid-xref.py
+tools/              env.sh, fetch-pdfium.*, third-party-notices.sh, npm-licenses.mjs, make-testdata.sh …
 reference/          Originalquellen (nur lesen, nicht im Git)
 ```
 
@@ -54,6 +57,10 @@ cargo check --workspace --all-targets
 cargo test --workspace
 cargo run -p pdfover-cli -- --help
 tools/make-testdata.sh         # Testdaten erzeugen/aktualisieren (openssl, qpdf, python3)
+
+cd apps/app && npm ci && npm run build && npm test        # Oberfläche
+eval "$(tools/fetch-pdfium.sh --print-env)"               # PDFium (im Repo-Wurzelordner)
+npm run notices && npm run bundle:mac:debug               # macOS-App mit PDFium und Drittlizenzen
 ```
 
 Toolchain: Rust 1.99 stable, Edition 2024. Abhängigkeiten sind in `[workspace.dependencies]` gepinnt
@@ -61,5 +68,6 @@ Toolchain: Rust 1.99 stable, Edition 2024. Abhängigkeiten sind in `[workspace.d
 
 ## Lizenz
 
-EUPL-1.2. Profile, Texte und Testdokumente stammen aus PDF-Over/PDF-AS (EUPL). Drittlizenzen siehe
-`deny.toml` (Allowlist nach Plan §2.5).
+EUPL-1.2. Profile, Texte und Testdokumente stammen aus PDF-Over/PDF-AS (EUPL). Drittlizenzen: Allowlist
+in `deny.toml` (Plan §2.5); `tools/third-party-notices.sh` erzeugt die THIRD-PARTY-NOTICES, die jedem
+App-Bundle beiliegen.

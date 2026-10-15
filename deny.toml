@@ -44,6 +44,13 @@ ignore = [
     # Marvin (Timing-Seitenkanal beim RSA-*Entschlüsseln*). PDF-Over NG signiert nur lokal und
     # entschlüsselt nie mit RSA (Plan §2.1, ADR 0001 §7). Bei einer rsa-Version mit Fix wird gehoben.
     { id = "RUSTSEC-2023-0071", reason = "nur lokales Signieren, kein RSA-Entschlüsseln (Plan §2.1)" },
+    # proc-macro-error 1.0 „unmaintained“: nur Build-Zeit (Proc-Macro von glib-macros 0.18 → gtk-rs
+    # 0.18 → tauri/muda/rfd), nur Linux. Kein Laufzeitcode; wird mit dem gtk-rs-Wechsel von Tauri
+    # (gtk4/glib ≥ 0.20) gehoben.
+    { id = "RUSTSEC-2024-0370", reason = "nur Build-Zeit (glib-macros 0.18 über Tauri), nur Linux" },
+    # glib 0.18 `VariantStrIter` unsound: Tauri (wry/tao/muda) zieht gtk-rs 0.18 unter Linux; weder
+    # PDF-Over NG noch Tauri iterieren GVariant-String-Arrays. Fix erst ab glib 0.20 (Tauri-Update).
+    { id = "RUSTSEC-2024-0429", reason = "gtk-rs 0.18 über Tauri, nur Linux, VariantStrIter ungenutzt" },
 ]
 
 # ---------------------------------------------------------------------------------------------
@@ -76,7 +83,11 @@ unused-allowed-license = "allow"
 # rustls-platform-verifier 0.7 nur für wasm32 – kein Auslieferungsziel. Kommt ein WASM-Werkzeug
 # dazu, wird die Lizenz hier als Ausnahme nur für dieses Crate eingetragen:
 #   { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] }
-exceptions = []
+exceptions = [
+    # target-lexicon 0.12: Build-Abhängigkeit von cfg-expr/system-deps (gtk-rs-sys über Tauri, nur
+    # Linux). Apache-2.0 mit LLVM-Ausnahme ist permissiver als Apache-2.0; nichts davon landet im Binary.
+    { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
+]
 
 [licenses.private]
 # Eigene Crates (EUPL-1.2, publish = false) nicht gegen die Allowlist prüfen.
@@ -142,6 +153,45 @@ skip = [
     { crate = "synstructure@0.13.2", reason = "asn1-rs-derive (nur Build-Zeit)" },
     { crate = "weezl@0.1.12", reason = "gif 0.14 (lopdf nutzt weezl 0.2)" },
     { crate = "windows-sys@0.52.0", reason = "ring 0.17 (übrige Crates nutzen windows-sys 0.61)" },
+    # --- Tauri 2.12 (apps/app/src-tauri): Doppelungen im Abhängigkeitsbaum von Tauri bzw. seiner
+    # Plattformschichten (gtk-rs 0.18 unter Linux, jni 0.21 unter Android, ico/schemars nur Build-Zeit).
+    # Ohne eigenen Einfluss; beim nächsten Tauri-Update neu bewerten (`cargo deny check bans`).
+    { crate = "alloc-no-stdlib@2.0.4", reason = "lopdf 0.45 → brotli-decompressor 5 (Tauri nutzt brotli 9)" },
+    { crate = "alloc-stdlib@0.2.4", reason = "lopdf 0.45 → brotli-decompressor 5 (Tauri nutzt brotli 9)" },
+    { crate = "brotli-decompressor@5.0.3", reason = "lopdf 0.45 (Tauri-Codegen nutzt brotli 9 / decompressor 6)" },
+    { crate = "base64@0.21.7", reason = "swift-rs 1.0 (Tauri, macOS/iOS)" },
+    { crate = "base64@0.22.1", reason = "wry 0.57 (Tauri)" },
+    { crate = "bitflags@1.3.2", reason = "webkit2gtk/javascriptcore-rs (Tauri, Linux), png 0.17 (ico, Build-Zeit)" },
+    { crate = "getrandom@0.3.4", reason = "tauri 2.12 (übrige Crates nutzen getrandom 0.4)" },
+    { crate = "hashbrown@0.12.3", reason = "indexmap 1 über schemars 0.8 (tauri-build/-utils, Build-Zeit)" },
+    { crate = "indexmap@1.9.3", reason = "schemars 0.8 (tauri-build/-utils, Build-Zeit)" },
+    { crate = "heck@0.4.1", reason = "glib-macros 0.18 (Tauri, Linux, Build-Zeit)" },
+    { crate = "jni@0.21.1", reason = "tao/tauri (Android); rustls-platform-verifier nutzt jni 0.22" },
+    { crate = "jni-sys@0.3.1", reason = "jni 0.21/ndk 0.9 (Tauri, Android)" },
+    { crate = "png@0.17.16", reason = "ico 0.5 (tauri-codegen, Build-Zeit)" },
+    { crate = "proc-macro-crate@1.3.1", reason = "gtk3-macros 0.18 (Tauri, Linux, Build-Zeit)" },
+    { crate = "proc-macro-crate@2.0.2", reason = "glib-macros 0.18 (Tauri, Linux, Build-Zeit)" },
+    { crate = "serde_spanned@0.6.9", reason = "toml 0.8 über system-deps (gtk-rs-sys, Linux, Build-Zeit)" },
+    { crate = "syn@1.0.109", reason = "proc-macro-error 1.0 (glib-macros 0.18, Linux, Build-Zeit)" },
+    { crate = "thiserror@1.0.69", reason = "gtk-rs 0.18 und jni 0.21 (Tauri, Linux/Android)" },
+    { crate = "thiserror-impl@1.0.69", reason = "thiserror 1.0 (gtk-rs 0.18, jni 0.21)" },
+    { crate = "toml@0.8.2", reason = "system-deps 6 (gtk-rs-sys, Linux, Build-Zeit)" },
+    { crate = "toml_datetime@0.6.3", reason = "toml 0.8/toml_edit 0.19–0.20 (system-deps, proc-macro-crate; Build-Zeit)" },
+    { crate = "toml_edit@0.19.15", reason = "proc-macro-crate 1.3 (gtk3-macros, Linux, Build-Zeit)" },
+    { crate = "toml_edit@0.20.2", reason = "proc-macro-crate 2.0/toml 0.8 (glib-macros, system-deps; Build-Zeit)" },
+    { crate = "winnow@0.5.40", reason = "toml_edit 0.19/0.20 (Linux, Build-Zeit)" },
+    { crate = "windows-sys@0.45.0", reason = "jni 0.21 (Tauri, Android-Abhängigkeit, nur für Windows-Ziele aufgelöst)" },
+    { crate = "windows-sys@0.60.2", reason = "rfd 0.16 (tauri-plugin-dialog)" },
+    { crate = "windows-targets@0.42.2", reason = "windows-sys 0.45 (jni 0.21)" },
+    { crate = "windows-targets@0.52.6", reason = "windows-sys 0.52 (ring 0.17)" },
+    { crate = "windows-targets@0.53.5", reason = "windows-sys 0.60 (rfd 0.16)" },
+    { crate = "windows_aarch64_msvc@0.42.2", reason = "windows-targets 0.42 (jni 0.21)" },
+    { crate = "windows_aarch64_msvc@0.52.6", reason = "windows-targets 0.52 (ring 0.17)" },
+    { crate = "windows_aarch64_msvc@0.53.1", reason = "windows-targets 0.53 (rfd 0.16)" },
+    { crate = "windows_x86_64_gnu@0.52.6", reason = "windows-targets 0.52 (ring 0.17)" },
+    { crate = "windows_x86_64_msvc@0.42.2", reason = "windows-targets 0.42 (jni 0.21)" },
+    { crate = "windows_x86_64_msvc@0.52.6", reason = "windows-targets 0.52 (ring 0.17)" },
+    { crate = "windows_x86_64_msvc@0.53.1", reason = "windows-targets 0.53 (rfd 0.16)" },
 ]
 
 [[bans.features]]

@@ -65,6 +65,8 @@ export interface PlatformServices {
   revealOutput(): Promise<void>;
   /** Öffnet den Log-Ordner. */
   openLogDir(): Promise<void>;
+  /** Öffnet die Drittlizenz-Hinweise des Pakets (THIRD-PARTY-NOTICES). */
+  openNotices(): Promise<void>;
   /** Version, Plattform, Kern verfügbar. */
   appInfo(): Promise<AppInfo>;
 }
@@ -221,6 +223,13 @@ export async function createTauriBridge(): Promise<Bridge> {
     async openLogDir() {
       try {
         await invoke('open_log_dir');
+      } catch (e) {
+        throw new Error(errorCode(e));
+      }
+    },
+    async openNotices() {
+      try {
+        await invoke('open_notices');
       } catch (e) {
         throw new Error(errorCode(e));
       }

@@ -1,6 +1,6 @@
 //! Ende-zu-Ende mit der echten PAdES-Engine (`pdfover-pades`, Paket I1) und externen Orakeln
-//! (qpdf, pyHanko, openssl). In dieser Welle ist `pades` noch Stub – die Tests sind deshalb
-//! `#[ignore]`; die Abläufe selbst prüfen `tests/flow.rs` mit der Fake-Engine.
+//! (qpdf, pyHanko, openssl; ohne Werkzeug überspringt sich das jeweilige Orakel). Seit Welle 3 laufen
+//! die Tests im Standardlauf; die Abläufe selbst prüfen zusätzlich `tests/flow.rs` mit der Fake-Engine.
 
 mod common;
 
@@ -58,7 +58,6 @@ fn oracles(out: &std::path::Path) {
 }
 
 #[test]
-#[ignore = "braucht pades (I1)"]
 fn real_engine_keystore_visible() {
     let fx = Fixture::new();
     let out = sign_headless(&fx, "pdf/generated/simple-xref-table.pdf", false);
@@ -66,7 +65,6 @@ fn real_engine_keystore_visible() {
 }
 
 #[test]
-#[ignore = "braucht pades (I1)"]
 fn real_engine_keystore_invisible_xref_stream() {
     let fx = Fixture::new();
     let out = sign_headless(&fx, "pdf/generated/simple-xref-stream.pdf", true);

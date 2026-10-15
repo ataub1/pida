@@ -575,6 +575,7 @@ function AboutTab({ draft, update }: TabProps) {
       <section className="group">
         <div className="actions actions-start">
           <AccessButton msg="config-ShowLogDirectory" onPress={() => bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
+          <AccessButton msg="ng-ui-about-notices" onPress={() => bridge.openNotices().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
         </div>
       </section>
     </div>

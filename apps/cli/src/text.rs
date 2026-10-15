@@ -128,7 +128,10 @@ mod tests {
     fn prompts_keep_trailing_space() {
         assert_eq!(tr(Lang::De, "ng-cli-password", &[]), "Passwort: ");
         assert_eq!(tr(Lang::En, "ng-cli-retry", &[]), "Retry? [y/N] ");
-        assert_eq!(tr(Lang::De, "ng-cli-overwrite", &[("name", "a.pdf".into())]), "Datei a.pdf existiert bereits. Überschreiben? [j/N] ");
+        assert_eq!(
+            tr(Lang::De, "ng-cli-overwrite", &[("name", "a.pdf".into())]),
+            "Datei a.pdf existiert bereits. Überschreiben? [j/N] "
+        );
     }
 
     #[test]
