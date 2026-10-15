@@ -44,6 +44,7 @@ pub fn form_problem_message(p: &FormProblem) -> (String, BTreeMap<String, String
         FormProblem::EnteredReferenceValue => ("error-EnteredReferenceValue", BTreeMap::new()),
         FormProblem::QrImageFailed => ("error-FailedToLoadQRCode", BTreeMap::new()),
         FormProblem::Fido2Failed(detail) => ("backend-fido2", one("detail", detail.clone())),
+        FormProblem::Fido2Error { code, detail } => (code.as_str(), one("detail", detail.clone())),
         FormProblem::LoginRejected => ("ng-atrust-login-rejected", BTreeMap::new()),
         FormProblem::Atrust(text) => ("atrusterror-message", one("arg1", text.clone())),
     };

@@ -419,6 +419,7 @@ pub fn build_plan(inp: PlanInput<'_>) -> Result<BuiltPlan, PlanError> {
         include_intermediates: false,
         add_output_intent_if_missing: spec.pdfa != PdfaMode::None,
         pdfua: inp.report.tagged,
+        signature_size: None,
     };
     Ok(BuiltPlan { plan, notices, resolved: resolved_out })
 }

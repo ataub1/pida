@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Minimale Berechtigungen des Hauptfensters: Ereignisse empfangen (ViewState, Drag & Drop), Kern-Bridge, Datei-/Speichern-Dialog, Links (https/mailto). Bewusst ohne core:default (Menüs, Tray, Fenster-, Pfad- und App-APIs bleiben gesperrt).",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:webview:allow-internal-toggle-devtools",
+    "allow-core-view",
+    "allow-core-dispatch",
+    "allow-app-info",
+    "allow-open-log-dir",
+    "allow-reveal-output",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }, { "url": "mailto:*" }]
+    }
+  ]
+}

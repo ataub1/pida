@@ -1,0 +1,2989 @@
+[
+  {
+    "name": "starting",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "step": "starting"
+      }
+    }
+  },
+  {
+    "name": "open_empty",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "queue": [],
+        "step": "open"
+      }
+    }
+  },
+  {
+    "name": "open_queue",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "open"
+      }
+    }
+  },
+  {
+    "name": "placeholder_fields",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "doc": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": false
+        },
+        "fields": [
+          {
+            "name": "Unterschrift 1",
+            "page": 1
+          },
+          {
+            "name": "Feld.ohne.Seite",
+            "page": null
+          }
+        ],
+        "qr": null,
+        "step": "placeholder"
+      }
+    }
+  },
+  {
+    "name": "placeholder_qr",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "doc": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": false
+        },
+        "fields": [],
+        "qr": {
+          "id": "1",
+          "page": 1
+        },
+        "step": "placeholder"
+      }
+    }
+  },
+  {
+    "name": "position",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "announce": {
+          "bottom": "74",
+          "left": "105",
+          "page": "2",
+          "pages": "2"
+        },
+        "block": {
+          "height": 82.0,
+          "preview_revision": 3,
+          "width": 232.5
+        },
+        "doc": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": false
+        },
+        "new_page": false,
+        "page": 1,
+        "placement": {
+          "height": 82.0,
+          "page_index": 1,
+          "width": 232.5,
+          "x": 297.5,
+          "y": 210.5
+        },
+        "step": "position"
+      }
+    }
+  },
+  {
+    "name": "position_new_page",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "announce": {},
+        "block": {
+          "height": 40.0,
+          "preview_revision": 1,
+          "width": 100.0
+        },
+        "doc": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": true
+        },
+        "new_page": true,
+        "page": 2,
+        "placement": {
+          "height": 40.0,
+          "page_index": 2,
+          "width": 100.0,
+          "x": 0.0,
+          "y": 595.5
+        },
+        "step": "position"
+      }
+    }
+  },
+  {
+    "name": "backend",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "options": [
+          {
+            "available": true,
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": true,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "id": "atrust_native"
+          },
+          {
+            "available": false,
+            "capabilities": null,
+            "id": "local_bku"
+          },
+          {
+            "available": true,
+            "capabilities": {
+              "certificate": "Required",
+              "cms_reserve": null,
+              "document_leaves_device": false,
+              "factors": {
+                "app": false,
+                "card": false,
+                "fido2": false,
+                "qr": false,
+                "sms": false
+              },
+              "input": {
+                "Digest": {
+                  "algs": [
+                    "Sha256",
+                    "Sha512"
+                  ]
+                }
+              },
+              "interaction": "Secret",
+              "login_once_per_batch": false,
+              "max_batch": 1,
+              "output": "RawSignature",
+              "qualification": "Unknown",
+              "server": "None"
+            },
+            "id": "keystore"
+          },
+          {
+            "available": false,
+            "capabilities": null,
+            "id": "csc"
+          }
+        ],
+        "privacy_notice": null,
+        "step": "backend"
+      }
+    }
+  },
+  {
+    "name": "backend_privacy",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "options": [
+          {
+            "available": true,
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": true,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "id": "atrust_native"
+          }
+        ],
+        "privacy_notice": {
+          "backend": "atrust_native",
+          "custom_text": "Eigener Text der Organisation",
+          "version": 1
+        },
+        "step": "backend"
+      }
+    }
+  },
+  {
+    "name": "waiting_connecting",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "waiting",
+          "progress": "Connecting"
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "waiting_certificate",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "waiting",
+          "progress": "ReadingCertificate"
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "waiting_server",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "waiting",
+          "progress": "WaitingForServer"
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "waiting_signing",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "waiting",
+          "progress": "Signing"
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "waiting_document",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "waiting",
+          "progress": {
+            "Document": {
+              "index": 2,
+              "total": 3
+            }
+          }
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "waiting_done",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "waiting",
+          "progress": "Done"
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_login",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Login": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": null,
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "prefill_username": "+43664123456789",
+              "remember": true
+            }
+          },
+          "kind": "form",
+          "request": 1
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_login_too_short",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Login": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": "PasswordTooShort",
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "prefill_username": null,
+              "remember": false
+            }
+          },
+          "kind": "form",
+          "request": 2
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_login_too_long",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Login": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": "PasswordTooLong",
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "prefill_username": null,
+              "remember": false
+            }
+          },
+          "kind": "form",
+          "request": 2
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_login_rejected",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Login": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": "LoginRejected",
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "prefill_username": null,
+              "remember": false
+            }
+          },
+          "kind": "form",
+          "request": 2
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_login_atrust",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Login": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": {
+                  "Atrust": "Benutzer gesperrt"
+                },
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "prefill_username": null,
+              "remember": false
+            }
+          },
+          "kind": "form",
+          "request": 2
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_sms",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "SmsTan": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": null,
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "reference_value": "Xk7Pq"
+            }
+          },
+          "kind": "form",
+          "request": 3
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_sms_no_tan",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "SmsTan": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": "NoTan",
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "reference_value": "Xk7Pq"
+            }
+          },
+          "kind": "form",
+          "request": 4
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_sms_too_long",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "SmsTan": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": "TanTooLong",
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "reference_value": "Xk7Pq"
+            }
+          },
+          "kind": "form",
+          "request": 4
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_sms_reference",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "SmsTan": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": "EnteredReferenceValue",
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "reference_value": "Xk7Pq"
+            }
+          },
+          "kind": "form",
+          "request": 4
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_qr",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "QrCode": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": null,
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "image": {
+                "bytes": [
+                  137,
+                  80,
+                  78,
+                  71
+                ],
+                "mime": "image/png"
+              },
+              "reference_value": "Xk7Pq",
+              "timeout_secs": 300
+            }
+          },
+          "kind": "form",
+          "request": 5
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_qr_failed",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "QrCode": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": "QrImageFailed",
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "image": null,
+              "reference_value": "Xk7Pq",
+              "timeout_secs": null
+            }
+          },
+          "kind": "form",
+          "request": 6
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_app",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "WaitForApp": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": null,
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "reference_value": "Xk7Pq",
+              "timeout_secs": 300
+            }
+          },
+          "kind": "form",
+          "request": 7
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_app_no_reference",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "WaitForApp": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": false,
+                "fido2_visible": false,
+                "problem": null,
+                "signature_data_url": null
+              },
+              "reference_value": null,
+              "timeout_secs": null
+            }
+          },
+          "kind": "form",
+          "request": 8
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_fido2",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Fido2": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": null,
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "in_progress": true
+            }
+          },
+          "kind": "form",
+          "request": 9
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "form_fido2_failed",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "form": {
+            "Fido2": {
+              "ctx": {
+                "can_switch_to_fido2": false,
+                "can_switch_to_sms": true,
+                "fido2_visible": true,
+                "problem": {
+                  "Fido2Failed": "fido2-timeout"
+                },
+                "signature_data_url": "https://www.a-trust.at/mobile/ShowSigobj.aspx?sid=x"
+              },
+              "in_progress": false
+            }
+          },
+          "kind": "form",
+          "request": 10
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "secret_keystore",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "secret",
+          "prompt": {
+            "kind": "KeystorePassword",
+            "retry": false,
+            "subject": "keystore.p12"
+          },
+          "request": 11
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "secret_key_retry",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "secret",
+          "prompt": {
+            "kind": "KeyPassword",
+            "retry": true,
+            "subject": "keystore.p12"
+          },
+          "request": 11
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "secret_proxy",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "secret",
+          "prompt": {
+            "kind": "ProxyPassword",
+            "retry": false,
+            "subject": "keystore.p12"
+          },
+          "request": 11
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_interstitial",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "Ok",
+            "code": "AtrustInterstitial",
+            "kind": "Info",
+            "text": "Ihr Zertifikat läuft ab."
+          },
+          "request": 12
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_atrust_error",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "RetryCancel",
+            "code": "AtrustError",
+            "kind": "Error",
+            "text": "Fehler 123"
+          },
+          "request": 13
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_proxy",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "Ok",
+            "code": "ProxyAuthRequired",
+            "kind": "Error",
+            "text": null
+          },
+          "request": 14
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_too_large",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "Ok",
+            "code": "DocumentTooLarge",
+            "kind": "Error",
+            "text": null
+          },
+          "request": 15
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_http",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "Ok",
+            "code": {
+              "Http": {
+                "status": 503
+              }
+            },
+            "kind": "Error",
+            "text": "Service Unavailable"
+          },
+          "request": 16
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_connection",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "Ok",
+            "code": "ConnectionFailed",
+            "kind": "Error",
+            "text": "timeout"
+          },
+          "request": 17
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_local_bku",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "RetryCancel",
+            "code": "LocalBkuNotReachable",
+            "kind": "Warning",
+            "text": null
+          },
+          "request": 18
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_keystore_missing",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "RetryCancel",
+            "code": "KeystoreFileMissing",
+            "kind": "Error",
+            "text": "keystore.p12"
+          },
+          "request": 19
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_alias_missing",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "RetryCancel",
+            "code": "KeystoreAliasMissing",
+            "kind": "Error",
+            "text": "signer"
+          },
+          "request": 20
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_keystore",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "OkCancel",
+            "code": "KeystoreError",
+            "kind": "Error",
+            "text": null
+          },
+          "request": 21
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "notice_conversion",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "interaction": {
+          "kind": "notice",
+          "notice": {
+            "buttons": "OkCancel",
+            "code": "KeystoreConversionNeeded",
+            "kind": "Warning",
+            "text": null
+          },
+          "request": 22
+        },
+        "queue": [
+          {
+            "current": true,
+            "id": 7,
+            "name": "Vertrag.pdf"
+          },
+          {
+            "current": false,
+            "id": 8,
+            "name": "Angebot.pdf"
+          }
+        ],
+        "step": "signing"
+      }
+    }
+  },
+  {
+    "name": "output_saved",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Signing"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "next": null,
+        "result": {
+          "path": "/Users/demo/Vertrag_signed.pdf",
+          "save_pending": false
+        },
+        "step": "output"
+      }
+    }
+  },
+  {
+    "name": "output_pending_next",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Positioning"
+          },
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Signing"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "next": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": false
+        },
+        "result": {
+          "path": null,
+          "save_pending": true
+        },
+        "step": "output"
+      }
+    }
+  },
+  {
+    "name": "error",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "code": "error-MayNotBeAPDF",
+        "params": {
+          "arg1": "Vertrag.pdf"
+        },
+        "retry": true,
+        "step": "error"
+      }
+    }
+  },
+  {
+    "name": "finished",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": null,
+      "step": {
+        "exit_code": 4,
+        "step": "finished"
+      }
+    }
+  },
+  {
+    "name": "settings_open",
+    "view": {
+      "language": "en",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": {
+        "fido2_available": false,
+        "keychain_available": true,
+        "problems": {
+          "proxy.host": "ng-ui-problem-required"
+        },
+        "settings": {
+          "backend": {
+            "default": null
+          },
+          "certificate_cache": {
+            "enabled": false
+          },
+          "future": 42,
+          "general": {
+            "last_source_directory": null,
+            "ui_language": "en",
+            "update_check": true,
+            "window_size": null
+          },
+          "id_austria": {
+            "fido2_default": false,
+            "remember": false,
+            "username": null
+          },
+          "keystore": {
+            "alias": null,
+            "declared_type": null,
+            "enabled": true,
+            "file": "/Users/demo/keystore.p12",
+            "password_storage": "memory"
+          },
+          "output": {
+            "folder": ".",
+            "postfix": "_signed"
+          },
+          "placeholder": {
+            "kind": "marker",
+            "search": false
+          },
+          "privacy": {
+            "acknowledged": {
+              "atrust_native": 1
+            }
+          },
+          "proxy": {
+            "host": null,
+            "mode": "system",
+            "port": 8080,
+            "user": null
+          },
+          "schema_version": 1,
+          "signature": {
+            "auto_position": false,
+            "block_language": null,
+            "cms_profile": "pdfas_compat",
+            "emblem": "/Users/demo/logo.png",
+            "logo_only_size_mm": 23.0,
+            "note": {
+              "mode": "custom",
+              "text": "Eigener Hinweis"
+            },
+            "pdfa_force": false,
+            "profile": "SIGNATURBLOCK_SMALL"
+          },
+          "signature.future_key": "bleibt"
+        }
+      },
+      "step": {
+        "queue": [],
+        "step": "open"
+      }
+    }
+  },
+  {
+    "name": "settings_defaults",
+    "view": {
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": false,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "settings": {
+        "fido2_available": true,
+        "keychain_available": false,
+        "problems": {},
+        "settings": {
+          "backend": {
+            "default": null
+          },
+          "certificate_cache": {
+            "enabled": false
+          },
+          "general": {
+            "last_source_directory": null,
+            "ui_language": null,
+            "update_check": true,
+            "window_size": null
+          },
+          "id_austria": {
+            "fido2_default": false,
+            "remember": false,
+            "username": null
+          },
+          "keystore": {
+            "alias": null,
+            "declared_type": null,
+            "enabled": false,
+            "file": null,
+            "password_storage": "memory"
+          },
+          "output": {
+            "folder": null,
+            "postfix": "_signed"
+          },
+          "placeholder": {
+            "kind": "marker",
+            "search": false
+          },
+          "privacy": {
+            "acknowledged": {}
+          },
+          "proxy": {
+            "host": null,
+            "mode": "system",
+            "port": null,
+            "user": null
+          },
+          "schema_version": 1,
+          "signature": {
+            "auto_position": false,
+            "block_language": null,
+            "cms_profile": "pdfas_compat",
+            "emblem": null,
+            "logo_only_size_mm": 23.0,
+            "note": {
+              "mode": "default"
+            },
+            "pdfa_force": false,
+            "profile": "SIGNATURBLOCK_SMALL"
+          }
+        }
+      },
+      "step": {
+        "queue": [],
+        "step": "open"
+      }
+    }
+  }
+]

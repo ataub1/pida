@@ -1,0 +1,7 @@
+# Von tauri-build erzeugt (Schemas für Editoren); werden bei jedem Build neu geschrieben.
+/gen/schemas
+# Mobile-Projekte (`tauri android init` / `tauri ios init`) kommen in einer späteren Welle.
+/gen/android
+/gen/apple
+# Erzeugte Bundle-Ergänzung mit lokalem PDFium-Pfad (scripts/pdfium-config.mjs)
+/pdfium.conf.json

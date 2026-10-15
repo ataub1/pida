@@ -105,6 +105,7 @@ impl PadesEngine for FakeEngine {
             Reserve::Bytes(n) => n,
             Reserve::ModelA => 8 * 1024,
             Reserve::ModelB => self.model_b_reserve.load(Ordering::SeqCst),
+            Reserve::ModelBAtLeast(n) => n.max(self.model_b_reserve.load(Ordering::SeqCst)),
         };
         Ok(Box::new(FakePrepared {
             content: src.bytes().to_vec(),
