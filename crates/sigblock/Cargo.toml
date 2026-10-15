@@ -32,6 +32,8 @@ tempfile = { workspace = true }
 # Pixelvergleich (tests/render.rs, nur mit PDFOVER_PDFIUM_DIR)
 pdfium-render = { workspace = true }
 proptest = { workspace = true }
+# Manifeste des PDF-AS-4.4.2-Golden-Laufs (tests/golden_pdfas442.rs, Paket I5)
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

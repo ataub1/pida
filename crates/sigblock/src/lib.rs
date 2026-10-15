@@ -49,9 +49,19 @@
 //! | NaN/∞ in Stilwerten | `IllegalArgumentException` beim Schreiben | [`SigBlockError::Profile`] schon im Layout |
 //! | Include-Zyklen | StackOverflowError | Datei auf dem Include-Pfad wird übersprungen, [`ProfileStore::problems`] |
 //! | PDF/A + Standard-14 | nicht eingebettete Helvetica | DejaVu-Ersatz ([`fonts::FontSpec::embeddable`]) |
-//! | PDF/A-1-Bilder | `removeAlphaChannel` (Ergebnis offen) | Komposition auf Weiß |
+//! | PDF/A-1-Bilder (SB-G6) | `removeAlphaChannel`: Alpha entfällt, gespeicherte RGB-Werte bleiben (transparente Pixel meist schwarz; Golden PDF-AS 4.4.2) | Komposition auf Weiß; mit `pdfas_quirks` wie PDF-AS |
+//! | Voll deckender Alphakanal (SB-G2) | SMask mit lauter 255 (LosslessFactory) | keine SMask (pixelgleich) |
+//! | Indizierte Transparenz (SB-G3, PNG-Palette mit `tRNS`, GIF) | verworfen, Palettenfarbe sichtbar | als SMask erhalten |
+//! | Graustufen-Bildmarken (SB-G4) | DeviceGray, aufgehellt (Java `CS_GRAY` linear → sRGB, z. B. 20 → 79) | DeviceRGB mit den Originalwerten |
+//! | JPEG-Bildmarken (SB-G5) | ImageIO (libjpeg) | `zune-jpeg`, wenige Stufen Abweichung |
 //! | EXIF | nur JPEG (PDF-Over) | nur JPEG (wie PDF-Over) |
-//! | Logo-Größe > 120 mm | Klemmung nur in der Vorschau | Klemmung auch beim Signieren ([`ProfileOverrides::base_logo`]) |
+//! | Logo-Größe > 120 mm (SB-G1) | Klemmung nur in der Vorschau | Klemmung auch beim Signieren ([`ProfileOverrides::base_logo`]) |
+//!
+//! Golden-Vergleich gegen einen frischen PDF-AS-4.4.2-Lauf (12 Profil-IDs × Eingaben × Positionen,
+//! `tools/golden/run-pdfas.sh`, `tests/golden_pdfas442.rs`, docs/integration/golden-report.md):
+//! Geometrie, Texte, Fonts und Linien gleich (±0,01 pt), mit `pdfas_quirks` Content-Stream
+//! byte-gleich; Abweichungen nur in den Zeilen SB-G1 … SB-G6. [`Appearance::to_standalone_pdf`]
+//! zeichnet über das Holder-Form und ist mit PDFium pixelgleich zum Widget der PDF-AS-Ausgabe.
 
 mod afm;
 pub mod appearance;

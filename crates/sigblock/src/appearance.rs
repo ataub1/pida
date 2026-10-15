@@ -116,6 +116,8 @@ impl std::fmt::Debug for MaterializedAppearance {
 
 const PROC_SET: [&str; 5] = ["PDF", "Text", "ImageC", "ImageB", "ImageI"];
 const INNER_NAME: &str = "FRM1";
+/// Ressourcenname des Holder-Forms im Mini-PDF ([`Appearance::to_standalone_pdf`]).
+const HOLDER_NAME: &str = "FRM0";
 
 fn name(s: &str) -> Object {
     Object::Name(s.as_bytes().to_vec())
@@ -682,11 +684,35 @@ fn push_icc(objects: &mut Vec<Object>) -> Result<usize> {
     Ok(objects.len() - 1)
 }
 
-fn push_image(objects: &mut Vec<Object>, emblem: &Emblem, pdfa: PdfaMode, icc: Option<usize>) -> Result<usize> {
+/// PDF/A-1 ohne Alpha: Standard = Komposition auf Weiß (Register); mit `pdfas_quirks` wie PDF-AS
+/// (`removeAlphaChannel`, Golden PDF-AS 4.4.2): der Alphakanal entfällt, die gespeicherten
+/// RGB-Werte bleiben – voll transparente Pixel zeigen ihre gespeicherte Farbe (meist Schwarz).
+fn without_alpha(emblem: &Emblem, quirks: bool) -> Emblem {
+    if quirks {
+        let rgba = emblem.rgba.as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect();
+        Emblem {
+            width: emblem.width,
+            height: emblem.height,
+            rgba,
+            has_alpha: false,
+            source_sha256: emblem.source_sha256,
+        }
+    } else {
+        emblem.flattened_on_white()
+    }
+}
+
+fn push_image(
+    objects: &mut Vec<Object>,
+    emblem: &Emblem,
+    pdfa: PdfaMode,
+    icc: Option<usize>,
+    quirks: bool,
+) -> Result<usize> {
     emblem.check()?;
     let flattened;
     let e = if emblem.has_alpha && pdfa == PdfaMode::Part1 {
-        flattened = emblem.flattened_on_white();
+        flattened = without_alpha(emblem, quirks);
         &flattened
     } else {
         emblem
@@ -758,7 +784,7 @@ impl Appearance {
         // Bilder (readTableResources-Reihenfolge: Im1, Im2 …)
         let mut xobjects = Dictionary::new();
         for (i, img) in prepared.images.iter().enumerate() {
-            let idx = push_image(&mut objects, &img.emblem, pdfa, icc)?;
+            let idx = push_image(&mut objects, &img.emblem, pdfa, icc, prepared.quirks)?;
             xobjects.set(format!("Im{}", i + 1), local(idx));
         }
         // Fonts (Reihenfolge der ersten Verwendung: F1, F2 …)
@@ -852,9 +878,11 @@ impl Appearance {
     }
 
     /// Eigenständiges Mini-PDF mit genau diesem Block (Blockvorschau über denselben Renderer,
-    /// Plan §6.6); Seitengröße `W × H` (bei 90°/270° `H × W`). Die Seite zeigt das Inner-Form mit
-    /// derselben Abbildung `BBox → Rect`, die ein Viewer auf das Widget anwendet (inklusive der
-    /// Stauchung durch die `+1`-BBox, Q6).
+    /// Plan §6.6); Seitengröße `W × H` (bei 90°/270° `H × W`). Die Seite zeigt das Holder-Form
+    /// (bzw. bei `preview_only` das Inner-Form mit der Holder-Matrix) mit derselben Abbildung
+    /// `BBox → Rect`, die ein Viewer auf das Widget anwendet (inklusive der Stauchung durch die
+    /// `+1`-BBox, Q6) – mit PDFium pixelgleich zum Widget in der PDF-AS-Ausgabe
+    /// (`tests/golden_pdfas442.rs`).
     pub fn to_standalone_pdf(&self) -> Result<Vec<u8>> {
         if self.inner_name.is_empty() || self.width <= 0.0 || self.height <= 0.0 {
             return Err(SigBlockError::Pdf("unsichtbare Signatur hat kein Erscheinungsbild".into()));
@@ -895,23 +923,32 @@ impl Appearance {
         let (pw, ph) = if sideways { (self.height, self.width) } else { (self.width, self.height) };
         let sx = pw / (x1 - x0);
         let sy = ph / (y1 - y0);
-        let content = format!(
-            "q {} 0 0 {} {} {} cm {} {} {} {} {} {} cm /{} Do Q\n",
-            pdf_number(sx),
-            pdf_number(sy),
-            pdf_number(-x0 * sx),
-            pdf_number(-y0 * sy),
-            pdf_number(m[0]),
-            pdf_number(m[1]),
-            pdf_number(m[2]),
-            pdf_number(m[3]),
-            pdf_number(m[4]),
-            pdf_number(m[5]),
-            self.inner_name
-        );
+        // Wie im Viewer über das Holder-Form (Seite → Holder mit `/Matrix` → Inner-Form): PDFium
+        // rastert Bilder eine Formularebene tiefer mit anderer Rundung, nur so ist die Vorschau
+        // pixelgleich zum signierten Widget (Golden PDF-AS 4.4.2). Ein Holder ohne Inhalt
+        // (`preview_only`) wird übersprungen: Inner-Form direkt mit der Holder-Matrix.
+        let via_holder = matches!(&self.objects[self.holder], Object::Stream(s) if !s.content.is_empty());
+        let (xname, target) =
+            if via_holder { (HOLDER_NAME, mat.holder_id) } else { (self.inner_name.as_str(), mat.inner_id) };
+        // Abbildung mit voller f32-Genauigkeit (kürzeste Darstellung, nie Exponent): fünf
+        // Nachkommastellen (pdf_number) verschieben die Bildrasterung um Bruchteile eines Pixels.
+        let exact = |v: f32| if v.is_finite() { format!("{v}") } else { "0".to_string() };
+        let mut content = format!("q {} 0 0 {} {} {} cm ", exact(sx), exact(sy), exact(-x0 * sx), exact(-y0 * sy));
+        if !via_holder {
+            content.push_str(&format!(
+                "{} {} {} {} {} {} cm ",
+                pdf_number(m[0]),
+                pdf_number(m[1]),
+                pdf_number(m[2]),
+                pdf_number(m[3]),
+                pdf_number(m[4]),
+                pdf_number(m[5])
+            ));
+        }
+        content.push_str(&format!("/{xname} Do Q\n"));
         let content_id = doc.add_object(Object::Stream(Stream::new(Dictionary::new(), content.into_bytes())));
         let mut xobj = Dictionary::new();
-        xobj.set(self.inner_name.as_str(), Object::Reference(mat.inner_id));
+        xobj.set(xname, Object::Reference(target));
         let mut res = Dictionary::new();
         res.set("XObject", Object::Dictionary(xobj));
         res.set("ProcSet", proc_set());
@@ -997,6 +1034,34 @@ mod tests {
         p.fill_color([0, 255, 0]);
         assert!(p.icc_used);
         assert_eq!(String::from_utf8(p.out).unwrap(), "/CS1 cs\n1 0 0 sc\n0 0 1 sc\n0 g\n/CS1 cs\n0 1 0 sc\n");
+    }
+
+    /// PDF/A-1 ohne Alpha (SB-G6): Standard auf Weiß komponiert, mit Quirks wie PDF-AS
+    /// (`removeAlphaChannel` behält die gespeicherten RGB-Werte, Golden PDF-AS 4.4.2).
+    #[test]
+    fn pdfa1_alpha_removal_default_and_quirk() {
+        let e = Emblem {
+            width: 2,
+            height: 1,
+            rgba: vec![0, 0, 0, 0, 200, 10, 20, 255],
+            has_alpha: true,
+            source_sha256: [0; 32],
+        };
+        let white = without_alpha(&e, false);
+        assert_eq!(white.rgba, vec![255, 255, 255, 255, 200, 10, 20, 255]);
+        assert!(!white.has_alpha);
+        let quirk = without_alpha(&e, true);
+        assert_eq!(quirk.rgba, vec![0, 0, 0, 255, 200, 10, 20, 255]);
+        assert!(!quirk.has_alpha);
+        // eingebettet: kein SMask, RGB-Samples wie oben
+        for (quirks, rgb) in [(false, [255u8, 255, 255, 200, 10, 20]), (true, [0, 0, 0, 200, 10, 20])] {
+            let mut objects = Vec::new();
+            let idx = push_image(&mut objects, &e, PdfaMode::Part1, None, quirks).unwrap();
+            assert_eq!(objects.len(), 1, "kein SMask");
+            let Object::Stream(s) = &objects[idx] else { panic!("Bildstream") };
+            assert!(s.dict.get(b"SMask").is_err());
+            assert_eq!(s.decompressed_content().unwrap(), rgb.to_vec());
+        }
     }
 
     #[test]
