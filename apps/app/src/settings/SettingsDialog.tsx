@@ -49,6 +49,37 @@ const NOTE_IDS: Partial<Record<SignatureProfile, string>> = {
   AMTSSIGNATURBLOCK: 'simple_config-Note_Default_OfficialSignature',
 };
 
+/** Regler der Logo-Größe (PDF-Over: 10–200 mm, Anzeige in cm). */
+const LOGO_MIN_CM = 1;
+const LOGO_MAX_CM = 20;
+
+/**
+ * Logo-Größe in cm für den Regler. Der Regler arbeitet in cm, damit Screenreader den richtigen Wert
+ * hören (`aria-valuetext` „2,3 cm“, nicht „23 cm“); gespeichert wird weiter in mm.
+ */
+export function logoCm(mm: number): number {
+  const cm = Math.round(mm) / 10;
+  return Number.isFinite(cm) ? Math.min(LOGO_MAX_CM, Math.max(LOGO_MIN_CM, cm)) : 2.3;
+}
+
+/** Keystore-Typ aus der Dateiendung wie PDF-Over (`KeystoreConfigurationComposite`). */
+export function keystoreTypeFromFile(file: string): 'PKCS12' | 'JCEKS' | null {
+  const m = /\.([^./\\]+)$/.exec(file.trim());
+  const ext = m?.[1]?.toLowerCase();
+  if (ext === 'p12' || ext === 'pkcs12' || ext === 'pfx') return 'PKCS12';
+  if (ext === 'ks' || ext === 'jks') return 'JCEKS';
+  return null;
+}
+
+/** Inhaltsvergleich unabhängig von der Schlüsselreihenfolge. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  );
+}
+
 function langValue(v: Lang | null): 'system' | Lang {
   return v ?? 'system';
 }
@@ -146,16 +177,16 @@ function SimpleTab({ draft, update, view }: TabProps) {
         <section className="group">
           <Slider
             className="slider"
-            minValue={10}
-            maxValue={200}
-            step={1}
-            value={Math.round(sig.logo_only_size_mm)}
-            onChange={(v) => update('signature', { logo_only_size_mm: Array.isArray(v) ? (v[0] ?? 23) : v })}
-            formatOptions={{ style: 'unit', unit: 'centimeter', maximumFractionDigits: 1 }}
+            minValue={LOGO_MIN_CM}
+            maxValue={LOGO_MAX_CM}
+            step={0.1}
+            value={logoCm(sig.logo_only_size_mm)}
+            onChange={(v) => update('signature', { logo_only_size_mm: Math.round((Array.isArray(v) ? (v[0] ?? 2.3) : v) * 10) })}
+            formatOptions={{ style: 'unit', unit: 'centimeter', minimumFractionDigits: 1, maximumFractionDigits: 1 }}
           >
             <div className="slider-head">
               <Label className="field-label">{t.t('simple_config-LogoOnlyTargetSize_Title')}</Label>
-              <SliderOutput className="slider-output">{() => `${(sig.logo_only_size_mm / 10).toFixed(1)} cm`}</SliderOutput>
+              <SliderOutput className="slider-output" />
             </div>
             <SliderTrack className="slider-track">
               {({ state }) => (
@@ -388,12 +419,6 @@ function AdvancedTab({ draft, update, view }: TabProps) {
           isSelected={draft.certificate_cache.enabled}
           onChange={(enabled) => update('certificate_cache', { enabled })}
         />
-        <CheckField
-          label={t.t('advanced_config-UpdateCheck')}
-          description={t.t('advanced_config-UpdateCheck_ToolTip')}
-          isSelected={draft.general.update_check}
-          onChange={(update_check) => update('general', { update_check })}
-        />
       </section>
     </div>
   );
@@ -416,10 +441,16 @@ function KeystoreTab({ draft, update, view }: TabProps) {
         ],
         defaultPath: ks.file,
       });
-      if (files && files[0]) update('keystore', { file: files[0] });
+      const file = files?.[0];
+      if (file) setFile(file);
     } catch {
       toast(t.t('ng-ui-dialog-failed'), 'error');
     }
+  };
+  // Wie PDF-Over: Der Typ folgt der Dateiendung (.p12/.pfx → PKCS12, .jks/.ks → Java-Keystore).
+  const setFile = (file: string) => {
+    const derived = keystoreTypeFromFile(file);
+    update('keystore', derived ? { file, declared_type: derived } : { file });
   };
   const type = (ks.declared_type ?? 'PKCS12').toUpperCase();
   return (
@@ -429,7 +460,7 @@ function KeystoreTab({ draft, update, view }: TabProps) {
         <TextInputField
           label={t.t('keystore_config-KeystoreFile')}
           value={ks.file ?? ''}
-          onChange={(v) => update('keystore', { file: v.trim() === '' ? null : v })}
+          onChange={(v) => (v.trim() === '' ? update('keystore', { file: null }) : setFile(v))}
           description={t.t('keystore_config-KeystoreFile_ToolTip')}
           error={fileError}
           trailing={<AccessButton msg="common-browse" onPress={() => void browse()} />}
@@ -502,7 +533,8 @@ function Fido2Tab({ draft, update, view }: TabProps) {
   );
 }
 
-function AboutTab() {
+/** Über (docs/analyse/05 §2.6): Version, Lizenz, Datenschutz, Update-Prüfung, Logs. */
+function AboutTab({ draft, update }: TabProps) {
   const { t, bridge, toast } = useApp();
   const [info, setInfo] = useState<{ version: string; platform: string } | null>(null);
   useEffect(() => {
@@ -532,6 +564,15 @@ function AboutTab() {
         </p>
       </section>
       <section className="group">
+        <h3 className="group-title">{t.t('advanced_config-UpdateCheck_Title')}</h3>
+        <CheckField
+          label={t.t('advanced_config-UpdateCheck')}
+          description={t.t('advanced_config-UpdateCheck_ToolTip')}
+          isSelected={draft.general.update_check}
+          onChange={(update_check) => update('general', { update_check })}
+        />
+      </section>
+      <section className="group">
         <div className="actions actions-start">
           <AccessButton msg="config-ShowLogDirectory" onPress={() => bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
         </div>
@@ -547,6 +588,27 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
   const [tab, setTab] = useState<Key>('simple');
   const [confirmReset, setConfirmReset] = useState(false);
   const update: Update = (section, patch) => setDraft((d) => withSection(d, section, patch));
+
+  // Arbeitskopie nachführen, wenn der Kern andere Einstellungen meldet, während der Dialog offen ist
+  // („Einstellungen zurücksetzen“, Normalisierung beim Speichern) – sonst würde ein späteres „Speichern“
+  // den neuen Stand mit der alten Arbeitskopie überschreiben. Eigene Eingaben bleiben erhalten, solange
+  // der Kern nur denselben Stand bzw. das Echo der gesendeten Einstellungen liefert.
+  const incoming = settingsView.settings;
+  const lastIncoming = useRef<string | null>(null);
+  const lastSent = useRef<string | null>(null);
+  const resetRequested = useRef(false);
+  useEffect(() => {
+    const json = stableJson(incoming);
+    const changed = lastIncoming.current !== null && json !== lastIncoming.current;
+    lastIncoming.current = json;
+    if (resetRequested.current) {
+      resetRequested.current = false;
+      setDraft(structuredClone(incoming));
+      return;
+    }
+    if (!changed || json === lastSent.current) return;
+    setDraft(structuredClone(incoming));
+  }, [incoming]);
   const problemEntries = Object.entries(settingsView.problems);
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -573,9 +635,10 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
 
   const save = () => {
     const next: Settings = withSection(draft, 'output', { postfix: draft.output.postfix.trim() === '' ? '_signed' : draft.output.postfix });
-    dispatch({ type: 'save_settings', settings: next });
+    lastSent.current = stableJson(next);
+    void dispatch({ type: 'save_settings', settings: next });
   };
-  const cancel = () => dispatch({ type: 'close_settings' });
+  const cancel = () => void dispatch({ type: 'close_settings' });
 
   const tabs: { id: string; msg: string; args?: Record<string, string> }[] = [
     { id: 'simple', msg: 'config-Simple' },
@@ -638,7 +701,7 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
               <Fido2Tab {...props} />
             </TabPanel>
             <TabPanel id="about" className="tab-panel">
-              <AboutTab />
+              <AboutTab {...props} />
             </TabPanel>
           </Tabs>
           <div className="dialog-actions settings-actions">
@@ -659,7 +722,8 @@ export function SettingsDialog({ settingsView }: { settingsView: SettingsView })
                     variant="danger"
                     onPress={() => {
                       setConfirmReset(false);
-                      dispatch({ type: 'reset_settings' });
+                      resetRequested.current = true;
+                      void dispatch({ type: 'reset_settings' });
                     }}
                   />
                 </>

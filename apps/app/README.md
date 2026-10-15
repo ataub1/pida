@@ -37,14 +37,20 @@ PDFOVER_BLESS=1 npx vitest run src/core/contract.test.ts          # TS   → src
 
 ## Laufzeit
 
-- **PDFium** wird gesucht in `PDFOVER_PDFIUM_DIR`, neben der Binary, in `../Frameworks` (macOS-Bundle)
-  und im Ressourcenordner (`pdfium/`); sonst entscheidet der Kern.
-- **Kern nicht verfügbar** (Fehler oder Stub in Welle 2): Die Shell zeigt den Fehlerschritt
-  `ng-ui-core-unavailable` mit „Wiederholen“ statt abzustürzen.
+- **PDFium** wird gesucht in `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**; ein Release-Build lädt keine
+  Bibliothek aus einem per Umgebung genannten Ordner), neben der Binary, in `../Frameworks`
+  (macOS-Bundle) und im Ressourcenordner (`pdfium/`); sonst entscheidet der Kern.
+- **Kern nicht verfügbar** (Fehler oder Stub in Welle 2) bzw. Konfiguration nicht ermittelbar: Die
+  Shell zeigt den Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“ (Abbrechen = Beenden) statt
+  abzustürzen; „Öffnen mit“-Dokumente aus dieser Zeit werden für den nächsten Start vorgemerkt.
+- **Beenden** (Fenster schließen, ⌘Q) läuft über den Kern (`UiEvent::Quit` → `Finished`): laufende
+  Dialoge werden abgebrochen (F-73), Einstellungen gesichert (F-105); spätestens nach 5 s endet die App.
 - **Logs**: Log-Ordner der Plattform (`pdfover_config::Paths`), rotierend; Filter über `PDFOVER_LOG`.
   Keine Passwörter, TANs oder Dokumentinhalte (ADR 0001 Regel 9).
-- **Sicherheit**: CSP `default-src 'self'`, eigene Commands nur über `capabilities/default.json`,
+- **Sicherheit**: CSP `default-src 'self'`, minimale Capabilities (`capabilities/default.json`: nur
+  Ereignisse empfangen, eigene Commands, Datei-/Speichern-Dialog, Links; kein `core:default`),
   externe Links nur `https:`/`mailto:`, „Im Ordner anzeigen“ nur für die Ergebnisdatei des Kerns.
+  `tests/security_config.rs` hält Capabilities und CSP fest.
 
 ## Barrierefreiheit (WCAG 2.2 AA)
 

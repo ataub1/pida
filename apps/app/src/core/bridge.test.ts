@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockPreviewPath, errorCode, inTauri, isAllowedExternalUrl, pageTilePath, renderBase, tileScale } from './bridge';
+import { blockPreviewPath, errorCode, inTauri, isAllowedExternalUrl, pageTilePath, renderBase, resolveRenderBase, tileScale } from './bridge';
 import { mainBar, mmToPt, ptToMm, withSection, defaultSettings, baseName, dirName } from './defaults';
 import { MockCore } from './mock';
 import { notification, outputPrompt } from './extensions';
@@ -10,6 +10,20 @@ describe('Bridge-Hilfen', () => {
     expect(renderBase('Mozilla/5.0 (X11; Linux x86_64)')).toBe('pdfover-render://localhost/');
     expect(renderBase('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140')).toBe('http://pdfover-render.localhost/');
     expect(renderBase('Mozilla/5.0 (Linux; Android 15)')).toBe('http://pdfover-render.localhost/');
+  });
+
+  it('Basis-URL kommt aus convertFileSrc der Tauri-Laufzeit, sonst aus dem User-Agent', () => {
+    const tauriWindows = (path: string, protocol: string) => `https://${protocol}.localhost/${encodeURIComponent(path)}`;
+    const tauriMac = (path: string, protocol: string) => `${protocol}://localhost/${encodeURIComponent(path)}`;
+    expect(resolveRenderBase(tauriWindows, 'Macintosh')).toBe('https://pdfover-render.localhost/');
+    expect(resolveRenderBase(tauriMac, 'Windows NT 10.0')).toBe('pdfover-render://localhost/');
+    expect(resolveRenderBase(null, 'Windows NT 10.0')).toBe('http://pdfover-render.localhost/');
+    expect(
+      resolveRenderBase(() => {
+        throw new Error('ohne Tauri');
+      }, 'X11; Linux'),
+    ).toBe('pdfover-render://localhost/');
+    expect(resolveRenderBase(() => 'asset://localhost/', 'X11; Linux')).toBe('pdfover-render://localhost/');
   });
 
   it('Pfade für Kacheln und Blockvorschau (Maßstab gerundet und begrenzt)', () => {

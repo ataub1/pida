@@ -28,6 +28,7 @@ import {
   type Same,
 } from '../test/schema';
 import { UI_EVENT_EXTRA, UI_EVENT_SAMPLES } from './fixtures/ui-events';
+import { defaultSettings } from './defaults';
 import type { UiEvent, ViewState } from './types';
 
 const lang = lit('de', 'en');
@@ -247,6 +248,11 @@ describe('Vertrag ViewState (Rust → TS)', () => {
       views.flatMap((v) => (v.step.step === 'signing' && v.step.interaction.kind === 'form' ? [Object.keys(v.step.interaction.form)[0]] : [])),
     );
     expect([...forms].sort()).toEqual(['Fido2', 'Login', 'QrCode', 'SmsTan', 'WaitForApp']);
+  });
+
+  it('defaultSettings() entspricht Settings::default() aus Rust (Mock-Kern, Tests, Zurücksetzen)', () => {
+    const v = fixture.find((f) => f.name === 'settings_defaults')?.view as ViewState;
+    expect(v.settings?.settings).toEqual(defaultSettings());
   });
 
   it('unbekannte Einstellungen stehen auf oberster Ebene (flatten)', () => {

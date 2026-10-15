@@ -121,12 +121,18 @@ export function noticeTexts(t: Translator, notice: Notice): { title: string; tex
   return { title, text };
 }
 
+/**
+ * Doppelklickschutz wie PDF-Over (OK deaktiviert sich nach dem Klick). Lehnt die Bridge das Ereignis
+ * ab (Hinweis erscheint), wird die Maske wieder freigegeben – sonst bliebe nur „Abbrechen“.
+ */
 function useSubmit(request: number) {
   const { dispatch } = useApp();
   const [sent, setSent] = useState(false);
   const send = (answer: FormAnswerView) => {
     setSent(true);
-    dispatch({ type: 'submit_form', request, answer });
+    void dispatch({ type: 'submit_form', request, answer }).then((ok) => {
+      if (!ok) setSent(false);
+    });
   };
   return { sent, send };
 }
@@ -383,7 +389,9 @@ function SecretForm({ request, prompt }: { request: number; prompt: SecretPrompt
     e.preventDefault();
     if (sent) return;
     setSent(true);
-    dispatch({ type: 'submit_secret', request, secret });
+    void dispatch({ type: 'submit_secret', request, secret }).then((ok) => {
+      if (!ok) setSent(false);
+    });
     setSecret('');
   };
   return (

@@ -94,10 +94,24 @@ export function tileScale(scale: number): number {
   return Math.min(8, Math.max(0.25, rounded));
 }
 
-/** Basis-URL des Custom Protocols je Plattform (wie `convertFileSrc` von Tauri). */
+/** Basis-URL des Custom Protocols je Plattform aus dem User-Agent (Rückfall, wie `convertFileSrc`). */
 export function renderBase(userAgent: string): string {
   const windowsLike = /Windows|Android/i.test(userAgent);
   return windowsLike ? `http://${RENDER_SCHEME}.localhost/` : `${RENDER_SCHEME}://localhost/`;
+}
+
+/**
+ * Basis-URL des Custom Protocols: maßgeblich ist `convertFileSrc` der Tauri-Laufzeit (kennt Plattform
+ * und `useHttpsScheme`); nur wenn sie fehlt oder Unerwartetes liefert, der User-Agent.
+ */
+export function resolveRenderBase(convert: ((path: string, protocol: string) => string) | null, userAgent: string): string {
+  try {
+    const base = convert?.('', RENDER_SCHEME);
+    if (typeof base === 'string' && base.endsWith('/') && base.includes(RENDER_SCHEME)) return base;
+  } catch {
+    /* Rückfall */
+  }
+  return renderBase(userAgent);
 }
 
 /** URL einer Seitenkachel relativ zur Basis. */
@@ -118,14 +132,14 @@ export function errorCode(error: unknown): string {
 
 /** Bridge zum Rust-Kern über Tauri. */
 export async function createTauriBridge(): Promise<Bridge> {
-  const [{ invoke }, { listen }, { getCurrentWebview }, dialog, opener] = await Promise.all([
+  const [{ invoke, convertFileSrc }, { listen }, { getCurrentWebview }, dialog, opener] = await Promise.all([
     import('@tauri-apps/api/core'),
     import('@tauri-apps/api/event'),
     import('@tauri-apps/api/webview'),
     import('@tauri-apps/plugin-dialog'),
     import('@tauri-apps/plugin-opener'),
   ]);
-  const base = renderBase(navigator.userAgent);
+  const base = resolveRenderBase(convertFileSrc, navigator.userAgent);
   const listeners = new Set<(view: ViewState) => void>();
   await listen<ViewState>(VIEW_EVENT, (event) => {
     for (const cb of listeners) cb(event.payload);

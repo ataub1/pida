@@ -3,11 +3,14 @@
 //! Die Shell hält **keinen Fachzustand**: Sie startet den Kern, reicht [`UiEvent`]s durch, leitet den
 //! [`ViewState`] an das Fenster weiter und bedient das Custom Protocol. Kann der Kern nicht starten
 //! (Fehler oder – solange `core-api` in Welle 2 noch Stub ist – Panik), zeigt die Oberfläche einen
-//! Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“, statt die App zu beenden.
+//! Fehlerschritt `ng-ui-core-unavailable` mit „Wiederholen“, statt die App zu beenden. Dokumente, die
+//! in dieser Zeit eintreffen („Öffnen mit“, zweite Instanz), werden vorgemerkt und nach einem
+//! erfolgreichen Start übergeben.
 
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use pdfover_core_api::{Core, CoreConfig, MainBarView, StepView, UiEvent, ViewState};
@@ -20,17 +23,25 @@ use crate::protocol::{self, RenderRequest};
 pub const CORE_UNAVAILABLE: &str = "ng-ui-core-unavailable";
 /// Stabiler Fehlercode: Ereignis ungültig (i18n-ID).
 pub const EVENT_INVALID: &str = "ng-ui-event-invalid";
+/// Höchstzahl vorgemerkter Dokumente ohne laufenden Kern (Schutz vor unbegrenztem Wachstum).
+pub const MAX_PENDING_DOCUMENTS: usize = 1000;
 
 /// Zustand der Shell (Tauri-State).
 pub struct Shell {
-    config: CoreConfig,
+    /// `None`: Konfiguration nicht ermittelbar (z. B. kein Benutzerordner) – nur Fehlerschritt.
+    config: Option<CoreConfig>,
     core: Mutex<Option<Arc<Core>>>,
     fallback: Mutex<ViewState>,
+    pending: Mutex<Vec<PathBuf>>,
+    quitting: AtomicBool,
 }
 
 impl std::fmt::Debug for Shell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Shell").field("core_available", &self.core().is_some()).finish_non_exhaustive()
+        f.debug_struct("Shell")
+            .field("core_available", &self.core().is_some())
+            .field("pending", &lock(&self.pending).len())
+            .finish_non_exhaustive()
     }
 }
 
@@ -43,34 +54,73 @@ pub enum Started {
     Unavailable,
 }
 
+/// Ergebnis von [`Shell::request_quit`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuitRequest {
+    /// Kein Kern: sofort beenden.
+    NoCore,
+    /// `UiEvent::Quit` gesendet – der Kern beendet über `Finished` (Einstellungen sichern, F-73/F-105).
+    Requested,
+    /// Bereits angefordert; weiter auf den Kern warten.
+    AlreadyRequested,
+}
+
 impl Shell {
     /// Shell ohne laufenden Kern (Start mit [`Shell::start`]).
     pub fn new(config: CoreConfig) -> Shell {
-        Shell { config, core: Mutex::new(None), fallback: Mutex::new(unavailable_view("", Lang::system())) }
+        Shell::with(Some(config), unavailable_view("", Lang::system()))
     }
 
-    /// Startet den Kern; Fehler und Paniken (Stub) werden als Fehlerschritt abgebildet.
+    /// Shell ohne Konfiguration: Der Kern kann nicht starten, die Oberfläche zeigt den Fehlerschritt
+    /// mit `detail` (statt die App beim Start mit einer Panik zu beenden).
+    pub fn without_config(detail: &str) -> Shell {
+        Shell::with(None, unavailable_view(detail, Lang::system()))
+    }
+
+    fn with(config: Option<CoreConfig>, fallback: ViewState) -> Shell {
+        Shell {
+            config,
+            core: Mutex::new(None),
+            fallback: Mutex::new(fallback),
+            pending: Mutex::new(Vec::new()),
+            quitting: AtomicBool::new(false),
+        }
+    }
+
+    /// Startet den Kern; Fehler und Paniken (Stub) werden als Fehlerschritt abgebildet. Vorgemerkte
+    /// Dokumente gehen nach einem erfolgreichen Start an den Kern.
     pub fn start(&self) -> Started {
-        let config = self.config.clone();
+        let Some(config) = self.config.clone() else {
+            tracing::error!("Kern ohne Konfiguration nicht startbar");
+            return Started::Unavailable;
+        };
         let result = catch_unwind(AssertUnwindSafe(move || Core::new(config)));
         match result {
             Ok(Ok(core)) => {
                 let core = Arc::new(core);
                 *lock(&self.core) = Some(Arc::clone(&core));
+                let pending = std::mem::take(&mut *lock(&self.pending));
+                self.open_files(pending);
                 Started::Running(core)
             }
             Ok(Err(e)) => {
                 tracing::error!(error = %e, "Kern konnte nicht starten");
-                *lock(&self.fallback) = unavailable_view(&e.to_string(), Lang::system());
+                self.mark_unavailable(&e.to_string());
                 Started::Unavailable
             }
             Err(panic) => {
-                let detail = panic_message(&panic);
-                tracing::error!(detail = %detail, "Kern-Start abgebrochen (Panik)");
-                *lock(&self.fallback) = unavailable_view(&detail, Lang::system());
+                // Regel 9: Panik-Texte können beliebige Daten tragen – im Log nur die Tatsache.
+                tracing::error!("Kern-Start abgebrochen (Panik)");
+                self.mark_unavailable(&panic_message(&panic));
                 Started::Unavailable
             }
         }
+    }
+
+    /// Verwirft den Kern (z. B. Panik beim Abonnieren) und zeigt den Fehlerschritt mit `detail`.
+    pub fn mark_unavailable(&self, detail: &str) {
+        *lock(&self.core) = None;
+        *lock(&self.fallback) = unavailable_view(detail, Lang::system());
     }
 
     /// Laufender Kern.
@@ -88,7 +138,8 @@ impl Shell {
     }
 
     /// Prüft und sendet ein Ereignis aus der Oberfläche. Ohne Kern ist nur „Wiederholen“ (Neustart des
-    /// Kerns) bzw. „Beenden“ sinnvoll; alles andere liefert [`CORE_UNAVAILABLE`].
+    /// Kerns) bzw. „Abbrechen“/„Beenden“ (Programmende) sinnvoll; alles andere liefert
+    /// [`CORE_UNAVAILABLE`].
     pub fn dispatch_json(&self, event: serde_json::Value) -> Result<DispatchOutcome, &'static str> {
         let event: UiEvent = serde_json::from_value(event).map_err(|_| EVENT_INVALID)?;
         match self.core() {
@@ -98,13 +149,14 @@ impl Shell {
             }
             None => match event {
                 UiEvent::Retry => Ok(DispatchOutcome::Restart),
-                UiEvent::Quit => Ok(DispatchOutcome::Quit),
+                UiEvent::Quit | UiEvent::Cancel => Ok(DispatchOutcome::Quit),
                 _ => Err(CORE_UNAVAILABLE),
             },
         }
     }
 
-    /// Dokumente aus „Öffnen mit“, Drop auf das Dock-Icon, zweiter Instanz.
+    /// Dokumente aus „Öffnen mit“, Drop auf das Dock-Icon, zweiter Instanz. Ohne Kern werden sie
+    /// (ohne Duplikate, begrenzt auf [`MAX_PENDING_DOCUMENTS`]) für den nächsten Start vorgemerkt.
     pub fn open_files(&self, paths: Vec<PathBuf>) {
         if paths.is_empty() {
             return;
@@ -112,7 +164,37 @@ impl Shell {
         if let Some(core) = self.core() {
             let _ = catch_unwind(AssertUnwindSafe(|| core.dispatch(UiEvent::OpenFiles { paths })));
         } else {
-            tracing::warn!(count = paths.len(), "Dokumente ohne laufenden Kern verworfen");
+            let mut pending = lock(&self.pending);
+            for path in paths {
+                if pending.len() >= MAX_PENDING_DOCUMENTS {
+                    tracing::warn!("Zu viele Dokumente ohne laufenden Kern; weitere verworfen");
+                    break;
+                }
+                if !pending.contains(&path) {
+                    pending.push(path);
+                }
+            }
+            tracing::info!(count = pending.len(), "Dokumente für den Kernstart vorgemerkt");
+        }
+    }
+
+    /// Anzahl vorgemerkter Dokumente (ohne laufenden Kern).
+    pub fn pending_documents(&self) -> usize {
+        lock(&self.pending).len()
+    }
+
+    /// Beenden über den Kern (Fenster schließen, ⌘Q): Der Kern bekommt `UiEvent::Quit` (Abbruch
+    /// eines laufenden Dialogs, F-73; Sichern der Einstellungen, F-105) und meldet `Finished`.
+    pub fn request_quit(&self) -> QuitRequest {
+        let Some(core) = self.core() else {
+            return QuitRequest::NoCore;
+        };
+        if self.quitting.swap(true, Ordering::SeqCst) {
+            return QuitRequest::AlreadyRequested;
+        }
+        match catch_unwind(AssertUnwindSafe(|| core.dispatch(UiEvent::Quit))) {
+            Ok(()) => QuitRequest::Requested,
+            Err(_) => QuitRequest::NoCore,
         }
     }
 
@@ -149,9 +231,9 @@ impl Shell {
         }
     }
 
-    /// Log-Ordner (Über-Dialog „Logs anzeigen“).
-    pub fn log_dir(&self) -> PathBuf {
-        self.config.paths.log_dir.clone()
+    /// Log-Ordner (Über-Dialog „Logs anzeigen“); ohne Konfiguration keiner.
+    pub fn log_dir(&self) -> Option<PathBuf> {
+        self.config.as_ref().map(|c| c.paths.log_dir.clone())
     }
 }
 
@@ -256,7 +338,10 @@ mod tests {
                 // ohne Kern: nur Wiederholen/Beenden
                 assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "retry" })), Ok(DispatchOutcome::Restart));
                 assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "quit" })), Ok(DispatchOutcome::Quit));
-                assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "cancel" })), Err(CORE_UNAVAILABLE));
+                // „Abbrechen“ im Fehlerschritt ohne Kern beendet das Programm
+                assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "cancel" })), Ok(DispatchOutcome::Quit));
+                assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "open_settings" })), Err(CORE_UNAVAILABLE));
+                assert_eq!(shell.request_quit(), QuitRequest::NoCore);
                 assert_eq!(shell.render("/block", Some("scale=1")).status(), 503);
                 assert_eq!(shell.output_path(), None);
             }
@@ -271,6 +356,40 @@ mod tests {
     #[test]
     fn debug_has_no_details() {
         let (shell, _) = test_shell();
-        assert_eq!(format!("{shell:?}"), "Shell { core_available: false, .. }");
+        shell.open_files(vec![PathBuf::from("/geheim/Vertrag.pdf")]);
+        assert_eq!(format!("{shell:?}"), "Shell { core_available: false, pending: 1, .. }");
+    }
+
+    /// Ohne Kern eintreffende Dokumente gehen nicht verloren (Wiederholen nach Startfehler), ohne
+    /// Duplikate und begrenzt.
+    #[test]
+    fn documents_without_core_are_kept_for_the_next_start() {
+        let (shell, root) = test_shell();
+        let a = PathBuf::from("/x/a.pdf");
+        shell.open_files(vec![a.clone(), a.clone()]);
+        shell.open_files(Vec::new());
+        assert_eq!(shell.pending_documents(), 1);
+        let many: Vec<PathBuf> =
+            (0..MAX_PENDING_DOCUMENTS + 50).map(|i| PathBuf::from(format!("/x/{i}.pdf"))).collect();
+        shell.open_files(many);
+        assert_eq!(shell.pending_documents(), MAX_PENDING_DOCUMENTS);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// Ohne ermittelbare Konfiguration startet die App trotzdem und zeigt den Fehlerschritt.
+    #[test]
+    fn missing_configuration_yields_error_view() {
+        let shell = Shell::without_config("Konfigurationsordner nicht ermittelbar");
+        assert!(matches!(shell.start(), Started::Unavailable));
+        assert!(shell.log_dir().is_none());
+        match shell.view().step {
+            StepView::Error { code, params, retry } => {
+                assert_eq!(code, CORE_UNAVAILABLE);
+                assert_eq!(params.get("detail").map(String::as_str), Some("Konfigurationsordner nicht ermittelbar"));
+                assert!(retry);
+            }
+            other => panic!("unerwartet: {other:?}"),
+        }
+        assert_eq!(shell.dispatch_json(serde_json::json!({ "type": "retry" })), Ok(DispatchOutcome::Restart));
     }
 }

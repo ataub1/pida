@@ -19,8 +19,11 @@ export interface Toast {
 export interface AppContextValue {
   bridge: Bridge;
   view: ViewState;
-  /** sendet ein Ereignis; Fehler erscheinen als Hinweis */
-  dispatch: (event: UiEventExt) => void;
+  /**
+   * sendet ein Ereignis; Fehler erscheinen als Hinweis. Das Ergebnis meldet, ob der Kern das Ereignis
+   * angenommen hat (Masken geben ihren Doppelklickschutz bei `false` wieder frei).
+   */
+  dispatch: (event: UiEventExt) => Promise<boolean>;
   /** Übersetzer der UI-Sprache (`ViewState::language`) */
   t: Translator;
   /** Text für Screenreader (Live-Region, höflich) */

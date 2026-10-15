@@ -30,6 +30,16 @@ function readUnit(): Unit {
   }
 }
 
+/**
+ * Mausrad-Weg in Pixeln: Zeilen/Seiten-Modus (`deltaMode` 1/2) umrechnen; mit Shift liefern
+ * WebKit/Chromium unter macOS die Bewegung als `deltaX` (horizontales Scrollen).
+ */
+export function wheelDelta(e: { deltaX: number; deltaY: number; deltaMode: number; shiftKey: boolean }): number {
+  const raw = e.deltaY !== 0 ? e.deltaY : e.shiftKey ? e.deltaX : 0;
+  const factor = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1;
+  return raw * factor;
+}
+
 /** Klemmung wie F-35 mit KR-F11 (nur für die vorläufige Anzeige beim Ziehen). */
 export function clampToPage(x: number, y: number, bw: number, bh: number, pw: number, ph: number): { x: number; y: number } {
   return { x: Math.max(0, Math.min(x, pw - bw)), y: Math.min(ph, Math.max(y, bh)) };
@@ -71,10 +81,20 @@ export function PositionScreen({ view }: { view: PositionView }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
 
-  // Vorläufige Lage verwerfen, sobald der Kern eine neue Position meldet (nicht während des Ziehens).
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Vorläufige Lage verwerfen, sobald der Kern einen neuen Zustand meldet (nicht während des Ziehens):
+  // maßgeblich ist immer die Position des Kerns – auch wenn sie sich nicht geändert hat (Klick auf den
+  // Block ohne Bewegung) oder der Kern anders klemmt/rundet als die Vorschau.
   useEffect(() => {
     if (!dragging.current) setDrag(null);
-  }, [placement.x, placement.y, placement.page_index, page]);
+  }, [view]);
+  useEffect(
+    () => () => {
+      if (settle.current) clearTimeout(settle.current);
+    },
+    [],
+  );
 
   const flushMove = useCallback(() => {
     frame.current = null;
@@ -130,9 +150,19 @@ export function PositionScreen({ view }: { view: PositionView }) {
     if (!d || d.pointer !== e.pointerId) return;
     dragging.current = null;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
+    if (settle.current) clearTimeout(settle.current);
     if (frame.current != null) {
       if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame.current);
       flushMove();
+      // Die Antwort des Kerns ersetzt die Vorschau; meldet er keinen neuen Zustand (gleiche Position),
+      // spätestens nach kurzer Zeit auf seine Position zurückfallen.
+      settle.current = setTimeout(() => {
+        settle.current = null;
+        if (!dragging.current) setDrag(null);
+      }, 400);
+    } else {
+      // Alles ist beim Kern angekommen – seine Position gilt.
+      setDrag(null);
     }
   };
 
@@ -149,7 +179,7 @@ export function PositionScreen({ view }: { view: PositionView }) {
   const onWheel = (e: WheelEvent<HTMLDivElement>) => {
     const w = wheel.current;
     const now = Date.now();
-    w.acc += e.deltaY;
+    w.acc += wheelDelta(e);
     if (Math.abs(w.acc) < 60 || now - w.last < 120) return;
     const dir = w.acc > 0 ? 1 : -1;
     w.acc = 0;

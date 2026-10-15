@@ -35,6 +35,26 @@ describe('Signieren: Warten', () => {
 });
 
 describe('Signieren: Anmeldung (ID Austria)', () => {
+  it('lehnt die Bridge das Absenden ab, wird OK wieder frei (kein Hängenbleiben)', async () => {
+    const { mock, user } = renderApp({ view: formView({ Login: { prefill_username: 'max', remember: false, ctx: ctx() } }) });
+    const dispatch = vi.spyOn(mock, 'dispatch').mockRejectedValueOnce(new Error('ng-ui-bridge-error'));
+    const password = await screen.findByLabelText('Passwort:');
+    await user.type(password, 'geheim-123{Enter}');
+    expect(await screen.findByRole('alert', { name: '' })).toHaveTextContent('Die Verbindung zum Signaturkern ist gestört.');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'OK' })).toBeEnabled());
+    await user.type(password, 'geheim-123{Enter}');
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'OK' })).toBeDisabled();
+  });
+
+  it('Keystore-Passwort: nach abgelehntem Senden erneut möglich', async () => {
+    const { mock, user } = renderApp({ view: signingView({ kind: 'secret', request: 4, prompt: { kind: 'KeystorePassword', subject: 'id.p12', retry: false } }) });
+    vi.spyOn(mock, 'dispatch').mockRejectedValueOnce(new Error('ng-ui-core-unavailable'));
+    const field = await screen.findByLabelText(/Keystore-Passwort/, { selector: 'input' });
+    await user.type(field, 'pw{Enter}');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'OK' })).toBeEnabled());
+  });
+
   it('Fokus, Vorbelegung, Merken, Hinweiszeile, Absenden', async () => {
     const { mock, user } = renderApp({
       view: formView({ Login: { prefill_username: '+43664123456789', remember: true, ctx: ctx({ signature_data_url: 'https://a-trust.at/x' }) } }),

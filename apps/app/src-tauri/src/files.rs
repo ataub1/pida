@@ -6,6 +6,7 @@
 //! übernimmt hier nur Dokumente (`-i <datei>` und freie Tokens wie bei PDF-Over: „unbekanntes Token =
 //! Datei“, docs/analyse/01 §5.1).
 
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 /// PDF-Over-Optionen mit Wert (Wert wird übersprungen, nur `-i` liefert ein Dokument).
@@ -32,10 +33,13 @@ const OPTIONS_WITH_VALUE: &[&str] = &[
 
 /// Dokumente aus einer Argumentliste **ohne** Programmnamen; relative Pfade gelten relativ zu `cwd`.
 /// Werte von Optionen (z. B. Passwörter nach `-p`) werden nie als Datei interpretiert.
+///
+/// Die Argumente sind `OsStr`-artig: Dateinamen dürfen unter Unix beliebige Bytes enthalten
+/// (`std::env::args()` bräche bei Nicht-UTF-8 mit einer Panik ab, deshalb `args_os()`).
 pub fn documents_from_args<I, S>(args: I, cwd: &Path) -> Vec<PathBuf>
 where
     I: IntoIterator<Item = S>,
-    S: AsRef<str>,
+    S: AsRef<OsStr>,
 {
     let mut out = Vec::new();
     let mut iter = args.into_iter();
@@ -47,11 +51,12 @@ where
             }
             continue;
         }
-        if OPTIONS_WITH_VALUE.contains(&arg) {
+        if arg.to_str().is_some_and(|a| OPTIONS_WITH_VALUE.contains(&a)) {
             let _ = iter.next();
             continue;
         }
-        if arg.starts_with('-') && arg.len() > 1 {
+        let bytes = arg.as_encoded_bytes();
+        if bytes.first() == Some(&b'-') && bytes.len() > 1 {
             // Schalter ohne Wert (-a, -s, -h, -?, --help) bzw. unbekannte Optionen.
             continue;
         }
@@ -80,7 +85,7 @@ where
     out
 }
 
-fn push_existing(out: &mut Vec<PathBuf>, cwd: &Path, value: &str) {
+fn push_existing(out: &mut Vec<PathBuf>, cwd: &Path, value: &OsStr) {
     if value.is_empty() {
         return;
     }
@@ -127,6 +132,26 @@ mod tests {
         let (dir, a, _) = fixture();
         let docs = documents_from_args(["fehlt.pdf", "a.pdf", "a.pdf", ""], &dir);
         assert_eq!(docs, vec![a]);
+    }
+
+    /// Unter Unix sind Dateinamen Bytefolgen: ein Nicht-UTF-8-Name darf weder abstürzen noch verloren
+    /// gehen (Linux „Öffnen mit“ mit Latin-1-Namen).
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_file_names_are_accepted() {
+        use std::os::unix::ffi::OsStrExt;
+        let (dir, a, _) = fixture();
+        let name = OsStr::from_bytes(b"latin1-\xe4.pdf");
+        let path = dir.join(name);
+        if std::fs::write(&path, b"%PDF-1.7\n").is_err() {
+            // Dateisystem ohne Bytenamen (z. B. APFS verlangt UTF-8): nur „keine Panik“ prüfen.
+            let docs = documents_from_args([name, OsStr::new("a.pdf"), OsStr::from_bytes(b"-\xff")], &dir);
+            assert_eq!(docs, vec![a]);
+            return;
+        }
+        let docs = documents_from_args([name, OsStr::new("-p"), name, OsStr::new("a.pdf")], &dir);
+        assert_eq!(docs, vec![path.clone(), a]);
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

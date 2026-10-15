@@ -54,25 +54,35 @@ export function accessKeyFromEvent(e: KeyboardEvent, isMac: boolean): string | n
   return (m[1] ?? m[2] ?? '').toLowerCase() || null;
 }
 
-/** Löst eine Zugriffstaste in der obersten Ebene (Dialog bzw. Seite) aus. */
+/**
+ * Löst eine Zugriffstaste in der obersten Ebene (Dialog bzw. Seite) aus. Teilen sich mehrere
+ * Bedienelemente dieselbe Taste (Kataloge aus PDF-Over, z. B. „Sprache des Signaturblocks“ und „Logo
+ * zurücksetzen“ mit R), wandert der Fokus wie unter Windows reihum zum nächsten Element, ohne etwas
+ * auszulösen – so bleibt jedes Element per Tastatur erreichbar.
+ */
 export function triggerAccessKey(key: string, root: Document = document): boolean {
   const layers = root.querySelectorAll<HTMLElement>('[data-modal-layer]');
   const scope: ParentNode = layers.length > 0 ? (layers[layers.length - 1] as HTMLElement) : root;
   const candidates = Array.from(scope.querySelectorAll<HTMLElement>(`[data-accesskey="${key}"]`));
+  const targets: HTMLElement[] = [];
   for (const el of candidates) {
     if (el.closest('[inert], [hidden], [aria-hidden="true"]')) continue;
     const target = el.closest<HTMLElement>(INTERACTIVE) ?? el.closest<HTMLElement>('.field, .radio-group, fieldset')?.querySelector<HTMLElement>(INTERACTIVE) ?? null;
     if (!target) continue;
     if (target.matches(':disabled') || target.getAttribute('aria-disabled') === 'true' || target.hasAttribute('data-disabled')) continue;
-    if (target.matches('input, select, textarea') || target.getAttribute('aria-haspopup')) {
-      target.focus();
-    } else {
-      target.focus();
-      target.click();
-    }
+    if (!targets.includes(target)) targets.push(target);
+  }
+  const first = targets[0];
+  if (!first) return false;
+  if (targets.length > 1) {
+    const active = root.activeElement;
+    const index = targets.findIndex((el) => el === active || (active !== null && el.contains(active)));
+    (targets[(index + 1) % targets.length] ?? first).focus();
     return true;
   }
-  return false;
+  first.focus();
+  if (!first.matches('input, select, textarea') && !first.getAttribute('aria-haspopup')) first.click();
+  return true;
 }
 
 export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: boolean }) {
@@ -121,12 +131,15 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, []);
 
   const dispatch = useCallback(
-    (event: UiEventExt) => {
-      bridge.dispatch(event).catch((e: unknown) => {
-        const code = e instanceof Error ? e.message : 'ng-ui-bridge-error';
-        toast(translator(current.language).code(code, {}, 'ng-ui-bridge-error'), 'error');
-      });
-    },
+    (event: UiEventExt): Promise<boolean> =>
+      bridge.dispatch(event).then(
+        () => true,
+        (e: unknown) => {
+          const code = e instanceof Error ? e.message : 'ng-ui-bridge-error';
+          toast(translator(current.language).code(code, {}, 'ng-ui-bridge-error'), 'error');
+          return false;
+        },
+      ),
     [bridge, toast, current.language],
   );
 
@@ -150,7 +163,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           { name: t.t('common-AllExtension_Description'), extensions: ['*'] },
         ],
       });
-      if (paths && paths.length > 0) dispatch({ type: 'open_files', paths });
+      if (paths && paths.length > 0) void dispatch({ type: 'open_files', paths });
     } catch {
       toast(t.t('ng-ui-dialog-failed'), 'error');
     }
@@ -179,7 +192,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         return;
       }
       if (s === 'open' || s === 'output') {
-        dispatch({ type: 'open_files', paths: e.paths });
+        void dispatch({ type: 'open_files', paths: e.paths });
       } else {
         toast(translator(current.language).t('ng-ui-drop-not-here'));
       }
@@ -196,7 +209,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       if (mod && !e.altKey && !e.shiftKey && e.key === ',') {
         if (v.main_bar.settings_enabled && !v.settings) {
           e.preventDefault();
-          d({ type: 'open_settings' });
+          void d({ type: 'open_settings' });
         }
         return;
       }
@@ -206,7 +219,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           void b();
         } else if (!v.settings && v.main_bar.steps.find((s) => s.step === 'Open')?.enabled) {
           e.preventDefault();
-          d({ type: 'navigate', step: 'Open' });
+          void d({ type: 'navigate', step: 'Open' });
         }
         return;
       }

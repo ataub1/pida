@@ -1,8 +1,14 @@
 //! Suche nach der PDFium-Bibliothek (Plan §2.1: dynamisch auf Desktop/Android, xcframework auf iOS).
 //!
-//! Reihenfolge: Umgebungsvariable `PDFOVER_PDFIUM_DIR` (Entwicklung, Tests), Ordner der Binary,
-//! `../Frameworks` im macOS-Bundle, Ressourcenordner (auch `pdfium/` darunter). Wird nichts gefunden,
-//! entscheidet der Kern (`CoreConfig::pdfium_dir = None` → neben der Binary/System).
+//! Reihenfolge: Umgebungsvariable `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**: Entwicklung, Tests),
+//! Ordner der Binary, `../Frameworks` im macOS-Bundle, Ressourcenordner (auch `pdfium/` darunter).
+//! Wird nichts gefunden, entscheidet der Kern (`CoreConfig::pdfium_dir = None` → neben der
+//! Binary/System).
+//!
+//! Sicherheit: Ein Release-Build lädt keine Bibliothek aus einem per Umgebungsvariable genannten
+//! Ordner, solange die mitgelieferte gefunden wird. Sonst könnte jeder, der die Umgebung der App
+//! setzen kann, Code mit den Rechten der (signierten) App ausführen – z. B. deren macOS-TCC-Freigaben
+//! für Dokumente/Downloads erben (Bibliotheks-Injektion trotz Hardened Runtime).
 
 use std::path::{Path, PathBuf};
 
@@ -15,6 +21,14 @@ pub fn library_file_name() -> &'static str {
     } else {
         "libpdfium.so"
     }
+}
+
+/// Name der Umgebungsvariable (wie `pdfover_render::ENV_PDFIUM_DIR`).
+pub const ENV_PDFIUM_DIR: &str = "PDFOVER_PDFIUM_DIR";
+
+/// Ordner aus [`ENV_PDFIUM_DIR`] – nur in Debug-Builds (siehe Moduldoku), sonst `None`.
+pub fn env_override() -> Option<PathBuf> {
+    if cfg!(debug_assertions) { std::env::var_os(ENV_PDFIUM_DIR).map(PathBuf::from) } else { None }
 }
 
 /// Kandidaten in Suchreihenfolge.
@@ -62,5 +76,16 @@ mod tests {
         assert_eq!(list.first(), Some(&env));
         assert_eq!(list.last(), Some(&root.join("pdfium")));
         assert!(find(&[root.join("nichts")]).is_none());
+    }
+
+    #[test]
+    fn env_override_only_in_debug_builds() {
+        // Der Test läuft im Debug-Profil (cargo test); im Release-Profil bleibt die Variable wirkungslos.
+        let value = env_override();
+        if cfg!(debug_assertions) {
+            assert_eq!(value, std::env::var_os(ENV_PDFIUM_DIR).map(PathBuf::from));
+        } else {
+            assert_eq!(value, None);
+        }
     }
 }
