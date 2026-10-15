@@ -12,6 +12,15 @@ publish.workspace = true
 lopdf = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+# DCT-Bilder für die QR-Erkennung (Plan §6.8); reines Rust, Zlib/MIT/Apache-2.0.
+zune-jpeg = { workspace = true }
+
+[dev-dependencies]
+flate2 = { workspace = true }
+# QR-Orakel in den Tests (dekodierte Platzhalterbilder müssen lesbar sein); dieselbe Version wie placement.
+rxing = { workspace = true }
+# PDFium als Orakel für Bildmatrizen (ADR 0001 §8.2); nur mit PDFOVER_PDFIUM_DIR, sonst übersprungen.
+pdfium-render = { workspace = true }
 
 [lints]
 workspace = true

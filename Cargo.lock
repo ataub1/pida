@@ -2628,17 +2628,25 @@ dependencies = [
 name = "pdfover-pdf-cos"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "lopdf",
+ "pdfium-render",
+ "rxing",
  "serde",
  "thiserror",
+ "zune-jpeg",
 ]
 
 [[package]]
 name = "pdfover-pdf-incremental"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "pdfover-pdf-cos",
  "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
  "thiserror",
  "time",
 ]
