@@ -474,9 +474,29 @@ fn unavailable_default_backend_shows_selection() {
 #[test]
 fn only_id_austria_is_chosen_automatically_f54() {
     let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
-    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(false, false)), &ctx);
+    // Keystore nicht eingeschaltet (die Registry listet ihn dann nicht), lokale BKU nicht erreichbar
+    let mut opts = options(false, false);
+    opts.retain(|o| o.id != BackendId::Keystore);
+    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(opts), &ctx);
     let State::Signing { backend, .. } = &t.state else { panic!("{:?}", t.state) };
     assert_eq!(*backend, BackendId::AtrustNative);
+}
+
+/// F-54 wie PDF-Over (`KEYSTORE_ENABLED`): Ein eingeschalteter Keystore, dessen Datei gerade fehlt (z. B.
+/// neuer Sandbox-Pfad nach einem App-Update), führt zur Auswahl – nie ohne Rückfrage zu ID Austria
+/// (das öffnete sofort eine Sitzung bei A-Trust).
+#[test]
+fn enabled_but_missing_keystore_prevents_automatic_id_austria() {
+    let ctx = Context { privacy_acknowledged: vec![BackendId::AtrustNative], ..gui() };
+    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(false, false)), &ctx);
+    let State::ChoosingBackend { auto_choice, options: shown, .. } = &t.state else { panic!("{:?}", t.state) };
+    assert!(!auto_choice);
+    assert!(shown.iter().any(|o| o.id == BackendId::Keystore && !o.available()));
+    assert!(t.effects.is_empty(), "keine Sitzung: {:?}", t.effects);
+    // ohne Oberfläche (CLI) bleibt es bei „genau ein verfügbares Backend“
+    let ctx = Context { headless: true, ..ctx };
+    let t = step(choosing(&[1], PositionChoice::Auto, true), Event::BackendsProbed(options(false, false)), &ctx);
+    assert!(matches!(&t.state, State::Signing { backend: BackendId::AtrustNative, .. }), "{:?}", t.state);
 }
 
 #[test]

@@ -14,9 +14,22 @@ async function bridge(): Promise<Bridge> {
   if (!forceMock && inTauri()) return createTauriBridge();
   // Mock-Kern nur bei Bedarf laden (eigener Chunk, nicht im Startpfad der App).
   const { MockCore: Mock } = await import('./core/mock');
-  const mock = new Mock();
+  const mock = new Mock(mockOptionsFromUrl(window.location.search));
   installBrowserDrop(mock);
   return mock;
+}
+
+/**
+ * Browser-Vorschau der Mobile-Oberfläche: `?platform=ios|android` (Teilen/Exportieren, PKCS#12-Import,
+ * FIDO2-Hinweis), `&resume=1` (Angebot „Signatur fortsetzen“). Nur der Mock-Kern wertet das aus.
+ */
+function mockOptionsFromUrl(search: string): import('./core/mock').MockOptions {
+  const params = new URLSearchParams(search);
+  const platform = params.get('platform');
+  return {
+    platform: platform === 'ios' || platform === 'android' ? platform : 'desktop',
+    resumeOffer: params.get('resume') === '1' ? { name: 'Vertrag.pdf', backend: 'atrust_native', age_minutes: 4, pending: 1 } : null,
+  };
 }
 
 /** Browser-Vorschau: HTML5-Drop als Ersatz für die Fenster-Ereignisse von Tauri (nur Dateinamen). */

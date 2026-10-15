@@ -11,7 +11,7 @@ describe('Ergebnis', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Signatur war erfolgreich' })).toBeInTheDocument();
     expect(screen.getByText('Vertrag_signed.pdf')).toBeInTheDocument();
     expect(screen.getByText('/Users/demo')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'hier' }));
+    await user.click(screen.getByRole('link', { name: 'hier' }));
     await user.click(screen.getByRole('button', { name: 'Öffnen' }));
     await user.click(screen.getByRole('button', { name: 'Im Ordner anzeigen' }));
     expect(mock.dispatched).toEqual([{ type: 'open_result' }, { type: 'open_result' }]);

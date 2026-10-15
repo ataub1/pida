@@ -907,7 +907,78 @@ available: boolean,
 /**
  * Fähigkeiten
  */
-capabilities: Capabilities | null, };
+capabilities: Capabilities | null, 
+/**
+ * Hinweise zur Option (i18n-IDs), z. B. `ng-fido2-unavailable-mobile`: ID Austria auf Mobile ohne
+ * FIDO2 – die UI zeigt FIDO2 ausgegraut mit diesem Hinweis (Plan §4.7, §5.2)
+ */
+notes: Array<string>, };
+
+/**
+ * Betriebssystem der Shell.
+ */
+export type PlatformOs = "windows" | "macos" | "linux" | "ios" | "android";
+
+/**
+ * Plattform der Oberfläche (Plan §5.1): steuert plattformabhängige Bedienelemente.
+ */
+export type PlatformView = { 
+/**
+ * Betriebssystem
+ */
+os: PlatformOs, 
+/**
+ * Mobile Oberfläche (iOS/Android, Plan §5.2): Teilen und Exportieren statt „Im Ordner anzeigen“,
+ * PKCS#12-Import in die App statt Dateipfad, kein FIDO2 (ausgegraut mit Hinweis), keine lokale
+ * BKU, keine Proxy-Einstellungen (System-Proxy), keine Ausgabeordner-Wahl (App-Dokumente)
+ */
+mobile: boolean, };
+
+/**
+ * Angebot „Signatur fortsetzen“ (Mobile, Plan §3.5): Beim letzten Lauf wurde die App während eines
+ * Signiervorgangs vom System beendet (z. B. beim Wechsel in die App „ID Austria“). Antwort über
+ * [`UiEvent::ResumeSignature`] bzw. [`UiEvent::DiscardResume`]; nur im Schritt `open` gesetzt.
+ */
+export type ResumeOfferView = { 
+/**
+ * Name des Dokuments
+ */
+name: string, 
+/**
+ * Signiermittel des unterbrochenen Vorgangs
+ */
+backend: BackendId, 
+/**
+ * vor wie vielen Minuten vorbereitet (Anzeige)
+ */
+age_minutes: number, 
+/**
+ * weitere Dokumente des unterbrochenen Batches
+ */
+pending: number, };
+
+/**
+ * Ergebnis des PKCS#12-Imports in die App-Sandbox (Mobile, Import-Assistent; Plan §5.2) – schließen
+ * mit [`UiEvent::DismissKeystoreImport`].
+ */
+export type KeystoreImportView = { 
+/**
+ * Dateiname (ohne Pfad)
+ */
+file_name: string, 
+/**
+ * importiert (Einstellungen › Keystore zeigen auf die Kopie in der Sandbox)
+ */
+ok: boolean, 
+/**
+ * Meldungs-ID: `ng-keystore-imported` bzw. der Fehler (`keystore-wrong-password`,
+ * `ng-keystore-import-format`, …)
+ */
+code: string, 
+/**
+ * Passwort im sicheren Speicher abgelegt (Keychain bzw. Android Keystore)
+ */
+password_stored: boolean, };
 
 /**
  * Datenschutzhinweis.
@@ -1046,8 +1117,8 @@ placement: Placement,
  */
 new_page: boolean, 
 /**
- * Parameter des Live-Region-Texts `ng-ui-position-announce`: `page`, `pages`, `left` (mm von
- * links), `bottom` (mm der Blockunterkante von unten), ganzzahlig
+ * Parameter des Live-Region-Texts `ng-ui-position-announce`: `page`, `pages`, `left` (mm der
+ * linken Kante von links), `top` (mm der Oberkante von unten – wie das Zahlenfeld Y), ganzzahlig
  */
 announce: { [key in string]: string }, } | { "step": "backend", 
 /**
@@ -1153,7 +1224,19 @@ migration: MigrationOfferView | null,
 /**
  * abgeschlossene Dokumente dieser Sitzung
  */
-done: Array<DoneItemView>, };
+done: Array<DoneItemView>, 
+/**
+ * Plattform (Desktop/Mobile-Bedienelemente)
+ */
+platform: PlatformView, 
+/**
+ * Angebot „Signatur fortsetzen“ (nur Mobile, nur im Schritt `open`)
+ */
+resume: ResumeOfferView | null, 
+/**
+ * Ergebnis des PKCS#12-Imports (Import-Assistent)
+ */
+keystore_import: KeystoreImportView | null, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1272,7 +1355,7 @@ path: string | null, } | { "type": "confirm_overwrite",
 /**
  * ja
  */
-overwrite: boolean, } | { "type": "open_result" } | { "type": "navigate", 
+overwrite: boolean, } | { "type": "open_result" } | { "type": "share_result" } | { "type": "export_result" } | { "type": "navigate", 
 /**
  * Schritt
  */
@@ -1280,7 +1363,19 @@ step: Step, } | { "type": "open_settings" } | { "type": "save_settings",
 /**
  * neue Einstellungen
  */
-settings: Settings, } | { "type": "close_settings" } | { "type": "reset_settings" } | { "type": "backgrounded" } | { "type": "foregrounded" } | { "type": "quit" } | { "type": "dismiss_notice", 
+settings: Settings, } | { "type": "close_settings" } | { "type": "reset_settings" } | { "type": "backgrounded" } | { "type": "foregrounded" } | { "type": "resume_signature" } | { "type": "discard_resume" } | { "type": "import_keystore", 
+/**
+ * Datei (von der Shell bereits in die Sandbox kopiert, `import_file`)
+ */
+path: string, 
+/**
+ * Passwort (nur RAM, sofort in `Zeroizing`; nie geloggt)
+ */
+password: string | null, 
+/**
+ * Passwort im sicheren Speicher merken
+ */
+remember: boolean, } | { "type": "dismiss_keystore_import" } | { "type": "quit" } | { "type": "dismiss_notice", 
 /**
  * Kennung ([`NoticeView::id`])
  */

@@ -11,6 +11,7 @@ fn main() {
         "open_log_dir",
         "reveal_output",
         "open_notices",
+        "mobile_pick_files",
     ]));
     tauri_build::try_build(attributes).expect("tauri-build fehlgeschlagen");
 }

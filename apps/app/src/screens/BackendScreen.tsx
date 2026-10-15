@@ -1,13 +1,18 @@
 /**
  * Auswahl des Signiermittels (docs/analyse/01 §4.4, F-50…F-56) mit Datenschutzhinweis vor dem ersten
  * Upload (`document_leaves_device`, Plan §4.2/§7.8).
+ *
+ * Mobile (Plan §5.2): keine lokale BKU (liefert der Kern nicht), FIDO2 bei ID Austria ausgegraut mit dem
+ * Hinweis aus `BackendOptionView::notes` (`ng-fido2-unavailable-mobile`), Keystore erst nach dem
+ * PKCS#12-Import in die App (Import-Assistent direkt aus der Auswahl).
  */
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Button } from 'react-aria-components';
 import { useApp } from '../app/context';
 import { IconCard, IconKey, IconPhone, IconShield } from '../components/icons';
 import { AccessButton, ConfirmDialog, Markup, Mnemonic, ScreenHeading } from '../components/ui';
-import type { BackendId, BackendOptionView, PrivacyNoticeView } from '../core/types';
+import { isMobile, type BackendId, type BackendOptionView, type PrivacyNoticeView } from '../core/types';
+import { KeystoreImportDialog } from '../settings/KeystoreImport';
 
 interface BackendMeta {
   title: string;
@@ -41,10 +46,16 @@ const META: Partial<Record<BackendId, BackendMeta>> = {
   },
 };
 
+/** Hinweis-ID des Kerns: FIDO2 auf diesem Gerät nicht verfügbar (Mobile). */
+const FIDO2_UNAVAILABLE = 'ng-fido2-unavailable-mobile';
+
 function BackendCard({ option }: { option: BackendOptionView }) {
-  const { t, dispatch, isMac } = useApp();
+  const { t, dispatch, isMac, view } = useApp();
   const meta = META[option.id];
   if (!meta) return null;
+  const mobile = isMobile(view);
+  const fido2Note = (option.notes ?? []).includes(FIDO2_UNAVAILABLE);
+  const desc = option.id === 'atrust_native' && mobile ? 'ng-ui-backend-atrust-desc-mobile' : meta.desc;
   const caps = option.capabilities;
   const key = t.accessKey(meta.access);
   const title = t.t(meta.title);
@@ -70,7 +81,7 @@ function BackendCard({ option }: { option: BackendOptionView }) {
             <Mnemonic text={title} accessKey={key} />
           </span>
           <span id={descId} className="backend-desc">
-            {option.available ? t.t(meta.desc) : t.t(meta.unavailable)}
+            {option.available ? t.t(desc) : t.t(option.id === 'keystore' && mobile ? 'ng-ui-backend-keystore-import-hint' : meta.unavailable)}
             {caps?.document_leaves_device ? <span className="backend-note"> {t.t('ng-ui-backend-leaves-device')}</span> : null}
           </span>
           {caps ? (
@@ -79,9 +90,15 @@ function BackendCard({ option }: { option: BackendOptionView }) {
               {caps.factors.app ? <span className="badge badge-muted">{t.t('ng-ui-factor-app')}</span> : null}
               {caps.factors.sms ? <span className="badge badge-muted">{t.t('ng-ui-factor-sms')}</span> : null}
               {caps.factors.fido2 ? <span className="badge badge-muted">FIDO2</span> : null}
+              {fido2Note ? (
+                <span className="badge badge-disabled" title={t.t(FIDO2_UNAVAILABLE)}>
+                  {t.t('ng-ui-fido2-unavailable-badge')}
+                </span>
+              ) : null}
               {caps.factors.card ? <span className="badge badge-muted">{t.t('ng-ui-factor-card')}</span> : null}
             </span>
           ) : null}
+          {fido2Note ? <span className="backend-note block">{t.t(FIDO2_UNAVAILABLE)}</span> : null}
         </span>
       </Button>
     </li>
@@ -113,9 +130,12 @@ function PrivacyDialog({ notice }: { notice: PrivacyNoticeView }) {
 }
 
 export function BackendScreen({ options, privacyNotice }: { options: BackendOptionView[]; privacyNotice: PrivacyNoticeView | null }) {
-  const { t } = useApp();
+  const { t, view } = useApp();
+  const [importing, setImporting] = useState(false);
   // Reservierte Backends (Szenario B/C/D) haben in v1 keine Oberfläche.
   const shown = options.filter((o) => META[o.id] !== undefined);
+  // Mobile: Keystore erst nach dem Import in die App (Plan §5.2)
+  const offerImport = isMobile(view) && !options.some((o) => o.id === 'keystore' && o.available);
   return (
     <div className="screen screen-backend">
       <ScreenHeading>{t.t('ng-ui-backend-title')}</ScreenHeading>
@@ -124,8 +144,14 @@ export function BackendScreen({ options, privacyNotice }: { options: BackendOpti
           <BackendCard key={o.id} option={o} />
         ))}
       </ul>
+      {offerImport ? (
+        <div className="actions actions-start">
+          <AccessButton msg="ng-ui-keystore-import" onPress={() => setImporting(true)} />
+        </div>
+      ) : null}
       <p className="hint">{t.t('ng-ui-backend-hint')}</p>
       {privacyNotice ? <PrivacyDialog notice={privacyNotice} /> : null}
+      {importing ? <KeystoreImportDialog onClose={() => setImporting(false)} /> : null}
     </div>
   );
 }

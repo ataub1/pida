@@ -143,7 +143,11 @@ oder Logs. Vorab Datenschutzhinweis bestätigen.
   informativ); die Drittlizenz-Hinweise kommen unter Windows noch nicht ins Debug-Bundle.
 - Keine Codesignatur/Notarisierung, kein Updater, kein Release-Workflow (Plan §9.3/§9.4).
 - CTAP2-clientPIN (FIDO2 mit PIN) im HID-Provider fehlt (Welle 2, Paket I1).
-- Mobile (iOS/Android): Kern-Crates bauen für iOS; Shell, SecretStore und Lebenszyklus folgen in der
-  Mobile-Welle.
+- Mobile (iOS/Android): Fundament M0 steht (Kern-Lebenszyklus mit „Signatur fortsetzen“, Shell
+  `cfg(mobile)`, Plugin `pdfover-mobile` mit leeren nativen Seiten, Oberfläche); native Seiten, Projekte
+  und Start im Simulator/Emulator folgen mit M-iOS/M-Android (docs/integration/mobile.md).
+- Positionsanzeige (Befund aus der Abnahme): Live-Region und Felder nennen jetzt dieselben Kanten
+  („linke Kante … von links, Oberkante … von unten“); Link im Datenschutzhinweis ist ein Inline-Link, der
+  Satzpunkt bleibt in derselben Zeile.
 - Barrierefreiheit: Komponententests prüfen Rollen/Namen/Tastatur; axe-core und Screenreader-Protokolle
   (K-06) stehen aus.

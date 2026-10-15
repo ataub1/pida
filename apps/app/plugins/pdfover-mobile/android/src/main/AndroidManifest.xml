@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PDF-Over NG – Manifest des Plugins `pdfover-mobile` (Paket M-Android). Wird in das Manifest der App
+     gemischt. FileProvider für „Teilen“ des Ergebnisses (nur der Ausgabeordner, res/xml/pdfover_share_paths.xml);
+     nicht exportiert, Lesezugriff nur per Einzelfreigabe (FLAG_GRANT_READ_URI_PERMISSION).
+     Intent-Filter VIEW/SEND application/pdf stehen im Manifest der App (gen/android). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 11+ (Paketsichtbarkeit): Gibt es eine App, die PDFs anzeigt („Öffnen“, openFile)? -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/pdf" />
+        </intent>
+    </queries>
+    <application>
+        <provider
+            android:name="at.pdfoverng.mobile.PdfoverFileProvider"
+            android:authorities="${applicationId}.pdfover.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/pdfover_share_paths" />
+        </provider>
+    </application>
+</manifest>

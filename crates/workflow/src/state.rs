@@ -387,6 +387,22 @@ impl SignFlow {
     }
 }
 
+/// Persistierter Signiervorgang, der fortgesetzt werden soll (Mobile-Lebenszyklus, Plan §3.5: die App
+/// wurde vom System beendet, während die Nutzerin in der App „ID Austria“ bestätigte). Position und
+/// Signiermittel stehen fest; das vorbereitete Dokument (`pades::Prepared::persist`) stellt
+/// `pdfover-core-api` beim Effekt [`Effect::Prepare`] wieder her.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ResumePlan {
+    /// Position des vorbereiteten Dokuments
+    pub position: PositionChoice,
+    /// Signiermittel des unterbrochenen Vorgangs
+    pub backend: BackendId,
+}
+
+/// Meldungs-ID: Das Signiermittel des fortgesetzten Vorgangs ist nicht mehr verfügbar; die Auswahl
+/// wird gezeigt und das Dokument neu vorbereitet.
+pub const MSG_RESUME_BACKEND_UNAVAILABLE: &str = "ng-resume-backend-unavailable";
+
 /// Zustand.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum State {
@@ -401,6 +417,17 @@ pub enum State {
     Analyzing {
         /// Warteschlange (aktuelles Dokument wird analysiert)
         queue: Queue,
+    },
+    /// „Signatur fortsetzen“ (Mobile, nach einem App-Kill): das Dokument wird geladen und ohne
+    /// Platzhalterfrage, Positionierung oder Auswahl mit dem gespeicherten Signiermittel signiert
+    /// ([`Event::ResumeRequested`]).
+    Resuming {
+        /// Warteschlange (aktuelles Dokument = fortgesetztes)
+        queue: Queue,
+        /// Position und Signiermittel des unterbrochenen Vorgangs
+        plan: ResumePlan,
+        /// Dokumentdaten nach der Analyse (`None` = wird noch geladen)
+        doc: Option<DocFacts>,
     },
     /// Warnung der Eingangsanalyse mit Abbruchmöglichkeit (Plan §6.1: `/Perms /UR3`, Hybrid-XFA,
     /// inkompatible Seed Values – `pades::Finding::warning`): „Fortfahren“ oder Dokument verwerfen
@@ -544,6 +571,7 @@ impl State {
             State::Starting | State::Finished { .. } => None,
             State::Idle { queue }
             | State::Analyzing { queue }
+            | State::Resuming { queue, .. }
             | State::AnalysisWarning { queue, .. }
             | State::PlaceholderQuestion { queue, .. }
             | State::Positioning { queue, .. }
@@ -561,6 +589,7 @@ impl State {
             State::Starting | State::Finished { .. } => None,
             State::Idle { queue }
             | State::Analyzing { queue }
+            | State::Resuming { queue, .. }
             | State::AnalysisWarning { queue, .. }
             | State::PlaceholderQuestion { queue, .. }
             | State::Positioning { queue, .. }
@@ -582,6 +611,7 @@ impl State {
             | State::PrivacyNotice { doc, .. }
             | State::Signing { doc, .. }
             | State::Output { doc, .. } => Some(doc),
+            State::Resuming { doc, .. } => doc.as_ref(),
             State::Error { from: Some(f), .. } => f.doc(),
             _ => None,
         }
@@ -595,6 +625,8 @@ impl State {
             | State::Analyzing { .. }
             | State::AnalysisWarning { .. }
             | State::PlaceholderQuestion { .. } => Some(Step::Open),
+            // Fortsetzen: Dokument wird geladen, danach direkt Signieren
+            State::Resuming { .. } => Some(Step::Signing),
             State::Positioning { .. } => Some(Step::Positioning),
             State::ChoosingBackend { .. } | State::PrivacyNotice { .. } | State::Signing { .. } => Some(Step::Signing),
             State::Output { .. } => Some(Step::Finish),
@@ -614,6 +646,8 @@ impl State {
             | State::AnalysisWarning { .. }
             | State::PlaceholderQuestion { .. } => [(true, true), (false, false), (false, false), (false, false)],
             State::Positioning { .. } => [(true, true), (true, false), (false, false), (false, false)],
+            // „Öffnen“ verwirft den fortgesetzten Vorgang; Positionieren entfällt (Position steht fest)
+            State::Resuming { .. } => [(true, true), (true, false), (true, false), (false, false)],
             State::ChoosingBackend { .. } | State::PrivacyNotice { .. } => {
                 [(true, true), (true, true), (true, false), (false, false)]
             }
@@ -664,6 +698,7 @@ impl State {
             State::Starting => "Starting",
             State::Idle { .. } => "Idle",
             State::Analyzing { .. } => "Analyzing",
+            State::Resuming { .. } => "Resuming",
             State::AnalysisWarning { .. } => "AnalysisWarning",
             State::PlaceholderQuestion { .. } => "PlaceholderQuestion",
             State::Positioning { .. } => "Positioning",
@@ -776,6 +811,11 @@ pub enum Event {
     SaveRequested,
     /// Link „signiertes Dokument öffnen“ (F-87)
     OpenResultRequested,
+    /// „Teilen“ im Ergebnis-Screen (Mobile: Share-Sheet bzw. `ACTION_SEND`)
+    ShareResultRequested,
+    /// „Exportieren“ im Ergebnis-Screen (Mobile: „Sichern unter“ über Dokument-Picker bzw. SAF
+    /// `CREATE_DOCUMENT`; die Ausgabe bleibt zusätzlich in den App-Dokumenten)
+    ExportResultRequested,
     /// gespeichert
     Saved(OutputInfo),
     /// Speichern fehlgeschlagen
@@ -790,6 +830,16 @@ pub enum Event {
     SettingsChanged,
     /// Einstellungen beim Start nicht lesbar (F-05) → Fehler mit [`RetryTarget::ResetSettings`]
     SettingsUnreadable(String),
+    /// „Signatur fortsetzen“ (Mobile, Plan §3.5): einen persistierten Vorgang wieder aufnehmen – nur im
+    /// Auswahl-Screen ([`State::Idle`]); `pending` sind die damals wartenden Dokumente
+    ResumeRequested {
+        /// fortgesetztes Dokument (Sandbox-Kopie des Originals)
+        document: InputDocument,
+        /// Position und Signiermittel
+        plan: ResumePlan,
+        /// wartende Dokumente des unterbrochenen Batches (soweit noch vorhanden)
+        pending: Vec<InputDocument>,
+    },
     /// App in den Hintergrund (kein Abbruch!)
     Backgrounded,
     /// App wieder im Vordergrund (ggf. „Signatur fortsetzen“)
@@ -844,6 +894,10 @@ pub enum Effect {
     Overwrite(PathBuf),
     /// Ergebnis öffnen (Opener/QuickLook/ACTION_VIEW)
     OpenResult(PathBuf),
+    /// Ergebnis teilen (Share-Sheet bzw. `ACTION_SEND`, `ShellHooks::share_path`)
+    ShareResult(PathBuf),
+    /// Ergebnis exportieren („Sichern unter“: Dokument-Picker bzw. SAF, `ShellHooks::export_path`)
+    ExportResult(PathBuf),
     /// Sitzung abbrechen (Passwort löschen, Benutzername bleibt)
     CancelSession,
     /// Sitzung regulär schließen (nach `sign`)
@@ -854,7 +908,8 @@ pub enum Effect {
     AcknowledgePrivacy(BackendId),
     /// Einstellungen zurücksetzen (`Paths::reset`) und Kern neu initialisieren
     ResetSettings,
-    /// persistierten Zustand löschen
+    /// persistierten Zustand löschen (Mobile: vorbereitetes Dokument und „Signatur fortsetzen“-Datensatz;
+    /// nach Erfolg, Abbruch und Fehler – nie bei einem App-Wechsel)
     DeletePersisted,
     /// Dokumentdaten freigeben (Renderer, Kachel-Cache, vorbereitetes PDF)
     Discard(DocId),

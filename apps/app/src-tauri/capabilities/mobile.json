@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Minimale Berechtigungen des Hauptfensters (iOS/Android): Ereignisse empfangen (ViewState), Kern-Bridge, Dateiauswahl über das Mobile-Plugin (Kopie in die Sandbox), Links (https/mailto). Kein Dateidialog, kein Log-Ordner, kein Dateimanager; das Plugin pdfover-mobile hat keine Befehle für die Oberfläche (sicherer Speicher, Teilen und Exportieren laufen über den Kern).",
+  "platforms": ["iOS", "android"],
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-core-view",
+    "allow-core-dispatch",
+    "allow-app-info",
+    "allow-open-notices",
+    "allow-mobile-pick-files",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }, { "url": "mailto:*" }]
+    }
+  ]
+}

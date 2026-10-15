@@ -3,7 +3,9 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use pdfover_backend_api::{BackendId, Capabilities, NativeForm, Notice, NoticeAnswer, Progress, SecretPrompt};
+use pdfover_backend_api::{
+    BackendId, Capabilities, NativeForm, Notice, NoticeAnswer, Platform, Progress, SecretPrompt,
+};
 use pdfover_i18n::Lang;
 use pdfover_workflow::{DocId, DocResult, MainBarStep, PlaceholderAnswer, Step};
 
@@ -126,6 +128,90 @@ pub struct BackendOptionView {
     pub available: bool,
     /// Fähigkeiten
     pub capabilities: Option<Capabilities>,
+    /// Hinweise zur Option (i18n-IDs), z. B. `ng-fido2-unavailable-mobile`: ID Austria auf Mobile ohne
+    /// FIDO2 – die UI zeigt FIDO2 ausgegraut mit diesem Hinweis (Plan §4.7, §5.2)
+    #[serde(default)]
+    pub notes: Vec<String>,
+}
+
+/// Betriebssystem der Shell.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlatformOs {
+    /// Windows
+    Windows,
+    /// macOS
+    Macos,
+    /// Linux
+    Linux,
+    /// iOS/iPadOS
+    Ios,
+    /// Android
+    Android,
+}
+
+/// Plattform der Oberfläche (Plan §5.1): steuert plattformabhängige Bedienelemente.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PlatformView {
+    /// Betriebssystem
+    pub os: PlatformOs,
+    /// Mobile Oberfläche (iOS/Android, Plan §5.2): Teilen und Exportieren statt „Im Ordner anzeigen“,
+    /// PKCS#12-Import in die App statt Dateipfad, kein FIDO2 (ausgegraut mit Hinweis), keine lokale
+    /// BKU, keine Proxy-Einstellungen (System-Proxy), keine Ausgabeordner-Wahl (App-Dokumente)
+    pub mobile: bool,
+}
+
+impl From<Platform> for PlatformView {
+    fn from(p: Platform) -> Self {
+        let os = match p {
+            Platform::Windows => PlatformOs::Windows,
+            Platform::MacOs => PlatformOs::Macos,
+            Platform::Linux => PlatformOs::Linux,
+            Platform::Ios => PlatformOs::Ios,
+            Platform::Android => PlatformOs::Android,
+        };
+        PlatformView { os, mobile: !p.is_desktop() }
+    }
+}
+
+impl Default for PlatformView {
+    fn default() -> Self {
+        PlatformView::from(Platform::current())
+    }
+}
+
+/// Angebot „Signatur fortsetzen“ (Mobile, Plan §3.5): Beim letzten Lauf wurde die App während eines
+/// Signiervorgangs vom System beendet (z. B. beim Wechsel in die App „ID Austria“). Antwort über
+/// [`UiEvent::ResumeSignature`] bzw. [`UiEvent::DiscardResume`]; nur im Schritt `open` gesetzt.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ResumeOfferView {
+    /// Name des Dokuments
+    pub name: String,
+    /// Signiermittel des unterbrochenen Vorgangs
+    pub backend: BackendId,
+    /// vor wie vielen Minuten vorbereitet (Anzeige)
+    pub age_minutes: u32,
+    /// weitere Dokumente des unterbrochenen Batches
+    pub pending: u32,
+}
+
+/// Ergebnis des PKCS#12-Imports in die App-Sandbox (Mobile, Import-Assistent; Plan §5.2) – schließen
+/// mit [`UiEvent::DismissKeystoreImport`].
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct KeystoreImportView {
+    /// Dateiname (ohne Pfad)
+    pub file_name: String,
+    /// importiert (Einstellungen › Keystore zeigen auf die Kopie in der Sandbox)
+    pub ok: bool,
+    /// Meldungs-ID: `ng-keystore-imported` bzw. der Fehler (`keystore-wrong-password`,
+    /// `ng-keystore-import-format`, …)
+    pub code: String,
+    /// Passwort im sicheren Speicher abgelegt (Keychain bzw. Android Keystore)
+    pub password_stored: bool,
 }
 
 /// Datenschutzhinweis.
@@ -246,8 +332,8 @@ pub enum StepView {
         placement: pdfover_placement::Placement,
         /// virtuelle neue Seite
         new_page: bool,
-        /// Parameter des Live-Region-Texts `ng-ui-position-announce`: `page`, `pages`, `left` (mm von
-        /// links), `bottom` (mm der Blockunterkante von unten), ganzzahlig
+        /// Parameter des Live-Region-Texts `ng-ui-position-announce`: `page`, `pages`, `left` (mm der
+        /// linken Kante von links), `top` (mm der Oberkante von unten – wie das Zahlenfeld Y), ganzzahlig
         announce: BTreeMap<String, String>,
     },
     /// Backend-Auswahl
@@ -331,6 +417,15 @@ pub struct ViewState {
     /// abgeschlossene Dokumente dieser Sitzung
     #[serde(default)]
     pub done: Vec<DoneItemView>,
+    /// Plattform (Desktop/Mobile-Bedienelemente)
+    #[serde(default)]
+    pub platform: PlatformView,
+    /// Angebot „Signatur fortsetzen“ (nur Mobile, nur im Schritt `open`)
+    #[serde(default)]
+    pub resume: Option<ResumeOfferView>,
+    /// Ergebnis des PKCS#12-Imports (Import-Assistent)
+    #[serde(default)]
+    pub keystore_import: Option<KeystoreImportView>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -491,6 +586,10 @@ pub enum UiEvent {
     },
     /// Ergebnis öffnen
     OpenResult,
+    /// Ergebnis teilen (Mobile: Share-Sheet bzw. `ACTION_SEND`)
+    ShareResult,
+    /// Ergebnis exportieren („Sichern unter“: Dokument-Picker bzw. SAF `CREATE_DOCUMENT`)
+    ExportResult,
     /// Hauptleiste
     Navigate {
         /// Schritt
@@ -508,10 +607,28 @@ pub enum UiEvent {
     CloseSettings,
     /// „Einstellungen zurücksetzen“
     ResetSettings,
-    /// Lebenszyklus: Hintergrund (kein Abbruch)
+    /// Lebenszyklus: Hintergrund (kein Abbruch – z. B. Wechsel in die App „ID Austria“)
     Backgrounded,
-    /// Lebenszyklus: Vordergrund
+    /// Lebenszyklus: Vordergrund (der Kern setzt einen wartenden Long-Poll sofort fort)
     Foregrounded,
+    /// „Signatur fortsetzen“ annehmen ([`ViewState::resume`])
+    ResumeSignature,
+    /// „Signatur fortsetzen“ verwerfen (persistierter Zustand wird gelöscht)
+    DiscardResume,
+    /// PKCS#12-Datei in die App-Sandbox importieren (Mobile, Import-Assistent): Datei kopieren,
+    /// Passwort prüfen (falls angegeben), Einstellungen › Keystore setzen; mit `remember` und
+    /// verfügbarem sicheren Speicher wird das Passwort dort abgelegt. Ergebnis in
+    /// [`ViewState::keystore_import`].
+    ImportKeystore {
+        /// Datei (von der Shell bereits in die Sandbox kopiert, `import_file`)
+        path: PathBuf,
+        /// Passwort (nur RAM, sofort in `Zeroizing`; nie geloggt)
+        password: Option<String>,
+        /// Passwort im sicheren Speicher merken
+        remember: bool,
+    },
+    /// Ergebnis des PKCS#12-Imports schließen
+    DismissKeystoreImport,
     /// Beenden
     Quit,
     /// Hinweis schließen
@@ -537,6 +654,12 @@ impl std::fmt::Debug for UiEvent {
             UiEvent::SubmitForm { request, answer } => {
                 f.debug_struct("SubmitForm").field("request", request).field("answer", answer).finish()
             }
+            UiEvent::ImportKeystore { password, remember, .. } => f
+                .debug_struct("ImportKeystore")
+                .field("path", &"<Pfad>")
+                .field("password", &password.as_ref().map(|_| "***"))
+                .field("remember", remember)
+                .finish(),
             other => {
                 // Alle übrigen Varianten enthalten keine Secrets.
                 let s = serde_json::to_string(other).unwrap_or_else(|_| "UiEvent".into());

@@ -11,7 +11,8 @@
 //! `BackendError::Cancelled` gilt als Abbruch) behoben.
 //!
 //! Zustände (ohne Re-Entry): `Starting → Idle → Analyzing → AnalysisWarning? → PlaceholderQuestion? → Positioning? →
-//! ChoosingBackend → PrivacyNotice? → Signing{phase} → Output → (nächstes Dokument | Idle | Finished)`.
+//! ChoosingBackend → PrivacyNotice? → Signing{phase} → Output → (nächstes Dokument | Idle | Finished)`;
+//! auf Mobile zusätzlich `Idle → Resuming → PrivacyNotice? → Signing{phase}` („Signatur fortsetzen“).
 //! Einstellungen sind ein Overlay ([`State::settings_open`]) und kein eigener Zustand.
 //!
 //! # Abbildung der PDF-Over-Übergänge (docs/analyse/01 §3.4)
@@ -44,6 +45,15 @@
 //! | ConfigurationUI | Overlay in `pdfover-core-api`; [`Event::SettingsChanged`] baut die Vorschau neu |
 //! | Hauptleiste (`jumpToState`) | [`Event::Navigate`] nach der Matrix [`State::main_bar`] |
 //!
+//! # Mobile-Lebenszyklus (Plan §3.5, §5.2)
+//!
+//! | Ereignis | hier |
+//! |---|---|
+//! | App in den Hintergrund / zurück (z. B. Wechsel in die App „ID Austria“) | [`Event::Backgrounded`] / [`Event::Foregrounded`]: **kein Abbruch**, Zustand und Effekte unverändert (den Long-Poll startet `pdfover-core-api` nach der Rückkehr neu) |
+//! | App vom System beendet, Neustart | [`Event::ResumeRequested`] (nur in `Idle`) → [`State::Resuming`]: Dokument laden, dann direkt das gespeicherte Signiermittel (Datenschutzhinweis nur, falls noch nicht bestätigt); ist es nicht verfügbar, Auswahl mit Hinweis [`MSG_RESUME_BACKEND_UNAVAILABLE`] und [`Effect::DeletePersisted`] |
+//! | Erfolg, Abbruch, Fehler | [`Effect::DeletePersisted`] (der persistierte Zustand gilt nur für genau diesen Vorgang) |
+//! | Ergebnis teilen / exportieren | [`Event::ShareResultRequested`] / [`Event::ExportResultRequested`] → [`Effect::ShareResult`] / [`Effect::ExportResult`] |
+//!
 //! Ohne grafische Oberfläche ([`Context::headless`], CLI) gelten feste Regeln: automatische
 //! Positionierung, QR-Platzhalter bzw. genau ein leeres Feld werden verwendet, kein Speichern-Dialog
 //! (neben der Quelle), Fehler werden je Dokument verbucht ([`queue::DocResult`]) und es geht mit dem
@@ -68,6 +78,7 @@ pub use reducer::{grown_reserve, reduce};
 pub use state::{
     BackendOption, Context, DocFacts, Effect, Event, MSG_BACKEND_CHOICE_REQUIRED, MSG_CMS_TOO_LARGE,
     MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE,
-    MSG_SAVE_FAILED, MSG_UNEXPECTED, MainBarStep, PlaceholderAnswer, PlaceholderFound, PositionChoice, RetryTarget,
-    SignFlow, SigningPhase, State, Step, Transition, WorkflowError, backend_for_choice,
+    MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_UNEXPECTED, MainBarStep, PlaceholderAnswer, PlaceholderFound,
+    PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step, Transition, WorkflowError,
+    backend_for_choice,
 };

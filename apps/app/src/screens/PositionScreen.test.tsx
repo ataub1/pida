@@ -17,8 +17,13 @@ describe('Positionieren', () => {
     expect(b).toHaveAttribute('tabindex', '0');
     expect(screen.getByRole('img', { name: 'Seite 3 von 3 – Vertrag.pdf' })).toBeInTheDocument();
     expect(screen.getByText('Seite 3 von 3', { selector: '.pager-label' })).toBeInTheDocument();
-    // Status: 297,64 pt ≈ 105 mm von links; (210,47 − 82) pt ≈ 45 mm von unten
-    expect(document.getElementById('position-status')).toHaveTextContent('Seite 3 von 3, 105 mm von links, 45 mm von unten');
+    // Status nennt dieselben Kanten wie die Felder: 297,64 pt ≈ 105 mm (linke Kante), 210,47 pt ≈ 74 mm
+    // (Oberkante von unten = Feld Y; Befund: früher „45 mm von unten“ = Unterkante bei Feld „Oberkante“)
+    expect(document.getElementById('position-status')).toHaveTextContent(
+      'Seite 3 von 3, linke Kante 105 mm von links, Oberkante 74 mm von unten',
+    );
+    expect(screen.getByRole('textbox', { name: 'Y: Oberkante von unten (mm)' })).toHaveValue('74,2');
+    expect(screen.getByRole('textbox', { name: 'X: linke Kante von links (mm)' })).toHaveValue('105');
     expect(b.getAttribute('aria-describedby')).toContain('position-help');
   });
 
@@ -147,7 +152,7 @@ describe('Positionieren', () => {
     act(() => mock.setView(positionView({ placement: { page_index: 2, x: 61, y: 700, width: 232, height: 82 } })));
     await waitFor(() => expect(b).not.toHaveAttribute('data-dragging'));
     expect(b.style.left).toBe(`${61 * scale}px`);
-    expect(screen.getByRole('textbox', { name: 'Y Oberkante von unten (mm)' })).toHaveValue('246,9');
+    expect(screen.getByRole('textbox', { name: 'Y: Oberkante von unten (mm)' })).toHaveValue('246,9');
   });
 
   it('Klick auf den Block ohne Bewegung lässt keinen Ziehzustand zurück', async () => {
@@ -182,7 +187,7 @@ describe('Positionieren', () => {
   it('Zahlenfelder in mm und pt senden MoveBlock bzw. ChangePage', async () => {
     const { mock, user } = renderApp({ view: positionView() });
     await block();
-    const x = screen.getByRole('textbox', { name: 'X von links (mm)' });
+    const x = screen.getByRole('textbox', { name: 'X: linke Kante von links (mm)' });
     expect(x).toHaveValue('105');
     await user.clear(x);
     await user.type(x, '20{Enter}');
@@ -192,7 +197,7 @@ describe('Positionieren', () => {
     expect(ev.y).toBeCloseTo(210.47, 2);
 
     await user.click(screen.getByRole('radio', { name: 'pt' }));
-    const y = screen.getByRole('textbox', { name: 'Y Oberkante von unten (pt)' });
+    const y = screen.getByRole('textbox', { name: 'Y: Oberkante von unten (pt)' });
     expect(y).toHaveValue('210,5');
     await user.clear(y);
     await user.type(y, '400{Enter}');
@@ -236,11 +241,11 @@ describe('Positionieren', () => {
     try {
       const { mock } = renderApp({ view: positionView() });
       await block();
-      act(() => mock.setView(positionView({ placement: { page_index: 2, x: 56.69, y: 200, width: 232, height: 82 }, announce: { left: '20', bottom: '42' } })));
+      act(() => mock.setView(positionView({ placement: { page_index: 2, x: 56.69, y: 200, width: 232, height: 82 }, announce: { left: '20', top: '71' } })));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500);
       });
-      expect(screen.getByTestId('live-region')).toHaveTextContent('Seite 3 von 3, 20 mm von links, 42 mm von unten');
+      expect(screen.getByTestId('live-region')).toHaveTextContent('Seite 3 von 3, linke Kante 20 mm von links, Oberkante 71 mm von unten');
     } finally {
       vi.useRealTimers();
     }

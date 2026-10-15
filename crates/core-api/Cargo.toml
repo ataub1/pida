@@ -39,6 +39,8 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 time = { workspace = true }
 jiff = { workspace = true }
+# Prüfsummen des persistierten Signierzustands („Signatur fortsetzen“, src/resume.rs). MIT OR Apache-2.0.
+hex = { workspace = true }
 # Logdatei (nicht blockierend) mit Rotation beim Start (Plan §7.1). MIT.
 tracing-appender = { workspace = true }
 ts-rs = { workspace = true, optional = true }

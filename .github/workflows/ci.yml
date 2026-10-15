@@ -278,21 +278,24 @@ jobs:
       matrix:
         include:
           # Lokal verifiziert (docs/entwicklung.md „Cross-Checks“): seit Welle 3 auch config/workflow/core-api
-          # (keyring nur für Desktop-Targets; auf iOS/Android setzt die Mobile-Shell den SecretStore).
+          # (keyring nur für Desktop-Targets; auf iOS/Android setzt die Mobile-Shell den SecretStore); seit der
+          # Mobile-Welle (M0) auch die Tauri-Shell samt Plugin pdfover-mobile (kompiliert dessen Swift-Paket).
           - os: macos-latest
             target: aarch64-apple-ios
             crates: >-
               pdfover-java-properties pdfover-i18n pdfover-pdf-cos pdfover-pdf-incremental pdfover-cades
               pdfover-sigblock pdfover-placement pdfover-render pdfover-sl12 pdfover-backend-api pdfover-net
               pdfover-backend-keystore pdfover-backend-localbku pdfover-backend-atrust pdfover-pades
-              pdfover-config pdfover-workflow pdfover-core-api
-          # Lokal ohne NDK verifiziert: alle Crates ohne ring (C-Code); mit NDK zusätzlich der Rest (unten).
+              pdfover-config pdfover-workflow pdfover-core-api pdfover-app tauri-plugin-pdfover-mobile
+          # Mit NDK (Schritt unten, C-Compiler für ring) lokal verifiziert (M0, NDK 29): alle Crates bis zur
+          # Tauri-Shell samt Plugin pdfover-mobile (Android-Teil: rustls-platform-verifier über JNI).
           - os: ubuntu-latest
             target: aarch64-linux-android
             crates: >-
               pdfover-java-properties pdfover-i18n pdfover-pdf-cos pdfover-pdf-incremental pdfover-cades
               pdfover-sigblock pdfover-placement pdfover-render pdfover-sl12 pdfover-backend-api pdfover-config
-              pdfover-backend-keystore pdfover-pades pdfover-workflow
+              pdfover-backend-keystore pdfover-pades pdfover-workflow pdfover-net pdfover-backend-localbku
+              pdfover-backend-atrust pdfover-core-api pdfover-app tauri-plugin-pdfover-mobile
     defaults:
       run:
         shell: bash

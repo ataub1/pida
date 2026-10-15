@@ -1,10 +1,13 @@
 /**
  * Positionierung (docs/analyse/01 §4.3, F-30…F-43; Plan §6.7):
  * - Seitenvorschau aus Kacheln (`pdfover-render://`), Blockvorschau aus dem echten Appearance-Objekt,
- * - Ziehen per Maus/Touch/Stift (Block springt an den Zeiger, beim Greifen bleibt der Versatz – F-34),
+ * - Ziehen per Maus/Touch/Stift (Block springt an den Zeiger, beim Greifen bleibt der Versatz – F-34);
+ *   Touch (Plan §5.1 „Ziehen mit Fingerversatz“): außerhalb des Blocks angetippt, steht der Block mittig
+ *   **über** dem Finger (der Finger verdeckt ihn nicht), kurze Haptik beim Greifen, größere Trefferfläche,
  * - Tastatur am Block: Pfeile 15 pt, Shift 1 pt, Strg/⌘ 50 pt (der Kern rechnet die Schritte),
  *   Bild↑/↓ Seite, Pos1/Ende erste/letzte Seite, Enter bestätigt; Mausrad blättert (Shift: 5 Seiten),
- * - Zahlenfelder x/y/Seite in mm oder pt als gleichwertige Alternative, Live-Region,
+ * - Zahlenfelder x/y/Seite in mm oder pt als gleichwertige Alternative, Live-Region (nennt dieselben Kanten
+ *   wie die Felder: linke Kante von links, Oberkante von unten),
  * - „Neue Seite“, „Automatisch“, „Unsichtbar“, „Signieren“.
  * Die Position im Kern ist maßgeblich; die Oberfläche zeigt beim Ziehen nur eine vorläufige Lage.
  */
@@ -15,7 +18,7 @@ import { IconChevronLeft, IconChevronRight, IconEyeOff, IconPagePlus, IconWand }
 import { AccessButton, ScreenHeading, Spinner } from '../components/ui';
 import { tileScale } from '../core/bridge';
 import { mmToPt, ptToMm } from '../core/defaults';
-import type { StepView } from '../core/types';
+import { isMobile, type StepView } from '../core/types';
 
 type PositionView = Extract<StepView, { step: 'position' }>;
 type Unit = 'mm' | 'pt';
@@ -45,8 +48,38 @@ export function clampToPage(x: number, y: number, bw: number, bh: number, pw: nu
   return { x: Math.max(0, Math.min(x, pw - bw)), y: Math.min(ph, Math.max(y, bh)) };
 }
 
+/** Touch: Abstand zwischen Blockunterkante und Finger in pt (Fingerversatz). */
+export const TOUCH_OFFSET_PT = 12;
+
+/**
+ * Greifpunkt im Block in pt (von der linken oberen Ecke; `grabTop` nach unten). Auf dem Block bleibt der
+ * Versatz zum Zeiger (F-34). Außerhalb springt der Block bei Maus/Stift mit der linken oberen Ecke an den
+ * Zeiger, bei Touch mittig über den Finger (Unterkante [`TOUCH_OFFSET_PT`] über dem Berührpunkt).
+ */
+export function grabPoint(
+  onBlock: boolean,
+  pointerType: string,
+  pointer: { x: number; top: number },
+  block: { x: number; y: number; width: number; height: number },
+  pageHeight: number,
+): { grabX: number; grabTop: number } {
+  if (onBlock) return { grabX: pointer.x - block.x, grabTop: pointer.top - (pageHeight - block.y) };
+  if (pointerType === 'touch') return { grabX: block.width / 2, grabTop: block.height + TOUCH_OFFSET_PT };
+  return { grabX: 0, grabTop: 0 };
+}
+
+/** Kurze Haptik beim Greifen per Touch (Android-WebView; iOS-WebKit kennt `vibrate` nicht). */
+function haptic(): void {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(8);
+  } catch {
+    /* nur Komfort */
+  }
+}
+
 export function PositionScreen({ view }: { view: PositionView }) {
-  const { t, dispatch, bridge, announce } = useApp();
+  const { t, dispatch, bridge, announce, view: appView } = useApp();
+  const mobile = isMobile(appView);
   const { doc, page, block, placement, new_page: newPage } = view;
   const totalPages = doc.page_count + (newPage ? 1 : 0);
   const virtual = page >= doc.page_count;
@@ -121,11 +154,14 @@ export function PositionScreen({ view }: { view: PositionView }) {
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
+    // ein zweiter Finger (Pinch, Scrollen) verschiebt den Block nicht
+    if (dragging.current && dragging.current.pointer !== e.pointerId) return;
     const p = toPagePoint(e);
     if (!p) return;
     const onBlock = blockRef.current?.contains(e.target as Node) ?? false;
-    const grabX = onBlock ? p.x - current.x : 0;
-    const grabTop = onBlock ? p.top - (ph - current.y) : 0;
+    const pointerType = e.pointerType || 'mouse';
+    const { grabX, grabTop } = grabPoint(onBlock, pointerType, p, { ...current, width: block.width, height: block.height }, ph);
+    if (pointerType === 'touch') haptic();
     dragging.current = { grabX, grabTop, pointer: e.pointerId };
     e.currentTarget.setPointerCapture?.(e.pointerId);
     const next = clampToPage(p.x - grabX, ph - (p.top - grabTop), block.width, block.height, pw, ph);
@@ -225,11 +261,12 @@ export function PositionScreen({ view }: { view: PositionView }) {
 
   // --- Live-Region ---------------------------------------------------------------------------
   const announceArgs = useMemo(() => {
+    // dieselben Kanten wie die Zahlenfelder: linke Kante von links, Oberkante (Feld Y) von unten
     const computed: Record<string, string> = {
       page: String(page + 1),
       pages: String(totalPages),
       left: ptToMm(placement.x).toFixed(0),
-      bottom: ptToMm(placement.y - placement.height).toFixed(0),
+      top: ptToMm(placement.y).toFixed(0),
     };
     return { ...computed, ...view.announce };
   }, [page, totalPages, placement, view.announce]);
@@ -273,7 +310,7 @@ export function PositionScreen({ view }: { view: PositionView }) {
     <div className="screen screen-position">
       <ScreenHeading subtitle={doc.name}>{t.t('ng-ui-position-title')}</ScreenHeading>
       <p id="position-help" className="hint">
-        {t.t('ng-ui-position-help')}
+        {t.t(mobile ? 'ng-ui-position-help-mobile' : 'ng-ui-position-help')}
       </p>
       <div className="position-layout">
         <div className="page-stage" ref={stageRef} onWheel={onWheel}>

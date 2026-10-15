@@ -1,6 +1,7 @@
 //! Shell-Funktionen für den Kern ([`pdfover_core_api::ShellHooks`]): Ergebnis mit der
-//! Standardanwendung öffnen (F-87), „Signaturdaten anzeigen“ im Systembrowser (F-68) und das
-//! Elternfenster für modale Systemdialoge (Windows-Hello/FIDO2 über `webauthn.dll`).
+//! Standardanwendung öffnen (F-87), „Signaturdaten anzeigen“ im Systembrowser (F-68), das
+//! Elternfenster für modale Systemdialoge (Windows-Hello/FIDO2 über `webauthn.dll`) und auf Mobile
+//! Teilen/Exportieren über das Plugin `pdfover-mobile` (Share-Sheet, Dokument-Picker bzw. SAF).
 //!
 //! Der Kern prüft bereits, was geöffnet werden darf (nur die Ergebnisdatei, nur `https://`-Links von
 //! A-Trust); die Shell prüft zusätzlich das Schema, damit kein anderer Pfad über diese Naht einen
@@ -57,6 +58,18 @@ impl<R: Runtime> ShellHooks for TauriHooks<R> {
         if !path.is_file() {
             return Err("keine Datei".into());
         }
+        // Mobile: Anzeige über das Plugin (iOS QuickLook; Android ACTION_VIEW mit FileProvider-URI –
+        // `opener` übergibt file://-Pfade, die Android anderen Apps verweigert und iOS nicht öffnet). Nur
+        // eine native Seite ohne `openFile` fällt auf `opener` zurück.
+        #[cfg(mobile)]
+        {
+            use tauri_plugin_pdfover_mobile::{Error as MobileError, PdfoverMobileExt};
+            match self.app.pdfover_mobile().open_file(path, crate::mobile::PDF_MIME) {
+                Ok(()) => return Ok(()),
+                Err(MobileError::NotImplemented) => {}
+                Err(e) => return Err(e.code().to_owned()),
+            }
+        }
         self.app.opener().open_path(path.to_string_lossy(), None::<&str>).map_err(|e| opener_error_kind(&e))
     }
 
@@ -70,6 +83,22 @@ impl<R: Runtime> ShellHooks for TauriHooks<R> {
 
     fn parent_window(&self) -> Option<WindowHandle> {
         parent_window(&self.app)
+    }
+
+    fn share_path(&self, path: &Path) -> Result<(), String> {
+        use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
+        if !path.is_file() {
+            return Err("keine Datei".into());
+        }
+        self.app.pdfover_mobile().share_file(path, crate::mobile::PDF_MIME).map_err(|e| e.code().to_owned())
+    }
+
+    fn export_path(&self, path: &Path, file_name: &str) -> Result<bool, String> {
+        use tauri_plugin_pdfover_mobile::PdfoverMobileExt;
+        if !path.is_file() {
+            return Err("keine Datei".into());
+        }
+        self.app.pdfover_mobile().export_file(path, file_name, crate::mobile::PDF_MIME).map_err(|e| e.code().to_owned())
     }
 }
 

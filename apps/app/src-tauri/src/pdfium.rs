@@ -1,5 +1,10 @@
 //! Suche nach der PDFium-Bibliothek (Plan §2.1: dynamisch auf Desktop/Android, xcframework auf iOS).
 //!
+//! Mobile ([`mobile_dir`]): unter iOS `Frameworks` im App-Bundle (`pdfium.framework/pdfium` aus
+//! `PDFium.xcframework`, `tools/fetch-pdfium.sh --xcframework`); unter Android entscheidet der Kern
+//! (`None` → `dlopen("libpdfium.so")` aus `nativeLibraryDir`, gefüllt aus `jniLibs/<abi>`,
+//! `tools/fetch-pdfium.sh --jnilibs`).
+//!
 //! Reihenfolge: Umgebungsvariable `PDFOVER_PDFIUM_DIR` (**nur Debug-Builds**: Entwicklung, Tests),
 //! Ordner der Binary, `../Frameworks` im macOS-Bundle, Ressourcenordner (auch `pdfium/` darunter).
 //! Wird nichts gefunden ([`resolve`]), entscheidet in Debug-Builds der Kern (`CoreConfig::pdfium_dir =
@@ -13,15 +18,9 @@
 
 use std::path::{Path, PathBuf};
 
-/// Dateiname der PDFium-Bibliothek auf dieser Plattform.
+/// Dateiname der PDFium-Bibliothek auf dieser Plattform (wie `pdfover_render::library_file_name`).
 pub fn library_file_name() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "pdfium.dll"
-    } else if cfg!(any(target_os = "macos", target_os = "ios")) {
-        "libpdfium.dylib"
-    } else {
-        "libpdfium.so"
-    }
+    pdfover_render::library_file_name()
 }
 
 /// Name der Umgebungsvariable (wie `pdfover_render::ENV_PDFIUM_DIR`).
@@ -49,9 +48,22 @@ pub fn candidates(env_dir: Option<PathBuf>, exe: Option<&Path>, resource_dir: Op
     out
 }
 
-/// Erster Kandidat, der die Bibliothek enthält.
+/// Erster Kandidat, der die Bibliothek enthält (unter iOS auch als `pdfium.framework/pdfium`).
 pub fn find(candidates: &[PathBuf]) -> Option<PathBuf> {
-    candidates.iter().find(|dir| dir.join(library_file_name()).is_file()).cloned()
+    candidates.iter().find(|dir| pdfover_render::library_paths_in(dir).iter().any(|p| p.is_file())).cloned()
+}
+
+/// Mobile: Ordner für `CoreConfig::pdfium_dir`. iOS: `Frameworks` des App-Bundles neben der Binary
+/// (`<App>.app/Frameworks`; ohne Treffer der Ordner selbst – dann ohne Vorschau, nie eine fremde
+/// Bibliothek). Android: `None` – PDFium kommt aus `nativeLibraryDir` der App über den Linker
+/// (`dlopen("libpdfium.so")`).
+pub fn mobile_dir(exe: Option<&Path>, android: bool) -> Option<PathBuf> {
+    if android {
+        return None;
+    }
+    let exe_dir = exe.and_then(Path::parent)?;
+    let frameworks = exe_dir.join("Frameworks");
+    find(&[frameworks.clone(), exe_dir.to_path_buf()]).or(Some(frameworks))
 }
 
 /// Ordner für `CoreConfig::pdfium_dir`: der erste Kandidat mit der Bibliothek; ohne Treffer in einem
@@ -100,6 +112,22 @@ mod tests {
         std::fs::create_dir_all(&lib_dir).expect("Ordner");
         std::fs::write(lib_dir.join(library_file_name()), b"").expect("lib");
         assert_eq!(resolve(std::slice::from_ref(&lib_dir), Some(&exe), true), Some(lib_dir));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn mobile_resolution() {
+        // Android: der Kern bindet über den Linker (jniLibs → nativeLibraryDir)
+        assert_eq!(mobile_dir(Some(Path::new("/system/bin/app_process64")), true), None);
+        // iOS: Frameworks im Bundle, auch ohne Treffer (dann ohne Vorschau)
+        let root = std::env::temp_dir().join(format!("pdfover-app-pdfium-ios-{}", std::process::id()));
+        let app = root.join("PDF-Over NG.app");
+        let exe = app.join("pdf-over-ng");
+        assert_eq!(mobile_dir(Some(&exe), false), Some(app.join("Frameworks")));
+        std::fs::create_dir_all(&app).expect("Bundle");
+        std::fs::write(app.join(library_file_name()), b"").expect("lib");
+        assert_eq!(mobile_dir(Some(&exe), false), Some(app.clone()), "lose Bibliothek neben der Binary");
+        assert_eq!(mobile_dir(None, false), None);
         let _ = std::fs::remove_dir_all(root);
     }
 

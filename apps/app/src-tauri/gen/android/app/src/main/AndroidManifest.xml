@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PDF-Over NG – Manifest der Android-App (Paket M-Android, docs/integration/mobile-android.md).
+     Plan §5.2/§5.3/§7.7: Dokumente nur über Intents VIEW/SEND/SEND_MULTIPLE application/pdf (content://)
+     und die System-Dateiauswahl (SAF), kein Klartext-HTTP, keine Sicherung der App-Daten (Secrets),
+     keine Speicher-Berechtigungen. Den FileProvider für „Teilen“ bringt das Plugin pdfover-mobile mit. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A-Trust (ID Austria), Zeitstempel/Updates nur über HTTPS -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Haptik beim Positionieren (navigator.vibrate) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.pdfover_app"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <!-- singleTask: Dokumente aus anderen Apps landen in der laufenden Instanz (onNewIntent);
+             configChanges: Drehen, Dark Mode, Sprache, Tastatur erhalten WebView und Vorgang. -->
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|smallestScreenSize|screenLayout|uiMode|density|fontScale"
+            android:launchMode="singleTask"
+            android:label="@string/main_activity_title"
+            android:name=".MainActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- „Öffnen mit“ aus Dateien-Apps, Mail, Browser-Downloads -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/pdf" />
+            </intent-filter>
+            <!-- „Teilen“ an PDF-Over NG (ein oder mehrere PDFs) -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
+            <!-- leer: tauri.android.conf.json setzt bundle.fileAssociations = null – die von Tauri erzeugte
+                 Variante (VIEW/SEND mit BROWSABLE und implizitem file://) wäre weiter als nötig; die Filter oben
+                 decken „Öffnen mit“ und „Teilen“ ab. -->
+            <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
+        </activity>
+
+        <provider
+          android:name="androidx.core.content.FileProvider"
+          android:authorities="${applicationId}.fileprovider"
+          android:exported="false"
+          android:grantUriPermissions="true">
+          <meta-data
+            android:name="android.support.FILE_PROVIDER_PATHS"
+            android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

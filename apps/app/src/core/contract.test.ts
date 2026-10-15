@@ -133,7 +133,7 @@ const stepView = tagged('step', {
     announce: record(str),
   },
   backend: {
-    options: arr(obj({ id: backendId, available: bool, capabilities: nullable(capabilities) })),
+    options: arr(obj({ id: backendId, available: bool, capabilities: nullable(capabilities), notes: arr(str) })),
     privacy_notice: nullable(obj({ backend: backendId, version: int, custom_text: nullable(str) })),
   },
   signing: { interaction, queue: arr(queueItem) },
@@ -214,6 +214,9 @@ const viewState = obj({
   notices: arr(obj({ id: int, code: str, params: record(str) })),
   migration: nullable(obj({ legacy_file: str, plaintext_secrets: bool })),
   done: arr(obj({ id: int, name: str, input: str, result: docResult })),
+  platform: obj({ os: lit('windows', 'macos', 'linux', 'ios', 'android'), mobile: bool }),
+  resume: nullable(obj({ name: str, backend: backendId, age_minutes: int, pending: int })),
+  keystore_import: nullable(obj({ file_name: str, ok: bool, code: str, password_stored: bool })),
 });
 
 const formAnswer = tagged('kind', {
@@ -247,6 +250,8 @@ const uiEvent = tagged('type', {
   save: { path: nullable(str) },
   confirm_overwrite: { overwrite: bool },
   open_result: {},
+  share_result: {},
+  export_result: {},
   navigate: { step },
   open_settings: {},
   save_settings: { settings },
@@ -254,6 +259,10 @@ const uiEvent = tagged('type', {
   reset_settings: {},
   backgrounded: {},
   foregrounded: {},
+  resume_signature: {},
+  discard_resume: {},
+  import_keystore: { path: str, password: nullable(str), remember: bool },
+  dismiss_keystore_import: {},
   quit: {},
   dismiss_notice: { id: int },
   accept_migration: { store_secrets: bool },
@@ -326,6 +335,9 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         notices: [],
         migration: null,
         done: [],
+        platform: { os: 'ios', mobile: true },
+        resume: null,
+        keystore_import: null,
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);
@@ -340,8 +352,16 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(validate(uiEvent, sample)).toEqual([]);
   });
 
-  it('alle 32 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(32);
+  it('alle 38 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(38);
+  });
+
+  it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen, Import)', () => {
+    const fixture = JSON.parse(readFileSync(fixtureUrl('view-states.json'), 'utf8')) as { name: string; view: ViewState }[];
+    const names = new Set(fixture.map((f) => f.name));
+    for (const n of ['mobile_backend', 'mobile_resume_offer', 'mobile_keystore_imported']) expect(names.has(n)).toBe(true);
+    const backend = fixture.find((f) => f.name === 'mobile_backend')?.view;
+    expect(backend?.platform).toEqual({ os: 'android', mobile: true });
   });
 
   it('ui-events.json ist aktuell (für den Rust-Test)', () => {

@@ -14,7 +14,7 @@
  */
 export type * from './generated';
 
-import type { NativeForm, StepView, UiEvent } from './generated';
+import type { NativeForm, StepView, UiEvent, ViewState } from './generated';
 
 /** Name eines Schritts (`StepView['step']`). */
 export type StepName = StepView['step'];
@@ -24,6 +24,11 @@ export type UiEventType = UiEvent['type'];
 
 /** Daten einer Maske (`NativeForm`) mit dem Variantennamen `K`. */
 export type FormData<K extends string> = Extract<NativeForm, Record<K, unknown>> extends Record<K, infer D> ? D : never;
+
+/** Mobile Oberfläche (iOS/Android: Teilen statt Ordner, PKCS#12-Import, kein FIDO2, keine lokale BKU). */
+export function isMobile(view: Pick<ViewState, 'platform'>): boolean {
+  return view.platform?.mobile === true;
+}
 
 /** Variante einer extern getaggten Enum mit Daten (`{ "Name": … }`) bzw. der Unit-String. */
 export function variantName(value: string | Record<string, unknown>): string {

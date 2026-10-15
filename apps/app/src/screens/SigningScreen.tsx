@@ -27,7 +27,7 @@ import type {
   QueueItemView,
   SecretPrompt,
 } from '../core/types';
-import { variantName } from '../core/types';
+import { isMobile, variantName } from '../core/types';
 
 /** Text eines `FormProblem` (Katalog-IDs aus PDF-Over, sonst eigene `ng-ui-*`). */
 export function problemText(t: Translator, problem: FormProblem): string {
@@ -181,8 +181,14 @@ function SignatureDataLink({ request, ctx }: { request: number; ctx: FormContext
   );
 }
 
-/** Knöpfe „SMS anfordern“ / „FIDO2“ (sichtbar/aktiv nach `FormContext`). */
+/**
+ * Knöpfe „SMS anfordern“ / „FIDO2“ (sichtbar/aktiv nach `FormContext`). Mobile: bietet A-Trust FIDO2 an,
+ * gibt es auf dem Gerät aber keinen Authenticator (Plan §4.7), bleibt der Knopf sichtbar, ausgegraut, mit
+ * Hinweis (`ng-fido2-unavailable-mobile`).
+ */
 function SwitchButtons({ ctx, send, sent, sms = true }: { ctx: FormContext; send: (a: FormAnswerView) => void; sent: boolean; sms?: boolean }) {
+  const { t, view } = useApp();
+  const fido2Greyed = !ctx.fido2_visible && ctx.can_switch_to_fido2 && isMobile(view);
   return (
     <>
       {sms ? (
@@ -190,6 +196,14 @@ function SwitchButtons({ ctx, send, sent, sms = true }: { ctx: FormContext; send
       ) : null}
       {ctx.fido2_visible ? (
         <AccessButton msg="tanEnter-FIDO2" isDisabled={sent || !ctx.can_switch_to_fido2} onPress={() => send({ kind: 'switch_to_fido2' })} />
+      ) : null}
+      {fido2Greyed ? (
+        <>
+          <AccessButton msg="tanEnter-FIDO2" isDisabled aria-describedby="fido2-unavailable" />
+          <p id="fido2-unavailable" className="hint">
+            {t.t('ng-fido2-unavailable-mobile')}
+          </p>
+        </>
       ) : null}
     </>
   );

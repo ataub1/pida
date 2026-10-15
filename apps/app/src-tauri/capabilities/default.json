@@ -1,7 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimale Berechtigungen des Hauptfensters: Ereignisse empfangen (ViewState, Drag & Drop), Kern-Bridge, Datei-/Speichern-Dialog, Links (https/mailto). Bewusst ohne core:default (Menüs, Tray, Fenster-, Pfad- und App-APIs bleiben gesperrt).",
+  "description": "Minimale Berechtigungen des Hauptfensters (Desktop): Ereignisse empfangen (ViewState, Drag & Drop), Kern-Bridge, Datei-/Speichern-Dialog, Links (https/mailto). Bewusst ohne core:default (Menüs, Tray, Fenster-, Pfad- und App-APIs bleiben gesperrt).",
+  "platforms": ["linux", "macOS", "windows"],
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
