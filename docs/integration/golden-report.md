@@ -12,10 +12,10 @@ aus dem Golden-Lauf und den Ergebnissen der Rust-Golden-Tests; die Tabellen nich
 | Signieren | CLI `pdf-as-cli -m sign -c ks -ksf testdata/keystores/test-rsa2048.p12 -ksa test-rsa2048 …` (Keystore-Option, RSA-Test-PKCS#12, feste Zertifikatsdaten), Konfiguration = Kopie von `$PDFOVER_REFERENCE/pdfas-config` je Variante, JVM mit `-Duser.timezone=Europe/Vienna`. |
 | PDF-Over-Overrides | wie `PdfAs4Signer.prepare`: `value.SIG_LABEL` (Bildmarke), `value.SIG_NOTE` (Hinweis), bei `BASE_LOGO` `table.main.Style.padding=0`, `pos=w:<tw>;f:0`, `table.main.Style.imagescaletofit=<tw>;<th>` (aus Emblemgröße und `targetLogoSize`, Default 23 mm) – als Zeilen am Ende der Profildatei der Konfigurationskopie. |
 | QR-Platzhalter | `tools/golden/PlaceholderSign.java`: dieselbe Signatur wie `Main.perform_sign`, zusätzlich wie PDF-Over `setPlaceHolderSearchEnabled(true)`, `placeholder_mode=1`, Platzhalter-ID 1 bzw. 200. Die CLI selbst kann die Platzhaltersuche nicht einschalten (`SignParameter.isPlaceHolderSearchEnabled()` ist dort immer `false`). QR-Module mit ZXing aus der CLI-Distribution (`MakeQr.java`). |
-| Eingaben (`make_inputs.py`, deterministisch) | `a4` (595,32 × 841,92), `a4-landscape`, `a4-rot90/180/270` (`/Rotate`), `a4-cropbox` (CropBox ≠ MediaBox, Ursprung 40/60), `content-half`/`content-full` (viel Inhalt: Auto-Position darunter bzw. neue Seite), `two-pages` (letzte Seite A5 quer), `presigned` (von PDF-AS vorsigniert), `qr`/`qr-id200` (Platzhalter 300 × 60 px auf 225 × 45 pt). Seiteninhalt nur aus Rechtecken, damit der Rasterscan nicht von der Schriftrasterung abhängt. Bildmarken: breit (RGB), hoch (Graustufen), RGBA mit Transparenz, JPEG, indiziert mit `tRNS`. |
+| Eingaben (`make_inputs.py`, deterministisch) | `a4` (595,32 × 841,92), `a4-landscape`, `a4-rot90/180/270` (`/Rotate`), `a4-cropbox` (CropBox ≠ MediaBox, Ursprung 40/60), `content-half`/`content-full` (viel Inhalt: Auto-Position darunter bzw. neue Seite), `two-pages` (letzte Seite A5 quer), `presigned` (von PDF-AS vorsigniert), `qr`/`qr-id200` (Platzhalter 300 × 60 px auf 225 × 45 pt); für den Rasterscan gedrehter Seiten (KR-F04) außerdem `landscape-rot90/270` (Querformat-MediaBox mit `/Rotate`), `wide-rot180` (Breite 595,8), `a4-rot270-low` und `rot90-842-low` (Inhalt nur nahe dem unteren Rand) sowie `half-rot90` (Höhe 841,5, leer). Seiteninhalt nur aus Rechtecken, damit der Rasterscan nicht von der Schriftrasterung abhängt. Bildmarken: breit (RGB), hoch (Graustufen), RGBA mit Transparenz, JPEG, indiziert mit `tRNS`. |
 | Positionen | `p:auto;x:auto;y:auto` (PDF-Over Auto), `p:1;x:100;y:700`, `p:1;x:50.500000;y:300.250000` (PDF-Over-Format `p:%d;x:%f;y:%f`), `p:new`, `p:2;x:100;y:700` (PDF-Over „Neue Seite“), `p:last`, `f:0`, `f:300`, `w:300`, `r:90`, ohne Position (nur Profil-`pos`), Platzhalter. |
 | `tools/golden/extract.py` | Manifest je Fall aus `qpdf --json=2` (dekodierte Streams): Seite, Widget-`/Rect`, `/TU`, Holder-`/BBox`/`/Matrix`, Operationen des Inner-Forms (Rechtecke, Linien, Linienbreiten, Bildmatrizen, Textblöcke mit Font, Größe, Zeilenstart, kodierten Bytes und Unicode), Fonts (Typ, Einbettung, Descriptor, `/W`), Bilder (Maße, Farbraum, SHA-256 der Samples, SMask), `SIG_DATE`; dazu `qpdf --check`, pyHanko-Validierung (Testzertifikat als Vertrauensanker) und Werte aus dem PDF-AS-DEBUG-Log (`PositioningInstruction`, feste Tabellenbreite, Platzhalterposition). |
-| Ablage | `testdata/golden/pdfas-4.4.2/`: `index.json`, `inputs/`, `cases/<Fall>/manifest.json`; für 84 Fälle (alle Profile auf A4 manuell, alle Hinweis- und Bildmarken-Varianten, Rotation/CropBox/QR) zusätzlich `signed.pdf` für den Pixelvergleich (gesamt rund 11 MB). |
+| Ablage | `testdata/golden/pdfas-4.4.2/`: `index.json`, `inputs/`, `cases/<Fall>/manifest.json`; für 84 Fälle (alle Profile auf A4 manuell, alle Hinweis- und Bildmarken-Varianten, Rotation/CropBox/QR) zusätzlich `signed.pdf` für den Pixelvergleich (gesamt rund 13 MB). Manifeste enthalten keine lokalen Pfade (Konfigurationskopie als `<cfg>`). |
 | Zeitstempel | Der Lauf hat keine feste Uhr; normalisiert wird beim Vergleich: der Nachbau verwendet genau den `SIG_DATE`-Text aus dem PDF-AS-Block (`yyyy-MM-dd'T'HH:mm:ssXXX`, Europe/Vienna). |
 
 | Größe | Wert |
@@ -23,15 +23,17 @@ aus dem Golden-Lauf und den Ergebnissen der Rust-Golden-Tests; die Tabellen nich
 | PDF-AS | 4.4.2 (offizielle CLI-Distribution, SHA-256 `09c37cc004f14537e5d0d3d83e44687a833119a5903dd03b6de5d9d907e18eee`) |
 | Java (nur Orakel) | openjdk version "21.0.12.1" 2026-08-18 |
 | qpdf / pyHanko / Python | qpdf version 12.4.2 / 0.37.0 / 3.13.16 |
-| Lauf | 2026-10-15T05:16:28Z, Zeitzone Europe/Vienna |
-| Fälle | 537 (12 Profil-IDs, 12 Eingaben, 12 Positionsarten) |
-| Orakel je Ausgabe | pyHanko intact + valid + trusted und `qpdf --check` ohne Befund: 537 von 537 |
+| Lauf | 2026-10-15T05:47:00Z, Zeitzone Europe/Vienna |
+| Fälle | 729 (12 Profil-IDs, 18 Eingaben, 12 Positionsarten) |
+| Orakel je Ausgabe | pyHanko intact + valid + trusted und `qpdf --check` ohne Befund: 729 von 729 |
 | signierte Referenz-PDFs im Repository | 84 (übrige Fälle nur als Manifest) |
 
 Tests (lesen nur `testdata/golden/`, kein Java, kein Netz; PDFium-Teile nur mit `PDFOVER_PDFIUM_DIR`):
 
 - `crates/sigblock/tests/golden_pdfas442.rs`: `index_covers_all_profiles_and_oracles_pass`,
   `blocks_match_pdfas_442` (Struktur ±0,01 pt), `content_bytes_identical_with_quirks`,
+  `tu_default_mode_contains_pdfas_tu` (Register Q10 im Standardmodus),
+  `golden_data_has_no_local_paths` (keine lokalen Pfade in Manifesten und Index),
   `pixels_match_pdfas_442` (PDFium, 288 dpi), `own_blocks_pass_qpdf_check` (`qpdf --check` auf den
   eigenen Mini-PDFs aller A4-Varianten, Standard und Quirks).
 - `crates/placement/tests/golden_pdfas442.rs`: `pdfas_quirks_mode_matches_pdfas_442`,
@@ -56,17 +58,17 @@ Font ohne Subset-Präfix, Größe, Startpunkt jeder Zeile ±0,01 pt, kodierte By
 
 | Profil | Fälle | Struktur gleich | dokumentiert abweichend (Register) | undokumentiert | max. Abweichung Koordinaten | Content-Stream byte-gleich (Quirks) | Pixel: PDFs / pixelgleich |
 |---|---|---|---|---|---|---|---|
-| `AMTSSIGNATURBLOCK_DE_RECOMMENDED` | 46 | 2 | 44 (SB-G2, SB-G3, SB-G4, SB-G5) | 0 | 0,000002 pt | 46 | 8 / 5 |
-| `AMTSSIGNATURBLOCK_EN_RECOMMENDED` | 46 | 2 | 44 (SB-G2, SB-G3, SB-G4, SB-G5) | 0 | 0,000002 pt | 46 | 8 / 5 |
-| `BASE_LOGO` | 46 | 42 | 4 (SB-G1, SB-G3, SB-G4, SB-G5) | 0 | 0 pt | 45 | 8 / 4 |
-| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA` | 46 | 44 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 46 | 8 / 6 |
-| `SIGNATURBLOCK_SMALL_DE_NOTE` | 46 | 43 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 46 | 8 / 5 |
-| `SIGNATURBLOCK_SMALL_DE_PDFA` | 44 | 42 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 44 | 6 / 4 |
-| `SIGNATURBLOCK_SMALL_DE` | 44 | 41 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 44 | 9 / 6 |
-| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA` | 46 | 44 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 46 | 8 / 6 |
-| `SIGNATURBLOCK_SMALL_EN_NOTE` | 46 | 43 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 46 | 8 / 5 |
-| `SIGNATURBLOCK_SMALL_EN_PDFA` | 44 | 42 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 44 | 6 / 4 |
-| `SIGNATURBLOCK_SMALL_EN` | 44 | 41 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 44 | 6 / 3 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED` | 62 | 2 | 60 (SB-G2, SB-G3, SB-G4, SB-G5) | 0 | 0,000002 pt | 62 | 8 / 5 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED` | 62 | 2 | 60 (SB-G2, SB-G3, SB-G4, SB-G5) | 0 | 0,000002 pt | 62 | 8 / 5 |
+| `BASE_LOGO` | 62 | 58 | 4 (SB-G1, SB-G3, SB-G4, SB-G5) | 0 | 0 pt | 61 | 8 / 4 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA` | 62 | 60 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 62 | 8 / 6 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE` | 62 | 59 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 62 | 8 / 5 |
+| `SIGNATURBLOCK_SMALL_DE_PDFA` | 60 | 58 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 60 | 6 / 4 |
+| `SIGNATURBLOCK_SMALL_DE` | 60 | 57 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 60 | 9 / 6 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA` | 62 | 60 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 62 | 8 / 6 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE` | 62 | 59 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 62 | 8 / 5 |
+| `SIGNATURBLOCK_SMALL_EN_PDFA` | 60 | 58 | 2 (SB-G5, SB-G6) | 0 | 0,000001 pt | 60 | 6 / 4 |
+| `SIGNATURBLOCK_SMALL_EN` | 60 | 57 | 3 (SB-G3, SB-G4, SB-G5) | 0 | 0,000001 pt | 60 | 6 / 3 |
 
 **Ergebnis:** Geometrie, Zeilenumbruch, Texte, Fonts, Linien und Bildboxen stimmen in allen Fällen
 überein (größte Abweichung 2·10⁻⁶ pt, Rundung der 5-Nachkommastellen-Ausgabe). Mit `pdfas_quirks`
@@ -141,15 +143,21 @@ PDF-AS-BBox. Toleranz: ±0,01 pt (manuell, `p:new`, `p:last`, Platzhalter), ±1 
 | `a4-cropbox` | 33 | 33 | 11 (0 / 11) | 0 (–) | 0 | 0 | 1 |
 | `a4-landscape` | 33 | 33 | 11 (11 / 0) | 0 (–) | 0 | 0 | 0 |
 | `a4-rot180` | 33 | 33 | 11 (0 / 11) | 0 (–) | 0 | 0 | 1 |
+| `a4-rot270-low` | 22 | 22 | 11 (11 / 0) | 0 (–) | 0 | 0 | 0 |
 | `a4-rot270` | 33 | 33 | 0 (0 / 0) | 0 (–) | 0 | 0 | 0 |
 | `a4-rot90` | 33 | 33 | 0 (0 / 0) | 0 (–) | 0 | 0 | 0 |
 | `a4` | 179 | 179 | 33 (0 / 33) | 0 (–) | 0 | 0 | 1 |
 | `content-full` | 33 | 33 | 22 (12 / 10) | 0 (–) | 0 | 0 | 1 |
 | `content-half` | 33 | 33 | 33 (2 / 31) | 0 (–) | 0 | 0 | 1 |
+| `half-rot90` | 11 | 11 | 11 (11 / 0) | 0 (–) | 0 | 0 | 0 |
+| `landscape-rot270` | 44 | 44 | 0 (0 / 0) | 0 (–) | 0 | 0 | 0 |
+| `landscape-rot90` | 44 | 44 | 0 (0 / 0) | 0 (–) | 0 | 0 | 0 |
 | `presigned` | 33 | 33 | 22 (6 / 16) | 0 (–) | 0 | 0 | 1 |
 | `qr-id200` | 11 | 0 | 0 (0 / 0) | 11 (KR-F03) | 0 | 0 | 0 |
 | `qr` | 11 | 11 | 0 (0 / 0) | 0 (–) | 0 | 0 | 0 |
+| `rot90-842-low` | 22 | 22 | 11 (11 / 0) | 0 (–) | 0 | 0 | 0 |
 | `two-pages` | 33 | 33 | 11 (0 / 11) | 0 (–) | 0 | 0 | 1 |
+| `wide-rot180` | 33 | 33 | 0 (0 / 0) | 0 (–) | 0 | 0 | 0 |
 
 **`CompatMode::Corrected` (Standard):**
 
@@ -158,15 +166,21 @@ PDF-AS-BBox. Toleranz: ±0,01 pt (manuell, `p:new`, `p:last`, Platzhalter), ±1 
 | `a4-cropbox` | 33 | 0 | 0 (0 / 0) | 33 (KR-F01, KR-F02) | 0 | 0 | 0 |
 | `a4-landscape` | 33 | 31 | 11 (11 / 0) | 2 (KR-F01) | 0 | 0 | 0 |
 | `a4-rot180` | 33 | 31 | 11 (0 / 11) | 2 (KR-F01) | 0 | 0 | 1 |
+| `a4-rot270-low` | 22 | 10 | 10 (10 / 0) | 12 (KR-F04) | 0 | 0 | 0 |
 | `a4-rot270` | 33 | 20 | 0 (0 / 0) | 13 (KR-F01, KR-F04) | 0 | 0 | 0 |
 | `a4-rot90` | 33 | 20 | 0 (0 / 0) | 13 (KR-F01, KR-F04) | 0 | 0 | 0 |
 | `a4` | 179 | 157 | 33 (0 / 33) | 22 (KR-F01) | 0 | 0 | 1 |
 | `content-full` | 33 | 33 | 22 (12 / 10) | 0 (–) | 0 | 0 | 1 |
 | `content-half` | 33 | 33 | 33 (2 / 31) | 0 (–) | 0 | 0 | 1 |
+| `half-rot90` | 11 | 11 | 11 (11 / 0) | 0 (–) | 0 | 0 | 0 |
+| `landscape-rot270` | 44 | 20 | 0 (0 / 0) | 24 (KR-F01, KR-F04) | 0 | 0 | 0 |
+| `landscape-rot90` | 44 | 20 | 0 (0 / 0) | 24 (KR-F01, KR-F04) | 0 | 0 | 0 |
 | `presigned` | 33 | 31 | 22 (6 / 16) | 2 (KR-F01) | 0 | 0 | 1 |
 | `qr-id200` | 11 | 0 | 0 (0 / 0) | 11 (KR-F03) | 0 | 0 | 0 |
 | `qr` | 11 | 11 | 0 (0 / 0) | 0 (–) | 0 | 0 | 0 |
+| `rot90-842-low` | 22 | 10 | 10 (10 / 0) | 12 (KR-F04) | 0 | 0 | 0 |
 | `two-pages` | 33 | 31 | 11 (0 / 11) | 2 (KR-F01) | 0 | 0 | 1 |
+| `wide-rot180` | 33 | 20 | 0 (0 / 0) | 13 (KR-F01, KR-F04) | 0 | 0 | 0 |
 
 Breite, Seite, x, y, Rect, neue Seite (Index, MediaBox, `/Rotate`) und Rotation der Erscheinung
 stimmen im Quirk-Modus in allen Fällen; Ausnahme KR-F03 (keine Quirk-Nachbildung der
@@ -178,14 +192,21 @@ dokumentierten Form (der Test prüft die korrigierten Werte):
 | KR-F01 | AMTS-Breite bei manuellem `x` ohne `w` (Register „AMTS-Breite“) | `w = pw − 2x` (A4, x = 100 ⇒ 395,32) | `w = pw − 100` wie bei Auto-Position und in der Vorschau | AMTS × manuell |
 | KR-F02 | CropBox ≠ MediaBox (Register „CropBox-Offset“) | Rect ohne CropBox-Ursprung; neue Seite mit CropBox-Maßen der alten Seite | Rect relativ zur CropBox (+40/+60); neue Seite mit MediaBox-Geometrie (700 × 1000 ⇒ y = 980) | alle `a4-cropbox` |
 | KR-F03 | Platzhalter-ID > 127 (Register „IDs > 127“) | id = 200 wird nie gefunden (`Integer ==`), MODERATE ⇒ Auto-Position | Platzhalter gefunden, Block am Platzhalter (300/195, w = 225) | alle `qr-id200` |
-| KR-F04 | Rasterscan gedrehter Seiten | Rasterbild in ungedrehten Maßen, transparente Zeilen zählen als Inhalt ⇒ A4 mit `/Rotate 90/270` und `f:80` **immer neue Seite** | Scan im sichtbaren Raum, Block unter dem Inhalt | `a4-rot90/270` × auto |
+| KR-F04 | Rasterscan gedrehter Seiten | Rasterbild in ungedrehten Maßen `(int) w × (int) h`, Start in Zeile `(int) h − 1 − f`, nicht gelöschte (transparente) Pixel zählen als Inhalt ⇒ A4 mit `/Rotate 90/270` und `f:80` **immer neue Seite**; Querformat-MediaBox mit `/Rotate 90/270` ⇒ **immer die Startzeile** (y = 307,92 bei f:80); `/Rotate 180` mit Breitenanteil > ½ ⇒ neue Seite; Inhalt tief unten wird bei großer Fußzeile noch gesehen | Scan im sichtbaren Raum, Block unter dem Inhalt | `a4-rot90/270`, `landscape-rot90/270`, `wide-rot180`, `*-low` × auto/f:300 |
 | KR-F10 | Rasterscan-Rundung | Java2D, Seite 1:1 auf `(int) w × (int) h` | PDFium, Seite auf `round(w) × round(h)` abgebildet: bei Seitenhöhen mit Nachkommaanteil ≥ 0,5 (A4 841,92) liegt die Auto-Position genau 1 pt tiefer, sonst exakt | innerhalb ±1 pt |
 
 **Behoben in `crates/placement/src`:** KR-F04 im Modus `PdfasQuirks` nachgebildet
-(`pdfas_rotated_scan`: liegt die Startzeile `(int) h − 1 − (int) f` in einer transparenten Zeile –
-bzw. bei 90° mit transparenter Spalte 0 immer –, ist sie das Ergebnis ohne Scan; aus der
-PDFBox-2.0.32-Logik `renderPageToGraphics` + `clearRect` abgeleitet und am Golden bestätigt,
-Unit-Test `pdfas_rotated_scan_like_pdfas`). Vorher 22 Fälle abweichend, jetzt 0. Register-Einträge
+(`pdfas_rotated_scan`, aus der PDFBox-2.0.32-Logik `renderPageToGraphics` + `clearRect` mit der
+Java2D-Pixelregel `ceil(lo − ½) ≤ i < ceil(hi − ½)` abgeleitet und am Golden bestätigt,
+Unit-Test `pdfas_rotated_scan_like_pdfas`): Fehlen in der Startzeile `(int) h − 1 − (int) f`
+gelöschte Pixel (90°: Höhenanteil > ½ oder Querformat, 180°: Breitenanteil > ½, 270°:
+Querformat) oder liegt sie unter der gelöschten Fläche, ist sie das Ergebnis ohne Scan; sonst
+beginnt der Scan im sichtbaren Raum in derselben Zeile wie PDF-AS (angepasste Fußzeile). Erste
+Fassung: 22 Fälle abweichend, danach 0; der Review ergänzte die Eingaben `landscape-rot90/270`,
+`wide-rot180`, `a4-rot270-low`, `rot90-842-low` und `half-rot90` – dort wich die erste Fassung in
+88 Fällen ab (Querformat, Spalte 0 bei 180°, Startzeile im gelöschten Bereich, Kante genau ½),
+jetzt in keinem. Rest (inhaltsabhängig): PDF-AS sieht bei 90°/270° nur die linken `(int) w` Spalten
+der sichtbaren Seite. Register-Einträge
 KR-F04/KR-F10 in der Crate-Doku präzisiert: Die 1-pt-Abweichung aus Welle 1 kommt von der
 Rasterabbildung in `pdfover-render`, nicht von der Glyphenrasterung (gemessen: ein 7 pt hoher Balken
 mit Kanten auf Pixelgrenzen belegt bei A4 hoch 8 Zeilen, bei A4 quer – 595,32 ⇒ 595 px, gestaucht –
@@ -196,7 +217,9 @@ mit Kanten auf Pixelgrenzen belegt bei A4 hoch 8 Zeilen, bei A4 quer – 595,32 
 - Alle PDF-AS-Ausgaben: pyHanko `intact`/`valid`/`trusted`, Abdeckung `ENTIRE_FILE`,
   `qpdf --check` ohne Befund.
 - `/TU`: SMALL ohne Hinweis leer, mit Hinweis bzw. AMTS nur die Texte der äußeren Tabelle (Q10
-  bestätigt); `INVISIBLE` setzt `/TU` = Feldname und `/Rect [0 0 0 0]`.
+  bestätigt; im Standardmodus enthält das eigene `/TU` alle Texte, die PDF-AS-Zeilen in derselben
+  Reihenfolge, Test `tu_default_mode_contains_pdfas_tu`); `INVISIBLE` setzt `/TU` = Feldname und
+  `/Rect [0 0 0 0]`.
 - Neue Seite: PDF-AS setzt `make_new_page` auch bei `p:2` auf einseitigen Dokumenten; auf dem
   vorsignierten Dokument wird nie eine Seite angehängt (Auto ⇒ letzte Seite, `y = ph − 20`).
 - `p:last` ignoriert die Freiraumsuche (`y = ph − 20`); `f:0` und `f:300` wirken wie in
@@ -258,6 +281,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot270__auto` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot270__manual` | 1 | [585 100 700 741,92] | 641,92 × 115 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot270__new` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | gleich |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot270-low__auto` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot270-low__footer300` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot90__auto` | 2 neu | [20 50 149 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot90__manual` | 1 | [-104,68 100 10,32 741,92] | 641,92 × 115 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__a4-rot90__new` | 2 neu | [20 50 149 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | gleich |
@@ -267,14 +292,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__content-half__auto` | 1 | [50 294,92 545,32 414,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__content-half__footer0` | 1 | [50 294,92 545,32 414,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__content-half__footer300` | 2 neu | [50 701,92 545,32 821,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__half-rot90__footer300` | 1 | [20 50 149 791,5] | 741,5 × 129 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot270__auto` | 1 | [187,92 50 307,92 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot270__footer300` | 1 | [407,92 50 527,92 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot270__manual` | 1 | [572 100 700 495,32] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot270__new` | 2 neu | [701,92 50 821,92 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot90__auto` | 1 | [534 50 654 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot90__footer300` | 1 | [314 50 434 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot90__manual` | 1 | [141,92 100 269,92 495,32] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__landscape-rot90__new` | 2 neu | [20 50 140 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__presigned__auto` | 1 | [50 701,92 545,32 821,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__presigned__manual` | 1 | [100 572 495,32 700] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__presigned__new` | 1 | [50 12,92 545,32 132,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__qr__placeholder` | 1 | [300 19 525 195] | 225 × 176 | dok. SB-G2 | gleich | – | gleich | gleich |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__qr-id200__placeholder` | 2 neu | [50 701,92 545,32 821,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__rot90-842-low__auto` | 2 neu | [20 50 149 792] | 742 × 129 | dok. SB-G2 | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__rot90-842-low__footer300` | 2 neu | [20 50 149 792] | 742 × 129 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__two-pages__auto` | 2 | [50 170,53 545,32 290,53] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__two-pages__manual` | 1 | [100 572 495,32 700] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_DE_RECOMMENDED__two-pages__new` | 3 neu | [50 279,53 545,32 399,53] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__wide-rot180__auto` | 2 neu | [50 20 545,8 140] | 495,8 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__wide-rot180__manual` | 1 | [100 141,92 495,8 269,92] | 395,8 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
+| `AMTSSIGNATURBLOCK_DE_RECOMMENDED__wide-rot180__new` | 2 neu | [50 20 545,8 140] | 495,8 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4__auto` | 1 | [50 428,92 545,32 548,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4__beyond` | 2 neu | [100 572 495,32 700] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4__footer0` | 1 | [50 428,92 545,32 548,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -304,6 +343,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot270__auto` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot270__manual` | 1 | [585 100 700 741,92] | 641,92 × 115 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot270__new` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | gleich |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot270-low__auto` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot270-low__footer300` | 2 neu | [446,32 50 575,32 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot90__auto` | 2 neu | [20 50 149 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot90__manual` | 1 | [-104,68 100 10,32 741,92] | 641,92 × 115 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__a4-rot90__new` | 2 neu | [20 50 149 791,92] | 741,92 × 129 | dok. SB-G2 | gleich | – | gleich | gleich |
@@ -313,14 +354,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__content-half__auto` | 1 | [50 294,92 545,32 414,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__content-half__footer0` | 1 | [50 294,92 545,32 414,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__content-half__footer300` | 2 neu | [50 701,92 545,32 821,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__half-rot90__footer300` | 1 | [20 50 149 791,5] | 741,5 × 129 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot270__auto` | 1 | [187,92 50 307,92 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot270__footer300` | 1 | [407,92 50 527,92 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot270__manual` | 1 | [572 100 700 495,32] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot270__new` | 2 neu | [701,92 50 821,92 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot90__auto` | 1 | [534 50 654 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot90__footer300` | 1 | [314 50 434 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot90__manual` | 1 | [141,92 100 269,92 495,32] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__landscape-rot90__new` | 2 neu | [20 50 140 545,32] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__presigned__auto` | 1 | [50 701,92 545,32 821,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__presigned__manual` | 1 | [100 572 495,32 700] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__presigned__new` | 1 | [50 12,92 545,32 132,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__qr__placeholder` | 1 | [300 3 525 195] | 225 × 192 | dok. SB-G2 | gleich | – | gleich | gleich |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__qr-id200__placeholder` | 2 neu | [50 701,92 545,32 821,92] | 495,32 × 120 | dok. SB-G2 | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__rot90-842-low__auto` | 2 neu | [20 50 149 792] | 742 × 129 | dok. SB-G2 | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__rot90-842-low__footer300` | 2 neu | [20 50 149 792] | 742 × 129 | dok. SB-G2 | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__two-pages__auto` | 2 | [50 170,53 545,32 290,53] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__two-pages__manual` | 1 | [100 572 495,32 700] | 395,32 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
 | `AMTSSIGNATURBLOCK_EN_RECOMMENDED__two-pages__new` | 3 neu | [50 279,53 545,32 399,53] | 495,32 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__wide-rot180__auto` | 2 neu | [50 20 545,8 140] | 495,8 × 120 | dok. SB-G2 | gleich | – | gleich | dok. KR-F04 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__wide-rot180__manual` | 1 | [100 141,92 495,8 269,92] | 395,8 × 128 | dok. SB-G2 | gleich | – | gleich | dok. KR-F01 |
+| `AMTSSIGNATURBLOCK_EN_RECOMMENDED__wide-rot180__new` | 2 neu | [50 20 545,8 140] | 495,8 × 120 | dok. SB-G2 | gleich | – | gleich | gleich |
 | `BASE_LOGO__a4__auto` | 1 | [265,08 483,75 330,24 548,92] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `BASE_LOGO__a4__beyond` | 2 neu | [100 634,83 165,17 700] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `BASE_LOGO__a4__footer0` | 1 | [265,08 483,75 330,24 548,92] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -350,6 +405,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `BASE_LOGO__a4-rot270__auto` | 2 neu | [510,15 388,38 575,32 453,54] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `BASE_LOGO__a4-rot270__manual` | 1 | [634,83 676,75 700 741,92] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `BASE_LOGO__a4-rot270__new` | 2 neu | [510,15 388,38 575,32 453,54] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
+| `BASE_LOGO__a4-rot270-low__auto` | 2 neu | [510,15 388,38 575,32 453,54] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `BASE_LOGO__a4-rot270-low__footer300` | 2 neu | [510,15 388,38 575,32 453,54] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `BASE_LOGO__a4-rot90__auto` | 2 neu | [20 388,38 85,17 453,54] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `BASE_LOGO__a4-rot90__manual` | 1 | [-104,68 100 -39,51 165,17] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `BASE_LOGO__a4-rot90__new` | 2 neu | [20 388,38 85,17 453,54] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
@@ -359,14 +416,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `BASE_LOGO__content-half__auto` | 1 | [265,08 349,75 330,24 414,92] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `BASE_LOGO__content-half__footer0` | 1 | [265,08 349,75 330,24 414,92] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `BASE_LOGO__content-half__footer300` | 1 | [265,08 349,75 330,24 414,92] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `BASE_LOGO__half-rot90__footer300` | 1 | [20 388,17 85,17 453,33] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `BASE_LOGO__landscape-rot270__auto` | 1 | [162,75 265,08 227,92 330,24] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `BASE_LOGO__landscape-rot270__footer300` | 1 | [462,75 265,08 527,92 330,24] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `BASE_LOGO__landscape-rot270__manual` | 1 | [634,83 430,15 700 495,32] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
+| `BASE_LOGO__landscape-rot270__new` | 2 neu | [756,75 265,08 821,92 330,24] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
+| `BASE_LOGO__landscape-rot90__auto` | 1 | [614 265,08 679,17 330,24] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `BASE_LOGO__landscape-rot90__footer300` | 1 | [314 265,08 379,17 330,24] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `BASE_LOGO__landscape-rot90__manual` | 1 | [141,92 100 207,09 165,17] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
+| `BASE_LOGO__landscape-rot90__new` | 2 neu | [20 265,08 85,17 330,24] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `BASE_LOGO__presigned__auto` | 1 | [265,08 67,75 330,24 132,92] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `BASE_LOGO__presigned__manual` | 1 | [100 634,83 165,17 700] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `BASE_LOGO__presigned__new` | 1 | [265,08 67,75 330,24 132,92] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `BASE_LOGO__qr__placeholder` | 1 | [300 129,83 525 195] | 225 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `BASE_LOGO__qr-id200__placeholder` | 1 | [265,08 65,75 330,24 130,92] | 65,167 × 65,167 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `BASE_LOGO__rot90-842-low__auto` | 2 neu | [20 388,42 85,17 453,58] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `BASE_LOGO__rot90-842-low__footer300` | 2 neu | [20 388,42 85,17 453,58] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `BASE_LOGO__two-pages__auto` | 2 | [265,08 225,36 330,24 290,53] | 65,167 × 65,167 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `BASE_LOGO__two-pages__manual` | 1 | [100 634,83 165,17 700] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `BASE_LOGO__two-pages__new` | 3 neu | [265,08 334,36 330,24 399,53] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
+| `BASE_LOGO__wide-rot180__auto` | 2 neu | [265,32 20 330,48 85,17] | 65,167 × 65,167 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `BASE_LOGO__wide-rot180__manual` | 1 | [430,63 141,92 495,8 207,09] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
+| `BASE_LOGO__wide-rot180__new` | 2 neu | [265,32 20 330,48 85,17] | 65,167 × 65,167 | gleich | gleich | – | gleich | gleich |
 | `INVISIBLE__a4__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__a4__beyond` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__a4__footer0` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
@@ -389,6 +460,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `INVISIBLE__a4-rot270__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__a4-rot270__manual` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__a4-rot270__new` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__a4-rot270-low__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__a4-rot270-low__footer300` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__a4-rot90__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__a4-rot90__manual` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__a4-rot90__new` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
@@ -398,14 +471,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `INVISIBLE__content-half__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__content-half__footer0` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__content-half__footer300` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__half-rot90__footer300` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot270__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot270__footer300` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot270__manual` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot270__new` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot90__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot90__footer300` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot90__manual` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__landscape-rot90__new` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__presigned__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__presigned__manual` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__presigned__new` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__qr__placeholder` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__qr-id200__placeholder` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__rot90-842-low__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__rot90-842-low__footer300` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__two-pages__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__two-pages__manual` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `INVISIBLE__two-pages__new` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__wide-rot180__auto` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__wide-rot180__manual` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
+| `INVISIBLE__wide-rot180__new` | 1 | [0 0 0 0] | – | unsichtbar | – | – | – | – |
 | `SIGNATURBLOCK_SMALL_DE__a4__auto` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE__a4__beyond` | 2 neu | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE__a4__footer0` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -433,6 +520,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE__a4-rot270__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE__a4-rot270__manual` | 1 | [651 511,92 700 741,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE__a4-rot270__new` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE__a4-rot270-low__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE__a4-rot270-low__footer300` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE__a4-rot90__auto` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE__a4-rot90__manual` | 1 | [-104,68 100 -55,68 330] | 230 × 49 | gleich | gleich | 0,0000 % / 0,0000 % | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE__a4-rot90__new` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
@@ -442,14 +531,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE__content-half__auto` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE__content-half__footer0` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE__content-half__footer300` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_DE__half-rot90__footer300` | 1 | [20 305,75 69 535,75] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot270__auto` | 1 | [258,92 182,66 307,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot270__footer300` | 1 | [478,92 182,66 527,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot270__manual` | 1 | [651 265,32 700 495,32] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot270__new` | 2 neu | [772,92 182,66 821,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot90__auto` | 1 | [534 182,66 583 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot90__footer300` | 1 | [314 182,66 363 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot90__manual` | 1 | [141,92 100 190,92 330] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE__landscape-rot90__new` | 2 neu | [20 182,66 69 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE__presigned__auto` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE__presigned__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE__presigned__new` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE__qr__placeholder` | 1 | [300 146 525 195] | 225 × 49 | gleich | gleich | 0,0000 % / 0,0000 % | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE__qr-id200__placeholder` | 1 | [182,66 81,92 412,66 130,92] | 230 × 49 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_DE__rot90-842-low__auto` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE__rot90-842-low__footer300` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE__two-pages__auto` | 2 | [182,66 241,53 412,66 290,53] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE__two-pages__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE__two-pages__new` | 3 neu | [182,66 350,53 412,66 399,53] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE__wide-rot180__auto` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE__wide-rot180__manual` | 1 | [265,8 141,92 495,8 190,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE__wide-rot180__new` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4__auto` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4__beyond` | 2 neu | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4__footer0` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -479,6 +582,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot270__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot270__manual` | 1 | [618 511,92 700 741,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot270__new` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot270-low__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot270-low__footer300` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot90__auto` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot90__manual` | 1 | [-104,68 100 -22,68 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__a4-rot90__new` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
@@ -488,14 +593,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE_NOTE__content-half__auto` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__content-half__footer0` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__content-half__footer300` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__half-rot90__footer300` | 1 | [20 305,75 102 535,75] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot270__auto` | 1 | [225,92 182,66 307,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot270__footer300` | 1 | [445,92 182,66 527,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot270__manual` | 1 | [618 265,32 700 495,32] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot270__new` | 2 neu | [739,92 182,66 821,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot90__auto` | 1 | [534 182,66 616 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot90__footer300` | 1 | [314 182,66 396 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot90__manual` | 1 | [141,92 100 223,92 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__landscape-rot90__new` | 2 neu | [20 182,66 102 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__presigned__auto` | 1 | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__presigned__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__presigned__new` | 1 | [182,66 50,92 412,66 132,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__qr__placeholder` | 1 | [300 113 525 195] | 225 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__qr-id200__placeholder` | 2 neu | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__rot90-842-low__auto` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__rot90-842-low__footer300` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__two-pages__auto` | 2 | [182,66 208,53 412,66 290,53] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__two-pages__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE__two-pages__new` | 3 neu | [182,66 317,53 412,66 399,53] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__wide-rot180__auto` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__wide-rot180__manual` | 1 | [265,8 141,92 495,8 223,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE__wide-rot180__new` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4__auto` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4__beyond` | 2 neu | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4__footer0` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -525,6 +644,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot270__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot270__manual` | 1 | [618 511,92 700 741,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot270__new` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot270-low__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot270-low__footer300` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot90__auto` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot90__manual` | 1 | [-104,68 100 -22,68 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__a4-rot90__new` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
@@ -534,14 +655,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__content-half__auto` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__content-half__footer0` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__content-half__footer300` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__half-rot90__footer300` | 1 | [20 305,75 102 535,75] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot270__auto` | 1 | [225,92 182,66 307,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot270__footer300` | 1 | [445,92 182,66 527,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot270__manual` | 1 | [618 265,32 700 495,32] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot270__new` | 2 neu | [739,92 182,66 821,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot90__auto` | 1 | [534 182,66 616 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot90__footer300` | 1 | [314 182,66 396 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot90__manual` | 1 | [141,92 100 223,92 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__landscape-rot90__new` | 2 neu | [20 182,66 102 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__presigned__auto` | 1 | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__presigned__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__presigned__new` | 1 | [182,66 50,92 412,66 132,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__qr__placeholder` | 1 | [300 113 525 195] | 225 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__qr-id200__placeholder` | 2 neu | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__rot90-842-low__auto` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__rot90-842-low__footer300` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__two-pages__auto` | 2 | [182,66 208,53 412,66 290,53] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__two-pages__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__two-pages__new` | 3 neu | [182,66 317,53 412,66 399,53] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__wide-rot180__auto` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__wide-rot180__manual` | 1 | [265,8 141,92 495,8 223,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_NOTE_PDFA__wide-rot180__new` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4__auto` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4__beyond` | 2 neu | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4__footer0` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -569,6 +704,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot270__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot270__manual` | 1 | [651 511,92 700 741,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot270__new` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot270-low__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot270-low__footer300` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot90__auto` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot90__manual` | 1 | [-104,68 100 -55,68 330] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__a4-rot90__new` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
@@ -578,14 +715,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_DE_PDFA__content-half__auto` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__content-half__footer0` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__content-half__footer300` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__half-rot90__footer300` | 1 | [20 305,75 69 535,75] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot270__auto` | 1 | [258,92 182,66 307,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot270__footer300` | 1 | [478,92 182,66 527,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot270__manual` | 1 | [651 265,32 700 495,32] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot270__new` | 2 neu | [772,92 182,66 821,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot90__auto` | 1 | [534 182,66 583 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot90__footer300` | 1 | [314 182,66 363 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot90__manual` | 1 | [141,92 100 190,92 330] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__landscape-rot90__new` | 2 neu | [20 182,66 69 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__presigned__auto` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__presigned__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__presigned__new` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__qr__placeholder` | 1 | [300 146 525 195] | 225 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__qr-id200__placeholder` | 1 | [182,66 81,92 412,66 130,92] | 230 × 49 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__rot90-842-low__auto` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__rot90-842-low__footer300` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__two-pages__auto` | 2 | [182,66 241,53 412,66 290,53] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__two-pages__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_DE_PDFA__two-pages__new` | 3 neu | [182,66 350,53 412,66 399,53] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__wide-rot180__auto` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__wide-rot180__manual` | 1 | [265,8 141,92 495,8 190,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_DE_PDFA__wide-rot180__new` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__a4__auto` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN__a4__beyond` | 2 neu | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__a4__footer0` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -613,6 +764,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN__a4-rot270__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN__a4-rot270__manual` | 1 | [651 511,92 700 741,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__a4-rot270__new` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN__a4-rot270-low__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN__a4-rot270-low__footer300` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN__a4-rot90__auto` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN__a4-rot90__manual` | 1 | [-104,68 100 -55,68 330] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__a4-rot90__new` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
@@ -622,14 +775,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN__content-half__auto` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN__content-half__footer0` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN__content-half__footer300` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_EN__half-rot90__footer300` | 1 | [20 305,75 69 535,75] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot270__auto` | 1 | [258,92 182,66 307,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot270__footer300` | 1 | [478,92 182,66 527,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot270__manual` | 1 | [651 265,32 700 495,32] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot270__new` | 2 neu | [772,92 182,66 821,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot90__auto` | 1 | [534 182,66 583 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot90__footer300` | 1 | [314 182,66 363 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot90__manual` | 1 | [141,92 100 190,92 330] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN__landscape-rot90__new` | 2 neu | [20 182,66 69 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__presigned__auto` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN__presigned__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__presigned__new` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN__qr__placeholder` | 1 | [300 146 525 195] | 225 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__qr-id200__placeholder` | 1 | [182,66 81,92 412,66 130,92] | 230 × 49 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_EN__rot90-842-low__auto` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN__rot90-842-low__footer300` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN__two-pages__auto` | 2 | [182,66 241,53 412,66 290,53] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN__two-pages__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN__two-pages__new` | 3 neu | [182,66 350,53 412,66 399,53] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN__wide-rot180__auto` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN__wide-rot180__manual` | 1 | [265,8 141,92 495,8 190,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN__wide-rot180__new` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4__auto` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4__beyond` | 2 neu | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4__footer0` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -659,6 +826,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot270__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot270__manual` | 1 | [618 511,92 700 741,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot270__new` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot270-low__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot270-low__footer300` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot90__auto` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot90__manual` | 1 | [-104,68 100 -22,68 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__a4-rot90__new` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
@@ -668,14 +837,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN_NOTE__content-half__auto` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__content-half__footer0` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__content-half__footer300` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__half-rot90__footer300` | 1 | [20 305,75 102 535,75] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot270__auto` | 1 | [225,92 182,66 307,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot270__footer300` | 1 | [445,92 182,66 527,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot270__manual` | 1 | [618 265,32 700 495,32] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot270__new` | 2 neu | [739,92 182,66 821,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot90__auto` | 1 | [534 182,66 616 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot90__footer300` | 1 | [314 182,66 396 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot90__manual` | 1 | [141,92 100 223,92 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__landscape-rot90__new` | 2 neu | [20 182,66 102 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__presigned__auto` | 1 | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__presigned__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__presigned__new` | 1 | [182,66 50,92 412,66 132,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__qr__placeholder` | 1 | [300 113 525 195] | 225 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__qr-id200__placeholder` | 2 neu | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__rot90-842-low__auto` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__rot90-842-low__footer300` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__two-pages__auto` | 2 | [182,66 208,53 412,66 290,53] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__two-pages__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE__two-pages__new` | 3 neu | [182,66 317,53 412,66 399,53] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__wide-rot180__auto` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__wide-rot180__manual` | 1 | [265,8 141,92 495,8 223,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE__wide-rot180__new` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4__auto` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4__beyond` | 2 neu | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4__footer0` | 1 | [182,66 466,92 412,66 548,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -705,6 +888,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot270__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot270__manual` | 1 | [618 511,92 700 741,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot270__new` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot270-low__auto` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot270-low__footer300` | 2 neu | [493,32 305,96 575,32 535,96] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot90__auto` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot90__manual` | 1 | [-104,68 100 -22,68 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__a4-rot90__new` | 2 neu | [20 305,96 102 535,96] | 230 × 82 | gleich | gleich | – | gleich | gleich |
@@ -714,14 +899,28 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__content-half__auto` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__content-half__footer0` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__content-half__footer300` | 1 | [182,66 332,92 412,66 414,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__half-rot90__footer300` | 1 | [20 305,75 102 535,75] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot270__auto` | 1 | [225,92 182,66 307,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot270__footer300` | 1 | [445,92 182,66 527,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot270__manual` | 1 | [618 265,32 700 495,32] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot270__new` | 2 neu | [739,92 182,66 821,92 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot90__auto` | 1 | [534 182,66 616 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot90__footer300` | 1 | [314 182,66 396 412,66] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot90__manual` | 1 | [141,92 100 223,92 330] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__landscape-rot90__new` | 2 neu | [20 182,66 102 412,66] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__presigned__auto` | 1 | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__presigned__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__presigned__new` | 1 | [182,66 50,92 412,66 132,92] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__qr__placeholder` | 1 | [300 113 525 195] | 225 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__qr-id200__placeholder` | 2 neu | [182,66 739,92 412,66 821,92] | 230 × 82 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__rot90-842-low__auto` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__rot90-842-low__footer300` | 2 neu | [20 306 102 536] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__two-pages__auto` | 2 | [182,66 208,53 412,66 290,53] | 230 × 82 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__two-pages__manual` | 1 | [100 618 330 700] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__two-pages__new` | 3 neu | [182,66 317,53 412,66 399,53] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__wide-rot180__auto` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__wide-rot180__manual` | 1 | [265,8 141,92 495,8 223,92] | 230 × 82 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_NOTE_PDFA__wide-rot180__new` | 2 neu | [182,9 20 412,9 102] | 230 × 82 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4__auto` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4__beyond` | 2 neu | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4__footer0` | 1 | [182,66 499,92 412,66 548,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
@@ -749,6 +948,8 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot270__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot270__manual` | 1 | [651 511,92 700 741,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot270__new` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot270-low__auto` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot270-low__footer300` | 2 neu | [526,32 305,96 575,32 535,96] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot90__auto` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot90__manual` | 1 | [-104,68 100 -55,68 330] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__a4-rot90__new` | 2 neu | [20 305,96 69 535,96] | 230 × 49 | gleich | gleich | – | gleich | gleich |
@@ -758,11 +959,25 @@ Bytes = Content-Stream mit `pdfas_quirks`, Pixel = Diff-Quote (nur Fälle mit Re
 | `SIGNATURBLOCK_SMALL_EN_PDFA__content-half__auto` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__content-half__footer0` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__content-half__footer300` | 1 | [182,66 365,92 412,66 414,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__half-rot90__footer300` | 1 | [20 305,75 69 535,75] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot270__auto` | 1 | [258,92 182,66 307,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot270__footer300` | 1 | [478,92 182,66 527,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot270__manual` | 1 | [651 265,32 700 495,32] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot270__new` | 2 neu | [772,92 182,66 821,92 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot90__auto` | 1 | [534 182,66 583 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot90__footer300` | 1 | [314 182,66 363 412,66] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot90__manual` | 1 | [141,92 100 190,92 330] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__landscape-rot90__new` | 2 neu | [20 182,66 69 412,66] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__presigned__auto` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__presigned__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__presigned__new` | 1 | [182,66 83,92 412,66 132,92] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__qr__placeholder` | 1 | [300 146 525 195] | 225 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__qr-id200__placeholder` | 1 | [182,66 81,92 412,66 130,92] | 230 × 49 | gleich | gleich | – | dok. KR-F03 | dok. KR-F03 |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__rot90-842-low__auto` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich | gleich (Scan, Δy 0) |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__rot90-842-low__footer300` | 2 neu | [20 306 69 536] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy 0) | dok. KR-F04 |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__two-pages__auto` | 2 | [182,66 241,53 412,66 290,53] | 230 × 49 | gleich | gleich | – | gleich (Scan, Δy -1) | gleich (Scan, Δy -1) |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__two-pages__manual` | 1 | [100 651 330 700] | 230 × 49 | gleich | gleich | – | gleich | gleich |
 | `SIGNATURBLOCK_SMALL_EN_PDFA__two-pages__new` | 3 neu | [182,66 350,53 412,66 399,53] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__wide-rot180__auto` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | dok. KR-F04 |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__wide-rot180__manual` | 1 | [265,8 141,92 495,8 190,92] | 230 × 49 | gleich | gleich | – | gleich | gleich |
+| `SIGNATURBLOCK_SMALL_EN_PDFA__wide-rot180__new` | 2 neu | [182,9 20 412,9 69] | 230 × 49 | gleich | gleich | – | gleich | gleich |

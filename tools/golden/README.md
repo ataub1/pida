@@ -47,3 +47,8 @@ Hinweise:
   Testfälle und werden nicht eingecheckt.
 - `--only` lässt die übrigen Manifeste unverändert; ein vollständiger Lauf ersetzt
   `testdata/golden/pdfas-4.4.2/cases/` und das vorsignierte Eingabedokument.
+- Manifeste und Index enthalten keine lokalen Pfade: Pfade in die Konfigurationskopie stehen als
+  `<cfg>/…` (`run_cases.portable_overrides`). `--reextract` behält die PDF-AS-Laufzeit je Fall.
+- Eingaben für den Rasterscan gedrehter Seiten (KR-F04): `landscape-rot90/270`, `wide-rot180`,
+  `a4-rot270-low`, `rot90-842-low`, `half-rot90` (Prüfung der Java2D-Pixelregel in
+  `pdfover_placement::position::pdfas_rotated_scan`).

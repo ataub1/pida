@@ -220,8 +220,16 @@ fn known_deviation(m: &Manifest, compat: CompatMode, pos: &TablePos) -> Option<&
     if m.case.input == "a4-cropbox" {
         return Some("KR-F02 Rect relativ zur CropBox, neue Seite mit MediaBox-Geometrie");
     }
-    if matches!(m.case.input.as_str(), "a4-rot90" | "a4-rot270")
-        && matches!(m.case.position_key.as_str(), "auto" | "none" | "footer0" | "footer300")
+    if matches!(
+        m.case.input.as_str(),
+        "a4-rot90"
+            | "a4-rot270"
+            | "landscape-rot90"
+            | "landscape-rot270"
+            | "wide-rot180"
+            | "a4-rot270-low"
+            | "rot90-842-low"
+    ) && matches!(m.case.position_key.as_str(), "auto" | "none" | "footer0" | "footer300")
     {
         return Some("KR-F04 Rasterscan im gedrehten (sichtbaren) Raum");
     }
@@ -246,6 +254,9 @@ struct Outcome {
     new_page: bool,
     y: f32,
     rect: [f32; 4],
+    /// Blockhöhe (PDF-AS-BBox) und Fußzeile der Position
+    height: f32,
+    footer: f32,
 }
 
 fn position_of(m: &Manifest, inp: &Input, backend: Option<&pdfover_render::PdfiumBackend>) -> Result<TablePos, String> {
@@ -320,6 +331,7 @@ fn check(m: &Manifest, inp: &Input, compat: CompatMode, backend: Option<&pdfover
     }
     // Blockhöhe aus der PDF-AS-Ausgabe (BBox = H + 1)
     let h = m.inner.as_ref().map(|i| i.bbox[1].abs() - 1.0).expect("Inner-BBox");
+    (o.height, o.footer) = (h, pos.footer_line());
     let renderer = backend.map(|b| b.open(inp.bytes.clone(), None).expect("PDFium öffnet Eingabe"));
     let mut probe = Probe {
         inner: renderer.as_deref().map(|r| RasterScanner { renderer: r, options: ForcedColorOptions::default() }),
@@ -451,10 +463,12 @@ fn summarize(outcomes: &[Outcome]) -> String {
     s
 }
 
-/// Die dokumentierten Abweichungen haben genau die erwartete (korrigierte) Form.
+/// Die dokumentierten Abweichungen haben genau die erwartete (korrigierte) Form (Fälle eines
+/// Registereintrags, in denen beide Modi übereinstimmen – z. B. Inhalt ohnehin zu tief –, zählen
+/// nicht als Abweichung).
 fn verify_documented(outcomes: &[Outcome]) {
     let mut wrong = Vec::new();
-    for o in outcomes.iter().filter(|o| o.documented.is_some() && o.skipped.is_none()) {
+    for o in outcomes.iter().filter(|o| o.documented.is_some() && o.skipped.is_none() && !o.errors.is_empty()) {
         let m = manifest(&o.id);
         let inp = Input::load(&m.case.input);
         let last = &inp.pages()[inp.pages().len() - 1];
@@ -492,8 +506,10 @@ fn verify_documented(outcomes: &[Outcome]) {
                 .all(|(a, b)| (a - b).abs() <= tol)
             }
         } else {
-            // KR-F04: Freiraum im sichtbaren Raum gefunden, keine neue Seite
-            !o.new_page && o.page_index == 0
+            // KR-F04: Freiraum im sichtbaren Raum gefunden: keine neue Seite, Block zwischen
+            // Oberkante − 20 und Fußzeile
+            let ph = inp.pages()[0].visible_size().1;
+            !o.new_page && o.page_index == 0 && o.y <= ph - 20.0 + TOL_EXACT && o.y - o.footer > o.height
         };
         if !ok {
             wrong.push(format!(

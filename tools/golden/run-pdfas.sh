@@ -44,8 +44,8 @@ KEEP_WORK=0
 REEXTRACT=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --only) ONLY="$2"; shift 2 ;;
-    --jobs) JOBS="$2"; shift 2 ;;
+    --only|--jobs) [ $# -ge 2 ] || { echo "$1 braucht einen Wert" >&2; exit 2; }
+      if [ "$1" = --only ]; then ONLY="$2"; else JOBS="$2"; fi; shift 2 ;;
     --keep-work) KEEP_WORK=1; shift ;;
     --reextract) REEXTRACT=1; KEEP_WORK=1; shift ;;
     *) echo "unbekannte Option: $1" >&2; exit 2 ;;
@@ -67,7 +67,11 @@ if [ ! -f "$CACHE/download/$PDFAS_ZIP" ]; then
   curl -fsS --retry 3 -o "$CACHE/download/$PDFAS_ZIP.part" "$PDFAS_URL"
   mv "$CACHE/download/$PDFAS_ZIP.part" "$CACHE/download/$PDFAS_ZIP"
 fi
-actual="$(shasum -a 256 "$CACHE/download/$PDFAS_ZIP" | cut -d' ' -f1)"
+if command -v sha256sum >/dev/null 2>&1; then
+  actual="$(sha256sum "$CACHE/download/$PDFAS_ZIP" | cut -d' ' -f1)"
+else
+  actual="$(shasum -a 256 "$CACHE/download/$PDFAS_ZIP" | cut -d' ' -f1)"
+fi
 if [ "$actual" != "$PDFAS_SHA256" ]; then
   echo "Prüfsumme falsch: $actual (erwartet $PDFAS_SHA256)" >&2
   exit 1

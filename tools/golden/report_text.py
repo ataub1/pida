@@ -14,10 +14,10 @@ aus dem Golden-Lauf und den Ergebnissen der Rust-Golden-Tests; die Tabellen nich
 | Signieren | CLI `pdf-as-cli -m sign -c ks -ksf testdata/keystores/test-rsa2048.p12 -ksa test-rsa2048 …` (Keystore-Option, RSA-Test-PKCS#12, feste Zertifikatsdaten), Konfiguration = Kopie von `$PDFOVER_REFERENCE/pdfas-config` je Variante, JVM mit `-Duser.timezone=Europe/Vienna`. |
 | PDF-Over-Overrides | wie `PdfAs4Signer.prepare`: `value.SIG_LABEL` (Bildmarke), `value.SIG_NOTE` (Hinweis), bei `BASE_LOGO` `table.main.Style.padding=0`, `pos=w:<tw>;f:0`, `table.main.Style.imagescaletofit=<tw>;<th>` (aus Emblemgröße und `targetLogoSize`, Default 23 mm) – als Zeilen am Ende der Profildatei der Konfigurationskopie. |
 | QR-Platzhalter | `tools/golden/PlaceholderSign.java`: dieselbe Signatur wie `Main.perform_sign`, zusätzlich wie PDF-Over `setPlaceHolderSearchEnabled(true)`, `placeholder_mode=1`, Platzhalter-ID 1 bzw. 200. Die CLI selbst kann die Platzhaltersuche nicht einschalten (`SignParameter.isPlaceHolderSearchEnabled()` ist dort immer `false`). QR-Module mit ZXing aus der CLI-Distribution (`MakeQr.java`). |
-| Eingaben (`make_inputs.py`, deterministisch) | `a4` (595,32 × 841,92), `a4-landscape`, `a4-rot90/180/270` (`/Rotate`), `a4-cropbox` (CropBox ≠ MediaBox, Ursprung 40/60), `content-half`/`content-full` (viel Inhalt: Auto-Position darunter bzw. neue Seite), `two-pages` (letzte Seite A5 quer), `presigned` (von PDF-AS vorsigniert), `qr`/`qr-id200` (Platzhalter 300 × 60 px auf 225 × 45 pt). Seiteninhalt nur aus Rechtecken, damit der Rasterscan nicht von der Schriftrasterung abhängt. Bildmarken: breit (RGB), hoch (Graustufen), RGBA mit Transparenz, JPEG, indiziert mit `tRNS`. |
+| Eingaben (`make_inputs.py`, deterministisch) | `a4` (595,32 × 841,92), `a4-landscape`, `a4-rot90/180/270` (`/Rotate`), `a4-cropbox` (CropBox ≠ MediaBox, Ursprung 40/60), `content-half`/`content-full` (viel Inhalt: Auto-Position darunter bzw. neue Seite), `two-pages` (letzte Seite A5 quer), `presigned` (von PDF-AS vorsigniert), `qr`/`qr-id200` (Platzhalter 300 × 60 px auf 225 × 45 pt); für den Rasterscan gedrehter Seiten (KR-F04) außerdem `landscape-rot90/270` (Querformat-MediaBox mit `/Rotate`), `wide-rot180` (Breite 595,8), `a4-rot270-low` und `rot90-842-low` (Inhalt nur nahe dem unteren Rand) sowie `half-rot90` (Höhe 841,5, leer). Seiteninhalt nur aus Rechtecken, damit der Rasterscan nicht von der Schriftrasterung abhängt. Bildmarken: breit (RGB), hoch (Graustufen), RGBA mit Transparenz, JPEG, indiziert mit `tRNS`. |
 | Positionen | `p:auto;x:auto;y:auto` (PDF-Over Auto), `p:1;x:100;y:700`, `p:1;x:50.500000;y:300.250000` (PDF-Over-Format `p:%d;x:%f;y:%f`), `p:new`, `p:2;x:100;y:700` (PDF-Over „Neue Seite“), `p:last`, `f:0`, `f:300`, `w:300`, `r:90`, ohne Position (nur Profil-`pos`), Platzhalter. |
 | `tools/golden/extract.py` | Manifest je Fall aus `qpdf --json=2` (dekodierte Streams): Seite, Widget-`/Rect`, `/TU`, Holder-`/BBox`/`/Matrix`, Operationen des Inner-Forms (Rechtecke, Linien, Linienbreiten, Bildmatrizen, Textblöcke mit Font, Größe, Zeilenstart, kodierten Bytes und Unicode), Fonts (Typ, Einbettung, Descriptor, `/W`), Bilder (Maße, Farbraum, SHA-256 der Samples, SMask), `SIG_DATE`; dazu `qpdf --check`, pyHanko-Validierung (Testzertifikat als Vertrauensanker) und Werte aus dem PDF-AS-DEBUG-Log (`PositioningInstruction`, feste Tabellenbreite, Platzhalterposition). |
-| Ablage | `testdata/golden/pdfas-4.4.2/`: `index.json`, `inputs/`, `cases/<Fall>/manifest.json`; für 84 Fälle (alle Profile auf A4 manuell, alle Hinweis- und Bildmarken-Varianten, Rotation/CropBox/QR) zusätzlich `signed.pdf` für den Pixelvergleich (gesamt rund 11 MB). |
+| Ablage | `testdata/golden/pdfas-4.4.2/`: `index.json`, `inputs/`, `cases/<Fall>/manifest.json`; für 84 Fälle (alle Profile auf A4 manuell, alle Hinweis- und Bildmarken-Varianten, Rotation/CropBox/QR) zusätzlich `signed.pdf` für den Pixelvergleich (gesamt rund 13 MB). Manifeste enthalten keine lokalen Pfade (Konfigurationskopie als `<cfg>`). |
 | Zeitstempel | Der Lauf hat keine feste Uhr; normalisiert wird beim Vergleich: der Nachbau verwendet genau den `SIG_DATE`-Text aus dem PDF-AS-Block (`yyyy-MM-dd'T'HH:mm:ssXXX`, Europe/Vienna). |
 
 <!-- TABELLE:KENNZAHLEN -->
@@ -26,6 +26,8 @@ Tests (lesen nur `testdata/golden/`, kein Java, kein Netz; PDFium-Teile nur mit 
 
 - `crates/sigblock/tests/golden_pdfas442.rs`: `index_covers_all_profiles_and_oracles_pass`,
   `blocks_match_pdfas_442` (Struktur ±0,01 pt), `content_bytes_identical_with_quirks`,
+  `tu_default_mode_contains_pdfas_tu` (Register Q10 im Standardmodus),
+  `golden_data_has_no_local_paths` (keine lokalen Pfade in Manifesten und Index),
   `pixels_match_pdfas_442` (PDFium, 288 dpi), `own_blocks_pass_qpdf_check` (`qpdf --check` auf den
   eigenen Mini-PDFs aller A4-Varianten, Standard und Quirks).
 - `crates/placement/tests/golden_pdfas442.rs`: `pdfas_quirks_mode_matches_pdfas_442`,
@@ -122,14 +124,21 @@ dokumentierten Form (der Test prüft die korrigierten Werte):
 | KR-F01 | AMTS-Breite bei manuellem `x` ohne `w` (Register „AMTS-Breite“) | `w = pw − 2x` (A4, x = 100 ⇒ 395,32) | `w = pw − 100` wie bei Auto-Position und in der Vorschau | AMTS × manuell |
 | KR-F02 | CropBox ≠ MediaBox (Register „CropBox-Offset“) | Rect ohne CropBox-Ursprung; neue Seite mit CropBox-Maßen der alten Seite | Rect relativ zur CropBox (+40/+60); neue Seite mit MediaBox-Geometrie (700 × 1000 ⇒ y = 980) | alle `a4-cropbox` |
 | KR-F03 | Platzhalter-ID > 127 (Register „IDs > 127“) | id = 200 wird nie gefunden (`Integer ==`), MODERATE ⇒ Auto-Position | Platzhalter gefunden, Block am Platzhalter (300/195, w = 225) | alle `qr-id200` |
-| KR-F04 | Rasterscan gedrehter Seiten | Rasterbild in ungedrehten Maßen, transparente Zeilen zählen als Inhalt ⇒ A4 mit `/Rotate 90/270` und `f:80` **immer neue Seite** | Scan im sichtbaren Raum, Block unter dem Inhalt | `a4-rot90/270` × auto |
+| KR-F04 | Rasterscan gedrehter Seiten | Rasterbild in ungedrehten Maßen `(int) w × (int) h`, Start in Zeile `(int) h − 1 − f`, nicht gelöschte (transparente) Pixel zählen als Inhalt ⇒ A4 mit `/Rotate 90/270` und `f:80` **immer neue Seite**; Querformat-MediaBox mit `/Rotate 90/270` ⇒ **immer die Startzeile** (y = 307,92 bei f:80); `/Rotate 180` mit Breitenanteil > ½ ⇒ neue Seite; Inhalt tief unten wird bei großer Fußzeile noch gesehen | Scan im sichtbaren Raum, Block unter dem Inhalt | `a4-rot90/270`, `landscape-rot90/270`, `wide-rot180`, `*-low` × auto/f:300 |
 | KR-F10 | Rasterscan-Rundung | Java2D, Seite 1:1 auf `(int) w × (int) h` | PDFium, Seite auf `round(w) × round(h)` abgebildet: bei Seitenhöhen mit Nachkommaanteil ≥ 0,5 (A4 841,92) liegt die Auto-Position genau 1 pt tiefer, sonst exakt | innerhalb ±1 pt |
 
 **Behoben in `crates/placement/src`:** KR-F04 im Modus `PdfasQuirks` nachgebildet
-(`pdfas_rotated_scan`: liegt die Startzeile `(int) h − 1 − (int) f` in einer transparenten Zeile –
-bzw. bei 90° mit transparenter Spalte 0 immer –, ist sie das Ergebnis ohne Scan; aus der
-PDFBox-2.0.32-Logik `renderPageToGraphics` + `clearRect` abgeleitet und am Golden bestätigt,
-Unit-Test `pdfas_rotated_scan_like_pdfas`). Vorher 22 Fälle abweichend, jetzt 0. Register-Einträge
+(`pdfas_rotated_scan`, aus der PDFBox-2.0.32-Logik `renderPageToGraphics` + `clearRect` mit der
+Java2D-Pixelregel `ceil(lo − ½) ≤ i < ceil(hi − ½)` abgeleitet und am Golden bestätigt,
+Unit-Test `pdfas_rotated_scan_like_pdfas`): Fehlen in der Startzeile `(int) h − 1 − (int) f`
+gelöschte Pixel (90°: Höhenanteil > ½ oder Querformat, 180°: Breitenanteil > ½, 270°:
+Querformat) oder liegt sie unter der gelöschten Fläche, ist sie das Ergebnis ohne Scan; sonst
+beginnt der Scan im sichtbaren Raum in derselben Zeile wie PDF-AS (angepasste Fußzeile). Erste
+Fassung: 22 Fälle abweichend, danach 0; der Review ergänzte die Eingaben `landscape-rot90/270`,
+`wide-rot180`, `a4-rot270-low`, `rot90-842-low` und `half-rot90` – dort wich die erste Fassung in
+88 Fällen ab (Querformat, Spalte 0 bei 180°, Startzeile im gelöschten Bereich, Kante genau ½),
+jetzt in keinem. Rest (inhaltsabhängig): PDF-AS sieht bei 90°/270° nur die linken `(int) w` Spalten
+der sichtbaren Seite. Register-Einträge
 KR-F04/KR-F10 in der Crate-Doku präzisiert: Die 1-pt-Abweichung aus Welle 1 kommt von der
 Rasterabbildung in `pdfover-render`, nicht von der Glyphenrasterung (gemessen: ein 7 pt hoher Balken
 mit Kanten auf Pixelgrenzen belegt bei A4 hoch 8 Zeilen, bei A4 quer – 595,32 ⇒ 595 px, gestaucht –
@@ -140,7 +149,9 @@ mit Kanten auf Pixelgrenzen belegt bei A4 hoch 8 Zeilen, bei A4 quer – 595,32 
 - Alle PDF-AS-Ausgaben: pyHanko `intact`/`valid`/`trusted`, Abdeckung `ENTIRE_FILE`,
   `qpdf --check` ohne Befund.
 - `/TU`: SMALL ohne Hinweis leer, mit Hinweis bzw. AMTS nur die Texte der äußeren Tabelle (Q10
-  bestätigt); `INVISIBLE` setzt `/TU` = Feldname und `/Rect [0 0 0 0]`.
+  bestätigt; im Standardmodus enthält das eigene `/TU` alle Texte, die PDF-AS-Zeilen in derselben
+  Reihenfolge, Test `tu_default_mode_contains_pdfas_tu`); `INVISIBLE` setzt `/TU` = Feldname und
+  `/Rect [0 0 0 0]`.
 - Neue Seite: PDF-AS setzt `make_new_page` auch bei `p:2` auf einseitigen Dokumenten; auf dem
   vorsignierten Dokument wird nie eine Seite angehängt (Auto ⇒ letzte Seite, `y = ph − 20`).
 - `p:last` ignoriert die Freiraumsuche (`y = ph − 20`); `f:0` und `f:300` wirken wie in

@@ -197,6 +197,28 @@ def write_pdfs(out, qr_matrix, qr200_matrix):
     q2w, q2h, q2px = qr_placeholder_image(qr200_matrix)
     docs["qr-id200"] = [dict(mediabox=[0, 0, pw, ph], content=content,
                              image=lambda pdf: gray_image(pdf, q2w, q2h, q2px))]
+    # Rasterscan gedrehter Seiten (KR-F04): PDF-AS legt das Rasterbild in ungedrehten Maßen
+    # (int) w × (int) h an und löscht mit clearRect(0, 0, (int) w, (int) h) im gedrehten Raum.
+    # Querformat-MediaBox mit /Rotate 90/270 (sichtbar hoch): Spalten rechts der gelöschten Fläche
+    # bleiben transparent ⇒ jede Zeile gilt als belegt.
+    for rot in (90, 270):
+        content = "q " + visible_to_user(rot, ph, pw) + "\n" + bars(pw, ph, 30, ph - 260, seed=20 + rot) + "\nQ"
+        docs[f"landscape-rot{rot}"] = [dict(mediabox=[0, 0, ph, pw], rotate=rot, content=content)]
+    # /Rotate 180 mit Breiten-Nachkommaanteil > 0,5: Spalte 0 wird nicht gelöscht
+    ww = 595.8
+    content = "q " + visible_to_user(180, ww, ph) + "\n" + bars(ww, ph, 30, ph - 260, seed=31) + "\nQ"
+    docs["wide-rot180"] = [dict(mediabox=[0, 0, ww, ph], rotate=180, content=content)]
+    # Inhalt nur nahe dem unteren Rand (sichtbar y 100 … 107): PDF-AS beginnt die Suche in der
+    # ungedrehten Zeile (int) h − 1 − (int) f, also tiefer als ein Scan im sichtbaren Raum
+    low = "0.35 g 72 100 {} 7 re f"
+    docs["a4-rot270-low"] = [dict(mediabox=[0, 0, pw, ph], rotate=270,
+                                  content="q " + visible_to_user(270, pw, ph) + "\n" + low.format(num(int(ph) - 300))
+                                  + "\nQ")]
+    docs["rot90-842-low"] = [dict(mediabox=[0, 0, 595, 842], rotate=90,
+                                  content="q " + visible_to_user(90, 595, 842) + "\n" + low.format(542) + "\nQ")]
+    # /Rotate 90 mit Höhen-Nachkommaanteil genau 0,5 (Pixelmitte auf der Kante des gelöschten
+    # Rechtecks), leere Seite
+    docs["half-rot90"] = [dict(mediabox=[0, 0, pw, 841.5], rotate=90, content="")]
     for name, pages in docs.items():
         (out / f"{name}.pdf").write_bytes(build(pages))
     return sorted(docs)

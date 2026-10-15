@@ -203,7 +203,10 @@ def main():
                 sb = "dok. " + ", ".join(sorted({reason.split()[0] for _, reason in s["expected"]}))
             else:
                 sb = "gleich"
-            qb = "gleich" if not quirks_bytes.get(c["id"]) else "dok. SB-G1"
+            if not quirks_bytes.get(c["id"]):
+                qb = "gleich"
+            else:  # einzige dokumentierte Byte-Abweichung: SB-G1 (Logo > 120 mm)
+                qb = "dok. SB-G1" if (c.get("base_logo_mm") or 0) > 120 else "**abweichend**"
         p = pixels.get(c["id"])
         px = f"{pct(p['default'][0] if p['default'] else None)} / {pct(p['quirks'][0] if p['quirks'] else None)}" if p else "–"
 

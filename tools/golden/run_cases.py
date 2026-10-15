@@ -71,6 +71,13 @@ INPUT_POSITIONS = {
     "presigned": ["auto", "new", "manual"],
     "qr": ["placeholder"],
     "qr-id200": ["placeholder"],
+    # Rasterscan gedrehter Seiten (KR-F04, Review Paket I5)
+    "landscape-rot90": ["auto", "footer300", "manual", "new"],
+    "landscape-rot270": ["auto", "footer300", "manual", "new"],
+    "wide-rot180": ["auto", "manual", "new"],
+    "a4-rot270-low": ["auto", "footer300"],
+    "rot90-842-low": ["auto", "footer300"],
+    "half-rot90": ["footer300"],
 }
 
 # gesuchte Platzhalter-ID je Eingabe (PDF-Over: ID des beim Öffnen gefundenen Platzhalters)
@@ -294,21 +301,34 @@ def page_count(pdf: Path):
     return int(r.stdout.strip()) if r.returncode in (0, 3) else None
 
 
+def portable_overrides(overrides, cfg: Path):
+    """Overrides für das Manifest ohne lokale absolute Pfade: die Konfigurationskopie heißt `<cfg>`
+    (die Golden-Daten liegen im Repository und dürfen weder Benutzer- noch Arbeitsordner enthalten)."""
+    prefix = str(cfg)
+    return {k: ("<cfg>" + v[len(prefix):] if isinstance(v, str) and v.startswith(prefix) else v)
+            for k, v in overrides.items()}
+
+
 def run_case(runner, case, a, work: Path, out_root: Path):
     cfg, overrides = make_variant(case, Path(a.config), Path(a.inputs), work)
     inp = input_path(a, case["input"])
     pdf = work / "out" / f"{case['id']}.pdf"
     log = work / "logs" / f"{case['id']}.log"
+    case_dir = out_root / "cases" / case["id"]
     t0 = time.time()
+    seconds = None
     if a.reextract and pdf.exists() and log.exists():
         rc = 0  # nur Manifest neu extrahieren (PDF und Log aus einem früheren Lauf)
+        try:  # Laufzeit des ursprünglichen PDF-AS-Aufrufs behalten
+            seconds = json.loads((case_dir / "manifest.json").read_text())["case"].get("seconds")
+        except (OSError, ValueError, KeyError):
+            seconds = None
     else:
         rc = runner.sign(case, cfg, inp, pdf, log)
-    dt = time.time() - t0
+        seconds = round(time.time() - t0, 1)
     entry = dict(case)
-    entry["overrides"] = overrides
-    entry["seconds"] = round(dt, 1)
-    case_dir = out_root / "cases" / case["id"]
+    entry["overrides"] = portable_overrides(overrides, cfg)
+    entry["seconds"] = seconds
     case_dir.mkdir(parents=True, exist_ok=True)
     if rc != 0 or not pdf.exists() or pdf.stat().st_size == 0:
         err = extract.parse_log(log)

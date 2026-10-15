@@ -278,9 +278,24 @@ fn index_covers_all_profiles_and_oracles_pass() {
     let profiles: BTreeSet<&str> = idx.cases.iter().map(|c| c.profile.as_str()).collect();
     assert_eq!(profiles, PDFOVER_PROFILE_IDS.iter().copied().collect::<BTreeSet<_>>(), "alle 12 Profil-IDs");
     let inputs: BTreeSet<&str> = idx.cases.iter().map(|c| c.input.as_str()).collect();
-    for i in
-        ["a4", "a4-landscape", "a4-rot90", "a4-rot180", "a4-rot270", "a4-cropbox", "content-half", "presigned", "qr"]
-    {
+    for i in [
+        "a4",
+        "a4-landscape",
+        "a4-rot90",
+        "a4-rot180",
+        "a4-rot270",
+        "a4-cropbox",
+        "content-half",
+        "presigned",
+        "qr",
+        "qr-id200",
+        "landscape-rot90",
+        "landscape-rot270",
+        "wide-rot180",
+        "a4-rot270-low",
+        "rot90-842-low",
+        "half-rot90",
+    ] {
         assert!(inputs.contains(i), "Eingabe {i}");
     }
     let mut bad = Vec::new();
@@ -819,4 +834,59 @@ fn content_bytes_identical_with_quirks() {
         results.len()
     );
     assert!(failures.is_empty(), "{} Fälle nicht byte-gleich:\n{}", failures.len(), failures.join("\n"));
+}
+
+/// Register Q10 (`/TU`) im Standardmodus: PDF-AS schreibt nur die Texte der äußersten Tabelle
+/// (SMALL ohne Hinweis und BASE_LOGO: leer), PDF-Over NG alle Texte in Leserichtung. Geprüft wird
+/// die dokumentierte Form: Die PDF-AS-Zeilen sind in derselben Reihenfolge im eigenen `/TU`
+/// enthalten; ein leeres PDF-AS-`/TU` ist im Standardmodus nur bei Blöcken ohne Text erlaubt.
+#[test]
+fn tu_default_mode_contains_pdfas_tu() {
+    let cases = visible_cases();
+    let results = run_parallel(&cases, |c| {
+        let m = manifest(&c.id);
+        let gold = m.widget.as_ref().and_then(|w| w.tu.clone()).unwrap_or_default();
+        let app = build(&m, false);
+        let own: Vec<&str> = app.tu_text.lines().collect();
+        let mut rest = own.iter();
+        let missing: Vec<&str> = gold.lines().filter(|l| !rest.any(|o| o == l)).collect();
+        let has_text = m.inner.as_ref().is_some_and(|i| !i.texts.is_empty());
+        let mut errs = Vec::new();
+        if !missing.is_empty() {
+            errs.push(format!("PDF-AS-Zeilen fehlen oder in anderer Reihenfolge: {missing:?}"));
+        }
+        if has_text && app.tu_text.trim().is_empty() {
+            errs.push("eigenes /TU leer trotz Text im Block".to_string());
+        }
+        if !has_text && !app.tu_text.is_empty() {
+            errs.push(format!("eigenes /TU ohne Text im Block: {:?}", app.tu_text));
+        }
+        (c.id.clone(), gold.is_empty() && has_text, errs)
+    });
+    let q10 = results.iter().filter(|(_, empty, e)| *empty && e.is_empty()).count();
+    println!("Q10: {q10} Fälle mit leerem PDF-AS-/TU und eigenem Text-/TU");
+    assert!(q10 > 0, "Q10-Fälle (SMALL ohne Hinweis) fehlen");
+    let failures: Vec<String> = results
+        .iter()
+        .filter(|(id, _, e)| !e.is_empty() && known_deviation(&manifest(id).case, "tu").is_none())
+        .map(|(id, _, e)| format!("{id}: {}", e.join("; ")))
+        .collect();
+    assert!(failures.is_empty(), "{} Fälle:\n{}", failures.len(), failures.join("\n"));
+}
+
+/// Die eingecheckten Golden-Daten enthalten keine lokalen Pfade (Benutzer-, Arbeits- oder
+/// Worktree-Ordner des erzeugenden Rechners); Pfade in die Konfigurationskopie heißen `<cfg>/…`.
+#[test]
+fn golden_data_has_no_local_paths() {
+    let mut files = vec!["index.json".to_string()];
+    files.extend(index().cases.iter().map(|c| format!("cases/{}/manifest.json", c.id)));
+    let needles = ["/Users/", "/home/", "/private/", "/tmp/", ":\\\\Users", "worktrees", "target/golden"];
+    let bad: Vec<String> = files
+        .iter()
+        .filter_map(|f| {
+            let text = String::from_utf8_lossy(&read(f)).to_string();
+            needles.iter().find(|n| text.contains(**n)).map(|n| format!("{f}: enthält {n:?}"))
+        })
+        .collect();
+    assert!(bad.is_empty(), "lokale Pfade in den Golden-Daten:\n{}", bad.join("\n"));
 }
