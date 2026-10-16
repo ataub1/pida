@@ -174,6 +174,17 @@ describe('Stapelübersicht (E2.1)', () => {
     expect(screen.getByRole('heading', { level: 1, name: '3 Dokumente' })).toBeInTheDocument();
   });
 
+  it('jedes noch nicht signierte Dokument lässt sich entfernen, nicht nur abgelehnte', async () => {
+    const { list, user, mock } = await openBatch();
+    const before = rows(list).length;
+    const first = rows(list)[0]!;
+    const name = within(first).getAllByText(/\.pdf$/)[0]?.textContent ?? '';
+    await user.click(within(first).getByRole('button', { name: `„${name}“ aus dem Stapel entfernen` }));
+    await waitFor(() => expect(rows(list)).toHaveLength(before - 1));
+    expect(mock.dispatched.filter((e) => e.type === 'remove_from_batch')).toHaveLength(1);
+    expect(within(list).queryByText(name)).toBeNull();
+  });
+
   it('Analysewarnung im Stapel: „Bitte prüfen“, einzeln öffnen und bestätigen, zurück → bereit (wie der Kern: ohne eigenen Plan)', async () => {
     const { list, user } = await openBatch({ warnings: ['pdf-usage-rights'] });
     const offer = row(list, 'Angebot_2026-118.pdf');
