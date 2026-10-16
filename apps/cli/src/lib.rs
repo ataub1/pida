@@ -208,7 +208,8 @@ pub enum Command {
         #[arg(value_name = "EINGABE")]
         inputs: Vec<PathBuf>,
     },
-    /// Signaturen prüfen (QA-Werkzeug, Selbstprüfung wie I3/I4)
+    /// Signaturen prüfen: unverändert und kryptografisch intakt (Entwickler-Werkzeug, Selbstprüfung wie I3/I4;
+    /// Vertrauenskette und Sperrstatus nicht geprüft)
     Verify {
         /// Datei
         file: PathBuf,
@@ -717,7 +718,8 @@ mod run_tests {
         let signed = format!("{TESTDATA}/pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf");
         assert_eq!(fx.run(&["--json", "verify", &signed], term.clone()), ExitCode::Success);
         let v: serde_json::Value = serde_json::from_str(&term.stdout()).unwrap();
-        assert_eq!(v["valid"], true);
+        assert_eq!((v["intact"].as_bool(), v["trust_checked"].as_bool()), (Some(true), Some(false)));
+        assert!(v.get("valid").is_none(), "nie „gültig“");
         let out = fx.tmp.path().join("block.pdf");
         let term = Arc::new(Scripted::new(false, &[]));
         assert_eq!(

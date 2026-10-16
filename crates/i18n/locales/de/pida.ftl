@@ -430,7 +430,7 @@ ng-cli-help-kspass-env = Keystore-Passwort aus der Umgebungsvariable lesen
 ng-cli-help-log-level = Log-Stufe (error, warn, info, debug, trace)
 ng-cli-help-version = Version anzeigen
 ng-cli-help-cmd-sign = Dokumente signieren (Dateien, Ordner, Muster wie *.pdf)
-ng-cli-help-cmd-verify = Signaturen eines PDFs prüfen
+ng-cli-help-cmd-verify = Signaturen eines PDFs prüfen: unverändert und kryptografisch intakt (Entwickler-Werkzeug; Vertrauenskette und Sperrstatus prüft es nicht)
 ng-cli-help-cmd-profiles = Signaturprofile auflisten
 ng-cli-help-cmd-migrate = Einstellungen aus ~/.pdf-over übernehmen (--from <Ordner>, --dry-run)
 ng-cli-help-cmd-render-block = Signaturblock als PDF/PNG ausgeben (--profile <ID> <Datei>)
@@ -457,8 +457,9 @@ ng-cli-key-password = Schlüssel-Passwort für { $name }:{ " " }
 ng-cli-proxy-password = Proxy-Passwort für { $name }:{ " " }
 ng-cli-wrong-password = Passwort falsch.
 ng-cli-progress = … { $step }
-ng-cli-valid = gültig: { $field } ({ $signer })
-ng-cli-invalid = ungültig: { $field } ({ $error })
+ng-cli-verify-intact = Intakt (unverändert): { $field } ({ $signer })
+ng-cli-verify-not-intact = Nicht intakt: { $field } ({ $error })
+ng-cli-verify-scope = Vertrauenskette und Sperrstatus nicht geprüft – vollständige Prüfung: https://www.signaturpruefung.gv.at
 ng-cli-no-signatures = Keine Signaturen gefunden.
 ng-cli-written = geschrieben: { $path }
 ng-cli-no-legacy = Keine PDF-Over-Konfiguration gefunden ({ $path }).
@@ -484,7 +485,7 @@ ng-settings-invalid-logo-size = Die Größe der Bildmarke muss größer als 0 un
 ng-verify-failed = Die Datei konnte nicht geprüft werden: { $detail }
 ng-verify-no-signature-dictionary = Signaturfeld ohne Signaturdaten.
 ng-verify-no-byte-range = Signatur ohne /ByteRange bzw. /Contents.
-ng-verify-byte-range = Die /ByteRange der Signatur ist ungültig.
+ng-verify-byte-range = Der signierte Bereich (/ByteRange) der Signatur ist fehlerhaft.
 
 ## Workflow und Kern (`pida-workflow`, `pida-core-api`) – Welle 2
 

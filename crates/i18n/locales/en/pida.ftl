@@ -430,7 +430,7 @@ ng-cli-help-kspass-env = Read the keystore password from the environment variabl
 ng-cli-help-log-level = Log level (error, warn, info, debug, trace)
 ng-cli-help-version = Show the version
 ng-cli-help-cmd-sign = Sign documents (files, folders, patterns such as *.pdf)
-ng-cli-help-cmd-verify = Verify the signatures of a PDF
+ng-cli-help-cmd-verify = Check the signatures of a PDF: unchanged and cryptographically intact (developer tool; it does not check the chain of trust or revocation status)
 ng-cli-help-cmd-profiles = List signature profiles
 ng-cli-help-cmd-migrate = Import settings from ~/.pdf-over (--from <folder>, --dry-run)
 ng-cli-help-cmd-render-block = Write the signature block as PDF/PNG (--profile <ID> <file>)
@@ -457,8 +457,9 @@ ng-cli-key-password = Key password for { $name }:{ " " }
 ng-cli-proxy-password = Proxy password for { $name }:{ " " }
 ng-cli-wrong-password = Wrong password.
 ng-cli-progress = … { $step }
-ng-cli-valid = valid: { $field } ({ $signer })
-ng-cli-invalid = invalid: { $field } ({ $error })
+ng-cli-verify-intact = Intact (unchanged): { $field } ({ $signer })
+ng-cli-verify-not-intact = Not intact: { $field } ({ $error })
+ng-cli-verify-scope = Chain of trust and revocation status not checked – full check: https://www.signaturpruefung.gv.at
 ng-cli-no-signatures = No signatures found.
 ng-cli-written = written: { $path }
 ng-cli-no-legacy = No PDF-Over configuration found ({ $path }).
@@ -481,10 +482,10 @@ ng-settings-invalid-logo-size = The logo size must be greater than 0 and at most
 
 ## Prüfung vorhandener Signaturen (`verify`) – Welle 2
 
-ng-verify-failed = The file could not be verified: { $detail }
+ng-verify-failed = The file could not be checked: { $detail }
 ng-verify-no-signature-dictionary = Signature field without signature data.
 ng-verify-no-byte-range = Signature without /ByteRange or /Contents.
-ng-verify-byte-range = The signature /ByteRange is invalid.
+ng-verify-byte-range = The signed range (/ByteRange) of the signature is malformed.
 
 ## Workflow und Kern (`pida-workflow`, `pida-core-api`) – Welle 2
 

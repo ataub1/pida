@@ -24,8 +24,10 @@ pub fn profiles(term: &dyn Terminal, json: bool) -> ExitCode {
     if ids.iter().all(|(_, ok)| *ok) { ExitCode::Success } else { ExitCode::General }
 }
 
-/// `verify <datei>`: alle Signaturen mit dem eigenen Verifier prüfen. Exit 0 = alle gültig,
-/// 6 = mindestens eine ungültig, 3 = Datei nicht lesbar.
+/// `verify <datei>` (Entwickler-Werkzeug): alle Signaturen mit dem eigenen Verifier prüfen –
+/// unverändert und kryptografisch intakt; Vertrauenskette und Sperrstatus prüft es **nicht** (der Text sagt das
+/// ausdrücklich, nie „gültig“). Exit 0 = alle intakt (bzw. keine Signatur), 6 = mindestens eine nicht intakt,
+/// 3 = Datei nicht lesbar.
 pub fn verify(term: &dyn Terminal, lang: Lang, file: &Path, json: bool) -> ExitCode {
     let checks = match pida_core_api::tools::verify_file(file) {
         Ok(c) => c,
@@ -34,24 +36,25 @@ pub fn verify(term: &dyn Terminal, lang: Lang, file: &Path, json: bool) -> ExitC
             return ExitCode::Rejected;
         }
     };
-    let ok = checks.iter().all(|c| c.valid);
+    let intact = checks.iter().all(|c| c.intact);
     if json {
-        let v = serde_json::json!({ "file": file, "valid": ok, "signatures": checks });
+        let v = serde_json::json!({ "file": file, "intact": intact, "trust_checked": false, "signatures": checks });
         term.out(&serde_json::to_string_pretty(&v).unwrap_or_default());
     } else if checks.is_empty() {
         term.out(&tr(lang, "ng-cli-no-signatures", &[]));
     } else {
         for c in &checks {
-            if c.valid {
+            if c.intact {
                 let signer = c.signer.clone().unwrap_or_default();
-                term.out(&tr(lang, "ng-cli-valid", &[("field", c.field.clone()), ("signer", signer)]));
+                term.out(&tr(lang, "ng-cli-verify-intact", &[("field", c.field.clone()), ("signer", signer)]));
             } else {
                 let error = c.error.clone().unwrap_or_default();
-                term.out(&tr(lang, "ng-cli-invalid", &[("field", c.field.clone()), ("error", error)]));
+                term.out(&tr(lang, "ng-cli-verify-not-intact", &[("field", c.field.clone()), ("error", error)]));
             }
         }
+        term.out(&tr(lang, "ng-cli-verify-scope", &[]));
     }
-    if ok { ExitCode::Success } else { ExitCode::Invariant }
+    if intact { ExitCode::Success } else { ExitCode::Invariant }
 }
 
 /// `render-block --profile <ID> <datei.pdf|png>`.
