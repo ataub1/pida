@@ -341,19 +341,38 @@ pub enum PasswordStorage {
 }
 
 /// Keystore.
-#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct KeystoreSettings {
     /// `KEYSTORE_ENABLED`
     pub enabled: bool,
     /// `KEYSTORE_FILE`
     pub file: Option<PathBuf>,
-    /// `KEYSTORE_TYPE` wie angegeben (`PKCS12`, `JKS`, `JCEKS`); erkannt wird am Inhalt.
+    /// `KEYSTORE_TYPE` wie angegeben (`PKCS12`, `JKS`, `JCEKS`); nur noch für die Kompatibilität mit PDF-Over
+    /// gespeichert – erkannt und geladen wird am Inhalt.
     pub declared_type: Option<String>,
     /// `KEYSTORE_ALIAS`
     pub alias: Option<String>,
     /// Speicherart.
     pub password_storage: PasswordStorage,
+    /// Die Speicherart wurde ausdrücklich gewählt. Fehlt der Schlüssel (Bestandsdatei) oder stammen die
+    /// Einstellungen aus PDF-Over (`KEYSTORE_PASS_STORE_TYPE`), gilt `true` (Struct-Standard); nur bei einer
+    /// Neuinstallation setzt der Kern `false` – dann fragt die erste Keystore-Passworteingabe „Passwort
+    /// merken?“, und mit der Antwort (bzw. einer Wahl in den Einstellungen) wird es `true`.
+    pub storage_chosen: bool,
+}
+
+impl Default for KeystoreSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            file: None,
+            declared_type: None,
+            alias: None,
+            password_storage: PasswordStorage::default(),
+            storage_chosen: true,
+        }
+    }
 }
 
 /// Ausgabe.

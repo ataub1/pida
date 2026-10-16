@@ -340,7 +340,7 @@ describe('Signiermittel und Speichern', () => {
     await user.click(within(dialog).getByRole('switch', { name: 'FIDO2-Sicherheitsschlüssel bevorzugen' }));
     expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'id_austria.fido2_default': true }, revision: 4 });
 
-    // Keystore einrichten: Datei (Typ aus der Endung), Alias, Speicherart
+    // Keystore einrichten: Datei (Format erkennt der Kern am Inhalt), Speicherart
     const keystore = within(dialog).getByRole('region', { name: 'Keystore' });
     await user.click(within(keystore).getByRole('switch', { name: 'Keystore verwenden' }));
     // aktiviert, aber noch ohne Datei: kein Fehler, als Standard weiterhin nicht wählbar
@@ -349,11 +349,16 @@ describe('Signiermittel und Speichern', () => {
     expect(within(group).getByRole('radio', { name: /Keystore/ })).toBeDisabled();
     expect(within(group).getByText('Zuerst unten den Keystore einrichten.')).toBeInTheDocument();
     await user.click(within(keystore).getByRole('button', { name: 'Datei wählen …' }));
-    await waitFor(() => expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'keystore.file': '/Users/demo/Zertifikate/max.p12', 'keystore.declared_type': 'PKCS12' }, revision: 6 }));
+    // nur die Datei – kein `keystore.declared_type` mehr (bleibt nur für PDF-Over gespeichert)
+    await waitFor(() => expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'keystore.file': '/Users/demo/Zertifikate/max.p12' }, revision: 6 }));
     expect(within(keystore).getByText('/Users/demo/Zertifikate/max.p12')).toBeInTheDocument();
-    await user.type(within(keystore).getByLabelText('Alias'), 'max');
+    expect(await within(keystore).findByText('Format: PKCS#12')).toBeInTheDocument();
+    expect(within(keystore).queryByRole('radiogroup', { name: 'Typ' })).toBeNull();
+    expect(within(keystore).getByRole('button', { name: 'Schlüssel anzeigen …' })).toBeInTheDocument();
     await user.click(within(keystore).getByRole('radio', { name: 'Nicht speichern' }));
-    await waitFor(async () => expect((await mock.view()).settings!.settings.keystore).toEqual({ enabled: true, file: '/Users/demo/Zertifikate/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'none' }));
+    await waitFor(async () =>
+      expect((await mock.view()).settings!.settings.keystore).toEqual({ enabled: true, file: '/Users/demo/Zertifikate/max.p12', declared_type: null, alias: null, password_storage: 'none', storage_chosen: true }),
+    );
     expect(within(group).getByRole('radio', { name: /Keystore/ })).toBeEnabled();
     await user.click(within(group).getByRole('radio', { name: /Keystore/ }));
     // Keystore aus: die Voreinstellung fällt auf „Jedes Mal fragen“ zurück (ein Ereignis)
@@ -608,6 +613,8 @@ describe('Mobile (Abnahme E3 Punkt 7)', () => {
     await user.click(within(done).getByRole('button', { name: 'Fertig' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(within(keystore).getByText('Importierte Datei: test.p12')).toBeInTheDocument();
-    expect(within(keystore).getByLabelText('Alias')).toBeInTheDocument();
+    // mit Passwort importiert: die Schlüssel sind bekannt – Auswahl statt Textfeld (zwei Schlüssel)
+    expect(within(keystore).getByRole('button', { name: /Schlüssel/ })).toHaveTextContent('Schlüssel wählen');
+    expect(within(keystore).queryByRole('textbox', { name: 'Alias' })).toBeNull();
   });
 });

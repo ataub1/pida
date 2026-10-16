@@ -17,9 +17,16 @@
  *
  * `SettingsView::locked` (per Richtlinie festgelegte Pfade, Nachtrag 5) kommt aus der Option `policy`
  * (`SettingsMockOptions`).
+ *
+ * Keystore (Nachtrag ADR 0004): Format aus der Dateiendung (der Mock liest keine Dateien; der Kern erkennt es
+ * am Inhalt), `inspect_keystore` mit dem Testpasswort „test“ liefert zwei Schlüssel (`MOCK_KEYSTORE_ENTRIES`),
+ * ein anderes Passwort `keystore-wrong-password`; ein richtiges Passwort bleibt gemäß Speicherart „gemerkt“
+ * (die Schlüssel erscheinen danach sofort, ebenso mit der Option `keystorePasswordKnown`). „Passwort merken?“:
+ * die Antwort aus `submit_secret`/`inspect_keystore` setzt `keystore.password_storage` und `storage_chosen`
+ * (nur solange noch nicht gewählt), wie eine Wahl in den Einstellungen.
  */
 import { defaultSettings } from '../defaults';
-import type { BackendChoice, BackendId, KeystoreImportView, Settings, SettingsView } from '../types';
+import type { BackendChoice, BackendId, KeystoreEntryView, KeystoreFormatView, KeystoreImportView, PasswordStorage, Settings, SettingsView } from '../types';
 import { migratedSettings, type FirstRunMockOptions } from './firstrun';
 import { fileNameOf, outputFileName, type MockArea, type MockCtx, type MockOptions } from './shared';
 
@@ -57,6 +64,38 @@ export interface SettingsState {
   /** Altkonfiguration (Migrationsangebot) und ihre eigene Bildmarke */
   legacy: string | null;
   legacyEmblem: string | null;
+  /** Keystore-Dateien mit „gemerktem“ Passwort bzw. mit gelesenen Einträgen (bis zum nächsten Dateiwechsel) */
+  keystoreKnown: Set<string>;
+  keystoreRead: string | null;
+  /** Problem der letzten Prüfung (`inspect_keystore`) und ihre Datei */
+  keystoreProblem: { file: string; code: string } | null;
+}
+
+/** Testpasswort des Mocks (wie `testdata/keystores`). */
+export const MOCK_KEYSTORE_PASSWORD = 'test';
+
+/** Einträge der Test-Keystores im Mock (frei erfunden, „NUR TEST“): zwei Schlüssel, ein Zertifikat. */
+export const MOCK_KEYSTORE_ENTRIES: KeystoreEntryView[] = [
+  { alias: 'max', subject_cn: 'Max Mustermann (NUR TEST)', not_after: '2027-03-31T12:00:00Z', is_key_entry: true },
+  { alias: 'muster-gmbh', subject_cn: 'Muster GmbH Siegel (NUR TEST)', not_after: '2028-01-15T09:30:00Z', is_key_entry: true },
+  { alias: 'test-root-ca', subject_cn: 'Test Root CA (NUR TEST)', not_after: '2035-12-31T23:59:59Z', is_key_entry: false },
+];
+
+/** Format aus der Endung (Mock; der Kern erkennt es am Inhalt). */
+export function mockKeystoreFormat(file: string | null): KeystoreFormatView | null {
+  if (!file) return null;
+  if (/\.(p12|pfx|pkcs12)$/i.test(file)) return 'pkcs12';
+  if (/\.jks$/i.test(file)) return 'jks';
+  if (/\.(jceks|ks)$/i.test(file)) return 'jceks';
+  return 'unknown';
+}
+
+/** Antwort auf „Passwort merken?“ (nur solange noch nicht gewählt). */
+function answerStorage(state: SettingsState, ctx: MockCtx, storage: PasswordStorage | null | undefined): void {
+  const ks = state.settings.keystore;
+  if (!storage || ks.storage_chosen) return;
+  const chosen = storage === 'keychain' && !state.keychainAvailable ? 'memory' : storage;
+  changed(state, ctx, { ...state.settings, keystore: { ...ks, password_storage: chosen, storage_chosen: true } });
 }
 
 /** Einstellungen beim Start: Ersteinrichtung (fehlende Datei) wie K4 (ADR 0004 §3.12, §8 F4). */
@@ -64,6 +103,8 @@ function initialSettings(o: MockOptions): Settings {
   const base = o.settings ? structuredClone(o.settings) : defaultSettings();
   if (!o.firstRun) return base;
   const next: Settings = { ...base, general: { ...base.general, first_run_completed: false } };
+  // Neuinstallation: die erste Keystore-Passworteingabe fragt „Passwort merken?“
+  if (!o.settings) next.keystore = { ...base.keystore, storage_chosen: false };
   // Neuinstallation ohne Altkonfiguration: „neben dem Original“; mit Migration gilt der übernommene Wert
   if (!o.migrationOffer && !o.settings) next.output = { ...base.output, folder: '.' };
   return next;
@@ -127,6 +168,13 @@ function applyPath(settings: Settings, path: string, value: unknown, problems: R
   return next;
 }
 
+/** Einträge der gewählten Datei, sofern gelesen bzw. das Passwort gemerkt ist. */
+function keystoreEntries(state: SettingsState): KeystoreEntryView[] | null {
+  const file = state.settings.keystore.file;
+  if (!file || mockKeystoreFormat(file) !== 'pkcs12') return null;
+  return state.keystoreRead === file || state.keystoreKnown.has(file) ? structuredClone(MOCK_KEYSTORE_ENTRIES) : null;
+}
+
 export const settingsArea: MockArea<SettingsState> = {
   init: (o) => ({
     settings: initialSettings(o),
@@ -141,6 +189,9 @@ export const settingsArea: MockArea<SettingsState> = {
     locked: policyLocks((o as SettingsMockOptions).policy),
     legacy: o.migrationOffer ?? null,
     legacyEmblem: (o as FirstRunMockOptions).legacyEmblem ?? null,
+    keystoreKnown: new Set(o.keystorePasswordKnown && o.settings?.keystore.file ? [o.settings.keystore.file] : []),
+    keystoreRead: null,
+    keystoreProblem: null,
   }),
 
   handle(e, state, ctx) {
@@ -179,6 +230,10 @@ export const settingsArea: MockArea<SettingsState> = {
         for (const path of Object.keys(e.changes)) delete rejected[path];
         let next = state.settings;
         for (const [path, value] of Object.entries(e.changes)) next = applyPath(next, path, value, rejected, state.locked);
+        // wie `settings_apply::normalize`: eine Wahl der Speicherart gilt als gewählt
+        if ('keystore.password_storage' in e.changes && !rejected['keystore.password_storage'] && !next.keystore.storage_chosen) {
+          next = { ...next, keystore: { ...next.keystore, storage_chosen: true } };
+        }
         state.problems = rejected;
         state.appliedRevision = e.revision;
         if (next !== state.settings) changed(state, ctx, next);
@@ -222,11 +277,42 @@ export const settingsArea: MockArea<SettingsState> = {
           },
         });
         state.keystoreImport = { file_name: fileName, ok: true, code: 'ng-keystore-imported', password_stored: stored };
+        // mit Passwort geprüft: die Einträge sind bekannt (Alias-Auswahl ohne erneute Eingabe)
+        state.keystoreRead = e.password === MOCK_KEYSTORE_PASSWORD ? `${KEYSTORE_DIR}/${fileName}` : null;
         return true;
       }
       case 'dismiss_keystore_import':
         state.keystoreImport = null;
         return true;
+      case 'submit_secret':
+        // „Passwort merken?“ aus der Signierkarte; die Abfrage selbst behandelt der Bereich Signieren
+        answerStorage(state, ctx, e.password_storage);
+        if (state.settings.keystore.password_storage !== 'none' && state.settings.keystore.file && e.secret === MOCK_KEYSTORE_PASSWORD) {
+          state.keystoreKnown.add(state.settings.keystore.file);
+        }
+        return false;
+      case 'inspect_keystore': {
+        const file = state.settings.keystore.file;
+        if (!state.open || !file) return true;
+        const format = mockKeystoreFormat(file);
+        if (format !== 'pkcs12') {
+          state.keystoreProblem = { file, code: format === 'unknown' ? 'keystore-malformed' : 'keystore-conversion-needed' };
+          return true;
+        }
+        answerStorage(state, ctx, e.password_storage);
+        const password = e.password ?? (state.keystoreKnown.has(file) ? MOCK_KEYSTORE_PASSWORD : null);
+        if (password === null) {
+          state.keystoreProblem = { file, code: 'ng-keystore-password-needed' };
+        } else if (password !== MOCK_KEYSTORE_PASSWORD) {
+          state.keystoreProblem = { file, code: 'keystore-wrong-password' };
+          state.keystoreRead = null;
+        } else {
+          state.keystoreProblem = null;
+          state.keystoreRead = file;
+          if (state.settings.keystore.password_storage !== 'none') state.keystoreKnown.add(file);
+        }
+        return true;
+      }
       case 'update_first_run':
         changed(state, ctx, {
           ...state.settings,
@@ -255,7 +341,10 @@ export const settingsArea: MockArea<SettingsState> = {
           problems: { ...validate(state.settings), ...state.problems },
           keychain_available: state.keychainAvailable,
           fido2_available: state.fido2Available,
-          keystore_ready: state.settings.keystore.enabled && !!state.settings.keystore.file,
+          keystore_ready: state.settings.keystore.enabled && mockKeystoreFormat(state.settings.keystore.file) === 'pkcs12',
+          keystore_format: mockKeystoreFormat(state.settings.keystore.file),
+          keystore_entries: keystoreEntries(state),
+          keystore_inspect_problem: state.keystoreProblem && state.keystoreProblem.file === state.settings.keystore.file ? state.keystoreProblem.code : null,
           read_only: state.readOnly,
           preview_revision: state.previewRevision,
           applied_revision: state.appliedRevision,

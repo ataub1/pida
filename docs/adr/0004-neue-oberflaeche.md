@@ -2395,3 +2395,34 @@ in der Liste `.emblem.png`; „Einstellungen zurücksetzen“ startet die Erstei
 (`ETSI.RFC3161`) fehlen in `testdata/verify` (keine TSA, Abbildung nur im Code); die CLI `pida verify` meldet weiter
 „gültig“/„ungültig“ (QA-Werkzeug, nicht §8 F3) und könnte auf `pades::verify_document` umsteigen;
 `RadioCards`/`Segmented` mit `isDisabled` der Gruppe in `ui/controls.tsx` (Bitte aus B3 an UI-A).
+
+### Nachtrag 7 (16.10.2026): Keystore – Format am Inhalt, Schlüssel als Auswahl, „Passwort merken?“
+
+Wünsche des Auftraggebers (Einstellungen › Signiermittel › Keystore), Vertrag additiv (§3.0 Regel 2):
+
+1. **Keine Typauswahl mehr:** `SettingsView::keystore_format: Option<KeystoreFormatView>` (`pkcs12` | `jks` |
+   `jceks` | `unknown`, erste Bytes der gewählten Datei; `None` = keine bzw. fehlende Datei). `keystore_ready` nur
+   mit PKCS#12. Die UI setzt beim Wählen der Datei nur `keystore.file`; `keystore.declared_type` bleibt für die
+   Kompatibilität mit PDF-Over gespeichert (geladen wird ohnehin nach Inhalt). JKS/JCEKS: Hinweis
+   `ng-ui-notice-keystore-conversion` als Warnung, `unknown`: `ng-ui-set-keystore-unsupported`.
+2. **Schlüssel als Auswahl:** `SettingsView::keystore_entries: Option<Vec<KeystoreEntryView { alias, subject_cn,
+   not_after (RFC 3339, UTC), is_key_entry }>>` und `keystore_inspect_problem: Option<String>` (Meldungs-ID, z. B.
+   `keystore-wrong-password`, `ng-keystore-password-needed`). Neues `UiEvent::InspectKeystore { password:
+   Option<String>, password_storage? }` (am Ende; Passwort nur RAM/`Zeroizing`, `Debug` redigiert). Ist ein
+   Passwort bekannt (Overlay/Sitzung bzw. gemäß `keystore.password_storage` gemerkt), liest der Kern die Einträge
+   bei offenen Einstellungen einmal je Stand der Datei (Pfad, Größe, Änderungszeit) selbst; ein mit
+   `InspectKeystore` geprüftes Passwort wird wie beim Signieren gemäß Speicherart behalten. Der PKCS#12-Import
+   übernimmt die beim Import gelesenen Einträge. `pida_backend_keystore::AliasInfo` trägt dafür zusätzlich
+   `subject_cn` und `not_after`. Alias und Name sind Personendaten (redigiertes `Debug`, nie im Log).
+3. **„Passwort merken?“ bei der ersten Verwendung:** `pida_config::KeystoreSettings::storage_chosen` (Struct-Standard
+   `true`: Bestandsdateien ohne Schlüssel und Übernahmen aus PDF-Over gelten als gewählt; nur eine Neuinstallation
+   – fehlende `settings.toml` – startet mit `false`; eine Wahl von `keystore.password_storage` über `ApplySettings`
+   setzt `true`). `InteractionView::Secret` trägt `ask_storage` (nur `KeystorePassword` einer Datei aus den
+   Einstellungen, solange nicht gewählt) und `keychain_available`; die Antwort kommt als
+   `SubmitSecret::password_storage` bzw. `InspectKeystore::password_storage` (beide `#[serde(default,
+   skip_serializing_if = "Option::is_none")]`, in TypeScript optional) und wird gespeichert; sie gilt schon für das
+   gerade eingegebene Passwort (`FirstUseCache` im Registry), danach fragt der Kern nicht mehr. Eine Antwort ohne
+   offene Frage ist ohne Wirkung.
+
+Tests: `crates/core-api/tests/keystore_settings.rs`, `crates/core-api/src/keystore_info.rs`,
+`apps/app/src/features/settings/keystore.test.tsx`. Neue Meldungs-ID `ng-keystore-password-needed` (`pida.ftl`).

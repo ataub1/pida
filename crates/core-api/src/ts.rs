@@ -207,6 +207,8 @@ pub struct KeystoreSettings {
     pub alias: Option<String>,
     /// Passwort-Speicherart
     pub password_storage: PasswordStorage,
+    /// Speicherart ausdrücklich gewählt (`false` = die erste Passworteingabe fragt „Passwort merken?“)
+    pub storage_chosen: bool,
 }
 
 /// Spiegel von `pida_config::OutputSettings`.
@@ -322,7 +324,7 @@ impl From<&pida_config::Settings> for Settings {
         let c::PlaceholderSettings { search, kind } = placeholder;
         let c::BackendSettings { default } = backend;
         let c::IdAustriaSettings { username, remember, fido2_default } = id_austria;
-        let c::KeystoreSettings { enabled, file, declared_type, alias, password_storage } = keystore;
+        let c::KeystoreSettings { enabled, file, declared_type, alias, password_storage, storage_chosen } = keystore;
         let c::OutputSettings { folder, postfix } = output;
         let c::ProxySettings { mode, host, port, user } = proxy;
         let c::CertificateCacheSettings { enabled: cache_enabled } = certificate_cache;
@@ -381,6 +383,7 @@ impl From<&pida_config::Settings> for Settings {
                     c::PasswordStorage::Memory => PasswordStorage::Memory,
                     c::PasswordStorage::Keychain => PasswordStorage::Keychain,
                 },
+                storage_chosen: *storage_chosen,
             },
             output: OutputSettings { folder: folder.clone(), postfix: postfix.clone() },
             proxy: ProxySettings {
@@ -536,6 +539,8 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         PlatformView,
         ResumeOfferView,
         KeystoreImportView,
+        KeystoreFormatView,
+        KeystoreEntryView,
         InteractionView,
         OutputView,
         MainBarView,
@@ -638,6 +643,7 @@ mod tests {
         s.backend.default = Some(c::BackendChoice::LocalBku);
         s.id_austria.username = Some("+43664".into());
         s.keystore.password_storage = c::PasswordStorage::Keychain;
+        s.keystore.storage_chosen = false;
         s.keystore.file = Some("/k.p12".into());
         s.proxy.mode = c::ProxyMode::Manual;
         s.proxy.port = Some(3128);

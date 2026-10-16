@@ -97,6 +97,19 @@ export function optional<T>(s: Schema<T>): OptionalSchema<T> {
   return check as OptionalSchema<T>;
 }
 
+/**
+ * Wie `optional`, das Feld darf aber auch ganz fehlen: additive Felder von UI-Ereignissen, die der Kern mit
+ * `#[serde(default, skip_serializing_if = "Option::is_none")]` liest und schreibt (z. B.
+ * `submit_secret.password_storage`).
+ */
+export function omittable<T>(s: Schema<T>): OptionalSchema<T> {
+  const check = optional(s);
+  Object.defineProperty(check, 'omittable', { value: true });
+  return check;
+}
+
+const isOmittable = (s: Schema<unknown>) => (s as { omittable?: boolean }).omittable === true;
+
 type Props = Record<string, Schema<unknown>>;
 type OptionalKeys<P extends Props> = { [K in keyof P]: P[K] extends OptionalSchema<unknown> ? K : never }[keyof P];
 type ObjOf<P extends Props> = { [K in Exclude<keyof P, OptionalKeys<P>>]: Infer<P[K]> } & {
@@ -106,7 +119,7 @@ type ObjOf<P extends Props> = { [K in Exclude<keyof P, OptionalKeys<P>>]: Infer<
 function checkProps(props: Props, v: Record<string, unknown>, p: string, e: string[], extra: boolean, skip: string[] = []) {
   for (const [k, s] of Object.entries(props)) {
     if (!(k in v)) {
-      e.push(`${p}.${k}: fehlt`);
+      if (!isOmittable(s)) e.push(`${p}.${k}: fehlt`);
       continue;
     }
     s(v[k], `${p}.${k}`, e);

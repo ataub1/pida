@@ -101,7 +101,12 @@ impl ConfigState {
                     if offer_migration {
                         migration_offer = pida_config::import_offer(&paths, legacy_dir.as_deref());
                     }
-                    (Settings::default(), Some(file))
+                    // Neuinstallation: die Speicherart des Keystore-Passworts ist noch nicht gewählt – die
+                    // erste Passworteingabe fragt „Passwort merken?“ (eine Übernahme aus PDF-Over ersetzt die
+                    // Einstellungen samt `storage_chosen = true`)
+                    let mut settings = Settings::default();
+                    settings.keystore.storage_chosen = false;
+                    (settings, Some(file))
                 }
                 LoadOutcome::Unreadable(e) => {
                     tracing::warn!(id = e.message_id(), "Einstellungen nicht lesbar");
@@ -229,7 +234,10 @@ mod tests {
         let (s, p) = state(tmp.path(), Overlay::default());
         assert!(p.is_none());
         assert!(!s.read_only());
-        assert_eq!(s.settings, Settings::default());
+        // Neuinstallation: Speicherart des Keystore-Passworts noch nicht gewählt („Passwort merken?“)
+        let mut expected = Settings::default();
+        expected.keystore.storage_chosen = false;
+        assert_eq!(s.settings, expected);
         s.save().unwrap();
         assert!(s.paths.settings_file().is_file());
     }

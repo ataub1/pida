@@ -8,14 +8,22 @@
  * - `SettingTextField`: Textfeld mit `onFocus`/`onBlur` (entprelltes Senden, ADR 0004 §3.11), mehrzeilig,
  *   mit Knopf am Ende.
  * - `LogoSizeSlider` (aus dem bisherigen Dialog), `AccountCard`, `PathRow` (aus dem Prototyp).
+ * - `SettingSelect`: Auswahlliste (React Aria `Select`) mit zweizeiligen Einträgen im Stil der Menüs
+ *   (`select-button`, `popover`, `menu-item`), z. B. die Schlüssel eines Keystores.
  */
 import { useId, type ReactNode } from 'react';
 import {
+  Button as AriaButton,
   FieldError,
   Input,
   Label,
+  ListBox,
+  ListBoxItem,
+  Popover,
   Radio,
   RadioGroup,
+  Select,
+  SelectValue,
   Slider,
   SliderOutput,
   SliderThumb,
@@ -25,6 +33,7 @@ import {
   TextField,
 } from 'react-aria-components';
 import type { ChoiceOption } from '../../ui/controls';
+import { IconChevronDown } from '../../ui/Icons';
 
 /** Auswahl als Karten; `isDisabled` sperrt die ganze Gruppe. */
 export function ChoiceCards<V extends string>({
@@ -233,5 +242,74 @@ export function PathRow({ label, value, empty, action }: { label: string; value:
       <span className={`path-value${value ? ' mono' : ' is-empty'}`}>{value ?? empty}</span>
       {action}
     </div>
+  );
+}
+
+/** Eintrag einer `SettingSelect`. */
+export interface SelectOption {
+  id: string;
+  label: string;
+  /** zweite, kleinere Zeile (z. B. Alias) */
+  detail?: string;
+  isDisabled?: boolean;
+}
+
+/** Auswahlliste einer Einstellung (React Aria `Select`); `value = null` zeigt den Platzhalter. */
+export function SettingSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  description,
+  error,
+  isDisabled,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (id: string) => void;
+  options: SelectOption[];
+  placeholder?: string;
+  description?: ReactNode;
+  error?: string | null;
+  isDisabled?: boolean;
+}) {
+  return (
+    <Select
+      className="field setting-select"
+      value={value}
+      onChange={(key) => {
+        if (key !== null) onChange(String(key));
+      }}
+      placeholder={placeholder}
+      isInvalid={!!error}
+      isDisabled={isDisabled}
+    >
+      <Label className="field-label">{label}</Label>
+      <AriaButton className="select-button">
+        <SelectValue className="select-value">{({ isPlaceholder, selectedText, defaultChildren }) => (isPlaceholder ? defaultChildren : selectedText)}</SelectValue>
+        <IconChevronDown size={16} aria-hidden="true" />
+      </AriaButton>
+      {description && !error ? (
+        <Text slot="description" className="field-hint">
+          {description}
+        </Text>
+      ) : null}
+      <div className="field-alert" role="alert">
+        <FieldError className="field-error">{error}</FieldError>
+      </div>
+      <Popover className="popover" placement="bottom start" offset={4}>
+        <ListBox className="menu" items={options}>
+          {(o) => (
+            <ListBoxItem id={o.id} textValue={o.label} className="menu-item" isDisabled={o.isDisabled}>
+              <span className="menu-item-text">
+                <span className="menu-item-label">{o.label}</span>
+                {o.detail ? <span className="menu-item-desc mono-small">{o.detail}</span> : null}
+              </span>
+            </ListBoxItem>
+          )}
+        </ListBox>
+      </Popover>
+    </Select>
   );
 }
