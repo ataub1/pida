@@ -160,6 +160,16 @@ fn build_appearance(
     Ok(Appearance::build(profile, input, &opts, fonts, resources)?)
 }
 
+/// Block in ein vorhandenes Signaturfeld (KR-P10, `pida_placement::field_fit`): proportional, höchstens in
+/// natürlicher Größe und mittig im Widget-`/Rect` `field` (Benutzerraum); `/Rect` bleibt, nur die Holder-`/BBox`
+/// wächst. Liefert das Rechteck, in dem der Block steht (`None`, wenn die Appearance unverändert blieb, etwa bei
+/// leerem Feld). PDF-AS schreibt die BBox `[W+1 H+1]` unverändert – ein Viewer streckt den Block auf das Feld.
+pub fn fit_into_field(appearance: &mut Appearance, field: Rect) -> Option<Rect> {
+    let (width, height) = appearance.user_size();
+    let fit = pida_placement::field_fit(field, pida_placement::BlockGeometry { width, height });
+    appearance.place_in_rect(field, fit.rect).then_some(fit.rect)
+}
+
 /// Baut den Signierplan: Appearance aus dem Profil, Position über `placement` (Breite →
 /// Layout-Höhe → Rasterscan/neue Seite → Widget-Rect, Rotation), Feldwahl, `/Name`, `/Reason`,
 /// `/Location`, PDF/A- und PDF/UA-Schalter.
@@ -213,7 +223,8 @@ pub fn plan_signature(
         };
         match &opts.field {
             FieldTarget::Existing { widget_id, .. } => {
-                // vorhandenes Feld: Rect bleibt, Breite wie beim Positionieren (PDF-AS rechnet sie)
+                // vorhandenes Feld: Rect bleibt, Breite wie beim Positionieren (PDF-AS rechnet sie); korrigiert
+                // steht der Block proportional, höchstens in natürlicher Größe und mittig im Feld (KR-P10)
                 let w = report
                     .fields
                     .iter()
@@ -224,7 +235,10 @@ pub fn plan_signature(
                 let wd = resolve_width(&TablePos { page: None, ..pos.clone() }, &ctx)?;
                 let page = &src.pages()[page_index.min(src.page_count() - 1)];
                 let rotation = appearance_rotation(pos.block_rotation(), page);
-                let app = build_appearance(profile, &input, wd.width, rotation, pdfa, fonts, resources)?;
+                let mut app = build_appearance(profile, &input, wd.width, rotation, pdfa, fonts, resources)?;
+                if opts.compat == CompatMode::Corrected {
+                    fit_into_field(&mut app, w.rect);
+                }
                 replaced_chars = app.layout.as_ref().map(|l| l.replaced_chars.clone()).unwrap_or_default();
                 Visibility::Visible(BlockPlacement {
                     appearance: Arc::new(app),

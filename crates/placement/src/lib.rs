@@ -14,7 +14,8 @@
 //! 5. [`widget_rect`] und [`appearance_rotation`] für das Widget.
 //!
 //! QR-Platzhalter: [`find_qr_placeholders`] (Bilder aus dem Renderer, Namen/CTM aus `pdf-cos`)
-//! und [`select_placeholder`]; leere Signaturfelder: [`find_empty_sig_fields`]. Startzustand der
+//! und [`select_placeholder`]; leere Signaturfelder: [`find_empty_sig_fields`], Lage und Eignung des Blocks im Feld:
+//! [`field_fit`]. Startzustand der
 //! UI-Positionierung: [`default_start_placement`] (letzte Seite, 50 %/25 %). Seitenlayout der Oberfläche
 //! „Arbeitsbereich“ (ADR 0004 §3.3): [`OccupancyGrid`] aus dem Forced-Color-Raster und [`page_layout`]
 //! (Inhaltsrahmen, freie Flächen, Einrastlinien) – rein und ohne Renderer testbar.
@@ -35,15 +36,18 @@
 //! | KR-F10 | Rasterscan mit Java2D (exakter Pixelvergleich, Seite 1:1 auf `(int) w × (int) h`) | PDFium mit Kantenglättungs-Toleranz [`SCAN_TOLERANCE`]; `pida-render` bildet die Seite seit Welle 3 ebenfalls 1:1 auf `(int) w × (int) h` ab (vorher auf `round(w) × round(h)` gestreckt: bei Seitenhöhen mit Nachkommaanteil ≥ 0,5 genau 1 pt tiefer). Golden PDF-AS 4.4.2: alle Auto-Positionen exakt außer Haarlinien knapp über einer Pixelgrenze als unterster Inhalt (PDFium zeichnet Linien mindestens 1 px breit, Java2D mit der echten Breite; Eingabe `presigned`: 1 pt tiefer, Plan §8.2 ±1 pt) | `pdfas_positions_match_golden`, `tolerance_ignores_faint_antialiasing`, `golden_pdfas442` |
 //! | KR-F11 | UI-Klemmung bei Block größer als Seite liefert `x < 0` bzw. `y < h` | Block liegt links bzw. oben an | `clamp_block_like_f35` |
 //! | KR-F12 | QR-Suche dekodiert jedes Bild (`getImage()`) ohne Obergrenze | der Renderer dekodiert je Seite höchstens [`pida_render::MAX_IMAGE_PIXELS_PER_PAGE`] Pixel (kleinste Bilder zuerst, jedes ≤ [`pida_render::MAX_PIXELS`]); größere Bilder werden nicht auf QR-Codes geprüft (Schutz gegen Dekompressionsbomben) | `image_objects_stay_within_the_pixel_budget` (render) |
+//! | KR-F13 | vorhandenes Signaturfeld: Block mit `/BBox [W+1 H+1]` im unveränderten Feld-`/Rect`, ein Viewer streckt ihn nicht proportional auf die Feldgröße (`manySignFields_signed4.pdf`: 232 × 84 pt in 3,16 × 224 pt); keine Prüfung der Feldgröße | korrigiert: [`field_fit`] – proportional, höchstens natürliche Größe, mittig (Schreiben: `pida-pades` KR-P10); als Ziel angeboten nur mit Maßstab ≥ [`FIELD_MIN_SCALE`] und Anteil ≥ [`FIELD_MIN_FILL`] ([`FieldFit::suitable`]); [`CompatMode::PdfasQuirks`] schreibt wie PDF-AS | `many_sign_fields_only_plausible_targets`, `page_sized_field_keeps_the_natural_size`, `user_space_and_visible_space_agree_for_all_rotations` |
 //!
 //! Ownership: Paket **F** (zusammen mit `pida-render`).
 
 pub mod coords;
+pub mod field;
 pub mod layout;
 pub mod placeholder;
 pub mod position;
 
 pub use coords::{CoordSpace, KeyStep, PageTransform, Point, ScreenGeometry};
+pub use field::{FIELD_MIN_FILL, FIELD_MIN_SCALE, FieldFit, field_fit, obstacle_fields};
 pub use layout::{
     BELOW_CONTENT_PT, EMPTY_PAGE_MARGIN_PT, FREE_GAP_PT, GRID_CELL_PT, Guide, GuideAxis, GuideKind, LayoutOptions,
     MAX_FREE_RECTS, OccupancyGrid, PageLayout, page_layout,

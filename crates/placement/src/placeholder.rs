@@ -132,7 +132,7 @@ pub struct EmptyFieldCandidate {
     pub widget_id: ObjectId,
     /// Seite
     pub page_index: Option<usize>,
-    /// vorhandenes Rect (Appearance wird hineinskaliert)
+    /// vorhandenes Rect (der Block steht darin proportional und mittig, [`crate::field_fit`])
     pub rect: Rect,
 }
 
