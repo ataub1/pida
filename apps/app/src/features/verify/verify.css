@@ -1,0 +1,271 @@
+/* Prüfmodus (ADR 0004 §2.9; Gestalt aus dem Prototyp, styles/views.css „Prüfmodus“). */
+.verify-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  height: 100%;
+}
+.verify-preview {
+  overflow: auto;
+  padding: var(--sp-6) var(--sp-5);
+  background: var(--c-sunken);
+}
+.verify-pages {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-6);
+}
+.verify-preview-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 240px;
+  color: var(--c-text-3);
+}
+.vf-page {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--c-page);
+  box-shadow: var(--shadow-page);
+}
+.vf-page-tile {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* Hervorhebung des Signaturbilds („Auf der Seite zeigen“, Überfahren der Karte) */
+.vf-mark {
+  position: absolute;
+  border-radius: 2px;
+  pointer-events: none;
+  transition: box-shadow var(--dur-1) var(--ease-out);
+}
+.vf-mark.is-active {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px var(--c-focus);
+}
+.verify-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+  overflow: auto;
+  border-left: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+.verify-file-head {
+  display: grid;
+  gap: 2px;
+}
+.verify-file {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+.verify-file:focus {
+  outline: none;
+}
+.verify-file svg {
+  flex: none;
+  color: var(--c-text-3);
+}
+.verify-meta {
+  padding-left: 28px;
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.vf-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--c-text-3);
+}
+.sig-list {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sig-card {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+.sig-card:hover {
+  border-color: var(--c-border-strong);
+  box-shadow: var(--shadow-1);
+}
+.sig-card.is-broken {
+  border-color: var(--c-danger-border);
+}
+.sig-card.is-unverifiable {
+  border-color: var(--c-warning-border);
+}
+.sig-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+.sig-status-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.sig-status-icon.is-intact {
+  background: var(--c-success-soft);
+  color: var(--c-success-on-soft);
+}
+.sig-status-icon.is-broken {
+  background: var(--c-danger-soft);
+  color: var(--c-danger-on-soft);
+}
+.sig-status-icon.is-unverifiable {
+  background: var(--c-warning-soft);
+  color: var(--c-warning-on-soft);
+}
+.sig-card-titles {
+  flex: 1;
+  min-width: 0;
+}
+.sig-signer {
+  font-size: var(--fs-15);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+.sig-role {
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+}
+.sig-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+}
+.sig-facts li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.sig-facts svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--c-text-3);
+}
+.sig-facts .is-ok svg {
+  color: var(--c-success);
+}
+.sig-facts .is-bad {
+  color: var(--c-danger);
+  font-weight: var(--fw-medium);
+}
+.sig-facts .is-bad svg {
+  color: var(--c-danger);
+}
+.sig-facts .is-warn svg {
+  color: var(--c-warning);
+}
+.cert-list {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-13);
+}
+.cert-list > div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+.cert-list dt {
+  color: var(--c-text-3);
+}
+.cert-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.sig-show {
+  justify-self: start;
+  font-size: var(--fs-13);
+}
+.vf-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+}
+.vf-scope > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--c-text-3);
+}
+.vf-scope > div {
+  display: grid;
+  gap: 4px;
+}
+.vf-scope .link {
+  justify-self: start;
+}
+.verify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--c-border);
+}
+
+/* Responsiv: Seiten über dem Ergebnis, die Seite scrollt als Ganzes */
+@media (max-width: 860px) {
+  .verify-result {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .view-verify .app-main {
+    overflow: auto;
+  }
+  .verify-preview {
+    max-height: 52vh;
+  }
+  .verify-result.is-without-pages .verify-preview {
+    display: none;
+  }
+  .verify-panel {
+    border-left: 0;
+    overflow: visible;
+    padding: var(--sp-5) var(--gutter) calc(96px + env(safe-area-inset-bottom));
+  }
+}
+@media (max-width: 420px) {
+  .cert-list > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+@media (forced-colors: active) {
+  .vf-mark.is-active {
+    outline: 3px solid Highlight;
+  }
+}

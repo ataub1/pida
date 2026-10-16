@@ -52,6 +52,7 @@ export type RowId =
   | 'advanced.proxy'
   | 'advanced.updates'
   | 'advanced.cms'
+  | 'advanced.migration'
   | 'advanced.reset'
   | 'about.info'
   | 'about.logs';
@@ -98,6 +99,8 @@ export const ROWS: readonly RowDef[] = [
   { id: 'advanced.proxy', section: 'advanced', label: 'ng-ui-set-proxy', visible: desktop },
   { id: 'advanced.updates', section: 'advanced', label: 'ng-ui-set-updates', visible: desktop },
   { id: 'advanced.cms', section: 'advanced', label: 'ng-ui-set-cms' },
+  // PDF-Over gibt es nur am Desktop (Altkonfiguration `~/.pdf-over`)
+  { id: 'advanced.migration', section: 'advanced', label: 'ng-ui-set-migration', visible: desktop },
   { id: 'advanced.reset', section: 'advanced', label: 'ng-ui-set-reset' },
   { id: 'about.info', section: 'about', label: 'ng-ui-set-about' },
   { id: 'about.logs', section: 'about', label: 'ng-ui-set-logs', visible: desktop },

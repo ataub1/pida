@@ -36,7 +36,8 @@ describe('Bereiche und Zeilen', () => {
 
   it('Mobile ohne Proxy, Updates, Protokolle, Chipkarte und Bildmarke; Profilzeilen je Profil', () => {
     const mobile = ids(visibleRows({ mobile: true, profile: 'SIGNATURBLOCK_SMALL' }));
-    for (const id of ['advanced.proxy', 'advanced.updates', 'about.logs', 'signers.card', 'signature.emblem']) expect(mobile).not.toContain(id);
+    for (const id of ['advanced.proxy', 'advanced.updates', 'advanced.migration', 'about.logs', 'signers.card', 'signature.emblem']) expect(mobile).not.toContain(id);
+    expect(ids(desktop)).toContain('advanced.migration');
     expect(mobile).toContain('signers.keystore');
     expect(ids(desktop)).toContain('signature.note');
     expect(ids(desktop)).not.toContain('signature.logo_size');
@@ -58,6 +59,8 @@ describe('Suche', () => {
   it('findet „Logo“, „Handy“, „Proxy“ (Abnahme E3 Punkt 3)', () => {
     expect(hit(de, 'Logo')).toEqual(['signature.emblem']);
     expect(hit(de, 'Handy')).toEqual(['signers.id_austria']);
+    expect(hit(de, 'PDF-Over')).toEqual(['advanced.migration']);
+    expect(hit(en, 'import')).toEqual(['advanced.migration']);
     expect(hit(de, 'Proxy')).toEqual(['advanced.proxy']);
   });
 

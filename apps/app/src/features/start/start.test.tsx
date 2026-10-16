@@ -17,7 +17,10 @@ describe('Start', () => {
     const { mock, user } = renderApp({ pickFilesResult: ['/Users/demo/a.pdf'] });
     expect(await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Ablagefläche für PDF-Dokumente' })).toBeInTheDocument();
-    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+    // seit dem Prüfmodus (B4, wie K4) gibt der Kern ihn im Leerlauf frei: die Seitenspalte zeigt nur den Hinweis darauf
+    const side = screen.getByRole('complementary');
+    expect(within(side).queryByTestId('recent-panel')).not.toBeInTheDocument();
+    expect(within(side).getByRole('button', { name: 'Prüfmodus öffnen' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'PDF auswählen' }));
     await waitFor(() => expect(mock.dispatched[0]).toEqual({ type: 'open_files', paths: ['/Users/demo/a.pdf'] }));
     expect(mock.nativeCalls).toEqual(['pickFiles:multiple']);

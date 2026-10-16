@@ -112,7 +112,9 @@ describe('Szenarien', () => {
   it('Beispiele der späteren Etappen (`examples`): Stapel, zuletzt signiert, Prüfbericht, Ersteinrichtung', async () => {
     const v = await until(core({ examples: true, firstRun: true }), (x) => x.step.step === 'open');
     expect(v.recent?.length).toBeGreaterThan(0);
-    expect(v.verify).not.toBeNull();
+    // Prüfmodus seit B4 nur im Szenario `verify` (er läge sonst über der Startansicht)
+    expect(v.verify).toBeNull();
+    expect((await until(core({ scenario: 'verify' }), (x) => x.step.step === 'open')).verify).not.toBeNull();
     expect(v.first_run).not.toBeNull();
     expect(v.batch?.items.map((i) => i.status.state)).toEqual(['positioned', 'ready', 'rejected', 'ready']);
     // bis A2 ohne Stapelansicht

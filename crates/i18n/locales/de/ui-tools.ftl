@@ -181,6 +181,11 @@ ng-ui-set-cms = Signaturformat (Keystore)
     .keywords = signaturformat format cms pades pdf-as keystore
 ng-ui-set-reset = Zurücksetzen
     .keywords = zurücksetzen standard standardwerte werkseinstellungen
+ng-ui-set-migration = PDF-Over-Einstellungen übernehmen
+    .keywords = pdf-over migration übernehmen import importieren altkonfiguration alte einstellungen ersteinrichtung
+ng-ui-set-migration-hint = Sucht auf diesem Gerät nach den Einstellungen einer früheren PDF-Over-Installation und bietet sie zur Übernahme an.
+ng-ui-set-migration-search = Suchen …
+ng-ui-set-migration-none = Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.
 
 ## Einstellungen › Über
 
@@ -196,4 +201,132 @@ ng-ui-recent-empty = Noch keine signierten Dokumente.
 ng-ui-recent-open = „{ $name }“ im Prüfmodus öffnen
 ng-ui-recent-remove = „{ $name }“ aus der Liste entfernen
 ng-ui-recent-missing = Datei nicht mehr vorhanden
-ng-ui-recent-verify-later = Der Prüfmodus folgt mit einer der nächsten Versionen.
+
+## Prüfmodus (ADR 0004 §3.9; Wortlaut §8 F3: PIDA sagt nie „gültig“ oder „rechtsgültig“)
+
+ng-ui-vf-title = Prüfmodus
+ng-ui-vf-preview = Seiten des geprüften Dokuments
+ng-ui-vf-page = Seite { $n } von { $total }
+ng-ui-vf-meta = { $pages } · { $revisions }
+ng-ui-vf-pages =
+    { $n ->
+        [one] eine Seite
+       *[other] { $n } Seiten
+    }
+ng-ui-vf-revisions =
+    { $n ->
+        [one] eine Revision
+       *[other] { $n } Revisionen
+    }
+ng-ui-vf-loading = Signaturen werden geprüft …
+ng-ui-vf-failed = Die Datei konnte nicht geprüft werden
+ng-ui-vf-summary-none = Dieses Dokument enthält keine Signatur
+ng-ui-vf-summary-none-text = Es gibt nichts zu prüfen. Sie können das Dokument signieren.
+ng-ui-vf-summary-intact =
+    { $n ->
+        [one] Die Signatur ist unverändert und kryptografisch intakt
+       *[other] Alle { $n } Signaturen sind unverändert und kryptografisch intakt
+    }
+ng-ui-vf-summary-intact-text = Das Dokument wurde seit der letzten Signatur nicht verändert.
+ng-ui-vf-summary-broken =
+    { $n ->
+        [one] Achtung: Eine Signatur ist nicht intakt
+       *[other] Achtung: { $n } Signaturen sind nicht intakt
+    }
+ng-ui-vf-summary-broken-text = Das Dokument wurde nach dem Signieren verändert oder eine Signatur ist beschädigt. Verwenden Sie die signierte Originaldatei oder fordern Sie eine neue, signierte Fassung an.
+ng-ui-vf-summary-unverifiable = Nicht alle Signaturen konnten geprüft werden
+ng-ui-vf-summary-unverifiable-text = Keine Signatur ist verletzt, aber mindestens eine verwendet ein Verfahren, das PIDA nicht prüfen kann.
+ng-ui-vf-summary-modified = Nach der letzten Signatur ergänzt oder geändert
+ng-ui-vf-summary-modified-text = Alle Signaturen sind intakt, die Datei wurde aber nach der letzten Signatur noch ergänzt oder geändert. Dieser Teil ist von keiner Signatur abgedeckt.
+ng-ui-vf-scope = PIDA prüft auf diesem Gerät, ob das Dokument seit dem Signieren unverändert ist, und zeigt die Angaben der Zertifikate. Vertrauenskette und Sperrstatus prüft PIDA nicht.
+ng-ui-vf-full-check = Vollständige Prüfung bei signaturpruefung.gv.at
+ng-ui-vf-signatures = Signaturen
+ng-ui-vf-unknown-signer = Signatur { $n } (Unterzeichner unbekannt)
+ng-ui-vf-status-intact = Intakt
+ng-ui-vf-status-broken = Verändert
+ng-ui-vf-status-unverifiable = Nicht prüfbar
+ng-ui-vf-time = Signiert am { $time } (Angabe des Signierenden)
+ng-ui-vf-time-none = Ohne Angabe des Signaturzeitpunkts
+ng-ui-vf-qes = Qualifizierte elektronische Signatur laut Zertifikat
+ng-ui-vf-qc = Qualifiziertes Zertifikat ohne qualifizierte Signaturerstellungseinheit (laut Zertifikat)
+ng-ui-vf-not-qualified = Nicht qualifiziert (laut Zertifikat)
+ng-ui-vf-qual-unknown = Qualifikation nicht feststellbar
+ng-ui-vf-qual-hint = Angabe aus dem Zertifikat, nicht gegen die EU-Vertrauensliste geprüft.
+ng-ui-vf-whole = Dokument seit dieser Signatur unverändert
+ng-ui-vf-revision = Stand dieser Signatur unverändert
+ng-ui-vf-later =
+    Danach { $revisions ->
+        [one] eine weitere Revision
+       *[other] { $revisions } weitere Revisionen
+    }, { $signatures ->
+        [0] ohne weitere Signatur
+        [one] davon eine mit Signatur
+       *[other] davon { $signatures } mit Signatur
+    }
+ng-ui-vf-broken = Dokument nach dieser Signatur verändert oder Signatur beschädigt
+ng-ui-vf-unverifiable = Diese Signatur kann PIDA nicht prüfen
+ng-ui-vf-time-outside = Der angegebene Zeitpunkt liegt außerhalb der Gültigkeitsdauer des Zertifikats.
+ng-ui-vf-details = Zertifikatsdetails
+ng-ui-vf-cert-org = Organisation
+ng-ui-vf-cert-issuer = Aussteller
+ng-ui-vf-cert-serial = Seriennummer
+ng-ui-vf-cert-validity = Gültigkeitsdauer
+ng-ui-vf-cert-range = { $from } bis { $to }
+ng-ui-vf-cert-algorithm = Verfahren
+ng-ui-vf-cert-format = Format
+ng-ui-vf-cert-qualification = Qualifikation
+ng-ui-vf-cert-field = Signaturfeld
+ng-ui-vf-cert-appearance = Signaturbild
+ng-ui-vf-cert-page = Seite { $n }
+ng-ui-vf-cert-invisible = unsichtbar
+ng-ui-vf-cert-trust = Vertrauenskette
+ng-ui-vf-cert-trust-not-checked = Nicht geprüft
+ng-ui-vf-cert-code = Technischer Code
+ng-ui-vf-cert-unknown = unbekannt
+ng-ui-vf-format-pades = PAdES (ETSI.CAdES.detached)
+ng-ui-vf-format-pkcs7 = PKCS#7 (adbe.pkcs7.detached)
+ng-ui-vf-format-pkcs7-sha1 = PKCS#7 mit SHA-1 (adbe.pkcs7.sha1)
+ng-ui-vf-format-other = Anderes Format
+ng-ui-vf-show = Auf der Seite zeigen
+ng-ui-vf-shown = Signaturbild von { $name } auf Seite { $page } hervorgehoben.
+ng-ui-vf-sign = Dieses Dokument signieren
+ng-ui-vf-other = Anderes Dokument prüfen
+ng-ui-vf-exit = Prüfmodus verlassen
+
+## Befehlspalette (⌘/Strg+K; die Befehle stehen in ui-workspace.ftl, Bereich shell)
+
+ng-ui-pal-title = Befehle
+ng-ui-pal-search = Befehl suchen …
+ng-ui-pal-empty = Keine Treffer
+ng-ui-pal-group-actions = Aktionen
+ng-ui-pal-group-view = Ansicht
+ng-ui-pal-group-help = Hilfe
+
+## Kürzelübersicht („?“)
+
+ng-ui-sh-title = Tastenkürzel
+ng-ui-sh-group-general = Allgemein
+ng-ui-sh-group-workspace = Arbeitsbereich
+ng-ui-sh-palette = Befehlspalette
+
+## Ersteinrichtung (ADR 0004 §3.12; das PIDA-Siegel bleibt, ADR 0005)
+
+ng-ui-ob-title = Willkommen bei PIDA
+ng-ui-ob-progress = Schritt { $n } von { $total }
+ng-ui-ob-offer-title = PDF-Over-Einstellungen übernehmen
+ng-ui-ob-import-title = PDF-Over-Einstellungen gefunden
+ng-ui-ob-import-text = Auf diesem Gerät gibt es Einstellungen einer früheren PDF-Over-Installation. Sollen sie übernommen werden? Die alte Datei bleibt unverändert.
+ng-ui-ob-import-list = Übernommen werden:
+ng-ui-ob-import-item = { $item }: { $detail }
+ng-ui-ob-import-seal = Bildmarke: Es bleibt das PIDA-Siegel.
+ng-ui-ob-import-accept = Übernehmen
+ng-ui-ob-import-decline = Nicht übernehmen
+ng-ui-ob-signer-title = Womit signieren Sie meistens?
+ng-ui-ob-signer-text = Das wird bei jedem Dokument vorausgewählt. Sie können jederzeit wechseln.
+ng-ui-ob-signer-keystore-off = Später in den Einstellungen einrichten.
+ng-ui-ob-block-title = So sieht Ihre Signatur aus
+ng-ui-ob-block-text = Das Signaturbild erscheint auf dem Dokument. Profil, Bildmarke und Hinweistext lassen sich später in den Einstellungen ändern.
+ng-ui-ob-back = Zurück
+ng-ui-ob-next = Weiter
+ng-ui-ob-finish = Los geht’s
+ng-ui-ob-later = Später einrichten

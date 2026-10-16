@@ -1,0 +1,100 @@
+/* Ersteinrichtung und Migrationsangebot (Gestalt aus dem Prototyp, styles/views.css „Ersteinrichtung“). */
+.onboarding-modal {
+  max-width: 540px;
+}
+.ob-progress {
+  display: flex;
+  gap: 6px;
+  padding: 0 var(--sp-5) var(--sp-3);
+}
+.ob-dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--c-border);
+  transition: background-color var(--dur-3) var(--ease-out);
+}
+.ob-dot.is-on {
+  background: var(--c-accent);
+}
+.ob-body {
+  padding: 0 var(--sp-5) var(--sp-5);
+  border-top: 1px solid var(--c-border);
+  overflow: auto;
+}
+.ob-path {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-3);
+  background: var(--c-surface-2);
+  overflow-wrap: anywhere;
+}
+.ob-list-label {
+  margin-bottom: calc(-1 * var(--sp-2));
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  color: var(--c-text-2);
+}
+.check-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.check-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  color: var(--c-text-2);
+}
+.check-list svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--c-success);
+}
+.check-list .is-note svg {
+  color: var(--c-text-3);
+}
+.ob-preview {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: var(--sp-5);
+  overflow: hidden;
+  border-radius: var(--r-4);
+  background: var(--c-sunken);
+}
+.ob-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  height: auto;
+  box-shadow: var(--shadow-2);
+  background: #fff;
+}
+/* nebeneinander, solange beide Auswahlen ganz Platz haben, sonst untereinander */
+.ob-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4) var(--sp-6);
+}
+.ob-footer {
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-1) var(--sp-5) calc(var(--sp-4) + env(safe-area-inset-bottom));
+}
+/* Migrationsangebot in den Einstellungen (Erweitert) */
+.settings-migration-offer {
+  padding: 0 var(--sp-4) var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background: var(--c-surface);
+}
+
+@media (max-width: 420px) {
+  .ob-body,
+  .ob-progress {
+    padding-inline: var(--gutter);
+  }
+}

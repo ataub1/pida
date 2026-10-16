@@ -8,8 +8,11 @@
  * übernommen), unbekannte Pfade → `ng-settings-field-unknown`, `applied_revision` = Revision des Ereignisses,
  * Hinweise ohne Ablehnung (manueller Proxy ohne Host). Dazu `set_ui_language`, `select_signer{make_default}`
  * (Standard-Signiermittel) und – wie `BackendEvent::LoginSucceeded` im Kern – der gemerkte ID-Austria-Benutzer
- * nach einer Anmeldung mit „merken“. Jede Änderung meldet `settings-changed` (Vorschau, Arbeitsbereich,
- * „Zuletzt signiert“).
+ * nach einer Anmeldung mit „merken“. Ersteinrichtung wie K4: `update_first_run` (Standard-Signiermittel, Profil,
+ * Blocksprache), `accept_migration` (Werte der Altkonfiguration, `migratedSettings`), `finish_first_run`
+ * (`general.first_run_completed`); bei einer Neuinstallation ohne Altkonfiguration „neben dem Original“
+ * (`output.folder = "."`, ADR 0004 §8 F4). Jede Änderung meldet `settings-changed` (Vorschau, Arbeitsbereich,
+ * „Zuletzt signiert“, Ersteinrichtung).
  *
  * Vorläufig (Vertragsbedarf B3, `features/settings/contract-draft.ts`): `SettingsView::locked` (per Richtlinie
  * festgelegte Pfade) aus der Option `policy` (`SettingsMockOptions`).
@@ -17,6 +20,7 @@
 import type { SettingsViewDraft } from '../../features/settings/contract-draft';
 import { defaultSettings } from '../defaults';
 import type { BackendChoice, BackendId, KeystoreImportView, Settings } from '../types';
+import { migratedSettings, type FirstRunMockOptions } from './firstrun';
 import { fileNameOf, outputFileName, type MockArea, type MockCtx, type MockOptions } from './shared';
 
 /** Richtlinie im Mock (Teilmenge von `pida_config::Policy`). */
@@ -49,6 +53,19 @@ export interface SettingsState {
   fido2Available: boolean;
   keystoreImport: KeystoreImportView | null;
   locked: Record<string, string>;
+  /** Altkonfiguration (Migrationsangebot) und ihre eigene Bildmarke */
+  legacy: string | null;
+  legacyEmblem: string | null;
+}
+
+/** Einstellungen beim Start: Ersteinrichtung (fehlende Datei) wie K4 (ADR 0004 §3.12, §8 F4). */
+function initialSettings(o: MockOptions): Settings {
+  const base = o.settings ? structuredClone(o.settings) : defaultSettings();
+  if (!o.firstRun) return base;
+  const next: Settings = { ...base, general: { ...base.general, first_run_completed: false } };
+  // Neuinstallation ohne Altkonfiguration: „neben dem Original“; mit Migration gilt der übernommene Wert
+  if (!o.migrationOffer && !o.settings) next.output = { ...base.output, folder: '.' };
+  return next;
 }
 
 const KEYSTORE_DIR = '/var/mobile/Containers/Data/Application/DEMO/Library/Application Support/data/keystores';
@@ -112,7 +129,7 @@ function applyPath(settings: Settings, path: string, value: unknown, problems: R
 
 export const settingsArea: MockArea<SettingsState> = {
   init: (o) => ({
-    settings: o.settings ? structuredClone(o.settings) : defaultSettings(),
+    settings: initialSettings(o),
     open: false,
     problems: {},
     previewRevision: 1,
@@ -122,6 +139,8 @@ export const settingsArea: MockArea<SettingsState> = {
     fido2Available: o.fido2Available ?? true,
     keystoreImport: null,
     locked: policyLocks((o as SettingsMockOptions).policy),
+    legacy: o.migrationOffer ?? null,
+    legacyEmblem: (o as FirstRunMockOptions).legacyEmblem ?? null,
   }),
 
   handle(e, state, ctx) {
@@ -209,6 +228,21 @@ export const settingsArea: MockArea<SettingsState> = {
       }
       case 'dismiss_keystore_import':
         state.keystoreImport = null;
+        return true;
+      case 'update_first_run':
+        changed(state, ctx, {
+          ...state.settings,
+          backend: { default: e.default_backend },
+          signature: { ...state.settings.signature, profile: e.profile, block_language: e.block_language },
+        });
+        return true;
+      case 'accept_migration':
+        if (!state.legacy) return false;
+        changed(state, ctx, migratedSettings(state.settings, state.legacyEmblem, ctx.platform().mobile));
+        return true;
+      case 'finish_first_run':
+        if (state.settings.general.first_run_completed) return false;
+        state.settings = { ...state.settings, general: { ...state.settings.general, first_run_completed: true } };
         return true;
       default:
         return false;

@@ -4,15 +4,17 @@
  * Einträge, neueste zuerst; neue Einträge kommen über das Signal `signed` (nur Dateiname, Ordner, Zeitpunkt –
  * kein Signiermittel), höchstens zehn. `general.recent_documents = false` (Signal `settings-changed`) löscht
  * die Liste sofort (`None`), Wiedereinschalten beginnt leer; eine Richtlinie `recent_documents = false`
- * schaltet sie ganz ab. `verify_recent` auf eine fehlende Datei → Hinweis `ng-recent-missing`, der Eintrag
- * bleibt.
+ * schaltet sie ganz ab. `verify_recent` öffnet den Prüfmodus (Signal `verify-file` an den Bereich Prüfmodus);
+ * auf eine fehlende Datei → Hinweis `ng-recent-missing`, der Eintrag bleibt.
  */
 import type { RecentItemView } from '../types';
 import type { SettingsMockOptions } from './settings';
-import { folderOf, isoWithOffset, type MockArea } from './shared';
+import { folderOf, isoWithOffset, joinPath, type MockArea } from './shared';
 
 export interface RecentState {
   items: RecentItemView[] | null;
+  /** gespeicherter Pfad je Eintrag (wie `RecentEntry::path` im Kern; nicht im ViewState) */
+  paths: Record<number, string>;
   nextId: number;
   /** Funktion vorhanden (K3); sonst bleibt `recent` immer `None` */
   supported: boolean;
@@ -35,6 +37,7 @@ export const recentArea: MockArea<RecentState> = {
     const enabled = policy ?? o.settings?.general.recent_documents ?? true;
     return {
       items: supported && enabled ? (o.examples ? EXAMPLES.map((i) => ({ ...i })) : []) : null,
+      paths: Object.fromEntries(EXAMPLES.map((i) => [i.id, joinPath(i.folder_display ?? '', i.file_name)])),
       nextId: 4,
       supported,
       policy,
@@ -50,7 +53,10 @@ export const recentArea: MockArea<RecentState> = {
         return true;
       case 'verify_recent': {
         const item = state.items?.find((i) => i.id === e.id);
-        if (item && !item.exists) ctx.notify('ng-recent-missing');
+        const path = state.paths[e.id];
+        if (!item) return true;
+        if (!item.exists || !path) ctx.notify('ng-recent-missing');
+        else ctx.emit({ kind: 'verify-file', path });
         return true;
       }
       default:
@@ -66,6 +72,7 @@ export const recentArea: MockArea<RecentState> = {
     }
     if (s.kind !== 'signed' || !state.items) return;
     const folder = ctx.platform().mobile ? null : folderOf(s.path);
+    state.paths[state.nextId] = s.path;
     state.items = [{ id: state.nextId++, file_name: s.file_name, folder_display: folder, signed_at: isoWithOffset(new Date()), exists: true }, ...state.items].slice(0, RECENT_LIMIT);
   },
   project: (state) => ({ recent: state.items ? state.items.map((i) => ({ ...i })) : null }),

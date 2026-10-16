@@ -80,7 +80,8 @@ export type MockSignal =
   | { kind: 'settings-changed'; settings: Settings } // settings → workspace (Blockgröße, Vorschau), signers
   | { kind: 'signed'; file_name: string; path: string } // signing/batch → recent
   | { kind: 'open-files'; paths: string[] } // verify (SignVerified), recent → workspace/batch
-  | { kind: 'first-run-done' }; // firstrun → shared
+  | { kind: 'first-run-done' } // firstrun → shared
+  | { kind: 'verify-file'; path: string }; // recent (VerifyRecent) → verify (B4, Nachtrag ADR 0004 §4.8)
 
 /** Lesender Zugriff und Dienste für alle Bereiche. */
 export interface MockCtx {
