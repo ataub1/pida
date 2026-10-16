@@ -49,7 +49,6 @@ struct Row {
     out: Option<PathBuf>,
     original: PathBuf,
     field: String,
-    key_stem: String,
 }
 
 fn xref_name(k: XrefKind) -> &'static str {
@@ -76,7 +75,7 @@ fn corpus_model_a() {
 
     for (i, path) in corpus().iter().enumerate() {
         let name = rel(path);
-        let (key_label, key_stem) = KEYS[i % 3];
+        let (key_label, _) = KEYS[i % 3];
         let cms = if (i / 12) % 2 == 0 { CmsProfile::PdfasCompat } else { CmsProfile::PadesBB };
         let mut row = Row {
             file: name.clone(),
@@ -98,7 +97,6 @@ fn corpus_model_a() {
             out: None,
             original: path.clone(),
             field: String::new(),
-            key_stem: key_stem.into(),
         };
         let src = match SourcePdf::open_file(path, &Limits::default()) {
             Ok(s) => s,

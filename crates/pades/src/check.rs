@@ -549,7 +549,6 @@ mod tests {
             },
             byte_range: inc.byte_range,
             contents_range: (inc.contents_range.start, inc.contents_range.end),
-            written: inc.written.clone(),
             signer: Certificate::from_pem(&pem).unwrap(),
         };
         allowed_changes(src, &new, &meta)

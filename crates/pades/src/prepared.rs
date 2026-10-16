@@ -479,7 +479,6 @@ impl Prepared {
             prepared: self.meta,
             byte_range: increment.byte_range,
             contents_range: (increment.contents_range.start, increment.contents_range.end),
-            written: increment.written.clone(),
             signer: report.signer,
         };
         Ok(SignedPdf::new(self.original, increment.bytes, meta))

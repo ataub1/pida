@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pida_cades::{AlgorithmPolicy, Certificate, DigestAlg, Expect, ExpectedSigner, verify_detached};
-use pida_pdf_cos::{Limits, ObjectId, SourcePdf};
-use pida_pdf_incremental::{ByteRange, WrittenKind};
+use pida_pdf_cos::{Limits, SourcePdf};
+use pida_pdf_incremental::ByteRange;
 use pida_render::RenderBackend;
 
 use crate::PadesError;
@@ -146,7 +146,6 @@ pub(crate) struct SignedMeta {
     pub prepared: PreparedMeta,
     pub byte_range: ByteRange,
     pub contents_range: (u64, u64),
-    pub written: Vec<(ObjectId, WrittenKind)>,
     /// Signer laut CMS (geprüft in `finish_*`)
     pub signer: Certificate,
 }
