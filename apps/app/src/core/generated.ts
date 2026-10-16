@@ -1722,7 +1722,20 @@ rect: RectPt | null,
 /**
  * wählbar (`false` bei gesperrten Feldern: `/Lock`, FieldMDP)
  */
-selectable: boolean, };
+selectable: boolean, 
+/**
+ * als Ziel angeboten (ADR 0004 Nachtrag 16, `pida_placement::field_fit`): Der Block in aktueller Größe bleibt
+ * im Feld lesbar (höchstens auf ein Drittel verkleinert) und füllt mindestens ein Fünftel davon. Nur dann
+ * rastet der Block beim Ziehen ein, zeigt die Oberfläche „Hier signieren“ und nennt die Hinweisleiste das
+ * Feld; ein seitengroßes oder 3 pt schmales Feld wird nicht angeboten.
+ */
+suitable: boolean, 
+/**
+ * Rechteck, in dem der Block in **diesem** Feld stünde (`PAGE_ABS`): proportional, höchstens in natürlicher
+ * Größe, mittig – genau so, wie ihn der Kern schreibt (KR-P10); nach `use_target` gleich `sticker`. `None`
+ * ohne Seite bzw. Rechteck.
+ */
+block: RectPt | null, };
 
 /**
  * QR-Platzhalter (nur mit `placeholder.search` und `kind = marker`; §3.3).
@@ -1955,7 +1968,8 @@ invisible: boolean,
  */
 new_page: boolean, 
 /**
- * tatsächliches Rechteck des Blocks auf `placement.page_index` (bei Feld/QR das Ziel-Rechteck);
+ * tatsächliches Rechteck des Blocks auf `placement.page_index` (beim QR-Platzhalter dessen Rechteck, im
+ * Signaturfeld `FieldTargetView::block` – proportional und mittig im Feld, Nachtrag 16);
  * `None` = unsichtbar bzw. keine Vorschau
  */
 sticker: RectPt | null, 
@@ -2004,7 +2018,14 @@ detection?: DocumentDetectionView | null,
  * `toggle_new_page` und `sign_with` wirken. `unlock_placement` („Diesmal selbst platzieren“) hebt die
  * Sperre für dieses Dokument auf. Nie für Einträge der Stapelübersicht.
  */
-placement_locked: boolean, };
+placement_locked: boolean, 
+/**
+ * Sichtbare Größe einer neu angehängten Seite (pt, wie `DocInfo::page_sizes`): MediaBox und `/Rotate` der
+ * letzten Seite ohne deren CropBox (`pida_placement::new_page_geometry`, wie `new PDPage(lastPage.getMediaBox())`
+ * in PDF-AS). Die Oberfläche zeigt die virtuelle neue Seite in dieser Größe (Nachtrag 16). Additiv; in
+ * TypeScript optional, `None` ohne Seiten.
+ */
+new_page_size?: [number, number] | null, };
 
 /**
  * Signiermittel für Konto-Chip, Menü und Stapel (§3.4).

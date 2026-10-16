@@ -153,7 +153,8 @@ const documentView = obj({
   invisible: bool,
   new_page: bool,
   sticker: nullable(rectPt),
-  fields: arr(obj({ index: int, name: str, page: nullable(int), rect: nullable(rectPt), selectable: bool })),
+  // Nachtrag 16: `suitable` (als Ziel angeboten) und `block` (Lage des Blocks im Feld)
+  fields: arr(obj({ index: int, name: str, page: nullable(int), rect: nullable(rectPt), selectable: bool, suitable: bool, block: nullable(rectPt) })),
   qr: nullable(obj({ page: int, rect: rectPt, id: nullable(str) })),
   existing: arr(
     obj({
@@ -186,6 +187,8 @@ const documentView = obj({
   ),
   // Nachtrag 8 (Einstellung „Automatische Positionierung“)
   placement_locked: bool,
+  // Nachtrag 16: Größe einer neuen Seite (MediaBox der letzten Seite); in TS optional
+  new_page_size: optional(tuple2(num, num)),
 });
 
 const signersView = obj({

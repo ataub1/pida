@@ -354,6 +354,40 @@ export function fieldSpec(): MockDocSpec {
   });
 }
 
+/**
+ * Formular mit unplausiblen leeren Signaturfeldern wie `manySignFields.pdf` aus den PDF-AS-Testdaten (2 Seiten
+ * Letter, ADR 0004 Nachtrag 16): ein übliches Feld (Seite 1), winzige und schmale Felder und ein seitengroßes Feld
+ * auf Seite 2 – angeboten werden nur die plausiblen.
+ */
+export function manyFieldsSpec(): MockDocSpec {
+  const LW = 612;
+  const LH = 792;
+  // PDF-Rechtecke [llx lly urx ury] → Mock-Rechteck (y von oben)
+  const r = (llx: number, lly: number, urx: number, ury: number): Rect => ({ x: llx, y: LH - ury, w: urx - llx, h: ury - lly });
+  const p1: PageSpec = {
+    w: LW,
+    h: LH,
+    blocks: [
+      { kind: 'title', rect: { x: 220, y: 120, w: 340, h: 24 }, text: 'Formular mit Signaturfeldern' },
+      { kind: 'para', rect: { x: 56, y: 330, w: 500, h: 60 }, text: 'Testformular mit mehreren leeren Signaturfeldern unterschiedlicher Größe.' },
+    ],
+  };
+  const p2: PageSpec = { w: LW, h: LH, blocks: [{ kind: 'subtitle', rect: { x: 220, y: 90, w: 200, h: 11 }, text: 'Name | Course Title | Date' }] };
+  return spec([p1, p2], {
+    sizeBytes: 178 * 1024,
+    fields: [
+      { name: 'Signature_0', page: 0, rect: r(35.655, 694.467, 183.239, 766.262) },
+      { name: 'Signature_1', page: 0, rect: r(236.496, 750.458, 251.389, 765.359) },
+      { name: 'Signature_2', page: 0, rect: r(224.31, 621.77, 612, 635.767) },
+      { name: 'Signature_3', page: 0, rect: r(177.372, 424.447, 190.912, 670.084) },
+      { name: 'Signature_4', page: 0, rect: r(349.779, 357.168, 352.938, 581.131) },
+      { name: 'Signature_5', page: 0, rect: r(426.053, 454.7, 596.655, 604.611) },
+      { name: 'Signature_6', page: 0, rect: r(324.053, 708.014, 383.177, 758.135) },
+      { name: 'Signature_7', page: 1, rect: r(0, 0, 612, 792) },
+    ],
+  });
+}
+
 /** Mietvertrag, bereits signiert (Dr. Anna Gruber), 2 Seiten. */
 export function signedSpec(): MockDocSpec {
   const p1 = page()
@@ -475,6 +509,7 @@ export function specForName(name: string, placeholder: 'none' | 'fields' | 'qr' 
   let s: MockDocSpec;
   if (/gehaltszettel|kennwort|scan/.test(n)) s = lockedSpec();
   else if (/leer|blank/.test(n)) s = blankSpec();
+  else if (/manysignfields|signaturfelder/.test(n)) s = manyFieldsSpec();
   else if (/antrag|foerder|förder/.test(n)) s = fieldSpec();
   else if (/mietvertrag|signiert|signed/.test(n)) s = signedSpec();
   else if (/angebot|offer/.test(n)) s = offerSpec();
@@ -806,6 +841,27 @@ export function toRectPt(r: Rect, pageHeight: number): RectPt {
   return { left: r.x, right: r.x + r.w, top: pageHeight - r.y, bottom: pageHeight - r.y - r.h };
 }
 
+/** Mindestmaßstab und Mindestanteil eines angebotenen Felds (Kern: `pida_placement::FIELD_MIN_SCALE`/`FIELD_MIN_FILL`). */
+const FIELD_MIN_SCALE = 1 / 3;
+const FIELD_MIN_FILL = 0.2;
+
+/**
+ * Block im Signaturfeld wie im Kern (`pida_placement::field_fit`, ADR 0004 Nachtrag 16): proportional, höchstens
+ * natürliche Größe, mittig; geeignet mit Maßstab ≥ ⅓ und Anteil ≥ ⅕.
+ */
+export function fieldFit(field: RectPt, block: { width: number; height: number }): { rect: RectPt; scale: number; suitable: boolean } {
+  const fw = field.right - field.left;
+  const fh = field.top - field.bottom;
+  if (!(fw > 0 && fh > 0 && block.width > 0 && block.height > 0)) return { rect: field, scale: 0, suitable: false };
+  const scale = Math.min(1, fw / block.width, fh / block.height);
+  const w = block.width * scale;
+  const h = block.height * scale;
+  const left = field.left + (fw - w) / 2;
+  const bottom = field.bottom + (fh - h) / 2;
+  const fill = Math.min(1, (w * h) / (fw * fh));
+  return { rect: { left, right: left + w, bottom, top: bottom + h }, scale, suitable: scale + 1e-4 >= FIELD_MIN_SCALE && fill + 1e-4 >= FIELD_MIN_FILL };
+}
+
 function placementRect(p: Placement): RectPt {
   return { left: p.x, right: p.x + p.width, top: p.y, bottom: p.y - p.height };
 }
@@ -1033,7 +1089,7 @@ export function pageLayout(doc: MockDoc, page: number, block: { width: number; h
 }
 
 /** Live-Prüfung der Platzierung. */
-function check(doc: MockDoc, edit: EditState, sticker: RectPt | null): PlacementCheckView {
+function check(doc: MockDoc, edit: EditState, sticker: RectPt | null, block: { width: number; height: number }): PlacementCheckView {
   const page = edit.placement?.page_index ?? 0;
   const known = edit.ready.includes(page) && page < doc.spec.pages.length;
   if (!sticker || edit.invisible) return { for_revision: edit.revision, overlaps_content: known ? false : null, overlaps_widget: false, clamped: edit.clamped };
@@ -1047,9 +1103,11 @@ function check(doc: MockDoc, edit: EditState, sticker: RectPt | null): Placement
   const exclude = targetRect ? toRectPt(targetRect.rect, ph) : null;
   const content = occupied(doc, page).filter((r) => !exclude || !intersects(r, exclude));
   const overlapsContent = known ? content.some((r) => intersects(sticker, r)) : null;
+  // leere Felder, die kein plausibles Ziel sind (seitengroß, 3 pt schmal), sind auch kein Hindernis (wie der Kern)
   const widgets = doc.spec.fields
     .filter((f, i) => f.page === page && !(edit.target.kind === 'field' && edit.target.index === i))
     .map((f) => toRectPt(f.rect, ph))
+    .filter((r) => fieldFit(r, block).suitable)
     .concat(doc.spec.existing.filter((e) => e.page === page && e.rect).map((e) => toRectPt(e.rect as Rect, ph)));
   return { for_revision: edit.revision, overlaps_content: overlapsContent, overlaps_widget: widgets.some((r) => intersects(sticker, r)), clamped: edit.clamped };
 }
@@ -1070,21 +1128,20 @@ export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPh
   let sticker: RectPt | null = null;
   if (p && !edit.invisible) {
     if (edit.target.kind === 'field') {
+      // im Feld proportional, höchstens natürliche Größe, mittig (wie der Kern schreibt, Nachtrag 16)
       const f = doc.spec.fields[edit.target.index];
-      sticker = f ? toRectPt(f.rect, pageSize(doc, f.page)[1]) : placementRect(p);
+      sticker = f ? fieldFit(toRectPt(f.rect, pageSize(doc, f.page)[1]), size).rect : placementRect(p);
     } else if (edit.target.kind === 'qr' && doc.spec.qr) {
       sticker = toRectPt(doc.spec.qr.rect, pageSize(doc, doc.spec.qr.page)[1]);
     } else {
       sticker = placementRect(p);
     }
   }
-  const fields: FieldTargetView[] = doc.spec.fields.map((f, index) => ({
-    index,
-    name: f.name,
-    page: f.page,
-    rect: toRectPt(f.rect, pageSize(doc, f.page)[1]),
-    selectable: !f.locked,
-  }));
+  const fields: FieldTargetView[] = doc.spec.fields.map((f, index) => {
+    const rect = toRectPt(f.rect, pageSize(doc, f.page)[1]);
+    const fit = fieldFit(rect, size);
+    return { index, name: f.name, page: f.page, rect, selectable: !f.locked, suitable: fit.suitable, block: fit.rect };
+  });
   const qrSpec = doc.spec.qr;
   // angeboten nur mit Platzhaltersuche „QR-Code-Platzhalter“; ein von Hand gewähltes QR-Ziel bleibt
   const qrOffered = (settings.placeholder.search && settings.placeholder.kind === 'marker') || (edit.target.kind === 'qr' && !edit.automatic);
@@ -1117,7 +1174,10 @@ export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPh
     phase,
     revision: edit.revision,
     block,
-    placement: p ?? { page_index: doc.spec.pages.length - 1, x: 0, y: 0, width: size.width, height: size.height },
+    placement:
+      edit.target.kind === 'field' && sticker && p
+        ? { page_index: p.page_index, x: sticker.left, y: sticker.top, width: sticker.right - sticker.left, height: sticker.top - sticker.bottom }
+        : (p ?? { page_index: doc.spec.pages.length - 1, x: 0, y: 0, width: size.width, height: size.height }),
     origin: edit.origin,
     target: edit.target,
     invisible: edit.invisible,
@@ -1128,10 +1188,12 @@ export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPh
     existing,
     constraints: constraintsFor(doc, edit),
     layout: layoutPages.map((i) => pageLayout(doc, i, size)),
-    check: check(doc, edit, sticker),
+    check: check(doc, edit, sticker, size),
     announce,
     detection: detectionFor(doc, edit, settings),
     placement_locked: edit.lock === 'locked',
+    // neue Seite: Größe der letzten Seite (Mock ohne CropBox)
+    new_page_size: pageSize(doc, doc.spec.pages.length - 1),
   };
 }
 

@@ -102,6 +102,27 @@ describe('Szenarien', () => {
     expect(after.document?.check.for_revision).toBe(after.document?.revision);
   });
 
+  it('Formular wie `manySignFields.pdf` (Nachtrag 16): nur plausible Felder angeboten; im seitengroßen Feld behält der Block seine Größe', async () => {
+    const c = core();
+    await until(c, (x) => x.step.step === 'open');
+    await c.dispatch({ type: 'open_files', paths: ['/Users/demo/Dokumente/Signaturfelder.pdf'] });
+    const v = await until(c, hasDoc);
+    const d = v.document!;
+    expect(d.fields.filter((f) => f.suitable).map((f) => f.name)).toEqual(['Signature_0', 'Signature_5']);
+    expect(d.new_page_size).toEqual([612, 792]);
+    // frei auf Seite 2: das seitengroße leere Feld ist kein Hindernis (keine Überdeckungswarnung)
+    expect(d.placement.page_index).toBe(1);
+    expect(d.check.overlaps_widget).toBe(false);
+    const page = d.fields.find((f) => f.name === 'Signature_7')!;
+    await c.dispatch({ type: 'use_target', target: { kind: 'field', index: page.index } });
+    const after = await until(c, (x) => x.document?.target.kind === 'field');
+    const s = after.document!.sticker!;
+    expect(s).toEqual(page.block);
+    expect(s.right - s.left).toBeCloseTo(d.block.width, 6);
+    expect(s.top - s.bottom).toBeCloseTo(d.block.height, 6);
+    expect(after.document!.placement).toMatchObject({ page_index: 1, x: s.left, y: s.top, width: d.block.width });
+  });
+
   it('bereits signiert: vorhandene Signaturen mit Status, keine neue Seite', async () => {
     const v = await until(core({ scenario: 'signed' }), hasDoc);
     expect(v.document?.existing.length).toBeGreaterThan(0);

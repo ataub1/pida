@@ -6022,6 +6022,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -6031,14 +6037,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -6138,6 +6147,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "editing",
         "placement": {
@@ -6398,6 +6411,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -6407,14 +6426,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -6514,6 +6536,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "editing",
         "placement": {
@@ -6771,6 +6797,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -6780,14 +6812,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -6887,6 +6922,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "field",
         "phase": "editing",
         "placement": {
@@ -7112,6 +7151,10 @@
         "invisible": true,
         "layout": [],
         "new_page": true,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "user",
         "phase": "editing",
         "placement": {
@@ -7310,6 +7353,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -7319,14 +7368,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -7426,6 +7478,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "warning",
         "placement": {
@@ -7627,6 +7683,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -7636,14 +7698,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -7743,6 +7808,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -7959,6 +8028,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -7968,14 +8043,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -8075,6 +8153,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -8291,6 +8373,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -8300,14 +8388,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -8407,6 +8498,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -8623,6 +8718,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -8632,14 +8733,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -8739,6 +8843,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -8955,6 +9063,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -8964,14 +9078,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -9071,6 +9188,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -9287,6 +9408,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -9296,14 +9423,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -9403,6 +9533,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -9619,6 +9753,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -9628,14 +9768,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -9735,6 +9878,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -9951,6 +10098,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -9960,14 +10113,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -10067,6 +10223,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -10283,6 +10443,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -10292,14 +10458,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -10399,6 +10568,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -10615,6 +10788,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -10624,14 +10803,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -10731,6 +10913,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -10947,6 +11133,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -10956,14 +11148,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -11063,6 +11258,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -11279,6 +11478,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -11288,14 +11493,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -11395,6 +11603,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -12832,6 +13044,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -12841,14 +13059,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -12948,6 +13169,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "signing",
         "placement": {
@@ -13367,6 +13592,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -13376,14 +13607,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -13483,6 +13717,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "user",
         "phase": "done",
         "placement": {
@@ -13698,6 +13936,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -13707,14 +13951,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -13814,6 +14061,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "user",
         "phase": "done",
         "placement": {

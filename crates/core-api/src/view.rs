@@ -1119,6 +1119,17 @@ pub struct FieldTargetView {
     pub rect: Option<RectPt>,
     /// wählbar (`false` bei gesperrten Feldern: `/Lock`, FieldMDP)
     pub selectable: bool,
+    /// als Ziel angeboten (ADR 0004 Nachtrag 16, `pida_placement::field_fit`): Der Block in aktueller Größe bleibt
+    /// im Feld lesbar (höchstens auf ein Drittel verkleinert) und füllt mindestens ein Fünftel davon. Nur dann
+    /// rastet der Block beim Ziehen ein, zeigt die Oberfläche „Hier signieren“ und nennt die Hinweisleiste das
+    /// Feld; ein seitengroßes oder 3 pt schmales Feld wird nicht angeboten.
+    #[serde(default)]
+    pub suitable: bool,
+    /// Rechteck, in dem der Block in **diesem** Feld stünde (`PAGE_ABS`): proportional, höchstens in natürlicher
+    /// Größe, mittig – genau so, wie ihn der Kern schreibt (KR-P10); nach `use_target` gleich `sticker`. `None`
+    /// ohne Seite bzw. Rechteck.
+    #[serde(default)]
+    pub block: Option<RectPt>,
 }
 
 /// QR-Platzhalter (nur mit `placeholder.search` und `kind = marker`; §3.3).
@@ -1303,7 +1314,8 @@ pub struct DocumentView {
     pub invisible: bool,
     /// virtuelle neue Seite
     pub new_page: bool,
-    /// tatsächliches Rechteck des Blocks auf `placement.page_index` (bei Feld/QR das Ziel-Rechteck);
+    /// tatsächliches Rechteck des Blocks auf `placement.page_index` (beim QR-Platzhalter dessen Rechteck, im
+    /// Signaturfeld `FieldTargetView::block` – proportional und mittig im Feld, Nachtrag 16);
     /// `None` = unsichtbar bzw. keine Vorschau
     pub sticker: Option<RectPt>,
     /// leere, nicht gesperrte Signaturfelder – im Arbeitsbereich immer angeboten; automatisch benutzt wird nur
@@ -1337,11 +1349,18 @@ pub struct DocumentView {
     /// Sperre für dieses Dokument auf. Nie für Einträge der Stapelübersicht.
     #[serde(default)]
     pub placement_locked: bool,
+    /// Sichtbare Größe einer neu angehängten Seite (pt, wie `DocInfo::page_sizes`): MediaBox und `/Rotate` der
+    /// letzten Seite ohne deren CropBox (`pida_placement::new_page_geometry`, wie `new PDPage(lastPage.getMediaBox())`
+    /// in PDF-AS). Die Oberfläche zeigt die virtuelle neue Seite in dieser Größe (Nachtrag 16). Additiv; in
+    /// TypeScript optional, `None` ohne Seiten.
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub new_page_size: Option<(f32, f32)>,
 }
 
 redacted_debug!(DocumentView {
     size_bytes, phase, revision, block, placement, origin, target, invisible, new_page, sticker, fields, qr,
-    constraints, layout, check, announce, detection, placement_locked,
+    constraints, layout, check, announce, detection, placement_locked, new_page_size,
 } redact { doc, existing });
 
 /// PDF/A-Kennung eines Dokuments (XMP `pdfaid:part`, `pdfaid:conformance`).
