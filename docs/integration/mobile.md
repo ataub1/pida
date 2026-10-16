@@ -195,6 +195,15 @@ A-Trust-Verbindung.
   signiert“ ohne Ordneranzeige. Nachweise: `features/settings/{settings,a11y}.test.tsx` (Mobile), Kern
   `crates/core-api/tests/settings.rs::mobile_restrictions`, Screenshots `docs/integration/screenshots/stage3/mobil-*.png`
   (375 × 812 @2x); 375 px ohne waagrechtes Scrollen der Seite. Offen [H]: Simulator/Emulator.
+- **Seit E4 (ADR 0004 §3.9/§3.12, Nachtrag 6):** Prüfmodus mit den Seiten über dem Ergebnis (Kopfzeile
+  „Prüfmodus“), Datei über die Dokumentauswahl (`pickMobileFiles`) bzw. „Zuletzt signiert“; Ersteinrichtung als
+  Sheet ohne Chipkarte (Keystore erst nach dem PKCS#12-Import wählbar), ohne „neben dem Original“ (Ausgabe bleibt in
+  den App-Dokumenten) und ohne „PDF-Over-Einstellungen übernehmen“ in Einstellungen › Erweitert (auf Mobilgeräten
+  gibt es kein PDF-Over); Palette ohne Tastenkappen. Nachweise: `features/verify/verify.test.tsx`,
+  `features/onboarding/onboarding.test.tsx`, `features/palette/palette.test.tsx` (Mobile, schmal, axe), Kern
+  `crates/core-api/tests/first_run.rs` (Mobile), Screenshots `docs/integration/screenshots/stage4/mobil-*.png`
+  (375 × 812 @2x); 360 px ohne waagrechtes Scrollen. Offen [H]: Simulator/Emulator, App-Kill während der
+  Ersteinrichtung.
 
 ## 8. Bauen und Prüfen
 

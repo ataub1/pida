@@ -2569,7 +2569,8 @@ preview_revision: number, };
 
 /**
  * Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (§3.13), berechnet aus dem Zustand
- * (`actions::actions_for`).
+ * (`actions::actions_for`). Bei offenem Prüfmodus (`ViewState::verify`) sind `sign`, `edit_placement`,
+ * `start_batch` und `show_batch` aus: das Dokument darunter ist verdeckt (Nachtrag 6).
  */
 export type ActionsView = { 
 /**

@@ -118,7 +118,9 @@ export function VerifyView({ verify }: VerifyViewProps) {
 
   return (
     <div className={`verify-view verify-result${doc ? '' : ' is-without-pages'}`} data-testid="verify-view">
-      <section className="verify-preview" aria-label={t.t('ng-ui-vf-preview')} ref={previewRef}>
+      {/* fokussierbar: die Seitenspalte scrollt eigenständig und enthält nichts Fokussierbares – so lässt sie
+          sich auch mit der Tastatur blättern (WCAG 2.1.1, axe `scrollable-region-focusable` im Browser) */}
+      <section className="verify-preview" aria-label={t.t('ng-ui-vf-preview')} ref={previewRef} tabIndex={doc ? 0 : undefined}>
         {doc ? (
           <div className="verify-pages">
             {Array.from({ length: doc.page_count }, (_, i) => {

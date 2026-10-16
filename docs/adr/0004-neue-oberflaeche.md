@@ -1312,7 +1312,8 @@ pub fn qc_statements(cert: &Certificate) -> QcStatements;   // Erweiterung 1.3.6
 
 core-api lädt die Datei in `spawn_blocking` (Limits wie beim Öffnen), legt sie mit eigener `DocId` in den
 `DocStore` (Kacheln), baut `VerifyView` (Umrechnung Widget-Rect → `PAGE_ABS` über `PageTransform`) und gibt sie bei
-`CloseVerify` frei. Erlaubt in `Idle`, `Output`, `BatchOverview`, `Positioning` (Zustand bleibt erhalten); nicht
+`CloseVerify` frei. Erlaubt in `Idle`, `Output`, `BatchOverview`, `Positioning` (Zustand bleibt erhalten, ist aber
+verdeckt: kein Signieren darunter, `OpenFiles` schließt den Prüfmodus – Nachtrag 6); nicht
 während `Signing`/`BatchSigning` (Hinweis `ng-verify-busy`). Wortlaut der Ergebnisse: §8 F3 – PIDA behauptet **nie**
 Rechtsgültigkeit. Zuordnung `SignatureFormat`: `ETSI.CAdES.detached` → `Pades`, `adbe.pkcs7.detached` →
 `Pkcs7Detached`, `adbe.pkcs7.sha1` → `Pkcs7Sha1` (immer `NotVerifiable`, `pdf-signature-subfilter`), sonst `Other`
@@ -1495,7 +1496,8 @@ pub struct ActionsView {
 ```
 
 Der Kern berechnet die Freigaben aus dem Zustand (wie `State::main_bar`); die UI aktiviert danach Knöpfe, Palette
-und Kürzel. Sie verknüpft höchstens mit eigenem Darstellungszustand (z. B. offenes Overlay).
+und Kürzel. Sie verknüpft höchstens mit eigenem Darstellungszustand (z. B. offenes Overlay). Bei offenem Prüfmodus sind
+`sign`, `edit_placement`, `start_batch` und `show_batch` aus – das Dokument darunter ist verdeckt (Nachtrag 6).
 
 ### 3.14 Shell (`apps/app/src-tauri`, Paket K)
 
@@ -1549,7 +1551,8 @@ Headless-Regeln bleiben in jedem Fall.
 (`$signed`), `ng-batch-paused`, `ng-verify-open-failed`, `ng-verify-busy`, `ng-recent-missing`,
 `ng-migration-item-{block,emblem,username,output,keystore,proxy,placeholder,language}`, `ng-firstrun-done`,
 `ng-signing-declined`, `ng-batch-large` (`$count`), `ng-batch-pending-app-request`, `ng-settings-field-unknown`,
-`ng-verify-warning-{sha1,signing-certificate-v1,weak-key}`, `ng-recent-policy`.
+`ng-verify-warning-{sha1,signing-certificate-v1,weak-key}`, `ng-recent-policy`; mit K4 (Nachtrag 6) `ng-migration-not-found`
+und `ng-migrate-emblem-default`.
 Freundliche Fehlertexte: die bestehenden Codes (`backend-network`, `backend-timeout`, `backend-cancelled`,
 `error-PDFPwdProtected`, `error-MayNotBeAPDF`, `ng-document-rejected`, `ng-cms-too-large`, `output-save_failed` …)
 bekommen die Fluent-Attribute `.title` und `.action` (Texte aus dem Prototyp `sc.err.*`, `locked.*`).
@@ -1746,7 +1749,8 @@ export type MockSignal =
   | { kind: 'settings-changed'; settings: Settings }          // settings → workspace (Blockgröße, Vorschau), signers
   | { kind: 'signed'; file_name: string; path: string }       // signing/batch → recent
   | { kind: 'open-files'; paths: string[] }                   // verify (SignVerified), recent → workspace/batch
-  | { kind: 'first-run-done' };                               // firstrun → shared
+  | { kind: 'first-run-done' }                                // firstrun → shared
+  | { kind: 'verify-file'; path: string };                    // recent → verify (Nachtrag 6)
 export interface MockCtx { emit(signal: MockSignal): void; settings(): Settings; platform(): PlatformView }
 ```
 
@@ -2281,3 +2285,106 @@ eigene Bildmarke übernehmen (Nachtrag 4). Abschalten des Zertifikats-Caches lee
 bisher; bei Bedarf Nachtrag wie bei „Zuletzt signiert“). Nach einer automatischen Neuplatzierung auf eine andere Seite
 wird der Block ein zweites Mal gebaut (Breite hängt von der Seite ab). [H]: Vorschau binnen einer Sekunde auf dem
 Referenzrechner; Mobile im Simulator/Emulator (Vollbild-Einstellungen, PKCS#12-Import).
+
+### Nachtrag 6 (Merge E4, 16.10.2026): Prüfmodus und Ersteinrichtung – Regeln aus K4, Befunde im Merge
+
+Vertrag unverändert (alle Typen aus K0); K4 füllt `ViewState::verify`, `ViewState::first_run`,
+`MigrationOfferView::items` und `ActionsView::verify` und wertet `OpenVerify`, `CloseVerify`, `SignVerified`,
+`VerifyRecent`, `UpdateFirstRun`, `FinishFirstRun` und `OfferMigration` aus. Verbindlich ab E4:
+
+1. **Nur im Arbeitsbereich:** Prüfmodus, Ersteinrichtung und `OfferMigration` wirken nur mit `workspace_ui`; im
+   klassischen Ablauf bleiben `actions.verify = false` und `first_run = None` (§3.0 Regel 7). `actions.verify` in
+   `Idle`, `Positioning`, `Output` und `BatchOverview`; beim Signieren `ng-verify-busy`.
+2. **Prüfergebnis:** Signaturen in Signierreihenfolge (Ende des signierten Bereichs); Unterzeichner und
+   `signing-time` auch bei veränderter Signatur (ungeprüft aus dem CMS über die SID des SignerInfo; die Regel „genau
+   ein Zertifikat ohne CA-Eigenschaft“ bleibt Rückfall). `/ByteRange` muss `[0 a b c]` sein, in der Datei liegen und
+   die Lücke genau der Hex-String `/Contents` sein, sonst `broken` mit `pdf-signature-byterange` (Signature
+   Wrapping, wie pyHanko). `signing_time` in lokaler Zeit (RFC 3339 mit Offset, sommerzeitrichtig),
+   Zertifikatsgültigkeit in UTC; `algorithm` als „RSA 2048“, „RSA-PSS 3072“ bzw. „ECDSA P-256“;
+   `VerifyStatus::Failed` immer mit `ng-verify-open-failed`.
+3. **Qualifikation auf „Fertig“:** `SignedSummaryView::qualification` folgt den qcStatements des
+   Signerzertifikats (QES nur mit QcCompliance **und** QcSSCD, sonst AdES); die Fähigkeit des Signiermittels gilt
+   nur ohne Zertifikat.
+4. **Übernahmeliste:** aus einem Probelauf von `pida_config::migrate` (schreibt nichts) mit Details: maskierte
+   Telefonnummer, Ordner als Pfad, Keystore und Bildmarke als Dateiname, Proxy als `host:port`, Sprache als
+   Eigenname („Deutsch“, „English“). Einträge nur für tatsächlich Übernommenes (Benutzername nur gesetzt, Keystore
+   nur aktiv bzw. mit Datei, Proxy nur manuell, Platzhaltersuche nur eingeschaltet). Solange das Angebot der
+   Ersteinrichtung offen ist, schreibt der Kern `settings.toml` nicht (`ConfigState::defer_save`) – das Angebot
+   übersteht einen Neustart; Änderungen davor bleiben bis zur Entscheidung im Speicher.
+5. **Neuinstallation** (§8 F4): „neben dem Original“ (`output.folder = "."`) nur am Desktop (Mobile: App-Dokumente),
+   auch nach „Nicht übernehmen“, „Später einrichten“ mit offenem Angebot und gescheiterter Übernahme;
+   `FinishFirstRun` mit offenem Angebot = nicht übernommen (erneut über Einstellungen › Erweitert). Wird die App vor
+   „Fertig“ beendet, erscheint die Ersteinrichtung beim nächsten Start erneut; die CLI und Bestandsdateien ohne
+   Schlüssel lösen sie nie aus.
+6. **`OfferMigration`:** sucht die Altkonfiguration erneut (auch nach `DeclineMigration` und nach „Einstellungen
+   zurücksetzen“), ohne Fund Hinweis `ng-migration-not-found` (neue ID); Übernahme über eine vorhandene
+   `settings.toml` mit Sicherung `settings.toml.before-import`; nicht bei schreibgeschützten Einstellungen (`-c`) und
+   nicht während des Signierens.
+7. **Bildmarke** (Entscheidung des Auftraggebers zu ADR 0005): übernommen wird nur eine **eigene** Bildmarke. Zeigt
+   `EMBLEM` auf die Standard-Bildmarke von PDF-AS (`…/cfg/images/signatur-logo_de|en.png`,
+   `amtsignatur-logo_demo.png` bzw. derselbe Inhalt unter anderem Namen, auch im Zwischenspeicher `.emblem.png`),
+   meldet die Migration `ng-migrate-emblem-default` (neue ID) und das PIDA-Siegel bleibt – auch für `pida migrate`.
+8. **Prüfmodus verdeckt den Arbeitsbereich** (Befund im Merge): Liegt der Prüfmodus über `Positioning` bzw.
+   `BatchOverview`, sind `actions.sign`, `edit_placement`, `start_batch` und `show_batch` aus, und `SignWith`,
+   `StartBatch`, `ConfirmPosition`, `ChooseInvisible`, `ChooseBackend` bleiben ohne Wirkung (F-54: keine Sitzung für
+   ein Dokument, das die Nutzerin gerade nicht sieht; vorher zeigte die Palette „Signieren“ für das verdeckte
+   Dokument). `OpenFiles` (Dateidialog ⌘O, Palette; das Ablegen im Prüfmodus prüft dagegen die Datei, 10.) schließt
+   den Prüfmodus, damit die Datei nicht verdeckt darunter landet. Test `verify_mode_over_the_workspace_blocks_signing_the_hidden_document`; der Mock folgt.
+9. **Eine Prüfregel für Vorsignaturen** (Befund aus dem Kern-Review, im Merge behoben): Die Strukturprüfung aus 2.
+   gilt in `pades::sigs::signature_details` für **alle** Prüfungen – Inspektor im Arbeitsbereich
+   (`ExistingSignatureView`), Invariante I4 beim Signieren und Prüfmodus; die CLI `pida verify` wendet dieselbe
+   Regel an (`pida_pades::gap_is_hex_string`, Fehler `ng-verify-byte-range`). Vorher zeigte der Inspektor für eine
+   Datei mit Bytes in der Lücke „intakt“, der Prüfmodus „verändert“; jetzt ist die Vorsignatur ungültig, und vor dem
+   Gegenzeichnen kommt die Analysewarnung `pdf-prior-signature-invalid`. Ausgaben von PDF-AS und PIDA bleiben intakt
+   (84 PDF-AS-Golden-Fälle, Korpus- und Ende-zu-Ende-Tests).
+10. **Shell im Prüfmodus** (Änderungsbitten B4 an UI-A, im Merge umgesetzt): Kopfzeile wie im Prototyp mit dem
+    Kontext „Prüfmodus“ statt des verdeckten Dokuments und ohne den Knopf „Prüfen“, Fenstertitel „PIDA – Prüfmodus“
+    (`ng-ui-shell-verify-mode`); „Zur Startseite“ (Wortmarke, Palette) schließt erst den Prüfmodus und führt dann zur
+    Startansicht (wie `goHome` im Prototyp); Ablegen im Prüfmodus prüft die erste Datei (`open_verify`), ⌘O öffnet
+    wie „Dokument öffnen“ zum Signieren (der Kern schließt dabei den Prüfmodus); ⌘/Strg+K öffnet die Palette nicht
+    über anderen Dialogen (Ersteinrichtung, Rückfragen, „Signatur fortsetzen“), wohl über den Einstellungen und der
+    Kürzelübersicht. Die Seitenspalte des Prüfmodus ist fokussierbar (Tastatur-Scrollen, axe
+    `scrollable-region-focusable` im Browser). Hinweise (`ui/Toasts.tsx`) liegen als React-Aria-„Top Layer“ über
+    modalen Dialogen: vorher setzte ein offener Dialog (z. B. die Einstellungen) die Hinweise auf `aria-hidden`.
+11. **„Keine PDF-Over-Einstellungen gefunden“ – eine Quelle:** Der Hinweis des Kerns (`ng-migration-not-found`) ist
+    die einzige Meldung; der eigene Text der Oberfläche (`ng-ui-set-migration-none`, doppelt und vor dem Angebot
+    kurz sichtbar) entfällt. Ungenutzt seit dem gelöschten `MigrationDialog` und aus `pida.ftl` entfernt:
+    `ng-ui-migrate-accept`, `ng-ui-migrate-decline`.
+12. **Mock-Vertrag (§4.8):** neue Signalart `{ kind: 'verify-file'; path }` („Zuletzt signiert“ → Prüfmodus); der
+    Mock folgt dem Kern in 8. und 11. Browser-Vorschau zusätzlich `?firstrun=1` (`&legacy=1`, `&emblem=1`,
+    `&secrets=1`).
+13. **Zustände des echten Kerns als UI-Probe** (wie Nachtrag 2): `apps/app/src/core/fixtures/real-core-tools-views.json`
+    (K, aus `crates/core-api/tests/verify.rs::real_core_tools_views_for_the_ui`, Dateien aus `testdata/verify/*`)
+    rendert `apps/app/src/app/RealCoreTools.test.tsx`: Gesamtergebnis und Status je Signatur, Zeit als Angabe des
+    Signierenden, QES laut Zertifikat, SHA-1-Hinweis, spätere Revisionen, Rechteck auf der gedrehten Seite, nie
+    „gültig“, Übernahmeliste mit den Details des Kerns, Übernehmen → Schritte 2/3 → Fertig, keine Sitzung (F-54), axe.
+
+**Angenommene Abweichungen K4:** Übernahme über eine vorhandene `settings.toml` schreibt mit Sicherung statt mit
+„existiert bereits“ abzubrechen (auch klassisch, wenn die Datei vor der Entscheidung entstand); `accept_migration`
+übernimmt die Einstellungen wie geschrieben (Kopie der Bildmarke im Datenordner); `ng-firstrun-done` auch nach
+„Später einrichten“; das QES-Testzertifikat liegt unter `testdata/verify/keys` (K) und entsteht mit
+`testdata/verify/make-keys.sh`; SHA-1-Fälle signiert `openssl cms` als Ersatz-Signiergerät (die Engine lehnt SHA-1
+ab); zwei Tests (`batch`, `settings`) starten als Bestandsnutzer, der K3-Test zu „Zuletzt signiert“ erwartet den
+Prüfmodus; das ID-Austria-artige Skript-Backend in `core-api/tests/workspace.rs` signiert mit dem QES-Testschlüssel.
+
+**Angenommene Abweichungen B4:** Statusbegriffe „Intakt“, „Verändert“, „Nicht prüfbar“ (§8 F3), „Rolle“ und
+„Methode“ entfallen (nicht ermittelbar); spätere Revisionen ohne Signatur als neutraler Hinweis; eigene Zustände „wird
+geprüft“ und „nicht prüfbar“; „Prüfbericht speichern“ fehlt (§8 F8), „Beispiel prüfen“ und die eigene Ablagefläche
+entfallen (Ablegen über die Shell); die Palette blendet gesperrte Befehle aus (wie der Prototyp); die Kürzelübersicht
+ergänzt „Befehlspalette ⌘/Strg+K“; „Später einrichten“ bzw. Esc sendet bei offenem Angebot erst `decline_migration`,
+dann `finish_first_run` (der Kern behandelt beide Reihenfolgen gleich); das erneute Angebot erscheint im Bereich
+Einstellungen › Erweitert statt als Dialog (nur Desktop); in der Ersteinrichtung bietet die Blocksprache „Wie System“,
+ein übernommenes Sonderprofil bleibt wählbar; das Synonym „PDF-Over“ ohne Bindestrich entfällt aus `.keywords` (beanstandet von `rename-to-pida --check`); Änderungen an
+`core/mock/{shared,index,mock.test}.ts` und `features/start/start.test.tsx` (UI-A) für den Prüfmodus im Mock.
+
+**Offen:** [H] Prüfmodus und Ersteinrichtung auf dem Referenzrechner und im Simulator/Emulator (S-31 bis S-34),
+App-Kill während der Ersteinrichtung auf Mobile. Klein: Kopfzeile – Wortmarke und „Befehle ⌘K“ tragen einen Namen,
+der Tagline bzw. Tastenkappen nicht enthält (axe `label-content-name-mismatch` im Browser; Sprachsteuerung mit
+„PIDA“ bzw. „Befehle“ funktioniert), die Befehlsliste der Palette scrollt mit virtuellem Fokus (axe
+`scrollable-region-focusable`, Pfeiltasten scrollen mit); PAdES-B-B anderer Werkzeuge ohne `signing-time` zeigt keine
+Zeit (Rückfall auf `/M` bräuchte einen Nachtrag); `SignVerified` auf eine schon wartende Datei kann
+`ng-batch-added` zeigen, obwohl nichts hinzukam; eine aus dem PDF-Over-Zwischenspeicher übernommene Bildmarke heißt
+in der Liste `.emblem.png`; „Einstellungen zurücksetzen“ startet die Ersteinrichtung nicht erneut; Dokument-Zeitstempel
+(`ETSI.RFC3161`) fehlen in `testdata/verify` (keine TSA, Abbildung nur im Code); die CLI `pida verify` meldet weiter
+„gültig“/„ungültig“ (QA-Werkzeug, nicht §8 F3) und könnte auf `pades::verify_document` umsteigen;
+`RadioCards`/`Segmented` mit `isDisabled` der Gruppe in `ui/controls.tsx` (Bitte aus B3 an UI-A).
