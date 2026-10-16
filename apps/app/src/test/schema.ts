@@ -80,8 +80,28 @@ export function record<T>(s: Schema<T>): Schema<Record<string, T>> {
   };
 }
 
+/**
+ * Feld, das TypeScript als **optional** führt (`#[ts(optional = nullable)]`: `feld?: T | null`) – für additive
+ * Vertragsfelder nach E0 (Nachträge), damit bestehende UI-Literale gültig bleiben. Der Kern (serde) liefert
+ * das Feld trotzdem immer (Wert oder `null`); die Prüfung verlangt es deshalb wie jedes andere.
+ */
+export interface OptionalSchema<T> extends Schema<T | null> {
+  /** nur für die Typableitung (Markierung „optional“) */
+  readonly __optional: true;
+}
+
+export function optional<T>(s: Schema<T>): OptionalSchema<T> {
+  const check: Schema<T | null> = (v, p, e) => {
+    if (v !== null) s(v, p, e);
+  };
+  return check as OptionalSchema<T>;
+}
+
 type Props = Record<string, Schema<unknown>>;
-type ObjOf<P extends Props> = { [K in keyof P]: Infer<P[K]> };
+type OptionalKeys<P extends Props> = { [K in keyof P]: P[K] extends OptionalSchema<unknown> ? K : never }[keyof P];
+type ObjOf<P extends Props> = { [K in Exclude<keyof P, OptionalKeys<P>>]: Infer<P[K]> } & {
+  [K in OptionalKeys<P>]?: Infer<P[K]>;
+};
 
 function checkProps(props: Props, v: Record<string, unknown>, p: string, e: string[], extra: boolean, skip: string[] = []) {
   for (const [k, s] of Object.entries(props)) {

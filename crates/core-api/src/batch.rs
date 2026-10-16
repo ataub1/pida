@@ -105,6 +105,8 @@ pub(crate) fn preanalyze(
         warnings: loaded.warnings.clone(),
         placeholder,
         new_visible_field_allowed: data.report.allows_new_visible_field(),
+        first_field: pida_placement::find_empty_sig_fields(&data.report.fields).into_iter().next(),
+        qr_searched: loaded.qr_searched,
     };
     let thumb = render.and_then(|backend| {
         let png = data.with_renderer(backend, |r| -> pida_render::Result<Vec<u8>> {

@@ -5381,6 +5381,10 @@
         },
         "fido2_available": false,
         "keychain_available": true,
+        "locked": {
+          "general.recent_documents": "ng-recent-policy",
+          "proxy": "ng-settings-policy"
+        },
         "preview_revision": 3,
         "problems": {
           "proxy.host": "ng-ui-problem-required"
@@ -5515,6 +5519,7 @@
         "examples": {},
         "fido2_available": true,
         "keychain_available": false,
+        "locked": null,
         "preview_revision": 0,
         "problems": {},
         "read_only": true,
@@ -5863,6 +5868,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,
@@ -6230,6 +6243,11 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": null,
+          "pdfa_decision": "forced"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -6596,6 +6614,7 @@
           ],
           "visible_allowed": false
         },
+        "detection": null,
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -6758,6 +6777,11 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": null,
+          "pdfa_decision": "none"
         },
         "doc": {
           "id": 7,
@@ -7065,6 +7089,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,
@@ -7388,6 +7420,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -7709,6 +7749,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,
@@ -8032,6 +8080,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -8353,6 +8409,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,
@@ -8676,6 +8740,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -8997,6 +9069,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,
@@ -9320,6 +9400,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -9641,6 +9729,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,
@@ -9964,6 +10060,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -10286,6 +10390,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -10607,6 +10719,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,
@@ -12136,6 +12256,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -12658,6 +12786,14 @@
           ],
           "visible_allowed": true
         },
+        "detection": {
+          "auto_placed": false,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
         "doc": {
           "id": 7,
           "name": "Vertrag.pdf",
@@ -12978,6 +13114,14 @@
             "ng-constraint-certified"
           ],
           "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": false,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
         },
         "doc": {
           "id": 7,

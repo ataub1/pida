@@ -640,3 +640,7 @@ ng-migration-item-placeholder = Platzhaltersuche
 ng-migration-item-language = Sprache
 ng-firstrun-done = Einrichtung abgeschlossen. Sie können alles jederzeit in den Einstellungen ändern.
 ng-settings-field-unknown = Unbekannte Einstellung.
+ng-settings-invalid-value = Dieser Wert ist für die Einstellung nicht gültig.
+ng-settings-invalid-port = Der Port muss zwischen 1 und 65535 liegen.
+ng-settings-policy = Diese Einstellung ist von Ihrer Organisation festgelegt.
+ng-settings-unavailable-mobile = Diese Einstellung gibt es auf Mobilgeräten nicht.

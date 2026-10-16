@@ -43,6 +43,9 @@ fn workspace_state(target: Target, origin: PlacementOrigin, invisible: bool) -> 
         qr: Some(qr()),
         return_to_batch: false,
         parked: None,
+        qr_search: Some(Some(qr())),
+        automatic: matches!(origin, PlacementOrigin::Auto | PlacementOrigin::Qr),
+        invisible_by_profile: false,
     };
     State::Positioning {
         queue: queue(&[1]),
@@ -656,4 +659,182 @@ fn a1_table_of_session_opening_pairs() {
         let t = step(state, event, &ctx);
         assert_eq!(opens_session(&t.effects), expected, "{row}: {:?}", t.effects);
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Einstellungen › Dokument (K3, ADR 0004 §3.11 „sofort wirksam“): Platzhaltersuche QR | leere Felder
+// ---------------------------------------------------------------------------------------------
+
+fn fields_search() -> Context {
+    Context { placeholder_search: true, placeholder_fields: true, ..ws() }
+}
+
+fn qr_search() -> Context {
+    Context { placeholder_search: true, ..ws() }
+}
+
+/// Mit Platzhaltersuche „Leere Signaturfelder“ (`kind = fields`, PDF-Over `USE_FIELDS`) nimmt der Kern das
+/// erste leere Signaturfeld automatisch; ohne Felder frei mit automatischer Platzierung; ohne Suche nur
+/// angeboten (§8 F2); nie mit unsichtbarem Profil.
+#[test]
+fn field_search_uses_the_first_empty_field_automatically() {
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 2, true), &fields_search());
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.origin, e.automatic), (Target::Field(0), PlacementOrigin::Field, true));
+    assert!(!t.effects.contains(&Effect::AutoPlace(DocId(1))), "im Feld: keine freie Platzierung");
+    // „Signieren“ signiert ins erste Feld
+    let t = step(t.state, sign_with(BackendId::Keystore), &fields_search());
+    assert!(
+        matches!(&t.state, State::Signing { position: PositionChoice::Field(f), .. } if f.qualified_name == "Sig0"),
+        "{:?}",
+        t.state
+    );
+    // keine Felder: frei, automatisch platziert
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 0, true), &fields_search());
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.origin, e.automatic), (Target::Free, PlacementOrigin::Auto, true));
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))));
+    // ohne Suche nur angeboten, mit unsichtbarem Profil nie
+    for ctx in [ws(), Context { placeholder_fields: true, ..ws() }, Context { invisible: true, ..fields_search() }] {
+        let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 2, true), &ctx);
+        assert_eq!(edit_of(&t.state).target, Target::Free, "{ctx:?}");
+        assert_eq!(edit_of(&t.state).fields.len(), 2, "Felder bleiben angeboten");
+    }
+    // Startargument-Automatik (D-06) signiert ebenfalls ins erste Feld (Vorschau = Ergebnis)
+    let cli = Context { cli_auto: true, auto_position: true, ..fields_search() };
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 2, true), &cli);
+    assert!(
+        matches!(&t.state, State::ChoosingBackend { position: PositionChoice::Field(f), .. } if f.qualified_name == "Sig0"),
+        "{:?}",
+        t.state
+    );
+}
+
+/// Geänderte Einstellungen › Dokument wirken sofort auf ein automatisch platziertes Dokument: Feld ↔ QR ↔
+/// frei; fehlt die QR-Suche, wird sie nachgeholt (`SearchPlaceholder` → `PlaceholderSearched`). Ein von Hand
+/// platziertes Dokument bleibt, bekommt den QR-Platzhalter aber angeboten.
+#[test]
+fn document_settings_replace_automatic_placements_only() {
+    // Start ohne Suche: frei, automatisch, ein leeres Feld angeboten, QR unbekannt
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 1, true), &ws());
+    let s = t.state;
+    assert_eq!(edit_of(&s).qr_search, None);
+    // Suche „Leere Signaturfelder“ an: erstes Feld, keine freie Platzierung nötig
+    let t = step(s, Event::SettingsChanged, &fields_search());
+    assert_eq!((edit_of(&t.state).target, edit_of(&t.state).origin), (Target::Field(0), PlacementOrigin::Field));
+    assert!(!t.effects.contains(&Effect::AutoPlace(DocId(1))));
+    assert!(t.effects.contains(&Effect::BuildBlockPreview(DocId(1))));
+    // auf „QR-Code-Platzhalter“: QR noch nicht gesucht → frei (automatisch) und Suche nachholen
+    let t = step(t.state, Event::SettingsChanged, &qr_search());
+    assert_eq!(edit_of(&t.state).target, Target::Free);
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))), "{:?}", t.effects);
+    assert!(t.effects.contains(&Effect::SearchPlaceholder(DocId(1))), "{:?}", t.effects);
+    // Ergebnis der Suche: QR-Platzhalter → Ziel QR (automatisch)
+    let t = step(t.state, Event::PlaceholderSearched { doc: DocId(1), qr: Some(qr()) }, &qr_search());
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.origin, e.automatic), (Target::Qr, PlacementOrigin::Qr, true));
+    assert_eq!(e.qr, Some(qr()));
+    // verspätetes Ergebnis eines anderen Dokuments: ohne Wirkung
+    let other = step(t.state.clone(), Event::PlaceholderSearched { doc: DocId(9), qr: None }, &qr_search());
+    assert_eq!(other.state, t.state);
+    // Suche aus: wieder frei mit automatischer Platzierung, QR nicht mehr angeboten, Ergebnis gemerkt
+    let t = step(t.state, Event::SettingsChanged, &ws());
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.origin, e.qr.is_none()), (Target::Free, PlacementOrigin::Auto, true));
+    assert_eq!(e.qr_search, Some(Some(qr())));
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))));
+    // wieder an: ohne neue Suche zurück in den QR-Platzhalter
+    let t = step(t.state, Event::SettingsChanged, &qr_search());
+    assert_eq!(edit_of(&t.state).target, Target::Qr);
+    assert!(!t.effects.contains(&Effect::SearchPlaceholder(DocId(1))));
+
+    // von Hand verschoben: bleibt bei jeder Änderung; der QR-Platzhalter wird nur angeboten
+    let p = Placement { page_index: 1, x: 60.0, y: 400.0, width: 230.0, height: 49.0 };
+    let t = step(t.state, Event::PlacementChanged(p), &qr_search());
+    assert!(!edit_of(&t.state).automatic);
+    for ctx in [ws(), fields_search(), qr_search()] {
+        let x = step(t.state.clone(), Event::SettingsChanged, &ctx);
+        let e = edit_of(&x.state);
+        assert_eq!((e.target, e.origin), (Target::Free, PlacementOrigin::User), "{ctx:?}");
+        assert!(matches!(x.state, State::Positioning { placement: Some(q), .. } if q == p));
+        assert!(!x.effects.contains(&Effect::AutoPlace(DocId(1))), "{ctx:?}");
+        assert_eq!(e.qr.is_some(), ctx == qr_search(), "angeboten nur mit QR-Suche");
+    }
+}
+
+/// Jede Platzierung durch die Nutzerin beendet die Automatik: „Ins Feld setzen“, QR wählen, „Frei
+/// platzieren“/„Freie Fläche suchen“, Seite, neue Seite, Ziehen. Ein von Hand gewähltes QR-Ziel bleibt auch
+/// nach dem Ausschalten der Suche.
+#[test]
+fn user_placements_end_the_automatic() {
+    let s = workspace_state(Target::Free, PlacementOrigin::Auto, false);
+    assert!(edit_of(&s).automatic);
+    let p = Placement { page_index: 1, x: 60.0, y: 400.0, width: 230.0, height: 49.0 };
+    for event in [
+        Event::TargetChosen(Target::Field(0)),
+        Event::TargetChosen(Target::Qr),
+        Event::TargetChosen(Target::Free),
+        Event::PageChanged(1),
+        Event::NewPageToggled,
+        Event::PlacementChanged(p),
+    ] {
+        let t = step(s.clone(), event.clone(), &qr_search());
+        assert!(!edit_of(&t.state).automatic, "{event:?}");
+    }
+    // automatische Ergebnisse und Blockgröße lassen die Automatik bestehen
+    for event in [Event::AutoPlaced(p), Event::BlockResized(p), Event::InvisibleSet(true)] {
+        let t = step(s.clone(), event.clone(), &ws());
+        assert!(edit_of(&t.state).automatic, "{event:?}");
+    }
+    // QR von Hand gewählt, dann Suche aus: Ziel und Angebot bleiben
+    let t = step(
+        workspace_state(Target::Free, PlacementOrigin::User, false),
+        Event::TargetChosen(Target::Qr),
+        &qr_search(),
+    );
+    let t = step(t.state, Event::SettingsChanged, &ws());
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.qr.is_some()), (Target::Qr, true));
+    assert!(!t.effects.contains(&Effect::AutoPlace(DocId(1))));
+}
+
+/// Profil „unsichtbar“ in den Einstellungen ein und wieder aus („sofort wirksam“): das offene Dokument wird
+/// unsichtbar und danach wieder sichtbar (automatisch platziert); eine eigene Wahl „Unsichtbar signieren“
+/// bleibt auch nach dem Wechsel auf ein sichtbares Profil. Startet das Dokument mit dem unsichtbaren Profil,
+/// wird es mit einem sichtbaren Profil ebenfalls sichtbar.
+#[test]
+fn invisible_profile_switch_is_reversible_unless_chosen_by_the_user() {
+    let inv = Context { invisible: true, ..ws() };
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 1, true), &ws());
+    let t = step(t.state, Event::SettingsChanged, &inv);
+    let e = edit_of(&t.state);
+    assert!(e.invisible && e.invisible_by_profile);
+    assert!(!t.effects.contains(&Effect::AutoPlace(DocId(1))), "unsichtbar: keine Platzierung");
+    let t = step(t.state, Event::SettingsChanged, &ws());
+    let e = edit_of(&t.state);
+    assert!(!e.invisible && !e.invisible_by_profile, "wieder sichtbar");
+    assert!(e.automatic && e.auto_free());
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))), "{:?}", t.effects);
+    // „Leere Signaturfelder“ unter dem unsichtbaren Profil: kein Feld; wieder sichtbar → erstes Feld
+    let fields_inv = Context { invisible: true, ..fields_search() };
+    let t = step(t.state, Event::SettingsChanged, &fields_inv);
+    assert_eq!((edit_of(&t.state).target, edit_of(&t.state).invisible), (Target::Free, true));
+    let t = step(t.state, Event::SettingsChanged, &fields_search());
+    assert_eq!((edit_of(&t.state).target, edit_of(&t.state).invisible), (Target::Field(0), false));
+
+    // eigene Wahl bleibt
+    let t = step(t.state, Event::InvisibleSet(true), &fields_search());
+    let t = step(t.state, Event::SettingsChanged, &fields_inv);
+    let t = step(t.state, Event::SettingsChanged, &fields_search());
+    let e = edit_of(&t.state);
+    assert!(e.invisible && !e.invisible_by_profile, "von der Nutzerin gewählt");
+
+    // Start mit dem unsichtbaren Profil, dann sichtbares Profil
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 0, true), &inv);
+    assert!(edit_of(&t.state).invisible_by_profile);
+    let t = step(t.state, Event::SettingsChanged, &ws());
+    assert!(!edit_of(&t.state).invisible);
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))), "{:?}", t.effects);
+    let t = step(t.state, sign_with(BackendId::Keystore), &ws());
+    assert!(matches!(&t.state, State::Signing { position: PositionChoice::Manual(_), .. }), "{:?}", t.state);
 }

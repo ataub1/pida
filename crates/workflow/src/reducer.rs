@@ -425,10 +425,12 @@ fn restore_workspace(
     to_workspace(queue, doc, parked, edit, false, effects)
 }
 
-/// Nach der Analyse im Arbeitsbereich-Modus: keine Platzhalterfrage. QR-Platzhalter (nur mit
-/// Platzhaltersuche und `kind = marker`) → Ziel QR; sonst frei mit automatischer Platzierung. Leere
-/// Felder werden immer angeboten (nie automatisch, §8 F2). Mit der Startargument-Automatik der
-/// klassische automatische Weg (D-06) mit dem Bearbeitungszustand für den Rückfall.
+/// Nach der Analyse im Arbeitsbereich-Modus: keine Platzhalterfrage. Das automatische Ziel folgt den
+/// Einstellungen › Dokument ([`WorkspaceEdit::after_analysis`]): mit Platzhaltersuche „QR-Code-Platzhalter“
+/// der gefundene QR-Platzhalter, mit „Leere Signaturfelder“ das erste leere Signaturfeld, sonst frei mit
+/// automatischer Platzierung. Leere Felder werden immer angeboten (ohne Suche nie automatisch, §8 F2). Mit
+/// der Startargument-Automatik der klassische automatische Weg (D-06) mit dem Bearbeitungszustand für den
+/// Rückfall.
 fn workspace_after_analysis(
     queue: Queue,
     doc: DocFacts,
@@ -437,26 +439,31 @@ fn workspace_after_analysis(
     ctx: &Context,
 ) -> Transition {
     let qr = match placeholder {
-        Some(PlaceholderFound::Qr(qr)) if ctx.placeholder_search && !ctx.placeholder_fields && !ctx.invisible => {
-            Some(qr)
-        }
+        Some(PlaceholderFound::Qr(qr)) => Some(qr),
         _ => None,
     };
-    let mut edit = WorkspaceEdit::new(fields, qr.clone(), ctx.invisible);
-    // aus der Stapelübersicht geöffnet: Plan des Eintrags übernehmen, „Zurück zum Stapel“ (ADR 0004 §3.8)
+    let mut edit = WorkspaceEdit::after_analysis(fields, qr, ctx.invisible, ctx);
+    // aus der Stapelübersicht geöffnet: Plan des Eintrags übernehmen, „Zurück zum Stapel“ (ADR 0004 §3.8);
+    // ein automatischer Plan folgt wie hier den aktuellen Einstellungen
     if ctx.batch()
-        && let Some(plan) = batch_run::opened_plan(&queue, doc.id)
+        && let Some((plan, automatic)) = batch_run::opened_plan(&queue, doc.id)
     {
         edit.return_to_batch = true;
-        let parked = batch_run::apply_plan(&mut edit, plan.as_ref(), &doc);
+        let parked = if automatic { None } else { batch_run::apply_plan(&mut edit, plan.as_ref(), &doc) };
         let auto = edit.auto_free() && !edit.invisible;
         return to_workspace(queue, doc, parked, edit, auto, Vec::new());
     }
     if ctx.cli_auto {
-        let position = match (&qr, ctx.invisible) {
-            (_, true) => PositionChoice::Invisible,
-            (Some(qr), false) => PositionChoice::Placeholder(qr.clone()),
-            (None, false) => PositionChoice::Auto,
+        let position = if ctx.invisible {
+            PositionChoice::Invisible
+        } else {
+            match edit.target {
+                Target::Qr => edit.qr.clone().map(PositionChoice::Placeholder).unwrap_or(PositionChoice::Auto),
+                Target::Field(i) => {
+                    edit.fields.get(i).cloned().map(PositionChoice::Field).unwrap_or(PositionChoice::Auto)
+                }
+                Target::Free => PositionChoice::Auto,
+            }
         };
         return to_backend_choice_with(queue, doc, position, Entry::Automatic, Some(edit), Vec::new());
     }
@@ -603,24 +610,35 @@ fn files_added_single(state: State, docs: Vec<crate::queue::InputDocument>, ctx:
     }
 }
 
-/// Einstellungen geändert: Blockvorschau neu (Positionierung), Backends neu prüfen (Auswahl).
+/// Einstellungen geändert: Blockvorschau neu (Positionierung), Backends neu prüfen (Auswahl). Im
+/// Arbeitsbereich folgt ein automatisch platziertes Dokument den Einstellungen › Dokument (ADR 0004 §3.11
+/// „sofort wirksam“): QR-Platzhalter bzw. erstes leeres Signaturfeld bzw. wieder frei mit automatischer
+/// Platzierung; ein von Hand platziertes bleibt.
 fn settings_changed(state: State, ctx: &Context) -> Transition {
-    let effects = match &state {
+    let mut effects = match &state {
         State::Positioning { doc, .. } => vec![Effect::BuildBlockPreview(doc.id)],
         State::ChoosingBackend { .. } => vec![Effect::ProbeBackends],
         _ => Vec::new(),
     };
-    // Arbeitsbereich: unsichtbares Profil erzwingt „unsichtbar“
+    // Arbeitsbereich: unsichtbares Profil erzwingt „unsichtbar“ (zurück auf ein sichtbares Profil wird der
+    // Block wieder sichtbar, außer die Nutzerin hat „unsichtbar“ selbst gewählt); Platzhaltersuche
     let mut state = match state {
         State::Positioning { queue, page, placement, new_page, doc, edit: Some(mut edit) } => {
-            edit.invisible |= ctx.invisible;
+            let visible_again = edit.follow_profile(ctx);
+            let follow = edit.follow_settings(ctx);
+            if (follow.auto_place || (visible_again && edit.auto_free())) && placement.is_some() {
+                effects.push(Effect::AutoPlace(doc.id));
+            }
+            if follow.search_qr {
+                effects.push(Effect::SearchPlaceholder(doc.id));
+            }
             State::Positioning { queue, page, placement, new_page, doc, edit: Some(edit) }
         }
         other => other,
     };
     // Stapel: automatische Pläne der Einträge folgen den Einstellungen (ADR 0004 §3.8, §3.11)
     if ctx.batch() {
-        batch_run::settings_changed(&mut state, ctx);
+        effects.extend(batch_run::settings_changed(&mut state, ctx));
     }
     Transition::with(state, effects)
 }
@@ -871,11 +889,13 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
     let stay = |queue, page, placement, new_page, doc, edit, effects| {
         Transition::with(State::Positioning { queue, page, placement, new_page, doc, edit }, effects)
     };
-    // Bearbeitung durch die Nutzerin (Ziehen, Tastatur, Seite, neue Seite): frei, Herkunft „User“
+    // Bearbeitung durch die Nutzerin (Ziehen, Tastatur, Seite, neue Seite): frei, Herkunft „User“, nicht
+    // mehr aus der Automatik (folgt den Einstellungen › Dokument nicht mehr)
     let by_user = |edit: Option<WorkspaceEdit>| {
         edit.map(|mut e| {
             e.target = Target::Free;
             e.origin = PlacementOrigin::User;
+            e.automatic = false;
             e
         })
     };
@@ -984,7 +1004,7 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                     let effects = vec![Effect::Notify(MSG_CONSTRAINT_INVISIBLE_PROFILE.into())];
                     return stay(queue, page, placement, new_page, doc, Some(e), effects);
                 }
-                e.invisible = invisible;
+                e.choose_invisible(invisible);
                 stay(queue, page, placement, new_page, doc, Some(e), Vec::new())
             }
             None => stay(queue, page, placement, new_page, doc, None, Vec::new()),
@@ -994,9 +1014,11 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
             let mut effects = Vec::new();
             match target {
                 Target::Free => {
-                    // „Frei platzieren“ bzw. „Freie Fläche suchen“ = automatische Platzierung
+                    // „Frei platzieren“ bzw. „Freie Fläche suchen“ = automatische Platzierung (auf Wunsch der
+                    // Nutzerin: folgt danach nicht mehr der Platzhaltersuche)
                     e.target = Target::Free;
                     e.origin = PlacementOrigin::Auto;
+                    e.automatic = false;
                     if placement.is_some() {
                         effects.push(Effect::AutoPlace(doc.id));
                     }
@@ -1004,16 +1026,30 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 Target::Field(i) if i < e.fields.len() => {
                     e.target = Target::Field(i);
                     e.origin = PlacementOrigin::Field;
+                    e.automatic = false;
                 }
                 Target::Field(_) => effects.push(Effect::Notify(MSG_FIELD_LOCKED.into())),
                 Target::Qr if e.qr.is_some() => {
                     e.target = Target::Qr;
                     e.origin = PlacementOrigin::Qr;
+                    e.automatic = false;
                 }
                 Target::Qr => {}
             }
             stay(queue, page, placement, new_page, doc, Some(e), effects)
         }
+        Event::PlaceholderSearched { doc: d, qr } if d == doc.id => match edit {
+            // nachträgliche QR-Suche (Einstellungen › Dokument): ein automatisch platziertes Dokument nimmt den
+            // gefundenen Platzhalter, sonst wird er nur angeboten
+            Some(mut e) => {
+                e.qr_search = Some(qr);
+                let follow = e.follow_settings(ctx);
+                let effects =
+                    if follow.auto_place && placement.is_some() { vec![Effect::AutoPlace(doc.id)] } else { Vec::new() };
+                stay(queue, page, placement, new_page, doc, Some(e), effects)
+            }
+            None => stay(queue, page, placement, new_page, doc, None, Vec::new()),
+        },
         Event::SignRequested { backend, options } => {
             let mut e = match edit {
                 Some(e) if ctx.workspace => e,

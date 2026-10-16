@@ -296,7 +296,7 @@ proptest! {
     /// genannten Dokumente.
     #[test]
     fn workspace_session_only_after_explicit_action(
-        events in prop::collection::vec(0u8..62, 0..110),
+        events in prop::collection::vec(0u8..65, 0..110),
         auto_position in any::<bool>(),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
@@ -312,7 +312,7 @@ proptest! {
             2 => Some(pida_config::BackendChoice::LocalBku),
             _ => Some(pida_config::BackendChoice::Keystore),
         };
-        let ctx = Context {
+        let mut ctx = Context {
             auto_position,
             invisible,
             placeholder_search,
@@ -404,6 +404,7 @@ proptest! {
                         qr: next_id.is_multiple_of(3), fields: 0,
                         warnings: if next_id.is_multiple_of(5) { vec!["pdf-usage-rights".into()] } else { Vec::new() },
                         placeholder: next_id.is_multiple_of(3).then(qr), new_visible_field_allowed: true,
+                        first_field: None, qr_searched: true,
                     };
                     next_id += 1;
                     Event::Preanalyzed { doc, result: Ok(summary) }
@@ -426,6 +427,10 @@ proptest! {
                 58 => Event::BatchOutputDecided { doc: DocId(current), path: "/o.pdf".into(), exists: next_id.is_multiple_of(2) },
                 59 => { next_id += 2; Event::FilesAdded(vec![doc(next_id - 1), doc(next_id)]) }
                 60 => Event::Preanalyzed { doc: item(&state, next_id), result: Err(pida_workflow::WorkflowError::Rejected { class: pida_pades::AcceptanceClass::K5Rejected, code: "error-PDFPwdProtected".into() }) },
+                // Einstellungen › Dokument „sofort wirksam“ (K3): Platzhaltersuche bzw. -art umschalten
+                62 => { ctx.placeholder_search = !ctx.placeholder_search; Event::SettingsChanged }
+                63 => { ctx.placeholder_fields = !ctx.placeholder_fields; Event::SettingsChanged }
+                64 => Event::PlaceholderSearched { doc: DocId(current), qr: next_id.is_multiple_of(2).then(qr) },
                 _ => Event::BackendFailed(BackendError::Network("x".into())),
             };
             let before = state.clone();
@@ -527,6 +532,8 @@ fn batch_advance(state: &State, last: &[Effect], n: u64) -> Event {
                     warnings: Vec::new(),
                     placeholder: n.is_multiple_of(3).then(qr),
                     new_visible_field_allowed: true,
+                    first_field: None,
+                    qr_searched: true,
                 };
                 return Event::Preanalyzed { doc: i.doc, result: Ok(summary) };
             }

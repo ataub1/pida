@@ -4,6 +4,7 @@
  */
 import type {
   ActionsView,
+  DocumentDetectionView,
   ErrorContextView,
   MainBarStep,
   MainBarView,
@@ -67,6 +68,14 @@ export function defaultSigningProgress(): SigningProgressView {
 /** Entspricht `ErrorContextView::default()` (ADR 0004 §3.6). */
 export function defaultErrorContext(): ErrorContextView {
   return { origin: 'other', occurred_at: null, backend: null, doc: null };
+}
+
+/**
+ * Erkennung eines Dokuments, wenn der Kern sie nicht liefert (`DocumentView::detection` ist ein Nachtrag aus
+ * K3 und in TypeScript optional): keine PDF/A-Kennung, nichts erzwungen, keine Lage aus der Automatik.
+ */
+export function defaultDocumentDetection(): DocumentDetectionView {
+  return { pdfa: null, pdfa_decision: 'none', auto_placed: false };
 }
 
 /** Entspricht `SignersView::default()` (ADR 0004 §3.4). */

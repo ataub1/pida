@@ -521,6 +521,14 @@ async fn run_with_one_login_and_one_confirmation_per_document() {
     }
     assert_eq!(v.done.len(), 3, "Ergebnisliste");
     assert_eq!(v.signers.selected, None, "„Jedes Mal fragen“: Auswahl nur für den Lauf (§8 F12)");
+    // „Zuletzt signiert“ (ADR 0004 §3.10): jedes gespeicherte Dokument des Stapels, neueste zuerst
+    let recent: Vec<&str> = v.recent.as_ref().expect("Liste").iter().map(|r| r.file_name.as_str()).collect();
+    assert_eq!(recent, ["Beilage_signed.pdf", "Antrag_signed.pdf", "Vertrag_signed.pdf"]);
+    let stored = pida_config::RecentStore::new(&fx.paths).load();
+    assert_eq!(
+        stored.iter().map(|e| e.path.clone()).collect::<Vec<_>>(),
+        [out.join("Beilage_signed.pdf"), out.join("Antrag_signed.pdf"), out.join("Vertrag_signed.pdf")]
+    );
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1079,7 +1087,7 @@ fn fixture_state(v: &ViewState, roots: &[(String, &str)]) -> serde_json::Value {
             serde_json::Value::Array(items) => items.iter_mut().for_each(|i| walk(i, roots)),
             serde_json::Value::Object(map) => {
                 for (key, item) in map.iter_mut() {
-                    if matches!(key.as_str(), "signing_time" | "occurred_at") && item.is_string() {
+                    if matches!(key.as_str(), "signing_time" | "occurred_at" | "signed_at") && item.is_string() {
                         *item = serde_json::Value::String("2026-10-15T10:42:17+02:00".into());
                     } else {
                         walk(item, roots);

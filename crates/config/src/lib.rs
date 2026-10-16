@@ -14,6 +14,7 @@
 //!   ([`ShellSecretStore`] über [`SecureStorage`]); das ID-Austria-Passwort hat **keinen** [`SecretId`]
 //!   und kann damit strukturell nicht persistiert werden (Vorgabe des Auftraggebers).
 //! - [`CertificateCache`]: Opt-in-Cache öffentlicher Signaturzertifikate.
+//! - [`RecentStore`]: „Zuletzt signiert“ (nur Dateiname, Pfad, Zeitpunkt; ADR 0004 §3.10).
 //!
 //! Meldungen für UI/CLI tragen stabile i18n-IDs (`ng-config-*`, `ng-migrate-*`) aus
 //! `pida-i18n/locales/*/pida.ftl`.
@@ -27,6 +28,7 @@ pub mod migrate;
 pub mod overlay;
 pub mod paths;
 pub mod policy;
+pub mod recent;
 pub mod secrets;
 pub mod settings;
 pub mod source;
@@ -40,6 +42,7 @@ pub use migrate::{
 pub use overlay::{Effective, Overlay};
 pub use paths::{HOME_ENV, Paths};
 pub use policy::Policy;
+pub use recent::{MAX_RECENT, RecentEntry, RecentStore};
 pub use secrets::{
     KeyringSecretStore, MemorySecretStore, MobileSecretStorePlaceholder, SecretId, SecretStore, SecureStorage,
     ShellSecretStore, platform_secret_store,

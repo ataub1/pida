@@ -21,14 +21,15 @@ use pida_config::{NoteSetting, Settings};
 use pida_core_api::{
     ActionsView, AppearanceView, BackendOptionView, BatchEstimateView, BatchItemStatusView, BatchItemView,
     BatchOutputView, BatchPauseView, BatchSummaryView, BatchView, BlockView, CertificateSource, ConfirmMethod,
-    DocConstraintsView, DocInfo, DocRefView, DocumentPhase, DocumentView, DoneItemView, ErrorContextView, ErrorOrigin,
-    ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis, GuideKind, GuideView, InteractionView,
-    KeystoreImportView, MainBarView, MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView,
-    PageLayoutView, PauseScope, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView, PositionSummaryView,
-    PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView, RectPt, ResumeOfferView,
-    SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView,
-    SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent, VerifiedSignatureView,
-    VerifyStatus, VerifySummaryView, VerifyView, ViewState,
+    DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView,
+    ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis,
+    GuideKind, GuideView, InteractionView, KeystoreImportView, MainBarView, MigrationItemView, MigrationOfferView,
+    NoticeView, OutputModeView, OutputView, PageLayoutView, PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView,
+    PlacementTarget, PlatformOs, PlatformView, PositionSummaryView, PriorStatusView, QrInfo, QrTargetView,
+    QualificationClaim, QueueItemView, RecentItemView, RectPt, ResumeOfferView, SaveDialogView, SettingsView,
+    SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView, SignerView, SignersView,
+    SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent, VerifiedSignatureView, VerifyStatus,
+    VerifySummaryView, VerifyView, ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -545,6 +546,11 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         preview_revision: 3,
         applied_revision: 12,
         examples: BTreeMap::from([("output.postfix".to_owned(), "Vertrag_signed.pdf".to_owned())]),
+        // Nachtrag K3: per Richtlinie festgelegt (Pfad bzw. ganzer Abschnitt → Grund)
+        locked: Some(BTreeMap::from([
+            ("general.recent_documents".to_owned(), "ng-recent-policy".to_owned()),
+            ("proxy".to_owned(), "ng-settings-policy".to_owned()),
+        ])),
     });
     with_settings.language = Lang::En;
     // eigener Datenschutztext per Richtlinie (Einstellungen › Datenschutz, ADR 0003)
@@ -560,6 +566,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         preview_revision: 0,
         applied_revision: 0,
         examples: BTreeMap::new(),
+        locked: None,
     });
     out.push(("settings_defaults", defaults));
 
@@ -758,6 +765,12 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
             clamped: true,
         },
         announce,
+        // Nachtrag K3 (Einstellungen › Dokument)
+        detection: Some(DocumentDetectionView {
+            pdfa: Some(PdfaIdView { part: 2, conformance: Some("B".into()) }),
+            pdfa_decision: PdfaDecision::Detected,
+            auto_placed: origin != PlacementOrigin::User,
+        }),
     }
 }
 
@@ -988,6 +1001,8 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     let mut field = view(position_step(), position_bar());
     let mut d = document(DocumentPhase::Editing, PlacementOrigin::Field, PlacementTarget::Field { index: 0 });
     d.check = PlacementCheckView { for_revision: 3, overlaps_content: None, overlaps_widget: true, clamped: false };
+    // Platzhaltersuche „Leere Signaturfelder“: automatisch im ersten Feld; PDF/A erzwungen (ohne Kennung)
+    d.detection = Some(DocumentDetectionView { pdfa: None, pdfa_decision: PdfaDecision::Forced, auto_placed: true });
     field.document = Some(d);
     field.signers = SignersView { selected: None, default: None, ..signers() };
     field.actions = ws_actions(true);
@@ -1008,13 +1023,17 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         ..DocConstraintsView::default()
     };
     d.check = PlacementCheckView::default();
+    // ohne Erkennung (älterer Kern): `null`
+    d.detection = None;
     invisible.document = Some(d);
     invisible.actions = ws_actions(true);
     out.push(("ws_invisible", invisible));
 
     let mut warning =
         view(StepView::Warning { doc: doc(), codes: vec!["pdf-usage-rights".into()] }, bar(["AE", "", "", ""], true));
-    warning.document = Some(document(DocumentPhase::Warning, PlacementOrigin::Auto, PlacementTarget::Free));
+    let mut d = document(DocumentPhase::Warning, PlacementOrigin::Auto, PlacementTarget::Free);
+    d.detection = Some(DocumentDetectionView { pdfa: None, pdfa_decision: PdfaDecision::None, auto_placed: true });
+    warning.document = Some(d);
     warning.actions = ws_actions(false);
     out.push(("ws_warning", warning));
 

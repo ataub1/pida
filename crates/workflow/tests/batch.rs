@@ -29,6 +29,8 @@ fn summary(pages: usize) -> DocSummary {
         warnings: Vec::new(),
         placeholder: None,
         new_visible_field_allowed: true,
+        first_field: None,
+        qr_searched: true,
     }
 }
 
@@ -548,7 +550,9 @@ fn run_with_one_session_one_certificate_and_one_confirmation_per_document() {
 fn certificate_is_read_before_the_first_visible_document() {
     let mut s = overview(&[1, 2]);
     if let Some(i) = s.queue_mut().and_then(|q| q.batch.as_mut()).and_then(|b| b.item_mut(DocId(1))) {
+        // Plan der Nutzerin (im Arbeitsbereich „unsichtbar“ gewählt)
         i.plan = Some(PositionChoice::Invisible);
+        i.auto_plan = false;
         i.status = BatchItemStatus::Positioned;
     }
     let mut d = Driver::new(started(s, BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
@@ -937,6 +941,8 @@ fn invisible_profile_overrides_plans_in_the_run() {
     let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
     for (id, plan) in [(1, PositionChoice::Manual(p)), (2, PositionChoice::Placeholder(qr()))] {
         let item = s.queue_mut().and_then(|q| q.batch.as_mut()).and_then(|b| b.item_mut(DocId(id))).unwrap();
+        // verschoben = Plan der Nutzerin, QR-Platzhalter = Plan aus der Automatik
+        item.auto_plan = !matches!(plan, PositionChoice::Manual(_));
         item.plan = Some(plan);
         item.status = BatchItemStatus::Positioned;
     }
@@ -1089,4 +1095,135 @@ fn free_placement_instead_of_the_qr_placeholder_is_kept() {
     let t = step(t.state, analyzed(1, 1, Some(PlaceholderFound::Qr(qr())), false), &c);
     let State::BatchSigning { run, .. } = &t.state else { panic!("{:?}", t.state.name()) };
     assert_eq!(run.position, Some(PositionChoice::Manual(p)), "nicht in den Platzhalter");
+}
+
+// ------------------------------------------------------------------------------------------------
+// K3: Einstellungen › Dokument (Platzhaltersuche QR | leere Signaturfelder) im Stapel
+// ------------------------------------------------------------------------------------------------
+
+/// Mit Platzhaltersuche „Leere Signaturfelder“ ist das erste leere Feld der automatische Plan (`Positioned`);
+/// der Lauf signiert hinein. Umstellen wirkt sofort auf automatische Pläne; Pläne der Nutzerin bleiben.
+#[test]
+fn field_search_plans_the_first_empty_field_and_follows_the_settings() {
+    let fields = Context { placeholder_search: true, placeholder_fields: true, ..ctx() };
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &fields);
+    let with_field = DocSummary { fields: 1, first_field: Some(field("Unterschrift")), ..summary(1) };
+    let mut s = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(with_field) }, &fields).state;
+    s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(summary(1)) }, &fields).state;
+    assert_eq!(status(&s, 1), BatchItemStatus::Positioned);
+    assert!(
+        matches!(&batch_of(&s).item(DocId(1)).unwrap().plan, Some(PositionChoice::Field(f)) if f.qualified_name == "Unterschrift")
+    );
+    assert_eq!((status(&s, 2), batch_of(&s).item(DocId(2)).unwrap().plan.clone()), (BatchItemStatus::Ready, None));
+    // Suche aus: Plan entfällt; wieder „Leere Signaturfelder“: Plan zurück
+    let off = step(s.clone(), Event::SettingsChanged, &ctx()).state;
+    assert_eq!(status(&off, 1), BatchItemStatus::Ready);
+    let s = step(off, Event::SettingsChanged, &fields).state;
+    assert_eq!(status(&s, 1), BatchItemStatus::Positioned);
+    // im Lauf: das erste leere Feld der Analyse des Laufs
+    let started = Event::BatchStarted {
+        backend: BackendId::Keystore,
+        docs: vec![DocId(1)],
+        output: Some(BatchOutput::Folder("/out".into())),
+        on_existing: ExistingPolicy::KeepBoth,
+        options: options(false, true),
+    };
+    let t = step(s, started, &fields);
+    let t = step(t.state, Event::PhaseCompleted(SigningPhase::OpeningSession), &fields);
+    let Event::Analyzed { doc, class, signed, page_count, start, .. } = analyzed(1, 1, None, false) else {
+        unreachable!()
+    };
+    let with_fields = Event::Analyzed {
+        doc,
+        class,
+        placeholder: Some(PlaceholderFound::Fields(vec![field("Unterschrift")])),
+        signed,
+        page_count,
+        start,
+        warnings: Vec::new(),
+        fields: vec![field("Unterschrift"), field("Zweite")],
+        new_visible_field_allowed: true,
+    };
+    let t = step(t.state, with_fields, &fields);
+    let State::BatchSigning { run, .. } = &t.state else { panic!("{:?}", t.state.name()) };
+    assert!(
+        matches!(&run.position, Some(PositionChoice::Field(f)) if f.qualified_name == "Unterschrift"),
+        "{:?}",
+        run.position
+    );
+}
+
+/// Ohne QR-Suche voranalysierte Einträge werden nach dem Einschalten der Suche „QR-Code-Platzhalter“ erneut
+/// voranalysiert („Voranalyse läuft“), automatische Pläne folgen; ein Ergebnis ohne Suche unter
+/// eingeschalteter Suche wird noch einmal angefordert. Einträge mit Plan der Nutzerin bleiben unberührt.
+#[test]
+fn turning_on_qr_search_preanalyzes_again() {
+    let mut s = overview(&[1, 2]);
+    let not_searched = DocSummary { qr_searched: false, ..summary(1) };
+    for id in [1, 2] {
+        let item = s.queue_mut().and_then(|q| q.batch.as_mut()).and_then(|b| b.item_mut(DocId(id))).unwrap();
+        item.summary = Some(not_searched.clone());
+    }
+    // Eintrag 2: im Arbeitsbereich verschoben (Plan der Nutzerin)
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    s = step(s, Event::BatchItemOpened(DocId(2)), &ctx()).state;
+    s = step(s, analyzed(2, 1, None, false), &ctx()).state;
+    s = step(s, Event::PlacementChanged(p), &ctx()).state;
+    s = step(s, Event::BackToBatch, &ctx()).state;
+    assert!(!batch_of(&s).item(DocId(2)).unwrap().auto_plan);
+    let on = Context { placeholder_search: true, ..ctx() };
+    let t = step(s, Event::SettingsChanged, &on);
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Analyzing);
+    assert_eq!(t.effects, vec![Effect::Preanalyze(DocId(1))], "nur der automatische Eintrag");
+    assert_eq!(status(&t.state, 2), BatchItemStatus::Positioned);
+    // Ergebnis noch ohne Suche (Einstellung während der Voranalyse geändert): erneut anfordern
+    let t = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(not_searched) }, &on);
+    assert_eq!(t.effects, vec![Effect::Preanalyze(DocId(1))]);
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Analyzing);
+    // mit Suche: QR-Platzhalter → Positioned
+    let found = DocSummary { qr: true, placeholder: Some(qr()), ..summary(1) };
+    let t = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(found) }, &on);
+    assert!(t.effects.is_empty());
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Positioned);
+    assert!(matches!(batch_of(&t.state).item(DocId(1)).unwrap().plan, Some(PositionChoice::Placeholder(_))));
+}
+
+/// Ein unverändert aus der Übersicht geöffnetes und zurückgegebenes Dokument bleibt automatisch: es folgt
+/// danach weiter den Einstellungen (wie jeder andere Eintrag) – auch beim erneuten Öffnen.
+#[test]
+fn untouched_opened_item_keeps_following_the_settings() {
+    let fields = Context { placeholder_search: true, placeholder_fields: true, ..ctx() };
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &ctx());
+    let with_field = DocSummary { fields: 1, first_field: Some(field("Sig0")), ..summary(1) };
+    let mut s = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(with_field) }, &ctx()).state;
+    s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(summary(1)) }, &ctx()).state;
+    s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let Event::Analyzed { doc, class, signed, page_count, start, placeholder, warnings, .. } =
+        analyzed(1, 1, None, false)
+    else {
+        unreachable!()
+    };
+    let a = Event::Analyzed {
+        doc,
+        class,
+        placeholder,
+        signed,
+        page_count,
+        start,
+        warnings,
+        fields: vec![field("Sig0")],
+        new_visible_field_allowed: true,
+    };
+    s = step(s, a.clone(), &ctx()).state;
+    s = step(s, Event::BackToBatch, &ctx()).state;
+    let item = batch_of(&s).item(DocId(1)).unwrap();
+    assert!(item.auto_plan && item.plan.is_none());
+    // Suche „Leere Signaturfelder“: Feld-Plan
+    let s = step(s, Event::SettingsChanged, &fields).state;
+    assert!(matches!(batch_of(&s).item(DocId(1)).unwrap().plan, Some(PositionChoice::Field(_))));
+    // erneut öffnen: automatisch im Feld (wie nach der Analyse), nicht als Plan der Nutzerin
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &fields).state;
+    let s = step(s, a, &fields).state;
+    let State::Positioning { edit: Some(edit), .. } = &s else { panic!("{:?}", s.name()) };
+    assert_eq!((edit.target, edit.automatic), (Target::Field(0), true));
 }

@@ -19,6 +19,7 @@ import {
   num,
   obj,
   objOpen,
+  optional,
   record,
   str,
   tagged,
@@ -171,6 +172,14 @@ const documentView = obj({
   ),
   check: obj({ for_revision: int, overlaps_content: nullable(bool), overlaps_widget: bool, clamped: bool }),
   announce: record(str),
+  // Nachtrag K3 (Einstellungen › Dokument): in TS optional, vom Kern immer geliefert
+  detection: optional(
+    obj({
+      pdfa: nullable(obj({ part: int, conformance: nullable(str) })),
+      pdfa_decision: lit('none', 'detected', 'forced'),
+      auto_placed: bool,
+    }),
+  ),
 });
 
 const signersView = obj({
@@ -442,6 +451,8 @@ const viewState = obj({
       preview_revision: int,
       applied_revision: int,
       examples: record(str),
+      // Nachtrag K3: per Richtlinie festgelegte Pfade (in TS optional)
+      locked: optional(record(str)),
     }),
   ),
   language: lang,
@@ -611,6 +622,12 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     expect(views.some((v) => (v.first_run?.migration?.items.length ?? 0) === 8)).toBe(true);
     expect(views.some((v) => v.signers.options.length > 0 && v.actions.sign)).toBe(true);
     expect(views.some((v) => v.settings !== null && Object.keys(v.settings.examples).length > 0)).toBe(true);
+    // Nachtrag K3: Erkennung (PDF/A, automatische Platzierung) und Richtliniensperren
+    expect(sorted(docs.map((d) => d.detection?.pdfa_decision))).toEqual(['detected', 'forced', 'none']);
+    expect(docs.some((d) => d.detection === null)).toBe(true);
+    expect(sorted(docs.map((d) => (d.detection ? String(d.detection.auto_placed) : null)))).toEqual(['false', 'true']);
+    expect(views.some((v) => Object.keys(v.settings?.locked ?? {}).length > 0)).toBe(true);
+    expect(views.some((v) => v.settings !== null && v.settings.locked === null)).toBe(true);
   });
 
   it('defaultSettings() entspricht Settings::default() aus Rust (Mock-Kern, Tests, Zurücksetzen)', () => {

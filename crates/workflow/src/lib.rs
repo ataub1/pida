@@ -58,7 +58,8 @@
 //!
 //! | Ereignis / Weg | hier |
 //! |---|---|
-//! | Analyse fertig (auch unsichtbares Profil, `auto_position`, Platzhalter, ohne Vorschau) | **keine** Platzhalterfrage, **keine** automatische Backend-Wahl: `Positioning { edit }` mit [`WorkspaceEdit`]; QR-Platzhalter (nur Platzhaltersuche, `kind = marker`) → Ziel QR, sonst frei mit [`Effect::AutoPlace`]; leere Felder nur angeboten; ohne Vorschau `placement = None` mit Hinweis |
+//! | Analyse fertig (auch unsichtbares Profil, `auto_position`, Platzhalter, ohne Vorschau) | **keine** Platzhalterfrage, **keine** automatische Backend-Wahl: `Positioning { edit }` mit [`WorkspaceEdit`]; QR-Platzhalter (nur Platzhaltersuche, `kind = marker`) → Ziel QR, erstes leeres Signaturfeld (nur Platzhaltersuche, `kind = fields`) → Ziel Feld, sonst frei mit [`Effect::AutoPlace`]; leere Felder sonst nur angeboten; ohne Vorschau `placement = None` mit Hinweis |
+//! | [`Event::SettingsChanged`] (Einstellungen › Dokument, „sofort wirksam“) | automatisch platzierte Dokumente ([`WorkspaceEdit::automatic`]) folgen der Platzhaltersuche (QR, erstes Feld, frei mit [`Effect::AutoPlace`]); von Hand platzierte bleiben; fehlt die QR-Suche → [`Effect::SearchPlaceholder`] → [`Event::PlaceholderSearched`] |
 //! | Startargument-Automatik ([`Context::cli_auto`]: `-b` und `-a`/`-v`) | klassischer automatischer Weg (D-06, F-88); [`Effect::OpenSession`] bei `BackendsProbed` nur für ein Signiermittel ohne `document_leaves_device`, sonst Arbeitsbereich |
 //! | [`Event::InvisibleSet`], [`Event::TargetChosen`], [`Event::AutoPlaced`], [`Event::BlockResized`] | Bearbeitungszustand; Ziehen/Tastatur setzen `target = Free`, `origin = User`; verspätete automatische Lagen werden verworfen |
 //! | [`Event::SignRequested`] („Signieren mit X“) | Position aus dem Bearbeitungszustand (unsichtbar, QR, Feld, frei = `Manual`, ohne Vorschau `Auto`), direkt `Signing` (kein Auswahlschritt); nicht verfügbar bzw. DocMDP-unzulässig → bleibt mit Hinweis |
@@ -111,7 +112,7 @@ pub use output::{
 pub use queue::{DocId, DocOutcome, DocResult, InputDocument, Queue};
 pub use reducer::{grown_reserve, reduce};
 pub use state::{
-    BackendOption, BatchOutput, Context, DocFacts, Effect, Event, ExistingPolicy, MSG_BACKEND_CHOICE_REQUIRED,
+    BackendOption, BatchOutput, Context, DocFacts, Effect, Event, ExistingPolicy, Follow, MSG_BACKEND_CHOICE_REQUIRED,
     MSG_BATCH_ABORTED, MSG_BATCH_ADDED, MSG_BATCH_DONE, MSG_BATCH_ITEM_SIGNED, MSG_BATCH_NOTHING_TO_SIGN,
     MSG_BATCH_OUTPUT_FOLDER_REQUIRED, MSG_BATCH_PENDING_APP_REQUEST, MSG_CERT_CACHE_MISMATCH, MSG_CMS_TOO_LARGE,
     MSG_CONSTRAINT_CERTIFIED, MSG_CONSTRAINT_INVISIBLE_PROFILE, MSG_CONSTRAINT_SIGNED, MSG_DEFAULT_BACKEND_UNAVAILABLE,

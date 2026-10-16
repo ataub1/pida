@@ -98,6 +98,8 @@ pub(crate) struct Loaded {
     pub placeholder: Option<PlaceholderFound>,
     /// Warnungen der Analyse (Hybrid-XFA, `/Perms /UR3` …) als Codes
     pub warnings: Vec<String>,
+    /// nach dem QR-Platzhalter gesucht (Platzhaltersuche mit `kind = marker`; Einstellungen › Dokument)
+    pub qr_searched: bool,
 }
 
 /// Platzhaltersuche (F-20/F-21): `fields` = `USE_FIELDS` (Vorrang), sonst QR-Marker (id 1,
@@ -173,7 +175,8 @@ pub(crate) fn load(
     let warnings = report.findings.iter().filter(|f| f.warning).map(|f| f.code.clone()).collect();
     let data = Arc::new(DocData::new(id, path.to_path_buf(), Arc::new(src), report));
     let placeholder = if placeholder_search { find_placeholder(&data, fields, renderer) } else { None };
-    Ok(Loaded { data, placeholder, warnings })
+    let qr_searched = placeholder_search && !fields;
+    Ok(Loaded { data, placeholder, warnings, qr_searched })
 }
 
 /// Schlüssel einer Kachel.
