@@ -484,3 +484,180 @@ proptest! {
         }
     }
 }
+
+/// Antwort „wie core-api, Erfolg“ auf den laufenden Schritt eines Stapellaufs bzw. – außerhalb des Laufs – die
+/// nächste Nutzeraktion zum Lauf (Dateien, Voranalyse, „Alle signieren“). `n` variiert Signiermittel, Ausgabe
+/// und Regel für vorhandene Dateien.
+fn batch_advance(state: &State, last: &[Effect], n: u64) -> Event {
+    use pida_workflow::{BatchOutput, BatchPhase, ExistingPolicy};
+    match state {
+        State::BatchSigning { run, .. } => {
+            let doc = run.current().unwrap_or(DocId(1));
+            match run.phase {
+                BatchPhase::OpeningSession => Event::PhaseCompleted(SigningPhase::OpeningSession),
+                BatchPhase::ReadingCertificate => Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+                BatchPhase::CheckingTarget => {
+                    Event::BatchOutputDecided { doc, path: "/o/x_signed.pdf".into(), exists: n.is_multiple_of(3) }
+                }
+                BatchPhase::Loading => {
+                    let placeholder = n.is_multiple_of(4).then(|| pida_workflow::PlaceholderFound::Qr(qr()));
+                    analyzed(doc.0, 2, placeholder, false)
+                }
+                BatchPhase::Preparing => Event::PhaseCompleted(SigningPhase::Preparing),
+                BatchPhase::Confirming => Event::PhaseCompleted(SigningPhase::Signing),
+                BatchPhase::Finishing => Event::PhaseCompleted(SigningPhase::Finishing),
+                BatchPhase::Writing => match last.last() {
+                    Some(Effect::Write(_) | Effect::Overwrite(_)) => Event::Saved(output_info(doc.0)),
+                    _ => Event::BatchOutputDecided { doc, path: "/o/x_signed.pdf".into(), exists: n.is_multiple_of(2) },
+                },
+            }
+        }
+        State::BatchOverview { queue } => {
+            let batch = queue.batch.as_ref();
+            if let Some(i) =
+                batch.and_then(|b| b.items.iter().find(|i| i.status == pida_workflow::BatchItemStatus::Analyzing))
+            {
+                let summary = pida_workflow::DocSummary {
+                    page_count: 2,
+                    size_bytes: 10,
+                    signed: false,
+                    class: pida_pades::AcceptanceClass::K1Regular,
+                    qr: n.is_multiple_of(3),
+                    fields: 0,
+                    warnings: Vec::new(),
+                    placeholder: n.is_multiple_of(3).then(qr),
+                    new_visible_field_allowed: true,
+                };
+                return Event::Preanalyzed { doc: i.doc, result: Ok(summary) };
+            }
+            let docs = batch.map(|b| b.items.iter().map(|i| i.doc).collect()).unwrap_or_default();
+            let backend = if n.is_multiple_of(2) {
+                pida_backend_api::BackendId::AtrustNative
+            } else {
+                pida_backend_api::BackendId::Keystore
+            };
+            let output = match n % 3 {
+                0 => Some(BatchOutput::Configured),
+                1 => Some(BatchOutput::Folder("/o".into())),
+                _ => None,
+            };
+            let on_existing = match n % 4 {
+                0 => ExistingPolicy::Skip,
+                1 => ExistingPolicy::Overwrite,
+                _ => ExistingPolicy::KeepBoth,
+            };
+            Event::BatchStarted { backend, docs, output, on_existing, options: options(false, true) }
+        }
+        _ => Event::FilesAdded(vec![doc(10 + n), doc(11 + n), doc(12 + n)]),
+    }
+}
+
+proptest! {
+    /// Stapellauf (ADR 0004 §3.8) bei beliebigen Folgen aus Erfolg, Fehlern aller Arten, Überspringen,
+    /// Abbrechen, Wiederholen, neuen Dateien und Einstellungen – mit hohem Anteil „Erfolg des laufenden
+    /// Schritts“, damit auch die tiefen Phasen erreicht werden:
+    ///
+    /// - A1: `OpenSession` nur für „Alle signieren“ in der Übersicht und „Erneut versuchen“ einer
+    ///   Sitzungspause mit neuer Sitzung;
+    /// - genau die beim Start genannten Dokumente, höchstens eines in Arbeit;
+    /// - in einer Pause geht nichts von selbst weiter (ohne Entscheidung keine Effekte außer Hinweisen und
+    ///   der Voranalyse neuer Dateien);
+    /// - nichts wird automatisch bestätigt: je Dokument höchstens so viele `SignDocument` wie „Erneut
+    ///   versuchen“ + 1;
+    /// - nach dem Lauf ist kein Eintrag mehr „wartet“/„wird signiert“.
+    #[test]
+    fn batch_run_invariants(
+        events in prop::collection::vec(0u8..36, 0..160),
+        invisible in any::<bool>(),
+        placeholder_search in any::<bool>(),
+    ) {
+        use pida_workflow::{BatchItemStatus, BatchPause};
+        let ctx = Context { workspace: true, batch_overview: true, invisible, placeholder_search, ..Context::default() };
+        let mut state = State::Idle { queue: Queue::default() };
+        let mut last: Vec<Effect> = Vec::new();
+        let mut signs: std::collections::HashMap<DocId, (usize, usize)> = std::collections::HashMap::new();
+        for (n, e) in events.into_iter().enumerate() {
+            let n = n as u64;
+            let current = state.queue().and_then(Queue::current_id).unwrap_or(DocId(1));
+            let event = match e {
+                0..=15 => batch_advance(&state, &last, n),
+                16 => Event::BatchSkip,
+                17 => Event::BatchAbort,
+                18 => Event::Retry,
+                19 => Event::Cancel,
+                20 => Event::BackendFailed(BackendError::Network("x".into())),
+                21 => Event::BackendFailed(BackendError::UnknownPage { diagnostic: "x".into() }),
+                22 => Event::BackendFailed(BackendError::Cancelled),
+                23 => Event::SigningDeclined,
+                24 => Event::BackendFailed(BackendError::DocumentTooLarge),
+                25 => Event::BackendFailed(BackendError::SecurityLayer { code: 6002, info: "x".into() }),
+                26 => Event::CmsTooLarge { needed: 20_000, reserve: 16_384 },
+                27 => Event::SaveFailed("voll".into()),
+                28 => Event::SigningFailed(pida_workflow::WorkflowError::Prepare { code: "ng-certcache-mismatch".into(), detail: String::new() }),
+                29 => Event::AnalysisFailed { doc: current, error: pida_workflow::WorkflowError::Save("x".into()) },
+                30 => Event::FilesAdded(vec![doc(100 + n)]),
+                31 => Event::SettingsChanged,
+                32 => Event::Backgrounded,
+                33 => Event::BatchItemOpened(current),
+                34 => Event::BackToBatch,
+                _ => Event::Navigate(Step::Open),
+            };
+            let before = state.clone();
+            let t = reduce(state, event.clone(), &ctx);
+            // A1
+            for eff in &t.effects {
+                if let Effect::OpenSession(_) = eff {
+                    let allowed = match (&event, &before) {
+                        (Event::BatchStarted { .. }, State::BatchOverview { .. }) => true,
+                        (Event::Retry, State::BatchSigning { run, .. }) => {
+                            matches!(run.pause, Some(BatchPause::Session { new_session: true, .. }))
+                        }
+                        _ => false,
+                    };
+                    prop_assert!(allowed, "OpenSession ohne Nutzeraktion: {event:?} in {}", before.name());
+                }
+            }
+            if let State::BatchSigning { run: before_run, .. } = &before {
+                // Pause: ohne Entscheidung geht nichts weiter
+                let decision = matches!(event, Event::Retry | Event::BatchSkip | Event::BatchAbort | Event::Cancel | Event::Quit);
+                if before_run.pause.is_some() && !decision {
+                    let quiet = t.effects.iter().all(|e| matches!(e, Effect::Preanalyze(_) | Effect::NotifyWith(..) | Effect::Notify(_)));
+                    prop_assert!(quiet, "in der Pause von selbst weiter: {event:?} → {:?}", t.effects);
+                }
+                // Bestätigungen zählen
+                if let Some(doc) = before_run.current() {
+                    let entry = signs.entry(doc).or_default();
+                    if matches!(event, Event::Retry) && before_run.pause.is_some() {
+                        entry.1 += 1;
+                    }
+                    entry.0 += t.effects.iter().filter(|e| matches!(e, Effect::SignDocument)).count();
+                    prop_assert!(entry.0 <= entry.1 + 1, "{doc:?}: {} Bestätigungen bei {} Wiederholungen", entry.0, entry.1);
+                }
+            }
+            if let State::BatchSigning { queue, run } = &t.state {
+                if let State::BatchSigning { run: before_run, .. } = &before {
+                    prop_assert_eq!(&before_run.order, &run.order);
+                }
+                let b = queue.batch.as_ref().expect("Stapel");
+                let active = b.items.iter().filter(|i| i.status == BatchItemStatus::Active).count();
+                prop_assert!(active <= 1, "{active} Dokumente gleichzeitig in Arbeit");
+                for i in &b.items {
+                    if matches!(i.status, BatchItemStatus::Active | BatchItemStatus::Queued) {
+                        prop_assert!(run.order.contains(&i.doc), "{:?} nicht im Lauf", i.doc);
+                    }
+                }
+            } else {
+                if matches!(before, State::BatchSigning { .. }) {
+                    signs.clear();
+                }
+                if let Some(b) = t.state.queue().and_then(|q| q.batch.as_ref()) {
+                    for i in &b.items {
+                        prop_assert!(!matches!(i.status, BatchItemStatus::Active | BatchItemStatus::Queued), "{:?} nach dem Lauf {:?}", i.doc, i.status);
+                    }
+                }
+            }
+            last = t.effects;
+            state = t.state;
+        }
+    }
+}

@@ -853,3 +853,169 @@ fn target_of_moves_in_the_workspace() {
         matches!(&batch_of(&s).item(DocId(1)).unwrap().plan, Some(PositionChoice::Field(f)) if f.qualified_name == "Sig1")
     );
 }
+
+// ------------------------------------------------------------------------------------------------
+// Review K2: Profil „unsichtbar“, Ablehnung beim Öffnen der Sitzung
+// ------------------------------------------------------------------------------------------------
+
+/// Ein unsichtbares Profil erzwingt „unsichtbar“ im Lauf – auch gegen Pläne (verschoben, QR-Platzhalter), die
+/// vor dem Wechsel des Profils entstanden (wie `settings_changed` im Arbeitsbereich).
+#[test]
+fn invisible_profile_overrides_plans_in_the_run() {
+    let mut s = overview(&[1, 2]);
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    for (id, plan) in [(1, PositionChoice::Manual(p)), (2, PositionChoice::Placeholder(qr()))] {
+        let item = s.queue_mut().and_then(|q| q.batch.as_mut()).and_then(|b| b.item_mut(DocId(id))).unwrap();
+        item.plan = Some(plan);
+        item.status = BatchItemStatus::Positioned;
+    }
+    let c = Context { invisible: true, ..ctx() };
+    let started = Event::BatchStarted {
+        backend: BackendId::AtrustNative,
+        docs: vec![DocId(1), DocId(2)],
+        output: Some(BatchOutput::Folder("/out".into())),
+        on_existing: ExistingPolicy::KeepBoth,
+        options: options(false, true),
+    };
+    let t = step(s, started, &c);
+    let (mut state, mut last) = (t.state, t.effects);
+    let mut effects = last.clone();
+    for _ in 0..60 {
+        let State::BatchSigning { run, .. } = &state else { break };
+        let id = run.current().unwrap();
+        let event = match run.phase {
+            BatchPhase::OpeningSession => Event::PhaseCompleted(SigningPhase::OpeningSession),
+            BatchPhase::Loading => analyzed(id.0, 3, None, false),
+            BatchPhase::ReadingCertificate => Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+            BatchPhase::Preparing => Event::PhaseCompleted(SigningPhase::Preparing),
+            BatchPhase::Confirming => Event::PhaseCompleted(SigningPhase::Signing),
+            BatchPhase::Finishing => Event::PhaseCompleted(SigningPhase::Finishing),
+            BatchPhase::Writing | BatchPhase::CheckingTarget => match last.as_slice() {
+                [Effect::Write(p)] => Event::Saved(info(&p.display().to_string())),
+                _ => Event::BatchOutputDecided {
+                    doc: id,
+                    path: format!("/out/doc{}_signed.pdf", id.0).into(),
+                    exists: false,
+                },
+            },
+        };
+        let t = step(state, event, &c);
+        state = t.state;
+        effects.extend(t.effects.iter().cloned());
+        last = t.effects;
+    }
+    let prepared: Vec<PositionChoice> = effects
+        .iter()
+        .filter_map(|e| match e {
+            Effect::Prepare { position, .. } => Some(position.clone()),
+            _ => None,
+        })
+        .collect();
+    let certificates = count(&effects, |e| *e == Effect::ReadCertificate);
+    assert!(matches!(state, State::BatchOverview { .. }), "{:?}", state.name());
+    assert_eq!(prepared, vec![PositionChoice::Invisible, PositionChoice::Invisible], "nie sichtbar");
+    assert_eq!(certificates, 0, "unsichtbar: kein Zertifikat für den Block");
+}
+
+/// `Cancelled` ohne eigenen Abbruch schon beim Öffnen der Sitzung (z. B. Entsperren abgebrochen): es gibt
+/// keine Sitzung, in der „Erneut anfordern“ weitermachen könnte – Pause der Sitzung, „Erneut versuchen“ öffnet
+/// eine neue (A1), nie automatisch weiter.
+#[test]
+fn declined_while_opening_the_session_pauses_for_a_new_session() {
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    let e = d.send(Event::SigningDeclined);
+    assert!(e.contains(&Effect::CloseSession) && !e.contains(&Effect::Analyze(DocId(1))), "{e:?}");
+    let Some(BatchPause::Session { new_session: true, doc: None, error, .. }) = d.pause() else {
+        panic!("{:?}", d.pause())
+    };
+    assert_eq!(error.code(), "ng-signing-declined");
+    assert_eq!(status(&d.state, 1), BatchItemStatus::Queued, "kein Dokument begonnen");
+    assert_eq!(d.send(Event::Retry), vec![Effect::OpenSession(BackendId::Keystore)]);
+    d.finish();
+    assert!(matches!(status(&d.state, 1), BatchItemStatus::Signed { .. }));
+    assert!(matches!(status(&d.state, 2), BatchItemStatus::Signed { .. }));
+}
+
+/// Einstellungen „sofort wirksam“ (ADR 0004 §3.11): der automatische Plan (QR-Platzhalter der Voranalyse)
+/// folgt der Platzhaltersuche bzw. dem Profil „unsichtbar“; ein Plan der Nutzerin (verschoben) bleibt. Im Lauf
+/// entscheidet die Analyse des Laufs mit den aktuellen Einstellungen.
+#[test]
+fn automatic_plans_follow_the_settings_user_plans_stay() {
+    let on = Context { placeholder_search: true, ..ctx() };
+    let off = ctx();
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &on);
+    let with_qr = DocSummary { qr: true, placeholder: Some(qr()), ..summary(1) };
+    let mut s = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(with_qr.clone()) }, &on).state;
+    s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(with_qr) }, &on).state;
+    // Dokument 2 verschoben („Zurück zum Stapel“)
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    s = step(s, Event::BatchItemOpened(DocId(2)), &on).state;
+    s = step(s, analyzed(2, 1, Some(PlaceholderFound::Qr(qr())), false), &on).state;
+    s = step(s, Event::PlacementChanged(p), &on).state;
+    s = step(s, Event::BackToBatch, &on).state;
+    assert_eq!(status(&s, 1), BatchItemStatus::Positioned);
+    assert_eq!(batch_of(&s).item(DocId(2)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    // Platzhaltersuche aus: QR-Plan entfällt, Nutzerplan bleibt
+    let t = step(s, Event::SettingsChanged, &off);
+    assert_eq!(
+        (status(&t.state, 1), batch_of(&t.state).item(DocId(1)).unwrap().plan.clone()),
+        (BatchItemStatus::Ready, None)
+    );
+    assert_eq!(batch_of(&t.state).item(DocId(2)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    // wieder an: QR-Plan zurück; Profil „unsichtbar“: kein QR
+    let s = step(t.state, Event::SettingsChanged, &on).state;
+    assert!(matches!(batch_of(&s).item(DocId(1)).unwrap().plan, Some(PositionChoice::Placeholder(_))));
+    let invisible = Context { invisible: true, ..on.clone() };
+    let s2 = step(s.clone(), Event::SettingsChanged, &invisible).state;
+    assert_eq!(batch_of(&s2).item(DocId(1)).unwrap().plan, None);
+    // Lauf mit ausgeschalteter Suche, auch wenn der QR-Plan noch in der Übersicht steht: kein QR-Platzhalter
+    let started = Event::BatchStarted {
+        backend: BackendId::Keystore,
+        docs: vec![DocId(1)],
+        output: Some(BatchOutput::Folder("/out".into())),
+        on_existing: ExistingPolicy::KeepBoth,
+        options: options(false, true),
+    };
+    let t = step(s, started, &off);
+    let t = step(t.state, Event::PhaseCompleted(SigningPhase::OpeningSession), &off);
+    let t = step(t.state, analyzed(1, 1, None, false), &off);
+    let State::BatchSigning { run, .. } = &t.state else { panic!("{:?}", t.state.name()) };
+    assert_eq!(run.position, Some(PositionChoice::Auto), "Suche aus: nichts automatisch");
+}
+
+/// Vorschau = Ergebnis: wählt die Nutzerin im geöffneten Dokument statt des QR-Platzhalters „Frei
+/// platzieren“, signiert der Lauf an der gezeigten Lage – nicht doch in den Platzhalter.
+#[test]
+fn free_placement_instead_of_the_qr_placeholder_is_kept() {
+    let c = Context { placeholder_search: true, ..ctx() };
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &c);
+    let with_qr = DocSummary { qr: true, placeholder: Some(qr()), ..summary(1) };
+    let mut s = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(with_qr) }, &c).state;
+    s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(summary(1)) }, &c).state;
+    s = step(s, Event::BatchItemOpened(DocId(1)), &c).state;
+    s = step(s, analyzed(1, 1, Some(PlaceholderFound::Qr(qr())), false), &c).state;
+    let State::Positioning { edit: Some(edit), .. } = &s else { panic!("{:?}", s.name()) };
+    assert_eq!(edit.target, Target::Qr, "QR-Platzhalter automatisch");
+    // unverändert zurück: weiter der (automatische) QR-Plan
+    let back = step(s.clone(), Event::BackToBatch, &c).state;
+    assert!(matches!(batch_of(&back).item(DocId(1)).unwrap().plan, Some(PositionChoice::Placeholder(_))));
+    // „Frei platzieren“: automatische freie Lage, dann zurück → genau diese Lage
+    let p = Placement { page_index: 0, x: 300.0, y: 120.0, width: 230.0, height: 49.0 };
+    s = step(s, Event::TargetChosen(Target::Free), &c).state;
+    s = step(s, Event::AutoPlaced(p), &c).state;
+    let s = step(s, Event::BackToBatch, &c).state;
+    assert_eq!(batch_of(&s).item(DocId(1)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    assert_eq!(status(&s, 1), BatchItemStatus::Positioned);
+    let started = Event::BatchStarted {
+        backend: BackendId::Keystore,
+        docs: vec![DocId(1)],
+        output: Some(BatchOutput::Folder("/out".into())),
+        on_existing: ExistingPolicy::KeepBoth,
+        options: options(false, true),
+    };
+    let t = step(s, started, &c);
+    let t = step(t.state, Event::PhaseCompleted(SigningPhase::OpeningSession), &c);
+    let t = step(t.state, analyzed(1, 1, Some(PlaceholderFound::Qr(qr())), false), &c);
+    let State::BatchSigning { run, .. } = &t.state else { panic!("{:?}", t.state.name()) };
+    assert_eq!(run.position, Some(PositionChoice::Manual(p)), "nicht in den Platzhalter");
+}

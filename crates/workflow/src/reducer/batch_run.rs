@@ -89,7 +89,9 @@ pub(super) fn apply_plan(
 }
 
 /// Plan aus dem Bearbeitungszustand („Zurück zum Stapel“): unsichtbar, QR, Feld, frei verschoben; eine
-/// automatische freie Lage ergibt keinen Plan (beim Signieren gilt dann die PDF-AS-Regel).
+/// automatische freie Lage ergibt keinen Plan (beim Signieren gilt dann die PDF-AS-Regel) – außer die
+/// Nutzerin hat einen vorhandenen QR-Platzhalter abgewählt („Frei platzieren“): dann gilt die gezeigte Lage,
+/// sonst signierte der Lauf doch in den Platzhalter (Vorschau = Ergebnis).
 fn plan_of(
     edit: &WorkspaceEdit,
     placement: Option<Placement>,
@@ -102,7 +104,7 @@ fn plan_of(
     match edit.target {
         Target::Qr => edit.qr.clone().map(PositionChoice::Placeholder),
         Target::Field(i) => edit.fields.get(i).cloned().map(PositionChoice::Field),
-        Target::Free if edit.origin == PlacementOrigin::Auto => None,
+        Target::Free if edit.origin == PlacementOrigin::Auto && edit.qr.is_none() => None,
         Target::Free => match workspace_position(edit, placement, new_page, doc) {
             Some(PositionChoice::Auto) | None => None,
             plan => plan,
@@ -282,6 +284,19 @@ fn queue_and_doc(state: State) -> (Queue, DocId) {
 // Globale Ereignisse mit Stapel
 // ------------------------------------------------------------------------------------------------
 
+/// Automatischer Plan nach der Voranalyse und den **aktuellen** Einstellungen: der QR-Platzhalter (nur mit
+/// Platzhaltersuche, `kind = marker`, nicht mit unsichtbarem Profil), sonst keiner (PDF-AS-Regel).
+fn automatic_plan(summary: Option<&DocSummary>, ctx: &Context) -> Option<PositionChoice> {
+    let qr_allowed = ctx.placeholder_search && !ctx.placeholder_fields && !ctx.invisible;
+    summary.and_then(|s| s.placeholder.clone()).filter(|_| qr_allowed).map(PositionChoice::Placeholder)
+}
+
+/// Folgt der Plan den Einstellungen? Ohne Plan bzw. mit QR-Platzhalter (den nur die Platzhaltersuche
+/// liefert) ja; verschoben, Feld oder unsichtbar hat die Nutzerin gewählt – das bleibt.
+fn follows_settings(plan: Option<&PositionChoice>) -> bool {
+    matches!(plan, None | Some(PositionChoice::Placeholder(_) | PositionChoice::Auto))
+}
+
 /// Ergebnis der Voranalyse in den Eintrag übernehmen (jeder Zustand mit Stapel).
 pub(super) fn preanalyzed(
     mut state: State,
@@ -294,11 +309,10 @@ pub(super) fn preanalyzed(
         let waiting = item.status == BatchItemStatus::Analyzing;
         match result {
             Ok(summary) => {
-                let qr = summary.placeholder.clone().filter(|_| !ctx.invisible);
                 item.summary = Some(summary);
                 if waiting {
-                    if item.plan.is_none() {
-                        item.plan = qr.map(PositionChoice::Placeholder);
+                    if follows_settings(item.plan.as_ref()) {
+                        item.plan = automatic_plan(item.summary.as_ref(), ctx);
                     }
                     item.settle();
                 }
@@ -308,6 +322,24 @@ pub(super) fn preanalyzed(
         }
     }
     Transition::stay(state)
+}
+
+/// Einstellungen geändert (Platzhaltersuche, Profil „unsichtbar“; ADR 0004 §3.11 „sofort wirksam“):
+/// automatische Pläne der wartenden Einträge folgen den neuen Einstellungen (QR-Platzhalter an bzw. aus),
+/// Pläne der Nutzerin bleiben. Im Lauf entscheidet die Analyse des Laufs.
+pub(super) fn settings_changed(state: &mut State, ctx: &Context) {
+    if matches!(state, State::BatchSigning { .. }) {
+        return;
+    }
+    let Some(batch) = state.queue_mut().and_then(|q| q.batch.as_mut()) else { return };
+    for item in &mut batch.items {
+        if matches!(item.status, BatchItemStatus::Ready | BatchItemStatus::Positioned)
+            && follows_settings(item.plan.as_ref())
+        {
+            item.plan = automatic_plan(item.summary.as_ref(), ctx);
+            item.settle();
+        }
+    }
 }
 
 /// Dateien hinzugefügt (Stapelmodus): ab zwei Dokumenten die Übersicht; mit Stapel neue Einträge (nie in
@@ -683,17 +715,20 @@ impl Lauf<'_> {
                 self.run.pause = Some(BatchPause::Session { doc, error, new_session: false, resume });
                 self.stay()
             }
-            _ => {
-                // Sitzung unbrauchbar (bzw. gar nicht geöffnet): schließen, „Erneut versuchen“ öffnet neu
-                self.effects.push(Effect::ReleaseDocument);
-                self.close_session();
-                let doc = self.doc_started();
-                self.run.phase = BatchPhase::OpeningSession;
-                self.run.pause =
-                    Some(BatchPause::Session { doc, error, new_session: true, resume: BatchPhase::OpeningSession });
-                self.stay()
-            }
+            _ => self.session_failed(error),
         }
+    }
+
+    /// Sitzung unbrauchbar (bzw. gar nicht geöffnet): schließen, Pause; „Erneut versuchen“ öffnet eine neue
+    /// Sitzung (A1) und macht beim aktuellen Dokument weiter.
+    fn session_failed(mut self, error: WorkflowError) -> Transition {
+        self.effects.push(Effect::ReleaseDocument);
+        self.close_session();
+        let doc = self.doc_started();
+        self.run.phase = BatchPhase::OpeningSession;
+        self.run.pause =
+            Some(BatchPause::Session { doc, error, new_session: true, resume: BatchPhase::OpeningSession });
+        self.stay()
     }
 
     /// „Stapel abbrechen“: Sitzung abbrechen (F-72: Passwort gelöscht), aktuelles `Cancelled`, wartende
@@ -763,7 +798,11 @@ impl Lauf<'_> {
             }
             _ => PositionChoice::Auto,
         };
-        let position = item.and_then(|i| i.plan).unwrap_or(automatic);
+        // ein unsichtbares Profil erzwingt „unsichtbar“ – auch gegen einen Plan aus der Übersicht bzw. dem
+        // Arbeitsbereich, der vor dem Wechsel des Profils entstand (wie `settings_changed` im Arbeitsbereich);
+        // ein automatischer Plan (QR-Platzhalter der Voranalyse) folgt den aktuellen Einstellungen
+        let plan = item.and_then(|i| i.plan).filter(|p| !follows_settings(Some(p)));
+        let position = if ctx.invisible { PositionChoice::Invisible } else { plan.unwrap_or(automatic) };
         let new_visible =
             matches!(position, PositionChoice::Manual(_) | PositionChoice::Auto | PositionChoice::Placeholder(_));
         if new_visible && !facts.new_visible_field_allowed {
@@ -944,6 +983,12 @@ pub(super) fn signing(state: State, event: Event, ctx: &Context) -> Transition {
         }
         Event::BackendFailed(e) => l.backend_failed(e),
         Event::SigningDeclined if l.run.skipping => l.skip_done(None),
+        Event::SigningDeclined if !l.run.session_open => {
+            // beim Öffnen abgelehnt (z. B. Anmeldung bzw. Entsperren abgebrochen): es gibt keine Sitzung, in
+            // der „Erneut anfordern“ weitermachen könnte – „Erneut versuchen“ öffnet eine neue (A1)
+            let error = WorkflowError::Backend { code: MSG_SIGNING_DECLINED.into(), detail: String::new() };
+            l.session_failed(error)
+        }
         Event::SigningDeclined => {
             // in der App abgelehnt bzw. abgelaufen: nie automatisch weiter; Zugangsdaten bleiben (§8 F10)
             let error = WorkflowError::Backend { code: MSG_SIGNING_DECLINED.into(), detail: String::new() };

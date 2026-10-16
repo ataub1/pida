@@ -22,8 +22,8 @@ use async_trait::async_trait;
 use common::*;
 use pida_backend_api::{
     BackendError, BackendEvent, BackendId, BackendSession, Capabilities, CertChain, Environment, FormAnswer,
-    FormContext, InteractionBroker, InteractionError, NativeForm, SessionContext, SignJob, SignResult,
-    SignatureBackend,
+    FormContext, InteractionBroker, InteractionError, NativeForm, Notice, NoticeAnswer, NoticeButtons, NoticeCode,
+    NoticeKind, SessionContext, SignJob, SignResult, SignatureBackend,
 };
 use pida_backend_keystore::LoadedKey;
 use pida_cades::{CmsProfile, DigestAlg, RawSigner, SigningTime};
@@ -68,6 +68,8 @@ struct Atrust {
     failures: Mutex<HashMap<usize, BackendError>>,
     /// je Auftrag: Dokumentname und Vergleichswert der Bestätigung
     confirmations: Mutex<Vec<(String, String)>>,
+    /// Meldung mit „Wiederholen“/„Abbrechen“ im nächsten Auftrag („Abbrechen“ → `Cancelled`)
+    notice: Mutex<Option<NoticeCode>>,
 }
 
 impl Atrust {
@@ -81,6 +83,7 @@ impl Atrust {
             signs: AtomicUsize::new(0),
             failures: Mutex::new(failures.into_iter().collect()),
             confirmations: Mutex::new(Vec::new()),
+            notice: Mutex::new(None),
         })
     }
 
@@ -161,6 +164,13 @@ impl BackendSession for AtrustFakeSession {
         let failure = self.backend.failures.lock().unwrap().remove(&n);
         if let Some(e) = failure {
             return Err(e);
+        }
+        let notice = self.backend.notice.lock().unwrap().take();
+        if let Some(code) = notice {
+            let notice = Notice { kind: NoticeKind::Error, code, text: None, buttons: NoticeButtons::RetryCancel };
+            if self.ui.notice(notice).await.map_err(interaction)? == NoticeAnswer::Cancel {
+                return Err(BackendError::Cancelled);
+            }
         }
         let mut out = Vec::new();
         for job in jobs {
@@ -837,6 +847,134 @@ async fn existing_targets_keep_both_skip_and_folder_choice() {
     let v = overview_ready(&core, 2).await;
     assert_eq!((batch(&v).output.mode, batch(&v).output.needs_folder), (OutputModeView::NextToSource, false));
     assert_eq!(batch(&v).output.folder_display.as_deref(), Some(fx.dir("in").display().to_string().as_str()));
+}
+
+/// „Überschreiben“ ersetzt Dateien, die es vor dem Stapel gab – nie das Ergebnis eines anderen Eintrags
+/// desselben Stapels (gleicher Dateiname aus verschiedenen Ordnern): das zweite landet daneben.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn overwrite_never_replaces_a_result_of_the_same_batch() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    std::fs::write(out.join("a_signed.pdf"), b"alt").unwrap();
+    let one = copy_pdf(PDF, &fx.dir("eins"), "a.pdf");
+    let two = copy_pdf(TEXT_PDF, &fx.dir("zwei"), "a.pdf");
+    let core = start(&fx, keystore_overlay(vec![one, two], &out), fake(None)).unwrap();
+    let v = overview_ready(&core, 2).await;
+    start_batch(&core, &v, BackendId::Keystore, ExistingPolicy::Overwrite, None);
+    let v = summary(&core).await;
+    assert_eq!(batch(&v).summary.as_ref().unwrap().signed, 2);
+    let paths: Vec<PathBuf> = batch(&v)
+        .items
+        .iter()
+        .filter_map(|i| match &i.status {
+            BatchItemStatusView::Signed { path } => Some(path.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(paths, vec![out.join("a_signed.pdf"), out.join("a_signed (2).pdf")], "beide Ergebnisse bleiben");
+    assert_ne!(std::fs::read(out.join("a_signed.pdf")).unwrap(), b"alt", "vorhandene Datei ersetzt");
+    assert_ne!(std::fs::read(&paths[0]).unwrap(), std::fs::read(&paths[1]).unwrap());
+}
+
+/// „Abbrechen“ in einer Meldung im Lauf: nur eine A-Trust-Fehlerseite gilt als Ablehnung (Pause des Dokuments,
+/// Zugangsdaten bleiben); jede andere Meldung (HTTP, Proxy, Keystore …) ist ein eigener Abbruch – wie „Stapel
+/// abbrechen“ (F-72), nie „in der App abgelehnt“ (ADR 0004 §3.6, §3.8).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn cancel_in_a_notice_during_the_run_is_declined_only_for_atrust_error_pages() {
+    for (code, declined) in [(NoticeCode::AtrustError, true), (NoticeCode::Http { status: 502 }, false)] {
+        let fx = Fixture::new();
+        let atrust = Atrust::new(vec![]);
+        *atrust.notice.lock().unwrap() = Some(code.clone());
+        let files = inputs(&fx, &["a.pdf", "b.pdf"]);
+        let core = start(&fx, overlay(files, &fx.dir("out")), fake(atrust.backends())).unwrap();
+        let v = overview_ready(&core, 2).await;
+        start_batch(&core, &v, BackendId::AtrustNative, ExistingPolicy::KeepBoth, None);
+        login(&core).await;
+        let v = wait_for(&core, "Meldung", |v| {
+            matches!(&v.step, StepView::Signing { interaction: InteractionView::Notice { .. }, .. })
+        })
+        .await;
+        let StepView::Signing { interaction: InteractionView::Notice { request, .. }, .. } = v.step else {
+            unreachable!()
+        };
+        core.dispatch(UiEvent::AnswerNotice { request, answer: NoticeAnswer::Cancel });
+        if declined {
+            let v = paused(&core, PauseScope::Document).await;
+            assert_eq!(progress(&v).unwrap().pause.as_ref().unwrap().code, "ng-signing-declined");
+            assert_eq!(atrust.n(&atrust.cancelled), 0, "{code:?}: Zugangsdaten bleiben bis zur Entscheidung");
+        } else {
+            let v = summary(&core).await;
+            assert!(v.notices.iter().any(|n| n.code == "ng-batch-aborted"), "{code:?}: eigener Abbruch");
+            assert!(!v.notices.iter().any(|n| n.code == "ng-signing-declined"));
+            assert_eq!(item_status(&v, "a.pdf"), BatchItemStatusView::Cancelled);
+            assert_eq!(item_status(&v, "b.pdf"), BatchItemStatusView::Ready);
+        }
+    }
+}
+
+/// Die Schätzung „0 Anmeldungen“ für den Keystore liest den Schlüsselbund nicht bei jeder Projektion (eine
+/// Rückfrage des Systems je Zugriff bzw. ein gesperrter Schlüsselbund unter Linux wären die Folge), sondern
+/// einmal – erneut erst nach einer Änderung der Einstellungen bzw. nach einem Lauf.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn estimate_reads_the_keychain_once() {
+    let fx = Fixture::new();
+    let keystore = testdata("keystores/test-rsa2048.p12");
+    fx.write_settings(&format!("[keystore]\nenabled = true\nfile = {keystore:?}\npassword_storage = \"keychain\"\n"));
+    let store = Arc::new(CountingSecrets::default());
+    pida_config::SecretStore::set(&store.inner, &pida_config::SecretId::keystore_store(&keystore), "test").unwrap();
+    let mut cfg = fx.config(overlay(inputs(&fx, &["a.pdf", "b.pdf"]), &fx.dir("out")), false);
+    cfg.pdfium_dir = None;
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        batch_overview: Some(true),
+        engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
+        secret_store: Some(store.clone() as Arc<dyn pida_config::SecretStore>),
+        ..CoreOptions::isolated()
+    };
+    let core = Core::new_with(cfg, opts).unwrap();
+    overview_ready(&core, 2).await;
+    select(&core, BackendId::Keystore);
+    let v = wait_for(&core, "Schätzung", |v| v.batch.as_ref().is_some_and(|b| b.estimate.is_some())).await;
+    assert_eq!(batch(&v).estimate.as_ref().unwrap().logins, 0, "Passwort im Schlüsselbund");
+    let before = store.keystore_reads();
+    // viele Projektionen über mehr als die kurze Gültigkeit (2 s) der übrigen Abfragen
+    for _ in 0..50 {
+        core.dispatch(UiEvent::SelectSigner { backend: Some(BackendId::Keystore), make_default: false });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let _ = core.view();
+    assert!(store.keystore_reads() <= before + 1, "{} Zugriffe", store.keystore_reads() - before);
+}
+
+/// Schlüsselbund, der Lesezugriffe auf Keystore-Passwörter zählt.
+#[derive(Debug, Default)]
+struct CountingSecrets {
+    inner: pida_config::MemorySecretStore,
+    reads: AtomicUsize,
+}
+
+impl CountingSecrets {
+    fn keystore_reads(&self) -> usize {
+        self.reads.load(Ordering::SeqCst)
+    }
+}
+
+impl pida_config::SecretStore for CountingSecrets {
+    fn get(&self, id: &pida_config::SecretId) -> pida_config::Result<Option<Zeroizing<String>>> {
+        if matches!(id, pida_config::SecretId::KeystoreStorePassword { .. }) {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+        }
+        pida_config::SecretStore::get(&self.inner, id)
+    }
+    fn set(&self, id: &pida_config::SecretId, value: &str) -> pida_config::Result<()> {
+        pida_config::SecretStore::set(&self.inner, id, value)
+    }
+    fn delete(&self, id: &pida_config::SecretId) -> pida_config::Result<()> {
+        pida_config::SecretStore::delete(&self.inner, id)
+    }
+    fn is_persistent(&self) -> bool {
+        true
+    }
 }
 
 impl Opts {

@@ -1161,7 +1161,8 @@ pub enum Event {
     BatchAbort,
     /// Ausgabeziel eines Stapeldokuments (`Effect::DecideBatchOutput`): `path` nach F-81/F-82 und der
     /// Regel für vorhandene Dateien („Beide behalten“: erste freie Nummer), `exists` = das Ziel nach F-81
-    /// existierte bereits
+    /// existierte bereits (`false`, wenn „Überschreiben“ ein Ergebnis desselben Stapels träfe – dann ist
+    /// `path` wie bei „Beide behalten“ frei)
     BatchOutputDecided {
         /// Dokument
         doc: DocId,

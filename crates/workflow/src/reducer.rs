@@ -611,13 +611,17 @@ fn settings_changed(state: State, ctx: &Context) -> Transition {
         _ => Vec::new(),
     };
     // Arbeitsbereich: unsichtbares Profil erzwingt „unsichtbar“
-    let state = match state {
+    let mut state = match state {
         State::Positioning { queue, page, placement, new_page, doc, edit: Some(mut edit) } => {
             edit.invisible |= ctx.invisible;
             State::Positioning { queue, page, placement, new_page, doc, edit: Some(edit) }
         }
         other => other,
     };
+    // Stapel: automatische Pläne der Einträge folgen den Einstellungen (ADR 0004 §3.8, §3.11)
+    if ctx.batch() {
+        batch_run::settings_changed(&mut state, ctx);
+    }
     Transition::with(state, effects)
 }
 

@@ -483,6 +483,8 @@ impl CoreTask {
         self.ctx.workspace = self.ws.enabled;
         self.ctx.cli_auto = self.ws.enabled && self.ws.cli_auto;
         self.ctx.batch_overview = self.ws.enabled && self.batch_overview && !self.ws.cli_auto;
+        // Einstellungen geändert: Ausgabeordner, Keystore-Passwort, Zertifikats-Cache neu abfragen
+        self.probe.clear();
     }
 
     /// Folgeereignis eines Effekts in Reihenfolge (nach dem laufenden Reducer-Schritt).
@@ -1053,12 +1055,13 @@ impl CoreTask {
             let was_error = matches!(self.state, State::Error { .. });
             let was_running = matches!(self.state, State::BatchSigning { .. });
             self.state = t.state;
-            // „Jedes Mal fragen“: die Auswahl gilt nur bis zum Ende des Stapellaufs (§8 F12)
-            if was_running
-                && !matches!(self.state, State::BatchSigning { .. })
-                && self.cfg.effective().default_backend().is_none()
-            {
-                self.ws.selection = None;
+            if was_running && !matches!(self.state, State::BatchSigning { .. }) {
+                // „Jedes Mal fragen“: die Auswahl gilt nur bis zum Ende des Stapellaufs (§8 F12)
+                if self.cfg.effective().default_backend().is_none() {
+                    self.ws.selection = None;
+                }
+                // Zieldateien, gemerkte Passwörter und Zertifikats-Cache können sich im Lauf geändert haben
+                self.probe.clear();
             }
             tracing::debug!(state = self.state.name(), effects = t.effects.len(), "Übergang");
             match (&self.state, was_error) {
@@ -2035,7 +2038,7 @@ impl CoreTask {
                 // bzw. Zeitablauf (ADR 0004 §3.6); sonst hieße es beim Keystore „In der App abgelehnt“
                 if self.ws.enabled
                     && answer == pida_backend_api::NoticeAnswer::Cancel
-                    && matches!(self.state, State::Signing { .. })
+                    && matches!(self.state, State::Signing { .. } | State::BatchSigning { .. })
                     && matches!(
                         self.shared.broker.current(),
                         InteractionView::Notice { request: r, notice } if r == request
@@ -2176,12 +2179,9 @@ impl CoreTask {
             UiEvent::StartBatch { backend, docs, output_dir, on_existing } if self.ctx.batch() => {
                 self.start_batch(backend, docs, output_dir, on_existing);
             }
-            UiEvent::SkipBatchDocument if self.ctx.batch() => {
-                if matches!(self.state, State::BatchSigning { .. }) {
-                    self.ws.own_cancel = true;
-                }
-                self.apply(Event::BatchSkip);
-            }
+            // eigener Abbruch des Auftrags: `Effect::SkipCurrentJob` setzt `own_cancel` – nur, wenn der Reducer
+            // tatsächlich etwas abbricht (ohne begonnenes Dokument bleibt ein späteres `Cancelled` eine Ablehnung)
+            UiEvent::SkipBatchDocument if self.ctx.batch() => self.apply(Event::BatchSkip),
             UiEvent::AbortBatch if self.ctx.batch() => {
                 if matches!(self.state, State::BatchSigning { .. }) {
                     self.ws.own_cancel = true;

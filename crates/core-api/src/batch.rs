@@ -165,6 +165,15 @@ pub(crate) fn batch_target(
     }
 }
 
+/// Ist `path` das Ergebnis eines Eintrags dieses Stapels (im Lauf bzw. einzeln aus der Übersicht signiert)?
+fn written_by_batch(queue: &Queue, path: &Path) -> bool {
+    queue
+        .batch
+        .iter()
+        .flat_map(|b| b.items.iter())
+        .any(|i| matches!(&i.status, BatchItemStatus::Signed { output } if output.path == path))
+}
+
 /// Ziel nach F-81/F-82 im Ordner `folder` (ohne Ordner bzw. Speichern-Dialog: neben der Quelle).
 fn target_path(input: &Path, folder: Option<&Path>, postfix: &str) -> PathBuf {
     match decide_output(input, folder, postfix, &FsProbe) {
@@ -173,27 +182,44 @@ fn target_path(input: &Path, folder: Option<&Path>, postfix: &str) -> PathBuf {
     }
 }
 
+/// Gültigkeit der Abfrage „gemerktes Passwort“ (Schätzung): sie liest den Schlüsselbund – das darf nicht bei
+/// jeder Projektion geschehen (Rückfrage des Systems je Zugriff, gesperrter Schlüsselbund unter Linux). Neu
+/// gefragt wird nach einer Änderung der Einstellungen und nach jedem Lauf ([`ProbeCache::clear`]).
+pub(crate) const SECRET_PROBE_TTL: Duration = Duration::from_secs(600);
+
 /// Kleiner Zeit-Cache für Abfragen der Projektion (Dateisystem, Schlüsselbund, Zertifikats-Cache).
 #[derive(Debug, Default)]
 pub(crate) struct ProbeCache {
+    /// Wert und Ablauf
     entries: Mutex<HashMap<String, (bool, Instant)>>,
 }
 
 impl ProbeCache {
+    /// Gecachte Abfrage (kurze Gültigkeit, [`PROBE_TTL`]).
     pub(crate) fn get(&self, key: String, probe: impl FnOnce() -> bool) -> bool {
+        self.get_for(key, PROBE_TTL, probe)
+    }
+
+    /// Gecachte Abfrage mit eigener Gültigkeit.
+    pub(crate) fn get_for(&self, key: String, ttl: Duration, probe: impl FnOnce() -> bool) -> bool {
         let mut entries = self.entries.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let now = Instant::now();
-        if let Some((value, at)) = entries.get(&key)
-            && now.duration_since(*at) < PROBE_TTL
+        if let Some((value, until)) = entries.get(&key)
+            && now < *until
         {
             return *value;
         }
         let value = probe();
         if entries.len() > 512 {
-            entries.retain(|_, (_, at)| now.duration_since(*at) < PROBE_TTL);
+            entries.retain(|_, (_, until)| now < *until);
         }
-        entries.insert(key, (value, now));
+        entries.insert(key, (value, now + ttl));
         value
+    }
+
+    /// Alles neu abfragen (Einstellungen geändert, Lauf beendet).
+    pub(crate) fn clear(&self) {
+        self.entries.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear();
     }
 }
 
@@ -231,9 +257,19 @@ impl crate::runtime::CoreTask {
 
     /// `Effect::DecideBatchOutput`: Ziel des Dokuments bestimmen.
     pub(crate) fn effect_decide_batch_output(&mut self, doc: DocId, output: &BatchOutput, on_existing: ExistingPolicy) {
-        let Some(input) = self.state.queue().and_then(|q| q.find(doc)).map(|d| d.path.clone()) else { return };
+        let Some(queue) = self.state.queue() else { return };
+        let Some(input) = queue.find(doc).map(|d| d.path.clone()) else { return };
         let folder = self.batch_folder(output, true);
-        let (path, exists) = batch_target(&input, folder.as_deref(), &self.cfg.settings.output.postfix, on_existing);
+        let postfix = &self.cfg.settings.output.postfix;
+        // „Überschreiben“ gilt für Dateien, die es vor dem Stapel gab – nie für ein Ergebnis dieses Stapels
+        // (gleicher Dateiname aus verschiedenen Ordnern): dann „Beide behalten“, das Ziel ist frei
+        let (path, exists) = if on_existing == ExistingPolicy::Overwrite
+            && written_by_batch(queue, &target_path(&input, folder.as_deref(), postfix))
+        {
+            (batch_target(&input, folder.as_deref(), postfix, ExistingPolicy::KeepBoth).0, false)
+        } else {
+            batch_target(&input, folder.as_deref(), postfix, on_existing)
+        };
         self.apply_later(pida_workflow::Event::BatchOutputDecided { doc, path, exists });
     }
 
@@ -361,12 +397,15 @@ impl crate::runtime::CoreTask {
     }
 
     fn position_summary(&self, item: &BatchItem) -> PositionSummaryView {
+        if self.ctx.invisible {
+            // unsichtbares Profil: der Lauf signiert jeden Eintrag unsichtbar (auch mit Plan)
+            return PositionSummaryView::Invisible;
+        }
         match &item.plan {
             Some(PositionChoice::Manual(p)) => PositionSummaryView::Manual { page: p.page_index },
             Some(PositionChoice::Field(f)) => PositionSummaryView::Field { name: f.qualified_name.clone() },
             Some(PositionChoice::Placeholder(_)) => PositionSummaryView::Qr,
             Some(PositionChoice::Invisible) => PositionSummaryView::Invisible,
-            Some(PositionChoice::Auto) | None if self.ctx.invisible => PositionSummaryView::Invisible,
             Some(PositionChoice::Auto) | None => PositionSummaryView::Auto,
         }
     }
@@ -376,8 +415,11 @@ impl crate::runtime::CoreTask {
         let backend = self.signers_view().selected?;
         let caps = self.ws.signer_options.iter().find(|o| o.id == backend).and_then(|o| o.capabilities.clone());
         let documents = u32::try_from(batch.signable()).unwrap_or(u32::MAX);
-        let logins =
-            self.probe.get(format!("logins:{}", backend.as_str()), || self.registry.expected_logins(backend) > 0);
+        // nur der Keystore liest dafür den Schlüsselbund (ID Austria: „Merken“-Speicher im Speicher)
+        let ttl = if backend == BackendId::Keystore { SECRET_PROBE_TTL } else { PROBE_TTL };
+        let logins = self
+            .probe
+            .get_for(format!("logins:{}", backend.as_str()), ttl, || self.registry.expected_logins(backend) > 0);
         let confirmations = match &caps {
             Some(c) if c.max_batch == 1 => documents,
             Some(_) => 0,
