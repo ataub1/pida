@@ -1114,6 +1114,42 @@ async fn resume_of_a_parked_batch_document_shows_the_overview_with_its_plan() {
     assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
 }
 
+/// Das für einen geöffneten Eintrag gewählte Signiermittel (Konto-Chip; „Jedes Mal fragen“: gilt für dieses
+/// Dokument, §8 F12) geht auf dem Weg Dokument → Startseite → Übersicht nicht verloren: erneut geöffnet ist es
+/// wieder gewählt, „Unsichtbar signieren“ wieder Plan (Nachtrag 13). Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn signer_choice_of_a_parked_entry_survives_the_overview() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(inputs(&fx, &["a.pdf", "b.pdf"]), &out), fake(atrust.backends())).unwrap();
+    let v = overview_ready(&core, 2).await;
+    assert_eq!(v.signers.default, None, "„Jedes Mal fragen“");
+    let b = doc_of(&v, "b.pdf");
+    let editing = move |v: &ViewState| {
+        v.document.as_ref().is_some_and(|d| d.doc.id == b && d.phase == pida_core_api::DocumentPhase::Editing)
+    };
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    wait_for(&core, "Arbeitsbereich b", editing).await;
+    select(&core, BackendId::AtrustNative);
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "gewählt", |v| {
+        v.signers.selected == Some(BackendId::AtrustNative) && v.document.as_ref().is_some_and(|d| d.invisible)
+    })
+    .await;
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    core.dispatch(UiEvent::ResumeParked);
+    let v = wait_for(&core, "Übersicht", |v| matches!(v.step, StepView::Batch) && v.parked.is_none()).await;
+    let item = batch(&v).items.iter().find(|i| i.doc == b).unwrap();
+    assert_eq!(item.position, PositionSummaryView::Invisible);
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    let v = wait_for(&core, "b erneut", editing).await;
+    assert_eq!(v.signers.selected, Some(BackendId::AtrustNative), "Wahl für dieses Dokument bleibt");
+    assert!(v.document.unwrap().invisible, "Plan des Eintrags");
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
 // ------------------------------------------------------------------------------------------------
 // Punkt 7: vorhandene Zieldateien, Ordnerwahl
 // ------------------------------------------------------------------------------------------------

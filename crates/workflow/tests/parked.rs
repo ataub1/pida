@@ -65,11 +65,15 @@ fn placed_by_hand(id: u64) -> (State, Placement) {
 
 /// Übersicht mit `ids`, alle voranalysiert (`Ready`).
 fn overview(ids: &[u64]) -> State {
-    let t =
-        step(State::Idle { queue: Queue::default() }, Event::FilesAdded(ids.iter().map(|i| doc(*i)).collect()), &ctx());
+    overview_in(ids, &ctx())
+}
+
+/// Wie [`overview`] mit eigenem Kontext (z. B. Platzhaltersuche).
+fn overview_in(ids: &[u64], c: &Context) -> State {
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(ids.iter().map(|i| doc(*i)).collect()), c);
     let mut s = t.state;
     for id in ids {
-        s = step(s, Event::Preanalyzed { doc: DocId(*id), result: Ok(summary(Vec::new())) }, &ctx()).state;
+        s = step(s, Event::Preanalyzed { doc: DocId(*id), result: Ok(summary(Vec::new())) }, c).state;
     }
     assert!(matches!(s, State::BatchOverview { .. }), "{}", s.name());
     s
@@ -589,6 +593,113 @@ fn resumes_to_overview_only_for_batches() {
     let single = Context { workspace: true, ..Context::default() };
     assert!(!positioning(&[1, 2]).resumes_to_overview(&single));
     assert!(!State::Idle { queue: Queue::default() }.resumes_to_overview(&c));
+}
+
+/// Eintrag 1 einer Übersicht aus 1 und 2 öffnen; `analysis` = Ergebnis seiner Analyse (Felder, QR-Platzhalter).
+fn open_entry_with(c: &Context, analysis: &Event) -> State {
+    let s = step(overview_in(&[1, 2], c), Event::BatchItemOpened(DocId(1)), c).state;
+    let s = step(s, analysis.clone(), c).state;
+    assert!(matches!(s, State::Positioning { .. }) && s.opened_from_batch(), "{}", s.name());
+    s
+}
+
+/// Dokument → Startseite → „Weiter bearbeiten“ (Übersicht, genau wie „Zurück zum Stapel“) → Eintrag erneut
+/// geöffnet: Übersicht und erneut geöffneter Arbeitsbereich.
+fn roundtrip(s: State, analysis: &Event, c: &Context) -> (State, State) {
+    let parked = step(s.clone(), Event::WentHome, c).state;
+    assert!(parked.parked());
+    let t = step(parked, Event::ParkedResumed, c);
+    assert!(matches!(t.state, State::BatchOverview { .. }) && !t.state.parked(), "{}", t.state.name());
+    assert_eq!(t, step(s, Event::BackToBatch, c), "wie „Zurück zum Stapel“");
+    assert_eq!(opens(&t.effects), 0);
+    let again = step(t.state.clone(), Event::BatchItemOpened(DocId(1)), c).state;
+    let again = step(again, analysis.clone(), c).state;
+    assert!(matches!(again, State::Positioning { .. }), "{}", again.name());
+    (t.state, again)
+}
+
+fn edit_of(s: &State) -> &pida_workflow::WorkspaceEdit {
+    match s {
+        State::Positioning { edit: Some(e), .. } => e,
+        other => panic!("{}", other.name()),
+    }
+}
+
+/// Nichts geht auf dem Weg Dokument → Startseite → Übersicht verloren: Feldziel, eigener QR-Platzhalter, „Auf neuer
+/// Seite“ werden Plan des Eintrags (keine Automatik mehr) und gelten beim erneuten Öffnen wieder; wird das Profil
+/// während des Parkens „unsichtbar“, bleibt die eigene Lage Plan.
+#[test]
+fn resume_keeps_every_choice_of_the_open_entry_as_its_plan() {
+    let c = ctx();
+    let own = |s: &State| !batch_of(s).item(DocId(1)).expect("Eintrag").auto_plan;
+    // Feldziel
+    let mut with_field = analyzed(1, 3, None, false);
+    if let Event::Analyzed { fields, .. } = &mut with_field {
+        fields.push(field("Sig1"));
+    }
+    let s = step(open_entry_with(&c, &with_field), Event::TargetChosen(Target::Field(0)), &c).state;
+    let (overview, again) = roundtrip(s, &with_field, &c);
+    assert_eq!(plan_of(&overview, 1), Some(PositionChoice::Field(field("Sig1"))));
+    assert!(own(&overview));
+    assert_eq!(status_of(&overview, 1), BatchItemStatus::Positioned);
+    assert_eq!(edit_of(&again).target, Target::Field(0), "erneut geöffnet: wieder im Feld");
+    // „Auf neuer Seite“
+    let plain = analyzed(1, 3, None, false);
+    let s = step(open_entry_with(&c, &plain), Event::NewPageToggled, &c).state;
+    assert!(matches!(s, State::Positioning { new_page: true, .. }));
+    let (overview, again) = roundtrip(s, &plain, &c);
+    assert!(matches!(plan_of(&overview, 1), Some(PositionChoice::Manual(p)) if p.page_index == 3), "neue Seite");
+    assert!(own(&overview));
+    assert!(matches!(again, State::Positioning { new_page: true, .. }), "erneut geöffnet: wieder auf neuer Seite");
+    // eigener QR-Platzhalter (Platzhaltersuche „QR-Code-Platzhalter“: „Frei platzieren“, dann wieder der Platzhalter)
+    let qr_ctx = Context { placeholder_search: true, ..ctx() };
+    let with_qr = analyzed(1, 3, Some(pida_workflow::PlaceholderFound::Qr(qr())), false);
+    let s = open_entry_with(&qr_ctx, &with_qr);
+    assert_eq!(edit_of(&s).target, Target::Qr);
+    let s = step(s, Event::TargetChosen(Target::Free), &qr_ctx).state;
+    let s = step(s, Event::TargetChosen(Target::Qr), &qr_ctx).state;
+    let (overview, again) = roundtrip(s, &with_qr, &qr_ctx);
+    assert_eq!(plan_of(&overview, 1), Some(PositionChoice::Placeholder(qr())));
+    assert!(own(&overview));
+    assert_eq!(edit_of(&again).target, Target::Qr);
+    // eigene Lage, während des Parkens wird das Profil „unsichtbar“: die Lage bleibt Plan (das Profil erzwingt im
+    // Lauf ohnehin „unsichtbar“; zurück auf ein sichtbares Profil gilt wieder die Lage)
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(open_entry_with(&c, &plain), Event::PlacementChanged(p), &c).state;
+    let invisible = Context { invisible: true, ..ctx() };
+    let parked = step(home(s).state, Event::SettingsChanged, &invisible).state;
+    assert!(parked.parked() && edit_of(&parked).invisible_by_profile, "{:?}", edit_of(&parked));
+    let t = step(parked, Event::ParkedResumed, &invisible);
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(plan_of(&t.state, 1), Some(PositionChoice::Manual(p)));
+    assert!(own(&t.state));
+}
+
+/// „Schließen“ bzw. „Offene schließen und neu beginnen“ bei einem geparkten Eintrag verwerfen den ganzen Stapel (wie
+/// „Öffnen“), nicht nur das Dokument; nichts startet.
+#[test]
+fn close_or_replace_of_a_parked_entry_closes_the_whole_batch() {
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(opened_entry(overview(&[1, 2, 3]), 2), Event::PlacementChanged(p), &ctx()).state;
+    let parked = home(s).state;
+    let cancelled = |s: &State| {
+        let mut ids: Vec<u64> =
+            s.results().iter().filter(|o| o.result == DocResult::Cancelled).map(|o| o.doc.id.0).collect();
+        ids.sort_unstable();
+        ids
+    };
+    let t = step(parked.clone(), Event::ParkedDiscarded, &ctx());
+    let State::Idle { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert!(queue.is_empty() && queue.batch.is_none() && !queue.parked);
+    assert_eq!(cancelled(&t.state), vec![1, 2, 3]);
+    assert_eq!(t.effects.len(), 3, "alle freigegeben: {:?}", t.effects);
+    assert_eq!(opens(&t.effects), 0);
+    let t = step(parked, Event::DocumentReplaced(vec![doc(4)]), &ctx());
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(4)));
+    assert!(queue.batch.is_none() && !queue.parked && queue.pending.is_empty());
+    assert_eq!(cancelled(&t.state), vec![1, 2, 3]);
+    assert_eq!(opens(&t.effects), 0);
 }
 
 #[test]

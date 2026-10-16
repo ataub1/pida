@@ -423,12 +423,29 @@ impl ShellHooks for RecordingHooks {
         Ok(())
     }
     fn share_path(&self, path: &Path) -> Result<(), String> {
+        // das Share-Sheet braucht hier absichtlich länger als der Export: beide laufen je im Hintergrund
+        // (`spawn_blocking`), ihre Reihenfolge ist nicht festgelegt – der Test darf sich nicht darauf verlassen
+        std::thread::sleep(std::time::Duration::from_millis(150));
         self.shared.lock().unwrap().push(path.to_path_buf());
         Ok(())
     }
     fn export_path(&self, path: &Path, file_name: &str) -> Result<bool, String> {
         self.exported.lock().unwrap().push((path.to_path_buf(), file_name.to_owned()));
         Ok(true)
+    }
+}
+
+/// Wartet, bis die Shell mindestens `n` Aufrufe aufgezeichnet hat (Teilen und Exportieren laufen je im Hintergrund;
+/// der Hinweis „exportiert“ sagt nichts darüber, ob das Teilen schon bei der Shell angekommen ist).
+async fn recorded<T: Clone>(what: &str, calls: &Mutex<Vec<T>>, n: usize) -> Vec<T> {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        let seen = calls.lock().unwrap().clone();
+        if seen.len() >= n {
+            return seen;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "Zeitüberschreitung beim Warten auf {what}");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 }
 
@@ -466,8 +483,11 @@ async fn output_goes_to_app_documents_and_can_be_shared_and_exported() {
     core.dispatch(UiEvent::ShareResult);
     core.dispatch(UiEvent::ExportResult);
     wait_for(&core, "exportiert", |v| v.notices.iter().any(|n| n.code == "ng-export-done")).await;
-    assert_eq!(*hooks.shared.lock().unwrap(), vec![out.clone()]);
-    assert_eq!(*hooks.exported.lock().unwrap(), vec![(out, "a_signed.pdf".to_owned())]);
+    // Teilen und Exportieren laufen unabhängig im Hintergrund: auf beide warten, nicht auf eine Reihenfolge
+    assert_eq!(recorded("Teilen", &hooks.shared, 1).await, vec![out.clone()]);
+    assert_eq!(recorded("Export", &hooks.exported, 1).await, vec![(out, "a_signed.pdf".to_owned())]);
+    let v = core.view();
+    assert!(!v.notices.iter().any(|n| n.code == "ng-share-failed" || n.code == "ng-export-failed"), "{:?}", v.notices);
 }
 
 // ------------------------------------------------------------------------------------------------

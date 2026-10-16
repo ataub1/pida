@@ -2676,10 +2676,15 @@ unverändert; präzisiert werden die Bedeutung von `resume_parked` und `ParkedWo
 6. **Tests:** `crates/workflow/tests/parked.rs` (`resume_of_an_opened_entry_shows_the_overview_with_its_placement`,
    `resume_with_waiting_or_added_documents_shows_the_overview`, `resume_of_a_batch_analysis_warning_shows_the_overview`,
    `unsaved_entry_resumes_to_done_and_saving_returns_to_the_overview`,
-   `join_of_a_parked_entry_shows_the_overview_and_stays_a_batch`, `resumes_to_overview_only_for_batches`),
+   `join_of_a_parked_entry_shows_the_overview_and_stays_a_batch`, `resumes_to_overview_only_for_batches`;
+   nach dem Review: `resume_keeps_every_choice_of_the_open_entry_as_its_plan` – Feldziel, eigener QR-Platzhalter,
+   „Auf neuer Seite“ und eine eigene Lage bei während des Parkens unsichtbarem Profil bleiben Plan und gelten beim
+   erneuten Öffnen wieder –, `close_or_replace_of_a_parked_entry_closes_the_whole_batch`),
    Property-Test `props.rs` (Fortsetzen eines Stapels → Übersicht, nur `Discard`/`Preanalyze`, kein Dokument verloren;
    sonst unverändert), echter Kern `crates/core-api/tests/batch.rs`
-   (`resume_of_a_parked_batch_document_shows_the_overview_with_its_plan`), Proben `batch_entry_parked` und
+   (`resume_of_a_parked_batch_document_shows_the_overview_with_its_plan`,
+   `signer_choice_of_a_parked_entry_survives_the_overview` – das für den Eintrag gewählte Signiermittel und
+   „Unsichtbar signieren“ gelten nach Übersicht und erneutem Öffnen wieder), Proben `batch_entry_parked` und
    `batch_entry_resumed` (`real-core-batch-views.json`, `RealCoreBatch.test.tsx`), Oberfläche mit dem Mock
    `features/start/parked.test.tsx` (geöffneter Eintrag, Dokument mit wartendem, Stapel aus „Zum Stapel hinzufügen“;
    Fokus, axe) und `core/mock/mock.test.ts`.
