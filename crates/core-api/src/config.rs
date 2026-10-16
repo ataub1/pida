@@ -36,6 +36,13 @@ pub(crate) struct ConfigState {
     pub session_secrets: Arc<MemorySecretStore>,
     /// Import-Angebot (`~/.pdf-over/PDF-Over.config`, solange keine `settings.toml` existiert)
     pub migration_offer: Option<PathBuf>,
+    /// Altordner `~/.pdf-over` (erneutes Angebot über Einstellungen › Erweitert, ADR 0004 §3.12)
+    pub legacy_dir: Option<PathBuf>,
+    /// Neuinstallation: beim Start fehlte die Einstellungsdatei (`LoadOutcome::Missing`, ohne `-c`)
+    pub fresh_install: bool,
+    /// Speichern zurückgestellt: Ersteinrichtung mit offenem Übernahmeangebot (die Datei entsteht erst mit
+    /// der Entscheidung, sonst verschwände das Angebot beim nächsten Start; ADR 0004 §3.12)
+    pub defer_save: bool,
 }
 
 impl std::fmt::Debug for ConfigState {
@@ -47,6 +54,8 @@ impl std::fmt::Debug for ConfigState {
             .field("secrets", &self.secrets)
             .field("session_secrets", &self.session_secrets)
             .field("migration_offer", &self.migration_offer.is_some())
+            .field("fresh_install", &self.fresh_install)
+            .field("defer_save", &self.defer_save)
             .finish_non_exhaustive()
     }
 }
@@ -64,6 +73,7 @@ impl ConfigState {
         let session_secrets = Arc::new(MemorySecretStore::default());
         let mut problem = None;
         let mut migration_offer = None;
+        let mut fresh_install = false;
         let (settings, target) = if let Some(name) = overlay.config_file.clone() {
             let source = resolve_config_file(&paths, legacy_dir.as_deref(), &name)?;
             let (settings, report, plain) = load_config_source_with_secrets(&source, Lang::system())?;
@@ -87,6 +97,7 @@ impl ConfigState {
             match Settings::load(&file) {
                 LoadOutcome::Loaded(s) => (*s, Some(file)),
                 LoadOutcome::Missing => {
+                    fresh_install = true;
                     if offer_migration {
                         migration_offer = pida_config::import_offer(&paths, legacy_dir.as_deref());
                     }
@@ -99,7 +110,19 @@ impl ConfigState {
                 }
             }
         };
-        let state = ConfigState { paths, target, settings, overlay, policy, secrets, session_secrets, migration_offer };
+        let state = ConfigState {
+            paths,
+            target,
+            settings,
+            overlay,
+            policy,
+            secrets,
+            session_secrets,
+            migration_offer,
+            legacy_dir,
+            fresh_install,
+            defer_save: false,
+        };
         Ok((state, problem))
     }
 
@@ -112,8 +135,13 @@ impl ConfigState {
         self.target.is_none()
     }
 
-    /// Speichert (nur wenn beschreibbar). Overlay-Werte erreichen nie die Datei.
+    /// Speichert (nur wenn beschreibbar und nicht zurückgestellt, [`Self::defer_save`]). Overlay-Werte
+    /// erreichen nie die Datei.
     pub(crate) fn save(&self) -> Result<(), ConfigError> {
+        if self.defer_save {
+            tracing::debug!("Speichern zurückgestellt (Übernahmeangebot der Ersteinrichtung offen)");
+            return Ok(());
+        }
         match &self.target {
             Some(path) => {
                 if let Some(dir) = path.parent() {

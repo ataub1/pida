@@ -2,7 +2,8 @@
 //! `State::main_bar`. Die UI aktiviert danach Knöpfe, Befehlspalette und Tastenkürzel.
 //!
 //! `start_batch`/`show_batch` setzt der Kern nur mit Stapelübersicht (`batch_overview`, K2:
-//! [`batch_start_allowed`], [`batch_show_allowed`]), `verify` bleibt bis K4 (Prüfmodus) aus. `sign` und
+//! [`batch_start_allowed`], [`batch_show_allowed`]), `verify` in Start, Arbeitsbereich, Fertig und
+//! Stapelübersicht (K4, [`crate::verify::verify_allowed`]). `sign` und
 //! `edit_placement` folgen der Regel aus §3.13 (Positionieren); K1 verfeinert `sign` um „Platzierung
 //! zulässig“.
 
@@ -21,7 +22,7 @@ pub(crate) fn actions_for(state: &State, settings_enabled: bool) -> ActionsView 
         edit_placement: positioning,
         start_batch: false,
         show_batch: false,
-        verify: false,
+        verify: crate::verify::verify_allowed(state),
         settings: settings_enabled,
         home: state.step_enabled(Step::Open),
     }
@@ -113,28 +114,29 @@ mod tests {
             retry: None,
             from: Some(Box::new(positioning.clone())),
         };
-        //                      (Zustand, open_files, sign/edit, home)
-        let table: Vec<(State, bool, bool, bool)> = vec![
-            (State::Starting, false, false, false),
-            (State::Idle { queue: q() }, true, false, true),
-            (State::Analyzing { queue: q() }, true, false, true),
-            (positioning, true, true, true),
-            (signing, false, false, false),
-            (resuming, false, false, true),
-            (output, true, false, true),
-            (error, true, false, false),
-            (State::Finished { exit: ExitCode::Success, results: Vec::new() }, false, false, false),
+        //                      (Zustand, open_files, sign/edit, home, verify)
+        let table: Vec<(State, bool, bool, bool, bool)> = vec![
+            (State::Starting, false, false, false, false),
+            (State::Idle { queue: q() }, true, false, true, true),
+            (State::Analyzing { queue: q() }, true, false, true, false),
+            (positioning, true, true, true, true),
+            (signing, false, false, false, false),
+            (resuming, false, false, true, false),
+            (output, true, false, true, true),
+            (error, true, false, false, false),
+            (State::BatchOverview { queue: q() }, true, false, true, true),
+            (State::Finished { exit: ExitCode::Success, results: Vec::new() }, false, false, false, false),
         ];
-        for (state, open_files, sign, home) in table {
+        for (state, open_files, sign, home, verify) in table {
             let a = actions_for(&state, true);
             assert_eq!(
-                (a.open_files, a.sign, a.edit_placement, a.home),
-                (open_files, sign, sign, home),
+                (a.open_files, a.sign, a.edit_placement, a.home, a.verify),
+                (open_files, sign, sign, home, verify),
                 "{}",
                 state.name()
             );
             assert!(a.settings);
-            assert!(!a.start_batch && !a.show_batch && !a.verify, "erst ab K2/K4: {}", state.name());
+            assert!(!a.start_batch && !a.show_batch, "nur mit Stapelübersicht (core-api): {}", state.name());
             assert!(!actions_for(&state, false).settings);
         }
     }

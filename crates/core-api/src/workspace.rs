@@ -903,7 +903,13 @@ impl crate::runtime::CoreTask {
         let file_name = saved.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let folder_display =
             if mobile { None } else { saved.path.parent().map(|p| p.display().to_string()).filter(|p| !p.is_empty()) };
-        let qualification = caps.map_or(pida_backend_api::Qualification::AdES, |c| c.qualification);
+        // laut qcStatements des Signerzertifikats (K4); die Fähigkeiten des Backends nur, wenn unbekannt
+        let qualification = match info.qualification {
+            pida_backend_api::Qualification::Unknown => {
+                caps.map_or(pida_backend_api::Qualification::AdES, |c| c.qualification)
+            }
+            q => q,
+        };
         Some(SignedSummaryView {
             file_name,
             folder_display,

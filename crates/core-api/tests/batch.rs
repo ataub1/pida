@@ -829,8 +829,10 @@ async fn existing_targets_keep_both_skip_and_folder_choice() {
     assert_ne!(std::fs::read(out.join("a_signed.pdf")).unwrap(), b"alt", "ersetzt");
     drop(core);
 
-    // „jedes Mal fragen“ (kein Ausgabeordner): Ordnerwahl vor dem Start
+    // „jedes Mal fragen“ (kein Ausgabeordner): Ordnerwahl vor dem Start – Bestandsnutzer (Datei ohne
+    // `output.folder`); eine Neuinstallation speichert „neben dem Original“ (ADR 0004 §3.12, §8 F4)
     let fx = Fixture::new();
+    fx.write_settings("[general]\n");
     let mut o = keystore_overlay(inputs(&fx, &["a.pdf", "b.pdf"]), &fx.dir("unused"));
     o.output = None;
     let core = start(&fx, o, fake(None)).unwrap();
@@ -1106,6 +1108,7 @@ fn fixture_state(v: &ViewState, roots: &[(String, &str)]) -> serde_json::Value {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn real_core_batch_views_for_the_ui() {
     let fx = Fixture::new();
+    fx.write_settings("[general]\n"); // Bestandsnutzer: ohne Ersteinrichtung (K4)
     let tmp = fx.tmp.path().to_path_buf();
     let roots: Vec<(String, &str)> = [tmp.clone(), tmp.canonicalize().unwrap_or(tmp)]
         .into_iter()

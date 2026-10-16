@@ -689,6 +689,50 @@ describe('Vertrag ViewState (Rust → TS)', () => {
   });
 });
 
+// K4 (ADR 0004 §6.2 Punkt 4): Zustände des echten Kerns (Prüfmodus, Ersteinrichtung) für die Oberfläche (B4);
+// erzeugt von `PIDA_BLESS=1 cargo test -p pida-core-api --test verify real_core_tools_views`.
+describe('Zustände des echten Kerns passen zum Vertrag', () => {
+  const load = (name: string) => Object.entries(JSON.parse(readFileSync(fixtureUrl(name), 'utf8')) as Record<string, unknown>);
+
+  it.each(['real-core-views.json', 'real-core-batch-views.json', 'real-core-tools-views.json'].flatMap((file) =>
+    load(file).map(([name, view]) => [`${file} ${name}`, view] as const),
+  ))('%s', (_name, view) => {
+    expect(validate(viewState, view)).toEqual([]);
+  });
+
+  it('Prüfmodus und Ersteinrichtung: jede Zusammenfassung, Integrität, QES laut Zertifikat, Lage, Übernahmeliste', () => {
+    const views = load('real-core-tools-views.json').map(([, v]) => v as ViewState);
+    const sigs = views.flatMap((v) => v.verify?.signatures ?? []);
+    const sorted = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => typeof x === 'string'))].sort();
+    expect(sorted(views.map((v) => v.verify?.summary))).toEqual([
+      'all_intact',
+      'modified_after_last_signature',
+      'no_signatures',
+      'some_broken',
+      'some_not_verifiable',
+    ]);
+    expect(sorted(views.map((v) => v.verify?.status.state))).toEqual(['failed', 'ready']);
+    expect(sorted(sigs.map((s) => s.integrity.kind))).toEqual(['broken', 'intact', 'not_verifiable']);
+    expect(sorted(sigs.map((s) => s.coverage.kind))).toEqual(['revision', 'whole_document']);
+    expect(sorted(sigs.map((s) => s.qualification.kind))).toEqual(['not_qualified', 'qualified']);
+    expect(sorted(sigs.flatMap((s) => s.warnings))).toEqual(['ng-verify-warning-sha1', 'ng-verify-warning-signing-certificate-v1']);
+    expect(sigs.some((s) => s.appearance === null)).toBe(true);
+    expect(sigs.every((s) => s.trust === 'not_checked')).toBe(true);
+    const items = views.flatMap((v) => v.first_run?.migration?.items ?? []);
+    expect(items.map((i) => i.code.replace('ng-migration-item-', ''))).toEqual([
+      'block',
+      'emblem',
+      'username',
+      'output',
+      'keystore',
+      'proxy',
+      'placeholder',
+      'language',
+    ]);
+    expect(views.some((v) => v.first_run !== null && v.first_run.migration === null && v.first_run.preview_revision > 0)).toBe(true);
+  });
+});
+
 describe('Vertrag UiEvent (TS → Rust)', () => {
   const samples: UiEvent[] = [...UI_EVENT_SAMPLES, ...UI_EVENT_EXTRA];
 

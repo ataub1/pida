@@ -446,7 +446,7 @@ fn seed_values(src: &SourcePdf, fields: &[SigField]) -> Vec<bool> {
 }
 
 /// Revision, an deren Ende `end` liegt (genau am Offset nach `%%EOF` oder dazwischen).
-fn revision_ending_at(src: &SourcePdf, end: u64) -> Option<usize> {
+pub(crate) fn revision_ending_at(src: &SourcePdf, end: u64) -> Option<usize> {
     let bytes = src.bytes();
     src.revisions().iter().position(|r| {
         if r.end_offset == end {

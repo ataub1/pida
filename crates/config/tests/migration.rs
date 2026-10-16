@@ -377,6 +377,53 @@ fn emblem_checks() {
     assert_eq!(res.settings.signature.emblem, Some(bmp));
 }
 
+/// Entscheidung des Auftraggebers (ADR 0005): übernommen wird nur eine **eigene** Bildmarke. Zeigt
+/// `EMBLEM` auf die Standard-Bildmarke der PDF-AS-Konfiguration (Pfad `cfg/images/…` oder gleicher Inhalt
+/// unter anderem Namen), bleibt `signature.emblem` leer – dann gilt das PIDA-Siegel.
+#[test]
+fn pdfas_default_logo_is_not_an_own_emblem() {
+    let dir = tempfile::tempdir().unwrap();
+    let images = dir.path().join(".pdf-over").join("cfg").join("images");
+    std::fs::create_dir_all(&images).unwrap();
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../sigblock/assets/images");
+    let make =
+        |p: &Path| LegacyConfig::parse(format!("EMBLEM={}\n", java_escape(&p.to_string_lossy())).as_bytes()).unwrap();
+    for name in ["signatur-logo_de.png", "signatur-logo_en.png", "amtsignatur-logo_demo.png"] {
+        let logo = images.join(name);
+        std::fs::copy(assets.join(name), &logo).unwrap();
+        for check in [true, false] {
+            let res = migrate(&make(&logo), &ctx(&dir.path().join(".pdf-over"), check));
+            assert_eq!(res.settings.signature.emblem, None, "{name} (Pfadprüfung {check})");
+            assert_eq!(res.report.emblem, None);
+            assert!(has_message(&res, "ng-migrate-emblem-default") && skipped(&res, LegacyKey::Emblem), "{name}");
+            assert!(!res.report.imported.contains(&LegacyKey::Emblem));
+        }
+        // gleiche Bytes unter eigenem Namen und Ort: am Inhalt erkannt (nur mit Pfadprüfung, sie liest die Datei)
+        let copy = dir.path().join(format!("Kopie von {name}"));
+        std::fs::copy(assets.join(name), &copy).unwrap();
+        let res = migrate(&make(&copy), &ctx(dir.path(), true));
+        assert_eq!(res.settings.signature.emblem, None, "{name} am Inhalt erkannt");
+        assert!(pida_config::is_pdfas_default_logo(&copy, true));
+        assert!(!pida_config::is_pdfas_default_logo(&copy, false));
+    }
+    // fehlendes Original, Cache von PDF-Over enthält die Standard-Bildmarke: ebenfalls nicht übernommen
+    let legacy = dir.path().join("alt");
+    std::fs::create_dir_all(&legacy).unwrap();
+    std::fs::copy(assets.join("signatur-logo_de.png"), legacy.join(".emblem.png")).unwrap();
+    let gone = dir.path().join("geloescht.png");
+    std::fs::write(legacy.join(".emblem.properties"), format!("IMG={}\n", java_escape(&gone.to_string_lossy())))
+        .unwrap();
+    let res = migrate(&make(&gone), &ctx(&legacy, true));
+    assert_eq!(res.settings.signature.emblem, None);
+    assert!(has_message(&res, "ng-migrate-emblem-default"));
+    // eine eigene Bildmarke wird übernommen – auch, wenn sie im Ordner cfg/images liegt
+    let own = images.join("firmenlogo.png");
+    std::fs::copy(fixture("legacy-home/.pdf-over/.emblem.png"), &own).unwrap();
+    let res = migrate(&make(&own), &ctx(dir.path(), true));
+    assert_eq!(res.settings.signature.emblem, Some(own));
+    assert!(!has_message(&res, "ng-migrate-emblem-default"));
+}
+
 #[test]
 fn cfg_dir_helpers() {
     let home = legacy_home();

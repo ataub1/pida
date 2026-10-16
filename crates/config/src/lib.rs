@@ -37,7 +37,7 @@ pub use certcache::{CertCacheKey, CertificateCache};
 pub use legacy::{LegacyConfig, LegacyKey, LegacyNote, LegacyValues, LegacyWarning, normalize_mobile_number};
 pub use migrate::{
     AppliedMigration, ApplyOptions, MigrationContext, MigrationReport, MigrationResult, ReportMessage, apply_migration,
-    import_offer, migrate, undo_migration,
+    find_legacy_config, import_offer, is_pdfas_default_logo, migrate, undo_migration,
 };
 pub use overlay::{Effective, Overlay};
 pub use paths::{HOME_ENV, Paths};

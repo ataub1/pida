@@ -186,7 +186,7 @@ pub struct GeneralSettings {
     /// [`crate::Policy::recent_documents`] kann die Funktion abschalten.
     pub recent_documents: bool,
     /// Ersteinrichtung abgeschlossen (ADR 0004 §3.12). Fehlt der Schlüssel (Bestandsnutzer), gilt `true`;
-    /// fehlt die Einstellungsdatei beim Start mit Oberfläche, setzt der Kern ab K4 `false` bis
+    /// fehlt die Einstellungsdatei beim Start mit Oberfläche (Arbeitsbereich), setzt der Kern `false` bis
     /// „Fertig“/„Später einrichten“.
     pub first_run_completed: bool,
 }

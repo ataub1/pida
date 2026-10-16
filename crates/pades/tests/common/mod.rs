@@ -269,8 +269,13 @@ pub struct KeystoreSigner {
 
 impl KeystoreSigner {
     pub fn open(stem: &str) -> KeystoreSigner {
+        Self::open_p12(&key_p12(stem))
+    }
+
+    /// Wie [`Self::open`] für eine PKCS#12-Datei außerhalb von `testdata/keystores` (Passwort `test`).
+    pub fn open_p12(p12: &Path) -> KeystoreSigner {
         let rt = runtime();
-        let mut cfg = KeystoreConfig::new(key_p12(stem));
+        let mut cfg = KeystoreConfig::new(p12.to_path_buf());
         cfg.store_password = Some(Zeroizing::new("test".into()));
         let backend = KeystoreBackend::new(cfg);
         let broker: Arc<dyn InteractionBroker> = Arc::new(ScriptedBroker::new([]));

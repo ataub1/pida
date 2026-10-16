@@ -67,6 +67,8 @@ pub(crate) enum Msg {
         page: usize,
         grid: Option<Arc<pida_placement::OccupancyGrid>>,
     },
+    /// Prüfmodus: Datei geladen und geprüft (ADR 0004 §3.9; verworfen, wenn inzwischen eine andere geprüft wird)
+    Verified(Box<crate::verify::Verified>),
     /// Voranalyse eines Stapeleintrags fertig (ADR 0004 §3.8) samt Miniatur
     Preanalyzed {
         doc: DocId,
@@ -233,6 +235,9 @@ pub(crate) struct SummaryInfo {
     pub signing_time: String,
     /// Seite des sichtbaren Blocks (`None` = unsichtbar)
     pub page: Option<usize>,
+    /// Qualifikation laut qcStatements des Signerzertifikats (ADR 0004 §3.7/§3.9, K4): QcCompliance und
+    /// QcSSCD → QES, sonst AdES
+    pub qualification: pida_backend_api::Qualification,
 }
 
 impl std::fmt::Debug for SummaryInfo {
@@ -241,8 +246,16 @@ impl std::fmt::Debug for SummaryInfo {
             .field("signer", &self.signer.as_ref().map(|_| "<redigiert>"))
             .field("signing_time", &self.signing_time)
             .field("page", &self.page)
+            .field("qualification", &self.qualification)
             .finish()
     }
+}
+
+/// Qualifikation einer eben erstellten Signatur laut Zertifikat (qcStatements; nicht gegen die
+/// Vertrauensliste geprüft, ADR 0004 §8 F3).
+pub(crate) fn qualification_of(cert: &pida_cades::Certificate) -> pida_backend_api::Qualification {
+    let qc = pida_cades::qc_statements(cert);
+    if qc.compliance && qc.sscd { pida_backend_api::Qualification::Qes } else { pida_backend_api::Qualification::AdES }
 }
 
 /// Meldungs-ID: das Zertifikat aus dem Zertifikats-Cache passt nicht mehr (erneuert, anderes Konto);
@@ -437,6 +450,8 @@ pub(crate) struct CoreTask {
     pub(crate) recent: crate::recent::RecentState,
     /// QR-Platzhaltersuchen (Einstellungen › Dokument, K3)
     qr_searches: QrSearches,
+    /// Prüfmodus (ADR 0004 §3.9, K4)
+    pub(crate) verify: crate::verify::VerifyState,
 }
 
 /// QR-Platzhaltersuchen je Dokument (Einstellungen › Dokument, K3).
@@ -524,7 +539,20 @@ impl CoreTask {
             block_change: None,
             recent: crate::recent::RecentState::new(&paths),
             qr_searches: QrSearches::default(),
+            verify: crate::verify::VerifyState::default(),
         }
+    }
+
+    /// Nächste freie `DocId` (Warteschlange und Prüfdokumente teilen den Zähler).
+    pub(crate) fn allocate_doc_id(&mut self) -> DocId {
+        let id = DocId(self.next_doc);
+        self.next_doc += 1;
+        id
+    }
+
+    /// [`Self::refresh_ctx`] für die Module des Kern-Tasks.
+    pub(crate) fn refresh_ctx_pub(&mut self) {
+        self.refresh_ctx();
     }
 
     /// Reducer-Kontext aus den Einstellungen neu bilden (mit dem Arbeitsbereich-Modus).
@@ -797,24 +825,36 @@ impl CoreTask {
         let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
         // eigene Panik-Grenze: Diese Prüfung läuft nach jedem Ereignis (`guarded`); ein Programmfehler
         // beim Lesen der Altdatei darf das gerade verarbeitete Ereignis nicht verwerfen und sich nicht
-        // bei jedem weiteren Ereignis wiederholen (dann: ohne Rückfrage zu Passwörtern)
+        // bei jedem weiteren Ereignis wiederholen (dann: ohne Rückfrage zu Passwörtern). Probelauf wie beim
+        // Übernehmen (mit Pfadprüfung), nichts wird geschrieben; daraus auch die Übernahmeliste (§3.12).
         let probe = std::panic::catch_unwind(|| {
             pida_config::LegacyConfig::load(&file)
                 .map(|legacy| {
                     let ctx = pida_config::MigrationContext {
                         legacy_dir,
                         system_language: Lang::system(),
-                        check_paths: false,
+                        check_paths: true,
                     };
-                    !pida_config::migrate(&legacy, &ctx).report.secrets_found.is_empty()
+                    let r = pida_config::migrate(&legacy, &ctx);
+                    (!r.report.secrets_found.is_empty(), crate::first_run::migration_items(&r))
                 })
-                .unwrap_or(false)
+                .unwrap_or((false, Vec::new()))
         });
-        let plaintext_secrets = probe.unwrap_or_else(|_| {
+        let (plaintext_secrets, items) = probe.unwrap_or_else(|_| {
             tracing::error!("Altkonfiguration nicht auswertbar (Programmfehler) – Angebot ohne Passwortfrage");
-            false
+            (false, Vec::new())
         });
-        self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets, items: Vec::new() });
+        self.migration_view = Some(MigrationOfferView { legacy_file: file, plaintext_secrets, items });
+    }
+
+    /// Übernahmeangebot neu auswerten (erneutes Angebot über Einstellungen › Erweitert).
+    pub(crate) fn invalidate_migration_view(&mut self) {
+        self.migration_view = None;
+    }
+
+    /// `ViewState::migration` (nur das aktuelle Angebot).
+    pub(crate) fn projected_migration(&self) -> Option<MigrationOfferView> {
+        self.migration_view.clone().filter(|m| self.cfg.migration_offer.as_ref() == Some(&m.legacy_file))
     }
 
     /// Hauptschleife.
@@ -921,6 +961,7 @@ impl CoreTask {
         self.settings_view = None;
         // eine abgebrochene Übernahme (`apply_settings`) darf spätere Vorschauen nicht unterdrücken
         self.block_change = None;
+        self.release_verify();
         self.cancel_session();
         let error = WorkflowError::Unexpected("Programmfehler".into());
         let mut queue = self.state.queue().cloned().unwrap_or_default();
@@ -986,6 +1027,7 @@ impl CoreTask {
             Msg::Refresh => self.on_interaction_changed(),
             Msg::BackendEvent(e) => self.on_backend_event(e),
             Msg::GridReady { doc, page, grid } => self.on_grid_ready(doc, page, grid),
+            Msg::Verified(v) => self.on_verified(*v),
             Msg::Preanalyzed { doc, result, thumb } => {
                 self.preanalysis.finished(doc);
                 let known = self.state.queue().and_then(|q| q.batch.as_ref()).is_some_and(|b| b.item(doc).is_some());
@@ -1084,6 +1126,8 @@ impl CoreTask {
             self.apply(Event::SettingsUnreadable(e.localized(self.cfg.language())));
             return;
         }
+        // Ersteinrichtung bei Neuinstallation (ADR 0004 §3.12)
+        self.begin_first_run();
         self.relocate_sandbox_files();
         self.registry.configure(&self.cfg);
         self.refresh_signers();
@@ -1096,9 +1140,14 @@ impl CoreTask {
         self.load_resume_offer();
         let docs = self.input_documents(&self.cfg.overlay.input_files.clone());
         self.apply(Event::Started { documents: docs });
+        // Schritt 3 der Ersteinrichtung zeigt die Vorschau des Signaturbilds (ohne Dokument: A4-Beispiel)
+        if self.first_run_active() && lock(&self.shared.block).pdf.is_none() {
+            let doc = self.preview_doc();
+            self.effect_block(doc);
+        }
     }
 
-    fn input_documents(&mut self, paths: &[PathBuf]) -> Vec<InputDocument> {
+    pub(crate) fn input_documents(&mut self, paths: &[PathBuf]) -> Vec<InputDocument> {
         let mut out = Vec::new();
         for p in paths {
             // F-12: nur vorhandene Dateien
@@ -1126,7 +1175,7 @@ impl CoreTask {
         self.notify(code, BTreeMap::new());
     }
 
-    fn notify(&mut self, code: &str, params: BTreeMap<String, String>) {
+    pub(crate) fn notify(&mut self, code: &str, params: BTreeMap<String, String>) {
         // gleiche Meldung nicht doppelt stapeln
         if self.notices.iter().any(|n| n.code == code && n.params == params) {
             return;
@@ -1932,13 +1981,16 @@ impl CoreTask {
             };
             // Zusammenfassung „Fertig“ (§3.7): Unterzeichner aus der Kette bzw. dem Ergebnis, Zeit wie `/M`
             let signing_time = crate::workspace::rfc3339(prepared.signing_time());
-            let signer = match (&result, &chain) {
-                (_, Some(c)) => c.signer.subject_cn(),
-                (SignResult::Raw { chain: c, .. }, None) => c.signer.subject_cn(),
+            let signer_cert = match (&result, &chain) {
+                (_, Some(c)) => Some(c.signer.clone()),
+                (SignResult::Raw { chain: c, .. }, None) => Some(c.signer.clone()),
                 (SignResult::Cms(cms), None) => pida_cades::parse_cms(cms).ok().and_then(|info| {
-                    crate::workspace::leaf_certificate(&info.certificates).and_then(|c| c.subject_cn())
+                    info.signer.clone().or_else(|| crate::workspace::leaf_certificate(&info.certificates).cloned())
                 }),
             };
+            let signer = signer_cert.as_ref().and_then(pida_cades::Certificate::subject_cn);
+            // Qualifikation laut Zertifikat (qcStatements, K4); ohne Zertifikat aus den Fähigkeiten
+            let qualification = signer_cert.as_ref().map_or(pida_backend_api::Qualification::Unknown, qualification_of);
             let finished = match (result, attrs) {
                 (SignResult::Cms(cms), _) => {
                     let expect = Expect {
@@ -2010,7 +2062,7 @@ impl CoreTask {
             }
             slot.signed = Some(Arc::from(signed));
             let page = slot.block_page.unwrap_or(None);
-            slot.summary = Some(SummaryInfo { signer, signing_time, page });
+            slot.summary = Some(SummaryInfo { signer, signing_time, page, qualification });
             Event::PhaseCompleted(pida_workflow::SigningPhase::Finishing)
         });
     }
@@ -2115,7 +2167,10 @@ impl CoreTask {
         }
         let mut overlay = self.cfg.overlay.clone();
         overlay.config_file = None;
-        match ConfigState::load(paths, overlay, self.cfg.policy.clone(), self.cfg.secrets.clone(), None, false) {
+        // Altordner behalten: Einstellungen › Erweitert bietet die PDF-Over-Einstellungen danach weiter an
+        // (`OfferMigration`, ADR 0004 §3.12); ohne Angebot beim Zurücksetzen selbst (`offer_migration = false`)
+        let legacy_dir = self.cfg.legacy_dir.clone();
+        match ConfigState::load(paths, overlay, self.cfg.policy.clone(), self.cfg.secrets.clone(), legacy_dir, false) {
             Ok((cfg, _)) => self.cfg = cfg,
             Err(e) => tracing::warn!(id = e.message_id(), "Einstellungen nach Zurücksetzen nicht geladen"),
         }
@@ -2328,9 +2383,13 @@ impl CoreTask {
             UiEvent::AcceptMigration { store_secrets } => self.accept_migration(store_secrets),
             UiEvent::DeclineMigration => {
                 self.cfg.migration_offer = None;
+                // Ersteinrichtung: abgelehnt = Neuinstallation („neben dem Original“), ab jetzt wird gespeichert
+                let first_run = self.first_run_active();
+                self.migration_decided(false, first_run);
                 if let Err(e) = self.cfg.save() {
                     tracing::warn!(id = e.message_id(), "Standardeinstellungen nicht gespeichert");
                 }
+                self.refresh_ctx();
             }
             // ADR 0004, Arbeitsbereich (K1): nur im Arbeitsbereich-Modus; keines dieser Ereignisse außer
             // `sign_with` startet etwas (A1)
@@ -2378,9 +2437,19 @@ impl CoreTask {
             UiEvent::RemoveRecent { id } => self.remove_recent(id),
             UiEvent::ClearRecent => self.clear_recent(),
             UiEvent::VerifyRecent { id } => self.verify_recent(id),
-            // ADR 0004: Prüfmodus/Ersteinrichtung (K4) – bis dahin ohne Wirkung; im klassischen Ablauf auch die
-            // Ereignisse des Arbeitsbereichs, ohne Stapelübersicht die des Stapels. Insbesondere öffnet keines
-            // dieser Ereignisse eine Sitzung (A1).
+            // ADR 0004 §3.9 (K4): Prüfmodus (nur Arbeitsbereich; ändert den Workflow-Zustand nicht, außer
+            // „Dieses Dokument signieren“ = Öffnen wie `open_files`)
+            UiEvent::OpenVerify { path } if self.ws.enabled => self.open_verify(path),
+            UiEvent::CloseVerify if self.ws.enabled => self.close_verify(),
+            UiEvent::SignVerified if self.ws.enabled => self.sign_verified(),
+            // ADR 0004 §3.12 (K4): Ersteinrichtung und erneutes Übernahmeangebot (Einstellungen › Erweitert)
+            UiEvent::UpdateFirstRun { default_backend, profile, block_language } if self.ws.enabled => {
+                self.update_first_run(default_backend, profile, block_language);
+            }
+            UiEvent::FinishFirstRun if self.ws.enabled => self.finish_first_run(),
+            UiEvent::OfferMigration if self.ws.enabled => self.offer_migration(),
+            // ADR 0004: im klassischen Ablauf ohne Wirkung die Ereignisse des Arbeitsbereichs, ohne
+            // Stapelübersicht die des Stapels. Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
             e @ (UiEvent::SetInvisible { .. }
             | UiEvent::UseTarget { .. }
             | UiEvent::InspectPages { .. }
@@ -2399,7 +2468,7 @@ impl CoreTask {
             | UiEvent::UpdateFirstRun { .. }
             | UiEvent::FinishFirstRun
             | UiEvent::OfferMigration) => {
-                tracing::debug!(event = ui_event_kind(&e), "noch nicht umgesetzt (ADR 0004) – ignoriert");
+                tracing::debug!(event = ui_event_kind(&e), "in diesem Modus ohne Wirkung (ADR 0004) – ignoriert");
             }
         }
     }
@@ -2599,19 +2668,33 @@ impl CoreTask {
             tracing::debug!(revision, applied = self.apply_state.applied, "veraltetes apply_settings verworfen");
             return;
         }
+        self.apply_state.applied = revision;
+        let rejected = self.apply_changes_now(changes);
+        for path in changes.keys() {
+            self.apply_state.rejected.remove(path);
+        }
+        if !rejected.is_empty() {
+            tracing::debug!(fields = rejected.len(), "Einstellungen teilweise abgelehnt");
+        }
+        self.apply_state.rejected.extend(rejected);
+        self.apply_state.draft = false;
+        if self.apply_state.awaiting_block.is_none() {
+            self.apply_state.published = self.apply_state.applied;
+        }
+    }
+
+    /// Geänderte Felder (TOML-Pfad → serde-JSON) sofort übernehmen und speichern (`ApplySettings`,
+    /// `UpdateFirstRun`): Prüfung je Feld inkl. Richtlinie, danach Kontext, Signiermittel, „Zuletzt
+    /// signiert“, Arbeitsbereich (`SettingsChanged`) und – nur bei geändertem Signaturbild – genau ein Neubau
+    /// der Vorschau. Liefert die abgelehnten Felder (Pfad → i18n-ID).
+    pub(crate) fn apply_changes_now(
+        &mut self,
+        changes: &BTreeMap<String, serde_json::Value>,
+    ) -> BTreeMap<String, String> {
         let locked = crate::settings_apply::locked_paths(self.cfg.policy.as_ref());
         let mobile = !self.mobile.platform.is_desktop();
         let before = self.cfg.settings.clone();
         let applied = crate::settings_apply::apply_changes(&before, changes, &locked, self.cfg.policy.as_ref(), mobile);
-        for path in changes.keys() {
-            self.apply_state.rejected.remove(path);
-        }
-        if !applied.rejected.is_empty() {
-            tracing::debug!(fields = applied.rejected.len(), "Einstellungen teilweise abgelehnt");
-        }
-        self.apply_state.rejected.extend(applied.rejected);
-        self.apply_state.draft = false;
-        self.apply_state.applied = revision;
         if applied.settings != before {
             self.cfg.settings = applied.settings;
             if let Err(e) = self.cfg.save() {
@@ -2637,39 +2720,69 @@ impl CoreTask {
                 self.apply_state.awaiting_block = Some(self.block_requested);
             }
         }
-        if self.apply_state.awaiting_block.is_none() {
-            self.apply_state.published = self.apply_state.applied;
-        }
+        applied.rejected
     }
 
     fn accept_migration(&mut self, store_secrets: bool) {
+        // nie mitten im Signieren Einstellungen und Signiermittel austauschen (das Angebot bleibt)
+        if matches!(self.state, State::Signing { .. } | State::BatchSigning { .. } | State::Resuming { .. }) {
+            tracing::debug!(state = self.state.name(), "accept_migration während des Signierens zurückgestellt");
+            return;
+        }
         let Some(file) = self.cfg.migration_offer.take() else { return };
+        // vor dem Übernehmen: die übernommenen Einstellungen tragen `first_run_completed = true`
+        let first_run = self.first_run_active();
         let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
         let result = pida_config::LegacyConfig::load(&file).map(|legacy| {
             let ctx = pida_config::MigrationContext { legacy_dir, system_language: Lang::system(), check_paths: true };
             pida_config::migrate(&legacy, &ctx)
         });
+        // erneutes Angebot (Einstellungen › Erweitert, ADR 0004 §3.12): die vorhandene `settings.toml` wird
+        // vorher gesichert (`settings.toml.before-import`)
+        let overwrite = self.cfg.paths.settings_file().exists();
         let applied = result.and_then(|r| {
-            let opts = pida_config::ApplyOptions { store_secrets, ..pida_config::ApplyOptions::default() };
+            let opts = pida_config::ApplyOptions { store_secrets, overwrite, ..pida_config::ApplyOptions::default() };
             pida_config::apply_migration(&r, &self.cfg.paths, self.cfg.secrets.as_ref(), &opts).map(|a| (r, a))
         });
         match applied {
-            Ok((r, _)) => {
+            Ok((r, a)) => {
                 let mut p = BTreeMap::new();
                 p.insert("imported".into(), r.report.imported.len().to_string());
                 p.insert("skipped".into(), r.report.skipped.len().to_string());
                 self.notify("ng-migrate-done", p);
-                self.cfg.settings = r.settings;
+                // wie geschrieben (Bildmarke als Kopie im Datenordner)
+                self.cfg.settings = match Settings::load(&a.settings_file) {
+                    pida_config::LoadOutcome::Loaded(s) => *s,
+                    _ => r.settings,
+                };
+                self.migration_decided(true, first_run);
+                if self.first_run_active() {
+                    // Ersteinrichtung bleibt offen (Schritte 2/3 zeigen die übernommenen Werte)
+                    if let Err(e) = self.cfg.save() {
+                        tracing::warn!(id = e.message_id(), "Einstellungen nicht gespeichert");
+                    }
+                }
                 self.refresh_ctx();
                 self.registry.configure(&self.cfg);
                 self.refresh_signers();
                 self.sync_recent();
                 self.apply(Event::SettingsChanged);
+                // Vorschau des übernommenen Signaturbilds: Ersteinrichtung Schritt 3 bzw. Live-Vorschau der
+                // offenen Einstellungen (erneutes Angebot aus Einstellungen › Erweitert); im Arbeitsbereich baut
+                // `SettingsChanged` sie selbst neu
+                if (self.first_run_active() || self.settings_view.is_some())
+                    && !matches!(self.state, State::Positioning { .. })
+                {
+                    let doc = self.preview_doc();
+                    self.effect_block(doc);
+                }
             }
             Err(e) => {
                 let mut p = BTreeMap::new();
                 p.insert("detail".into(), e.to_string());
                 self.notify(e.message_id(), p);
+                self.migration_decided(false, first_run);
+                self.refresh_ctx();
             }
         }
     }
@@ -2840,6 +2953,9 @@ impl CoreTask {
         if self.ws.enabled {
             // Arbeitsbereich: keine Hauptleiste Positionieren/Signieren; „Signieren“ nur mit zulässiger Platzierung
             actions.sign = actions.sign && crate::actions::workspace_sign_allowed(&self.state);
+        } else {
+            // Prüfmodus nur in der neuen Oberfläche (ADR 0004 §3.9; klassischer Ablauf unverändert, §3.0 Regel 7)
+            actions.verify = false;
         }
         if self.ctx.batch() {
             // Stapel (ADR 0004 §3.13): „Alle signieren“ mit mindestens einem signierbaren Eintrag,
@@ -2864,10 +2980,7 @@ impl CoreTask {
             settings: self.settings_view.clone().map(|v| self.live_settings_view(v)),
             language: self.cfg.language(),
             notices: self.notices.clone(),
-            migration: self
-                .migration_view
-                .clone()
-                .filter(|m| self.cfg.migration_offer.as_ref() == Some(&m.legacy_file)),
+            migration: self.projected_migration(),
             done,
             platform: PlatformView::from(self.mobile.platform),
             resume: self.resume_offer.as_ref().filter(|_| matches!(self.state, State::Idle { .. })).map(|p| {
@@ -2881,14 +2994,13 @@ impl CoreTask {
             }),
             keystore_import: self.keystore_import.clone(),
             privacy_text: self.cfg.privacy_text(),
-            // ADR 0004: K1 document, signers (Arbeitsbereich); Standardwerte bis K2 (batch), K3 (recent),
-            // K4 (verify, first_run)
+            // ADR 0004: K1 document, signers (Arbeitsbereich), K2 batch, K3 recent, K4 verify, first_run
             document: self.document_view(),
             signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
             batch: self.batch_view(),
-            verify: None,
+            verify: self.verify_view(),
             recent: self.recent_view(),
-            first_run: None,
+            first_run: self.first_run_view(),
             actions,
         }
     }

@@ -354,3 +354,86 @@ fn java_oracle_reads_and_formats_identically() {
         assert!(compared > 260, "{lang:?}: nur {compared} verglichen");
     }
 }
+
+/// Texte einer Nachricht (Wert und Attribute, ohne Platzhalter) je ID.
+fn message_texts(ftl: &str) -> Vec<(String, String)> {
+    use fluent_syntax::ast::{Entry, Pattern, PatternElement};
+    fn text(p: &Pattern<&str>, out: &mut String) {
+        for e in &p.elements {
+            match e {
+                PatternElement::TextElement { value } => out.push_str(value),
+                PatternElement::Placeable { expression } => {
+                    // Varianten (Plural) mitnehmen
+                    if let fluent_syntax::ast::Expression::Select { variants, .. } = expression {
+                        for v in variants {
+                            out.push(' ');
+                            text(&v.value, out);
+                        }
+                    }
+                    out.push(' ');
+                }
+            }
+        }
+    }
+    let resource = fluent_syntax::parser::parse(ftl).unwrap_or_else(|(_, e)| panic!("ungültiges FTL: {e:?}"));
+    resource
+        .body
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Message(m) => {
+                let mut out = String::new();
+                if let Some(v) = &m.value {
+                    text(v, &mut out);
+                }
+                for a in &m.attributes {
+                    out.push(' ');
+                    text(&a.value, &mut out);
+                }
+                Some((m.id.name.to_owned(), out))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Wörter eines Texts (Buchstabenfolgen, klein).
+fn words(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphabetic()).filter(|w| !w.is_empty()).map(str::to_lowercase).collect()
+}
+
+/// ADR 0004 §8 F3, Abnahme E4 Punkt 1: Der Prüfmodus behauptet **nie** Gültigkeit oder Rechtsgültigkeit –
+/// PIDA prüft Integrität und Zertifikatsangaben, nicht Vertrauenskette und Sperrstatus. Geprüft werden die
+/// Texte des Kerns, die der Prüfmodus zeigt (`ng-verify-*`, die Codes der Integrität `cms-*`,
+/// `pdf-signature-*`, die Übernahme-/Einrichtungstexte), ohne das Wort „gültig“ bzw. „valid“ (verneint als
+/// „ungültig“/„invalid“ erlaubt); in allen Katalogen der Oberfläche nie „rechtsgültig“/„legally valid“.
+#[test]
+fn verify_texts_never_claim_validity() {
+    let verify_ids = |id: &str| {
+        ["ng-verify-", "cms-", "pdf-signature-", "ng-firstrun-", "ng-migration-"].iter().any(|p| id.starts_with(p))
+    };
+    for lang in Lang::ALL {
+        let (claim, legal) = match lang {
+            Lang::De => ("gültig", ["rechtsgültig", "rechtsgültige", "rechtsgültigen", "rechtsgültiger"].as_slice()),
+            Lang::En => ("valid", ["legally"].as_slice()),
+        };
+        let pida = message_texts(&read(&locale_file(lang, "pida.ftl")));
+        let checked: Vec<&(String, String)> = pida.iter().filter(|(id, _)| verify_ids(id)).collect();
+        assert!(checked.len() >= 30, "{lang:?}: nur {} Texte des Prüfmodus", checked.len());
+        assert!(checked.iter().any(|(id, _)| id == "ng-verify-warning-sha1"), "{lang:?}");
+        for (id, text) in checked {
+            let w = words(text);
+            assert!(!w.iter().any(|w| w == claim), "{lang:?} {id}: „{claim}“ in „{text}“");
+            assert!(!w.iter().any(|w| legal.contains(&w.as_str())), "{lang:?} {id}: „{text}“");
+        }
+        for file in ["pida.ftl", "ui-workspace.ftl", "ui-tools.ftl"] {
+            for (id, text) in message_texts(&read(&locale_file(lang, file))) {
+                let w = words(&text);
+                let legally_valid = match lang {
+                    Lang::De => w.iter().any(|w| w.starts_with("rechtsgültig")),
+                    Lang::En => w.windows(2).any(|p| p[0] == "legally" && p[1] == "valid"),
+                };
+                assert!(!legally_valid, "{lang:?} {file} {id}: „{text}“");
+            }
+        }
+    }
+}

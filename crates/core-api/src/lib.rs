@@ -112,10 +112,16 @@
 //! Zusammenfassung über alle Einträge; Mobile setzt nach einem App-Kill nur das unterbrochene Dokument fort,
 //! danach die Übersicht. Die Startargument-Automatik (D-06) bleibt ohne Übersicht.
 //!
-//! „Zuletzt signiert“ und „sofort wirksam“ (K3), Prüfmodus und Ersteinrichtung (K4) liefern weiter
-//! Standardwerte und ignorieren ihre Ereignisse mit einem Debug-Log – keines öffnet eine Sitzung. Im
-//! klassischen Ablauf (ohne `workspace_ui`) bleiben auch die Ereignisse des Arbeitsbereichs ohne Wirkung,
-//! ohne `batch_overview` die des Stapels.
+//! „Zuletzt signiert“ und „sofort wirksam“ (K3): siehe `recent.rs`, `settings_apply.rs`.
+//!
+//! Prüfmodus (K4, ADR 0004 §3.9, `verify.rs`): `open_verify`/`verify_recent` prüfen eine Datei mit
+//! `pades::verify_document` (eigene `DocId` für die Kacheln, nicht in der Warteschlange, der Zustand bleibt),
+//! `close_verify` gibt sie frei, `sign_verified` öffnet sie wie `open_files`. Ersteinrichtung (K4, §3.12,
+//! `first_run.rs`): nur bei fehlender Einstellungsdatei, Übernahmeliste per Probelauf, Neuinstallation
+//! „neben dem Original“, `update_first_run`/`finish_first_run`/`offer_migration`. Keines dieser Ereignisse
+//! öffnet eine Sitzung. Im klassischen Ablauf (ohne `workspace_ui`) bleiben die Ereignisse des
+//! Arbeitsbereichs, des Prüfmodus und der Ersteinrichtung ohne Wirkung, ohne `batch_overview` die des
+//! Stapels.
 //!
 //! Ownership: **Integration**.
 
@@ -126,6 +132,7 @@ mod broker;
 mod config;
 mod docs;
 pub mod engine;
+mod first_run;
 pub mod logging;
 pub mod messages;
 pub mod plan;
@@ -138,6 +145,7 @@ pub mod testing;
 pub mod tools;
 #[cfg(feature = "ts")]
 pub mod ts;
+mod verify;
 mod view;
 mod workspace;
 

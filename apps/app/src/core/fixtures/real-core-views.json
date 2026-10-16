@@ -8,7 +8,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -264,7 +264,7 @@
       "show_batch": false,
       "sign": false,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -491,7 +491,7 @@
           "page": 0,
           "qualification": "Qes",
           "self_check": true,
-          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signer": "PIDA Test QES P-256 (NUR TEST)",
           "signing_time": "2026-10-15T10:42:17+02:00"
         }
       },
@@ -508,7 +508,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -2630,7 +2630,7 @@
       "show_batch": false,
       "sign": false,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -2915,7 +2915,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {

@@ -34,7 +34,7 @@ pub struct SaveDialogView {
 
 /// Angebot, die Einstellungen aus `~/.pdf-over` zu übernehmen (Plan §7.2, einmalig).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MigrationOfferView {
     /// gefundene `PDF-Over.config`
     pub legacy_file: PathBuf,
@@ -43,7 +43,7 @@ pub struct MigrationOfferView {
     #[serde(default)]
     pub plaintext_secrets: bool,
     /// Was übernommen würde (Ersteinrichtung Schritt 1, ADR 0004 §3.12): i18n-IDs `ng-migration-item-*`
-    /// mit Detail; ab K4 per Probelauf von `pida_config::migrate` (bis dahin leer)
+    /// mit Detail; per Probelauf von `pida_config::migrate` (ohne zu schreiben)
     #[serde(default)]
     pub items: Vec<MigrationItemView>,
 }
@@ -473,14 +473,14 @@ pub struct ViewState {
     /// Stapel (nur mit `batch_overview`, ADR 0004 §3.8); ab K2, bis dahin `None`
     #[serde(default)]
     pub batch: Option<BatchView>,
-    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9); ab K4
+    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9; nur im Arbeitsbereich)
     #[serde(default)]
     pub verify: Option<VerifyView>,
     /// „Zuletzt signiert“ (neueste zuerst, höchstens zehn); `None` = Funktion abgeschaltet (Einstellung,
     /// Richtlinie) bzw. ohne Oberfläche (ADR 0004 §3.10)
     #[serde(default)]
     pub recent: Option<Vec<RecentItemView>>,
-    /// Ersteinrichtung, nur beim ersten Start (ADR 0004 §3.12); ab K4
+    /// Ersteinrichtung, nur beim ersten Start (fehlende Einstellungsdatei, Arbeitsbereich; ADR 0004 §3.12)
     #[serde(default)]
     pub first_run: Option<FirstRunView>,
     /// Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (ADR 0004 §3.13), aus dem Zustand berechnet
@@ -926,6 +926,9 @@ pub struct DocRefView {
 }
 
 redacted_debug!(DocRefView { id } redact { name });
+
+// Pfad der Altdatei und Details der Übernahmeliste (Ordner, maskierte Telefonnummer) nicht im Log (Regel 9)
+redacted_debug!(MigrationOfferView { plaintext_secrets, items } redact { legacy_file });
 
 // --- §3.3 Dokument im Arbeitsbereich ------------------------------------------------------------
 
@@ -1446,7 +1449,8 @@ pub struct SignedSummaryView {
     pub signing_time: String,
     /// Signiermittel
     pub backend: BackendId,
-    /// bis K4 aus den Fähigkeiten des Backends, ab K4 aus den qcStatements des Signerzertifikats
+    /// laut qcStatements des Signerzertifikats (QcCompliance und QcSSCD → `Qes`, sonst `AdES`; nicht gegen die
+    /// Vertrauensliste geprüft)
     pub qualification: Qualification,
     /// Selbstprüfung I1–I6 bestanden (ohne Bestehen wird nie gespeichert – dient der Anzeige)
     pub self_check: bool,
@@ -1839,10 +1843,12 @@ pub struct VerifiedSignatureView {
     pub trust: TrustCheck,
 }
 
+// Feldnamen sind Dokumentinhalt (wie `pades::SignatureVerification`), der Aussteller eines selbstsignierten
+// Zertifikats (Keystore) ist der Unterzeichner selbst – beides nicht im Log
 redacted_debug!(VerifiedSignatureView {
-    index, field_name, issuer, cert_valid_from, cert_valid_to, signing_time, cert_valid_at_signing, integrity,
+    index, cert_valid_from, cert_valid_to, signing_time, cert_valid_at_signing, integrity,
     coverage, qualification, format, digest, algorithm, appearance, warnings, trust,
-} redact { signer, organization, serial });
+} redact { field_name, signer, organization, issuer, serial });
 
 /// Prüfmodus (§3.9) – liegt über dem Workflow-Zustand.
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]

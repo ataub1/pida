@@ -3,7 +3,7 @@
 
 use std::io::Read;
 
-use pida_cades::{AlgorithmPolicy, CmsError, Expect, ExpectedSigner, verify_detached};
+use pida_cades::{AlgorithmPolicy, CmsError, CmsInfo, CmsReport, Expect, ExpectedSigner, verify_detached};
 use pida_pdf_cos::{Dictionary, Object, ObjectId, SigField, SourcePdf, decode_text_string};
 use pida_pdf_incremental::ByteRange;
 
@@ -179,8 +179,48 @@ impl std::fmt::Debug for SignatureCheck {
 /// Wie [`signature_status`], zusätzlich mit Unterzeichner (CN) und `signing-time` aus derselben
 /// Prüfung (`verify_detached`, ADR 0004 §3.3 „vorhandene Signaturen“).
 pub(crate) fn signature_check(data: &[u8], info: &SigDictInfo) -> SignatureCheck {
-    let fail =
-        |status, code: &str| SignatureCheck { status, code: Some(code.into()), signer_cn: None, signing_time: None };
+    let d = signature_details(data, info);
+    let (signer_cn, signing_time) = match &d.report {
+        Some(r) => (r.signer.subject_cn(), r.signing_time),
+        None => (None, None),
+    };
+    SignatureCheck { status: d.status, code: d.code, signer_cn, signing_time }
+}
+
+/// Ergebnis von [`signature_details`]: Status wie [`signature_check`], dazu der vollständige Bericht der
+/// kryptografischen Prüfung bzw. – ohne bestandene Prüfung – die ungeprüfte Struktur des CMS (Prüfmodus,
+/// ADR 0004 §3.9). `Debug` ohne Zertifikatsinhalte (Regel 9).
+pub(crate) struct SignatureDetails {
+    /// Status
+    pub status: PriorStatus,
+    /// Fehlercode bei ungültiger bzw. nicht prüfbarer Signatur
+    pub code: Option<String>,
+    /// Bericht von `verify_detached` (nur bei bestandener Prüfung)
+    pub report: Option<CmsReport>,
+    /// ungeprüfte Struktur (`parse_cms`), wenn die Prüfung scheiterte bzw. nicht stattfand
+    pub info: Option<CmsInfo>,
+}
+
+impl std::fmt::Debug for SignatureDetails {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SignatureDetails")
+            .field("status", &self.status)
+            .field("code", &self.code)
+            .field("verified", &self.report.is_some())
+            .field("parsed", &self.info.is_some())
+            .finish()
+    }
+}
+
+/// Prüft eine Signatur über `data` (ganze Datei) wie [`signature_check`] und behält den Bericht
+/// (`CmsReport`: Zertifikat, Verfahren, Hinweise wie SHA-1) bzw. die ungeprüfte Struktur des CMS.
+pub(crate) fn signature_details(data: &[u8], info: &SigDictInfo) -> SignatureDetails {
+    let fail = |status, code: &str| SignatureDetails {
+        status,
+        code: Some(code.into()),
+        report: None,
+        info: pida_cades::parse_cms(&info.contents).ok(),
+    };
     if info.kind.as_deref() == Some(b"DocTimeStamp") || !verifiable_sub_filter(info.sub_filter.as_deref()) {
         return fail(PriorStatus::NotVerifiable, "pdf-signature-subfilter");
     }
@@ -197,12 +237,7 @@ pub(crate) fn signature_check(data: &[u8], info: &SigDictInfo) -> SignatureCheck
         policy: AlgorithmPolicy::PriorSignature,
     };
     match verify_detached(&info.contents, &mut reader, &expect) {
-        Ok(report) => SignatureCheck {
-            status: PriorStatus::Valid,
-            code: None,
-            signer_cn: report.signer.subject_cn(),
-            signing_time: report.signing_time,
-        },
+        Ok(report) => SignatureDetails { status: PriorStatus::Valid, code: None, report: Some(report), info: None },
         Err(e @ CmsError::UnsupportedAlgorithm(_)) => fail(PriorStatus::NotVerifiable, e.code()),
         Err(e) => fail(PriorStatus::Invalid, e.code()),
     }

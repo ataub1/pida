@@ -9,7 +9,7 @@
 //! - `exists` prüft der Kern beim Projizieren mit Cache (höchstens alle [`EXISTS_TTL`] bzw. nach jeder
 //!   Änderung der Liste).
 //! - `VerifyRecent` auf eine fehlende Datei → Hinweis `ng-recent-missing`, der Eintrag bleibt (Entfernen ist
-//!   eine ausdrückliche Aktion). Den Prüfmodus selbst öffnet K4.
+//!   eine ausdrückliche Aktion); sonst öffnet er den Prüfmodus (K4).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -112,8 +112,8 @@ impl CoreTask {
         self.recent.exists.clear();
     }
 
-    /// Eintrag prüfen (`VerifyRecent`): fehlt die Datei → Hinweis, der Eintrag bleibt. Den Prüfmodus
-    /// öffnet K4 (ADR 0004 §3.9); bis dahin ohne weitere Wirkung.
+    /// Eintrag prüfen (`VerifyRecent`): fehlt die Datei → Hinweis, der Eintrag bleibt; sonst Prüfmodus
+    /// (ADR 0004 §3.9).
     pub(crate) fn verify_recent(&mut self, id: u64) {
         let Some(entry) = self.recent.entries.iter().find(|e| e.id == id).cloned() else {
             tracing::debug!(id, "verify_recent: unbekannter Eintrag");
@@ -125,7 +125,7 @@ impl CoreTask {
             self.notify_code(MSG_RECENT_MISSING);
             return;
         }
-        tracing::debug!(id, "verify_recent: Prüfmodus folgt mit K4");
+        self.verify_recent_path(entry.path);
     }
 
     /// Existenz der Dateien höchstens alle [`EXISTS_TTL`] neu prüfen (`force` = sofort).
