@@ -34,7 +34,7 @@ pub struct SaveDialogView {
 
 /// Angebot, die Einstellungen aus `~/.pdf-over` zu übernehmen (Plan §7.2, einmalig).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MigrationOfferView {
     /// gefundene `PDF-Over.config`
     pub legacy_file: PathBuf,
@@ -926,6 +926,9 @@ pub struct DocRefView {
 }
 
 redacted_debug!(DocRefView { id } redact { name });
+
+// Pfad der Altdatei und Details der Übernahmeliste (Ordner, maskierte Telefonnummer) nicht im Log (Regel 9)
+redacted_debug!(MigrationOfferView { plaintext_secrets, items } redact { legacy_file });
 
 // --- §3.3 Dokument im Arbeitsbereich ------------------------------------------------------------
 
@@ -1834,10 +1837,12 @@ pub struct VerifiedSignatureView {
     pub trust: TrustCheck,
 }
 
+// Feldnamen sind Dokumentinhalt (wie `pades::SignatureVerification`), der Aussteller eines selbstsignierten
+// Zertifikats (Keystore) ist der Unterzeichner selbst – beides nicht im Log
 redacted_debug!(VerifiedSignatureView {
-    index, field_name, issuer, cert_valid_from, cert_valid_to, signing_time, cert_valid_at_signing, integrity,
+    index, cert_valid_from, cert_valid_to, signing_time, cert_valid_at_signing, integrity,
     coverage, qualification, format, digest, algorithm, appearance, warnings, trust,
-} redact { signer, organization, serial });
+} redact { field_name, signer, organization, issuer, serial });
 
 /// Prüfmodus (§3.9) – liegt über dem Workflow-Zustand.
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]

@@ -321,6 +321,71 @@ fn verify_testdata_matches_the_table() {
     assert_eq!(s.widget.map(|w| w.0), Some(0));
 }
 
+/// Signature Wrapping: ungeschützte Bytes in der Lücke der `/ByteRange` (der Hex-String `/Contents` wird um
+/// das Padding gekürzt, dahinter ein weiterer Schlüssel des Signaturdictionarys). Kryptografisch passt die
+/// Signatur weiter (CMS und signierte Bytes unverändert), die Datei ist aber nicht mehr nur das Signierte –
+/// „verändert“ (`pdf-signature-byterange`), wie pyHanko („coverage unclear“).
+#[test]
+fn bytes_hidden_in_the_byte_range_gap_are_broken() {
+    let original = std::fs::read(dir().join("pdfas-signed.pdf")).unwrap();
+    let r = verify_document(&open_bytes(&original)).unwrap();
+    assert_eq!(r.signatures[0].integrity, Integrity::Intact);
+    let [_, _, gap_end, _] = byte_range_of(&original).expect("ByteRange");
+    let gap_end = gap_end as usize;
+    let mut pdf = original.clone();
+    let inject = b">/X 1";
+    assert!(pdf[gap_end - inject.len()..gap_end - 1].iter().all(|b| *b == b'0'), "Padding am Ende der Lücke");
+    pdf[gap_end - inject.len()..gap_end].copy_from_slice(inject);
+    let r = verify_document(&open_bytes(&pdf)).unwrap();
+    let [s] = r.signatures.as_slice() else { panic!("{r:?}") };
+    assert_eq!(s.integrity, Integrity::Broken { code: pida_pades::CODE_SIGNATURE_BYTERANGE.into() });
+    assert_eq!(cn(s).as_deref(), Some(CN_RSA), "Unterzeichner trotzdem genannt");
+}
+
+/// Gegenprobe mit echter PDF-AS-Ausgabe: Alle von der offiziellen PDF-AS-4.4.2-CLI signierten Golden-Fälle
+/// (`testdata/golden/pdfas-4.4.2/cases/*/signed.pdf`, Testzertifikat) sind intakt und decken die ganze Datei
+/// ab (wie pyHanko: „intact“, „entire file“); die mehrfach signierten PDF-AS-Testdateien nennen die späteren
+/// Revisionen.
+#[test]
+fn pdfas_signed_reference_files_are_intact() {
+    let cases = testdata().join("golden/pdfas-4.4.2/cases");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&cases).unwrap() {
+        let path = entry.unwrap().path().join("signed.pdf");
+        if !path.is_file() {
+            continue;
+        }
+        let src = SourcePdf::open_file(&path, &Limits::default()).unwrap();
+        let r = verify_document(&src).unwrap();
+        let [s] = r.signatures.as_slice() else { panic!("{}: {r:?}", path.display()) };
+        assert_eq!(s.integrity, Integrity::Intact, "{}", path.display());
+        assert!(s.covers_whole_file && s.later_revisions == 0, "{}: {s:?}", path.display());
+        assert_eq!(cn(s).as_deref(), Some(CN_RSA));
+        checked += 1;
+    }
+    assert!(checked >= 80, "nur {checked} PDF-AS-Fälle");
+    // dreifach von PDF-AS signiert: die ersten beiden von späteren Revisionen überdeckt
+    let path = testdata().join("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed_signed_signed.pdf");
+    let r = verify_document(&SourcePdf::open_file(&path, &Limits::default()).unwrap()).unwrap();
+    let later: Vec<(bool, usize, usize)> = r
+        .signatures
+        .iter()
+        .map(|s| (s.integrity == Integrity::Intact, s.later_revisions, s.later_signatures))
+        .collect();
+    assert_eq!(later, vec![(true, 2, 2), (true, 1, 1), (true, 0, 0)], "{r:?}");
+    assert!(r.signatures[2].covers_whole_file && !r.modified_after_last_signature());
+}
+
+/// `/ByteRange [a b c d]` der (einzigen) Signatur, roh aus der Datei.
+fn byte_range_of(pdf: &[u8]) -> Option<[u64; 4]> {
+    let key = b"/ByteRange [";
+    let pos = pdf.windows(key.len()).rposition(|w| w == key)? + key.len();
+    let end = pos + pdf[pos..].iter().position(|b| *b == b']')?;
+    let nums: Vec<u64> =
+        std::str::from_utf8(&pdf[pos..end]).ok()?.split_whitespace().map(|n| n.parse().ok()).collect::<Option<_>>()?;
+    nums.try_into().ok()
+}
+
 /// Personendaten im `Debug` (Regel 9): Feldname und Zertifikat nur redigiert.
 #[test]
 fn verification_debug_is_redacted() {

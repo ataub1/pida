@@ -11,7 +11,7 @@
 //! |---|---|---|
 //! | Prüfung bestanden (auch SHA-1, kurze RSA-Schlüssel – dann mit Hinweis in `warnings`) | `Intact` | – |
 //! | message-digest bzw. Signaturwert passt nicht, signing-certificate verweist auf ein anderes Zertifikat | `Broken` | `cms-…` |
-//! | `/ByteRange` nicht `[0 a b c]`, überlappend oder über das Dateiende | `Broken` | `pdf-signature-byterange` |
+//! | `/ByteRange` nicht `[0 a b c]`, überlappend oder über das Dateiende, Lücke nicht genau `/Contents` | `Broken` | `pdf-signature-byterange` |
 //! | kein lesbares Signaturdictionary | `Broken` | `pdf-signature-dictionary` |
 //! | Verfahren nicht prüfbar (`adbe.pkcs7.sha1`, Dokument-Zeitstempel `ETSI.RFC3161`, unbekannter `/SubFilter`) | `NotVerifiable` | `pdf-signature-subfilter` |
 //! | Algorithmus nicht unterstützt (z. B. DSA, unbekannte Kurve) | `NotVerifiable` | `cms-unsupported-algorithm` |
@@ -209,10 +209,29 @@ fn byte_range_well_formed(info: &SigDictInfo, len: u64) -> bool {
     a == 0 && b.checked_add(a).is_some_and(|e| e <= c) && c.checked_add(d).is_some_and(|e| e <= len)
 }
 
+/// Die Lücke zwischen den beiden Abschnitten der `/ByteRange` ist **genau** der Hex-String `/Contents`
+/// dieses Signaturdictionarys (`<…>` mit denselben Bytes, ohne weitere Zeichen). Sonst lägen ungeschützte
+/// Bytes mitten im signierten Bereich – dort ließen sich z. B. weitere Schlüssel des Signaturdictionarys
+/// oder Objekte unterbringen (Signature Wrapping); pyHanko verlangt dasselbe („contiguous“).
+fn gap_is_contents(data: &[u8], info: &SigDictInfo) -> bool {
+    let Some(br) = info.byte_range() else { return false };
+    let [_, first_len, second_start, _] = br.0;
+    let (Ok(start), Ok(end)) = (usize::try_from(first_len), usize::try_from(second_start)) else { return false };
+    let Some([b'<', hex @ .., b'>']) = data.get(start..end) else { return false };
+    let nibble = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
+    let (pairs, rest) = hex.as_chunks::<2>();
+    rest.is_empty()
+        && pairs.len() == info.contents.len()
+        && pairs
+            .iter()
+            .zip(&info.contents)
+            .all(|([h, l], byte)| matches!((nibble(*h), nibble(*l)), (Some(h), Some(l)) if (h << 4 | l) == *byte))
+}
+
 /// Kryptografische Prüfung und Angaben für die Anzeige.
 fn check(data: &[u8], info: &SigDictInfo, v: &mut SignatureVerification) {
     let d = sigs::signature_details(data, info);
-    let structure_ok = byte_range_well_formed(info, data.len() as u64);
+    let structure_ok = byte_range_well_formed(info, data.len() as u64) && gap_is_contents(data, info);
     match (&d.report, &d.status) {
         (Some(report), PriorStatus::Valid) if structure_ok => {
             v.integrity = Integrity::Intact;
@@ -328,6 +347,29 @@ mod tests {
         assert!(!byte_range_well_formed(&info(vec![0, 10, 20, 6]), 25), "über das Dateiende");
         assert!(!byte_range_well_formed(&info(vec![0, 10, 20, 5, 30, 1]), 31), "drei Abschnitte");
         assert!(!byte_range_well_formed(&info(vec![0, i64::MAX, i64::MAX, 1]), 25));
+    }
+
+    #[test]
+    fn gap_must_be_exactly_the_contents_string() {
+        let info = |br: Vec<i64>, contents: &[u8]| SigDictInfo {
+            id: None,
+            kind: Some(b"Sig".to_vec()),
+            sub_filter: Some("ETSI.CAdES.detached".into()),
+            byte_range_raw: Some(br),
+            contents: contents.to_vec(),
+            location: None,
+        };
+        let data = b"AAAA<30a0FF00>BBBB";
+        let contents = [0x30, 0xA0, 0xFF, 0x00];
+        assert!(gap_is_contents(data, &info(vec![0, 4, 14, 4], &contents)));
+        // andere Bytes, kürzerer String mit Fremdinhalt dahinter, Lücke ohne Klammern
+        assert!(!gap_is_contents(data, &info(vec![0, 4, 14, 4], &[0x30, 0xA0, 0xFF, 0x01])));
+        assert!(!gap_is_contents(b"AAAA<30a0>/X 1BBBB", &info(vec![0, 4, 14, 4], &[0x30, 0xA0])));
+        assert!(!gap_is_contents(data, &info(vec![0, 5, 13, 5], &contents[..3])));
+        // Leerraum im Hex-String (Länge passt nicht) bzw. Lücke außerhalb der Datei
+        assert!(!gap_is_contents(b"AAAA<30 a0 FF>BBBB", &info(vec![0, 4, 14, 4], &contents[..3])));
+        assert!(!gap_is_contents(data, &info(vec![0, 4, 40, 4], &contents)));
+        assert!(!gap_is_contents(data, &info(vec![0, 14, 4, 4], &contents)));
     }
 
     #[test]

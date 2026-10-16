@@ -2156,7 +2156,10 @@ impl CoreTask {
         }
         let mut overlay = self.cfg.overlay.clone();
         overlay.config_file = None;
-        match ConfigState::load(paths, overlay, self.cfg.policy.clone(), self.cfg.secrets.clone(), None, false) {
+        // Altordner behalten: Einstellungen › Erweitert bietet die PDF-Over-Einstellungen danach weiter an
+        // (`OfferMigration`, ADR 0004 §3.12); ohne Angebot beim Zurücksetzen selbst (`offer_migration = false`)
+        let legacy_dir = self.cfg.legacy_dir.clone();
+        match ConfigState::load(paths, overlay, self.cfg.policy.clone(), self.cfg.secrets.clone(), legacy_dir, false) {
             Ok((cfg, _)) => self.cfg = cfg,
             Err(e) => tracing::warn!(id = e.message_id(), "Einstellungen nach Zurücksetzen nicht geladen"),
         }
@@ -2370,7 +2373,8 @@ impl CoreTask {
             UiEvent::DeclineMigration => {
                 self.cfg.migration_offer = None;
                 // Ersteinrichtung: abgelehnt = Neuinstallation („neben dem Original“), ab jetzt wird gespeichert
-                self.migration_decided(false);
+                let first_run = self.first_run_active();
+                self.migration_decided(false, first_run);
                 if let Err(e) = self.cfg.save() {
                     tracing::warn!(id = e.message_id(), "Standardeinstellungen nicht gespeichert");
                 }
@@ -2709,7 +2713,14 @@ impl CoreTask {
     }
 
     fn accept_migration(&mut self, store_secrets: bool) {
+        // nie mitten im Signieren Einstellungen und Signiermittel austauschen (das Angebot bleibt)
+        if matches!(self.state, State::Signing { .. } | State::BatchSigning { .. } | State::Resuming { .. }) {
+            tracing::debug!(state = self.state.name(), "accept_migration während des Signierens zurückgestellt");
+            return;
+        }
         let Some(file) = self.cfg.migration_offer.take() else { return };
+        // vor dem Übernehmen: die übernommenen Einstellungen tragen `first_run_completed = true`
+        let first_run = self.first_run_active();
         let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
         let result = pida_config::LegacyConfig::load(&file).map(|legacy| {
             let ctx = pida_config::MigrationContext { legacy_dir, system_language: Lang::system(), check_paths: true };
@@ -2733,26 +2744,33 @@ impl CoreTask {
                     pida_config::LoadOutcome::Loaded(s) => *s,
                     _ => r.settings,
                 };
-                self.migration_decided(true);
+                self.migration_decided(true, first_run);
                 if self.first_run_active() {
                     // Ersteinrichtung bleibt offen (Schritte 2/3 zeigen die übernommenen Werte)
                     if let Err(e) = self.cfg.save() {
                         tracing::warn!(id = e.message_id(), "Einstellungen nicht gespeichert");
                     }
-                    let doc = self.preview_doc();
-                    self.effect_block(doc);
                 }
                 self.refresh_ctx();
                 self.registry.configure(&self.cfg);
                 self.refresh_signers();
                 self.sync_recent();
                 self.apply(Event::SettingsChanged);
+                // Vorschau des übernommenen Signaturbilds: Ersteinrichtung Schritt 3 bzw. Live-Vorschau der
+                // offenen Einstellungen (erneutes Angebot aus Einstellungen › Erweitert); im Arbeitsbereich baut
+                // `SettingsChanged` sie selbst neu
+                if (self.first_run_active() || self.settings_view.is_some())
+                    && !matches!(self.state, State::Positioning { .. })
+                {
+                    let doc = self.preview_doc();
+                    self.effect_block(doc);
+                }
             }
             Err(e) => {
                 let mut p = BTreeMap::new();
                 p.insert("detail".into(), e.to_string());
                 self.notify(e.message_id(), p);
-                self.migration_decided(false);
+                self.migration_decided(false, first_run);
                 self.refresh_ctx();
             }
         }

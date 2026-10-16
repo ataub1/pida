@@ -26,3 +26,8 @@ Eingabe ist `pdf/generated/simple-xref-table.pdf` (eine Seite 612 × 792 pt), f�
 | `invisible.pdf` | Profil `INVISIBLE`, P-256 | `intact`, keine `appearance` |
 | `qes.pdf` | QES-Testzertifikat P-256 mit qcStatements (QcCompliance, QcSSCD, QcType esign) | `qualified { qscd: true }` – „laut Zertifikat“ |
 | `rotated-90.pdf` | gedrehte Seite, Block an `p:1;x:100;y:500` (sichtbarer Raum) | `appearance` auf Seite 0 mit `left = 100`, `top = 500` in `PAGE_ABS` |
+
+Zusätzlich prüft `verify_testdata.rs` ohne eigene Datei: Bytes in der Lücke der `/ByteRange` neben `/Contents`
+(Signature Wrapping, aus `pdfas-signed.pdf` im Speicher erzeugt) → `broken` (`pdf-signature-byterange`, wie pyHanko
+„coverage unclear“), und die Ausgaben der echten PDF-AS-4.4.2-CLI (`testdata/golden/pdfas-4.4.2/cases/*/signed.pdf`,
+`pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed_signed_signed.pdf`) → `intact`, Abdeckung wie pyHanko.

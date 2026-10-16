@@ -182,6 +182,11 @@ async fn legacy_config_lists_the_items_and_accept_keeps_pdf_over_values() {
     assert_eq!(items[1].detail.as_deref(), Some("+43 664 ···567"), "Telefonnummer maskiert");
     assert_eq!(items[2].detail.as_deref(), Some(out.display().to_string().as_str()));
     assert_eq!(items[3].detail.as_deref(), Some("proxy.example.test:3128"));
+    // Pfade und (maskierte) Telefonnummer nie im `Debug` (Regel 9)
+    let debug = format!("{v:?}");
+    for secret in [".pdf-over", "PDF-Over.config", "Signiert", "567", "proxy.example.test"] {
+        assert!(!debug.contains(secret), "„{secret}“ im Debug des ViewState");
+    }
     assert_eq!(current_settings(&core).await.output.folder, None, "mit Angebot kein „neben dem Original“");
     // Kernänderungen bis zur Entscheidung nur im Speicher
     core.dispatch(UiEvent::SetUiLanguage { language: Some(Lang::En) });
@@ -225,7 +230,7 @@ async fn legacy_config_lists_the_items_and_accept_keeps_pdf_over_values() {
 async fn decline_later_and_offer_again() {
     // ablehnen
     let fx = Fixture::new();
-    let (legacy, _) = legacy_home(&fx, None);
+    let (legacy, out) = legacy_home(&fx, None);
     let core = start(&fx, Some(&legacy), |_| {});
     wait_for(&core, "Schritt 1", |v| v.first_run.as_ref().is_some_and(|f| f.migration.is_some())).await;
     core.dispatch(UiEvent::DeclineMigration);
@@ -234,6 +239,16 @@ async fn decline_later_and_offer_again() {
     let saved = file_settings(&fx).expect("Entscheidung gespeichert");
     assert_eq!(saved.output.folder.as_deref(), Some(Path::new(".")), "abgelehnt = Neuinstallation");
     assert!(!saved.general.first_run_completed);
+    // noch in der Ersteinrichtung erneut angeboten und übernommen (über die eben geschriebene Datei): die
+    // Einrichtung bleibt offen, obwohl die übernommenen Einstellungen „abgeschlossen“ tragen
+    core.dispatch(UiEvent::OfferMigration);
+    wait_for(&core, "erneut", |v| v.first_run.as_ref().is_some_and(|f| f.migration.is_some())).await;
+    core.dispatch(UiEvent::AcceptMigration { store_secrets: false });
+    let v = wait_for(&core, "übernommen", |v| v.notices.iter().any(|n| n.code == "ng-migrate-done")).await;
+    assert!(v.first_run.expect("Ersteinrichtung bleibt offen").migration.is_none());
+    let saved = file_settings(&fx).unwrap();
+    assert!(!saved.general.first_run_completed);
+    assert_eq!(saved.output.folder.as_deref(), Some(out.as_path()), "PDF-Over-Wert");
     drop(core);
 
     // „Später einrichten“ mit offenem Angebot
@@ -248,12 +263,23 @@ async fn decline_later_and_offer_again() {
     assert!(saved.general.first_run_completed);
     assert_eq!((saved.output.folder.as_deref(), saved.backend.default), (Some(Path::new(".")), None));
 
-    // erneut über Einstellungen › Erweitert
+    // erneut über Einstellungen › Erweitert (Einstellungen offen: die Live-Vorschau zeigt danach das
+    // übernommene Signaturbild)
+    core.dispatch(UiEvent::OpenSettings);
+    wait_for(&core, "Einstellungen", |v| v.settings.as_ref().is_some_and(|s| s.preview_revision > 0)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await; // keine Vorschau mehr unterwegs
+    let preview = core.view().settings.unwrap().preview_revision;
     core.dispatch(UiEvent::OfferMigration);
     let v = wait_for(&core, "Angebot", |v| v.migration.as_ref().is_some_and(|m| !m.items.is_empty())).await;
     assert!(v.first_run.is_none(), "keine Ersteinrichtung mehr");
     core.dispatch(UiEvent::AcceptMigration { store_secrets: false });
-    wait_for(&core, "übernommen", |v| v.notices.iter().any(|n| n.code == "ng-migrate-done")).await;
+    let v = wait_for(&core, "übernommen", |v| {
+        v.notices.iter().any(|n| n.code == "ng-migrate-done")
+            && v.settings.as_ref().is_some_and(|s| s.preview_revision > preview)
+    })
+    .await;
+    assert_eq!(v.settings.unwrap().settings.signature.profile, SignatureProfile::Amtssignaturblock);
+    core.dispatch(UiEvent::CloseSettings);
     let saved = file_settings(&fx).unwrap();
     assert_eq!(saved.output.folder.as_deref(), Some(out.as_path()));
     assert_eq!(saved.backend.default, Some(BackendChoice::IdAustria));
@@ -327,4 +353,63 @@ async fn mobile_first_run_keeps_the_app_documents() {
     let v = wait_for(&core, "Ersteinrichtung", |v| started(v) && v.first_run.is_some()).await;
     assert!(v.first_run.unwrap().migration.is_none());
     assert_eq!(current_settings(&core).await.output.folder, None);
+}
+
+/// Abnahme E4 Punkt 5 [K], §8 F4 Ende-zu-Ende: Nach der Ersteinrichtung einer Neuinstallation legt PIDA das
+/// signierte Dokument **neben das Original** (echte Engine, Keystore) – ohne Speichern-Dialog.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn fresh_install_saves_the_signed_file_next_to_the_original() {
+    let fx = Fixture::new();
+    let input_dir = fx.dir("Dokumente/Verträge");
+    let a = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &input_dir, "Mietvertrag.pdf");
+    let overlay = Overlay {
+        keystore_file: Some(testdata("keystores/test-rsa2048.p12")),
+        keystore_store_password: Some(zeroize::Zeroizing::new("test".into())),
+        ..Overlay::default()
+    };
+    let opts = CoreOptions { workspace_ui: Some(true), ..CoreOptions::isolated() };
+    let core = pida_core_api::Core::new_with(fx.config(overlay, false), opts).expect("Kern startet");
+    wait_for(&core, "Ersteinrichtung", |v| started(v) && v.first_run.is_some()).await;
+    core.dispatch(UiEvent::FinishFirstRun);
+    wait_for(&core, "fertig", |v| v.first_run.is_none()).await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    wait_for(&core, "Arbeitsbereich", |v| {
+        v.document.as_ref().is_some_and(|d| d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    core.dispatch(UiEvent::SignWith { backend: pida_backend_api::BackendId::Keystore });
+    let v = wait_for(
+        &core,
+        "gespeichert",
+        |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some() || result.save_dialog.is_some()),
+    )
+    .await;
+    let StepView::Output { result, .. } = &v.step else { unreachable!() };
+    assert!(result.save_dialog.is_none(), "kein Speichern-Dialog");
+    assert_eq!(result.path.as_deref(), Some(input_dir.join("Mietvertrag_signed.pdf").as_path()));
+    assert!(input_dir.join("Mietvertrag_signed.pdf").is_file());
+}
+
+/// „Einstellungen zurücksetzen“ behält den Altordner: Einstellungen › Erweitert bietet die PDF-Over-Einstellungen
+/// danach weiter an (statt „keine gefunden“).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn offer_migration_still_finds_the_legacy_config_after_a_reset() {
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let (legacy, _) = legacy_home(&fx, None);
+    let core = start(&fx, Some(&legacy), |_| {});
+    wait_for(&core, "Start", started).await;
+    core.dispatch(UiEvent::ResetSettings);
+    wait_for(&core, "zurückgesetzt", |v| v.notices.iter().any(|n| n.code == "ng-config-reset-done")).await;
+    wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. })).await;
+    core.dispatch(UiEvent::OfferMigration);
+    let v = wait_for(&core, "Angebot", |v| {
+        v.migration.is_some() || v.notices.iter().any(|n| n.code == "ng-migration-not-found")
+    })
+    .await;
+    assert!(
+        v.migration.as_ref().is_some_and(|m| !m.items.is_empty()),
+        "Angebot nach dem Zurücksetzen: {:?}",
+        v.notices
+    );
 }

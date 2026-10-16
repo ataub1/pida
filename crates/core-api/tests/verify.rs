@@ -113,6 +113,11 @@ async fn verify_view_follows_the_table() {
     assert_eq!(a.page, 0);
     assert!(a.rect.right - a.rect.left > 100.0 && a.rect.top - a.rect.bottom > 20.0, "{a:?}");
     assert!(a.rect.left >= 0.0 && a.rect.right <= 612.0 && a.rect.bottom >= 0.0 && a.rect.top <= 792.0, "{a:?}");
+    // Personendaten nie im `Debug` (Regel 9): Unterzeichner, Organisation, Seriennummer, Feld- und Dateiname
+    let debug = format!("{:?}", core.view());
+    for secret in [CN_RSA, ORG, s.serial.as_deref().unwrap(), s.field_name.as_str(), "pdfas-signed"] {
+        assert!(!debug.contains(secret), "„{secret}“ im Debug des ViewState");
+    }
 
     // manipuliert: verändert, Unterzeichner trotzdem genannt
     let f = open(&core, &verify_file("tampered.pdf")).await;
@@ -236,8 +241,11 @@ async fn verify_is_busy_while_signing() {
     let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "Antrag.pdf");
     let fake = FakeAtrust::new();
     let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let legacy = fx.dir("home/.pdf-over");
+    std::fs::write(legacy.join("PDF-Over.config"), "BKU=KS\nSIGNATURE_PROFILE=AMTSSIGNATURBLOCK\n").unwrap();
     let core = start(&fx, Overlay { input_files: vec![a], output: Some(fx.dir("out")), ..Overlay::default() }, |o| {
         o.backends = Some(backends);
+        o.legacy_dir = Some(legacy);
     });
     wait_for(&core, "Arbeitsbereich", editing).await;
     core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
@@ -248,7 +256,11 @@ async fn verify_is_busy_while_signing() {
     assert!(v.verify.is_none() && matches!(v.step, StepView::Signing { .. }));
     core.dispatch(UiEvent::SignVerified);
     core.dispatch(UiEvent::CloseVerify);
+    // auch kein erneutes Übernahmeangebot mitten im Signieren (es tauschte Einstellungen und Signiermittel)
+    core.dispatch(UiEvent::OfferMigration);
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    let v = core.view();
+    assert!(v.migration.is_none() && matches!(v.step, StepView::Signing { .. }), "{:?}", v.step);
     assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "nur die ausdrücklich gestartete Sitzung");
     core.dispatch(UiEvent::Cancel);
 }
@@ -526,4 +538,72 @@ async fn real_core_tools_views_for_the_ui() {
         let _: ViewState = serde_json::from_value(value)
             .unwrap_or_else(|e| panic!("{name}: real-core-tools-views.json passt nicht mehr zum Vertrag ({e})"));
     }
+}
+
+/// F-54/A1: Weder Prüfmodus noch „Dieses Dokument signieren“ noch die Ersteinrichtung (Übernahme mit
+/// `BKU=MOBILE`, Standard-Signiermittel ID Austria, automatische Position) öffnen eine Sitzung – nur
+/// „Signieren“ tut das.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn verify_and_first_run_events_never_open_a_session() {
+    // Bestandsnutzer mit ID Austria als Standard und automatischer Position
+    let fx = Fixture::new();
+    fx.write_settings("[signature]\nauto_position = true\n[backend]\ndefault = \"id_austria\"\n");
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
+        backends: Some(backends),
+        ..CoreOptions::isolated()
+    };
+    let core = pida_core_api::Core::new_with(fx.config(Overlay::default(), false), opts).expect("Kern");
+    wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. })).await;
+    let file = copy_pdf("verify/pdfas-signed.pdf", &fx.dir("in"), "Vertrag_signed.pdf");
+    open(&core, &file).await;
+    core.dispatch(UiEvent::SignVerified);
+    wait_for(&core, "Arbeitsbereich", editing).await;
+    open(&core, &verify_file("two-signatures.pdf")).await;
+    core.dispatch(UiEvent::SignVerified);
+    core.dispatch(UiEvent::CloseVerify);
+    core.dispatch(UiEvent::OfferMigration);
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(editing(&core.view()), "{:?}", core.view().step);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung ohne „Signieren“");
+    drop(core);
+
+    // Ersteinrichtung: Übernahme (ID Austria als Standard), Schritte 2/3, „Fertig“ – mit offenem Dokument
+    let fx = Fixture::new();
+    let legacy = fx.dir("home/.pdf-over");
+    std::fs::write(
+        legacy.join("PDF-Over.config"),
+        "BKU=MOBILE\nMOBILE_NUMBER=+436641234567\nSIGNATURE_POSITION=auto\n",
+    )
+    .unwrap();
+    let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "Antrag.pdf");
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
+        backends: Some(backends),
+        legacy_dir: Some(legacy),
+        ..CoreOptions::isolated()
+    };
+    let core =
+        pida_core_api::Core::new_with(fx.config(Overlay { input_files: vec![a], ..Overlay::default() }, false), opts)
+            .expect("Kern");
+    wait_for(&core, "Schritt 1", |v| editing(v) && v.first_run.as_ref().is_some_and(|f| f.migration.is_some())).await;
+    core.dispatch(UiEvent::AcceptMigration { store_secrets: false });
+    let v = wait_for(&core, "übernommen", |v| v.first_run.as_ref().is_some_and(|f| f.migration.is_none())).await;
+    assert_eq!(v.first_run.unwrap().default_backend, Some(pida_config::BackendChoice::IdAustria));
+    core.dispatch(UiEvent::UpdateFirstRun {
+        default_backend: Some(pida_config::BackendChoice::IdAustria),
+        profile: pida_config::SignatureProfile::SignaturblockSmall,
+        block_language: None,
+    });
+    core.dispatch(UiEvent::FinishFirstRun);
+    wait_for(&core, "fertig", |v| v.first_run.is_none()).await;
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(editing(&core.view()), "{:?}", core.view().step);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "Ersteinrichtung startet nie eine Sitzung");
 }

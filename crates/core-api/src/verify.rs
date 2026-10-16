@@ -53,13 +53,22 @@ fn signing_busy(state: &State) -> bool {
     )
 }
 
-/// Offene Prüfung.
-#[derive(Debug)]
+/// Offene Prüfung. `Debug` ohne Pfad (Regel 9).
 struct OpenVerify {
     generation: u64,
     path: PathBuf,
     doc: DocId,
     view: VerifyView,
+}
+
+impl std::fmt::Debug for OpenVerify {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenVerify")
+            .field("generation", &self.generation)
+            .field("doc", &self.doc)
+            .field("view", &self.view)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Zustand des Prüfmodus im Kern-Task.

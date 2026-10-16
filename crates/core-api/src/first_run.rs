@@ -111,10 +111,11 @@ impl CoreTask {
     }
 
     /// Nach `AcceptMigration` bzw. `DeclineMigration`: das Angebot ist entschieden, gespeichert wird wieder.
-    /// Abgelehnt in der Ersteinrichtung = Neuinstallation (`output.folder = "."`); übernommen: die
-    /// Einrichtung bleibt offen (Schritte 2/3 zeigen die übernommenen Werte).
-    pub(crate) fn migration_decided(&mut self, accepted: bool) {
-        let first_run = self.first_run_active() || (accepted && self.cfg.defer_save);
+    /// `first_run` = die Ersteinrichtung war bei der Entscheidung offen (vor dem Übernehmen ermittelt – die
+    /// übernommenen Einstellungen tragen `first_run_completed = true`). Abgelehnt in der Ersteinrichtung =
+    /// Neuinstallation (`output.folder = "."`); übernommen: die Einrichtung bleibt offen (Schritte 2/3 zeigen
+    /// die übernommenen Werte).
+    pub(crate) fn migration_decided(&mut self, accepted: bool, first_run: bool) {
         self.cfg.defer_save = false;
         if accepted && first_run {
             self.cfg.settings.general.first_run_completed = false;
@@ -167,6 +168,12 @@ impl CoreTask {
     pub(crate) fn offer_migration(&mut self) {
         if self.cfg.read_only() {
             tracing::debug!("offer_migration: Einstellungen schreibgeschützt");
+            return;
+        }
+        // wie die Einstellungen selbst nicht während des Signierens (die Übernahme tauscht Einstellungen und
+        // Signiermittel aus)
+        if !self.state.settings_enabled() {
+            tracing::debug!(state = self.state.name(), "offer_migration in diesem Zustand nicht möglich");
             return;
         }
         match self.cfg.legacy_dir.as_deref().and_then(pida_config::find_legacy_config) {
