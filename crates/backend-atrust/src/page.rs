@@ -244,6 +244,12 @@ impl Compiled<'_> {
 
 /// jsoup `ownText()`: direkte Textknoten mit zusammengefasstem Leerraum, `<br>` als Leerzeichen,
 /// anschließend Java-`trim()`.
+/// Vergleichswert ohne Leerzeichen (Entscheidung des Auftraggebers: A-Trust gliedert ihn mit Leerzeichen,
+/// PIDA zeigt ihn kompakt; der TAN-Abgleich `EnteredReferenceValue` vergleicht ebenfalls ohne Leerzeichen).
+pub(crate) fn reference_text(element: ElementRef<'_>) -> String {
+    own_text(element).chars().filter(|c| !c.is_whitespace()).collect()
+}
+
 pub(crate) fn own_text(element: ElementRef<'_>) -> String {
     let preserve = preserves_whitespace(element);
     let mut acc = String::new();
@@ -465,7 +471,7 @@ impl<'a> Ctx<'a> {
         let Some(reference) = self.first(&ids.reference_value)? else { return Ok(None) };
         Ok(Some(PageBlock::SmsTan {
             tan_field: tan_field.to_owned(),
-            reference_value: own_text(reference),
+            reference_value: reference_text(reference),
             submit: self.submit_button(&ids.sign_button)?,
         }))
     }
@@ -483,7 +489,7 @@ impl<'a> Ctx<'a> {
         // eine tolerantere Erkennung könnte auf echten Seiten zusätzliche Blöcke finden und so aus
         // einer eindeutigen Seite eine „unbekannte“ machen.
         let Some(poll) = self.poll_info()? else { return Ok(None) };
-        Ok(Some(PageBlock::QrCode { reference_value: own_text(reference), image_url, poll: Some(poll) }))
+        Ok(Some(PageBlock::QrCode { reference_value: reference_text(reference), image_url, poll: Some(poll) }))
     }
 
     fn waiting_for_app(&self) -> Result<Option<PageBlock>, PageError> {
@@ -495,7 +501,7 @@ impl<'a> Ctx<'a> {
         // Vergleichswert und Poll-Skript sind Pflicht wie in PDF-Over.
         let Some(reference) = self.first(&ids.reference_value)? else { return Ok(None) };
         let Some(poll) = self.poll_info()? else { return Ok(None) };
-        Ok(Some(PageBlock::WaitingForApp2Fa { reference_value: Some(own_text(reference)), poll: Some(poll) }))
+        Ok(Some(PageBlock::WaitingForApp2Fa { reference_value: Some(reference_text(reference)), poll: Some(poll) }))
     }
 
     fn fido2(&self) -> Result<Option<PageBlock>, PageError> {
@@ -602,6 +608,14 @@ mod tests {
         let doc = Html::parse_document(html);
         let sel = Selector::parse("#x").unwrap();
         own_text(doc.select(&sel).next().unwrap())
+    }
+
+    #[test]
+    fn reference_value_without_spaces() {
+        let html = "<span id=x> Ab 7x\u{a0}3k </span>";
+        let doc = Html::parse_fragment(html);
+        let el = doc.select(&Selector::parse("#x").unwrap()).next().unwrap();
+        assert_eq!(reference_text(el), "Ab7x3k");
     }
 
     #[test]
