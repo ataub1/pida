@@ -25,7 +25,7 @@ import type {
 import type { MockSigningFlow } from './shared';
 
 /** Vergleichswert der Demo (wie im Prototyp). */
-export const REFERENCE_VALUE = 'Xk7Pq';
+export const REFERENCE_VALUE = 'tpJXmaU/Aj';
 /** Link „Signaturdaten anzeigen“ der Demo (öffnet nichts). */
 export const SIGNATURE_DATA_URL = 'https://www.a-trust.at/mobile/ShowSigobj.aspx?demo';
 
@@ -166,6 +166,9 @@ export class SigningSession {
             kind: 'secret',
             request: ++this.request,
             prompt: { kind: 'KeystorePassword', subject: this.opts.keystoreSubject, retry: false },
+            // „Passwort merken?“ ergänzt die Projektion (`withStorageQuestion`)
+            ask_storage: false,
+            keychain_available: false,
           };
           return;
         case 'local_bku':
@@ -369,7 +372,7 @@ export class SigningSession {
   submitSecret(request: number, secret: string): void {
     if (this.interaction.kind !== 'secret' || this.interaction.request !== request) return;
     if (secret === 'falsch') {
-      this.interaction = { kind: 'secret', request: ++this.request, prompt: { ...this.interaction.prompt, retry: true } };
+      this.interaction = { ...this.interaction, request: ++this.request, prompt: { ...this.interaction.prompt, retry: true } };
       return;
     }
     if (this.interaction.prompt.kind === 'KeystorePassword' || this.interaction.prompt.kind === 'KeyPassword') this.host.unlocked?.();

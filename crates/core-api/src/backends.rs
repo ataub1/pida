@@ -66,6 +66,51 @@ impl PasswordCache for SecretStoreCache {
     }
 }
 
+/// `PasswordCache` des Keystores, solange die Speicherart noch nie gewählt wurde (Neuinstallation,
+/// `keystore.storage_chosen = false`): Die erste Passworteingabe fragt „Passwort merken?“; die Antwort
+/// ([`Registry::choose_keystore_storage`]) gilt schon für dieses Passwort, auch wenn das Backend mit der
+/// alten Konfiguration weiterläuft. Ohne Antwort (klassische Oberfläche) wie der Standard „bis Programmende“.
+struct FirstUseCache {
+    choice: Arc<std::sync::Mutex<Option<pida_config::PasswordStorage>>>,
+    memory: Arc<MemoryPasswordCache>,
+    keychain: SecretStoreCache,
+}
+
+impl FirstUseCache {
+    fn choice(&self) -> Option<pida_config::PasswordStorage> {
+        *self.choice.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+impl std::fmt::Debug for FirstUseCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FirstUseCache").field("choice", &self.choice()).finish_non_exhaustive()
+    }
+}
+
+impl PasswordCache for FirstUseCache {
+    fn get(&self, keystore: &Path, kind: PasswordKind) -> Option<Zeroizing<String>> {
+        match self.choice() {
+            Some(pida_config::PasswordStorage::None) => None,
+            Some(pida_config::PasswordStorage::Keychain) => self.keychain.get(keystore, kind),
+            _ => self.memory.get(keystore, kind),
+        }
+    }
+    fn put(&self, keystore: &Path, kind: PasswordKind, password: &str) {
+        match self.choice() {
+            Some(pida_config::PasswordStorage::None) => {}
+            Some(pida_config::PasswordStorage::Keychain) => self.keychain.put(keystore, kind, password),
+            _ => self.memory.put(keystore, kind, password),
+        }
+    }
+    fn forget(&self, keystore: &Path, kind: PasswordKind) {
+        self.memory.forget(keystore, kind);
+        if self.choice() == Some(pida_config::PasswordStorage::Keychain) {
+            self.keychain.forget(keystore, kind);
+        }
+    }
+}
+
 /// Speicherart der Konfiguration → Keystore-Speicherart.
 pub fn password_storage(p: pida_config::PasswordStorage) -> PasswordStorage {
     match p {
@@ -115,6 +160,8 @@ pub(crate) struct Registry {
     /// fest vorgegebene Backends (Tests, Einbettung)
     fixed: Option<Vec<Arc<dyn SignatureBackend>>>,
     memory_cache: Arc<MemoryPasswordCache>,
+    /// Antwort auf „Passwort merken?“ bei der ersten Verwendung ([`FirstUseCache`])
+    first_use_choice: Arc<std::sync::Mutex<Option<pida_config::PasswordStorage>>>,
     availability: Option<Availability>,
     fido2: Option<Arc<dyn Fido2Provider>>,
     platform: Platform,
@@ -154,6 +201,7 @@ impl Registry {
             keystore_configured: false,
             fixed,
             memory_cache: Arc::new(MemoryPasswordCache::default()),
+            first_use_choice: Arc::default(),
             availability,
             fido2,
             platform,
@@ -211,25 +259,79 @@ impl Registry {
             && let Some(file) = eff.keystore_file()
         {
             self.keystore_configured = file.is_file();
-            let storage = password_storage(cfg.settings.keystore.password_storage);
-            let alias = eff.keystore_alias().map(str::to_owned);
-            // Passwörter einer Datei aus dem Overlay werden nie dauerhaft abgelegt (KSState:119-129)
-            let cache: Arc<dyn PasswordCache> = match storage {
-                PasswordStorage::None => Arc::new(NoPasswordCache),
-                PasswordStorage::Keychain if !eff.keystore_from_overlay() => {
-                    Arc::new(SecretStoreCache::new(cfg.secrets.clone(), alias.clone().unwrap_or_default()))
-                }
-                _ => self.memory_cache.clone(),
-            };
+            let (storage, cache) = self.keystore_cache(cfg);
             let session = cfg.session_secrets.as_ref();
             let mut kc = KeystoreConfig::new(file.to_path_buf());
             kc.declared_type = eff.keystore_type().map(str::to_owned);
-            kc.alias = alias;
+            kc.alias = eff.keystore_alias().map(str::to_owned);
             kc.store_password = eff.keystore_store_password(session).ok().flatten();
             kc.key_password = eff.keystore_key_password(session).ok().flatten();
             kc.storage = storage;
             kc.cache = cache;
             self.keystore = Some(Arc::new(KeystoreBackend::new(kc)));
+        }
+    }
+
+    /// Speicherart und Ablage der Keystore-Passwörter wie beim Signieren: Passwörter einer Datei aus dem
+    /// Overlay werden nie dauerhaft abgelegt (KSState:119-129); solange die Speicherart noch nie gewählt
+    /// wurde, entscheidet die Antwort auf „Passwort merken?“ ([`FirstUseCache`]).
+    pub(crate) fn keystore_cache(&self, cfg: &ConfigState) -> (PasswordStorage, Arc<dyn PasswordCache>) {
+        let eff = cfg.effective();
+        let storage = password_storage(cfg.settings.keystore.password_storage);
+        let alias = eff.keystore_alias().unwrap_or_default().to_owned();
+        if Self::asks_storage(cfg) {
+            let cache = FirstUseCache {
+                choice: self.first_use_choice.clone(),
+                memory: self.memory_cache.clone(),
+                keychain: SecretStoreCache::new(cfg.secrets.clone(), alias),
+            };
+            // die Ablage folgt der Antwort; ohne Antwort „bis Programmende“ (Standard)
+            return (PasswordStorage::Memory, Arc::new(cache));
+        }
+        let cache: Arc<dyn PasswordCache> = match storage {
+            PasswordStorage::None => Arc::new(NoPasswordCache),
+            PasswordStorage::Keychain if !eff.keystore_from_overlay() => {
+                Arc::new(SecretStoreCache::new(cfg.secrets.clone(), alias))
+            }
+            _ => self.memory_cache.clone(),
+        };
+        (storage, cache)
+    }
+
+    /// Fragt die nächste Keystore-Passworteingabe „Passwort merken?“ (Speicherart noch nie gewählt, Datei aus
+    /// den Einstellungen – eine Datei aus dem Overlay wird ohnehin nie dauerhaft gemerkt)?
+    pub(crate) fn asks_storage(cfg: &ConfigState) -> bool {
+        !cfg.settings.keystore.storage_chosen && !cfg.effective().keystore_from_overlay()
+    }
+
+    /// Antwort auf „Passwort merken?“: gilt für das gerade eingegebene Passwort (auch im schon laufenden
+    /// Signiervorgang); danach baut [`Registry::configure`] den Keystore mit der gespeicherten Speicherart.
+    pub(crate) fn choose_keystore_storage(&self, storage: pida_config::PasswordStorage) {
+        *self.first_use_choice.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(storage);
+    }
+
+    /// Bekanntes Passwort der Keystore-Datei `file` (Overlay/Sitzung bzw. gemäß Speicherart gemerkt) – für das
+    /// automatische Lesen der Einträge in den Einstellungen.
+    pub(crate) fn known_keystore_password(&self, cfg: &ConfigState, file: &Path) -> Option<Zeroizing<String>> {
+        let eff = cfg.effective();
+        if eff.keystore_file() == Some(file)
+            && let Ok(Some(p)) = eff.keystore_store_password(cfg.session_secrets.as_ref())
+        {
+            return Some(p);
+        }
+        let (storage, cache) = self.keystore_cache(cfg);
+        if storage == PasswordStorage::None {
+            return None;
+        }
+        cache.get(file, PasswordKind::Store)
+    }
+
+    /// Ein geprüftes Keystore-Passwort gemäß Speicherart behalten (wie nach der Eingabe beim Signieren:
+    /// `none` verwirft, `memory` bis Programmende, Schlüsselbund dauerhaft).
+    pub(crate) fn remember_keystore_password(&self, cfg: &ConfigState, file: &Path, password: &str) {
+        let (storage, cache) = self.keystore_cache(cfg);
+        if storage != PasswordStorage::None {
+            cache.put(file, PasswordKind::Store, password);
         }
     }
 

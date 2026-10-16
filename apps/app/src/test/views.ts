@@ -1,5 +1,6 @@
 /** Bausteine für Test-Zustände (serde-Format wie `pida-core-api`). */
 import { defaultErrorContext, defaultSettings, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../core/defaults';
+import { mockKeystoreFormat } from '../core/mock/settings';
 import { capabilitiesFor } from '../core/mock/shared';
 import type {
   ActionsView,
@@ -144,7 +145,10 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
         problems: {},
         keychain_available: true,
         fido2_available: true,
-        keystore_ready: settings.keystore.enabled && !!settings.keystore.file,
+        keystore_ready: settings.keystore.enabled && mockKeystoreFormat(settings.keystore.file) === 'pkcs12',
+        keystore_format: mockKeystoreFormat(settings.keystore.file),
+        keystore_entries: null,
+        keystore_inspect_problem: null,
         read_only: false,
         preview_revision: 0,
         applied_revision: 0,

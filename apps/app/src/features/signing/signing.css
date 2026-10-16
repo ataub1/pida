@@ -243,6 +243,9 @@
 .refvalue {
   display: grid;
   gap: 6px;
+  /* darf schrumpfen: echte A-Trust-Vergleichswerte haben ~10 Zeichen (der Prototyp rechnete mit 5) */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .refvalue-label {
   font-size: var(--fs-12);
@@ -252,27 +255,33 @@
   color: var(--c-text-3);
 }
 .refvalue-chars {
+  --rv-gap: 6px;
   display: flex;
-  gap: 6px;
+  gap: var(--rv-gap);
+  min-width: 0;
+  /* Breite kommt vom Container, nicht vom Inhalt: die Kästchen schrumpfen, statt die Karte zu sprengen */
+  container-type: inline-size;
 }
 .refvalue-char {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 50px;
+  flex: 0 1 var(--rv-w, 40px);
+  min-width: 0;
+  max-width: var(--rv-w, 40px);
+  aspect-ratio: 4 / 5;
   border: 1px solid var(--c-border-strong);
   border-radius: var(--r-3);
   background: var(--c-surface);
   box-shadow: var(--shadow-1);
   font-family: var(--font-mono);
-  font-size: 26px;
+  /* Schrift passt sich der Kästchenbreite an (Zeichenzahl in --n vom Bauteil) */
+  font-size: min(var(--rv-fs, 26px), calc((100cqw - (var(--n, 5) - 1) * var(--rv-gap)) / var(--n, 5) * 0.62));
   font-weight: var(--fw-bold);
 }
 .refvalue-sm .refvalue-char {
-  width: 28px;
-  height: 34px;
+  --rv-w: 28px;
+  --rv-fs: 17px;
   border-radius: var(--r-2);
-  font-size: 17px;
 }
 .countdown {
   position: relative;
@@ -496,9 +505,8 @@
 }
 @media (max-width: 420px) {
   .refvalue-char {
-    width: 34px;
-    height: 44px;
-    font-size: 22px;
+    --rv-w: 34px;
+    --rv-fs: 22px;
   }
   /* Ring neben dem Vergleichswert halten (statt darunter mit leerer Fläche) */
   .app-confirm .countdown,

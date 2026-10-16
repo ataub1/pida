@@ -51,6 +51,7 @@ import {
   maskAccount,
   outputFileName,
   SANDBOX,
+  withStorageQuestion,
   type MockArea,
   type MockCtx,
   type MockOptions,
@@ -698,7 +699,7 @@ function stepView(s: FlowState, ctx: MockCtx): StepView {
       const leaves = session ? capabilitiesFor(session.backend).document_leaves_device : false;
       return {
         step: 'signing',
-        interaction: session ? session.interaction : { kind: 'waiting', progress: 'Connecting' },
+        interaction: session ? withStorageQuestion(session.interaction, ctx.settings(), s.opts.keychainAvailable ?? true) : { kind: 'waiting', progress: 'Connecting' },
         queue,
         document_leaves_device: leaves,
         progress: session ? session.progress() : defaultSigningProgress(),
@@ -731,7 +732,7 @@ function stepView(s: FlowState, ctx: MockCtx): StepView {
       const backend = b.backend();
       return {
         step: 'signing',
-        interaction: b.interaction(),
+        interaction: withStorageQuestion(b.interaction(), ctx.settings(), s.opts.keychainAvailable ?? true),
         queue: b.docs().map((q, i) => ({ id: q.id, name: q.name, current: i === 0 })),
         document_leaves_device: backend ? capabilitiesFor(backend).document_leaves_device : false,
         progress: b.progress(),

@@ -26,12 +26,13 @@ tokio = { workspace = true }
 # (`3des`). Nur Entschlüsseln; neue Keystores schreibt der Klon nicht. Version muss der von
 # p12-keystore entsprechen (bei einem Update von p12-keystore mitziehen).
 pkcs5 = { workspace = true }
+# Gültigkeitsende der Zertifikate in `AliasInfo` (Alias-Auswahl in den Einstellungen)
+time = { workspace = true }
 
 [dev-dependencies]
 pida-backend-api = { workspace = true, features = ["testing"] }
 tokio = { workspace = true, features = ["rt", "macros", "time"] }
 tempfile = { workspace = true }
-time = { workspace = true }
 
 [lints]
 workspace = true

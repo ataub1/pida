@@ -177,7 +177,15 @@ button.batch-row-main {
 }
 .batch-row-action {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: var(--sp-2);
+}
+.batch-row-remove {
+  color: var(--c-text-3);
+}
+.batch-row-remove[data-hovered] {
+  color: var(--c-danger, var(--c-text));
 }
 .batch-row-caret {
   color: var(--c-text-3);

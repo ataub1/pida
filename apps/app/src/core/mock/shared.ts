@@ -11,7 +11,7 @@
  * Der Mock ist keine zweite Fachlogik: Regeln nur so weit, wie Bedienung und Tests sie brauchen. Keine
  * echten Zugangsdaten, kein Netz.
  */
-import type { BackendId, Capabilities, Lang, PlatformView, ResumeOfferView, Settings, UiEvent, ViewState } from '../types';
+import type { BackendId, Capabilities, InteractionView, Lang, PlatformView, ResumeOfferView, Settings, UiEvent, ViewState } from '../types';
 
 /** Szenarien wie im Prototyp (`?scenario=`). */
 export type MockScenario = 'start' | 'blank' | 'contract' | 'field' | 'signed' | 'batch' | 'verify' | 'error-password' | 'error-atrust';
@@ -51,6 +51,8 @@ export interface MockOptions {
   fido2Available?: boolean;
   /** Schlüsselbund verfügbar */
   keychainAvailable?: boolean;
+  /** Passwort des Keystores bereits gemerkt: die Einstellungen zeigen seine Schlüssel sofort (Testpasswort „test“) */
+  keystorePasswordKnown?: boolean;
   /** Start direkt in diesem Zustand (Tests; Ereignisse werden nur protokolliert) */
   initialView?: ViewState;
   /** Warnungen der Eingangsanalyse (Codes, z. B. `pdf-usage-rights`) → Phase `warning` */
@@ -125,6 +127,15 @@ export interface MockArea<S> {
 }
 
 /* ---------------------------------------------------------------- reine Hilfen */
+
+/**
+ * „Passwort merken?“ bei der ersten Verwendung des Keystores (wie `CoreTask::interaction_view`): die
+ * Keystore-Passwortabfrage fragt, solange `keystore.storage_chosen` falsch ist.
+ */
+export function withStorageQuestion(i: InteractionView, settings: Settings, keychainAvailable: boolean): InteractionView {
+  if (i.kind !== 'secret' || i.prompt.kind !== 'KeystorePassword') return i;
+  return { ...i, ask_storage: !settings.keystore.storage_chosen, keychain_available: keychainAvailable };
+}
 
 export const A4: [number, number] = [595.28, 841.89];
 

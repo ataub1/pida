@@ -561,7 +561,7 @@ fn core_without_runtime_owns_one() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn ui_events_are_serde_tagged_and_secrets_redacted() {
-    let e = UiEvent::SubmitSecret { request: 3, secret: "geheim".into() };
+    let e = UiEvent::SubmitSecret { request: 3, secret: "geheim".into(), password_storage: None };
     let json = serde_json::to_string(&e).unwrap();
     assert!(json.contains("\"type\":\"submit_secret\""));
     assert!(!format!("{e:?}").contains("geheim"));
@@ -590,14 +590,14 @@ async fn gui_keystore_password_prompt_with_retry() {
     let core = fx.start(overlay, false, options(&engine));
     let secret = |retry: bool| move |v: &pida_core_api::ViewState| matches!(&v.step, StepView::Signing { interaction: InteractionView::Secret { prompt, .. }, .. } if prompt.retry == retry);
     let v = wait_for(&core, "Passwort", secret(false)).await;
-    let StepView::Signing { interaction: InteractionView::Secret { request, prompt }, .. } = v.step else {
+    let StepView::Signing { interaction: InteractionView::Secret { request, prompt, .. }, .. } = v.step else {
         unreachable!()
     };
     assert_eq!(prompt.subject, "test-rsa2048.p12", "nur Dateiname (Regel 9)");
-    core.dispatch(UiEvent::SubmitSecret { request, secret: "falsch".into() });
+    core.dispatch(UiEvent::SubmitSecret { request, secret: "falsch".into(), password_storage: None });
     let v = wait_for(&core, "Passwort erneut", secret(true)).await;
     let StepView::Signing { interaction: InteractionView::Secret { request, .. }, .. } = v.step else { unreachable!() };
-    core.dispatch(UiEvent::SubmitSecret { request, secret: "test".into() });
+    core.dispatch(UiEvent::SubmitSecret { request, secret: "test".into(), password_storage: None });
     wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
         .await;
     assert!(out.join("a_signed.pdf").is_file());
@@ -650,8 +650,13 @@ async fn migration_offer_accept_and_decline() {
         if accept {
             assert!(v.notices.iter().any(|n| n.code == "ng-migrate-done"), "{:?}", v.notices);
             assert_eq!(saved.id_austria.username.as_deref(), Some("+436641234567"));
+            // übernommene Speicherart (`KEYSTORE_PASS_STORE_TYPE` bzw. Auto-Migration) gilt als gewählt
+            assert!(saved.keystore.storage_chosen, "Übernahme fragt nie „Passwort merken?“");
         } else {
-            assert_eq!(saved, Settings::default());
+            // Neuinstallation: die erste Keystore-Passworteingabe fragt „Passwort merken?“
+            let mut expected = Settings::default();
+            expected.keystore.storage_chosen = false;
+            assert_eq!(saved, expected);
         }
         drop(core);
         // zweiter Start: kein Angebot mehr

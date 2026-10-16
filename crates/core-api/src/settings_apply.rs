@@ -227,6 +227,11 @@ pub(crate) fn apply_changes(
 /// Normalisierung eines übernommenen Felds (ADR 0004 §3.11 „Benutzername speichert der Kern normalisiert“):
 /// der ID-Austria-Benutzername wie nach der Anmeldung (`+43…` statt `0…`, ohne Leerraum); leer = keiner.
 fn normalize(next: &mut Settings, path: &str) {
+    // eine Wahl der Speicherart in den Einstellungen gilt als ausdrückliche Wahl (keine Rückfrage mehr bei
+    // der ersten Passworteingabe)
+    if path == "keystore.password_storage" {
+        next.keystore.storage_chosen = true;
+    }
     if path == "id_austria.username" {
         let user = next.id_austria.username.take();
         next.id_austria.username =
