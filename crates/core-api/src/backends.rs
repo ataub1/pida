@@ -326,6 +326,27 @@ impl Registry {
         cache.get(file, PasswordKind::Store)
     }
 
+    /// Bekanntes Keystore-Passwort OHNE Zugriff auf den Schlüsselbund (Kommandozeile/Sitzung, „bis
+    /// Programmende“): für automatische Anzeigen wie die Schlüsselliste beim Öffnen der Einstellungen. Ein
+    /// Schlüsselbund-Zugriff löst unter macOS eine Systemabfrage aus und darf nur auf eine Nutzeraktion hin
+    /// geschehen (Signieren, „Schlüssel anzeigen …“, Wahl „Im Schlüsselbund“).
+    pub(crate) fn known_keystore_password_without_keychain(
+        &self,
+        cfg: &ConfigState,
+        file: &Path,
+    ) -> Option<Zeroizing<String>> {
+        let eff = cfg.effective();
+        if eff.keystore_file() == Some(file)
+            && let Ok(Some(p)) = eff.keystore_store_password(cfg.session_secrets.as_ref())
+        {
+            return Some(p);
+        }
+        if password_storage(cfg.settings.keystore.password_storage) == PasswordStorage::None {
+            return None;
+        }
+        self.memory_cache.get(file, PasswordKind::Store)
+    }
+
     /// Ein geprüftes Keystore-Passwort gemäß Speicherart behalten (wie nach der Eingabe beim Signieren:
     /// `none` verwirft, `memory` bis Programmende, Schlüsselbund dauerhaft).
     pub(crate) fn remember_keystore_password(&self, cfg: &ConfigState, file: &Path, password: &str) {

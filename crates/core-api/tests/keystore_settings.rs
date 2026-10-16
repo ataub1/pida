@@ -273,16 +273,21 @@ async fn storage_none_does_not_keep_the_password() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn keychain_password_reads_entries_automatically_and_inspect_stores_it() {
-    // gespeichertes Passwort im Schlüsselbund: Einträge sofort beim Öffnen
+async fn keychain_password_is_read_only_on_request_and_inspect_stores_it() {
+    // gespeichertes Passwort im Schlüsselbund: beim Öffnen der Einstellungen KEIN Zugriff (macOS-
+    // Systemabfrage), erst „Schlüssel anzeigen …“ (Nutzeraktion) liest mit dem Passwort aus dem Schlüsselbund
     let fx = Fixture::new();
     let two = copy_keystore(&fx, TWO_KEYS, "zwei.p12");
     fx.write_settings(&keystore_toml(&two, "password_storage = \"keychain\""));
     let keychain = Arc::new(TestKeychain::default());
     keychain.set(&SecretId::keystore_store(&two), PASSWORD).unwrap();
     let core = start(&fx, keychain.clone(), Overlay::default());
-    core.dispatch(UiEvent::OpenSettings);
-    let v = wait_entries(&core, "Einträge aus dem Schlüsselbund").await;
+    let v = open_settings(&core).await;
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert_eq!(settings(&v).keystore_entries, None, "kein automatischer Schlüsselbund-Zugriff");
+    assert_eq!(settings(&core.view()).keystore_entries, None, "auch nicht verzögert");
+    inspect(&core, None, None);
+    let v = wait_entries(&core, "Einträge aus dem Schlüsselbund nach „Schlüssel anzeigen“").await;
     assert_eq!(settings(&v).keystore_entries.as_ref().map(Vec::len), Some(3));
     drop(core);
 
@@ -374,10 +379,15 @@ async fn first_use_asks_once_and_the_choice_applies() {
         let v = wait_for(&core, "Einstellungen", |v| v.settings.is_some()).await;
         let s = settings(&v);
         assert!(s.settings.keystore.storage_chosen);
-        if choice == PasswordStorage::None {
-            assert_eq!(s.keystore_entries, None, "nicht gemerkt");
-        } else {
-            wait_entries(&core, "mit gemerktem Passwort").await;
+        match choice {
+            PasswordStorage::None => assert_eq!(s.keystore_entries, None, "nicht gemerkt"),
+            // Schlüsselbund nie beim bloßen Öffnen der Einstellungen anfassen (macOS-Systemabfrage)
+            PasswordStorage::Keychain => {
+                assert_eq!(s.keystore_entries, None, "kein automatischer Schlüsselbund-Zugriff")
+            }
+            _ => {
+                wait_entries(&core, "mit gemerktem Passwort").await;
+            }
         }
         drop(core);
 

@@ -168,7 +168,8 @@ impl CoreTask {
             return;
         }
         info.auto_read = true;
-        let Some(password) = self.registry.known_keystore_password(&self.cfg, &file) else { return };
+        // nie den Schlüsselbund anfassen (macOS-Systemabfrage beim bloßen Öffnen der Einstellungen)
+        let Some(password) = self.registry.known_keystore_password_without_keychain(&self.cfg, &file) else { return };
         match read_entries(&file, &password) {
             Ok(entries) => {
                 tracing::debug!(entries = entries.len(), "Keystore-Einträge mit bekanntem Passwort gelesen");
