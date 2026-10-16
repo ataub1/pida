@@ -83,6 +83,10 @@ ng-ui-set-placeholder-qr = QR code placeholders
 ng-ui-set-placeholder-qr-desc = The signature goes on the QR code in the document.
 ng-ui-set-placeholder-field = Empty signature fields
 ng-ui-set-placeholder-field-desc = The signature goes into an empty field of the PDF form.
+# “Automatic positioning” like PDF-Over (SIGNATURE_POSITION=auto, ADR 0004 addendum 8)
+ng-ui-set-auto-position = Automatic positioning
+    .keywords = position positioning place placement automatic auto signature block location immediately sign
+ng-ui-set-auto-position-hint = When a document is opened, the signature block is placed automatically and the document is ready to sign right away. You can still change the position if needed.
 
 ## Settings › Signing methods
 

@@ -1422,7 +1422,7 @@ Abbildung der Abschnitte des Prototyps auf `pida_config::Settings` (kein neues F
 | Darstellung › Farbschema | – | UI-lokal (`pida.theme`, localStorage, je Gerät) |
 | › Sprache | `general.ui_language` | auch `SetUiLanguage` |
 | Datenschutz (V0) | `certificate_cache.enabled`, NEU `general.recent_documents` | Text aus `privacy_text` bzw. Katalog; „Liste leeren“ = `ClearRecent` |
-| Dokument (Nachtrag 5) | `signature.pdfa_force`, `placeholder.{search, kind}` | direkt nach „Signaturbild“; Auswahl „QR-Code-Platzhalter“ (`marker`) bzw. „Leere Signaturfelder“ (`fields`) gesperrt bei ausgeschalteter Suche; Standard wie PDF-Over (Suche aus, `marker`, PDF/A aus) |
+| Dokument (Nachtrag 5, Nachtrag 8) | `signature.pdfa_force`, `placeholder.{search, kind}`, `signature.auto_position` | direkt nach „Signaturbild“; Auswahl „QR-Code-Platzhalter“ (`marker`) bzw. „Leere Signaturfelder“ (`fields`) gesperrt bei ausgeschalteter Suche; Standard wie PDF-Over (Suche aus, `marker`, PDF/A aus, automatische Positionierung aus) |
 | Erweitert | `proxy.*`, `general.update_check`, `signature.cms_profile` (bis Nachtrag 5 auch `placeholder.*`, `signature.pdfa_force`) | Mobile ohne Proxy/Updates; Log-Ordner über Shell |
 | Erweitert › PDF-Over übernehmen | – | `OfferMigration` (§3.12) |
 | Über | – | Version (`appInfo`), Drittlizenzen, Log-Ordner (Shell) |
@@ -2395,3 +2395,68 @@ in der Liste `.emblem.png`; „Einstellungen zurücksetzen“ startet die Erstei
 (`ETSI.RFC3161`) fehlen in `testdata/verify` (keine TSA, Abbildung nur im Code); die CLI `pida verify` meldet weiter
 „gültig“/„ungültig“ (QA-Werkzeug, nicht §8 F3) und könnte auf `pades::verify_document` umsteigen;
 `RadioCards`/`Segmented` mit `isDisabled` der Gruppe in `ui/controls.tsx` (Bitte aus B3 an UI-A).
+
+### Nachtrag 8 (16.10.2026): „Automatische Positionierung“ – Einstellung, gesperrter Block, Stapel-Option
+
+Entscheidung des Auftraggebers: Die PDF-Over-Option „Automatische Positionierung“ (`SIGNATURE_POSITION=auto`,
+`signature.auto_position`, Startargument `-a`) wird in der neuen Oberfläche wieder angeboten. Die Notiz aus B3
+(Nachtrag 5, „`signature.auto_position` erscheint nicht mehr“) ist damit überholt. Vertrag, additiv nach §3.0 Regel 2:
+
+```rust
+pub struct DocumentView {
+    // … wie §3.3, Nachtrag 5
+    /// Platzierung gesperrt durch die Einstellung (automatisch platziert, bereit zum Signieren)
+    #[serde(default)] pub placement_locked: bool,
+}
+pub struct BatchView {
+    // … wie §3.8, Nachtrag 4
+    #[serde(default)] pub auto_position_setting: bool, // Einstellung an: „laut Einstellung“
+    #[serde(default)] pub auto_position_once: bool,    // „Für diesen Stapel automatisch positionieren“
+    #[serde(default)] pub manual_plans: u32,           // von Hand platzierte, noch nicht signierte Einträge
+}
+pub enum UiEvent {
+    // … (neue Varianten am Ende)
+    /// „Diesmal selbst platzieren“: Sperre nur für dieses Dokument aufheben
+    UnlockPlacement,
+    /// nur in der Stapelübersicht; `replace_manual` nur nach ausdrücklicher Bestätigung
+    SetBatchAutoPosition { enabled: bool, #[serde(default)] replace_manual: bool },
+}
+```
+
+1. **Einstellungen › Dokument:** Schalter „Automatische Positionierung“ (`ng-ui-set-auto-position`, Synonyme u. a.
+   „position“, „platzieren“, „automatisch“, „auto“), sofort wirksam über `apply_settings`. Die Migration aus PDF-Over
+   gab es schon (`SIGNATURE_POSITION`, Java-`trim() == "auto"`, Orakeltest); `AUTOMATIC_POSITIONING` ist kein
+   PDF-Over-Schlüssel, sondern nur die Klasse des Startarguments `-a` (bleibt als Overlay). Neu: die Übernahmeliste
+   der Ersteinrichtung nennt sie (`ng-migration-item-position`, neue ID in `pida.ftl`).
+2. **Kern (Reducer):** `WorkspaceEdit::lock` (`PlacementLock::{Off, Locked, Released}`, Workflow-intern) – nach der
+   Analyse und bei jeder Einstellungsänderung `follow_auto_position`: Einstellung an sperrt ein Dokument, dessen Lage
+   noch aus der Automatik stammt (PDF-AS-Verfahren, Platzhaltersuche hat Vorrang); aus hebt die Sperre auf;
+   `PlacementUnlocked` („Diesmal selbst platzieren“) gibt **nur dieses** Dokument frei (`Released` bleibt auch bei
+   erneutem Einschalten, das nächste Dokument ist wieder gesperrt). Gesperrt bleiben `PlacementChanged`, `PageChanged`
+   und `TargetChosen` ohne Wirkung (core-api ignoriert `move_block`/`nudge_block` schon vor dem Klemmen); „Unsichtbar“,
+   „Auf neuer Seite“ (eine Platzierung der Nutzerin wie bisher, die Sperre bleibt) und „Signieren mit“ wirken.
+   Nie für aus der Stapelübersicht geöffnete Einträge (die Nutzerin öffnet sie zum Platzieren). Signiert wird nie
+   selbst (A1/F-54 unverändert, Property-Test um `PlacementUnlocked`, Umschalten der Einstellung, `PageChanged` und
+   `BatchAutoPositionSet` erweitert, dazu: gesperrt verschiebt nichts); die Startargument-Automatik D-06 (`-b` + `-a`)
+   bleibt der klassische automatische Weg, im Rückfall (ID Austria) ist der Block gesperrt wie mit der Einstellung.
+3. **Oberfläche:** gesperrter Block ohne Ziehen, Tastatur, Doppelklick und Feld-Angebote (Rolle „automatisch
+   platzierter Signaturblock“, Hilfe nennt „Diesmal selbst platzieren“); Inspektor › Platzierung „Automatisch (laut
+   Einstellung)“ mit Hinweis „Bereit zum Signieren …“ und „Diesmal selbst platzieren“ statt „Neu platzieren“/„Frei
+   platzieren“ (auch in der Überdeckungswarnung); nach dem Öffnen liegt der Fokus auf „Signieren“ (nur beim Einhängen
+   des Knopfs). Optionen bleiben bedienbar (`actions.edit_placement` unverändert).
+4. **Stapel (Zusatzanforderung):** Ist die Einstellung aus, bietet die Übersicht „Für diesen Stapel automatisch
+   positionieren“ (`Batch::auto_position_once`): gilt nur für diesen Stapel, die Einstellung bleibt unverändert und
+   wird nicht gespeichert; nach Ende bzw. Abbruch des Laufs (`into_overview`) bzw. mit dem Schließen des Stapels gilt
+   wieder die Einstellung. Ist die Einstellung an, steht dort nur „Automatische Positionierung (laut Einstellung)“. In
+   beiden Fällen gelten automatisch platzierte Einträge als „Bereit“ (auch QR-Platzhalter bzw. erstes leeres Feld der
+   Platzhaltersuche, Projektion `BatchItem::shown_status`; die Platzierung zeigt weiter „im QR-Platzhalter“); von Hand
+   platzierte behalten ihren Plan, außer die Nutzerin bestätigt in der Rückfrage „Auch diese automatisch platzieren“
+   (`replace_manual`; Vorauswahl „Behalten“, Escape ändert nichts). Analysewarnungen („Bitte prüfen“) bleiben zu
+   prüfen. Nichts davon startet etwas (erst „Alle signieren“).
+5. **Proben und Mock:** `real-core-views.json` mit `doc_auto_locked`, `real-core-batch-views.json` mit
+   `batch_auto_once`, `view-states.json` mit `ws_editing_locked`, `ws_batch_auto_once`, `ws_batch_auto_setting`; der
+   Mock folgt dem Kern (Sperre, Freigabe, sofort wirksam, Stapel-Option, „Bereit“).
+
+**Angenommene Abweichungen:** Die Stapel-Option liegt im Stapel (`Batch`), nicht in `StartBatch`, damit die Übersicht
+schon vor dem Start „Bereit“ zeigt; die Sperre gilt mit der Einstellung auch für ein beim Einschalten noch automatisch
+platziertes, schon geöffnetes Dokument („sofort wirksam“).

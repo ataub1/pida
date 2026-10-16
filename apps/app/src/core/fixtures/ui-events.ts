@@ -101,6 +101,9 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'update_first_run', default_backend: 'id_austria', profile: 'SIGNATURBLOCK_SMALL', block_language: 'de' },
   { type: 'finish_first_run' },
   { type: 'offer_migration' },
+  // Nachtrag 8: „Diesmal selbst platzieren“, „Für diesen Stapel automatisch positionieren“
+  { type: 'unlock_placement' },
+  { type: 'set_batch_auto_position', enabled: true, replace_manual: false },
 ];
 
 /** Weitere Antworten (alle `FormAnswerView`-Varianten, `save` ohne Pfad, Platzhalter ohne Feld). */

@@ -13,6 +13,8 @@
  * - **Tastatur** am Sticker: Pfeile → `nudge_block` (15 pt; Umschalt fein 1 pt, Alt bzw. Strg/⌘ grob 50 pt –
  *   die Schritte rechnet der Kern), Bild↑/↓ und Pos1/Ende → `change_page`.
  * - **Überdeckung** (Rahmen, Plakette) nur, wenn `check.for_revision == revision`.
+ * - **Gesperrt** (Einstellung „Automatische Positionierung“, `locked`): weder Ziehen noch Tastatur noch
+ *   Feld-Markierungen; der Block nennt sich „automatisch platziert“ und verweist auf „Diesmal selbst platzieren“.
  */
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type RefObject } from 'react';
 import { Button } from 'react-aria-components';
@@ -20,7 +22,7 @@ import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
 import type { DocumentView, GuideKind, GuideView, PlacementTarget, RectPt } from '../../core/types';
 import { useModKey } from '../../ui/controls';
-import { IconAlert, IconCheck, IconGrip, IconPen, IconQr } from '../../ui/Icons';
+import { IconAlert, IconCheck, IconGrip, IconLock, IconPen, IconQr } from '../../ui/Icons';
 import {
   clampToPage,
   grabPoint,
@@ -84,6 +86,7 @@ export function Pages({
   layout,
   loadPages,
   editable,
+  locked = false,
   coach,
   hostRef,
   stickerRef,
@@ -96,7 +99,10 @@ export function Pages({
   layout: PagesLayout;
   /** Seiten, deren Kachel geladen wird (sichtbar ± Rand) */
   loadPages: Set<number>;
+  /** Block verschiebbar (Ziehen, Tastatur, Doppelklick, Feld-Markierungen) */
   editable: boolean;
+  /** gesperrt durch die Einstellung „Automatische Positionierung“ (Kern: `placement_locked`) */
+  locked?: boolean;
   coach: boolean;
   hostRef: RefObject<HTMLDivElement | null>;
   stickerRef: RefObject<HTMLDivElement | null>;
@@ -394,15 +400,16 @@ export function Pages({
         {box && !doc.invisible ? (
           <div
             ref={stickerRef}
-            className={`sticker${dragging ? ' is-dragging' : ''}${overlap ? ' is-overlap' : ''}${inField ? ' is-in-field' : ''}`}
+            className={`sticker${dragging ? ' is-dragging' : ''}${overlap ? ' is-overlap' : ''}${inField ? ' is-in-field' : ''}${locked ? ' is-locked' : ''}`}
             style={{ top: top(stickerPage) + box.top, left: left(stickerPage) + box.left, width: box.width, height: box.height }}
             role="application"
-            aria-roledescription={t.t('ng-ui-ws-sticker-role')}
+            aria-roledescription={t.t(locked ? 'ng-ui-ws-sticker-role-locked' : 'ng-ui-ws-sticker-role')}
             aria-label={t.t('ng-ui-ws-sticker-label')}
             aria-describedby={helpId}
             aria-disabled={editable ? undefined : true}
             tabIndex={editable ? 0 : -1}
             data-testid="sticker"
+            data-locked={locked || undefined}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={finish}
@@ -410,7 +417,7 @@ export function Pages({
             onKeyDown={onKeyDown}
           >
             <span className="sticker-tab" aria-hidden="true">
-              <IconGrip size={14} />
+              {locked ? <IconLock size={14} /> : <IconGrip size={14} />}
               {t.t('ng-ui-ws-sticker-label')}
             </span>
             {block.preview_revision > 0 ? <img className="sticker-img" src={previewUrl} alt="" draggable={false} /> : null}
@@ -432,7 +439,7 @@ export function Pages({
               </span>
             ) : null}
             <span id={helpId} className="sr-only">
-              {t.t('ng-ui-ws-sticker-help', { sign: `${mod}+${enter}` })}
+              {t.t(locked ? 'ng-ui-ws-sticker-locked-help' : 'ng-ui-ws-sticker-help', { sign: `${mod}+${enter}` })}
             </span>
           </div>
         ) : null}

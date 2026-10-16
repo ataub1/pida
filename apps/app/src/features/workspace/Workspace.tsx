@@ -10,6 +10,9 @@
  * - „Signieren“ (Knopf, ⌘↵, Palette): mit gewähltem Signiermittel `sign_with`, sonst öffnet sich das Menü
  *   des Konto-Chips und die Wahl dort signiert (§3.4, §8 F12).
  * - ⌘/Strg + Plus/Minus/0 zoomt nur die Seitenansicht.
+ * - Einstellung „Automatische Positionierung“ (`document.placement_locked`, ADR 0004 Nachtrag 8): der Block ist
+ *   gesperrt (kein Ziehen, keine Tastatur, keine Feld-Angebote), bis „Diesmal selbst platzieren“; „Unsichtbar“ und
+ *   „Auf neuer Seite“ bleiben bedienbar. Was gesperrt ist, entscheidet der Kern.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Toolbar } from 'react-aria-components';
@@ -54,6 +57,8 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const lastSnap = useRef<GuideKind[]>([]);
   const editable = view.actions.edit_placement && doc.phase === 'editing';
+  // gesperrt durch „Automatische Positionierung“: Optionen bedienbar, der Block nicht verschiebbar (Kern)
+  const movable = editable && !doc.placement_locked;
 
   const scale = zoom ? (zoom / 100) * PT_TO_PX : fitScale;
   const layout = useMemo(() => layoutPages(sizes, scale), [sizes, scale]);
@@ -218,7 +223,7 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const unusedField = editable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
+  const unusedField = movable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
 
   return (
     <div className={`workspace${pagesOpen ? ' pages-open' : ''}`} data-phase={doc.phase}>
@@ -288,7 +293,8 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
             scale={scale}
             layout={layout}
             loadPages={loadPages}
-            editable={editable}
+            editable={movable}
+            locked={editable && doc.placement_locked}
             coach={coach}
             hostRef={hostRef}
             stickerRef={stickerRef}

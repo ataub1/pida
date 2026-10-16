@@ -1,4 +1,176 @@
 {
+  "batch_auto_once": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": true,
+      "verify": true
+    },
+    "batch": {
+      "auto_position_once": true,
+      "auto_position_setting": false,
+      "estimate": {
+        "backend": "atrust_native",
+        "certificate_confirmation_possible": true,
+        "confirmations": 3,
+        "documents": 3,
+        "large": false,
+        "logins": 1
+      },
+      "items": [
+        {
+          "doc": 1,
+          "name": "Vertrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Vertrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Geheim.pdf",
+          "page_count": null,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": null,
+          "status": {
+            "code": "error-PDFPwdProtected",
+            "state": "rejected"
+          },
+          "target_exists": false,
+          "target_name": "Geheim_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 3,
+          "name": "Antrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6232,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Antrag_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 4,
+          "name": "Beilage.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Beilage_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "manual_plans": 0,
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": false,
+      "summary": null
+    },
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "step": "batch"
+    },
+    "verify": null
+  },
   "batch_confirm_1": {
     "actions": {
       "edit_placement": false,
@@ -11,6 +183,8 @@
       "verify": false
     },
     "batch": {
+      "auto_position_once": true,
+      "auto_position_setting": false,
       "estimate": null,
       "items": [
         {
@@ -76,6 +250,7 @@
           "thumbnail": false
         }
       ],
+      "manual_plans": 0,
       "open_item": null,
       "output": {
         "folder_display": "/Users/test/Dokumente",
@@ -230,6 +405,8 @@
       "verify": false
     },
     "batch": {
+      "auto_position_once": true,
+      "auto_position_setting": false,
       "estimate": null,
       "items": [
         {
@@ -296,6 +473,7 @@
           "thumbnail": false
         }
       ],
+      "manual_plans": 0,
       "open_item": null,
       "output": {
         "folder_display": "/Users/test/Dokumente",
@@ -467,6 +645,8 @@
       "verify": false
     },
     "batch": {
+      "auto_position_once": true,
+      "auto_position_setting": false,
       "estimate": null,
       "items": [
         {
@@ -532,6 +712,7 @@
           "thumbnail": false
         }
       ],
+      "manual_plans": 0,
       "open_item": null,
       "output": {
         "folder_display": "/Users/test/Dokumente",
@@ -687,6 +868,8 @@
       "verify": true
     },
     "batch": {
+      "auto_position_once": false,
+      "auto_position_setting": false,
       "estimate": null,
       "items": [
         {
@@ -751,6 +934,7 @@
           "thumbnail": false
         }
       ],
+      "manual_plans": 0,
       "open_item": null,
       "output": {
         "folder_display": "/Users/test/Dokumente",
@@ -849,6 +1033,8 @@
       "verify": true
     },
     "batch": {
+      "auto_position_once": false,
+      "auto_position_setting": false,
       "estimate": {
         "backend": "atrust_native",
         "certificate_confirmation_possible": true,
@@ -920,6 +1106,7 @@
           "thumbnail": false
         }
       ],
+      "manual_plans": 0,
       "open_item": null,
       "output": {
         "folder_display": "/Users/test/Dokumente",
@@ -1018,6 +1205,8 @@
       "verify": false
     },
     "batch": {
+      "auto_position_once": true,
+      "auto_position_setting": false,
       "estimate": null,
       "items": [
         {
@@ -1084,6 +1273,7 @@
           "thumbnail": false
         }
       ],
+      "manual_plans": 0,
       "open_item": null,
       "output": {
         "folder_display": "/Users/test/Dokumente",
@@ -1260,6 +1450,8 @@
       "verify": true
     },
     "batch": {
+      "auto_position_once": false,
+      "auto_position_setting": false,
       "estimate": null,
       "items": [
         {
@@ -1327,6 +1519,7 @@
           "thumbnail": false
         }
       ],
+      "manual_plans": 0,
       "open_item": null,
       "output": {
         "folder_display": "/Users/test/Dokumente",

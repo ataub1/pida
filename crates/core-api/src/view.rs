@@ -829,6 +829,21 @@ pub enum UiEvent {
     /// Einstellungen › Erweitert: Altkonfiguration erneut suchen und anbieten (auch nach
     /// `decline_migration`; §3.12)
     OfferMigration,
+    /// „Diesmal selbst platzieren“ (Nachtrag 8): hebt die Sperre der Einstellung „Automatische
+    /// Positionierung“ (`DocumentView::placement_locked`) für das aktuelle Dokument auf – danach normales
+    /// Ziehen und Einrasten. Startet **nichts** (A1).
+    UnlockPlacement,
+    /// Stapelübersicht „Für diesen Stapel automatisch positionieren“ (Nachtrag 8, `BatchView::auto_position_once`):
+    /// nur für diesen Stapel, die Einstellung bleibt unverändert; `replace_manual` = auch die von Hand
+    /// platzierten Einträge (`BatchView::manual_plans`) neu automatisch platzieren – nur nach ausdrücklicher
+    /// Bestätigung, sonst behalten sie ihren Plan. Startet **nichts** (A1, F-54: erst „Alle signieren“).
+    SetBatchAutoPosition {
+        /// ein bzw. aus
+        enabled: bool,
+        /// von Hand platzierte Einträge ebenfalls automatisch platzieren
+        #[serde(default)]
+        replace_manual: bool,
+    },
 }
 
 impl std::fmt::Debug for UiEvent {
@@ -1192,11 +1207,18 @@ pub struct DocumentView {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub detection: Option<DocumentDetectionView>,
+    /// Platzierung gesperrt durch die Einstellung „Automatische Positionierung“ (`signature.auto_position`
+    /// bzw. `-a`; ADR 0004 Nachtrag 8): automatisch platziert und bereit zum Signieren – der Kern ignoriert
+    /// `move_block`, `nudge_block`, `change_page`, `use_target` und `auto_place`; `set_invisible`,
+    /// `toggle_new_page` und `sign_with` wirken. `unlock_placement` („Diesmal selbst platzieren“) hebt die
+    /// Sperre für dieses Dokument auf. Nie für Einträge der Stapelübersicht.
+    #[serde(default)]
+    pub placement_locked: bool,
 }
 
 redacted_debug!(DocumentView {
     size_bytes, phase, revision, block, placement, origin, target, invisible, new_page, sticker, fields, qr,
-    constraints, layout, check, announce, detection,
+    constraints, layout, check, announce, detection, placement_locked,
 } redact { doc, existing });
 
 /// PDF/A-Kennung eines Dokuments (XMP `pdfaid:part`, `pdfaid:conformance`).
@@ -1679,6 +1701,21 @@ pub struct BatchView {
     pub output: BatchOutputView,
     /// für `signers.selected` (`None` = kein Signiermittel gewählt)
     pub estimate: Option<BatchEstimateView>,
+    /// Einstellung „Automatische Positionierung“ an (`signature.auto_position` bzw. `-a`): jeder Stapel wird
+    /// automatisch positioniert – die Übersicht zeigt „Automatische Positionierung (laut Einstellung)“
+    /// (Nachtrag 8)
+    #[serde(default)]
+    pub auto_position_setting: bool,
+    /// „Für diesen Stapel automatisch positionieren“ (`set_batch_auto_position`): nur für diesen Stapel bis zum
+    /// Ende bzw. Abbruch des Laufs bzw. bis der Stapel geschlossen wird; die Einstellung bleibt unverändert.
+    /// Mit automatischer Positionierung (Einstellung oder diese Option) gelten automatisch platzierte Einträge
+    /// als „Bereit“ (Nachtrag 8)
+    #[serde(default)]
+    pub auto_position_once: bool,
+    /// noch nicht signierte, von Hand platzierte Einträge (eigener Plan): sie behalten beim Einschalten ihren
+    /// Plan, außer `set_batch_auto_position { replace_manual: true }` nach ausdrücklicher Bestätigung
+    #[serde(default)]
+    pub manual_plans: u32,
 }
 
 // --- §3.9 Prüfmodus -----------------------------------------------------------------------------
@@ -1897,7 +1934,8 @@ redacted_debug!(RecentItemView { id, signed_at, exists } redact { file_name, fol
 // --- §3.12 Ersteinrichtung ----------------------------------------------------------------------
 
 /// Eintrag der Übernahmeliste (§3.12): i18n-ID `ng-migration-item-{block,emblem,username,output,keystore,
-/// proxy,placeholder,language}` mit Detail (z. B. Dateiname der Bildmarke).
+/// proxy,placeholder,position,language}` mit Detail (z. B. Dateiname der Bildmarke); `position` =
+/// „Automatische Positionierung“ (`SIGNATURE_POSITION=auto`, Nachtrag 8).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MigrationItemView {

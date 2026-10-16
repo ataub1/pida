@@ -296,7 +296,7 @@ proptest! {
     /// genannten Dokumente.
     #[test]
     fn workspace_session_only_after_explicit_action(
-        events in prop::collection::vec(0u8..65, 0..110),
+        events in prop::collection::vec(0u8..71, 0..110),
         auto_position in any::<bool>(),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
@@ -431,6 +431,15 @@ proptest! {
                 62 => { ctx.placeholder_search = !ctx.placeholder_search; Event::SettingsChanged }
                 63 => { ctx.placeholder_fields = !ctx.placeholder_fields; Event::SettingsChanged }
                 64 => Event::PlaceholderSearched { doc: DocId(current), qr: next_id.is_multiple_of(2).then(qr) },
+                // Einstellung „Automatische Positionierung“ (Nachtrag 8): „Diesmal selbst platzieren“, Umschalten
+                // in den Einstellungen („sofort wirksam“), Seitenwechsel
+                65 => Event::PlacementUnlocked,
+                66 => { ctx.auto_position = !ctx.auto_position; Event::SettingsChanged }
+                67 => Event::PageChanged(0),
+                // „Für diesen Stapel automatisch positionieren“ (Nachtrag 8)
+                68 => Event::BatchAutoPositionSet { enabled: true, replace_manual: false },
+                69 => Event::BatchAutoPositionSet { enabled: true, replace_manual: true },
+                70 => Event::BatchAutoPositionSet { enabled: false, replace_manual: false },
                 _ => Event::BackendFailed(BackendError::Network("x".into())),
             };
             let before = state.clone();
@@ -453,6 +462,27 @@ proptest! {
                     _ => false,
                 };
                 prop_assert!(allowed, "OpenSession({id:?}) ohne Nutzeraktion: {event:?} in {} ({:?})", before.name(), t.effects);
+            }
+            // gesperrte Platzierung (Nachtrag 8): Ziehen, Tastatur, Seitenwechsel und Zielwahl ändern nichts
+            if let State::Positioning { edit: Some(e), .. } = &before
+                && e.placement_locked()
+                && matches!(event, Event::PlacementChanged(_) | Event::PageChanged(_) | Event::TargetChosen(_))
+            {
+                prop_assert_eq!(&t.state, &before, "{:?} verschiebt einen gesperrten Block", event);
+                prop_assert!(t.effects.is_empty(), "{:?}: {:?}", event, t.effects);
+            }
+            // gesperrt nur mit der Einstellung, nie für Einträge der Stapelübersicht
+            if let State::Positioning { edit: Some(e), .. } = &t.state
+                && e.placement_locked()
+            {
+                prop_assert!(ctx.auto_position && !e.return_to_batch, "{event:?} in {} sperrt", before.name());
+            }
+            // „Für diesen Stapel automatisch positionieren“ startet nie etwas und gilt nie über einen Lauf hinaus
+            if matches!(event, Event::BatchAutoPositionSet { .. }) {
+                prop_assert!(!t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_) | Effect::SignDocument)), "{:?}", t.effects);
+            }
+            if let (State::BatchSigning { .. }, State::BatchOverview { queue }) = (&before, &t.state) {
+                prop_assert!(!queue.batch.as_ref().is_some_and(|b| b.auto_position_once), "nach dem Lauf wieder laut Einstellung");
             }
             // Stapel nur mit Stapelübersicht, nie mit der Startargument-Automatik (D-06)
             if matches!(t.state, State::BatchOverview { .. } | State::BatchSigning { .. }) {

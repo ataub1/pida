@@ -19,7 +19,7 @@ describe('Bereiche und Zeilen', () => {
   it('„Dokument“ direkt nach „Signaturbild“; PDF/A und Platzhalter nicht unter „Erweitert“', () => {
     const order = SECTIONS.map((s) => s.id);
     expect(order).toEqual(['signature', 'document', 'signers', 'save', 'appearance', 'privacy', 'advanced', 'about']);
-    expect(ROWS.filter((r) => r.section === 'document').map((r) => r.id)).toEqual(['document.pdfa', 'document.placeholder']);
+    expect(ROWS.filter((r) => r.section === 'document').map((r) => r.id)).toEqual(['document.pdfa', 'document.placeholder', 'document.auto_position']);
     expect(ROWS.filter((r) => r.section === 'advanced').map((r) => r.id)).not.toContain('document.placeholder');
   });
 

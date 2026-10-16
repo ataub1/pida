@@ -231,6 +231,7 @@ export function documentView(extra: Partial<DocumentView> = {}): DocumentView {
     ],
     check: { for_revision: 1, overlaps_content: false, overlaps_widget: false, clamped: false },
     announce: { page: '3', pages: '3', left: '64', top: '106', bottom: '77' },
+    placement_locked: false,
     ...extra,
   };
 }
@@ -321,6 +322,9 @@ export function batchData(extra: Partial<BatchView> = {}): BatchView {
     summary: null,
     output: { mode: 'next_to_source', folder_display: null, needs_folder: false },
     estimate: { backend: 'atrust_native', documents: 3, logins: 1, confirmations: 3, certificate_confirmation_possible: true, large: false },
+    auto_position_setting: false,
+    auto_position_once: false,
+    manual_plans: 0,
     ...extra,
   };
 }

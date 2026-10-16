@@ -70,6 +70,10 @@ pub(crate) fn migration_items(r: &MigrationResult) -> Vec<MigrationItemView> {
     if s.placeholder.search {
         push("placeholder", None);
     }
+    // Einstellungen › Dokument „Automatische Positionierung“ (`SIGNATURE_POSITION=auto`, ADR 0004 Nachtrag 8)
+    if s.signature.auto_position {
+        push("position", None);
+    }
     if let Some(lang) = s.general.ui_language {
         // Eigenname der Sprache (unabhängig von der Oberflächensprache verständlich)
         let name = match lang {
@@ -219,7 +223,8 @@ mod tests {
             "SIGNATURE_PROFILE=SIGNATURBLOCK_SMALL\nSIGNLOCALE=de\nMOBILE_NUMBER=+43 660 1234567\n\
              OUTPUT_FOLDER=/home/test/Signiert\nSAVE_FILE_POSTFIX=_signiert\nKEYSTORE_ENABLED=true\n\
              KEYSTORE_FILE=/home/test/test.p12\nPROXY_HOST=proxy.example.test\nPROXY_PORT=3128\n\
-             USE_PLACEHOLDER_SEARCH=true\nUSE_MARKER=true\nLOCALE=en\nEMBLEM=/home/test/Bilder/firma.png\n",
+             USE_PLACEHOLDER_SEARCH=true\nUSE_MARKER=true\nLOCALE=en\nEMBLEM=/home/test/Bilder/firma.png\n\
+             SIGNATURE_POSITION=auto\n",
         );
         let code = |c: &str| format!("ng-migration-item-{c}");
         assert_eq!(
@@ -232,9 +237,14 @@ mod tests {
                 (code("keystore"), Some("test.p12".into())),
                 (code("proxy"), Some("proxy.example.test:3128".into())),
                 (code("placeholder"), None),
+                (code("position"), None),
                 (code("language"), Some("English".into())),
             ]
         );
+        // „Automatische Positionierung“ nur, wenn sie in PDF-Over eingeschaltet war (`AUTO` ist nicht `auto`)
+        assert_eq!(items("SIGNATURE_POSITION= auto \n"), vec![(code("position"), None)]);
+        assert!(items("SIGNATURE_POSITION=AUTO\n").is_empty());
+        assert!(items("SIGNATURE_POSITION=\n").is_empty());
         // nur, was in der Altdatei steht; Platzhaltersuche aus = keine Zeile
         assert_eq!(
             items("SIGNATURE_PROFILE=SIGNATURBLOCK_SMALL\nUSE_PLACEHOLDER_SEARCH=false\n"),

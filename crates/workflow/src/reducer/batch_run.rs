@@ -17,6 +17,7 @@
 //! | `BatchSigning` | nicht wiederholbarer Dokumentfehler | `Failed`, weiter mit dem nächsten |
 //! | `BatchSigning` | `BatchAbort`/`Cancel` | `CancelSession`; aktuelles `Cancelled`, wartende wieder `Ready`/`Positioned` |
 //! | `BatchSigning` | letztes Dokument fertig | `CloseSession` → Übersicht mit Zusammenfassung, Hinweis `ng-batch-done` |
+//! | `BatchOverview` | `BatchAutoPositionSet` | „Für diesen Stapel automatisch positionieren“ (Nachtrag 8): nur für diesen Stapel bis Ende/Abbruch des Laufs; automatische Pläne gelten als „Bereit“, Pläne der Nutzerin bleiben (außer `replace_manual`); startet nichts |
 //!
 //! Invariante A1: `Effect::OpenSession` entsteht hier nur für (`BatchStarted`, `BatchOverview`) und
 //! (`Retry`, `BatchSigning` mit Sitzungspause).
@@ -469,10 +470,32 @@ pub(super) fn files_added(state: State, docs: Vec<InputDocument>, ctx: &Context)
 // Stapelübersicht
 // ------------------------------------------------------------------------------------------------
 
-pub(super) fn overview(state: State, event: Event, _ctx: &Context) -> Transition {
+pub(super) fn overview(state: State, event: Event, ctx: &Context) -> Transition {
     let State::BatchOverview { mut queue } = state else { unreachable!("BatchOverview") };
     let stay = |queue| Transition::stay(State::BatchOverview { queue });
     match event {
+        // „Für diesen Stapel automatisch positionieren“ (Nachtrag 8): ändert die Einstellung nicht; von Hand
+        // platzierte Einträge behalten ihren Plan, außer die Nutzerin bestätigt das Neusetzen ausdrücklich
+        Event::BatchAutoPositionSet { enabled, replace_manual } => {
+            let Some(batch) = queue.batch.as_mut() else { return stay(queue) };
+            batch.auto_position_once = enabled;
+            let mut effects = Vec::new();
+            if enabled && replace_manual {
+                for item in batch.items.iter_mut().filter(|i| i.status.signable() && !i.auto_plan) {
+                    item.auto_plan = true;
+                    if needs_qr_search(item.summary.as_ref(), ctx) {
+                        item.summary = None;
+                        item.plan = None;
+                        item.status = BatchItemStatus::Analyzing;
+                        effects.push(Effect::Preanalyze(item.doc));
+                        continue;
+                    }
+                    item.plan = automatic_plan(item.summary.as_ref(), ctx);
+                    item.settle();
+                }
+            }
+            Transition::with(State::BatchOverview { queue }, effects)
+        }
         Event::BatchItemOpened(doc) => {
             let openable = queue.batch.as_ref().and_then(|b| b.item(doc)).is_some_and(|i| {
                 !matches!(
@@ -850,6 +873,8 @@ impl Lauf<'_> {
             }
         }
         batch.last_run = Some(BatchSummary { total, signed: self.run.signed, aborted, folder });
+        // „Für diesen Stapel automatisch positionieren“ galt nur für diesen Lauf (Nachtrag 8)
+        batch.auto_position_once = false;
         Transition::with(State::BatchOverview { queue: self.queue }, self.effects)
     }
 

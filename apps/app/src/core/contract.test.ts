@@ -180,6 +180,8 @@ const documentView = obj({
       auto_placed: bool,
     }),
   ),
+  // Nachtrag 8 (Einstellung „Automatische Positionierung“)
+  placement_locked: bool,
 });
 
 const signersView = obj({
@@ -291,6 +293,10 @@ const batchView = obj({
       large: bool,
     }),
   ),
+  // Nachtrag 8: automatische Positionierung im Stapel
+  auto_position_setting: bool,
+  auto_position_once: bool,
+  manual_plans: int,
 });
 
 const verifyView = obj({
@@ -544,6 +550,9 @@ const uiEvent = tagged('type', {
   update_first_run: { default_backend: nullable(backendChoice), profile: signatureProfile, block_language: nullable(lang) },
   finish_first_run: {},
   offer_migration: {},
+  // Nachtrag 8 (Einstellung „Automatische Positionierung“)
+  unlock_placement: {},
+  set_batch_auto_position: { enabled: bool, replace_manual: bool },
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -741,9 +750,10 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(validate(uiEvent, sample)).toEqual([]);
   });
 
-  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 23 davon aus ADR 0004
-  it('alle 60 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(60);
+  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 25 davon aus ADR 0004
+  // (23 aus E0, `unlock_placement` und `set_batch_auto_position` aus Nachtrag 8)
+  it('alle 62 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(62);
   });
 
   it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen, Import)', () => {

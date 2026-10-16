@@ -637,6 +637,7 @@ ng-migration-item-output = Speicherort und Dateiname
 ng-migration-item-keystore = Keystore
 ng-migration-item-proxy = Proxy
 ng-migration-item-placeholder = Platzhaltersuche
+ng-migration-item-position = Automatische Positionierung
 ng-migration-item-language = Sprache
 ng-migration-not-found = Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.
 ng-firstrun-done = Einrichtung abgeschlossen. Sie können alles jederzeit in den Einstellungen ändern.

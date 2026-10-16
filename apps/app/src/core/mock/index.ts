@@ -65,6 +65,7 @@ import {
   changePage,
   constraintsFor,
   docInfo,
+  followAutoPosition,
   moveBlock,
   nudgeBlock,
   pageTileSvg,
@@ -237,6 +238,8 @@ function analyze(s: FlowState, ctx: MockCtx): void {
       s.edit = startEdit(d, ctx.settings(), blockLang(ctx));
       if (s.pendingPlan) s.edit = applyPlan(d, s.edit, s.pendingPlan, blockSize(ctx.settings(), blockLang(ctx)));
       s.pendingPlan = null;
+      // „Automatische Positionierung“ sperrt nie einen aus der Stapelübersicht geöffneten Eintrag (Nachtrag 8)
+      if (fromBatch(s)) s.edit = { ...s.edit, lock: 'off' };
       // Raster der Seite des Blocks (die übrigen nach `inspect_pages`)
       if (s.edit.placement) s.edit.ready = [s.edit.placement.page_index];
       resetSelection(s, ctx);
@@ -861,6 +864,10 @@ const flowArea: MockArea<FlowState> = {
       case 'start_batch':
         if (s.stage === 'batch' && b) b.start(e);
         return true;
+      case 'set_batch_auto_position':
+        // „Für diesen Stapel automatisch positionieren“ (Nachtrag 8): startet nichts
+        if (s.stage === 'batch' && b) b.setAutoPosition(e.enabled, e.replace_manual);
+        return true;
       case 'skip_batch_document':
       case 'abort_batch':
         return true;
@@ -881,6 +888,23 @@ const flowArea: MockArea<FlowState> = {
           dropCurrent(s, ctx);
         }
         return true;
+      // Einstellung „Automatische Positionierung“ (Kern: `WorkspaceEdit::placement_locked`, Nachtrag 8):
+      // gesperrt verschieben weder Ziehen noch Tastatur, Seitenwechsel oder Zielwahl den Block
+      case 'move_block':
+      case 'nudge_block':
+      case 'change_page':
+      case 'auto_place':
+      case 'use_target':
+        if (s.edit?.lock === 'locked') return true;
+        break;
+      case 'unlock_placement':
+        // „Diesmal selbst platzieren“: nur dieses Dokument, Lage unverändert
+        editEvent(s, ctx, (_doc, ed) => (ed.lock === 'locked' ? { ...ed, lock: 'released' } : ed));
+        return true;
+      default:
+        break;
+    }
+    switch (e.type) {
       case 'move_block':
         editEvent(s, ctx, (doc, ed) => moveBlock(doc, ed, e.page, e.x, e.y));
         return true;
@@ -1018,6 +1042,7 @@ const flowArea: MockArea<FlowState> = {
       const d = current(s);
       if (d && s.edit && (s.stage === 'editing' || s.stage === 'warning')) {
         s.edit = resizeBlock(d, s.edit, sig.settings, sig.settings.signature.block_language ?? sig.settings.general.ui_language ?? 'de');
+        s.edit = { ...s.edit, lock: followAutoPosition(s.edit, sig.settings, fromBatch(s)) };
       }
       if (!s.explicit) resetSelection(s, ctx);
       s.batch?.settingsChanged();

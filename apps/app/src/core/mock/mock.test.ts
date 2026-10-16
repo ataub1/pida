@@ -510,3 +510,68 @@ describe('Stapel (ADR 0004 §3.8)', () => {
     expect(view.batch?.summary?.folder_display).toBeNull();
   });
 });
+
+describe('Automatische Positionierung (Nachtrag 8, Mock wie der Kern)', () => {
+  const autoSettings = (): Settings => ({ ...defaultSettings(), signature: { ...defaultSettings().signature, auto_position: true } });
+  const batchSettings = (): Settings => ({ ...idAustria(), placeholder: { search: true, kind: 'marker' } });
+  const ready = (v: ViewState) => v.step.step === 'batch' && !!v.batch && v.batch.items.every((i) => i.status.state !== 'analyzing');
+
+  it('Einstellung an: gesperrt, Verschieben und Zielwahl ohne Wirkung, „Diesmal selbst platzieren“ nur für dieses Dokument; keine Sitzung', async () => {
+    const c = core({ scenario: 'contract', settings: autoSettings() });
+    let v = await until(c, hasDoc);
+    const before = v.document!;
+    expect(before.placement_locked).toBe(true);
+    for (const e of [
+      { type: 'move_block', page: 0, x: 40, y: 500 },
+      { type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: true },
+      { type: 'change_page', page: 0 },
+      { type: 'auto_place' },
+      { type: 'use_target', target: { kind: 'free' } },
+    ] as UiEvent[]) await c.dispatch(e);
+    v = await c.view();
+    expect(v.document!.placement).toEqual(before.placement);
+    expect(v.document!.revision).toBe(before.revision);
+    await c.dispatch({ type: 'set_invisible', invisible: true });
+    expect((await c.view()).document!.invisible).toBe(true);
+    await c.dispatch({ type: 'set_invisible', invisible: false });
+    await c.dispatch({ type: 'unlock_placement' });
+    v = await c.view();
+    expect(v.document!.placement_locked).toBe(false);
+    await c.dispatch({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });
+    expect((await c.view()).document!.origin).toBe('user');
+    expect(c.dispatched.some((e) => e.type === 'sign_with')).toBe(false);
+    expect(v.step.step).not.toBe('signing');
+  });
+
+  it('Einstellung aus: wie bisher; aus der Stapelübersicht geöffnet nie gesperrt', async () => {
+    const c = core({ scenario: 'contract' });
+    expect((await until(c, hasDoc)).document!.placement_locked).toBe(false);
+    const b = core({ scenario: 'batch', settings: { ...batchSettings(), signature: { ...batchSettings().signature, auto_position: true } } });
+    await until(b, ready);
+    expect((await b.view()).batch?.auto_position_setting).toBe(true);
+    await b.dispatch({ type: 'open_batch_item', doc: 1 });
+    expect((await until(b, hasDoc)).document!.placement_locked).toBe(false);
+  });
+
+  it('Stapel: „Für diesen Stapel automatisch positionieren“ nur für diesen Stapel, eigene Pläne bleiben außer `replace_manual`', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'open_batch_item', doc: 1 });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'nudge_block', dx: 0, dy: 1, fine: false, coarse: false });
+    await c.dispatch({ type: 'back_to_batch' });
+    let v = await c.view();
+    expect(v.batch).toMatchObject({ auto_position_once: false, manual_plans: 1 });
+    await c.dispatch({ type: 'set_batch_auto_position', enabled: true, replace_manual: false });
+    v = await c.view();
+    expect(v.batch).toMatchObject({ auto_position_once: true, auto_position_setting: false, manual_plans: 1 });
+    expect(v.batch?.items[0]?.status.state).toBe('positioned');
+    expect(v.batch?.items.find((i) => i.position.kind === 'qr')?.status.state).toBe('ready');
+    await c.dispatch({ type: 'set_batch_auto_position', enabled: true, replace_manual: true });
+    v = await c.view();
+    expect(v.batch?.manual_plans).toBe(0);
+    expect(v.batch?.items[0]).toMatchObject({ status: { state: 'ready' }, position: { kind: 'auto' } });
+    expect(v.step.step).toBe('batch');
+    expect(c.dispatched.some((e) => e.type === 'start_batch')).toBe(false);
+  });
+});

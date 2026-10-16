@@ -265,6 +265,24 @@ export function PdfaRow() {
 }
 
 /**
+ * „Automatische Positionierung“ wie in PDF-Over (`signature.auto_position`, `SIGNATURE_POSITION=auto`; ADR 0004
+ * Nachtrag 8): sofort wirksam. Was das im Arbeitsbereich bedeutet (automatisch platziert und gesperrt bis
+ * „Diesmal selbst platzieren“), entscheidet der Kern (`DocumentView::placement_locked`).
+ */
+export function AutoPositionRow() {
+  const { t } = useApp();
+  const s = useSettings();
+  return (
+    <SwitchField
+      label={t.t('ng-ui-set-auto-position')}
+      hint={t.t('ng-ui-set-auto-position-hint')}
+      isSelected={s.get<boolean>('signature.auto_position')}
+      onChange={(v) => s.apply({ 'signature.auto_position': v })}
+    />
+  );
+}
+
+/**
  * Platzhaltersuche wie in PDF-Over: ein Schalter (`placeholder.search`), darunter QR-Code (`USE_MARKER`) oder
  * leere Signaturfelder (`USE_FIELDS`); die Auswahl ist bei ausgeschalteter Suche gesperrt.
  */

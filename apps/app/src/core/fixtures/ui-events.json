@@ -316,6 +316,14 @@
     "type": "offer_migration"
   },
   {
+    "type": "unlock_placement"
+  },
+  {
+    "type": "set_batch_auto_position",
+    "enabled": true,
+    "replace_manual": false
+  },
+  {
     "type": "submit_form",
     "request": 5,
     "answer": {

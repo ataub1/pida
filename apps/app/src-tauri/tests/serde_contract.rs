@@ -773,6 +773,7 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
             pdfa_decision: PdfaDecision::Detected,
             auto_placed: origin != PlacementOrigin::User,
         }),
+        placement_locked: false,
     }
 }
 
@@ -887,6 +888,9 @@ fn batch(mode: OutputModeView) -> BatchView {
             certificate_confirmation_possible: true,
             large: false,
         }),
+        auto_position_setting: false,
+        auto_position_once: false,
+        manual_plans: 0,
     }
 }
 
@@ -999,6 +1003,17 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     editing.signers = signers();
     editing.actions = ws_actions(true);
     out.push(("ws_editing", editing));
+
+    // Einstellung „Automatische Positionierung“ (Nachtrag 8): automatisch platziert und gesperrt
+    let mut locked = view(position_step(), position_bar());
+    let mut d = document(DocumentPhase::Editing, PlacementOrigin::Auto, PlacementTarget::Free);
+    d.placement_locked = true;
+    d.check =
+        PlacementCheckView { for_revision: 4, overlaps_content: Some(false), overlaps_widget: false, clamped: false };
+    locked.document = Some(d);
+    locked.signers = signers();
+    locked.actions = ws_actions(true);
+    out.push(("ws_editing_locked", locked));
 
     let mut field = view(position_step(), position_bar());
     let mut d = document(DocumentPhase::Editing, PlacementOrigin::Field, PlacementTarget::Field { index: 0 });
@@ -1182,8 +1197,26 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         summary: None,
         output: BatchOutputView { mode: OutputModeView::Ask, folder_display: None, needs_folder: true },
         estimate: None,
+        auto_position_setting: false,
+        auto_position_once: false,
+        manual_plans: 0,
     });
     out.push(("ws_batch_empty", empty));
+
+    // Nachtrag 8: „Für diesen Stapel automatisch positionieren“ (ein Eintrag von Hand platziert) bzw. laut
+    // Einstellung
+    for (name, setting, once) in [("ws_batch_auto_once", false, true), ("ws_batch_auto_setting", true, false)] {
+        let mut v = view(StepView::Batch, bar(["AE", "", "", ""], true));
+        v.batch = Some(BatchView {
+            auto_position_setting: setting,
+            auto_position_once: once,
+            manual_plans: 1,
+            ..batch(OutputModeView::NextToSource)
+        });
+        v.signers = signers();
+        v.actions = ActionsView { start_batch: true, ..ws_actions(false) };
+        out.push((name, v));
+    }
 
     // Prüfmodus (jeder Ladezustand, jedes Gesamtergebnis)
     for (name, status, summary) in [
@@ -1367,7 +1400,7 @@ fn typescript_events_deserialize_into_ui_event() {
 
 /// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
 /// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
-const UI_EVENT_VARIANTS: usize = 60;
+const UI_EVENT_VARIANTS: usize = 62;
 
 /// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
 /// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).

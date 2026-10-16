@@ -264,6 +264,15 @@
   outline: 2px solid var(--c-success);
   outline-offset: 2px;
 }
+/* Einstellung „Automatische Positionierung“ (ADR 0004 Nachtrag 8): gesperrt – kein Greifen, über dem Block
+   lässt sich auf Touch-Geräten weiter scrollen */
+.sticker.is-locked {
+  cursor: default;
+  touch-action: auto;
+}
+.sticker.is-locked:not(.is-in-field):not(.is-overlap):hover {
+  outline-color: transparent;
+}
 .sticker-tab {
   position: absolute;
   left: -2px;

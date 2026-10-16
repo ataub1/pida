@@ -108,6 +108,9 @@ ng-ui-ws-new-page = New page for the signature
 ng-ui-ws-sticker-role = movable signature block
 ng-ui-ws-sticker-label = Signature block
 ng-ui-ws-sticker-help = Drag or move with the arrow keys, Shift+arrow moves finely, Alt+arrow in large steps, Page Up/Down changes the page, { $sign } signs.
+# Setting “Automatic positioning” (ADR 0004 addendum 8): block locked
+ng-ui-ws-sticker-role-locked = automatically placed signature block
+ng-ui-ws-sticker-locked-help = Placed automatically according to the setting “Automatic positioning”. { $sign } signs; “Place it myself this time” under “Placement” releases the block for moving.
 ng-ui-ws-sticker-overlap = Covers content
 ng-ui-ws-sticker-widget = Covers a field
 ng-ui-ws-sticker-in-field = In signature field
@@ -196,6 +199,10 @@ ng-ui-insp-placement-qr = In the QR code placeholder
 ng-ui-insp-placement-free = Place freely
 ng-ui-insp-placement-hint = Drag the block on the page – it snaps to margins and below the text.
 ng-ui-insp-auto-place = Re-place
+# Setting “Automatic positioning” (ADR 0004 addendum 8)
+ng-ui-insp-placement-auto = Automatic (per setting)
+ng-ui-insp-placement-locked-hint = Ready to sign. The position is set by the setting “Automatic positioning”.
+ng-ui-insp-placement-unlock = Place it myself this time
 ng-ui-insp-existing = Existing signatures
 ng-ui-insp-existing-meta = Stated at signing: { $time }
 ng-ui-insp-existing-unknown = Signatory not readable
@@ -359,6 +366,18 @@ ng-ui-batch-existing =
         [one] One target file already exists – you decide when you start.
        *[other] { $n } target files already exist – you decide when you start.
     }
+# Automatic positioning in the batch (ADR 0004 addendum 8): for this batch only or per setting
+ng-ui-batch-auto = Position automatically for this batch
+ng-ui-batch-auto-hint = All documents are placed automatically and ready to sign – for this batch only, the setting stays unchanged.
+ng-ui-batch-auto-setting = Automatic positioning (per setting)
+ng-ui-batch-auto-confirm-title = Keep your own placements?
+ng-ui-batch-auto-confirm-text =
+    { $n ->
+        [one] You placed one document yourself. Should it be placed automatically as well?
+       *[other] You placed { $n } documents yourself. Should they be placed automatically as well?
+    }
+ng-ui-batch-auto-keep = Keep
+ng-ui-batch-auto-replace = Place these automatically too
 ng-ui-batch-list = Documents in the batch
 ng-ui-batch-open = Open and position “{ $name }”
 ng-ui-batch-review = Review

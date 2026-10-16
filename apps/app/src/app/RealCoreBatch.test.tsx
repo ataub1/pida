@@ -95,6 +95,19 @@ describe('Stapel: Zustände des echten Kerns', () => {
     expect(sessionEvents(mock.dispatched)).toEqual([{ type: 'start_batch', backend: 'atrust_native', docs, output_dir: null, on_existing: 'keep_both' }]);
   });
 
+  it('„Für diesen Stapel automatisch positionieren“ (Nachtrag 8): Schalter an, alle „Bereit“, startet nichts; axe', async () => {
+    const v = state('batch_auto_once');
+    expect(v.batch?.auto_position_once).toBe(true);
+    const { mock, user } = renderApp({ view: v });
+    const toggle = await screen.findByRole('switch', { name: 'Für diesen Stapel automatisch positionieren' });
+    expect(toggle).toBeChecked();
+    expect(within(row('Vertrag.pdf')).getByText('Bereit')).toBeInTheDocument();
+    await expectNoAxeViolations();
+    await user.click(toggle);
+    expect(mock.dispatched.at(-1)).toEqual({ type: 'set_batch_auto_position', enabled: false, replace_manual: false });
+    expect(sessionEvents(mock.dispatched)).toEqual([]);
+  });
+
   it('Lauf (E2.2–E2.4): eine Anmeldung, je Dokument „Bestätigung k von n · Name“ mit eigenem Vergleichswert, Pause Verbindung, Fortschritt in der Liste', async () => {
     const { mock, user } = renderApp({ view: state('batch_login') });
     const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });

@@ -140,6 +140,24 @@ pub struct ParkedPlacement {
     pub new_page: bool,
 }
 
+/// Sperre der Platzierung durch die Einstellung „Automatische Positionierung“ (`signature.auto_position` bzw.
+/// `-a`, ADR 0004 Nachtrag 8) – gilt nur für das Dokument dieses Bearbeitungszustands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementLock {
+    /// nicht gesperrt (Einstellung aus, aus der Stapelübersicht geöffnet, schon von Hand platziert, als die
+    /// Einstellung eingeschaltet wurde)
+    #[default]
+    Off,
+    /// gesperrt: Ziehen, Tastatur, Seitenwechsel und Zielwahl („Ins Feld setzen“, „Frei platzieren“, „Neu
+    /// platzieren“/„Freie Fläche suchen“) bleiben ohne Wirkung; „Unsichtbar signieren“, „Auf neuer Seite“ und
+    /// „Signieren“ bleiben bedienbar
+    Locked,
+    /// „Diesmal selbst platzieren“ ([`Event::PlacementUnlocked`]): für dieses Dokument aufgehoben, auch wenn
+    /// die Einstellung erneut eingeschaltet wird
+    Released,
+}
+
 /// Bearbeitungszustand des Dokuments im Arbeitsbereich-Modus (ADR 0004 §3.3, nur mit
 /// [`Context::workspace`]). Wandert durch `Signing`, `ChoosingBackend` (Rückfall/Startargument-
 /// Automatik), `Error` und `Output` mit.
@@ -180,6 +198,10 @@ pub struct WorkspaceEdit {
     /// wirksam“, ADR 0004 §3.11, K3). Eine eigene Wahl („Unsichtbar signieren“) bleibt.
     #[serde(default)]
     pub invisible_by_profile: bool,
+    /// Einstellung „Automatische Positionierung“: Platzierung gesperrt bzw. für dieses Dokument freigegeben
+    /// ([`WorkspaceEdit::follow_auto_position`], ADR 0004 Nachtrag 8)
+    #[serde(default)]
+    pub lock: PlacementLock,
 }
 
 impl WorkspaceEdit {
@@ -200,7 +222,30 @@ impl WorkspaceEdit {
             qr_search,
             automatic: true,
             invisible_by_profile: invisible,
+            lock: PlacementLock::Off,
         }
+    }
+
+    /// Einstellung „Automatische Positionierung“ ([`Context::auto_position`]: `signature.auto_position` bzw.
+    /// `-a`) anwenden – nach der Analyse und bei jeder Änderung der Einstellungen („sofort wirksam“):
+    /// eingeschaltet sperrt sie die Platzierung eines Dokuments, dessen Lage noch aus der Automatik stammt
+    /// ([`WorkspaceEdit::automatic`]) und das nicht aus der Stapelübersicht geöffnet wurde; ausgeschaltet hebt
+    /// sie die Sperre auf. „Diesmal selbst platzieren“ ([`PlacementLock::Released`]) bleibt für dieses Dokument.
+    pub fn follow_auto_position(&mut self, ctx: &Context) {
+        let on = ctx.workspace && ctx.auto_position && !ctx.headless;
+        self.lock = match self.lock {
+            PlacementLock::Released => PlacementLock::Released,
+            _ if !on => PlacementLock::Off,
+            PlacementLock::Locked => PlacementLock::Locked,
+            PlacementLock::Off if self.automatic && !self.return_to_batch => PlacementLock::Locked,
+            PlacementLock::Off => PlacementLock::Off,
+        };
+    }
+
+    /// Platzierung gesperrt (Einstellung „Automatische Positionierung“, noch nicht „Diesmal selbst
+    /// platzieren“)?
+    pub fn placement_locked(&self) -> bool {
+        self.lock == PlacementLock::Locked
     }
 
     /// Unsichtbares Profil ein bzw. aus (Einstellungen „sofort wirksam“): erzwingt „unsichtbar“; zurück auf
@@ -1289,6 +1334,20 @@ pub enum Event {
         doc: DocId,
         /// gefundener QR-Platzhalter
         qr: Option<QrPlaceholder>,
+    },
+    // --- ADR 0004 Nachtrag 8: Einstellung „Automatische Positionierung“
+    /// „Diesmal selbst platzieren“ (`UiEvent::UnlockPlacement`): hebt die Sperre der Platzierung für das
+    /// aktuelle Dokument auf ([`PlacementLock::Released`]); startet nichts (A1)
+    PlacementUnlocked,
+    /// „Für diesen Stapel automatisch positionieren“ (`UiEvent::SetBatchAutoPosition`, nur in der
+    /// Stapelübersicht): nur für diesen Stapel ([`crate::Batch::auto_position_once`]); `replace_manual` = auch
+    /// von Hand platzierte Einträge neu automatisch platzieren (ausdrücklich bestätigt, sonst behalten sie ihren
+    /// Plan); startet nichts (A1)
+    BatchAutoPositionSet {
+        /// ein bzw. aus
+        enabled: bool,
+        /// von Hand platzierte Einträge ebenfalls automatisch platzieren
+        replace_manual: bool,
     },
 }
 

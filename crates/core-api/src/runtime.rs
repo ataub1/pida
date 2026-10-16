@@ -179,6 +179,8 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::UpdateFirstRun { .. } => "update_first_run",
         UiEvent::FinishFirstRun => "finish_first_run",
         UiEvent::OfferMigration => "offer_migration",
+        UiEvent::UnlockPlacement => "unlock_placement",
+        UiEvent::SetBatchAutoPosition { .. } => "set_batch_auto_position",
     }
 }
 
@@ -2442,6 +2444,10 @@ impl CoreTask {
             // eigener Abbruch des Auftrags: `Effect::SkipCurrentJob` setzt `own_cancel` – nur, wenn der Reducer
             // tatsächlich etwas abbricht (ohne begonnenes Dokument bleibt ein späteres `Cancelled` eine Ablehnung)
             UiEvent::SkipBatchDocument if self.ctx.batch() => self.apply(Event::BatchSkip),
+            // „Für diesen Stapel automatisch positionieren“ (Nachtrag 8): nur in der Übersicht, startet nichts
+            UiEvent::SetBatchAutoPosition { enabled, replace_manual } if self.ctx.batch() => {
+                self.apply(Event::BatchAutoPositionSet { enabled, replace_manual });
+            }
             UiEvent::AbortBatch if self.ctx.batch() => {
                 if matches!(self.state, State::BatchSigning { .. }) {
                     self.ws.own_cancel = true;
@@ -2467,6 +2473,9 @@ impl CoreTask {
             }
             UiEvent::FinishFirstRun if self.ws.enabled => self.finish_first_run(),
             UiEvent::OfferMigration if self.ws.enabled => self.offer_migration(),
+            // Einstellung „Automatische Positionierung“: „Diesmal selbst platzieren“ (Nachtrag 8) – nur dieses
+            // Dokument, startet nichts (A1)
+            UiEvent::UnlockPlacement if self.ws.enabled => self.apply(Event::PlacementUnlocked),
             // ADR 0004: im klassischen Ablauf ohne Wirkung die Ereignisse des Arbeitsbereichs, ohne
             // Stapelübersicht die des Stapels. Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
             e @ (UiEvent::SetInvisible { .. }
@@ -2486,7 +2495,9 @@ impl CoreTask {
             | UiEvent::SignVerified
             | UiEvent::UpdateFirstRun { .. }
             | UiEvent::FinishFirstRun
-            | UiEvent::OfferMigration) => {
+            | UiEvent::OfferMigration
+            | UiEvent::UnlockPlacement
+            | UiEvent::SetBatchAutoPosition { .. }) => {
                 tracing::debug!(event = ui_event_kind(&e), "in diesem Modus ohne Wirkung (ADR 0004) – ignoriert");
             }
         }
@@ -2496,6 +2507,11 @@ impl CoreTask {
     /// (mit der Blockgröße) – danach ist das Ziel frei (§3.3).
     fn move_base(&self) -> Option<Placement> {
         let State::Positioning { placement: Some(p), edit, doc, .. } = &self.state else { return None };
+        // Einstellung „Automatische Positionierung“: gesperrt bis „Diesmal selbst platzieren“ (Nachtrag 8)
+        if edit.as_ref().is_some_and(pida_workflow::WorkspaceEdit::placement_locked) {
+            tracing::debug!("Platzierung gesperrt (automatische Positionierung) – Verschieben ignoriert");
+            return None;
+        }
         let target = edit.as_ref().map(|e| e.target).unwrap_or(pida_workflow::Target::Free);
         if target == pida_workflow::Target::Free {
             return Some(*p);

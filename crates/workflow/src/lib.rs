@@ -70,6 +70,7 @@
 //! | „Schließen“ im Fehler, „Öffnen“, Dateien, Beenden | Arbeitsbereich bzw. Start; offen gehaltene Sitzung wird verworfen (F-72) |
 //! | gespeichert mit wartenden Dokumenten | kein F-88: „Fertig“ mit „Nächstes Dokument“ (außer `cli_auto`) |
 //! | Hauptleiste Positionieren/Signieren | ohne Wirkung |
+//! | Einstellung „Automatische Positionierung“ (`auto_position`, Nachtrag 8) | nach der Analyse und bei geänderten Einstellungen [`WorkspaceEdit::follow_auto_position`]: automatisch platziert und gesperrt ([`PlacementLock::Locked`]) – [`Event::PlacementChanged`], [`Event::PageChanged`] und [`Event::TargetChosen`] bleiben ohne Wirkung, „Unsichtbar“, „Auf neuer Seite“ und „Signieren mit“ wirken; [`Event::PlacementUnlocked`] („Diesmal selbst platzieren“) hebt die Sperre für dieses Dokument auf; nie aus der Stapelübersicht geöffnet; signiert nie selbst (A1) |
 //!
 //! Invariante **A1** (Property-Test `workspace_session_only_after_explicit_action`): `Effect::OpenSession`
 //! entsteht nur in den Paaren (`SignRequested`, `Positioning`/`ChoosingBackend`), (`BackendChosen`,
@@ -119,6 +120,6 @@ pub use state::{
     MSG_DOCUMENT_LEAVES_DEVICE, MSG_FIELD_LOCKED, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND,
     MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_SIGNER_UNAVAILABLE,
     MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, MSG_UNEXPECTED, MainBarStep, ParkedPlacement, PlaceholderAnswer,
-    PlaceholderFound, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step,
-    Target, Transition, WorkflowError, WorkspaceEdit, backend_for_choice,
+    PlaceholderFound, PlacementLock, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase,
+    State, Step, Target, Transition, WorkflowError, WorkspaceEdit, backend_for_choice,
 };

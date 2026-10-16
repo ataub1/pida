@@ -594,6 +594,7 @@ impl crate::runtime::CoreTask {
             check,
             announce,
             detection: Some(self.detection(data.as_deref(), edit)),
+            placement_locked: edit.placement_locked(),
         })
     }
 

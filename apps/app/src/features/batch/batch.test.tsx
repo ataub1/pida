@@ -576,3 +576,102 @@ describe('Titel der Zusammenfassung (Nachtrag 4: BatchSummaryView::aborted)', ()
     expect(await screen.findByText('Stapel abgebrochen')).toBeInTheDocument();
   });
 });
+
+describe('Automatische Positionierung im Stapel (Nachtrag 8)', () => {
+  const autoToggle = () => screen.getByRole('switch', { name: 'Für diesen Stapel automatisch positionieren' });
+  const autoEvents = (events: UiEvent[]) => events.filter((e) => e.type === 'set_batch_auto_position');
+
+  it('Einstellung aus: Schalter „Für diesen Stapel automatisch positionieren“ – QR-Eintrag gilt als „Bereit“, startet nichts; axe', async () => {
+    const { list, mock, user } = await openBatch();
+    const toggle = autoToggle();
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAccessibleDescription('Alle Dokumente werden automatisch platziert und sind bereit zum Signieren – nur für diesen Stapel, die Einstellung bleibt unverändert.');
+    expect(screen.queryByTestId('batch-auto-setting')).not.toBeInTheDocument();
+    expect(within(row(list, 'Auftragsbestaetigung_4711.pdf')).getByText('Positioniert')).toBeInTheDocument();
+    // ohne eigene Platzierungen keine Rückfrage
+    await user.click(toggle);
+    expect(autoEvents(mock.dispatched)).toEqual([{ type: 'set_batch_auto_position', enabled: true, replace_manual: false }]);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(autoToggle()).toBeChecked());
+    const qr = row(list, 'Auftragsbestaetigung_4711.pdf');
+    expect(within(qr).getByText('Bereit')).toBeInTheDocument();
+    expect(within(qr).getByText('im QR-Platzhalter')).toBeInTheDocument();
+    // die Einstellung bleibt unverändert
+    expect((await mock.view()).batch?.auto_position_setting).toBe(false);
+    expect(sessions(mock.dispatched)).toEqual([]);
+    await expectNoAxeViolations();
+    // ausschalten: wieder wie eingestellt
+    await user.click(autoToggle());
+    await waitFor(() => expect(autoToggle()).not.toBeChecked());
+    expect(within(row(list, 'Auftragsbestaetigung_4711.pdf')).getByText('Positioniert')).toBeInTheDocument();
+  });
+
+  it('von Hand platziert: Rückfrage – „Behalten“ (Vorauswahl) behält den Plan, „Auch diese automatisch platzieren“ setzt ihn neu; Escape ändert nichts', async () => {
+    const { list, user, mock } = await openBatch();
+    await user.click(within(row(list, 'Angebot_2026-118.pdf')).getByRole('button', { name: '„Angebot_2026-118.pdf“ öffnen und positionieren' }));
+    const sticker = await screen.findByRole('application', { name: 'Signaturblock' });
+    fireEvent.keyDown(sticker, { key: 'ArrowUp' });
+    await waitFor(() => expect((async () => (await mock.view()).document?.origin)()).resolves.toBe('user'));
+    await user.click(within(screen.getByRole('complementary', { name: 'Signatur' })).getByRole('button', { name: 'Zurück zum Stapel' }));
+    const back = await screen.findByRole('list', { name: 'Dokumente im Stapel' });
+    expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Seite 2, selbst platziert')).toBeInTheDocument();
+    expect((await mock.view()).batch?.manual_plans).toBe(1);
+
+    // Escape: nichts geändert
+    await user.click(autoToggle());
+    let ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierungen behalten?' });
+    expect(ask).toHaveTextContent('Ein Dokument haben Sie selbst platziert. Soll es ebenfalls automatisch platziert werden?');
+    expect(within(ask).getByRole('button', { name: 'Behalten' })).toHaveFocus();
+    await expectNoAxeViolations();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(autoEvents(mock.dispatched)).toEqual([]);
+    expect(autoToggle()).not.toBeChecked();
+
+    // „Behalten“: an, der eigene Plan bleibt
+    await user.click(autoToggle());
+    ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierungen behalten?' });
+    await user.click(within(ask).getByRole('button', { name: 'Behalten' }));
+    expect(autoEvents(mock.dispatched).at(-1)).toEqual({ type: 'set_batch_auto_position', enabled: true, replace_manual: false });
+    await waitFor(() => expect(autoToggle()).toBeChecked());
+    expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Positioniert')).toBeInTheDocument();
+    expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Seite 2, selbst platziert')).toBeInTheDocument();
+
+    // aus und wieder an mit „Auch diese automatisch platzieren“
+    await user.click(autoToggle());
+    await waitFor(() => expect(autoToggle()).not.toBeChecked());
+    await user.click(autoToggle());
+    ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierungen behalten?' });
+    await user.click(within(ask).getByRole('button', { name: 'Auch diese automatisch platzieren' }));
+    expect(autoEvents(mock.dispatched).at(-1)).toEqual({ type: 'set_batch_auto_position', enabled: true, replace_manual: true });
+    await waitFor(() => expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Bereit')).toBeInTheDocument());
+    expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('automatisch platziert')).toBeInTheDocument();
+    expect((await mock.view()).batch?.manual_plans).toBe(0);
+    expect(sessions(mock.dispatched)).toEqual([]);
+  });
+
+  it('nach dem Lauf gilt wieder die Einstellung (Mock wie der Kern)', async () => {
+    const { mock, user } = await openBatch();
+    await user.click(autoToggle());
+    await waitFor(() => expect(autoToggle()).toBeChecked());
+    await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
+    const dialog = await login(user);
+    await confirmation(dialog, 1, 3, 'Angebot_2026-118.pdf');
+    expect((await mock.view()).batch?.auto_position_once).toBe(true);
+    await user.keyboard('{Escape}');
+    await user.click(await within(dialog).findByRole('button', { name: 'Stapel abbrechen' }));
+    expect(await screen.findByText('Stapel abgebrochen')).toBeInTheDocument();
+    expect((await mock.view()).batch?.auto_position_once).toBe(false);
+    expect(autoToggle()).not.toBeChecked();
+  });
+
+  it('Einstellung an: Hinweis „Automatische Positionierung (laut Einstellung)“ statt Schalter; englisch', async () => {
+    const { unmount } = renderApp({ view: batchOverview(batchData({ auto_position_setting: true })) });
+    expect(await screen.findByTestId('batch-auto-setting')).toHaveTextContent('Automatische Positionierung (laut Einstellung)');
+    expect(screen.queryByRole('switch', { name: /automatisch positionieren/ })).not.toBeInTheDocument();
+    await expectNoAxeViolations();
+    unmount();
+    renderApp({ view: batchOverview(batchData({ auto_position_once: true }), { language: 'en' }) });
+    expect(await screen.findByRole('switch', { name: 'Position automatically for this batch' })).toBeChecked();
+  });
+});

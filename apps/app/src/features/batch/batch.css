@@ -61,6 +61,11 @@
   flex-basis: 100%;
   font-size: var(--fs-13);
 }
+/* „Für diesen Stapel automatisch positionieren“ (ADR 0004 Nachtrag 8): eigene Zeile unter den Angaben */
+.batch-auto {
+  flex-basis: 100%;
+  max-width: 44rem;
+}
 .batch-progress {
   display: grid;
   gap: var(--sp-3);

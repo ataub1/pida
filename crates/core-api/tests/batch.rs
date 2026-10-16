@@ -619,6 +619,49 @@ async fn abort_keeps_saved_documents_and_clears_the_password() {
     assert!(!s.aborted);
 }
 
+/// „Für diesen Stapel automatisch positionieren“ (ADR 0004 Nachtrag 8) gegen den echten Kern: nur für diesen
+/// Stapel – die Einstellung bleibt unverändert und wird nicht gespeichert –, startet nichts (F-54: erst „Alle
+/// signieren“), alle Einträge „Bereit“; nach dem Ende bzw. Abbruch des Laufs gilt wieder die Einstellung. Mit
+/// eingeschalteter Einstellung meldet die Übersicht „laut Einstellung“.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn auto_position_for_this_batch_only() {
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let out = fx.dir("out");
+    let atrust = Atrust::new(vec![]);
+    let core = start(&fx, overlay(inputs(&fx, &["a.pdf", "b.pdf"]), &out), fake(atrust.backends())).unwrap();
+    let v = overview_ready(&core, 2).await;
+    let b = batch(&v);
+    assert!(!b.auto_position_setting && !b.auto_position_once && b.manual_plans == 0);
+    core.dispatch(UiEvent::SetBatchAutoPosition { enabled: true, replace_manual: false });
+    let v = wait_for(&core, "für diesen Stapel", |v| v.batch.as_ref().is_some_and(|b| b.auto_position_once)).await;
+    assert!(batch(&v).items.iter().all(|i| i.status == BatchItemStatusView::Ready), "{:?}", batch(&v).items);
+    assert!(!batch(&v).auto_position_setting, "Einstellung unverändert");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(atrust.n(&atrust.opened), 0, "startet nichts (F-54)");
+    assert!(matches!(core.view().step, StepView::Batch));
+    let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap_or_default();
+    assert!(!saved.contains("auto_position = true"), "nicht gespeichert: {saved}");
+    // Lauf abbrechen → wieder laut Einstellung
+    start_batch(&core, &v, BackendId::AtrustNative, ExistingPolicy::KeepBoth, None);
+    login(&core).await;
+    confirmation(&core, 1).await;
+    core.dispatch(UiEvent::AbortBatch);
+    let v = summary(&core).await;
+    assert!(!batch(&v).auto_position_once, "nach dem Lauf wieder laut Einstellung");
+    drop(core);
+
+    // Einstellung an: „laut Einstellung“
+    let fx = Fixture::new();
+    fx.write_settings("[signature]\nauto_position = true\n");
+    let core =
+        start(&fx, overlay(inputs(&fx, &["a.pdf", "b.pdf"]), &fx.dir("out")), fake(Atrust::new(vec![]).backends()))
+            .unwrap();
+    let v = overview_ready(&core, 2).await;
+    assert!(batch(&v).auto_position_setting && !batch(&v).auto_position_once);
+    assert!(batch(&v).items.iter().all(|i| i.status == BatchItemStatusView::Ready));
+}
+
 // ------------------------------------------------------------------------------------------------
 // Punkt 4: Pausen
 // ------------------------------------------------------------------------------------------------
@@ -1125,6 +1168,10 @@ async fn real_core_batch_views_for_the_ui() {
     select(&core, BackendId::AtrustNative);
     let v = wait_for(&core, "Schätzung", |v| v.batch.as_ref().is_some_and(|b| b.estimate.is_some())).await;
     states.push(("batch_overview_estimate", v.clone()));
+    // „Für diesen Stapel automatisch positionieren“ (Nachtrag 8)
+    core.dispatch(UiEvent::SetBatchAutoPosition { enabled: true, replace_manual: false });
+    let v = wait_for(&core, "für diesen Stapel", |v| v.batch.as_ref().is_some_and(|b| b.auto_position_once)).await;
+    states.push(("batch_auto_once", v.clone()));
     start_batch(&core, &v, BackendId::AtrustNative, ExistingPolicy::KeepBoth, None);
     let v = wait_for(&core, "Anmeldung", |v| form(v).is_some_and(|(_, f)| matches!(f, NativeForm::Login { .. }))).await;
     states.push(("batch_login", v));
@@ -1141,6 +1188,7 @@ async fn real_core_batch_views_for_the_ui() {
     let (v, _) = confirmation(&core, 3).await;
     tan(&core, &v);
     let v = summary(&core).await;
+    assert!(!batch(&v).auto_position_once, "nach dem Lauf wieder laut Einstellung");
     states.push(("batch_summary", v));
     drop(core);
 
