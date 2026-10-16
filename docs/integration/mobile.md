@@ -187,6 +187,14 @@ A-Trust-Verbindung.
   weiter (Kern: `crates/core-api/tests/mobile.rs`). Nachweise: `features/batch/batch.test.tsx` (Mobile, schmal,
   axe), Screenshots `docs/integration/screenshots/stage2/mobil-*.png`; 360 px ohne waagrechtes Scrollen. Offen
   [H]: Simulator/Emulator (App-Wechsel je Bestätigung, App-Kill im Lauf).
+- **Seit E3 (ADR 0004 §3.10/§3.11, Nachtrag 5):** Einstellungen als Vollbild mit waagrechter Bereichsleiste und
+  Suche, sofort wirksam; ohne Proxy, Ausgabeordner, Update-Prüfung, Protokolle, Chipkarte und Bildmarken-Zeile
+  (der Kern lehnt `proxy.*`, `output.folder`, `general.update_check`, `keystore.file` auf Mobilgeräten mit
+  `ng-settings-unavailable-mobile` ab); Keystore nur über den PKCS#12-Import-Assistenten (neuer Stil); Bereich
+  „Dokument“ (PDF/A, Platzhaltersuche) wie am Desktop, Hinweise im ausgeklappten Bottom-Sheet; „Zuletzt
+  signiert“ ohne Ordneranzeige. Nachweise: `features/settings/{settings,a11y}.test.tsx` (Mobile), Kern
+  `crates/core-api/tests/settings.rs::mobile_restrictions`, Screenshots `docs/integration/screenshots/stage3/mobil-*.png`
+  (375 × 812 @2x); 375 px ohne waagrechtes Scrollen der Seite. Offen [H]: Simulator/Emulator.
 
 ## 8. Bauen und Prüfen
 

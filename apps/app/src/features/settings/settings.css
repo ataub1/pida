@@ -1,0 +1,496 @@
+/*
+ * Einstellungen (Paket UI-B, ADR 0004 §4.2): Abschnitt „Einstellungen“ aus `prototypes/pida-workspace/
+ * src/styles/views.css` 1:1, dazu Banner „schreibgeschützt“, Textfeld mit Knopf, Logo-Regler, Datenschutz und
+ * die Mobile-Variante (Vollbild, waagrechte Bereichsnavigation). Farben nur aus den Design-Tokens.
+ */
+
+/* ------------------------------------------------------------ Rahmen */
+.settings-modal .dialog {
+  height: 100%;
+  overflow: hidden;
+}
+.settings-readonly {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0 var(--sp-5) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--c-warning-border);
+  border-radius: var(--r-3);
+  background: var(--c-warning-soft);
+  color: var(--c-warning-on-soft);
+  font-size: var(--fs-13);
+}
+.settings-readonly > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.settings-search {
+  padding: 0 var(--sp-5) var(--sp-3);
+}
+.settings-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  min-height: 0;
+  border-top: 1px solid var(--c-border);
+}
+.settings-layout.is-searching {
+  grid-template-columns: minmax(0, 1fr);
+}
+.settings-nav {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: var(--sp-3);
+  overflow: auto;
+  border-right: 1px solid var(--c-border);
+  background: var(--c-surface-2);
+}
+.settings-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--c-text-2);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.settings-nav-item[data-hovered] {
+  background: var(--c-hover);
+  color: var(--c-text);
+}
+.settings-nav-item[data-focus-visible] {
+  outline: 2px solid var(--c-focus);
+  outline-offset: -2px;
+}
+.settings-nav-item.is-current {
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: var(--shadow-1);
+}
+.settings-nav-item.is-current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--c-accent);
+}
+.settings-content {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-8);
+  padding: var(--sp-5) var(--sp-6) var(--sp-10);
+  overflow: auto;
+}
+.settings-section {
+  display: grid;
+  gap: var(--sp-5);
+}
+.settings-section-title {
+  font-size: var(--fs-18);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+}
+.settings-row {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.settings-row + .settings-row {
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--c-border);
+}
+.settings-row-title {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+.settings-row-title:focus {
+  outline: none;
+}
+.settings-row-title:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+.settings-empty {
+  padding: var(--sp-6) 0;
+}
+.settings-more {
+  justify-self: start;
+}
+.settings-more .is-flipped {
+  transform: rotate(180deg);
+}
+
+/* ------------------------------------------------------------ Signaturbild */
+.block-preview {
+  display: grid;
+  gap: var(--sp-2);
+}
+/* Vorschau bleibt beim Bearbeiten im Blick */
+.settings-row[data-row='signature.preview'] {
+  position: sticky;
+  top: calc(-1 * var(--sp-5));
+  z-index: 2;
+  margin: calc(-1 * var(--sp-5)) calc(-1 * var(--sp-6)) 0;
+  padding: var(--sp-5) var(--sp-6) var(--sp-3);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+.settings-row[data-row='signature.preview'] + .settings-row {
+  border-top: 0;
+}
+.block-preview-stage {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  padding: var(--sp-6) var(--sp-4);
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-5);
+  background:
+    radial-gradient(circle at 1px 1px, var(--c-border-strong) 1px, transparent 0) 0 0 / 14px 14px,
+    var(--c-sunken);
+}
+.app[data-drag] .block-preview-stage[data-emblem-drop] {
+  border-color: var(--c-accent);
+  border-style: dashed;
+}
+.block-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  height: auto;
+  background: #fff;
+  box-shadow: var(--shadow-2);
+}
+.block-preview-stage.is-invisible {
+  min-height: 96px;
+  text-align: center;
+}
+.block-preview-caption {
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+  text-align: center;
+}
+.logo-drop {
+  border-radius: var(--r-4);
+}
+.logo-drop-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1.5px dashed var(--c-border-strong);
+  border-radius: var(--r-4);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out);
+}
+.logo-drop.is-target .logo-drop-inner {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+.logo-thumb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: 4px;
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-3);
+  background: #fff;
+  color: #5f6673;
+}
+.logo-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 160px;
+}
+.logo-name {
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+.logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.note-row {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+}
+.note-row .field {
+  width: 100%;
+}
+
+/* Regler „Größe der Bildmarke“ */
+.setting-slider {
+  display: grid;
+  gap: 6px;
+}
+.setting-slider-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.setting-slider-output {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.setting-slider-track {
+  position: relative;
+  height: 32px;
+}
+.setting-slider-track::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: var(--r-pill);
+  background: var(--c-active);
+}
+.setting-slider-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+}
+.setting-slider-thumb {
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--c-primary);
+  border-radius: 50%;
+  background: var(--c-surface);
+}
+.setting-slider-thumb[data-focus-visible] {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
+.setting-slider-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+}
+
+/* ------------------------------------------------------------ Felder, Konten, Pfade */
+/* Felder nebeneinander (Host | Port) bleiben oben bündig, auch wenn eines eine Fehlermeldung trägt */
+.settings-modal .grid-2 {
+  align-items: start;
+}
+.settings-modal .field {
+  align-content: start;
+}
+.setting-input-row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+.setting-input-row > .input {
+  flex: 1;
+  min-width: 0;
+}
+.radio-cards-group[data-disabled] > .field-label,
+.segmented-group[data-disabled] > .field-label {
+  color: var(--c-text-3);
+}
+.segmented-group[data-disabled] .segment {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.account-card {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-4);
+}
+.account-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.account-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-2);
+}
+.account-title {
+  flex: 1;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+.account-badge {
+  flex: none;
+}
+.account-body {
+  display: grid;
+  gap: var(--sp-3);
+}
+.path-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+.path-label {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+}
+.path-value {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+  overflow-wrap: anywhere;
+}
+.path-value.is-empty {
+  color: var(--c-text-3);
+}
+.pattern-preview {
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+  overflow-wrap: anywhere;
+}
+.pattern-label {
+  color: var(--c-text-3);
+}
+
+/* ------------------------------------------------------------ Datenschutz, Über */
+.privacy-info {
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--fs-14);
+  color: var(--c-text-2);
+  overflow-wrap: anywhere;
+}
+.recent-clear {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-3);
+}
+.about-row {
+  font-size: var(--fs-14);
+  color: var(--c-text-2);
+  overflow-wrap: anywhere;
+}
+.about-version {
+  color: var(--c-text);
+  font-weight: var(--fw-semibold);
+}
+
+/* ------------------------------------------------------------ Schmal und Mobile: Vollbild, Bereiche waagrecht */
+@media (max-width: 760px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-nav {
+    display: flex;
+    gap: var(--sp-1);
+    padding: var(--sp-2);
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .settings-nav-item {
+    flex: none;
+    height: 34px;
+  }
+  .settings-nav-item.is-current::before {
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: 2px;
+    width: auto;
+    height: 2px;
+  }
+  .settings-content {
+    padding: var(--sp-4) var(--gutter) var(--sp-10);
+  }
+  .settings-row[data-row='signature.preview'] {
+    top: calc(-1 * var(--sp-4));
+    margin: calc(-1 * var(--sp-4)) calc(-1 * var(--gutter)) 0;
+    padding: var(--sp-4) var(--gutter) var(--sp-3);
+  }
+  .settings-modal .radio-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-modal .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-readonly {
+    margin: 0 var(--gutter) var(--sp-3);
+  }
+  .settings-search {
+    padding: 0 var(--gutter) var(--sp-3);
+  }
+}
+
+/* Mobile-App (auch auf Tablets): Vollbild mit Safe Areas, Bereichsnavigation waagrecht */
+:root[data-mobile] .overlay-drawer {
+  place-items: stretch;
+}
+:root[data-mobile] .modal-drawer.settings-modal {
+  max-width: none;
+  border-radius: 0;
+  border: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+:root[data-mobile] .settings-modal .settings-layout {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+:root[data-mobile] .settings-modal .settings-nav {
+  display: flex;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  overflow-x: auto;
+  border-right: 0;
+  border-bottom: 1px solid var(--c-border);
+}
+:root[data-mobile] .settings-modal .settings-nav-item {
+  flex: none;
+  height: 40px;
+}
+:root[data-mobile] .settings-modal .settings-nav-item.is-current::before {
+  left: 10px;
+  right: 10px;
+  top: auto;
+  bottom: 2px;
+  width: auto;
+  height: 2px;
+}

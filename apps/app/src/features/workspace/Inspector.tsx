@@ -4,6 +4,8 @@
  * Kurzhinweis Datenschutz), Signaturbild (Vorschau des Kerns, „Bearbeiten“ → Einstellungen ›
  * Signaturbild), Optionen (Unsichtbar, Auf neuer Seite – gesperrt mit Begründung aus `constraints`),
  * Platzierung (sprechende Lage, „Neu platzieren“/„Frei platzieren“, **keine** Zahlenfelder, D1),
+ * dezente Hinweise auf Erkanntes (Einstellungen › Dokument, `DocumentView::detection`: PDF/A erkannt bzw.
+ * erzwungen; QR-Platzhalter bzw. Signaturfeld nur bei automatischer Platzierung),
  * vorhandene Signaturen, primärer Knopf „Signieren ⌘↵“, darunter „Zurück zum Stapel“ (aus der
  * Stapelübersicht geöffnet) bzw. „Zum Stapel“ (weitere Dokumente). In der Phase `warning` steht hier die Warnung
  * der Eingangsanalyse mit „Trotzdem signieren“/„Verwerfen“.
@@ -12,10 +14,11 @@ import { useId, useRef, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
+import { defaultDocumentDetection } from '../../core/defaults';
 import type { DocumentView, StepView } from '../../core/types';
 import { AccessButton, Badge, Button, Keys, SwitchField, useModKey } from '../../ui/controls';
 import { useFitScale, useNarrow } from '../../ui/hooks';
-import { IconAlert, IconChevronDown, IconPen, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
+import { IconAlert, IconChevronDown, IconFileText, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { displayPages, overlapState, zoneText } from './placement';
 import { SignerChip } from './SignerChip';
@@ -58,6 +61,12 @@ export function Inspector({
   const leaves = selected?.capabilities?.document_leaves_device === true;
   const field = doc.target.kind === 'field' ? doc.fields.find((f) => doc.target.kind === 'field' && f.index === doc.target.index) : undefined;
   const reason = (id: string) => (c.reasons.includes(id) ? t.code(id) : null);
+  // Einstellungen › Dokument (E3): Erkanntes nur nennen, solange die Automatik platziert hat (nicht nach „Ins
+  // Feld setzen“ bzw. „Frei platzieren“ von Hand); PDF/A wie beim Signieren entschieden (Kern)
+  const detection = doc.detection ?? defaultDocumentDetection();
+  const detected = detection.auto_placed && (doc.target.kind === 'qr' || doc.target.kind === 'field') ? doc.target.kind : null;
+  const pdfaNote =
+    detection.pdfa_decision === 'detected' ? t.t('ng-ui-insp-detect-pdfa') : detection.pdfa_decision === 'forced' ? t.t('ng-ui-insp-detect-pdfa-forced') : null;
   // aus der Stapelübersicht geöffnet: „Zurück zum Stapel“ (Platzierung wird als Plan gemerkt, §3.8)
   const backToBatch = view.batch?.open_item === doc.doc.id;
   const newPageReason = !c.new_page_allowed ? (reason('ng-constraint-signed') ?? reason('ng-constraint-certified') ?? t.t('ng-ui-insp-new-page-locked')) : null;
@@ -164,6 +173,12 @@ export function Inspector({
               isDisabled={!editable || doc.invisible || (!c.new_page_allowed && !doc.new_page)}
               onChange={() => void dispatch({ type: 'toggle_new_page' })}
             />
+            {pdfaNote ? (
+              <p className="insp-note" data-testid="pdfa-note">
+                <IconFileText size={15} />
+                {pdfaNote}
+              </p>
+            ) : null}
           </section>
         ) : null}
 
@@ -190,6 +205,12 @@ export function Inspector({
                     : t.t('ng-ui-insp-placement-text', { page: page + 1, zone: zoneText(t, doc.sticker, pw, ph) })}
               </span>
             </p>
+            {detected ? (
+              <p className="insp-note" data-testid="detect-note">
+                {detected === 'qr' ? <IconQr size={15} /> : <IconPen size={15} />}
+                {t.t(detected === 'qr' ? 'ng-ui-insp-detect-qr' : 'ng-ui-insp-detect-field')}
+              </p>
+            ) : null}
             {doc.target.kind !== 'free' ? (
               <Button variant="secondary" size="sm" onPress={() => void dispatch({ type: 'use_target', target: { kind: 'free' } })} isDisabled={!editable}>
                 {t.t('ng-ui-insp-placement-free')}

@@ -121,7 +121,7 @@ describe('Mock-Kern', () => {
     await mock.dispatch({ type: 'open_settings' });
     const s = defaultSettings();
     await mock.dispatch({ type: 'save_settings', settings: { ...s, proxy: { ...s.proxy, mode: 'manual', port: 70000 } } });
-    expect((await mock.view()).settings?.problems).toEqual({ 'proxy.host': 'ng-ui-problem-required', 'proxy.port': 'ng-ui-problem-port' });
+    expect((await mock.view()).settings?.problems).toEqual({ 'proxy.host': 'ng-settings-proxy-host-missing', 'proxy.port': 'ng-settings-invalid-port' });
     await mock.dispatch({ type: 'save_settings', settings: { ...s, general: { ...s.general, ui_language: 'en' } } });
     const v = await mock.view();
     expect(v.settings).toBeNull();

@@ -1227,3 +1227,26 @@ fn untouched_opened_item_keeps_following_the_settings() {
     let State::Positioning { edit: Some(edit), .. } = &s else { panic!("{:?}", s.name()) };
     assert_eq!((edit.target, edit.automatic), (Target::Field(0), true));
 }
+
+/// „Unsichtbar signieren“ in einem unverändert geöffneten (automatischen) Eintrag ist ein Plan der Nutzerin:
+/// er bleibt bei Einstellungsänderungen und beim erneuten Öffnen erhalten (Befund aus dem Merge E3 – vorher
+/// galt der Eintrag weiter als automatisch, der Plan „unsichtbar“ ging verloren).
+#[test]
+fn invisible_chosen_in_an_untouched_item_is_a_user_plan() {
+    let fields = Context { placeholder_search: true, placeholder_fields: true, ..ctx() };
+    let s = overview(&[1, 2]);
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let s = step(s, Event::InvisibleSet(true), &ctx()).state;
+    let s = step(s, Event::BackToBatch, &ctx()).state;
+    let item = batch_of(&s).item(DocId(1)).unwrap();
+    assert_eq!((item.plan.clone(), item.auto_plan), (Some(PositionChoice::Invisible), false));
+    // Einstellungen ändern sich: der Plan der Nutzerin bleibt
+    let s = step(s, Event::SettingsChanged, &fields).state;
+    assert_eq!(batch_of(&s).item(DocId(1)).unwrap().plan, Some(PositionChoice::Invisible));
+    // erneut öffnen: unsichtbar
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &fields).state;
+    let s = step(s, analyzed(1, 3, None, false), &fields).state;
+    let State::Positioning { edit: Some(edit), .. } = &s else { panic!("{:?}", s.name()) };
+    assert!(edit.invisible && !edit.automatic, "{edit:?}");
+}

@@ -1161,6 +1161,17 @@ impl CoreTask {
                 // Zieldateien, gemerkte Passwörter und Zertifikats-Cache können sich im Lauf geändert haben
                 self.probe.clear();
             }
+            // Ein Signierlauf beginnt bei offener Einstellungsansicht (Startargument-Automatik `-a`, die Ansicht
+            // wurde während des Ladens geöffnet): Ansicht schließen. Mitten im Lauf dürfen sich Signiermittel,
+            // Signaturbild und Ausgabe nicht ändern (`ApplySettings`/`SaveSettings` wirken nur bei offener
+            // Ansicht), und die Signierkarte (Anmeldung, Passwort) darf nicht unter den Einstellungen liegen.
+            if self.settings_view.is_some()
+                && matches!(self.state, State::Signing { .. } | State::BatchSigning { .. } | State::Resuming { .. })
+            {
+                tracing::debug!("Einstellungsansicht beim Signierbeginn geschlossen");
+                self.settings_view = None;
+                self.reset_apply_view();
+            }
             tracing::debug!(state = self.state.name(), effects = t.effects.len(), "Übergang");
             match (&self.state, was_error) {
                 (State::Error { .. }, false) => self.ws.error_at = Some(crate::workspace::rfc3339_now()),

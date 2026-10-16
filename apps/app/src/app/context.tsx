@@ -8,6 +8,7 @@ import { createContext, useContext } from 'react';
 import type { Bridge } from '../core/bridge';
 import type { UiEvent, ViewState } from '../core/types';
 import type { Translator } from '../i18n/catalog';
+import type { Theme } from './theme';
 
 /** Kurzer Hinweis der Oberfläche (Toast). */
 export interface Toast {
@@ -22,13 +23,10 @@ export interface Toast {
  * Abschnitte der Einstellungen für `openSettings(section)` (ADR 0004 §6.1, in E0 festgelegt). Welcher
  * Abschnitt gezeigt wird, ist reiner UI-Zustand; der Kern öffnet nur das Overlay (`open_settings`).
  */
-export type SettingsSectionId = 'signature' | 'signers' | 'save' | 'appearance' | 'privacy' | 'advanced' | 'about';
+export type SettingsSectionId = 'signature' | 'document' | 'signers' | 'save' | 'appearance' | 'privacy' | 'advanced' | 'about';
 
-/** Alle Abschnitte in der Reihenfolge der Einstellungen. */
-export const SETTINGS_SECTION_IDS: readonly SettingsSectionId[] = ['signature', 'signers', 'save', 'appearance', 'privacy', 'advanced', 'about'];
-
-/** Tabs des bisherigen Einstellungsdialogs (`settings/SettingsDialog.tsx`, bis B3). */
-export type SettingsTab = 'simple' | 'advanced' | 'keystore' | 'fido2' | 'privacy' | 'about';
+/** Alle Abschnitte in der Reihenfolge der Einstellungen („Dokument“ seit E3 direkt nach „Signaturbild“). */
+export const SETTINGS_SECTION_IDS: readonly SettingsSectionId[] = ['signature', 'document', 'signers', 'save', 'appearance', 'privacy', 'advanced', 'about'];
 
 /** Overlays der Shell, die die Oberfläche selbst öffnet (Palette und Kürzelübersicht kommen mit B4). */
 export type ShellOverlay = 'palette' | 'shortcuts' | null;
@@ -52,6 +50,9 @@ export interface AppContextValue {
   dragActive: boolean;
   /** macOS (Kürzel mit ⌘, Zugriffstasten mit ⌃⌥) */
   isMac: boolean;
+  /** Farbschema (UI-lokal je Gerät, `pida.theme`); Kopfzeile und Einstellungen › Darstellung teilen es */
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   /** Einstellungen öffnen, optional bei einem Abschnitt (z. B. `privacy` aus dem Kurzhinweis „Details“) */
   openSettings: (section?: SettingsSectionId) => void;
   /** zuletzt angeforderter Abschnitt der Einstellungen (für `SettingsPanel`) */

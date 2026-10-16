@@ -1,13 +1,16 @@
 /**
  * Arbeitsbereich (ADR 0004 §2.3/§2.4, §4.3, Abnahme E1 Punkte 3–5): Sticker (Tastatur 15/1/50 pt über den
  * Kern, Ziehen mit Einrasten an den Einrastlinien, Feld-Magnet, Doppelklick, Touch), Live-Region,
- * Überdeckungswarnung über „Signieren“, Signaturfelder, Optionen mit Begründung, Konto-Chip, ARIA, axe.
+ * Überdeckungswarnung über „Signieren“, Signaturfelder, Optionen mit Begründung, Konto-Chip, ARIA, axe;
+ * Hinweise auf Erkanntes (Einstellungen › Dokument, E3: PDF/A, QR-Platzhalter, Signaturfeld) samt sofortiger
+ * Wirkung der Einstellungen (Mock wie K3).
  */
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { DocumentView, UiEvent } from '../../core/types';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { emulateMedia, lastEvent, renderApp } from '../../test/render';
+import { defaultSettings } from '../../core/defaults';
 import { documentView, IOS, onMobile, settingsView, signersView, viewOf, workspaceView } from '../../test/views';
 import { layoutPages, PAGE_GAP, PAGE_PAD } from './placement';
 
@@ -333,9 +336,9 @@ describe('Konto-Chip und „Signieren“', () => {
     await user.click(within(menu).getByRole('menuitem', { name: 'Einstellungen …' }));
     expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
     act(() => mock.setView({ ...workspaceView(), settings: settingsView().settings }));
-    // bisheriger Dialog (bis B3): Abschnitt „Signiermittel“ → Tab „Einfach“ mit dem ID-Austria-Konto
-    const dialog = await screen.findByRole('dialog', { name: 'Konfiguration' });
-    expect(within(dialog).getByRole('tab', { name: /Einfach/ })).toHaveAttribute('aria-selected', 'true');
+    // Einstellungen (B3): Abschnitt „Signiermittel“ mit dem ID-Austria-Konto
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    expect(within(dialog).getByRole('heading', { level: 3, name: 'Signiermittel' })).toBeInTheDocument();
     expect(within(dialog).getByRole('heading', { name: 'ID Austria' })).toBeInTheDocument();
   });
 
@@ -419,5 +422,131 @@ describe('Seitenansicht, Zoom und Barrierefreiheit', () => {
     renderApp({ view: workspaceView(documentView(), {}, 'en') });
     expect(await screen.findByRole('application', { name: 'Signature block' })).toBeInTheDocument();
     await expectNoAxeViolations();
+  });
+});
+
+describe('Erkennung beim Öffnen: PDF/A und Platzhalter (Einstellungen › Dokument, E3)', () => {
+  const inspector = () => screen.getByRole('complementary', { name: 'Signatur' });
+  const FIELD = 'Unterschrift_Antragsteller';
+  const withSearch = (kind: 'marker' | 'fields', search = true) => ({ ...defaultSettings(), placeholder: { search, kind } });
+
+  async function documentSettings(user: ReturnType<typeof renderApp>['user']) {
+    await user.click(screen.getByRole('button', { name: 'Einstellungen' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    await user.click(within(within(dialog).getByRole('navigation', { name: 'Bereiche' })).getByRole('button', { name: 'Dokument' }));
+    return dialog;
+  }
+
+  async function closeSettings(user: ReturnType<typeof renderApp>['user']) {
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  }
+
+  it('nennt ein erkanntes PDF/A-Dokument bzw. die erzwungene PDF/A-Option (sofort wirksam)', async () => {
+    const { unmount } = renderApp({ scenario: 'contract' });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(within(inspector()).getByText('PDF/A-Dokument erkannt – wird PDF/A-konform signiert')).toBeInTheDocument();
+    expect(within(inspector()).queryByText(/erzwungen/)).not.toBeInTheDocument();
+    unmount();
+
+    const r = renderApp({ scenario: 'blank' });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(within(inspector()).queryByText(/PDF\/A/)).not.toBeInTheDocument();
+    const dialog = await documentSettings(r.user);
+    await r.user.click(within(dialog).getByRole('switch', { name: 'PDF/A-kompatibel signieren' }));
+    await closeSettings(r.user);
+    expect(within(inspector()).getByText('PDF/A-kompatible Signatur (erzwungen)')).toBeInTheDocument();
+  });
+
+  it('„Leere Signaturfelder“: Signatur beim Öffnen im ersten leeren Feld, Hinweis und Sprechblase nennen das Ziel', async () => {
+    const { user } = renderApp({ scenario: 'field', settings: withSearch('fields') });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(within(inspector()).getByText(`Im Signaturfeld „${FIELD}“`)).toBeInTheDocument();
+    expect(within(inspector()).getByText('Signaturfeld gefunden – Signatur im Feld platziert')).toBeInTheDocument();
+    expect(sticker()).toHaveClass('is-in-field');
+    expect(screen.getByText('Signaturblock automatisch im Signaturfeld platziert')).toBeInTheDocument();
+    // Feld belegt: keine Hinweisleiste, keine „Hier signieren“-Markierung
+    expect(screen.queryByText('Signaturfeld gefunden:')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Hier signieren/ })).not.toBeInTheDocument();
+    await expectNoAxeViolations();
+
+    // „Frei platzieren“: der Hinweis entfällt, das Feld wird wieder angeboten
+    await user.click(within(inspector()).getByRole('button', { name: 'Frei platzieren' }));
+    await waitFor(() => expect(within(inspector()).queryByText(/Signaturfeld gefunden/)).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: `Hier signieren: Signaturfeld „${FIELD}“` })).toBeInTheDocument();
+    // von Hand ins Feld: Lage genannt, aber nicht als automatisch erkannt
+    await user.click(screen.getByRole('button', { name: 'Ins Feld setzen' }));
+    expect(await within(inspector()).findByText(`Im Signaturfeld „${FIELD}“`)).toBeInTheDocument();
+    expect(within(inspector()).queryByTestId('detect-note')).not.toBeInTheDocument();
+  });
+
+  it('Umschalten in den Einstellungen wirkt sofort; ohne Suche wird das Feld nur angeboten', async () => {
+    const { user } = renderApp({ scenario: 'field' });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    // Standard (Suche aus): das Signaturfeld wird nur angeboten
+    expect(screen.getByText('Signaturfeld gefunden:')).toBeInTheDocument();
+    expect(within(inspector()).getByText(/^Seite \d · /)).toBeInTheDocument();
+    expect(within(inspector()).queryByTestId('detect-note')).not.toBeInTheDocument();
+
+    let dialog = await documentSettings(user);
+    await user.click(within(dialog).getByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' }));
+    await user.click(within(dialog).getByRole('radio', { name: /Leere Signaturfelder/ }));
+    await closeSettings(user);
+    expect(await within(inspector()).findByText('Signaturfeld gefunden – Signatur im Feld platziert')).toBeInTheDocument();
+    expect(screen.getByText('Signaturblock automatisch im Signaturfeld platziert')).toBeInTheDocument();
+    expect(screen.queryByText('Signaturfeld gefunden:')).not.toBeInTheDocument();
+
+    dialog = await documentSettings(user);
+    await user.click(within(dialog).getByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' }));
+    await closeSettings(user);
+    await waitFor(() => expect(within(inspector()).queryByText(/Signaturfeld gefunden/)).not.toBeInTheDocument());
+    expect(within(inspector()).getByText(/^Seite \d · /)).toBeInTheDocument();
+    // Markierung und Hinweisleiste bleiben als Angebot
+    expect(screen.getByText('Signaturfeld gefunden:')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `Hier signieren: Signaturfeld „${FIELD}“` })).toBeInTheDocument();
+  });
+
+  it('von Hand platziert bleibt beim Umschalten der Platzhaltersuche liegen', async () => {
+    const { user, mock } = renderApp({ scenario: 'field' });
+    const s = await screen.findByRole('application', { name: 'Signaturblock' });
+    s.focus();
+    await user.keyboard('{ArrowLeft}');
+    await waitFor(() => expect(mock.dispatched.some((e) => e.type === 'nudge_block')).toBe(true));
+    const before = (await mock.view()).document?.placement;
+    const dialog = await documentSettings(user);
+    await user.click(within(dialog).getByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' }));
+    await user.click(within(dialog).getByRole('radio', { name: /Leere Signaturfelder/ }));
+    await closeSettings(user);
+    const after = (await mock.view()).document;
+    expect(after?.target).toEqual({ kind: 'free' });
+    expect(after?.placement).toEqual(before);
+    expect(within(inspector()).queryByTestId('detect-note')).not.toBeInTheDocument();
+    expect(screen.getByText('Signaturfeld gefunden:')).toBeInTheDocument();
+  });
+
+  it('QR-Code-Platzhalter: automatisch genutzt, nicht bei „Leere Signaturfelder“ oder ausgeschalteter Suche', async () => {
+    const open = async () => {
+      const list = await screen.findByRole('list', { name: 'Dokumente im Stapel' });
+      await waitFor(() => expect(within(list).queryAllByText('Wird geprüft')).toHaveLength(0));
+      await userOf.current!.click(screen.getByRole('button', { name: '„Auftragsbestaetigung_4711.pdf“ öffnen und positionieren' }));
+      await screen.findByRole('application', { name: 'Signaturblock' });
+    };
+    const userOf: { current: ReturnType<typeof renderApp>['user'] | null } = { current: null };
+    let r = renderApp({ scenario: 'batch', settings: withSearch('marker') });
+    userOf.current = r.user;
+    await open();
+    expect(within(inspector()).getByText('Im QR-Code-Platzhalter')).toBeInTheDocument();
+    expect(within(inspector()).getByText('QR-Platzhalter gefunden – Signatur dort platziert')).toBeInTheDocument();
+    expect(screen.getByText('Signaturblock automatisch im QR-Platzhalter platziert')).toBeInTheDocument();
+    r.unmount();
+
+    for (const settings of [withSearch('fields'), withSearch('marker', false)]) {
+      r = renderApp({ scenario: 'batch', settings });
+      userOf.current = r.user;
+      await open();
+      expect(within(inspector()).queryByText(/QR-Platzhalter gefunden/)).not.toBeInTheDocument();
+      expect(screen.getByText('Signaturblock automatisch auf freier Fläche platziert')).toBeInTheDocument();
+      r.unmount();
+    }
   });
 });

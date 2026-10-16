@@ -25,6 +25,9 @@ npm run dev:mock       # Oberfläche mit Mock-Kern im Browser (http://localhost:
                        # zeigt „Signatur fortsetzen“ (docs/integration/mobile.md)
                        # Stapel: ?scenario=batch (&fault=decline|network|session|too-large,
                        # &existing=1, &folder=ask, &auto=0, &batch=0 ohne Stapelübersicht)
+                       # Einstellungen › Dokument: &search=1&kind=fields (erstes leeres Feld),
+                       # &pdfa=1 (PDF/A erzwungen), ?scenario=contract (PDF/A-Dokument);
+                       # Richtlinie: &policy=recent-off|recent-on|updates
 npm run build          # tsc (strict) + Vite → dist/
 npm test               # Vitest + Testing Library (jsdom)
 npm run tauri dev      # App mit Rust-Kern (Vite-Dev-Server + cargo)

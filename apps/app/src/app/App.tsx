@@ -349,8 +349,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, [overlayOpen]);
 
   const ctx = useMemo<AppContextValue>(
-    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac, openSettings, settingsSection: section, browse, overlay, setOverlay, requestSign, registerSign }),
-    [bridge, current, dispatch, t, announce, toast, dragActive, isMac, openSettings, section, browse, overlay, requestSign, registerSign],
+    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, settingsSection: section, browse, overlay, setOverlay, requestSign, registerSign }),
+    [bridge, current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, section, browse, overlay, requestSign, registerSign],
   );
 
   const commands = useMemo(

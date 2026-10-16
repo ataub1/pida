@@ -370,6 +370,14 @@ function planFromEdit(d: MockDoc, e: EditState): BatchPlan | null {
   return null;
 }
 
+/**
+ * Folgt der Plan aus diesem Bearbeitungszustand weiter den Einstellungen (Kern: `BatchItem::auto_plan`)? Nur
+ * solange die Lage aus der Automatik stammt und „Unsichtbar signieren“ nicht von der Nutzerin gewählt ist.
+ */
+function followsSettings(e: EditState): boolean {
+  return e.automatic && !(e.invisible && !e.invisibleProfile);
+}
+
 /** Gemerkten Plan auf den Bearbeitungszustand anwenden (Dokument aus dem Stapel geöffnet). */
 function applyPlan(d: MockDoc, e: EditState, plan: BatchPlan, block: { width: number; height: number }): EditState {
   switch (plan.kind) {
@@ -378,9 +386,9 @@ function applyPlan(d: MockDoc, e: EditState, plan: BatchPlan, block: { width: nu
     case 'field':
       return useTarget(d, e, { kind: 'field', index: plan.index }, block) ?? e;
     case 'invisible':
-      return { ...e, invisible: true, revision: e.revision + 1 };
+      return { ...e, invisible: true, automatic: false, revision: e.revision + 1 };
     case 'manual':
-      return { ...e, placement: { ...plan.placement, width: block.width, height: block.height }, newPage: plan.newPage, origin: 'user', target: { kind: 'free' }, revision: e.revision + 1 };
+      return { ...e, placement: { ...plan.placement, width: block.width, height: block.height }, newPage: plan.newPage, origin: 'user', target: { kind: 'free' }, automatic: false, revision: e.revision + 1 };
   }
 }
 
@@ -826,7 +834,7 @@ const flowArea: MockArea<FlowState> = {
         if ((s.stage === 'editing' || s.stage === 'warning') && !b && batchOn(s) && d && s.queue.length > 1) {
           const [cur, ...rest] = s.queue;
           const batch = new MockBatch(batchHost(s, ctx));
-          if (cur && s.edit && s.stage === 'editing') batch.addEdited(cur, planFromEdit(cur, s.edit));
+          if (cur && s.edit && s.stage === 'editing') batch.addEdited(cur, planFromEdit(cur, s.edit), followsSettings(s.edit));
           batch.add(s.stage === 'editing' ? rest : s.queue);
           s.batch = batch;
           leaveSingle(s);
@@ -837,7 +845,7 @@ const flowArea: MockArea<FlowState> = {
         return true;
       case 'back_to_batch':
         if (b && d && fromBatch(s) && (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading')) {
-          b.back(d.id, s.stage === 'editing' && s.edit ? planFromEdit(d, s.edit) : undefined);
+          b.back(d.id, s.stage === 'editing' && s.edit ? planFromEdit(d, s.edit) : undefined, s.edit ? followsSettings(s.edit) : false);
           leaveSingle(s);
         }
         return true;
@@ -887,7 +895,9 @@ const flowArea: MockArea<FlowState> = {
         return true;
       case 'auto_place':
         editEvent(s, ctx, (doc, ed) => {
-          const next = autoPlace(doc, ed, blockSize(settings, lang));
+          // „Neu platzieren“/„Freie Fläche suchen“ (Kern: `TargetChosen(Free)`): folgt danach nicht mehr der
+          // Platzhaltersuche
+          const next = { ...autoPlace(doc, ed, blockSize(settings, lang)), automatic: false };
           if (next.placement && !next.ready.includes(next.placement.page_index)) next.ready = [...next.ready, next.placement.page_index];
           return next;
         });

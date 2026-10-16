@@ -1421,7 +1421,8 @@ Abbildung der Abschnitte des Prototyps auf `pida_config::Settings` (kein neues F
 | Darstellung › Farbschema | – | UI-lokal (`pida.theme`, localStorage, je Gerät) |
 | › Sprache | `general.ui_language` | auch `SetUiLanguage` |
 | Datenschutz (V0) | `certificate_cache.enabled`, NEU `general.recent_documents` | Text aus `privacy_text` bzw. Katalog; „Liste leeren“ = `ClearRecent` |
-| Erweitert | `proxy.*`, `general.update_check`, `placeholder.{search, kind}`, `signature.{pdfa_force, cms_profile}` | Mobile ohne Proxy/Updates; Log-Ordner über Shell |
+| Dokument (Nachtrag 5) | `signature.pdfa_force`, `placeholder.{search, kind}` | direkt nach „Signaturbild“; Auswahl „QR-Code-Platzhalter“ (`marker`) bzw. „Leere Signaturfelder“ (`fields`) gesperrt bei ausgeschalteter Suche; Standard wie PDF-Over (Suche aus, `marker`, PDF/A aus) |
+| Erweitert | `proxy.*`, `general.update_check`, `signature.cms_profile` (bis Nachtrag 5 auch `placeholder.*`, `signature.pdfa_force`) | Mobile ohne Proxy/Updates; Log-Ordner über Shell |
 | Erweitert › PDF-Over übernehmen | – | `OfferMigration` (§3.12) |
 | Über | – | Version (`appInfo`), Drittlizenzen, Log-Ordner (Shell) |
 
@@ -1944,7 +1945,7 @@ Berührungspunkte mit festen Regeln:
   kann. UI-A-Komponenten, die UI-B-Bausteine brauchen (`SignerChip` → `PrivacyNote`, `KeystoreImportDialog`;
   `ResumeDialog` → `PrivacyNote`; Inspektor → „Signaturbild bearbeiten“ über `openSettings('signature')`), nutzen
   ebenfalls nur diese Exporte. Die Abschnittsnamen von `openSettings(section)` legt E0 fest (`signature`, `signers`,
-  `save`, `appearance`, `privacy`, `advanced`, `about`).
+  `save`, `appearance`, `privacy`, `advanced`, `about`; seit Nachtrag 5 zusätzlich `document` nach `signature`).
 - **Befehlsliste** `app/commands.ts` (UI-A) enthält in E0 bereits alle Befehle des Prototyps (§2.10) mit Freigaben aus
   `actions`, IDs der Beschriftungen in `ui-workspace.ftl`; UI-B rendert sie in Palette und Kürzelübersicht.
 - **Mock:** `core/mock/index.ts` (UI-A) delegiert Ereignisse an die Bereichsmodule über die Schnittstelle aus §4.8
@@ -2039,7 +2040,7 @@ V0 (Datenschutz) → K0 → U0 ─┬─ K1 → A1            = E1
 | Nr. | Frage | Empfehlung |
 |---|---|---|
 | **F1** | **Kennwortgeschützte PDFs** (Benutzerpasswort): Soll PIDA ein Kennwort annehmen und solche Dateien signieren? Heute lehnt der Kern sie ab (K5, wie PDF-Over/PDF-AS); Unterstützung braucht Entschlüsseln, Rendern mit Kennwort und Verschlüsseln der neuen Objekte im Inkrement. | **Nein für v1:** Zustandskarte „Dieses PDF ist mit einem Kennwort geschützt und kann nicht signiert werden“ mit „Anderes Dokument öffnen“; Kennwortunterstützung als eigenes Paket bewerten. |
-| **F2** | Leeres Signaturfeld vorhanden: automatisch hineinsetzen (wie QR) oder anbieten (Prototyp)? | **Anbieten** (Markierung + „Ins Feld setzen“); bei genau einem Feld und Profil-Vorgabe später automatisch möglich. QR bleibt automatisch. |
+| **F2** | Leeres Signaturfeld vorhanden: automatisch hineinsetzen (wie QR) oder anbieten (Prototyp)? | **Anbieten** (Markierung + „Ins Feld setzen“); bei genau einem Feld und Profil-Vorgabe später automatisch möglich. QR bleibt automatisch. **Entschieden (Nachtrag 5):** mit Platzhaltersuche „Leere Signaturfelder“ automatisch ins erste leere Feld, sonst angeboten. |
 | **F3** | **Wortlaut** von „Fertig“ und Prüfmodus: Darf PIDA „Signatur gültig“ sagen, obwohl Vertrauenskette und Sperrstatus nicht geprüft werden? | **Nein:** „Signatur erstellt und geprüft“ (Fertig, Selbstprüfung) bzw. „Signatur unverändert und kryptografisch intakt“ (Prüfmodus), QES als „qualifiziert laut Zertifikat“, immer mit Link „Vollständige Prüfung bei signaturpruefung.gv.at“; nie „rechtsgültig“. |
 | **F4** | Standard-Speicherort bei Neuinstallation: „neben dem Original“ (Prototyp) oder Speichern-Dialog (PDF-Over)? | **Neben dem Original** (`output.folder = "."`), gesetzt nur bei Neuinstallation über die Ersteinrichtung (§3.12) – `OutputSettings::default()` bleibt `None`, damit Bestandsnutzer ohne Schlüssel beim Speichern-Dialog bleiben; übernommene PDF-Over-Einstellungen behalten ihren Wert. |
 | **F5** | Namenszusatz: `_signed` (PDF-Over, CLI-kompatibel) oder `_signiert` bzw. Muster mit `{datum}`? | **`_signed` beibehalten** (Kompatibilität, Skripte); Muster mit `{name}`/`{datum}` als spätere Erweiterung des Kerns. |
@@ -2050,7 +2051,7 @@ V0 (Datenschutz) → K0 → U0 ─┬─ K1 → A1            = E1
 | **F10** | Beim **Überspringen** bzw. bei einer **Ablehnung in der App** (SL 6000/6001) für ein einzelnes Dokument im Stapel bleiben die Zugangsdaten bis zum Ende des Laufs im Speicher; beim Einzeldokument im Arbeitsbereich nach einer Ablehnung bis zur Entscheidung im Fehlerschritt (Abweichung von F-72: PDF-Over löscht sie auch bei 6000/6001). Einverstanden? | **Ja** – sonst wäre „eine Anmeldung“ nach jedem Überspringen verloren und „Erneut versuchen“ nach einer Ablehnung bräuchte eine neue Anmeldung; Abbruch des Stapels, „Schließen“ im Fehlerschritt und jeder Abbruch in PIDA löschen sie wie F-72. |
 | **F11** | Vorhandene Zieldateien im Stapel: Standardwahl im Startdialog? | **„Beide behalten“** (`… (2).pdf`), Alternativen „Überschreiben“, „Überspringen“ (ohne Bestätigung für dieses Dokument). |
 | **F12** | Standard-Signiermittel **„Jedes Mal fragen“** (ux-konzept §12 Frage 2): Auswahl als Schritt der Signierkarte oder über den Konto-Chip – und wie lange gilt sie? | **Konto-Chip** (wie der Prototyp): ohne Auswahl öffnet „Signieren“ das Menü; die Wahl gilt für das aktuelle Dokument bzw. den Stapellauf, danach wird wieder gefragt. |
-| **F13** | **QR-Platzhaltersuche** bei Neuinstallation einschalten? Der Prototyp setzt QR-Platzhalter immer automatisch; der Kern sucht sie nur mit `placeholder.search` (Standard aus wie PDF-Over, kostet Ladezeit für die Bildsuche). | **Aus lassen** (PDF-Over-Verhalten, Ladezeit); leere Signaturfelder bietet der Arbeitsbereich ohnehin immer an; die Einstellung bleibt unter „Erweitert“. |
+| **F13** | **QR-Platzhaltersuche** bei Neuinstallation einschalten? Der Prototyp setzt QR-Platzhalter immer automatisch; der Kern sucht sie nur mit `placeholder.search` (Standard aus wie PDF-Over, kostet Ladezeit für die Bildsuche). | **Aus lassen** (PDF-Over-Verhalten, Ladezeit); leere Signaturfelder bietet der Arbeitsbereich ohnehin immer an; die Einstellung bleibt unter „Erweitert“. **Entschieden (Nachtrag 5):** Standard aus wie PDF-Over, Einstellung unter Einstellungen › Dokument. |
 | **F14** | **A1 für alle Signiermittel:** Im Arbeitsbereich startet auch der Keystore bzw. die lokale BKU nie ohne „Signieren“ (bisher F-53: Standard-Signiermittel + automatische Positionierung signierte beim Öffnen). D3 verlangt das nur für ID Austria. | **Ja, für alle** (das Dokument ist vor dem Signieren immer sichtbar, einheitliche Bedienung); wer Automatik braucht, nutzt `-b … -a` bzw. die CLI. |
 
 ## 9. Nachträge
@@ -2170,3 +2171,113 @@ Datei gehört wie die übrigen Fixtures K (§6.1), der UI-Test UI-A.
 - **Offen [H]:** A-08 mit dem Testkonto (eine Anmeldung je Stapel, je Dokument eine Bestätigung, weitere
   Anmeldung nur nach A-Trust-Fehlerseite) und E2.8 im Simulator/Emulator (App-Wechsel je Bestätigung, App-Kill im
   Lauf → „Signatur fortsetzen“ nur für das unterbrochene Dokument).
+
+### Nachtrag 5 (Merge E3, 16.10.2026): Einstellungen › Dokument, Richtlinien-Sperren, Hinweise im Arbeitsbereich
+
+Entscheidung des Auftraggebers für E3: neuer Einstellungsbereich **„Dokument“** direkt nach „Signaturbild“
+(Vorlage Prototyp `fd7def3`) mit „PDF/A-kompatibel signieren“ (`signature.pdfa_force`) und „Signaturplatzhalter
+automatisch suchen“ (`placeholder.search`) samt Auswahl „QR-Code-Platzhalter“ | „Leere Signaturfelder“
+(`placeholder.kind` = `marker` | `fields`, PDF-Over `USE_MARKER`/`USE_FIELDS`); Standard wie PDF-Over (Suche aus,
+`marker`, PDF/A aus); nicht mehr unter „Erweitert“ (§3.11-Tabelle angepasst). Vertrag, additiv nach §3.0 Regel 2 und
+in TypeScript optional (`#[ts(optional = nullable)]`), damit die UI-Literale gültig bleiben; der Kern liefert beide
+Felder immer (`Some`):
+
+```rust
+pub struct DocumentView {
+    // … wie §3.3
+    /// Erkanntes und automatisch Entschiedenes (Einstellungen › Dokument)
+    #[serde(default)] pub detection: Option<DocumentDetectionView>,
+}
+pub struct DocumentDetectionView {
+    pub pdfa: Option<PdfaIdView>,          // XMP pdfaid:part/conformance
+    pub pdfa_decision: PdfaDecision,       // none | detected | forced – nach derselben Regel wie beim Signieren
+    pub auto_placed: bool,                 // Lage aus der Automatik (WorkspaceEdit::automatic)
+}
+pub struct PdfaIdView { pub part: u8, pub conformance: Option<String> }
+pub enum PdfaDecision { None, Detected, Forced }
+pub struct SettingsView {
+    // … wie §3.11
+    /// per Richtlinie festgelegt: TOML-Pfad bzw. ganzer Abschnitt (`proxy`) → i18n-ID des Grunds
+    #[serde(default)] pub locked: Option<BTreeMap<String, String>>,
+}
+```
+
+1. **Verhalten Platzhaltersuche** (ersetzt §8 F2 für den Fall mit Suche): mit `search` und `kind = fields` setzt der
+   Kern die Signatur automatisch in das **erste leere Signaturfeld** (Arbeitsbereich, Stapelplan, Startargument-
+   Automatik `cli_auto`), mit `kind = marker` in den QR-Platzhalter, ohne Suche nichts automatisch – Felder werden
+   weiter angeboten (Markierung, Hinweisleiste). Änderungen wirken sofort: automatisch platzierte Dokumente folgen
+   (Ziel neu, freie Lage nach der PDF-AS-Regel), von Hand platzierte bleiben (ein von Hand gewähltes QR-Ziel bleibt
+   auch bei ausgeschalteter Suche). Jede Platzierung durch die Nutzerin (Ziehen, Tastatur, Seite, neue Seite,
+   „Ins Feld setzen“, „Frei platzieren“, „Neu platzieren“/„Freie Fläche suchen“) beendet die Automatik.
+2. **Hinweise im Arbeitsbereich** (UI-A, im Merge-Commit umgesetzt): Inspektor › Optionen „PDF/A-Dokument erkannt –
+   wird PDF/A-konform signiert“ (`detected`) bzw. „PDF/A-kompatible Signatur (erzwungen)“ (`forced`); Inspektor ›
+   Platzierung „QR-Platzhalter gefunden – Signatur dort platziert“ bzw. „Signaturfeld gefunden – Signatur im Feld
+   platziert“ nur bei `auto_placed` und Ziel `qr` | `field`; die Sprechblase am Block nennt das Ziel („… automatisch
+   im QR-Platzhalter/im Signaturfeld/auf freier Fläche platziert“) und erscheint erneut, wenn die Automatik das Ziel
+   wechselt. Texte `ng-ui-insp-detect-*`, `ng-ui-ws-placed-{qr,field}` (`ui-workspace.ftl`).
+3. **PDF/A-Entscheidung** (Befund aus dem Kern-Review, im Merge behoben): `detected` nur, wenn tatsächlich PDF/A-konform
+   signiert wird (Profil-ID wie `plan`, dann `plan::pdfa_mode`; z. B. nicht bei `pdfaid:part = 4` mit einem Profil
+   ohne PDF/A-Variante), `forced` nur ohne Kennung mit einem Profil, dessen Variante PDF/A ist (nicht Amtssignatur,
+   „nur Bildmarke“, unsichtbar).
+4. **Richtlinien-Sperren** (`SettingsView::locked`, Vorschlag aus B3): Schlüssel `general.recent_documents`
+   (`ng-recent-policy` bei `false`, sonst `ng-settings-policy`), `general.update_check`, `proxy`, `signature.profile`,
+   `backend.default`; die Zeile erscheint gesperrt mit Hinweis, `ApplySettings` lehnt mit dem Grund ab. Mobile:
+   `proxy.*`, `output.folder`, `general.update_check`, `keystore.file` → `ng-settings-unavailable-mobile`.
+   `features/settings/contract-draft.ts` ist gelöscht; `lockedReason` liest das Vertragsfeld.
+5. **`applied_revision`** steigt bei einer Änderung am Signaturbild (Profil, Blocksprache, Hinweis, Bildmarke,
+   Logo-Größe, `pdfa_force`) erst zusammen mit der neuen `preview_revision` in derselben Projektion (genau ein
+   Neubau); sonst sofort.
+6. **Signierbeginn schließt die Einstellungen** (Befund aus dem Kern-Review, im Merge entschieden): Beginnt ein
+   Signierlauf (`Signing`, `BatchSigning`, `Resuming`) bei offener Einstellungsansicht – nur über die
+   Startargument-Automatik `-a` möglich, die Oberfläche sperrt die Kürzel bei offenen Einstellungen –, schließt der
+   Kern die Ansicht: mitten im Lauf wirkt kein `ApplySettings`, und die Signierkarte liegt nie unter den
+   Einstellungen (Test `signing_closes_the_settings_view`).
+7. **Stapel: „Unsichtbar signieren“ ist ein Plan der Nutzerin** (Befund im Merge): Wurde ein unverändert geöffneter
+   Eintrag nur auf „unsichtbar“ gestellt, galt er weiter als automatisch (`BatchItem::auto_plan`) – der Plan ging beim
+   erneuten Öffnen bzw. bei der nächsten Einstellungsänderung verloren. Jetzt folgt er den Einstellungen nicht mehr
+   (Tabellentest `invisible_chosen_in_an_untouched_item_is_a_user_plan`).
+8. **`SettingsSectionId`** um `document` ergänzt (zwischen `signature` und `signers`); `theme`/`setTheme` im
+   App-Kontext, damit Kopfzeile und Einstellungen › Darstellung dasselbe Farbschema zeigen (vorher blieb das Symbol
+   der Kopfzeile bis zum Neustart beim alten Wert); ungenutzter Typ `SettingsTab` entfernt.
+9. **Wertformen der Oberfläche gegen den echten Kern:** Jede Form, in der die Seitenleiste einen Pfad sendet
+   (Schalter, Auswahlen, Textfelder, Dialoge, `signature.note` als `{ mode, text }`, Logo-Größe in mm), übernimmt
+   der Kern ohne Ablehnung (Test `settings_panel_payloads_are_accepted_by_the_core`); der Benutzername erscheint
+   danach normalisiert (`+43 660 …` → `+43660…`, wie PDF-Over).
+10. **Zustände des echten Kerns als UI-Probe** (wie Nachtrag 2): `real-core-views.json` enthält zusätzlich
+   `doc_pdfa_detected`, `doc_pdfa_forced`, `doc_field_auto`, (mit PDFium) `doc_qr_auto` sowie `settings_open` und
+   `settings_partial` (Teilübernahme mit Feldfehler am Port); `RealCore.test.tsx` prüft daran Hinweise,
+   Sprechblase, Feldfehler, übernommene Werte und das Namensbeispiel des Kerns.
+11. **Mock folgt dem Kern** (§6.2 Punkt 4): Lage aus der Automatik (`EditState::automatic`), Feld- und QR-Suche
+    sofort wirksam, PDF/A-Erkennung (Beispiel „Vertrag.pdf“ ist PDF/A-1b wie im Prototyp), automatische Stapelpläne
+    auch für Felder, „Zurück zum Stapel“ ohne eigenen Plan → „Bereit“ (wie `BatchItem::settle`; vorher
+    „Positioniert“), Problemcodes wie der Kern (`ng-settings-invalid-port`, `ng-settings-proxy-host-missing`,
+    `error-KeyStoreFileNotExist`) und `problems` = Hinweise der aktuellen Einstellungen plus abgelehnte Felder.
+    Browser-Vorschau zusätzlich `&kind=fields`, `&pdfa=1` und `&policy=recent-off|recent-on|updates` (das
+    Richtlinien-Szenario war über die URL nicht erreichbar).
+
+**Angenommene Abweichungen K3:** Die neuen Angaben liegen geschachtelt in `DocumentView::detection` statt als
+eigene Felder (UI-Literale gehören nach E0 UI-A/UI-B); `SettingsView::locked` zusätzlich zum Auftragstext;
+`RecentStore::push` vergibt die `id` und liefert den gespeicherten Eintrag (`Result<RecentEntry>`); „Zuletzt
+signiert“ und `ApplySettings` wirken in beiden Modi (Arbeitsbereich und klassisch, `ViewState::recent` mit Oberfläche
+`Some([])` statt `None`); die Einstellungsansicht zeigt die Hinweise von `validate` immer (z. B. fehlende
+Bildmarke), `proxy.port = 0` blockiert auch das klassische Speichern; `VerifyRecent` auf eine vorhandene Datei bis K4
+ohne Wirkung (Debug-Log); Richtlinie `recent_documents = true` sperrt mit `ng-settings-policy`; interne
+Workflow-Ergänzungen (`WorkspaceEdit::{qr_search, automatic, invisible_by_profile}`, `follow_settings`/`Follow`,
+`Event::PlaceholderSearched`, `Effect::SearchPlaceholder`, `DocSummary::{first_field, qr_searched}`,
+`BatchItem::auto_plan`, `batch_run::settings_changed` mit Effekten).
+
+**Angenommene Abweichungen B3:** Seitenleiste mit Suche (Synonyme als Fluent-Attribut `.keywords` in
+`ui-tools.ftl`), sofort wirksam ohne „Speichern“/„Abbrechen“; eine auf die Bildmarke gezogene Datei setzt nur
+`signature.emblem` (kein stiller Profilwechsel); `signature.auto_position` erscheint nicht mehr (im Arbeitsbereich
+wird immer automatisch platziert, der Wert bleibt erhalten); „PDF-Over-Einstellungen übernehmen …“ folgt mit K4/B4;
+Protokollordner nur unter „Über“; die Bereichsleiste hat keine Zugriffstasten (erreichbar mit Tab/Klick, künftig über
+die Palette, B4); auf Mobilgeräten keine Bildmarken-Zeile (§3.14) und keine Proxy-/Ordner-/Update-/Protokollzeilen;
+`ChoiceCards`/`ChoiceSegments` feature-lokal (Übernahme nach `ui/controls.tsx` als `isDisabled` der Gruppe ist eine
+Änderungsbitte an UI-A); die Ersteinrichtungs-Attrappe nennt keine erfundene Bildmarke mehr (`core/mock/firstrun.ts`).
+Eine Testdatei von UI-A (`workspace.test.tsx`, „Einstellungen …“ im Signiermittel-Menü) prüft jetzt den neuen Dialog.
+
+**Offen:** K4 – `VerifyRecent` öffnet den Prüfmodus; `migrate_emblem` darf den PDF-AS-Standardlogo-Pfad nicht als
+eigene Bildmarke übernehmen (Nachtrag 4). Abschalten des Zertifikats-Caches leert vorhandene Einträge nicht (wie
+bisher; bei Bedarf Nachtrag wie bei „Zuletzt signiert“). Nach einer automatischen Neuplatzierung auf eine andere Seite
+wird der Block ein zweites Mal gebaut (Breite hängt von der Seite ab). [H]: Vorschau binnen einer Sekunde auf dem
+Referenzrechner; Mobile im Simulator/Emulator (Vollbild-Einstellungen, PKCS#12-Import).

@@ -1102,6 +1102,85 @@ async fn real_core_views_for_the_ui() {
     states.push(("atrust_cancelled".into(), v));
     drop(core);
 
+    // 4. Einstellungen › Dokument (E3, Nachtrag 5): erkannte PDF/A-Kennung, erzwungene PDF/A-Kompatibilität,
+    // Platzhaltersuche „Leere Signaturfelder“ (erstes Feld automatisch) und „QR-Code-Platzhalter“ (mit PDFium)
+    let doc_cases: [(&str, &str, &str, bool); 4] = [
+        ("doc_pdfa_detected", "pdf/pdfas-suites/PDFA_SIGNATURBLOCK_DE/TestGhostscriptPdfA.pdf", "", false),
+        ("doc_pdfa_forced", TEXT_PDF, "[signature]\npdfa_force = true\n", false),
+        (
+            "doc_field_auto",
+            "pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf",
+            "[placeholder]\nsearch = true\nkind = \"fields\"\n",
+            false,
+        ),
+        (
+            "doc_qr_auto",
+            "pdf/pdfas/pdf-as-pdfbox-2/new_qr_2-2.pdf",
+            "[placeholder]\nsearch = true\nkind = \"marker\"\n",
+            true,
+        ),
+    ];
+    for (name, pdf, toml, needs_pdfium) in doc_cases {
+        if needs_pdfium && !pdfium {
+            continue;
+        }
+        let fx = Fixture::new();
+        add_roots(&fx);
+        if !toml.is_empty() {
+            fx.write_settings(toml);
+        }
+        let a = copy_pdf(pdf, &fx.dir("in"), "Formular.pdf");
+        let core =
+            start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, None, None, pdfium).expect("Kern");
+        // im Feld bzw. QR-Platzhalter ohne Layoutanfrage der Oberfläche: nur Vorschau und Prüfung abwarten
+        wait_for(&core, "Arbeitsbereich mit Vorschau", |v| {
+            editing(v)
+                && v.document
+                    .as_ref()
+                    .is_some_and(|d| d.block.preview_revision > 0 && (!pdfium || d.check.overlaps_content.is_some()))
+        })
+        .await;
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let v = core.view();
+        let det = v.document.as_ref().and_then(|d| d.detection.clone()).expect("Erkennung");
+        match name {
+            "doc_pdfa_detected" => assert_eq!(det.pdfa_decision, pida_core_api::PdfaDecision::Detected),
+            "doc_pdfa_forced" => assert_eq!(det.pdfa_decision, pida_core_api::PdfaDecision::Forced),
+            "doc_field_auto" => assert!(
+                det.auto_placed && matches!(v.document.as_ref().unwrap().target, PlacementTarget::Field { index: 0 })
+            ),
+            _ => assert!(det.auto_placed && v.document.as_ref().unwrap().target == PlacementTarget::Qr),
+        }
+        states.push((name.into(), v));
+        drop(core);
+    }
+
+    // 5. Einstellungen „sofort wirksam“ (E3): offene Ansicht mit Dokument, dann eine Teilübernahme mit
+    // ungültigem Proxy-Port (Feldfehler) und gültigen Änderungen (Signaturbild, Einstellungen › Dokument)
+    let fx = Fixture::new();
+    add_roots(&fx);
+    let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "Vertrag.pdf");
+    let core = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, None, None, pdfium).expect("Kern");
+    settled(&core, pdfium).await;
+    core.dispatch(UiEvent::OpenSettings);
+    let v = wait_for(&core, "Einstellungen", |v| v.settings.as_ref().is_some_and(|s| s.preview_revision > 0)).await;
+    states.push(("settings_open".into(), v));
+    let mut changes = std::collections::BTreeMap::new();
+    changes.insert("proxy.mode".to_owned(), serde_json::json!("manual"));
+    changes.insert("proxy.host".to_owned(), serde_json::json!("proxy.local"));
+    changes.insert("proxy.port".to_owned(), serde_json::json!(70000));
+    changes.insert("signature.profile".to_owned(), serde_json::json!("AMTSSIGNATURBLOCK"));
+    changes.insert("placeholder.search".to_owned(), serde_json::json!(true));
+    changes.insert("signature.pdfa_force".to_owned(), serde_json::json!(true));
+    core.dispatch(UiEvent::ApplySettings { changes, revision: 1 });
+    let v = wait_for(&core, "übernommen", |v| v.settings.as_ref().is_some_and(|s| s.applied_revision >= 1)).await;
+    assert_eq!(
+        v.settings.as_ref().unwrap().problems.get("proxy.port").map(String::as_str),
+        Some("ng-settings-invalid-port")
+    );
+    states.push(("settings_partial".into(), v));
+    drop(core);
+
     // Repository-Pfad (Keystore-Datei) ebenfalls ersetzen
     let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let repo = repo.canonicalize().unwrap_or(repo);

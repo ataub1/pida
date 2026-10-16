@@ -42,7 +42,10 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   const [fitReady, setFitReady] = useState(typeof ResizeObserver === 'undefined');
   const [current, setCurrent] = useState(doc.placement.page_index);
   const [pagesOpen, setPagesOpen] = useState(!narrow);
-  const [coach, setCoach] = useState(doc.origin === 'auto' && doc.phase === 'editing');
+  // Sprechblase „automatisch … platziert“ nur, solange die Lage aus der Automatik stammt (frei, QR-Platzhalter
+  // bzw. Signaturfeld der Platzhaltersuche; ohne `detection` wie bisher nach `origin`)
+  const autoPlaced = doc.detection ? doc.detection.auto_placed : doc.origin === 'auto';
+  const [coach, setCoach] = useState(autoPlaced && doc.phase === 'editing');
   const [chip, setChip] = useState<{ open: boolean; sign: boolean }>({ open: false, sign: false });
   const [viewport, setViewport] = useState({ top: 0, height: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -81,6 +84,18 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     didScroll.current = true;
     stickerRef.current?.scrollIntoView?.({ block: 'center' });
   }, [fitReady, fitScale]);
+
+  // Von der Automatik in ein anderes Ziel versetzt (geänderte Platzhaltersuche in den Einstellungen ›
+  // Dokument): Block in den Blick holen und die Sprechblase mit dem neuen Ziel erneut zeigen
+  const autoKey = autoPlaced && doc.detection ? `${doc.target.kind}:${doc.target.kind === 'field' ? doc.target.index : ''}:${doc.placement.page_index}` : null;
+  const lastAutoKey = useRef(autoKey);
+  useLayoutEffect(() => {
+    if (autoKey === lastAutoKey.current) return;
+    lastAutoKey.current = autoKey;
+    if (!autoKey || doc.phase !== 'editing') return;
+    stickerRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    setCoach(true);
+  }, [autoKey, doc.phase]);
 
   // Hinweis „automatisch platziert“ nach einigen Sekunden ausblenden – er verdeckt sonst Text
   useEffect(() => {

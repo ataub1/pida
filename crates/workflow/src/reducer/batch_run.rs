@@ -218,7 +218,10 @@ pub(super) fn intercept(state: State, event: Event, _ctx: &Context) -> Result<Tr
                 if opened || (show && !queue.pending.is_empty()) =>
             {
                 let plan = plan_of(&edit, placement, new_page, &doc);
-                Ok(back(queue, doc.id, Back::Plan(plan, edit.automatic), Vec::new()))
+                // „Unsichtbar signieren“ von der Nutzerin ist ihr Plan: er folgt nicht mehr den Einstellungen
+                // (sonst ginge er beim erneuten Öffnen bzw. bei der nächsten Einstellungsänderung verloren)
+                let automatic = edit.automatic && !(edit.invisible && !edit.invisible_by_profile);
+                Ok(back(queue, doc.id, Back::Plan(plan, automatic), Vec::new()))
             }
             State::Output { mut queue, saved: Some(output), doc, .. }
                 if show && !opened && !queue.pending.is_empty() =>

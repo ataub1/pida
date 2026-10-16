@@ -174,7 +174,7 @@ describe('Stapelübersicht (E2.1)', () => {
     expect(screen.getByRole('heading', { level: 1, name: '3 Dokumente' })).toBeInTheDocument();
   });
 
-  it('Analysewarnung im Stapel: „Bitte prüfen“, einzeln öffnen und bestätigen, zurück → positioniert', async () => {
+  it('Analysewarnung im Stapel: „Bitte prüfen“, einzeln öffnen und bestätigen, zurück → bereit (wie der Kern: ohne eigenen Plan)', async () => {
     const { list, user } = await openBatch({ warnings: ['pdf-usage-rights'] });
     const offer = row(list, 'Angebot_2026-118.pdf');
     expect(within(offer).getByText('Bitte prüfen')).toBeInTheDocument();
@@ -184,7 +184,8 @@ describe('Stapelübersicht (E2.1)', () => {
     await screen.findByRole('application', { name: 'Signaturblock' });
     await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Zurück zum Stapel' }));
     const back = await screen.findByRole('list', { name: 'Dokumente im Stapel' });
-    expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Positioniert')).toBeInTheDocument();
+    // automatisch platziert, nichts verändert: kein Plan → „Bereit“ (Kern: `BatchItem::settle`)
+    expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Bereit')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Alle signieren (1)' })).toBeEnabled();
   });
 });

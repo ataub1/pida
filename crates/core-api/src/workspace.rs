@@ -601,28 +601,28 @@ impl crate::runtime::CoreTask {
     /// wirksame PDF/A-Entscheidung wie beim Signieren (`plan::pdfa_mode`: erkannte Kennung gilt immer,
     /// `signature.pdfa_force` nur mit einem Profil, das eine PDF/A-Variante hat), Lage aus der Automatik.
     fn detection(&self, data: Option<&DocData>, edit: &WorkspaceEdit) -> DocumentDetectionView {
-        let pdfa = data
-            .and_then(|d| d.report.pdfa.as_ref())
-            .map(|p| PdfaIdView { part: p.part, conformance: p.conformance.clone() });
-        let pdfa_decision = if pdfa.is_some() {
-            PdfaDecision::Detected
-        } else if self.pdfa_forced() {
-            PdfaDecision::Forced
-        } else {
-            PdfaDecision::None
-        };
-        DocumentDetectionView { pdfa, pdfa_decision, auto_placed: edit.automatic }
+        let id = data.and_then(|d| d.report.pdfa.as_ref());
+        let pdfa = id.map(|p| PdfaIdView { part: p.part, conformance: p.conformance.clone() });
+        DocumentDetectionView { pdfa, pdfa_decision: self.pdfa_decision(id), auto_placed: edit.automatic }
     }
 
-    /// Erzwingt `signature.pdfa_force` mit dem wirksamen Profil eine PDF/A-Signatur (Profil mit
-    /// `SIG_PDFA1B_VALID`/`SIG_PDFA_VALID`, z. B. `SIGNATURBLOCK_SMALL_DE_PDFA`)?
-    fn pdfa_forced(&self) -> bool {
+    /// Wirksame PDF/A-Entscheidung nach derselben Regel wie beim Signieren: Profil-ID wie
+    /// [`crate::plan`] (Kennung erkannt bzw. `signature.pdfa_force` → `_PDFA`-Variante, sofern das Profil eine
+    /// hat), dann [`crate::plan::pdfa_mode`]. „Erkannt“ nur, wenn tatsächlich PDF/A-konform signiert wird (z. B.
+    /// nicht bei `pdfaid:part = 4` mit einem Profil ohne PDF/A-Variante); „erzwungen“ nur ohne Kennung mit
+    /// einem Profil, dessen Variante PDF/A ist (`SIG_PDFA1B_VALID`/`SIG_PDFA_VALID`). Ohne Profilsammlung
+    /// (Start) gilt eine erkannte Kennung als „erkannt“.
+    fn pdfa_decision(&self, id: Option<&pida_pades::PdfaId>) -> PdfaDecision {
         let eff = self.cfg.effective();
-        if !eff.settings.signature.pdfa_force {
-            return false;
+        let profile_id = eff.pdfas_profile_id(pida_i18n::Lang::system(), id.is_some());
+        let Some(profile) = self.shared.profiles.as_deref().and_then(|store| store.get(&profile_id)) else {
+            return if id.is_some() { PdfaDecision::Detected } else { PdfaDecision::None };
+        };
+        match (id, crate::plan::pdfa_mode(id, profile)) {
+            (_, pida_sigblock::PdfaMode::None) => PdfaDecision::None,
+            (Some(_), _) => PdfaDecision::Detected,
+            (None, _) => PdfaDecision::Forced,
         }
-        let id = eff.pdfas_profile_id(pida_i18n::Lang::system(), false);
-        self.shared.profiles.as_deref().and_then(|store| store.get(&id)).is_some_and(|p| p.is_pdfa())
     }
 
     /// Live-Prüfung (§3.3): liest nur das Belegungsraster und die Felder der Analyse.

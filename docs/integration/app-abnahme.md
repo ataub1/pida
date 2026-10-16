@@ -7,14 +7,15 @@ den Auftraggeber (Bildschirme, Tastatur, Drag & Drop, ID Austria mit Testkonto).
 
 Stand: 15.10.2026, Welle 3 Track T1; Etappe **E1** der neuen Oberfläche „Arbeitsbereich“ (ADR 0004 §5, Merge
 K1 + A1, `workspace_ui` eingeschaltet) ergänzt am 15.10.2026, Etappe **E2** (Stapel, Merge K2 + A2,
-`batch_overview` eingeschaltet) am 16.10.2026; gemessen auf macOS 27 (arm64), Xcode 27, Rust 1.99.0, Node 22,
+`batch_overview` eingeschaltet) und Etappe **E3** (Einstellungen „sofort wirksam“, Live-Editor, Bereich „Dokument“,
+Datenschutz, „Zuletzt signiert“, Merge K3 + B3) am 16.10.2026; gemessen auf macOS 27 (arm64), Xcode 27, Rust 1.99.0, Node 22,
 PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft die CI (Job `bundle`).
 
 ## 1. Automatische Nachweise
 
 | Nr. | Prüfung | Befehl | Ergebnis |
 |---|---|---|---|
-| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review); seit E1 15 Testdateien, 379 Tests (inkl. axe-core, Mock-Projektion, Token-Kontrast, echte Kernzustände); seit E2 17 Testdateien, 429 Tests |
+| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review); seit E1 15 Testdateien, 379 Tests (inkl. axe-core, Mock-Projektion, Token-Kontrast, echte Kernzustände); seit E2 17 Testdateien, 429 Tests; seit E3 20 Testdateien, 464 Tests |
 | N-02 | Shell-Crate | `cargo test -p pida-app` | grün: 40 Tests nach dem Review (Startargumente, Kernstart/Fehlerschritt, Shell-Funktionen, Startprüfung, Custom Protocol, Dateien, frühe Dokumente/Single-Instance-Socket, PDFium-Auflösung, Sicherheitskonfiguration, Serde-Vertrag) |
 | N-03 | Vertrag Kern ↔ UI | `cargo test -p pida-core-api --test ts_bindings` | grün: `generated.ts` entspricht den Rust-Typen (ts-rs 12.0.1) |
 | N-04 | Debug-Bundle mit PDFium und Drittlizenzen | `npm run notices && PIDA_PDFIUM_DIR=… npm run bundle:mac:debug` | `PIDA.app` **121,3 MiB** (Binary 112 MiB unoptimiert mit Debug-Infos, `Contents/Frameworks/libpdfium.dylib` 7,0 MiB, `Contents/Resources/THIRD-PARTY-NOTICES.md` + `RUST-STD-COPYRIGHT.html`) |
@@ -41,6 +42,15 @@ PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft di
 | N-25 | E2: Oberfläche gegen echte Stapelzustände | `cd apps/app && npm test` (`src/app/RealCoreBatch.test.tsx`, Fixture `src/core/fixtures/real-core-batch-views.json` aus N-24) | jeder Zustand in der Stapelübersicht, Schätzung, `start_batch` mit genau den signierbaren Dokumenten, eine Anmeldung, „Bestätigung k von n · Name“ mit eigenem Vergleichswert, Pause (Verbindung) mit Erneut versuchen/Überspringen/Stapel abbrechen, Zusammenfassung mit Speicherort und „Im Ordner zeigen“; kein Zustand stößt eine Sitzung an (F-54); axe ohne Verstöße |
 | N-26 | E2: Stapel gegen den Mock | `cd apps/app && npm test` (`features/batch/batch.test.tsx`, `core/mock/mock.test.ts`) | alle [M]-Kriterien E2.1–E2.7, Mobile (App-Dokumente, schmal), Englisch, ⌘↵, Keystore mit einmaligem Passwort; axe (auch schmal, Startdialog, Pausen, Abbruch-Rückfrage) |
 | N-27 | E2: Mobile-Typprüfung | wie N-21 | grün (nur die bekannte Warnung in `pida-pades`) |
+| N-28 | E3: Einstellungen „sofort wirksam“ und „Zuletzt signiert“ im Kern (Abnahme E3.1, E3.2, E3.5–E3.7) | `cargo test -p pida-core-api --test settings` (mit `PIDA_PDFIUM_DIR`), `cargo test -p pida-config recent`, `-p pida-core-api settings_apply` | 16 Tests: Teilübernahme (ungültiger Port + gültiges Profil), unbekannter Pfad, veraltete Revision, `last_source_directory` zwischen zwei Übernahmen bleibt, Neustart zeigt die Werte; genau ein Neubau der Vorschau je Änderung am Signaturbild mit `preview_revision` in derselben Projektion wie `applied_revision`; Block im offenen Dokument (automatisch neu gesetzt, manuell Lage behalten); PDF/A erkannt/erzwungen (Amtssignatur ohne PDF/A-Variante); Feld- und QR-Suche sofort wirksam (echte Engine: ins erste leere Feld, OutputIntent, pyHanko intakt); schreibgeschützt; Mobile; `recent.json` feldgenau, 0600, höchstens 10, Abschalten/Richtlinie löscht, ohne Oberfläche nichts; Signierbeginn schließt die Einstellungen; alle Wertformen der Einstellungs-Seitenleiste werden ohne Ablehnung übernommen |
+| N-29 | E3: Bereich „Dokument“ im Workflow | `cargo test -p pida-workflow --test workspace --test batch --test props` | Tabellentests: erstes leeres Feld mit „Leere Signaturfelder“, QR nachträglich, Automatik endet mit jeder Platzierung der Nutzerin, Stapelpläne folgen den Einstellungen (Feld, QR), „Unsichtbar signieren“ im unverändert geöffneten Eintrag bleibt Plan der Nutzerin (Befund im Merge); A1-Property-Test mit wechselnder Platzhaltersuche und `PlaceholderSearched` |
+| N-30 | E3: Oberfläche gegen echte Kernzustände (Nachtrag 5) | `cd apps/app && npm test` (`src/app/RealCore.test.tsx`, Zustände `doc_pdfa_detected`, `doc_pdfa_forced`, `doc_field_auto`, `doc_qr_auto`, `settings_open`, `settings_partial` aus N-18) | Inspektor-Hinweise „PDF/A-Dokument erkannt …“, „… (erzwungen)“, „Signaturfeld gefunden …“, „QR-Platzhalter gefunden …“, Sprechblase nennt das Ziel; Einstellungen mit Feldfehler am Port, übernommenen Werten und Namensbeispiel des Kerns; axe ohne Verstöße; keine Sitzung (F-54) |
+| N-31 | E3: Einstellungen, „Zuletzt signiert“ und Hinweise gegen den Mock | `cd apps/app && npm test` (`features/settings/{settings,a11y,units,mock}.test.ts(x)`, `features/recent/recent.test.tsx`, `features/workspace/workspace.test.tsx`) | alle [M]-Kriterien E3.1–E3.8 (sofort wirksam ohne „Speichern“, Feldfehler, Suche „Logo“/„Handy“/„Proxy“ mit Vorschau, Datenschutz, „Zuletzt signiert“, schreibgeschützt, Mobile, axe je Bereich und im Suchmodus); Hinweise im Arbeitsbereich mit sofortiger Wirkung der Platzhaltersuche, von Hand Platziertes bleibt |
+| N-32 | E3: Debug-Bundle | `PIDA_SMOKE=1 PIDA_HOME=<leer> HOME=<leer> …/pida` ohne Dokument, mit `a.pdf`, mit `a.pdf b.pdf`, `-b MOBILE -a a.pdf`, `-c alt.config a.pdf` | `ok step=open pdfium=true` (WebView + Kern nach 413–464 ms) bzw. `ok step=loading` (Dokument, Startargument-Automatik, `-c`) bzw. `ok step=batch`; mit `-c` keine `settings.toml` geschrieben |
+| N-33 | E3: D-06 und „Zuletzt signiert“ im Bundle | `PIDA_HOME=<leer> …/pida -b KS -ks testdata/keystores/test-rsa2048.p12 -kspass test -a -s -o <ordner> a.pdf b.pdf` | beide signiert, Ende mit 0 nach 2 s; `pyhanko sign validate --trust …/test-rsa2048.crt.pem`: `INTACT:TRUSTED,UNTOUCHED`, `qpdf --check` ohne Fehler; `<PIDA_HOME>/data/recent.json` (0600) enthält genau `id`, `file_name`, `path`, `signed_at`, neueste zuerst; mit `general.recent_documents = false` wird eine vorhandene Liste beim Start gelöscht und nichts geschrieben; Log ohne Pfade, Namen, Passwörter |
+| N-34 | E3: Einstellungen › Dokument im Bundle | `settings.toml` mit `[placeholder] search = true, kind = "fields"` und `[signature] pdfa_force = true`, dann wie N-33 mit `manySignFields.pdf` | signiert in das erste leere Feld `Signature_0` (8 Felder vorher und nachher, kein neues Feld), inkrementell, `/OutputIntents` ergänzt (PDF/A-kompatibel); pyHanko `INTACT:TRUSTED,UNTOUCHED`, qpdf ohne Fehler |
+| N-35 | E3: Vorschau nach einer Änderung (Abnahme E3.1 [H], Näherung) | Messung gegen den echten Kern mit PDFium (Debug-Build, unoptimiert) | `ApplySettings` → bestätigt mit neuer Vorschau nach 160–411 ms, PNG der Vorschau in 27–202 ms, gesamt ≤ 0,62 s (Profil, Blocksprache, Hinweis, PDF/A); Messung auf dem Referenzrechner steht aus |
+| N-36 | E3: Mobile-Typprüfung | wie N-21 | grün (nur die bekannte Warnung in `pida-pades`) |
 
 Hinweise zur Messung:
 
@@ -57,6 +67,18 @@ Hinweise zur Messung:
   Schätzung und Speicherort, Startdialog nur bei Ordnerwahl bzw. vorhandenen Zieldateien, k/n im Kopf der
   Stapelkarte statt im Stepper.
 
+- **Gestaltung E3** neben dem Prototyp (Commit `fd7def3`, eigener Port): Mock-Kern im Browser auf eigenem Port,
+  Desktop 1280 × 800 hell/dunkel/EN und 375 × 812 @2x hell/dunkel, 33 Aufnahmen in
+  `docs/integration/screenshots/stage3/` (Einstellungen von B3; Hinweise im Arbeitsbereich, Bereich „Dokument“ mit
+  „Leere Signaturfelder“ und schmale Ansicht im Merge: `desktop-15`–`19`, `dunkel-04`/`05`, `mobil-07`–`09`); 360 px
+  und 375 px ohne waagrechtes Scrollen der Seite (die Bereichsleiste der Einstellungen scrollt schmal waagrecht).
+  Gewollte Abweichungen (ADR 0004 §9 Nachtrag 5): keine Demo-Steuerung, keine Zugriffstasten in der Bereichsleiste,
+  „Prüfen“ gesperrt bis E4, Hinweistexte aus `document.detection` des Kerns.
+- **Laufende Instanz:** Läuft bereits ein PIDA desselben Kontos, übergibt eine aus dem Terminal gestartete Binary
+  ihre Startargumente über `/tmp/at_pida_si.sock` der laufenden Instanz und endet (Single-Instance, D-05). Für die
+  Prüfungen N-32–N-34 lief eine andere Instanz; die Läufe liefen deshalb unter
+  `sandbox-exec -p '(version 1)(allow default)(deny file-read* file-write* network-outbound (literal "/private/tmp/at_pida_si.sock"))'`
+  – die App sieht den Socket als nicht prüfbar und startet ohne Single-Instance (Pfad aus N-13, Warnung im Log).
 - Die **Startprüfung** (`PIDA_SMOKE=1`, `apps/app/src-tauri/src/smoke.rs`) beendet die App, sobald die
   Oberfläche über IPC den ersten ViewState abgefragt hat (WebView, JavaScript-Bundle und IPC laufen) und
   der Kern einen Schritt außer `starting` meldet. `webview_ms`/`core_ms` messen ab Prozessstart; `pdfium`
@@ -104,9 +126,9 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | S-12 | Ausgabe existiert bereits | Rückfrage „Überschreiben?“; Nein → Speichern-Knopf bleibt |
 | S-13 | Kein Ausgabeordner eingestellt | Speichern-Dialog mit Startordner der Quelle und Namensvorschlag `<name>_signed.pdf`; Abbrechen → Knopf „Speichern“ |
 | S-14 | Fehler (z. B. falsches Keystore-Passwort, defektes PDF) | Fehlerschritt mit verständlichem Text, „Details“ (Code), Wiederholen wo sinnvoll |
-| S-15 | Einstellungen (⌘,): alle Tabs, Speichern, Verwerfen, Zurücksetzen | Feldfehler am Feld (z. B. Proxy ohne Host); Blockvorschau; Zurücksetzen mit Bestätigung |
-| S-16 | Start mit `-c alt.config` (Altdatei) | Einstellungen mit Hinweis „werden nicht gespeichert“ (schreibgeschützt), Änderungen gelten bis Programmende |
-| S-17 | Über: Version, Verweis auf „Datenschutz“, Log-Ordner, **„Drittlizenzen anzeigen“** | öffnet `THIRD-PARTY-NOTICES.md` aus dem Bundle; Tab „Datenschutz“: Text aus PDF-Over mit Link zu A-Trust, Hinweis auf lokales Signieren, Zertifikats-Cache |
+| S-15 | Einstellungen (⌘,) seit E3: Seitenleiste Signaturbild, Dokument, Signiermittel, Speichern, Darstellung, Datenschutz, Erweitert, Über PIDA; Suche („Logo“, „Handy“, „Proxy“); Zurücksetzen | jede Änderung wirkt sofort (kein „Speichern“/„Abbrechen“); Feldfehler am Feld (z. B. Proxy-Port 99999), andere Änderungen bleiben übernommen; Treffer im Signaturbild zeigen die Vorschau; Zurücksetzen mit Bestätigung; Neustart zeigt die Werte |
+| S-16 | Start mit `-c alt.config` (Altdatei) | Einstellungen mit Banner „werden nicht gespeichert“ (schreibgeschützt), Änderungen gelten bis Programmende |
+| S-17 | Über: Version, Verweis auf „Datenschutz“, Log-Ordner, **„Drittlizenzen anzeigen“** | öffnet `THIRD-PARTY-NOTICES.md` aus dem Bundle; Bereich „Datenschutz“: Text aus PDF-Over (bzw. der Organisation) mit Link zu A-Trust, Hinweis auf lokales Signieren, Zertifikats-Cache, „„Zuletzt signiert“ merken“, „Liste leeren“ |
 | S-18 | Hinweise (Toasts) | Hinweise des Kerns stapeln, einzeln schließbar; Info-Hinweise verschwinden nach 8 s, Fehler bleiben |
 | S-19 | Beenden während einer offenen Maske (⌘Q / Fenster schließen) | Vorgang wird abgebrochen, Einstellungen gesichert, App endet (spätestens nach 5 s) |
 | S-20 | Fenstergröße/-position | bleibt nach Neustart erhalten |
@@ -115,6 +137,11 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | S-23 | E2: „Alle signieren (n)“ (⌘↵) mit vorhandener Zieldatei bzw. „Jedes Mal fragen“ als Ausgabeordner | Startdialog **vor** dem Lauf: „Beide behalten“ (Standard, `… (2).pdf`), „Überschreiben“, „Überspringen“ (ohne Bestätigung für dieses Dokument) bzw. Ordnerwahl; sonst startet der Lauf direkt; ohne Standard-Signiermittel öffnet sich das Menü des Konto-Chips |
 | S-24 | E2: Stapellauf mit Keystore (Test-Keystore) | Passwort **einmal**, Stapelkarte „n Dokumente“ mit „Dokument k von n · Name“, Fortschritt in Karte und Liste, danach Zusammenfassung „n von m signiert …“ mit Speicherort, „Im Ordner zeigen“, „Neuer Stapel“; Ausgaben gültig (pyHanko) |
 | S-25 | E2: Esc bzw. × im Lauf, „Stapel abbrechen“ | Rückfrage „Stapel abbrechen?“ („Weiter signieren“); Abbruch: Gespeichertes bleibt, aktuelles „Abgebrochen“, Rest „Bereit“, Zusammenfassung „Stapel abgebrochen“, Passwort vergessen |
+| S-26 | E3: Signaturbild live – Profil, Blocksprache, Bildmarke (Dialog bzw. Ablegen), Logo-Größe, Hinweistext mit offenem Dokument | die Vorschau oben in den Einstellungen und der Block im Dokument ändern sich binnen einer Sekunde; automatisch platziert → neu gesetzt, von Hand platziert → Lage bleibt; ohne eigene Bildmarke „Standard-Bildmarke (PIDA-Siegel)“, eine abgelegte Datei ändert das Profil nicht |
+| S-27 | E3: Einstellungen › Dokument – „PDF/A-kompatibel signieren“, „Signaturplatzhalter automatisch suchen“ mit „QR-Code-Platzhalter“ bzw. „Leere Signaturfelder“ (Auswahl gesperrt bei ausgeschalteter Suche) | wirkt sofort im offenen Dokument: Inspektor „PDF/A-Dokument erkannt – wird PDF/A-konform signiert“ (PDF/A-Datei) bzw. „PDF/A-kompatible Signatur (erzwungen)“; „Signaturfeld gefunden – Signatur im Feld platziert“ bzw. „QR-Platzhalter gefunden – Signatur dort platziert“ nur bei automatischer Platzierung, Sprechblase nennt das Ziel; Suche aus → Felder nur angeboten; von Hand Platziertes bleibt |
+| S-28 | E3: „Zuletzt signiert“ auf der Startansicht nach einigen Signaturen; Eintrag anklicken, Datei vorher verschieben, „Entfernen“, Einstellungen › Datenschutz „Liste leeren“ bzw. Schalter aus | höchstens 10 Einträge mit Name und Zeitpunkt (Ordner als Tooltip); Eintrag → Hinweis (Prüfmodus folgt mit E4); fehlende Datei → Hinweis, Eintrag bleibt; Abschalten löscht sofort; `recent.json` enthält nur Name, Pfad, Zeit |
+| S-29 | E3: Startargument-Automatik `-b KS -ks … -a a.pdf` und während des Ladens die Einstellungen öffnen | mit Beginn des Signierens schließen sich die Einstellungen; die Signierkarte (Passwort) liegt oben |
+| S-30 | E3 Mobile (Simulator/Emulator): Einstellungen | Vollbild mit waagrechter Bereichsleiste, ohne Proxy, Ordner, Update-Prüfung, Protokolle, Chipkarte und Bildmarke; Keystore nur über den PKCS#12-Import-Assistenten |
 
 ### 2.2 Tastatur und Barrierefreiheit
 
@@ -134,7 +161,7 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 |---|---|---|
 | D-01 | PDF(s) auf das Fenster ziehen (Schritt Öffnen bzw. Ergebnis) | Dokumente kommen in die Warteschlange; Hervorhebung während des Ziehens |
 | D-02 | PDF in einem anderen Schritt ablegen | Hinweis „hier nicht möglich“, nichts passiert |
-| D-03 | Bild auf das Bildmarken-Feld in den Einstellungen ziehen | Bildmarke übernommen |
+| D-03 | Bild auf das Bildmarken-Feld in den Einstellungen ziehen | Bildmarke übernommen (seit E3 sofort, ohne Profilwechsel) |
 | D-04 | Finder: „Öffnen mit › PIDA“ bzw. PDF auf das Dock-Symbol (App läuft nicht) | App startet mit dem Dokument |
 | D-05 | wie D-04, App läuft bereits | Dokument geht an die laufende Instanz, Fenster kommt nach vorn (keine zweite Instanz) |
 | D-05a | macOS, zweites Benutzerkonto: dort läuft PIDA bzw. `/tmp/at_pida_si.sock` gehört dem anderen Konto; App im eigenen Konto starten | App startet normal (ohne Single-Instance, Warnung im Log); keine Startargumente an das andere Konto |
@@ -195,3 +222,7 @@ oder Logs. Einen Zustimmungsdialog gibt es nicht mehr (ADR 0003); der Kurzhinwei
   verwerfen die laufende Anfrage nur in PIDA; in der App kann sie bis zum Ablauf sichtbar bleiben (Schutz: eigener
   Vergleichswert). Wieder signierbar werden übersprungene/abgebrochene Einträge nur über „öffnen → Zurück zum
   Stapel“. Offen [H]: A-08 mit Testkonto, E2.8 im Simulator/Emulator.
+- E3: Einstellungen wirken sofort (ADR 0004 §3.11, Nachtrag 5). „Zuletzt signiert“ öffnet bis E4 noch nicht den
+  Prüfmodus (Hinweis); „PDF-Over-Einstellungen übernehmen …“ folgt mit E4; die Bereichsleiste der Einstellungen hat
+  keine Zugriffstasten; Abschalten des Zertifikats-Caches leert vorhandene Einträge nicht. Offen [H]: Vorschau binnen
+  einer Sekunde auf dem Referenzrechner (N-35 ist eine Näherung im Debug-Build), S-30 im Simulator/Emulator.

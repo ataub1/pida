@@ -7,8 +7,7 @@
 import { useState } from 'react';
 import { useApp } from '../../app/context';
 import type { MigrationOfferView } from '../../core/types';
-import { CheckField } from '../../settings/fields';
-import { AccessButton } from '../../ui/controls';
+import { AccessButton, CheckboxField } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
 
 export function MigrationDialog({ offer }: { offer: MigrationOfferView }) {
@@ -35,7 +34,7 @@ export function MigrationDialog({ offer }: { offer: MigrationOfferView }) {
     >
       <p className="pre-line">{t.t('ng-migrate-offer-text', { path: offer.legacy_file })}</p>
       {offer.plaintext_secrets ? (
-        <CheckField label={t.t('ng-migrate-secrets-consent')} isSelected={storeSecrets} onChange={setStoreSecrets} />
+        <CheckboxField label={t.t('ng-migrate-secrets-consent')} isSelected={storeSecrets} onChange={setStoreSecrets} />
       ) : null}
     </ConfirmDialog>
   );

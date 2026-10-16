@@ -427,7 +427,8 @@ export function Pages({
             ) : null}
             {coach && !dragging ? (
               <span className={`sticker-coach${coachAnchor((box.left + box.width / 2) / (pageW(stickerPage) * scale))}`} aria-hidden="true">
-                {t.t('ng-ui-ws-placed')}
+                {/* nennt das Ziel der Automatik (Einstellungen › Dokument: QR-Platzhalter bzw. Signaturfeld) */}
+                {t.t(doc.target.kind === 'qr' ? 'ng-ui-ws-placed-qr' : doc.target.kind === 'field' ? 'ng-ui-ws-placed-field' : 'ng-ui-ws-placed')}
               </span>
             ) : null}
             <span id={helpId} className="sr-only">

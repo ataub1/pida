@@ -13,6 +13,7 @@ import { App } from './app/App';
 import { createTauriBridge, inTauri, type Bridge } from './core/bridge';
 import { defaultSettings } from './core/defaults';
 import type { MockCore, MockOptions } from './core/mock';
+import type { SettingsMockOptions } from './core/mock/settings';
 import type { Settings } from './core/types';
 
 async function bridge(): Promise<Bridge> {
@@ -30,12 +31,14 @@ async function bridge(): Promise<Bridge> {
  * error-password|error-atrust` wie im Prototyp, `&platform=ios|android` (Mobile-Oberfläche), `&flow=app|sms|
  * qr|fido2|decline|timeout` (Antwort von ID Austria nach der Anmeldung), `&resume=1` (Angebot „Signatur
  * fortsetzen“), `&lang=en`, `&examples=1` (Beispiele der späteren Etappen). Stapel (ADR 0004 §3.8):
- * `&batch=0` (ohne Stapelübersicht), `&search=0|1` (Platzhaltersuche; im Szenario `batch` an),
+ * `&batch=0` (ohne Stapelübersicht), `&search=0|1` (Platzhaltersuche; im Szenario `batch` an), `&kind=fields`
+ * (Platzhaltersuche „Leere Signaturfelder“ statt QR, E3), `&pdfa=1` („PDF/A-kompatibel signieren“, E3),
+ * `&policy=recent-off|recent-on|updates` (Richtlinie: „Zuletzt signiert“ bzw. Update-Prüfung festgelegt, E3),
  * `&fault=decline|network|session|too-large` (Störung beim zweiten Dokument), `&existing=1` (eine Zieldatei
  * gibt es schon), `&folder=ask|<Pfad>` (Speicherort), `&auto=0` (App-Bestätigung nur über „In der App
  * bestätigt“). Nur der Mock-Kern wertet das aus.
  */
-function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockOptions {
+function mockOptionsFromUrl(search: string, scenarios: readonly string[]): SettingsMockOptions {
   const params = new URLSearchParams(search);
   const platform = params.get('platform');
   const scenario = params.get('scenario') ?? params.get('szenario');
@@ -54,7 +57,8 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockO
     id_austria: { ...base.id_austria, username: '+43 660 1234123', remember: true },
     keystore: mobile ? base.keystore : { ...base.keystore, enabled: true, file: '/Users/demo/Zertifikate/max.p12', alias: 'max', declared_type: 'PKCS12' },
     output: { ...base.output, folder: folder === 'ask' ? null : (folder ?? '.') },
-    placeholder: { ...base.placeholder, search: placeholderSearch === '1' },
+    placeholder: { ...base.placeholder, search: placeholderSearch === '1', kind: params.get('kind') === 'fields' ? 'fields' : 'marker' },
+    signature: { ...base.signature, pdfa_force: params.get('pdfa') === '1' },
   };
   return {
     settings,
@@ -68,7 +72,22 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockO
     autoCompleteApp: params.get('auto') !== '0',
     batchFaults: fault === 'decline' || fault === 'network' || fault === 'session' || fault === 'too-large' ? { 'Auftragsbestaetigung_4711.pdf': fault } : undefined,
     existingFiles: params.get('existing') === '1' ? ['/Users/demo/Dokumente/Verträge/Vertrag_signed.pdf'] : undefined,
+    policy: policyFromUrl(params.get('policy')),
   };
+}
+
+/** Richtlinie im Mock (`SettingsView::locked`): festgelegte Schalter erscheinen gesperrt mit Hinweis. */
+function policyFromUrl(value: string | null): SettingsMockOptions['policy'] {
+  switch (value) {
+    case 'recent-off':
+      return { recent_documents: false };
+    case 'recent-on':
+      return { recent_documents: true };
+    case 'updates':
+      return { update_check: false };
+    default:
+      return undefined;
+  }
 }
 
 /** Browser-Vorschau: HTML5-Drop als Ersatz für die Fenster-Ereignisse von Tauri (nur Dateinamen). */

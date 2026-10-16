@@ -1855,7 +1855,8 @@ new_page: boolean,
  */
 sticker: RectPt | null, 
 /**
- * leere, nicht gesperrte Signaturfelder – im Arbeitsbereich immer angeboten, nie automatisch benutzt
+ * leere, nicht gesperrte Signaturfelder – im Arbeitsbereich immer angeboten; automatisch benutzt wird nur
+ * das erste und nur mit Platzhaltersuche „Leere Signaturfelder“ (Einstellungen › Dokument, Nachtrag 5)
  */
 fields: Array<FieldTargetView>, 
 /**

@@ -14,6 +14,7 @@ import type {
   DocConstraintsView,
   DocId,
   DocInfo,
+  DocumentDetectionView,
   DocumentPhase,
   DocumentView,
   ExistingSignatureView,
@@ -88,6 +89,8 @@ export interface MockDocSpec {
   locked: boolean;
   /** DocMDP-zertifiziert (nur vorhandene Felder oder unsichtbar) */
   certified: boolean;
+  /** PDF/A-Kennung im XMP (`pdfaid:part`/`conformance`); fehlt = kein PDF/A-Dokument */
+  pdfa?: { part: number; conformance: string | null } | null;
 }
 
 export interface MockDoc {
@@ -216,7 +219,7 @@ function spec(pages: PageSpec[], extra: Partial<MockDocSpec> = {}): MockDocSpec 
   return { pages, fields: [], qr: null, existing: [], sizeBytes: 214 * 1024, locked: false, certified: false, ...extra };
 }
 
-/** Dienstleistungsvertrag, 3 Seiten (Kernablauf). */
+/** Dienstleistungsvertrag, 3 Seiten (Kernablauf); wie im Prototyp ein PDF/A-1b-Dokument. */
 export function contractSpec(): MockDocSpec {
   const f = (n: number) => `Dienstleistungsvertrag DV-2026-0412 · Seite ${n} von 3`;
   const p1 = page()
@@ -298,7 +301,7 @@ export function contractSpec(): MockDocSpec {
     .sigline(['Linz, am', 'Für den Auftraggeber'], ['Wien, am', 'Für den Auftragnehmer'])
     .footer(f(3))
     .build();
-  return spec([p1, p2, p3]);
+  return spec([p1, p2, p3], { pdfa: { part: 1, conformance: 'B' } });
 }
 
 /** Leeres Dokument, 1 Seite. */
@@ -736,6 +739,12 @@ export interface EditState {
   ready: number[];
   /** sichtbares Profil verboten (unsichtbares Profil bzw. `-v`) */
   invisibleProfile: boolean;
+  /**
+   * Lage und Ziel stammen aus der Automatik und folgen den Einstellungen › Dokument (Kern:
+   * `WorkspaceEdit::automatic`, Projektion `detection.auto_placed`); `false` nach jeder Platzierung durch die
+   * Nutzerin (Ziehen, Tastatur, Seite, neue Seite, „Ins Feld setzen“, „Frei platzieren“/„Neu platzieren“)
+   */
+  automatic: boolean;
 }
 
 const LOWEST_GAP = 20;
@@ -806,7 +815,35 @@ export function constraintsFor(doc: MockDoc, edit: EditState): DocConstraintsVie
   };
 }
 
-/** Start des Bearbeitens nach der Analyse (Arbeitsbereich-Modus, §3.3 „Regeln“). */
+/** Automatisches Ziel nach den Einstellungen › Dokument (Kern: `WorkspaceEdit::follow_settings`). */
+function automaticTarget(doc: MockDoc, settings: Settings, invisibleProfile: boolean): PlacementTarget {
+  const p = settings.placeholder;
+  if (!p.search || invisibleProfile) return { kind: 'free' };
+  if (p.kind === 'fields') {
+    const index = doc.spec.fields.findIndex((f) => !f.locked);
+    return index >= 0 ? { kind: 'field', index } : { kind: 'free' };
+  }
+  return doc.spec.qr ? { kind: 'qr' } : { kind: 'free' };
+}
+
+/** Lage im Ziel (Feld bzw. QR-Platzhalter: linke obere Ecke des Ziel-Rechtecks). */
+function targetPlacement(doc: MockDoc, target: PlacementTarget, block: { width: number; height: number }): Placement | null {
+  const r =
+    target.kind === 'qr' && doc.spec.qr
+      ? { page: doc.spec.qr.page, rect: doc.spec.qr.rect }
+      : target.kind === 'field' && doc.spec.fields[target.index]
+        ? { page: doc.spec.fields[target.index]!.page, rect: doc.spec.fields[target.index]!.rect }
+        : null;
+  if (!r) return null;
+  const pr = toRectPt(r.rect, pageSize(doc, r.page)[1]);
+  return { page_index: r.page, x: pr.left, y: pr.top, width: block.width, height: block.height };
+}
+
+/**
+ * Start des Bearbeitens nach der Analyse (Arbeitsbereich-Modus, §3.3 „Regeln“): automatisch nach den
+ * Einstellungen › Dokument – „QR-Code-Platzhalter“ → QR-Platzhalter, „Leere Signaturfelder“ → erstes leeres
+ * Feld, sonst frei nach der PDF-AS-Regel.
+ */
 export function startEdit(doc: MockDoc, settings: Settings, lang: Lang): EditState {
   const invisibleProfile = settings.signature.profile === 'INVISIBLE';
   const block = blockSize(settings, lang);
@@ -821,13 +858,11 @@ export function startEdit(doc: MockDoc, settings: Settings, lang: Lang): EditSta
     inspected: [],
     ready: [],
     invisibleProfile,
+    automatic: true,
   };
-  const qr = doc.spec.qr;
-  if (qr && settings.placeholder.search && settings.placeholder.kind === 'marker') {
-    const [, ph] = pageSize(doc, qr.page);
-    const r = toRectPt(qr.rect, ph);
-    return { ...base, placement: { page_index: qr.page, x: r.left, y: r.top, width: block.width, height: block.height }, origin: 'qr', target: { kind: 'qr' } };
-  }
+  const target = automaticTarget(doc, settings, invisibleProfile);
+  const placement = targetPlacement(doc, target, block);
+  if (placement) return { ...base, placement, origin: target.kind === 'qr' ? 'qr' : 'field', target };
   const auto = autoPlacement(doc, block);
   return { ...base, placement: auto.placement, newPage: auto.newPage };
 }
@@ -845,7 +880,7 @@ export function moveBlock(doc: MockDoc, edit: EditState, page: number, x: number
   if (!edit.placement) return edit;
   const target = Math.max(0, Math.min(pageCount(doc, edit) - 1, Math.trunc(page)));
   const { placement, clamped } = clampPlacement({ ...edit.placement, page_index: target, x, y }, pageSize(doc, target));
-  return bump(edit, { placement, clamped, origin: 'user', target: { kind: 'free' } });
+  return bump(edit, { placement, clamped, origin: 'user', target: { kind: 'free' }, automatic: false });
 }
 
 /** `NudgeBlock` (15/1/50 pt). */
@@ -861,7 +896,7 @@ export function changePage(doc: MockDoc, edit: EditState, page: number): EditSta
   const target = Math.max(0, Math.min(pageCount(doc, edit) - 1, Math.trunc(page)));
   if (target === edit.placement.page_index) return edit;
   const { placement, clamped } = clampPlacement({ ...edit.placement, page_index: target }, pageSize(doc, target));
-  return bump(edit, { placement, clamped, origin: 'user', target: { kind: 'free' } });
+  return bump(edit, { placement, clamped, origin: 'user', target: { kind: 'free' }, automatic: false });
 }
 
 /** `ToggleNewPage` (bei signierten Dokumenten gesperrt). */
@@ -871,7 +906,7 @@ export function toggleNewPage(doc: MockDoc, edit: EditState): EditState | null {
   const newPage = !edit.newPage;
   const page = newPage ? doc.spec.pages.length : doc.spec.pages.length - 1;
   const { placement } = clampPlacement({ ...edit.placement, page_index: page }, pageSize(doc, page));
-  return bump(edit, { placement, newPage, target: { kind: 'free' }, origin: 'user' });
+  return bump(edit, { placement, newPage, target: { kind: 'free' }, origin: 'user', automatic: false });
 }
 
 /** `AutoPlace` bzw. `UseTarget{Free}`. */
@@ -880,29 +915,39 @@ export function autoPlace(doc: MockDoc, edit: EditState, block: { width: number;
   return bump(edit, { placement: auto.placement, newPage: auto.newPage, origin: 'auto', target: { kind: 'free' }, clamped: false });
 }
 
-/** `UseTarget` (Index geprüft, gesperrte Felder abgelehnt → `null`). */
+/**
+ * `UseTarget` von der Nutzerin (Index geprüft, gesperrte Felder abgelehnt → `null`); danach folgt die Lage
+ * nicht mehr den Einstellungen › Dokument (auch „Frei platzieren“).
+ */
 export function useTarget(doc: MockDoc, edit: EditState, target: PlacementTarget, block: { width: number; height: number }): EditState | null {
-  if (target.kind === 'free') return autoPlace(doc, edit, block);
-  if (target.kind === 'qr') {
-    const qr = doc.spec.qr;
-    if (!qr) return null;
-    const r = toRectPt(qr.rect, pageSize(doc, qr.page)[1]);
-    return bump(edit, { placement: { page_index: qr.page, x: r.left, y: r.top, width: block.width, height: block.height }, origin: 'qr', target, newPage: false, invisible: false });
-  }
-  const f = doc.spec.fields[target.index];
-  if (!f || f.locked) return null;
-  const r = toRectPt(f.rect, pageSize(doc, f.page)[1]);
-  return bump(edit, { placement: { page_index: f.page, x: r.left, y: r.top, width: block.width, height: block.height }, origin: 'field', target, newPage: false, invisible: false });
+  if (target.kind === 'free') return { ...autoPlace(doc, edit, block), automatic: false };
+  if (target.kind === 'field' && (!doc.spec.fields[target.index] || doc.spec.fields[target.index]!.locked)) return null;
+  const placement = targetPlacement(doc, target, block);
+  if (!placement) return null;
+  return bump(edit, { placement, origin: target.kind === 'qr' ? 'qr' : 'field', target, newPage: false, invisible: false, automatic: false });
 }
 
-/** Blockgröße geändert (`SettingsChanged`): bei `origin == Auto` neu platzieren, sonst klemmen. */
+/**
+ * Einstellungen geändert (`SettingsChanged`, sofort wirksam): eine Lage aus der Automatik folgt den
+ * Einstellungen › Dokument (Ziel neu bestimmt; frei nach der PDF-AS-Regel neu gesetzt), sonst bleibt sie –
+ * frei automatisch platzierte Blöcke werden mit der neuen Blockgröße neu gesetzt, von Hand platzierte nur
+ * geklemmt (Kern: `follow_settings` und `SettingsChanged`).
+ */
 export function resizeBlock(doc: MockDoc, edit: EditState, settings: Settings, lang: Lang): EditState {
   const block = blockSize(settings, lang);
   const invisibleProfile = settings.signature.profile === 'INVISIBLE';
   if (!edit.placement) return { ...edit, invisibleProfile };
-  if (edit.origin === 'auto') return { ...autoPlace(doc, edit, block), invisibleProfile, invisible: invisibleProfile || edit.invisible };
+  const visibility = { invisibleProfile, invisible: invisibleProfile || (edit.invisible && !edit.invisibleProfile) };
+  if (edit.automatic) {
+    const target = automaticTarget(doc, settings, invisibleProfile);
+    const placement = targetPlacement(doc, target, block);
+    if (placement) return bump(edit, { placement, origin: target.kind === 'qr' ? 'qr' : 'field', target, newPage: false, clamped: false, ...visibility });
+    return { ...autoPlace(doc, edit, block), ...visibility };
+  }
+  if (edit.origin === 'auto' && edit.target.kind === 'free') return { ...autoPlace(doc, edit, block), ...visibility };
+  if (edit.target.kind !== 'free') return bump(edit, { placement: { ...edit.placement, width: block.width, height: block.height }, ...visibility });
   const { placement, clamped } = clampPlacement({ ...edit.placement, width: block.width, height: block.height }, pageSize(doc, edit.placement.page_index));
-  return bump(edit, { placement, clamped, invisibleProfile, invisible: invisibleProfile || edit.invisible });
+  return bump(edit, { placement, clamped, ...visibility });
 }
 
 /* ================================================================ Layout, Prüfung, Projektion */
@@ -1019,8 +1064,9 @@ export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPh
     selectable: !f.locked,
   }));
   const qrSpec = doc.spec.qr;
-  const qr: QrTargetView | null =
-    qrSpec && settings.placeholder.search && settings.placeholder.kind === 'marker' ? { page: qrSpec.page, rect: toRectPt(qrSpec.rect, pageSize(doc, qrSpec.page)[1]), id: qrSpec.id } : null;
+  // angeboten nur mit Platzhaltersuche „QR-Code-Platzhalter“; ein von Hand gewähltes QR-Ziel bleibt
+  const qrOffered = (settings.placeholder.search && settings.placeholder.kind === 'marker') || (edit.target.kind === 'qr' && !edit.automatic);
+  const qr: QrTargetView | null = qrSpec && qrOffered ? { page: qrSpec.page, rect: toRectPt(qrSpec.rect, pageSize(doc, qrSpec.page)[1]), id: qrSpec.id } : null;
   const existing: ExistingSignatureView[] = doc.spec.existing.map((e) => ({
     field_name: e.field_name,
     signer: e.signer,
@@ -1062,5 +1108,19 @@ export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPh
     layout: layoutPages.map((i) => pageLayout(doc, i, size)),
     check: check(doc, edit, sticker),
     announce,
+    detection: detectionFor(doc, edit, settings),
   };
+}
+
+/** Profil mit PDF/A-Variante (`SIGNATURBLOCK_SMALL_*_PDFA`); Amtssignatur, „nur Bildmarke“, unsichtbar nicht. */
+function profileHasPdfa(settings: Settings): boolean {
+  return settings.signature.profile === 'SIGNATURBLOCK_SMALL';
+}
+
+/** Erkanntes und automatisch Entschiedenes (Kern: `DocumentDetectionView`, PDF/A wie `plan::pdfa_mode`). */
+export function detectionFor(doc: MockDoc, edit: EditState, settings: Settings): DocumentDetectionView {
+  const pdfa = doc.spec.pdfa ? { ...doc.spec.pdfa } : null;
+  const detected = pdfa !== null && (pdfa.part <= 3 || profileHasPdfa(settings));
+  const forced = pdfa === null && settings.signature.pdfa_force && profileHasPdfa(settings);
+  return { pdfa, pdfa_decision: detected ? 'detected' : forced ? 'forced' : 'none', auto_placed: edit.automatic };
 }

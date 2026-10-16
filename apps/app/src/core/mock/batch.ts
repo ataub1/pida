@@ -193,8 +193,8 @@ export class MockBatch {
   }
 
   /** Aktuelles Dokument aus dem Arbeitsbereich übernehmen (`ShowBatch`: Platzierung als Plan). */
-  addEdited(doc: MockDoc, plan: BatchPlan | null): void {
-    this.entries.push({ doc, status: { state: 'positioned' }, before: null, plan, autoPlan: false, analyzed: true });
+  addEdited(doc: MockDoc, plan: BatchPlan | null, automatic = false): void {
+    this.entries.push({ doc, status: { state: 'positioned' }, before: null, plan, autoPlan: automatic, analyzed: true });
   }
 
   private preanalyzeNext(): void {
@@ -209,9 +209,20 @@ export class MockBatch {
     }, 0.6);
   }
 
-  private qrAuto(doc: MockDoc): boolean {
-    const p = this.ctx.settings().placeholder;
-    return !!doc.spec.qr && p.search && p.kind === 'marker';
+  /**
+   * Automatischer Plan nach den **aktuellen** Einstellungen › Dokument (Kern: `automatic_plan`): mit
+   * „QR-Code-Platzhalter“ der QR-Platzhalter, mit „Leere Signaturfelder“ das erste leere Feld, sonst keiner.
+   */
+  private autoPlanFor(doc: MockDoc): BatchPlan | null {
+    const settings = this.ctx.settings();
+    const p = settings.placeholder;
+    if (!p.search || settings.signature.profile === 'INVISIBLE') return null;
+    if (p.kind === 'fields') {
+      const index = doc.spec.fields.findIndex((f) => !f.locked);
+      const field = doc.spec.fields[index];
+      return field ? { kind: 'field', index, name: field.name } : null;
+    }
+    return doc.spec.qr ? { kind: 'qr' } : null;
   }
 
   /** Ergebnis der Voranalyse (`Preanalyzed`): abgelehnt, Analysewarnung, QR → positioniert, sonst bereit. */
@@ -221,22 +232,24 @@ export class MockBatch {
     if (!/\.pdf$/i.test(e.doc.name)) e.status = { state: 'rejected', code: 'error-MayNotBeAPDF' };
     else if (e.doc.spec.locked) e.status = { state: 'rejected', code: 'error-PDFPwdProtected' };
     else if (warnings.length > 0) e.status = { state: 'needs_review', codes: [...warnings] };
-    else if (this.qrAuto(e.doc)) {
-      e.status = { state: 'positioned' };
-      e.plan = { kind: 'qr' };
-      e.autoPlan = true;
-    } else e.status = { state: 'ready' };
+    else {
+      const plan = this.autoPlanFor(e.doc);
+      e.status = { state: plan ? 'positioned' : 'ready' };
+      e.plan = plan;
+      e.autoPlan = plan !== null;
+    }
   }
 
-  /** Einstellungen geändert: automatisch bestimmte Pläne (QR) neu bestimmen, gemerkte bleiben. */
+  /** Einstellungen geändert: automatisch bestimmte Pläne (QR, Feld) neu bestimmen, gemerkte bleiben. */
   settingsChanged(): void {
     if (this.run) return;
     for (const e of this.entries) {
       if (!e.analyzed || (e.status.state !== 'ready' && e.status.state !== 'positioned')) continue;
       if (e.plan !== null && !e.autoPlan) continue;
-      if (this.qrAuto(e.doc)) {
+      const plan = this.autoPlanFor(e.doc);
+      if (plan) {
         e.status = { state: 'positioned' };
-        e.plan = { kind: 'qr' };
+        e.plan = plan;
         e.autoPlan = true;
       } else if (e.autoPlan) {
         e.status = { state: 'ready' };
@@ -251,7 +264,8 @@ export class MockBatch {
     const e = this.find(id);
     if (this.run || !e || !['ready', 'positioned', 'needs_review'].includes(e.status.state)) return false;
     this.openItem = id;
-    this.host.openSingle(e.doc, e.plan);
+    // ein automatischer Plan folgt im geöffneten Dokument weiter den Einstellungen (Kern: `opened_plan`)
+    this.host.openSingle(e.doc, e.autoPlan ? null : e.plan);
     return true;
   }
 
@@ -259,14 +273,16 @@ export class MockBatch {
    * `BackToBatch`: Platzierung als Plan merken (`origin == Auto` → automatisch) und „Positioniert“. Eine
    * noch nicht bestätigte Analysewarnung bleibt „Prüfen“.
    */
-  back(id: DocId, plan: BatchPlan | null | undefined): void {
+  back(id: DocId, plan: BatchPlan | null | undefined, automatic = false): void {
     const e = this.find(id);
     this.openItem = null;
     if (!e) return;
     if (plan === undefined) return; // Warnung nicht bestätigt bzw. Abbruch: Status unverändert
     e.plan = plan;
-    e.autoPlan = false;
-    e.status = { state: 'positioned' };
+    // unverändert aus der Automatik: folgt weiter den Einstellungen (Kern: `BatchItem::auto_plan`)
+    e.autoPlan = automatic;
+    // wie `BatchItem::settle` im Kern: mit Plan „Positioniert“, sonst „Bereit“ (PDF-AS-Regel beim Signieren)
+    e.status = { state: plan ? 'positioned' : 'ready' };
   }
 
   /** Einzeln signiert (aus der Übersicht geöffnet): zurück zur Übersicht, Hinweis (§3.6). */

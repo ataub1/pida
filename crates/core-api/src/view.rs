@@ -1161,7 +1161,8 @@ pub struct DocumentView {
     /// tatsächliches Rechteck des Blocks auf `placement.page_index` (bei Feld/QR das Ziel-Rechteck);
     /// `None` = unsichtbar bzw. keine Vorschau
     pub sticker: Option<RectPt>,
-    /// leere, nicht gesperrte Signaturfelder – im Arbeitsbereich immer angeboten, nie automatisch benutzt
+    /// leere, nicht gesperrte Signaturfelder – im Arbeitsbereich immer angeboten; automatisch benutzt wird nur
+    /// das erste und nur mit Platzhaltersuche „Leere Signaturfelder“ (Einstellungen › Dokument, Nachtrag 5)
     pub fields: Vec<FieldTargetView>,
     /// QR-Platzhalter (nur mit Platzhaltersuche)
     pub qr: Option<QrTargetView>,

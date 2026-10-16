@@ -48,6 +48,12 @@ describe('Zustände des echten Kerns', () => {
       atrust_tan: 'workspace',
       atrust_done: 'done',
       atrust_cancelled: 'workspace',
+      doc_pdfa_detected: 'workspace',
+      doc_pdfa_forced: 'workspace',
+      doc_field_auto: 'workspace',
+      doc_qr_auto: 'workspace',
+      settings_open: 'workspace',
+      settings_partial: 'workspace',
     };
     for (const [name, v] of Object.entries(states)) expect([name, mainView(v)]).toEqual([name, expected[name]]);
   });
@@ -145,5 +151,50 @@ describe('Zustände des echten Kerns', () => {
     expect(sticker()).toBeInTheDocument();
     expect(await screen.findByText('Signieren abgebrochen – es wurde nichts signiert.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('Einstellungen › Dokument (E3): Hinweise aus `document.detection` des Kerns, Sprechblase nennt das Ziel', async () => {
+    const inspector = () => screen.getByRole('complementary', { name: 'Signatur' });
+    const cases: [string, RegExp | string | null, string | null, string][] = [
+      ['doc_pdfa_detected', 'PDF/A-Dokument erkannt – wird PDF/A-konform signiert', null, 'Signaturblock automatisch auf freier Fläche platziert'],
+      ['doc_pdfa_forced', 'PDF/A-kompatible Signatur (erzwungen)', null, 'Signaturblock automatisch auf freier Fläche platziert'],
+      ['doc_field_auto', null, 'Signaturfeld gefunden – Signatur im Feld platziert', 'Signaturblock automatisch im Signaturfeld platziert'],
+      ['doc_qr_auto', null, 'QR-Platzhalter gefunden – Signatur dort platziert', 'Signaturblock automatisch im QR-Platzhalter platziert'],
+    ];
+    for (const [name, pdfa, target, coach] of cases) {
+      if (!states[name]) continue; // QR nur mit PDFium erzeugt
+      const { unmount } = renderApp({ view: state(name) });
+      await screen.findByRole('application', { name: 'Signaturblock' });
+      if (pdfa) expect(within(inspector()).getByText(pdfa)).toBeInTheDocument();
+      else expect(within(inspector()).queryByText(/PDF\/A/)).not.toBeInTheDocument();
+      if (target) expect(within(inspector()).getByText(target)).toBeInTheDocument();
+      else expect(within(inspector()).queryByTestId('detect-note')).not.toBeInTheDocument();
+      expect(screen.getByText(coach)).toBeInTheDocument();
+      // automatisch im Feld: keine Hinweisleiste „Signaturfeld gefunden:“ für das belegte Feld
+      if (name === 'doc_field_auto') expect(screen.queryByText('Signaturfeld gefunden:')).not.toBeInTheDocument();
+      await expectNoAxeViolations();
+      unmount();
+    }
+  });
+
+  it('Einstellungen „sofort wirksam“ (E3) mit dem echten Kern: Teilübernahme mit Feldfehler, Werte und Beispiel des Kerns', async () => {
+    const nav = (dialog: HTMLElement, name: string) => within(within(dialog).getByRole('navigation', { name: 'Bereiche' })).getByRole('button', { name });
+    const { user, mock } = renderApp({ view: state('settings_partial') });
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    expect(within(dialog).queryByText(/werden nicht gespeichert/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: /Amtssignatur/ })).toBeChecked();
+    await user.click(nav(dialog, 'Dokument'));
+    expect(within(dialog).getByRole('switch', { name: 'PDF/A-kompatibel signieren' })).toBeChecked();
+    expect(within(dialog).getByRole('switch', { name: 'Signaturplatzhalter automatisch suchen' })).toBeChecked();
+    expect(within(dialog).getByRole('radiogroup', { name: 'Suchen nach' })).not.toHaveAttribute('aria-disabled');
+    await user.click(nav(dialog, 'Erweitert'));
+    expect(within(dialog).getByLabelText('Host')).toHaveValue('proxy.local');
+    expect(within(dialog).getByText('Der Port muss zwischen 1 und 65535 liegen.')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Port')).toHaveAttribute('aria-invalid', 'true');
+    await user.click(nav(dialog, 'Speichern'));
+    expect(within(dialog).getByText(/Vertrag_signed\.pdf/)).toBeInTheDocument();
+    await expectNoAxeViolations();
+    // nichts davon stößt eine Sitzung an (F-54)
+    expect(sessionEvents(mock.dispatched)).toEqual([]);
   });
 });

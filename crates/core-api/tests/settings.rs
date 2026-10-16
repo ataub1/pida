@@ -189,6 +189,96 @@ async fn partial_apply_field_errors_revisions_and_restart() {
     assert!(s.problems.is_empty(), "Feldfehler gelten nur bis zum Schließen: {:?}", s.problems);
 }
 
+/// Die Werte, die die Einstellungs-Seitenleiste (B3, `features/settings/*Rows.tsx`) als `apply_settings` sendet –
+/// je Pfad genau in der Form der Oberfläche –, übernimmt der echte Kern ohne Ablehnung und speichert sie
+/// (Integration K3 × B3 im Merge E3; der Mock prüft die Formen nicht).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn settings_panel_payloads_are_accepted_by_the_core() {
+    let fx = Fixture::new();
+    let emblem = testdata("sigblock/images/large.png");
+    let keystore = testdata("keystores/test-rsa2048.p12");
+    let out = fx.dir("Ausgabe");
+    let core = start(&fx, Overlay::default(), false, |_| {}).unwrap();
+    wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. })).await;
+    open_settings(&core).await;
+    let mut payloads: Vec<Vec<(&str, Value)>> = vec![
+        vec![("general.ui_language", json!("en"))],
+        vec![("general.ui_language", Value::Null)],
+        vec![("certificate_cache.enabled", json!(true))],
+        vec![("general.recent_documents", json!(false))],
+        vec![("general.recent_documents", json!(true))],
+        vec![("proxy.mode", json!("manual"))],
+        vec![("proxy.host", json!("proxy.local"))],
+        vec![("proxy.port", json!(3128))],
+        vec![("proxy.user", json!("max"))],
+        vec![("proxy.user", Value::Null)],
+        vec![("proxy.mode", json!("system"))],
+        vec![("general.update_check", json!(false))],
+        vec![("signature.cms_profile", json!("pades_bb"))],
+        vec![("signature.profile", json!("AMTSSIGNATURBLOCK"))],
+        vec![("signature.profile", json!("BASE_LOGO"))],
+        vec![("signature.logo_only_size_mm", json!(35))],
+        vec![("signature.profile", json!("SIGNATURBLOCK_SMALL"))],
+        vec![("signature.block_language", json!("en"))],
+        vec![("signature.block_language", Value::Null)],
+        vec![("signature.note", json!({ "mode": "custom", "text": "Geprüft" }))],
+        vec![("signature.note", json!({ "mode": "none" }))],
+        vec![("signature.note", json!({ "mode": "default" }))],
+        vec![("signature.pdfa_force", json!(true))],
+        vec![("placeholder.search", json!(true))],
+        vec![("placeholder.kind", json!("fields"))],
+        vec![("backend.default", json!("id_austria"))],
+        vec![("id_austria.username", json!("+43 660 1234123"))],
+        vec![("id_austria.remember", json!(true))],
+        vec![("id_austria.fido2_default", json!(true))],
+        vec![("keystore.enabled", json!(true))],
+        vec![("keystore.file", json!(keystore)), ("keystore.declared_type", json!("PKCS12"))],
+        vec![("keystore.alias", json!("test"))],
+        vec![("keystore.password_storage", json!("memory"))],
+        vec![("backend.default", json!("keystore"))],
+        vec![("keystore.enabled", json!(false)), ("backend.default", Value::Null)],
+        vec![("output.folder", json!(out))],
+        vec![("output.folder", json!("."))],
+        vec![("output.folder", Value::Null)],
+        vec![("output.postfix", json!("_signiert"))],
+    ];
+    if emblem.is_file() {
+        payloads.push(vec![("signature.emblem", json!(emblem))]);
+        payloads.push(vec![("signature.emblem", Value::Null)]);
+    }
+    for (i, list) in payloads.iter().enumerate() {
+        let v = apply(&core, i as u64 + 1, list).await;
+        let s = settings(&v);
+        for (path, _) in list {
+            let code = s.problems.get(*path).map(String::as_str);
+            assert!(
+                !matches!(
+                    code,
+                    Some("ng-settings-field-unknown" | "ng-settings-invalid-value" | "ng-settings-invalid-port")
+                ),
+                "{path}: {code:?} für {list:?}"
+            );
+        }
+        let sent = serde_json::to_value(&s.settings).unwrap();
+        for (path, value) in list {
+            let (section, field) = path.split_once('.').unwrap();
+            let got = &sent[section][field];
+            if *path == "id_austria.username" {
+                // der Kern speichert den Benutzernamen normalisiert (wie PDF-Over)
+                assert_eq!(got, &json!("+436601234123"), "{path} normalisiert");
+            } else if let (Some(a), Some(b)) = (got.as_f64(), value.as_f64()) {
+                assert!((a - b).abs() < 1e-6, "{path} übernommen: {got} ≠ {value}");
+            } else {
+                assert_eq!(got, value, "{path} übernommen");
+            }
+        }
+    }
+    let file = read_settings_file(&fx);
+    assert_eq!(file.output.postfix, "_signiert");
+    assert!(file.placeholder.search && file.signature.pdfa_force);
+    assert_eq!(file.id_austria.username.as_deref(), Some("+436601234123"));
+}
+
 /// Je Änderung am Signaturbild genau ein Neubau der Vorschau; die neue `preview_revision` erscheint in
 /// derselben Projektion wie `applied_revision` (nie eine bestätigte Änderung mit alter Vorschau). Änderungen
 /// ohne Bezug zum Signaturbild bauen nichts neu und werden sofort bestätigt.
@@ -338,6 +428,12 @@ async fn pdfa_detection_and_forced_compatibility() {
     let det = v.document.unwrap().detection.expect("Erkennung");
     assert_eq!(det.pdfa_decision, PdfaDecision::Detected);
     assert_eq!(det.pdfa.as_ref().map(|p| p.part), Some(1), "{det:?}");
+    // PDF/A-1 wird mit jedem Profil PDF/A-konform signiert (`plan::pdfa_mode`), auch mit der Amtssignatur
+    open_settings(&core).await;
+    apply(&core, 1, &[("signature.profile", json!("AMTSSIGNATURBLOCK"))]).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let det = core.view().document.unwrap().detection.unwrap();
+    assert_eq!(det.pdfa_decision, PdfaDecision::Detected, "{det:?}");
     drop(core);
 
     let fx = Fixture::new();
@@ -564,6 +660,43 @@ async fn read_only_applies_in_memory() {
     assert_eq!(settings(&v).settings.output.postfix, "_ro", "im Speicher wirksam");
     assert!(settings(&v).read_only);
     assert!(!fx.paths.settings_file().exists(), "keine Datei geschrieben");
+}
+
+/// Beginnt ein Signierlauf bei offener Einstellungsansicht (z. B. Startargument-Automatik `-a`, Ansicht während
+/// des Ladens geöffnet), schließt der Kern die Ansicht: mitten im Lauf wirkt kein `ApplySettings` (Signiermittel,
+/// Signaturbild und Ausgabe bleiben), und die Signierkarte liegt nicht unter den Einstellungen (Befund aus dem
+/// Kern-Review K3, Merge E3). Danach lassen sich die Einstellungen wieder öffnen.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn signing_closes_the_settings_view() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "doc.pdf");
+    let core = start(&fx, keystore_overlay(vec![a], &out), false, |_| {}).unwrap();
+    wait_for(&core, "Arbeitsbereich", editing).await;
+    open_settings(&core).await;
+    let mut rx = core.subscribe();
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    // in keinem Zustand des Laufs ist die Ansicht offen
+    let r = tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            let v = rx.borrow_and_update().clone();
+            if matches!(v.step, StepView::Signing { .. }) {
+                assert!(v.settings.is_none(), "Einstellungen während des Signierens offen");
+            }
+            if saved(&v) {
+                return v;
+            }
+            rx.changed().await.expect("Kern beendet");
+        }
+    })
+    .await;
+    let v = r.expect("gespeichert");
+    assert!(v.settings.is_none(), "nach dem Lauf geschlossen");
+    // ohne Ansicht kein ApplySettings
+    core.dispatch(UiEvent::ApplySettings { changes: changes(&[("output.postfix", json!("_x"))]), revision: 1 });
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let v = open_settings(&core).await;
+    assert_eq!(settings(&v).settings.output.postfix, "_signed", "nichts übernommen");
 }
 
 /// Mobile: Proxy, Ausgabeordner, Updates und Keystore-Datei sind nicht einstellbar (Problem), alles andere

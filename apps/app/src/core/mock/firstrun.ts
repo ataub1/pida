@@ -13,9 +13,13 @@ export interface FirstRunState {
   legacy: string | null;
 }
 
+/**
+ * Übernahmeliste des Beispiels. Bewusst **ohne** Bildmarke: Die Ersteinrichtung übernimmt nur eine in der
+ * PDF-Over-Konfiguration tatsächlich gesetzte eigene Bildmarke (der PDF-AS-Standardlogo-Pfad zählt nicht);
+ * ein erfundenes Beispiel-Logo würde das PIDA-Siegel (ADR 0005) still ersetzen.
+ */
 const ITEMS: MigrationItemView[] = [
   { code: 'ng-migration-item-block', detail: null },
-  { code: 'ng-migration-item-emblem', detail: 'firmenlogo.png' },
   { code: 'ng-migration-item-username', detail: '+43 660 ···123' },
   { code: 'ng-migration-item-output', detail: '~/Dokumente/Signiert' },
   { code: 'ng-migration-item-keystore', detail: 'max.p12' },
