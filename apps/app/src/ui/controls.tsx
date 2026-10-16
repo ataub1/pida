@@ -148,6 +148,7 @@ export function TextInput({
   inputClassName,
   placeholder,
   spellCheck,
+  autoCapitalize,
   ...rest
 }: {
   label: string;
@@ -168,11 +169,13 @@ export function TextInput({
   maxLength?: number;
   placeholder?: string;
   spellCheck?: boolean;
+  /** Bildschirmtastatur: `none` für Kennungen (kein Großbuchstabe am Anfang) */
+  autoCapitalize?: 'none' | 'sentences';
 }) {
   return (
     <TextField className={`field${className ? ` ${className}` : ''}`} isInvalid={!!error} {...rest}>
       <Label className="field-label">{label}</Label>
-      <Input className={`input${inputClassName ? ` ${inputClassName}` : ''}`} placeholder={placeholder} spellCheck={spellCheck} />
+      <Input className={`input${inputClassName ? ` ${inputClassName}` : ''}`} placeholder={placeholder} spellCheck={spellCheck} autoCapitalize={autoCapitalize} />
       {description && !error ? (
         <Text slot="description" className="field-hint">
           {description}

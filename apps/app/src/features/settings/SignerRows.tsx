@@ -67,7 +67,9 @@ export function IdAustriaRow() {
   );
   return (
     <AccountCard icon={<IconPhone size={18} />} title={t.t('ng-ui-set-signer-ida')}>
-      <SettingTextField label={t.t('ng-ui-set-ida-user')} inputMode="tel" autoComplete="username" {...user} />
+      {/* kein `inputMode="tel"`: die Telefon-Tastatur von iOS hat keine Buchstaben – ein Benutzername wäre
+          ohne Hardware-Tastatur nicht einzugeben */}
+      <SettingTextField label={t.t('ng-ui-set-ida-user')} autoComplete="username" autoCapitalize="none" {...user} />
       <SwitchField
         label={t.t('ng-ui-set-ida-remember')}
         hint={t.t('ng-ui-set-ida-remember-hint')}

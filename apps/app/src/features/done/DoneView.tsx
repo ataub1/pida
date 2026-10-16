@@ -176,7 +176,9 @@ export function DoneView({ step }: { step: Extract<StepView, { step: 'output' }>
               <span>{fileName ?? doc?.doc.name ?? ''}</span>
             </p>
             {saved ? (
-              <p className="done-file-meta" title={result.path ?? undefined}>
+              // Mobile: kein `title` – ohne Mauszeiger ohne Nutzen, und VoiceOver läse statt „Gespeichert in den
+              // Dokumenten dieser App“ den Pfad im Sandbox-Container vor
+              <p className="done-file-meta" title={mobile ? undefined : (result.path ?? undefined)}>
                 {mobile ? t.t('ng-ui-fin-saved-mobile') : t.t('ng-ui-fin-saved-in', { folder: folder ?? '' })}
               </p>
             ) : null}

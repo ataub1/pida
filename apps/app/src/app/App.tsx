@@ -36,6 +36,7 @@ import { buildCommands, buildShortcuts } from './commands';
 import { AppContext, type AppContextValue, type SettingsSectionId, type ShellOverlay, type Toast } from './context';
 import { EMBLEM_DROP_EVENT } from './events';
 import { Header } from './Header';
+import { keepFocusedFieldVisible } from './keyboard';
 import { ResumeDialog } from './ResumeDialog';
 import { applyTheme, readTheme, writeTheme, type Theme } from './theme';
 import './shell.css';
@@ -159,6 +160,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   useEffect(() => {
     document.documentElement.toggleAttribute('data-mobile', mobile);
   }, [mobile]);
+  // Bildschirmtastatur: fokussiertes Feld im verkleinerten Dialog im Blick halten (app/keyboard.ts)
+  useEffect(() => (mobile ? keepFocusedFieldVisible() : undefined), [mobile]);
 
   const setTheme = useCallback((next: Theme) => {
     writeTheme(next);

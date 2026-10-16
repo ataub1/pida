@@ -627,7 +627,8 @@ function LoginPane({ request, data, onCancel }: { request: number; data: Extract
           }}
           error={errUser}
           autoComplete="username"
-          inputMode="tel"
+          // Telefonnummer **oder** Benutzername: Standardtastatur (die Telefon-Tastatur von iOS hat keine Buchstaben)
+          autoCapitalize="none"
           spellCheck={false}
         />
       </div>

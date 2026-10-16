@@ -65,6 +65,8 @@ describe('Fertig', () => {
     expect(await screen.findByText('Gespeichert in den Dokumenten dieser App')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Im Ordner zeigen' })).not.toBeInTheDocument();
     expect(screen.getByRole('main').textContent).not.toContain('/var/mobile');
+    // auch nicht als `title` (VoiceOver läse den Pfad statt des Texts vor)
+    expect(screen.getByRole('main').innerHTML).not.toContain('/var/mobile');
     await user.click(screen.getByRole('button', { name: 'Teilen' }));
     await user.click(screen.getByRole('button', { name: 'Sichern unter …' }));
     expect(mock.dispatched).toEqual([{ type: 'share_result' }, { type: 'export_result' }]);

@@ -238,6 +238,32 @@ describe('Überdeckung, Felder, Optionen', () => {
     expect(lastEvent(mock)).toEqual({ type: 'use_target', target: { kind: 'free' } });
   });
 
+  it('Hinweisleiste erscheint bzw. verschwindet (Block aus dem Feld gezogen bzw. ins Feld gesetzt): Bildlauf um ihre Höhe ausgeglichen', async () => {
+    const field = { index: 0, name: 'Feld', page: 2, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true };
+    const inField = documentView({ target: { kind: 'field', index: 0 }, origin: 'field', fields: [field], sticker: field.rect });
+    const free = documentView({ fields: [field] });
+    // jsdom ohne Layout: die Leiste ist 132 px hoch (Telefon, drei Zeilen und Knopf)
+    const original = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      const h = this.classList.contains('canvas-banner') ? 132 : 0;
+      return { left: 0, top: 0, right: 0, bottom: h, width: 0, height: h, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    };
+    try {
+      const { mock } = renderApp({ view: workspaceView(inField) });
+      expect(await screen.findByText('Im Signaturfeld „Feld“')).toBeInTheDocument();
+      const scroller = document.querySelector('.canvas-scroll') as HTMLElement;
+      scroller.scrollTop = 40;
+      act(() => mock.setView(workspaceView(free)));
+      expect(await screen.findByText('Signaturfeld gefunden:')).toBeInTheDocument();
+      expect(scroller.scrollTop).toBe(40 + 132);
+      act(() => mock.setView(workspaceView(inField)));
+      await waitFor(() => expect(screen.queryByText('Signaturfeld gefunden:')).not.toBeInTheDocument());
+      expect(scroller.scrollTop).toBe(40);
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  });
+
   it('QR-Platzhalter: automatisch positioniert (Hinweisleiste)', async () => {
     const doc = documentView({ target: { kind: 'qr' }, origin: 'qr', qr: { page: 2, id: '1', rect: { left: 309, right: 539, top: 300, bottom: 218 } } });
     renderApp({ view: workspaceView(doc) });

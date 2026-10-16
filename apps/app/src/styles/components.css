@@ -954,6 +954,35 @@
   }
 }
 
+/* Bildschirmtastatur (Mobile): Die iOS-WebView verkleinert beim Einblenden nur den sichtbaren Bereich, nicht
+   das Fenster – ein Sheet am unteren Rand läge samt Eingabefeld und Knöpfen unter der Tastatur (Keystore-
+   Passwort in der Signierkarte, Keystore-Import, Anmeldung bei ID Austria). React Aria setzt am Overlay
+   `--visual-viewport-height` (`ModalOverlay`); um den Rest rückt der Dialog nach oben und rollt in sich
+   (Fokus: app/keyboard.ts). Ohne Tastatur, auf Android (dort schrumpft das Fenster) und am Desktop: 0. */
+:root[data-mobile] .overlay {
+  --kb-inset: max(0px, calc(100dvh - var(--visual-viewport-height, 100dvh)));
+  padding-bottom: max(var(--gutter), var(--kb-inset));
+}
+:root[data-mobile] .overlay-drawer {
+  padding-bottom: var(--kb-inset);
+}
+:root[data-mobile] .overlay .modal {
+  max-height: min(calc(100dvh - 2 * var(--gutter)), 100%);
+}
+:root[data-mobile] .overlay .modal-drawer {
+  height: auto;
+  max-height: 100%;
+}
+@media (max-width: 760px) {
+  :root[data-mobile] .overlay {
+    padding-bottom: var(--kb-inset);
+  }
+  /* oben Platz für die Statusleiste lassen */
+  :root[data-mobile] .overlay .modal-center {
+    max-height: min(92dvh, calc(100% - env(safe-area-inset-top) - var(--sp-2)));
+  }
+}
+
 /* ------------------------------------------------------------ Benachrichtigungen */
 .toasts {
   position: fixed;
@@ -1110,6 +1139,13 @@
   min-height: 36px;
   width: auto;
   max-width: 100%;
+}
+/* Finger: auch der kompakte Chip (Fuß des Inspektors) mindestens 44 px hoch – base.css greift hier nicht,
+   weil diese Regel später kommt */
+@media (pointer: coarse) {
+  .signer-chip.is-compact {
+    min-height: 44px;
+  }
 }
 .signer-chip-icon {
   display: grid;

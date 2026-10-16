@@ -126,6 +126,7 @@ export function SettingTextField({
   placeholder,
   inputMode,
   autoComplete,
+  autoCapitalize,
   isDisabled,
   mono,
   trailing,
@@ -141,6 +142,8 @@ export function SettingTextField({
   placeholder?: string;
   inputMode?: 'text' | 'numeric' | 'tel';
   autoComplete?: string;
+  /** Bildschirmtastatur: `none` für Kennungen (kein Großbuchstabe am Anfang) */
+  autoCapitalize?: 'none' | 'sentences';
   isDisabled?: boolean;
   mono?: boolean;
   trailing?: ReactNode;
@@ -152,7 +155,7 @@ export function SettingTextField({
         {multiline ? (
           <TextArea className="input textarea" rows={4} placeholder={placeholder} />
         ) : (
-          <Input className={`input${mono ? ' mono' : ''}`} placeholder={placeholder} spellCheck={false} inputMode={inputMode} />
+          <Input className={`input${mono ? ' mono' : ''}`} placeholder={placeholder} spellCheck={false} inputMode={inputMode} autoCapitalize={autoCapitalize} />
         )}
         {trailing}
       </div>

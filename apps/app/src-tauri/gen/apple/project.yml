@@ -60,6 +60,9 @@ targets:
         CFBundleVersion: "1.0.0"
         # --- PIDA (M-iOS, docs/integration/mobile-ios.md) ---
         CFBundleDisplayName: PIDA
+        # Sprachen der App: Systemoberfläche im Prozess (Dokumentauswahl „Abbrechen“, Teilen „Kopieren/Drucken“,
+        # Leiste über der Tastatur) in der Gerätesprache – ohne Angabe gilt die App als nur englisch
+        CFBundleLocalizations: [de, en]
         # „Öffnen in“/Teilen für PDF (Rang Alternate: nie Standard-App für PDF)
         CFBundleDocumentTypes:
           - CFBundleTypeName: PDF

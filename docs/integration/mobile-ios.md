@@ -23,6 +23,7 @@ Angelegt mit `npm run tauri ios init -- --ci --skip-targets-install` und **versi
 | Mindest-iOS | **16.0** (Plan §5.1): `tauri.conf.json` `bundle.iOS.minimumSystemVersion`, `project.yml` `deploymentTarget`, `Podfile`; App-Binary `LC_BUILD_VERSION minos 16.0` (geprüft mit `vtool -show-build`). Abweichung zu M0 (17.0) siehe §3 |
 | Dokumenttypen | `CFBundleDocumentTypes`: `com.adobe.pdf`, Rolle `Viewer`, `LSHandlerRank` **`Alternate`** (nie Standard-App für PDF); Tauri ergänzt beim Bauen `CFBundleTypeExtensions: [pdf]` aus `bundle.fileAssociations` |
 | Öffnen am Ort | `LSSupportsOpeningDocumentsInPlace = YES` – iOS übergibt das Original als Security-Scoped URL, die App kopiert die **Bytes** in die Sandbox (§2.5). Zusammen mit `UIFileSharingEnabled = YES` erscheint `Documents` (signierte Dokumente) in der Dateien-App unter „Auf meinem iPhone › PIDA“ (Screenshots 05, 08) |
+| Sprachen | `CFBundleLocalizations = [de, en]` (§8.5 R4): Systemoberfläche im Prozess der App (Dokumentauswahl, Teilen, Kontextmenüs) in der Gerätesprache; ohne Angabe galt die App als nur englisch (`CFBundleDevelopmentRegion` en) |
 | Exportkontrolle | `ITSAppUsesNonExemptEncryption = NO`: nur Standardverfahren (TLS, Signatur/Authentisierung) – **vom Auftraggeber zu bestätigen** (Exportkontroll-Einstufung) |
 | ATS | keine Ausnahmen (`NSAppTransportSecurity` fehlt bewusst): nur HTTPS, keine lokale BKU. Die WebView lädt die gebündelte Oberfläche (`tauri://`, `pida-render://`), nicht `devUrl` |
 | Face ID, Kamera, Fotos | keine Zweckangaben (`NSFaceIDUsageDescription` u. a.), weil nicht genutzt |
@@ -342,3 +343,64 @@ mit dem Mock-Kern geprüft (Fehlerkarte „Signaturdienst nicht erreichbar“).
 24. `general.last_source_directory` bleibt nach einem Update ein Pfad im alten Container (auf Mobile ungenutzt).
 25. Bei großer Schrift rollt die waagrechte Bereichsnavigation der Einstellungen den aktiven Bereich nicht in
     den sichtbaren Teil (79: „Signiermittel“ aktiv, sichtbar sind „Signaturbild“ und „Dokument“).
+
+### 8.5 Gegenprüfung (Review, 16.10.2026)
+
+Unabhängig nachgespielt auf einem zweiten Gerät: Simulator **iPhone 17e** (390 × 844 pt, Notch statt Dynamic
+Island), iOS 27.0, frisch installiert, Debug-Build des Stands `daf4679` (danach mit den Behebungen unten neu
+gebaut und als **Update** installiert – neuer Container). Netz wie in §8.1 nur über Proxy `127.0.0.1:9`, keine
+Zugangsdaten. Bedienung diesmal zusätzlich mit einem XCUITest-Hilfsprojekt (Tippen, Ziehen, Text tippen, Home,
+Elementbaum; nur im Scratchpad) – `typeText` blendet die **Software-Tastatur** ein, damit war die
+Tastatur-Überdeckung prüfbar (§8.1: „erscheint nicht“). Aufnahmen `80-…` bis `94-…` (`…-befund-review-…` vor der
+Behebung).
+
+| Ablauf | Ergebnis der Gegenprüfung |
+|---|---|
+| 2 – PDF empfangen, Arbeitsbereich | Teilen aus Dateien bei laufender App (80), Dokumentauswahl, Bottom-Sheet, Miniaturen, Seitenwechsel, „Ins Feld setzen“, Ziehen per Touch: ok. **Befund R1** (Block nach dem Ziehen unter dem Sheet, 81 → 82). Teilen von drei PDFs: iOS liefert nur ein `UIOpenURLAction` (System-Log) – Befund 17 bestätigt, keine Lücke in `OpenedDocuments.swift` |
+| 3 – Keystore, Signieren, Fertig | Import über das Signiermittel-Menü, „Passwort merken?“ bei der ersten Verwendung, Signieren in `Signature_0`, Fertig, Teilen, „Sichern unter“ (Datei in „Auf meinem iPhone“ bytegleich), Öffnen (QuickLook): ok (91). **Befunde R2** (Tastatur verdeckt Dialog, 83 → 84/85), **R4** (Systemtexte englisch, 89 → 90), **R5** (VoiceOver liest Sandbox-Pfad). pyHanko `--trust test-rsa2048.crt.pem`: *trusted, sound, covers the entire file, VALID* (`Testdokument_signed.pdf`, auch das nach dem Update überschriebene) |
+| 4 – Stapel | Mehrfachauswahl (4 PDFs), Papierkorb im schmalen Layout, „Alle signieren“ mit Keystore, Passwort, Home-Taste während der Passwortabfrage und unmittelbar nach „Signieren“ → 3 von 3 (92); nach den Behebungen neuer Stapel mit „Beide behalten“ → 2 von 2, Passwortfeld über der Tastatur (86). Kein `resume.json` übrig. pyHanko: alle 5 Dateien *VALID* |
+| Update-Install | „Zuletzt signiert“ nach Umzug neu zugeordnet (`entries=4`, 93) – Befund 1 bestätigt |
+
+Befunde der Gegenprüfung und Behebungen:
+
+- **R1 (mittel) Arbeitsbereich: Block verschwindet nach dem Ziehen unter dem Bottom-Sheet.** Zieht man den Block
+  aus einem Signaturfeld, erscheint die Leiste „Signaturfeld gefunden“ (auf dem Telefon 132 px) und schiebt die
+  Seiten um ihre Höhe nach unten – der eben abgelegte Block lag dann unter dem Sheet (81; umgekehrt beim Setzen
+  ins Feld). `Workspace.tsx` gleicht den Bildlauf um die Höhenänderung der Leiste aus (82, alle Plattformen;
+  Test in `workspace.test.tsx`).
+- **R2 (hoch) Software-Tastatur verdeckt Dialoge.** Die iOS-WebView verkleinert nur den sichtbaren Bereich; Sheets
+  am unteren Rand lagen samt Feld und Knöpfen unter der Tastatur: Keystore-Passwort der Signierkarte (83, schon
+  Aufnahme 16 des ersten Laufs zeigte es beim Import), Keystore-Import, Stapel-Passwort, Anmeldung bei ID Austria.
+  `components.css`: Overlays auf Mobile mit Abstand `100dvh − --visual-viewport-height` (von React Aria am
+  Overlay gesetzt), Dialoge höchstens so hoch wie der sichtbare Rest, oben Platz für die Statusleiste;
+  `app/keyboard.ts` holt das fokussierte Feld danach im Dialog in den Blick (84–86; Test `keyboard.test.ts`).
+  Ohne Tastatur, am Desktop und auf Android (Fenster schrumpft) ist der Abstand 0.
+- **R3 (mittel) ID Austria: Benutzername nicht eingebbar.** „Telefonnummer oder Benutzername“ (Signierkarte und
+  Einstellungen) hatte `inputMode="tel"` – die Telefon-Tastatur von iOS hat keine Buchstaben (87). Jetzt
+  Standardtastatur mit `autocapitalize="none"` (88; Tests in `signing.test.tsx`, `settings.test.tsx`).
+- **R4 (mittel) Systemoberfläche in der App englisch** (Dokumentauswahl „Cancel“, Teilen „Copy/Markup/Print“, 89):
+  `Info.plist` ohne `CFBundleLocalizations`, die App galt als nur englisch. Jetzt `[de, en]` in `Info.plist` und
+  `project.yml` → „Abbrechen“, „Kopieren/Markierung/Drucken“ (90). `Info.plist` von Hand ergänzt: `xcodegen
+  generate` schriebe `project.pbxproj` und das Schema vollständig um.
+- **R5 (niedrig) VoiceOver las im Fertig-Schritt den Sandbox-Pfad** (`title` mit dem vollständigen Pfad als
+  Bezeichnung statt „Gespeichert in den Dokumenten dieser App“): auf Mobile ohne `title` (Test in `done.test.tsx`).
+- **R6 (niedrig) Konto-Chip im Fuß des Arbeitsbereichs 38 px hoch** (`.signer-chip.is-compact` setzte 36 px nach
+  der Touch-Regel in `base.css`) – entgegen §8.2 Nr. 8 „Knöpfe ≥ 44 px“. Touch-Regel in `components.css`.
+
+Nicht behoben (niedrig, plattformübergreifend bzw. Textfragen):
+
+- R7: Liegt auf der letzten Seite ein seitenfüllendes Signaturfeld (`Testdokument.pdf`, `Signature_7`), meldet
+  die Sprechblase „automatisch auf freier Fläche platziert“, zugleich warnt das Sheet „überdeckt ein Formular-
+  oder Signaturfeld“; „Freie Fläche suchen“ wechselt nur zwischen den Warnungen (80, 81).
+- R8: Auf dem Telefon liegt ein Hinweis (Toast) über dem unteren Rand eines Dialogs, z. B. „überdeckt Inhalt“
+  über der Überschreiben-Frage (94).
+- R9: Stapel mit Keystore: „Bestätigung 1 von 3“/„Bestätigungen“ und „Alle … einmal anmelden, dann jedes
+  Dokument einzeln bestätigen“ sind ID-Austria-Wortlaut; „Einrichtung abgeschlossen“ nach „Später einrichten“.
+- R10: Nach der Wahl einer Miniatur springt der Fokus sichtbar auf den Umschalter, sein Tooltip verdeckt die
+  Wortmarke.
+- `main` ist seit dem Merge um fünf Commits weiter (u. a. Kopfzeile mit „+ PDF“ und Haus-Symbol, Schlüsselliste
+  ohne Schlüsselbund-Zugriff) – vor der Übernahme mergen und Abläufe 2–4 kurz wiederholen.
+
+Prüfungen danach: `npm run build`, `npm test` (26 Dateien, 598 Tests grün; die neuen Tests scheitern ohne die
+Behebungen), `python3 tools/rename-to-pida.py --check`; `cargo test -p pida-config -p pida-core-api -p pida-i18n
+-p pida-app` (404 Tests grün, Stand `daf4679`; die Behebungen ändern keinen Rust-Code).

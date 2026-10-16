@@ -35,7 +35,11 @@ describe('Signierkarte: Schritte und Stepper', () => {
     expect(within(steps).getAllByRole('listitem')[0]).toHaveAttribute('aria-current', 'step');
     const pw = within(dialog).getByLabelText('Signatur-Passwort');
     await waitFor(() => expect(pw).toHaveFocus());
-    expect(within(dialog).getByLabelText('Telefonnummer oder Benutzername')).toHaveValue('+43 660 1234123');
+    const userField = within(dialog).getByLabelText('Telefonnummer oder Benutzername');
+    expect(userField).toHaveValue('+43 660 1234123');
+    // Benutzername mit Buchstaben: keine Telefon-Tastatur (iOS: ohne Buchstaben), kein Großbuchstabe am Anfang
+    expect(userField).not.toHaveAttribute('inputmode');
+    expect(userField).toHaveAttribute('autocapitalize', 'none');
     await user.type(pw, 'kurz');
     await user.click(within(dialog).getByRole('button', { name: 'Anmelden' }));
     expect(within(dialog).getByText('Eingegebenes Passwort ist zu kurz!')).toBeInTheDocument();

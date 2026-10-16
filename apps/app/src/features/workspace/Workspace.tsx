@@ -75,6 +75,27 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     return () => ro.disconnect();
   }, [maxW]);
 
+  // Hinweisleiste über den Seiten (unsichtbar signieren | Signaturfeld gefunden | QR-Platzhalter)
+  const unusedField = editable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
+  const banner = doc.invisible ? 'invisible' : unusedField ? 'field' : doc.target.kind === 'qr' ? 'qr' : null;
+  // Erscheint oder verschwindet die Leiste (z. B. Block aus dem Signaturfeld gezogen), verschöbe sich die
+  // Seitenansicht um ihre Höhe – auf dem Telefon (Leiste bis ~130 px) läge der gerade abgelegte Block dann
+  // unter dem Bottom-Sheet. Deshalb den Bildlauf um die Höhenänderung ausgleichen (vor den Effekten, die den
+  // Block bewusst in den Blick holen).
+  const bannerRef = useRef<HTMLElement | null>(null);
+  const setBannerRef = useCallback((el: HTMLElement | null) => {
+    bannerRef.current = el;
+  }, []);
+  const bannerHeight = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const h = bannerRef.current?.getBoundingClientRect().height ?? 0;
+    const before = bannerHeight.current;
+    bannerHeight.current = h;
+    const el = scrollRef.current;
+    if (before === null || !el || h === before) return;
+    el.scrollTop = Math.max(0, el.scrollTop + h - before);
+  }, [banner]);
+
   // Beim Öffnen zum Signaturblock scrollen (er steht meist auf der letzten Seite)
   const mountedAt = useRef(Date.now());
   const didScroll = useRef(false);
@@ -218,8 +239,6 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const unusedField = editable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
-
   return (
     <div className={`workspace${pagesOpen ? ' pages-open' : ''}`} data-phase={doc.phase}>
       {pagesOpen ? <Thumbnails doc={doc} sizes={sizes} current={current} onSelect={scrollToPage} /> : null}
@@ -251,13 +270,13 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
           </IconButton>
         </Toolbar>
 
-        {doc.invisible ? (
-          <p className="canvas-banner">
+        {banner === 'invisible' ? (
+          <p className="canvas-banner" ref={setBannerRef}>
             <IconEyeOff size={16} />
             {t.t('ng-ui-ws-invisible')}
           </p>
-        ) : unusedField ? (
-          <div className="canvas-banner canvas-banner-field">
+        ) : banner === 'field' && unusedField ? (
+          <div className="canvas-banner canvas-banner-field" ref={setBannerRef}>
             <IconSignature size={16} />
             <span>
               <strong>{t.t('ng-ui-ws-field-found')}:</strong> {t.t('ng-ui-ws-field-banner', { name: unusedField.name, page: (unusedField.page ?? 0) + 1 })}
@@ -274,8 +293,8 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
               {t.t('ng-ui-ws-field-use')}
             </Button>
           </div>
-        ) : doc.target.kind === 'qr' ? (
-          <p className="canvas-banner">
+        ) : banner === 'qr' ? (
+          <p className="canvas-banner" ref={setBannerRef}>
             <IconQr size={16} />
             {t.t('ng-ui-ws-qr-banner')}
           </p>

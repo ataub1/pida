@@ -190,7 +190,10 @@ describe('Suche (Abnahme E3 Punkt 3)', () => {
     const search = within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' });
     await user.type(search, 'Handy');
     expect(within(dialog).getByRole('heading', { level: 3, name: 'Signiermittel' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('textbox', { name: 'ID Austria: Telefonnummer oder Benutzername' })).toBeInTheDocument();
+    const idaUser = within(dialog).getByRole('textbox', { name: 'ID Austria: Telefonnummer oder Benutzername' });
+    // Telefonnummer oder Benutzername: Standardtastatur (die Telefon-Tastatur von iOS hat keine Buchstaben)
+    expect(idaUser).not.toHaveAttribute('inputmode');
+    expect(idaUser).toHaveAttribute('autocapitalize', 'none');
     expect(within(dialog).queryByRole('heading', { level: 3, name: 'Signaturbild' })).toBeNull();
     await user.clear(search);
     await user.type(search, 'proxy');
