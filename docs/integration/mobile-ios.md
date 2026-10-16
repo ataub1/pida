@@ -328,7 +328,8 @@ mit dem Mock-Kern geprüft (Fehlerkarte „Signaturdienst nicht erreichbar“).
 17. **Teilen mehrerer PDFs** aus der Dateien-App an PIDA liefert nur das erste (24): Ohne Share-Extension übergibt
     iOS beim „Öffnen in“ ein Dokument (Plan: keine Share-Extension). Stapel auf dem iPhone über „Dokument
     auswählen“ bzw. „PDF hinzufügen“ mit Mehrfachauswahl (25, 63). Hinweis in der Hilfe oder eine Share-Extension
-    wären die Optionen – Entscheidung des Auftraggebers.
+    wären die Optionen – Entscheidung des Auftraggebers. **Entschieden (16.10.2026): „Hinweis reicht“**, keine
+    Share-Extension – umgesetzt in §8.6.
 18. **„Signatur fortsetzen“ nach App-Kill** nur mit ID Austria (Wartezustand nach `prepare`); der Keystore wird
     vor `prepare` entsperrt und signiert sofort, nach einem Kill gibt es nichts fortzusetzen (50). Mit ID Austria
     braucht es A-Trust – abgedeckt durch `core-api/tests/mobile.rs`
@@ -339,14 +340,14 @@ mit dem Mock-Kern geprüft (Fehlerkarte „Signaturdienst nicht erreichbar“).
     wirkt nicht, weil `components.css` sie überschreibt. Bewusst nicht geändert: Links stehen oft im Fließtext
     (z. B. „Details“ im Datenschutz-Hinweis), 44 px würden die Zeilen auseinanderziehen.
 21. **Texte:** „Überspringen – … ohne Bestätigung in der App“ erscheint auch beim Keystore (65); Speicherart
-    heißt in den Einstellungen „Bis Programmende“, bei „Passwort merken?“ „Bis zum Beenden“.
+    heißt in den Einstellungen „Bis Programmende“, bei „Passwort merken?“ „Bis zum Beenden“. Behoben (§8.6).
 22. Dynamic Type ist bei 200 % begrenzt; Wortmarke und Bildschirmmaße in `px` wachsen nicht mit. Lange Namen
     (Dokument, Signiermittel-Chip) werden bei großer Schrift mit „…“ gekürzt (55).
 23. VoiceOver selbst wurde nicht gehört (Simulator ohne VoiceOver-Steuerung); geprüft sind Namen, Rollen und
     Struktur per Inspektion (§8.2 Nr. 8) sowie axe in den UI-Tests.
 24. `general.last_source_directory` bleibt nach einem Update ein Pfad im alten Container (auf Mobile ungenutzt).
 25. Bei großer Schrift rollt die waagrechte Bereichsnavigation der Einstellungen den aktiven Bereich nicht in
-    den sichtbaren Teil (79: „Signiermittel“ aktiv, sichtbar sind „Signaturbild“ und „Dokument“).
+    den sichtbaren Teil (79: „Signiermittel“ aktiv, sichtbar sind „Signaturbild“ und „Dokument“). Behoben (§8.6).
 
 ### 8.5 Gegenprüfung (Review, 16.10.2026)
 
@@ -408,3 +409,33 @@ Nicht behoben (niedrig, plattformübergreifend bzw. Textfragen):
 Prüfungen danach: `npm run build`, `npm test` (26 Dateien, 598 Tests grün; die neuen Tests scheitern ohne die
 Behebungen), `python3 tools/rename-to-pida.py --check`; `cargo test -p pida-config -p pida-core-api -p pida-i18n
 -p pida-app` (404 Tests grün, Stand `daf4679`; die Behebungen ändern keinen Rust-Code).
+
+### 8.6 Nachtrag: Randfälle und Hinweis zum Teilen (ADR 0004 Nachtrag 12)
+
+Behoben auf allen Plattformen (Kern bzw. Oberfläche, Tests siehe ADR 0004 Nachtrag 12): R7 (die Automatik zählt
+die Widgets vorhandener Felder als belegt – `Testdokument.pdf` landet auf einer neuen Seite statt im seitenfüllenden
+`Signature_7`), R8 (Hinweise stehen oben, solange ein Bottom-Sheet unten steht), R9 (Stapelwortlaut je Signiermittel;
+nach „Später einrichten“ „Signiermittel und Signaturbild können Sie jederzeit in den Einstellungen einrichten.“),
+R10 (nach Tippen auf eine Miniatur kein Fokusrahmen und kein Tooltip), Nr. 21 („Bis zum Beenden“ überall) und Nr. 25
+(die Bereichsleiste rollt den aktiven Bereich ins Bild). Dazu aus der Android-Prüfung: Toast nach „Sichern unter“
+mit dem tatsächlichen Namen (iOS: `lastPathComponent` der exportierten Kopie), Live-Region nach Dokumentwechsel,
+fortgesetzte Stapelzeile mit Miniatur und Seitenzahl, `qr.pdf` nach nachträglich eingeschalteter Suche im
+Platzhalter (Seite 1 / 1) und dieselbe Datei erneut empfangen → kein zweiter Eintrag, Hinweis „„qr.pdf“ ist bereits
+geöffnet.“
+
+**Teilen mehrerer PDFs (Nr. 17, Entscheidung „Hinweis reicht“).** Die Shell reicht über „Teilen“ bzw. „Öffnen in“
+empfangene Dateien als `files_received` an den Kern (`Shell::open_files`; wie `open_files` ohne `mode`). Auf iOS zeigt
+der Arbeitsbereich danach über „Signieren“ – auch im eingeklappten Bottom-Sheet – einen kurzen, nicht blockierenden
+Hinweis:
+
+> Mehrere PDFs geteilt? iOS übergibt beim Teilen nur das erste. Für einen Stapel wählen Sie die übrigen über „Weitere
+> PDFs hinzufügen …“ – dort ist Mehrfachauswahl möglich.
+
+mit dem Knopf „Weitere PDFs hinzufügen …“ (System-Dokumentauswahl mit Mehrfachauswahl, `open_files { mode: add }`) und
+„Hinweis ausblenden“ (×). Er erscheint nur nach dem Empfang über „Teilen“ (nicht beim Start, nicht nach der
+Dokumentauswahl), nur solange das empfangene Dokument allein offen ist (mit weiteren PDFs ist er erledigt) und nach
+dem Ausblenden bis zum Beenden der App nicht mehr. Android empfängt mehrere PDFs (`SEND_MULTIPLE`) und zeigt ihn nicht.
+Englisch: „Shared several PDFs? iOS only passes on the first one. For a batch, choose the others with “Add more
+PDFs …” – you can select several there.“ Tests: `core-api/tests/mobile.rs`
+(`ios_shows_the_share_hint_only_after_receiving_a_document`), `Mobile.test.tsx` („Hinweis zum Teilen auf iOS“). Am
+Gerät noch nicht nachgespielt (nur `cargo check` für `aarch64-apple-ios-sim`).

@@ -414,23 +414,19 @@ die Prüfung nicht an eine laufende PIDA (Socket `/tmp/at_pida_si.sock`) übergi
   Android-Segmente und -Papierkorb auf iOS) sind per Test und Durchsicht geprüft, nicht erneut im Simulator bzw.
   Emulator; ebenso die neuen Funktionen aus `main` („+ PDF“, „In Bearbeitung“, automatische Positionierung) auf
   dem Telefon.
-- **Entscheidung Auftraggeber:** Teilen mehrerer PDFs aus der iOS-Dateien-App liefert nur das erste (ohne
-  Share-Extension; Stapel über „Dokument auswählen“/„PDF hinzufügen“) – Hinweis oder Share-Extension.
+- **Entschieden (16.10.2026, „Hinweis reicht“):** Teilen mehrerer PDFs aus der iOS-Dateien-App liefert nur das
+  erste (ohne Share-Extension) – nach dem Empfang über „Teilen“ zeigt der Arbeitsbereich auf iOS einen ausblendbaren
+  Hinweis mit „Weitere PDFs hinzufügen …“ (ADR 0004 Nachtrag 12 Punkt 13, mobile-ios.md §8.6).
 - **Nur durch Tests belegt (braucht A-Trust):** Anmeldung, SMS-TAN, App-Bestätigung, Vergleichswert-Kästchen,
   „Signatur fortsetzen“ nach App-Kill mit ID Austria.
-- **Texte:** ID-Austria-Wortlaut beim Keystore-Stapel („Bestätigung 1 von 3“, „einmal anmelden, dann …
-  bestätigen“, „Überspringen … ohne Bestätigung in der App“); „Einrichtung abgeschlossen“ nach „Später
-  einrichten“; „Bis Programmende“ (Einstellungen) gegenüber „Bis zum Beenden“ („Passwort merken?“).
-- **Randfälle:** seitenfüllendes Signaturfeld auf der letzten Seite bzw. `manySignFields-xref-stream.pdf` –
-  „automatisch auf freier Fläche platziert“ trotz Warnung „überdeckt ein Feld“; auf dem Telefon liegt ein Toast
-  über dem unteren Rand eines Dialogs; nach Wahl einer Miniatur Fokusrahmen samt Tooltip auf dem Umschalter;
-  QR-Platzhaltersuche nachträglich eingeschaltet und dasselbe PDF erneut empfangen (Ansicht bleibt „Auf neuer
-  Seite“, doppelter Stapeleintrag); aria-live-Text nach Dokumentwechsel im Stapel zunächst noch vom vorigen;
-  Toast nach „Sichern unter“ nennt den vorgeschlagenen statt den vom System vergebenen Namen; fortgesetztes
-  Dokument im Stapel ohne Miniatur und Seitenzahl.
+- **Texte und Randfälle** (Stapelwortlaut beim Keystore bzw. „Jedes Mal fragen“, „Einrichtung
+  abgeschlossen“ nach „Später einrichten“, „Bis Programmende“; Automatik im seitenfüllenden Signaturfeld, Toast über
+  dem Bottom-Sheet, Fokus nach Miniatur, nachträgliche QR-Suche und doppelter Empfang, aria-live nach
+  Dokumentwechsel, Name nach „Sichern unter“, fortgesetzte Stapelzeile): **behoben** in ADR 0004 Nachtrag 12
+  (Desktop und Mobile, je mit Test).
 - **Barrierefreiheit:** VoiceOver und TalkBack nicht akustisch geprüft (nur Namen, Rollen, Struktur und axe);
-  Dynamic Type bis 200 %, `px`-Maße wachsen nicht mit; die waagrechte Bereichsnavigation der Einstellungen rollt
-  bei großer Schrift den aktiven Bereich nicht ins Bild; `.link` 24 px (WCAG 2.5.8 erfüllt, bewusst so).
+  Dynamic Type bis 200 %, `px`-Maße wachsen nicht mit; `.link` 24 px (WCAG 2.5.8 erfüllt, bewusst so). Die
+  waagrechte Bereichsnavigation der Einstellungen rollt den aktiven Bereich jetzt ins Bild (Nachtrag 12).
 - **Nicht abgedeckt:** echte Geräte, Android 9–14, Release-Builds; Überlappungen in der Bereichsleiste nur in
   `adb screencap` (vermutlich Grafikartefakt des Emulators); `general.last_source_directory` bleibt nach einem
   iOS-Update ein Pfad im alten Container (auf Mobile ungenutzt).
