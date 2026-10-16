@@ -130,12 +130,14 @@ export function batchNav(view: ViewState): 'back' | 'show' | null {
 }
 
 /**
- * „Zur Startseite“ (Wortmarke, Palette): wie im Prototyp auch aus dem Prüfmodus – erst `close_verify` (er liegt
- * über dem Zustand darunter), dann `navigate{Open}`, sofern freigegeben.
+ * „Zur Startseite“ (Wortmarke, Haus-Symbol, Palette): wie im Prototyp auch aus dem Prüfmodus – erst `close_verify`
+ * (er liegt über dem Zustand darunter), dann `go_home`, sofern freigegeben. Der Kern parkt dabei das offene Dokument
+ * bzw. den Stapel (ADR 0004 Nachtrag 10); die Startansicht zeigt es unter „In Bearbeitung“. „Fertig“ → „Nächstes
+ * Dokument“ und „Neuer Stapel“ senden weiter `navigate{Open}`.
  */
 export async function goHome(view: ViewState, dispatch: (event: UiEvent) => Promise<boolean>): Promise<void> {
   if (view.verify) await dispatch({ type: 'close_verify' });
-  if (view.actions.home) await dispatch({ type: 'navigate', step: 'Open' });
+  if (view.actions.home) await dispatch({ type: 'go_home' });
 }
 
 /** Was ein Befehl auslöst (von der Shell bereitgestellt). */

@@ -126,6 +126,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -292,6 +293,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -529,6 +531,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -754,6 +757,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -976,6 +980,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1148,6 +1153,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1190,6 +1196,102 @@
     },
     "step": {
       "step": "batch"
+    },
+    "verify": null
+  },
+  "batch_parked": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": {
+      "doc_name": null,
+      "documents": 4,
+      "placed_by_hand": false,
+      "unsaved": false
+    },
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
     },
     "verify": null
   },
@@ -1329,6 +1431,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1612,6 +1715,7 @@
         }
       }
     ],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"

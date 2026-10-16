@@ -1145,7 +1145,15 @@ async fn real_core_views_for_the_ui() {
     settled(&core, pdfium).await;
     let v = core.view();
     assert!(editing(&v), "{:?}", v.step);
+    let editing_doc = v.document.clone();
     states.push(("keystore_editing".into(), v));
+    // „Zur Startseite“ parkt das Dokument (Nachtrag 10), „Weiter bearbeiten“ bringt es unverändert zurück
+    core.dispatch(UiEvent::GoHome);
+    let v = wait_for(&core, "geparkt", |v| v.parked.is_some() && v.document.is_none()).await;
+    states.push(("doc_parked".into(), v));
+    core.dispatch(UiEvent::ResumeParked);
+    let v = wait_for(&core, "fortgesetzt", |v| v.parked.is_none() && editing(v)).await;
+    assert_eq!(v.document.map(|d| (d.doc.id, d.placement)), editing_doc.map(|d| (d.doc.id, d.placement)));
     core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
     let seen = collect_until(&core, "gespeichert", saved).await;
     if let Some(v) = seen.iter().rev().find(|v| matches!(v.step, StepView::Signing { .. })) {

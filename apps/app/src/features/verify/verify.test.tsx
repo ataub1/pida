@@ -273,14 +273,16 @@ describe('Prüfmodus in der Shell (Merge E4)', () => {
     await screen.findByRole('application', { name: 'Signaturblock' });
     expect(banner).toHaveTextContent('Vertrag.pdf');
     expect((await mock.view()).actions.sign).toBe(true);
-    // „Zur Startseite“ (Palette bzw. Wortmarke) wie im Prototyp: Prüfmodus schließen, dann Startansicht
+    // „Zur Startseite“ (Palette bzw. Wortmarke) wie im Prototyp: Prüfmodus schließen, dann Startansicht – das
+    // Dokument darunter bleibt in Bearbeitung (geparkt, Nachtrag 10)
     await user.click(within(banner).getByRole('button', { name: 'Signatur prüfen' }));
     await screen.findByTestId('vf-summary');
     await user.keyboard('{Meta>}k{/Meta}');
     await user.click(within(await screen.findByRole('dialog', { name: 'Befehle' })).getByRole('menuitem', { name: /^Zur Startseite/ }));
-    await waitFor(() => expect(mock.dispatched.slice(-2)).toEqual([{ type: 'close_verify' }, { type: 'navigate', step: 'Open' }]));
+    await waitFor(() => expect(mock.dispatched.slice(-2)).toEqual([{ type: 'close_verify' }, { type: 'go_home' }]));
     await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
     expect(screen.queryByTestId('verify-view')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'In Bearbeitung' })).toHaveTextContent('Vertrag.pdf');
   });
 
   it('Ablegen im Prüfmodus prüft die Datei; Öffnen (⌘O) zeigt sie im Arbeitsbereich', async () => {

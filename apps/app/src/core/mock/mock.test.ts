@@ -619,3 +619,78 @@ describe('Automatische Positionierung (Nachtrag 8, Mock wie der Kern)', () => {
     expect(c.dispatched.some((e) => e.type === 'start_batch')).toBe(false);
   });
 });
+
+describe('„Zur Startseite“ parkt offene Arbeit (Nachtrag 10, Mock wie der Kern)', () => {
+  const DIR = '/Users/demo/Dokumente';
+  const parkedStart = (v: ViewState) => v.step.step === 'open' && !!v.parked && v.document === null && v.batch === null;
+  const ready = (v: ViewState) => v.step.step === 'batch' && !!v.batch && v.batch.items.every((i) => i.status.state !== 'analyzing');
+
+  it('Arbeitsbereich: parken, verdeckt nicht signierbar, fortsetzen mit unveränderter Platzierung', async () => {
+    const c = core({ scenario: 'contract', settings: idAustria() });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'nudge_block', dx: 0, dy: 1, fine: false, coarse: false });
+    const before = (await c.view()).document!;
+    await c.dispatch({ type: 'go_home' });
+    const v = await until(c, parkedStart);
+    expect(v.parked).toEqual({ doc_name: 'Vertrag.pdf', documents: 1, placed_by_hand: true, unsaved: false });
+    expect(v.actions).toMatchObject({ sign: false, edit_placement: false, open_files: true, verify: true });
+    // verdeckt (F-54): weder Signieren noch Verschieben wirken
+    await c.dispatch({ type: 'sign_with', backend: 'atrust_native' });
+    await c.dispatch({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });
+    expect((await c.view()).parked).not.toBeNull();
+    await c.dispatch({ type: 'resume_parked' });
+    const back = await until(c, hasDoc);
+    expect(back.parked).toBeNull();
+    expect(back.document!.placement).toEqual(before.placement);
+  });
+
+  it('neue PDFs: „Zum Stapel hinzufügen“ bildet mit dem geparkten Dokument den Stapel, „Öffnen mit“ mit Hinweis', async () => {
+    const c = core({ scenario: 'contract', settings: idAustria() });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'set_invisible', invisible: true });
+    await c.dispatch({ type: 'go_home' });
+    await until(c, parkedStart);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Angebot.pdf`], mode: 'add' });
+    let v = await until(c, ready);
+    expect(v.batch?.items.map((i) => [i.name, i.position.kind])).toEqual([
+      ['Vertrag.pdf', 'invisible'],
+      ['Angebot.pdf', 'auto'],
+    ]);
+    expect(v.notices.some((n) => n.code === 'ng-parked-files-added')).toBe(false);
+    // Stapel parken; „Öffnen mit“ (ohne `mode`): ohne Rückfrage dazu, Hinweis
+    await c.dispatch({ type: 'go_home' });
+    v = await until(c, parkedStart);
+    expect(v.parked).toMatchObject({ doc_name: null, documents: 2, placed_by_hand: true });
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Auftrag.pdf`] });
+    v = await until(c, ready);
+    expect(v.batch?.items).toHaveLength(3);
+    expect(v.notices.some((n) => n.code === 'ng-parked-files-added' && n.params.count === '1')).toBe(true);
+    // „Offene schließen und neu beginnen“: Stapel verworfen, das neue Dokument öffnet
+    await c.dispatch({ type: 'go_home' });
+    await until(c, parkedStart);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Neu.pdf`], mode: 'replace' });
+    v = await until(c, hasDoc);
+    expect([v.document?.doc.name, v.batch, v.parked]).toEqual(['Neu.pdf', null, null]);
+  });
+
+  it('„Schließen“ verwirft; beim Signieren und ohne offene Arbeit ohne Wirkung; „Neuer Stapel“ wie bisher', async () => {
+    const c = core({ scenario: 'contract', settings: idAustria() });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'go_home' });
+    await until(c, parkedStart);
+    await c.dispatch({ type: 'discard_parked' });
+    let v = await c.view();
+    expect([v.step.step, v.parked, v.document]).toEqual(['open', null, null]);
+    expect(v.done.map((d) => d.result.kind)).toEqual(['cancelled']);
+    await c.dispatch({ type: 'go_home' });
+    expect((await c.view()).parked).toBeNull();
+    // beim Signieren gesperrt
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Vertrag.pdf`] });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'sign_with', backend: 'atrust_native' });
+    await until(c, (x) => x.step.step === 'signing');
+    await c.dispatch({ type: 'go_home' });
+    v = await c.view();
+    expect([v.step.step, v.parked]).toEqual(['signing', null]);
+  });
+});

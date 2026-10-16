@@ -94,6 +94,12 @@ pub struct Queue {
     /// Warteschlange auch durch die Zustände eines aus der Übersicht geöffneten Einzeldokuments
     #[serde(default)]
     pub batch: Option<Batch>,
+    /// Arbeit geparkt („Zur Startseite“, ADR 0004 Nachtrag 10): Der Zustand (Arbeitsbereich, Analysewarnung,
+    /// Stapelübersicht, „Fertig“ ohne Speichern) bleibt mit Dokument, Platzierung bzw. Stapel erhalten, die
+    /// Oberfläche zeigt die Startansicht mit der Karte „In Bearbeitung“. Bedienung der verdeckten Arbeit bleibt
+    /// ohne Wirkung, bis sie fortgesetzt (`Event::ParkedResumed`) bzw. verworfen wird (`Event::ParkedDiscarded`)
+    #[serde(default)]
+    pub parked: bool,
 }
 
 impl Queue {
@@ -129,12 +135,13 @@ impl Queue {
     }
 
     /// Alles verwerfen (Hauptleiste „Öffnen“ außerhalb des Ergebnis-Screens, F-16). Das aktuelle
-    /// und alle wartenden Dokumente gelten als abgebrochen; ein Stapel entfällt.
+    /// und alle wartenden Dokumente gelten als abgebrochen; ein Stapel bzw. geparkte Arbeit entfällt.
     pub fn clear(&mut self) {
         let mut rest: Vec<InputDocument> = self.current.take().into_iter().collect();
         rest.extend(self.pending.drain(..));
         self.done.extend(rest.into_iter().map(|doc| DocOutcome { doc, result: DocResult::Cancelled }));
         self.batch = None;
+        self.parked = false;
     }
 
     /// Fügt Dokumente **nur** an die wartenden an (ohne Duplikate nach Pfad) – auch ohne aktuelles Dokument

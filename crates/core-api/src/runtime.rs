@@ -182,6 +182,9 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::InspectKeystore { .. } => "inspect_keystore",
         UiEvent::UnlockPlacement => "unlock_placement",
         UiEvent::SetBatchAutoPosition { .. } => "set_batch_auto_position",
+        UiEvent::GoHome => "go_home",
+        UiEvent::ResumeParked => "resume_parked",
+        UiEvent::DiscardParked => "discard_parked",
     }
 }
 
@@ -2220,6 +2223,24 @@ impl CoreTask {
             tracing::debug!(event = ui_event_kind(&event), "Prüfmodus offen – ignoriert");
             return;
         }
+        // geparkte Arbeit (ADR 0004 Nachtrag 10): die Startansicht verdeckt sie – nichts daran signieren oder
+        // verschieben (F-54); der Reducer lässt diese Ereignisse ohnehin ohne Wirkung, hier bleiben auch Auswahl
+        // und Klemmhinweis unberührt
+        if self.state.parked()
+            && matches!(
+                event,
+                UiEvent::SignWith { .. }
+                    | UiEvent::StartBatch { .. }
+                    | UiEvent::ConfirmPosition
+                    | UiEvent::ChooseInvisible
+                    | UiEvent::ChooseBackend { .. }
+                    | UiEvent::MoveBlock { .. }
+                    | UiEvent::NudgeBlock { .. }
+            )
+        {
+            tracing::debug!(event = ui_event_kind(&event), "Arbeit geparkt – ignoriert");
+            return;
+        }
         match event {
             UiEvent::OpenFiles { paths, mode } => {
                 let docs = self.input_documents(&paths);
@@ -2503,6 +2524,14 @@ impl CoreTask {
             // Einstellung „Automatische Positionierung“: „Diesmal selbst platzieren“ (Nachtrag 8) – nur dieses
             // Dokument, startet nichts (A1)
             UiEvent::UnlockPlacement if self.ws.enabled => self.apply(Event::PlacementUnlocked),
+            // „Zur Startseite“ (Nachtrag 10): Prüfmodus schließen, dann parkt der Reducer offene Arbeit (im
+            // klassischen Ablauf wie `navigate{Open}`); Fortsetzen und Verwerfen nur im Arbeitsbereich-Modus
+            UiEvent::GoHome => {
+                self.release_verify();
+                self.apply(Event::WentHome);
+            }
+            UiEvent::ResumeParked if self.ws.enabled => self.apply(Event::ParkedResumed),
+            UiEvent::DiscardParked if self.ws.enabled => self.apply(Event::ParkedDiscarded),
             // ADR 0004: im klassischen Ablauf ohne Wirkung die Ereignisse des Arbeitsbereichs, ohne
             // Stapelübersicht die des Stapels. Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
             e @ (UiEvent::SetInvisible { .. }
@@ -2524,7 +2553,9 @@ impl CoreTask {
             | UiEvent::FinishFirstRun
             | UiEvent::OfferMigration
             | UiEvent::UnlockPlacement
-            | UiEvent::SetBatchAutoPosition { .. }) => {
+            | UiEvent::SetBatchAutoPosition { .. }
+            | UiEvent::ResumeParked
+            | UiEvent::DiscardParked) => {
                 tracing::debug!(event = ui_event_kind(&e), "in diesem Modus ohne Wirkung (ADR 0004) – ignoriert");
             }
         }
@@ -3011,16 +3042,26 @@ impl CoreTask {
     }
 
     pub(crate) fn project(&self) -> ViewState {
-        let step = self.step_view(&self.state);
+        // geparkte Arbeit (ADR 0004 Nachtrag 10): die Startansicht verdeckt sie – Schritt, Hauptleiste und
+        // Freigaben wie in der Dokumentauswahl, ohne Dokument und Stapel; dazu die Karte „In Bearbeitung“
+        let parked = self.state.parked();
+        let idle;
+        let shown = if parked {
+            idle = State::Idle { queue: pida_workflow::Queue::default() };
+            &idle
+        } else {
+            &self.state
+        };
+        let step = if parked { StepView::Open { queue: Vec::new() } } else { self.step_view(&self.state) };
         let settings_open = self.settings_view.is_some();
         let main_bar = MainBarView {
-            steps: self.state.main_bar().to_vec(),
-            settings_enabled: !settings_open && self.state.settings_enabled(),
+            steps: shown.main_bar().to_vec(),
+            settings_enabled: !settings_open && shown.settings_enabled(),
         };
-        let mut actions = crate::actions::actions_for(&self.state, main_bar.settings_enabled);
+        let mut actions = crate::actions::actions_for(shown, main_bar.settings_enabled);
         if self.ws.enabled {
             // Arbeitsbereich: keine Hauptleiste Positionieren/Signieren; „Signieren“ nur mit zulässiger Platzierung
-            actions.sign = actions.sign && crate::actions::workspace_sign_allowed(&self.state);
+            actions.sign = actions.sign && crate::actions::workspace_sign_allowed(shown);
         } else {
             // Prüfmodus nur in der neuen Oberfläche (ADR 0004 §3.9; klassischer Ablauf unverändert, §3.0 Regel 7)
             actions.verify = false;
@@ -3028,8 +3069,8 @@ impl CoreTask {
         if self.ctx.batch() {
             // Stapel (ADR 0004 §3.13): „Alle signieren“ mit mindestens einem signierbaren Eintrag,
             // „Zur Stapelübersicht“ aus einem Einzeldokument mit weiteren Dokumenten
-            actions.start_batch = crate::actions::batch_start_allowed(&self.state);
-            actions.show_batch = crate::actions::batch_show_allowed(&self.state);
+            actions.start_batch = crate::actions::batch_start_allowed(shown);
+            actions.show_batch = crate::actions::batch_show_allowed(shown);
         }
         if self.verify_open() {
             // Prüfmodus über dem Arbeitsbereich bzw. der Stapelübersicht (Merge E4): das Dokument darunter ist
@@ -3071,13 +3112,14 @@ impl CoreTask {
             keystore_import: self.keystore_import.clone(),
             privacy_text: self.cfg.privacy_text(),
             // ADR 0004: K1 document, signers (Arbeitsbereich), K2 batch, K3 recent, K4 verify, first_run
-            document: self.document_view(),
+            document: if parked { None } else { self.document_view() },
             signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
-            batch: self.batch_view(),
+            batch: if parked { None } else { self.batch_view() },
             verify: self.verify_view(),
             recent: self.recent_view(),
             first_run: self.first_run_view(),
             actions,
+            parked: self.parked_view(),
         }
     }
 

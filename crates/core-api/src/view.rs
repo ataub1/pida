@@ -526,6 +526,12 @@ pub struct ViewState {
     /// Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (ADR 0004 §3.13), aus dem Zustand berechnet
     #[serde(default)]
     pub actions: ActionsView,
+    /// Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): gesetzt, solange die Startansicht ein offenes
+    /// Dokument bzw. einen Stapel verdeckt (Karte „In Bearbeitung“); dann sind `document` und `batch` `None`.
+    /// Additiv, in TypeScript optional; der Kern liefert es immer (`None` ohne geparkte Arbeit).
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub parked: Option<ParkedWorkView>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -921,6 +927,15 @@ pub enum UiEvent {
         #[serde(default)]
         replace_manual: bool,
     },
+    /// „Zur Startseite“ (Haus-Symbol, Wortmarke, Palette; ADR 0004 Nachtrag 10): schließt einen offenen Prüfmodus
+    /// und parkt das offene Dokument (mit Platzierung) bzw. den Stapel, statt sie zu verwerfen (`ViewState::parked`).
+    /// Beim Signieren und im Stapellauf ohne Wirkung (`actions.home`). Startet **nichts** (A1).
+    GoHome,
+    /// „Weiter bearbeiten“ (Karte „In Bearbeitung“): geparkte Arbeit unverändert fortsetzen. Startet **nichts**.
+    ResumeParked,
+    /// „Schließen“ (Karte „In Bearbeitung“): geparkte Arbeit verwerfen (Dokumente „abgebrochen“; signierte Dateien
+    /// bleiben). Startet **nichts**.
+    DiscardParked,
 }
 
 impl std::fmt::Debug for UiEvent {
@@ -2097,9 +2112,29 @@ pub struct ActionsView {
     pub verify: bool,
     /// Einstellungen erreichbar (= `main_bar.settings_enabled`)
     pub settings: bool,
-    /// `navigate{Open}` erlaubt (Startansicht)
+    /// „Zur Startseite“ (`go_home`; Fertig: `navigate{Open}`) erlaubt
     pub home: bool,
 }
+
+// --- Nachtrag 10: geparkte Arbeit --------------------------------------------------------------
+
+/// Geparkte Arbeit (ADR 0004 Nachtrag 10): Karte „In Bearbeitung“ der Startansicht mit „Weiter bearbeiten“
+/// (`resume_parked`) und „Schließen“ (`discard_parked`).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ParkedWorkView {
+    /// Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“)
+    pub doc_name: Option<String>,
+    /// offene Dokumente (Einträge des Stapels bzw. das Dokument samt wartenden)
+    pub documents: u32,
+    /// Signatur bzw. Stapeleinträge von Hand platziert (`DocumentDetectionView::auto_placed == false` bzw.
+    /// `BatchView::manual_plans > 0`): „Schließen“ fragt vorher nach
+    pub placed_by_hand: bool,
+    /// signiert, aber noch nicht gespeichert („Fertig“ mit „Speichern“): „Schließen“ verwirft die Signatur und fragt
+    /// vorher nach
+    pub unsaved: bool,
+}
+redacted_debug!(ParkedWorkView { documents, placed_by_hand, unsaved } redact { doc_name });
 
 #[cfg(test)]
 mod tests {
@@ -2190,6 +2225,9 @@ mod tests {
             needs_folder: false,
         };
         assert_redacted(format!("{output:?}"));
+        let parked =
+            ParkedWorkView { doc_name: Some(file.clone()), documents: 1, placed_by_hand: true, unsaved: false };
+        assert_redacted(format!("{parked:?}"));
         // Ereignisse mit Pfaden bzw. Einstellungswerten
         assert_redacted(format!("{:?}", UiEvent::OpenVerify { path: format!("{SECRET_DIR}/{file}").into() }));
         assert_redacted(format!(

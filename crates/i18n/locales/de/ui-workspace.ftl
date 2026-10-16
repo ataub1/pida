@@ -45,10 +45,7 @@ ng-ui-shell-cmd-settings = Einstellungen
 ng-ui-shell-cmd-signature = Signaturbild bearbeiten
     .keywords = logo profil bildmarke hinweis
 ng-ui-shell-cmd-home = Zur Startseite
-ng-ui-shell-home-confirm-title = Zur Startseite?
-ng-ui-shell-home-confirm-text = Die geöffneten Dokumente werden geschlossen; Platzierungen und der Stapel gehen verloren. Bereits signierte Dateien bleiben erhalten.
-ng-ui-shell-home-confirm = Zur Startseite
-    .keywords = start schließen
+    .keywords = start startseite home
 ng-ui-shell-cmd-theme-light = Farbschema: Hell
     .keywords = theme hell
 ng-ui-shell-cmd-theme-dark = Farbschema: Dunkel
@@ -107,6 +104,37 @@ ng-ui-start-side = Zuletzt signiert und Prüfmodus
 ng-ui-start-verify-title = Signatur prüfen?
 ng-ui-start-verify-text = Im Prüfmodus sehen Sie, wer ein PDF wann signiert hat und ob es seither verändert wurde.
 ng-ui-start-verify-button = Prüfmodus öffnen
+# Geparkte Arbeit („Zur Startseite“ parkt das offene Dokument bzw. den Stapel, ADR 0004 Nachtrag 10)
+ng-ui-start-parked-label = In Bearbeitung
+ng-ui-start-parked-batch =
+    { $n ->
+        [one] Stapel · 1 Dokument
+       *[other] Stapel · { $n } Dokumente
+    }
+ng-ui-start-parked-hint = Noch nicht signiert – die Platzierung bleibt erhalten.
+ng-ui-start-parked-hint-placed = Noch nicht signiert – Ihre Platzierung bleibt erhalten.
+ng-ui-start-parked-hint-batch = Pläne und Status der Dokumente bleiben erhalten.
+ng-ui-start-parked-hint-unsaved = Signiert, aber noch nicht gespeichert.
+ng-ui-start-parked-resume = Weiter bearbeiten
+ng-ui-start-parked-close = Schließen
+ng-ui-start-parked-close-title = Offene Arbeit schließen?
+ng-ui-start-parked-close-text = „{ $name }“ wird geschlossen; Ihre Platzierung geht verloren. Bereits signierte Dateien bleiben erhalten.
+ng-ui-start-parked-close-text-batch = Der Stapel wird geschlossen; Platzierungen und Status der Dokumente gehen verloren. Bereits signierte Dateien bleiben erhalten.
+ng-ui-start-parked-close-text-unsaved = „{ $name }“ ist signiert, aber noch nicht gespeichert. Wenn Sie schließen, geht die Signatur verloren.
+ng-ui-start-parked-close-confirm = Schließen
+ng-ui-start-join-title = Zur offenen Arbeit hinzufügen?
+ng-ui-start-join-text =
+    „{ $name }“ ist noch in Bearbeitung. { $count ->
+        [one] Soll das gewählte Dokument dazukommen? Zusammen bilden sie einen Stapel, Ihre Platzierung bleibt erhalten.
+       *[other] Sollen die { $count } gewählten Dokumente dazukommen? Zusammen bilden sie einen Stapel, Ihre Platzierung bleibt erhalten.
+    }
+ng-ui-start-join-text-batch =
+    Ein Stapel ist noch in Bearbeitung. { $count ->
+        [one] Soll das gewählte Dokument dazukommen?
+       *[other] Sollen die { $count } gewählten Dokumente dazukommen?
+    }
+ng-ui-start-join-add = Zum Stapel hinzufügen
+ng-ui-start-join-replace = Offene schließen und neu beginnen
 
 ## Arbeitsbereich: Seiten, Sticker, Live-Region, Zustandskarten
 

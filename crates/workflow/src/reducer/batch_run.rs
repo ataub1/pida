@@ -496,6 +496,27 @@ pub(super) fn more_files_added(state: State, docs: Vec<InputDocument>, ctx: &Con
     }
 }
 
+/// Neue Dateien zur geparkten Arbeit („Zum Stapel hinzufügen“, „Öffnen mit“; ADR 0004 Nachtrag 10, Modul
+/// `parked`): die geparkten und die neuen Dokumente bilden den Stapel. Arbeitsbereich wie „Weitere PDFs
+/// hinzufügen“ (die Platzierung bleibt Plan des Dokuments), Stapelübersicht mit neuen Einträgen; eine
+/// Analysewarnung kommt als Eintrag in die Übersicht („Bitte prüfen“ nach der Voranalyse; aus der Übersicht
+/// geöffnet: zurück, Eintrag unverändert). Nur Duplikate → unverändert. Sonst wie [`more_files_added`]. Startet
+/// nichts (A1).
+pub(super) fn join_parked(state: State, docs: Vec<InputDocument>, ctx: &Context) -> Transition {
+    match state {
+        State::AnalysisWarning { mut queue, warnings, doc, placeholder, fields } => {
+            if queue.append(docs).is_empty() {
+                return Transition::stay(State::AnalysisWarning { queue, warnings, doc, placeholder, fields });
+            }
+            if queue.batch.as_ref().is_some_and(|b| b.open == Some(doc.id)) {
+                return back(queue, doc.id, Back::Keep, Vec::new());
+            }
+            new_overview(queue, vec![Effect::Discard(doc.id)])
+        }
+        s => more_files_added(s, docs, ctx),
+    }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Stapelübersicht
 // ------------------------------------------------------------------------------------------------

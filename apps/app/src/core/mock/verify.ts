@@ -203,6 +203,8 @@ export const verifyArea: MockArea<VerifyState> = {
         open(state, e.path, (fn) => ctx.later(fn));
         return true;
       case 'close_verify':
+      // „Zur Startseite“ (Nachtrag 10) schließt wie im Kern zuerst den Prüfmodus
+      case 'go_home':
         close(state);
         return true;
       case 'open_files':

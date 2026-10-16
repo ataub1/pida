@@ -757,6 +757,10 @@ pub const MSG_BATCH_ABORTED: &str = "ng-batch-aborted";
 /// sichtbar bleiben (A-Trust erfährt vom Abbruch nichts, ADR 0004 §1.2).
 pub const MSG_BATCH_PENDING_APP_REQUEST: &str = "ng-batch-pending-app-request";
 
+/// Meldungs-ID (ADR 0004 Nachtrag 10): Dateien aus „Öffnen mit“ bzw. einer zweiten Instanz kamen ohne Rückfrage
+/// zur geparkten Arbeit (`$count`).
+pub const MSG_PARKED_FILES_ADDED: &str = "ng-parked-files-added";
+
 /// Meldungs-ID: das Zertifikat aus dem Zertifikats-Cache passt nicht mehr (erneuert, anderes Konto); der
 /// Eintrag ist gelöscht, „Wiederholen“ liest das Zertifikat neu (`pida-core-api`).
 pub const MSG_CERT_CACHE_MISMATCH: &str = "ng-certcache-mismatch";
@@ -1101,6 +1105,12 @@ impl State {
         }
     }
 
+    /// Arbeit geparkt („Zur Startseite“, ADR 0004 Nachtrag 10, [`Queue::parked`])? Dann zeigt die Oberfläche die
+    /// Startansicht mit der Karte „In Bearbeitung“; der Zustand selbst bleibt erhalten.
+    pub fn parked(&self) -> bool {
+        self.queue().is_some_and(|q| q.parked)
+    }
+
     /// Stapel, aus dem dieses Einzeldokument geöffnet wurde (`Queue::batch` mit `open` = aktuelles
     /// Dokument) bzw. – nach „Signatur fortsetzen“ eines unterbrochenen Stapels – ein Bearbeitungszustand
     /// mit `return_to_batch`.
@@ -1359,6 +1369,18 @@ pub enum Event {
     /// Arbeitsbereich) wird geschlossen – verworfen, nie signiert –, danach öffnen die Dateien wie in der
     /// Dokumentauswahl; wartende Dokumente bleiben. Sonst wie [`Event::FilesAdded`]. Startet nichts (A1).
     DocumentReplaced(Vec<InputDocument>),
+    // --- ADR 0004 Nachtrag 10: „Zur Startseite“ parkt offene Arbeit
+    /// „Zur Startseite“ (`UiEvent::GoHome`: Haus-Symbol, Wortmarke, Palette): Arbeitsbereich, Analysewarnung,
+    /// Stapelübersicht und „Fertig“ ohne Speichern werden geparkt ([`Queue::parked`]) statt verworfen; mit
+    /// gespeichertem Ergebnis und wartenden Dokumenten wird der Stapel wie bei „Zum Stapel“ geparkt. Beim
+    /// Signieren, im Stapellauf und im Fehlerschritt ohne Wirkung; sonst wie `Navigate(Open)`. Startet nichts (A1).
+    WentHome,
+    /// „Weiter bearbeiten“ (`UiEvent::ResumeParked`): geparkte Arbeit unverändert fortsetzen (Platzierung,
+    /// Stapel). Startet nichts (A1).
+    ParkedResumed,
+    /// „Schließen“ der Karte „In Bearbeitung“ (`UiEvent::DiscardParked`): geparkte Arbeit verwerfen wie „Öffnen“
+    /// (Dokumente „abgebrochen“, bereits signierte Ergebnisse bleiben). Startet nichts (A1).
+    ParkedDiscarded,
 }
 
 /// Effekt, den `pida-core-api` ausführt.

@@ -612,6 +612,11 @@ ng-batch-added =
        *[other] { $count } weitere Dokumente wurden hinzugefügt.
     }
 ng-batch-item-signed = „{ $file }“ wurde signiert.
+ng-parked-files-added =
+    { $count ->
+        [one] Das Dokument wurde zur offenen Arbeit hinzugefügt.
+       *[other] { $count } Dokumente wurden zur offenen Arbeit hinzugefügt.
+    }
 ng-batch-done = { $signed } von { $total } Dokumenten signiert.
 ng-batch-nothing-to-sign = Im Stapel ist kein Dokument zum Signieren bereit.
 ng-batch-output-folder-required = Bitte wählen Sie vor dem Start einen Ordner für die signierten Dokumente.

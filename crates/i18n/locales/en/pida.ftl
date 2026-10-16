@@ -612,6 +612,11 @@ ng-batch-added =
        *[other] { $count } more documents were added.
     }
 ng-batch-item-signed = “{ $file }” was signed.
+ng-parked-files-added =
+    { $count ->
+        [one] The document was added to the open work.
+       *[other] { $count } documents were added to the open work.
+    }
 ng-batch-done = { $signed } of { $total } documents signed.
 ng-batch-nothing-to-sign = No document in the batch is ready to be signed.
 ng-batch-output-folder-required = Please choose a folder for the signed documents before starting.

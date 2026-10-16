@@ -5,16 +5,17 @@
  * Stapelkontext („Stapel · 4 Dokumente“) bzw. im Prüfmodus „Prüfmodus“ (ohne den Knopf „Prüfen“; die Wortmarke
  * verlässt ihn), „Prüfen“ (Freigabe `actions.verify`), „Befehle ⌘K“, DE/EN (`set_ui_language`),
  * Farbschema (lokal je Gerät) und Einstellungen (`actions.settings`).
+ *
+ * „Zur Startseite“ (Wortmarke, Haus-Symbol) schließt nichts: Der Kern parkt das offene Dokument bzw. den Stapel
+ * (`go_home`, ADR 0004 Nachtrag 10), die Startansicht bietet „Weiter bearbeiten“ – deshalb ohne Rückfrage.
  */
-import { useState } from 'react';
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
 import { isMobile } from '../core/types';
 import { PALETTE_AVAILABLE } from '../features/palette';
 import { VERIFY_AVAILABLE } from '../features/verify';
 import { AddPdfMenu } from '../features/workspace';
-import { formatSize, placedByHand } from '../features/workspace/placement';
-import { Button, IconButton, Keys, Segmented, useModKey } from '../ui/controls';
-import { ConfirmDialog } from '../ui/Dialog';
+import { formatSize } from '../features/workspace/placement';
+import { IconButton, Keys, Segmented, useModKey } from '../ui/controls';
 import { IconArrowLeft, IconCheck, IconFileText, IconHome, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconShieldCheck, IconSun } from '../ui/Icons';
 import { Wordmark } from '../ui/Logo';
 import { batchNav, goHome } from './commands';
@@ -28,15 +29,12 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
   const mobile = isMobile(view);
   const themeIcon = theme === 'dark' ? <IconMoon size={18} /> : theme === 'light' ? <IconSun size={18} /> : <IconMonitor size={18} />;
   // Prüfmodus (liegt über dem Zustand darunter): Kontext „Prüfmodus“ statt des verdeckten Dokuments wie im
-  // Prototyp; die Wortmarke führt wie dort zur Startansicht (Prüfmodus schließen, dann `navigate{Open}`)
+  // Prototyp; die Wortmarke führt wie dort zur Startansicht (Prüfmodus schließen, dann `go_home`)
   const verify = VERIFY_AVAILABLE && view.verify !== null;
   const home = () => void goHome(view, dispatch);
-  // Haus-Symbol (Wunsch des Auftraggebers): sichtbar, sobald man nicht auf der Startansicht ist. Wer dabei
-  // Arbeit verwerfen würde (Stapel mit mehreren Dokumenten, von Hand platzierter Block), bestätigt kurz.
-  const [askHome, setAskHome] = useState(false);
+  // Haus-Symbol (Wunsch des Auftraggebers): sichtbar, sobald man nicht auf der Startansicht ist; beim Signieren
+  // und im Stapellauf gesperrt (`actions.home`). Offene Arbeit parkt der Kern, nichts geht verloren.
   const awayFromStart = verify || !!view.document || !!view.batch;
-  const losesWork = !verify && ((view.batch?.items.length ?? 0) > 1 || (view.document ? placedByHand(view.document) : false));
-  const pressHome = () => (losesWork ? setAskHome(true) : home());
   const pages = doc ? doc.doc.page_count : 0;
   const batch = view.batch;
   // aus dem Stapel geöffnet (`return_to_batch`) bzw. weitere Dokumente in der Warteschlange (`show_batch`)
@@ -44,38 +42,13 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
 
   return (
     <header className="app-header">
-      <AriaButton className="brand" aria-label={t.t('ng-ui-shell-home')} onPress={pressHome}>
+      <AriaButton className="brand" aria-label={t.t('ng-ui-shell-home')} onPress={home}>
         <Wordmark />
       </AriaButton>
       {awayFromStart && view.actions.home ? (
-        <IconButton label={t.t('ng-ui-shell-cmd-home')} className="header-home" onPress={pressHome}>
+        <IconButton label={t.t('ng-ui-shell-cmd-home')} className="header-home" onPress={home}>
           <IconHome size={18} />
         </IconButton>
-      ) : null}
-      {askHome ? (
-        <ConfirmDialog
-          title={t.t('ng-ui-shell-home-confirm-title')}
-          tone="warning"
-          onCancel={() => setAskHome(false)}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                onPress={() => {
-                  setAskHome(false);
-                  home();
-                }}
-              >
-                {t.t('ng-ui-shell-home-confirm')}
-              </Button>
-              <Button variant="primary" onPress={() => setAskHome(false)} autoFocus>
-                {t.t('common-Cancel')}
-              </Button>
-            </>
-          }
-        >
-          <p>{t.t('ng-ui-shell-home-confirm-text')}</p>
-        </ConfirmDialog>
       ) : null}
       {verify ? (
         <div className="header-context">

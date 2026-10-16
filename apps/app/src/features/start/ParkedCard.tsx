@@ -1,0 +1,135 @@
+/**
+ * Geparkte Arbeit auf der Startansicht (ADR 0004 Nachtrag 10): „Zur Startseite“ schließt nichts, der Kern parkt
+ * das offene Dokument (mit Platzierung) bzw. den Stapel (`ViewState::parked`).
+ *
+ * - Karte „In Bearbeitung“ (Stil der Karten der Startansicht): Dokumentname bzw. „Stapel · n Dokumente“,
+ *   „Weiter bearbeiten“ (`resume_parked`, zurück in den Arbeitsbereich bzw. die Stapelübersicht, Platzierung
+ *   unverändert) und ein kleines „Schließen“ (`discard_parked`; signierte Dateien bleiben). Verwirft „Schließen“
+ *   Arbeit der Nutzerin – eigene Platzierung, Stapel mit mehreren Dokumenten, signiert und nicht gespeichert –,
+ *   fragt es kurz nach (Standard „Abbrechen“).
+ * - Rückfrage beim Wählen bzw. Ablegen neuer PDFs (`ParkedJoinDialog`, von der Shell geöffnet): Standard „Zum Stapel
+ *   hinzufügen“ (`open_files { mode: 'add' }`), „Offene schließen und neu beginnen“ (`mode: 'replace'`), Abbrechen
+ *   ändert nichts. „Öffnen mit“ bzw. eine zweite Instanz fragen nicht – der Kern fügt hinzu und meldet es.
+ *
+ * Was „hinzufügen“, „fortsetzen“ und „verwerfen“ bedeutet, entscheidet der Kern (§6.4); die Rückfrage liest nur
+ * seine Angaben (`placed_by_hand`, `documents`, `unsaved`).
+ */
+import { useId, useState } from 'react';
+import { useApp } from '../../app/context';
+import type { ParkedWorkView } from '../../core/types';
+import type { Translator } from '../../i18n/catalog';
+import { Button } from '../../ui/controls';
+import { ConfirmDialog } from '../../ui/Dialog';
+import { IconFileText, IconLayers } from '../../ui/Icons';
+
+/** Titel der Karte: Dokumentname bzw. „Stapel · n Dokumente“. */
+function parkedTitle(t: Translator, parked: ParkedWorkView): string {
+  return parked.doc_name ?? t.t('ng-ui-start-parked-batch', { n: parked.documents });
+}
+
+export function ParkedCard({ parked }: { parked: ParkedWorkView }) {
+  const { t, dispatch } = useApp();
+  const [asking, setAsking] = useState(false);
+  const titleId = useId();
+  const batch = parked.doc_name === null;
+  // „Schließen“ verwirft Arbeit der Nutzerin → kurze Rückfrage; sonst geht nichts verloren
+  const confirm = parked.placed_by_hand || parked.documents > 1 || parked.unsaved;
+  const hint = parked.unsaved
+    ? 'ng-ui-start-parked-hint-unsaved'
+    : batch
+      ? 'ng-ui-start-parked-hint-batch'
+      : parked.placed_by_hand
+        ? 'ng-ui-start-parked-hint-placed'
+        : 'ng-ui-start-parked-hint';
+  const name = parked.doc_name ?? '';
+  const closeText = parked.unsaved ? 'ng-ui-start-parked-close-text-unsaved' : batch ? 'ng-ui-start-parked-close-text-batch' : 'ng-ui-start-parked-close-text';
+  const discard = () => void dispatch({ type: 'discard_parked' });
+
+  return (
+    <section className="side-card parked-card" aria-label={t.t('ng-ui-start-parked-label')} data-testid="parked-card">
+      <span className="parked-icon" aria-hidden="true">
+        {batch ? <IconLayers size={22} /> : <IconFileText size={22} />}
+      </span>
+      <div className="parked-text">
+        <p className="parked-label">{t.t('ng-ui-start-parked-label')}</p>
+        <h2 className="side-title parked-title" id={titleId}>
+          {parkedTitle(t, parked)}
+        </h2>
+        <p className="muted parked-hint">{t.t(hint)}</p>
+      </div>
+      <div className="parked-actions">
+        <Button variant="primary" onPress={() => void dispatch({ type: 'resume_parked' })} aria-describedby={titleId}>
+          {t.t('ng-ui-start-parked-resume')}
+        </Button>
+        <Button variant="ghost" size="sm" onPress={() => (confirm ? setAsking(true) : discard())} aria-describedby={titleId}>
+          {t.t('ng-ui-start-parked-close')}
+        </Button>
+      </div>
+      {asking ? (
+        <ConfirmDialog
+          title={t.t('ng-ui-start-parked-close-title')}
+          tone="warning"
+          onCancel={() => setAsking(false)}
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                onPress={() => {
+                  setAsking(false);
+                  discard();
+                }}
+              >
+                {t.t('ng-ui-start-parked-close-confirm')}
+              </Button>
+              {/* Standardknopf: „Abbrechen“ (Fokus, Eingabe) – Escape bricht ebenfalls ab */}
+              <Button variant="primary" onPress={() => setAsking(false)} autoFocus>
+                {t.t('common-Cancel')}
+              </Button>
+            </>
+          }
+        >
+          <p>{t.t(closeText, { name })}</p>
+        </ConfirmDialog>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * Rückfrage, wenn bei geparkter Arbeit neue PDFs gewählt bzw. abgelegt werden: Standard „Zum Stapel hinzufügen“,
+ * „Offene schließen und neu beginnen“, Abbrechen (auch Escape) ändert nichts.
+ */
+export function ParkedJoinDialog({ parked, paths, onClose }: { parked: ParkedWorkView; paths: string[]; onClose: () => void }) {
+  const { t, dispatch } = useApp();
+  const open = (mode: 'add' | 'replace') => {
+    onClose();
+    void dispatch({ type: 'open_files', paths, mode });
+  };
+  const text =
+    parked.doc_name === null
+      ? t.t('ng-ui-start-join-text-batch', { count: paths.length })
+      : t.t('ng-ui-start-join-text', { name: parked.doc_name, count: paths.length });
+  return (
+    <ConfirmDialog
+      title={t.t('ng-ui-start-join-title')}
+      tone="info"
+      onCancel={onClose}
+      actions={
+        <>
+          <Button variant="ghost" onPress={onClose}>
+            {t.t('common-Cancel')}
+          </Button>
+          <Button variant="secondary" onPress={() => open('replace')}>
+            {t.t('ng-ui-start-join-replace')}
+          </Button>
+          {/* Standardknopf (Fokus, Eingabe): die neuen Dokumente kommen zur offenen Arbeit */}
+          <Button variant="primary" onPress={() => open('add')} autoFocus>
+            {t.t('ng-ui-start-join-add')}
+          </Button>
+        </>
+      }
+    >
+      <p>{text}</p>
+    </ConfirmDialog>
+  );
+}

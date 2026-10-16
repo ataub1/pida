@@ -486,6 +486,8 @@ const viewState = obj({
   recent: nullable(arr(obj({ id: int, file_name: str, folder_display: nullable(str), signed_at: str, exists: bool }))),
   first_run: nullable(firstRun),
   actions,
+  // Nachtrag 10: geparkte Arbeit („Zur Startseite“) – in TS optional, vom Kern immer geliefert
+  parked: optional(obj({ doc_name: nullable(str), documents: int, placed_by_hand: bool, unsaved: bool })),
 });
 
 const formAnswer = tagged('kind', {
@@ -564,6 +566,10 @@ const uiEvent = tagged('type', {
   // Nachtrag 8 (Einstellung „Automatische Positionierung“)
   unlock_placement: {},
   set_batch_auto_position: { enabled: bool, replace_manual: bool },
+  // Nachtrag 10: „Zur Startseite“ parkt offene Arbeit
+  go_home: {},
+  resume_parked: {},
+  discard_parked: {},
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -649,6 +655,9 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     expect(sorted(docs.map((d) => (d.detection ? String(d.detection.auto_placed) : null)))).toEqual(['false', 'true']);
     expect(views.some((v) => Object.keys(v.settings?.locked ?? {}).length > 0)).toBe(true);
     expect(views.some((v) => v.settings !== null && v.settings.locked === null)).toBe(true);
+    // Nachtrag 10: geparkte Arbeit (Einzeldokument von Hand platziert, Stapel)
+    expect(sorted(views.map((v) => (v.parked ? (v.parked.doc_name ?? 'stapel') : null)))).toEqual(['Vertrag.pdf', 'stapel']);
+    expect(views.some((v) => v.parked?.placed_by_hand === true)).toBe(true);
   });
 
   it('defaultSettings() entspricht Settings::default() aus Rust (Mock-Kern, Tests, Zurücksetzen)', () => {
@@ -703,6 +712,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
           settings: true,
           home: true,
         },
+        parked: null,
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);

@@ -139,4 +139,8 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   // Nachtrag 9: „+ PDF“ – „Weitere PDFs hinzufügen“, „Anderes PDF öffnen“
   { type: 'open_files', paths: ['/Users/demo/Angebot.pdf', '/Users/demo/Auftrag.pdf'], mode: 'add' },
   { type: 'open_files', paths: ['/Users/demo/Vertrag.pdf'], mode: 'replace' },
+  // Nachtrag 10: „Zur Startseite“ parkt offene Arbeit – „Weiter bearbeiten“, „Schließen“
+  { type: 'go_home' },
+  { type: 'resume_parked' },
+  { type: 'discard_parked' },
 ];

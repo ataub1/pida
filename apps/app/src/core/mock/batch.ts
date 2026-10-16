@@ -198,6 +198,12 @@ export class MockBatch {
     this.preanalyzeNext();
   }
 
+  /** Einzeln signiertes Dokument als „Signiert“ übernehmen (`ShowBatch` bzw. „Zur Startseite“ aus „Fertig“). */
+  addSigned(doc: MockDoc, path: string): void {
+    this.entries.push({ doc, status: { state: 'signed', path }, before: null, plan: null, autoPlan: false, analyzed: true });
+    this.written.push(path);
+  }
+
   /** Aktuelles Dokument aus dem Arbeitsbereich übernehmen (`ShowBatch`: Platzierung als Plan). */
   addEdited(doc: MockDoc, plan: BatchPlan | null, automatic = false): void {
     this.entries.push({ doc, status: { state: 'positioned' }, before: null, plan, autoPlan: automatic, analyzed: true });

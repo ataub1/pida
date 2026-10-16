@@ -14,8 +14,12 @@
 //! hinzu (Modul `batch_run`): ab zwei Dokumenten die Übersicht statt „ein Dokument nach dem anderen“, ein
 //! Lauf mit **einer** Sitzung (`Effect::OpenSession` nur nach `BatchStarted` bzw. „Erneut versuchen“ einer
 //! Sitzungspause), ein aus der Übersicht geöffnetes Dokument kehrt dorthin zurück.
+//!
+//! „Zur Startseite“ ([`Event::WentHome`], ADR 0004 Nachtrag 10, Modul `parked`) parkt offene Arbeit statt sie zu
+//! verwerfen; geparkte Arbeit ist verdeckt und öffnet nie eine Sitzung.
 
 mod batch_run;
+mod parked;
 
 use pida_backend_api::{BackendId, ErrorScope};
 use pida_pades::AcceptanceClass;
@@ -46,7 +50,24 @@ pub fn grown_reserve(needed: usize, reserve: usize) -> usize {
 }
 
 /// Reiner Reducer.
+///
+/// Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10, [`State::parked`]) behandelt das Modul `parked`:
+/// nur Fortsetzen, Verwerfen, neue Dateien, Beenden und Ergebnisse von Effekten bzw. geänderte Einstellungen
+/// wirken – alles andere betrifft die verdeckte Arbeit und bleibt ohne Wirkung (F-54).
 pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
+    if state.parked() {
+        return parked::reduce(state, event, ctx);
+    }
+    match event {
+        Event::WentHome => parked::went_home(state, ctx),
+        // ohne geparkte Arbeit ohne Wirkung
+        Event::ParkedResumed | Event::ParkedDiscarded => Transition::stay(state),
+        event => active(state, event, ctx),
+    }
+}
+
+/// Reducer ohne geparkte Arbeit (bzw. für die an geparkte Arbeit weitergereichten Ereignisse).
+fn active(state: State, event: Event, ctx: &Context) -> Transition {
     // Ereignisse, die in jedem Zustand gleich behandelt werden
     match event {
         Event::Quit => return quit(state),

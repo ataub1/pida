@@ -220,3 +220,59 @@
     font-size: var(--fs-30);
   }
 }
+
+/* ------------------------------------------------------------ In Bearbeitung (ADR 0004 Nachtrag 10) */
+/* Karte der geparkten Arbeit im Stil der Seitenkarten, quer über der Ablagefläche */
+.parked-card {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  justify-items: stretch;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+  box-shadow: var(--shadow-1);
+}
+.parked-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-4);
+  background: var(--c-accent-soft);
+  color: var(--c-accent-on-soft);
+}
+.parked-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.parked-label {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-text-3);
+}
+.parked-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.parked-hint {
+  font-size: var(--fs-13);
+}
+.parked-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+@media (max-width: 640px) {
+  .parked-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .parked-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}

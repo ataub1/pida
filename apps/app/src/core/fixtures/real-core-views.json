@@ -179,6 +179,7 @@
         "params": {}
       }
     ],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -430,6 +431,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -675,6 +677,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -926,6 +929,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1187,6 +1191,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1420,6 +1425,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1680,6 +1686,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1988,6 +1995,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -2082,6 +2090,143 @@
         "y": 198.0
       },
       "step": "position"
+    },
+    "verify": null
+  },
+  "doc_parked": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": {
+      "doc_name": "Vertrag.pdf",
+      "documents": 1,
+      "placed_by_hand": false,
+      "unsaved": false
+    },
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": "test-rsa2048.p12",
+          "available": true,
+          "backend": "keystore",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": null,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": false,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": {
+              "Digest": {
+                "algs": [
+                  "Sha256",
+                  "Sha512"
+                ]
+              }
+            },
+            "interaction": "Secret",
+            "login_once_per_batch": true,
+            "max_batch": 65535,
+            "output": "RawSignature",
+            "qualification": "AdES",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
     },
     "verify": null
   },
@@ -2268,6 +2413,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -2535,6 +2681,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -2805,6 +2952,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3072,6 +3220,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3358,6 +3507,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3650,6 +3800,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3939,6 +4090,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -4277,6 +4429,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"

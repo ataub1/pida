@@ -172,8 +172,9 @@ describe('Kopfzeile und Kürzel', () => {
     expect(lastEvent(mock)).toEqual({ type: 'set_ui_language', language: 'en' });
     await user.click(within(header).getByRole('button', { name: 'Einstellungen' }));
     expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
+    // „Zur Startseite“ parkt offene Arbeit (Nachtrag 10)
     await user.click(within(header).getByRole('button', { name: 'PIDA – Startseite' }));
-    expect(lastEvent(mock)).toEqual({ type: 'navigate', step: 'Open' });
+    expect(lastEvent(mock)).toEqual({ type: 'go_home' });
     await expectNoAxeViolations();
   });
 

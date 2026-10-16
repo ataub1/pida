@@ -24,12 +24,12 @@ use pida_core_api::{
     DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView,
     ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis,
     GuideKind, GuideView, InteractionView, KeystoreEntryView, KeystoreFormatView, KeystoreImportView, MainBarView,
-    MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, PauseScope,
-    PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView, PositionSummaryView,
-    PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView, RectPt, ResumeOfferView,
-    SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView,
-    SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent, VerifiedSignatureView,
-    VerifyStatus, VerifySummaryView, VerifyView, ViewState,
+    MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, ParkedWorkView,
+    PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView,
+    PositionSummaryView, PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView,
+    RectPt, ResumeOfferView, SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity,
+    SignedSummaryView, SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent,
+    VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView, ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -68,6 +68,7 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         recent: None,
         first_run: None,
         actions: ActionsView::default(),
+        parked: None,
     }
 }
 
@@ -1290,6 +1291,20 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     let mut recent_empty = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
     recent_empty.recent = Some(Vec::new());
     out.push(("ws_recent_empty", recent_empty));
+    // geparkte Arbeit (ADR 0004 Nachtrag 10): Startansicht mit Karte „In Bearbeitung“
+    let mut parked = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    parked.actions = ActionsView { show_batch: false, ..ws_actions(false) };
+    parked.parked = Some(ParkedWorkView {
+        doc_name: Some("Vertrag.pdf".into()),
+        documents: 1,
+        placed_by_hand: true,
+        unsaved: false,
+    });
+    out.push(("ws_start_parked", parked));
+    let mut parked_batch = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    parked_batch.actions = ActionsView { show_batch: false, ..ws_actions(false) };
+    parked_batch.parked = Some(ParkedWorkView { doc_name: None, documents: 4, placed_by_hand: false, unsaved: false });
+    out.push(("ws_start_parked_batch", parked_batch));
 
     let offer = MigrationOfferView {
         legacy_file: PathBuf::from("/Users/demo/.pdf-over/PDF-Over.config"),
@@ -1425,7 +1440,7 @@ fn typescript_events_deserialize_into_ui_event() {
 
 /// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
 /// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
-const UI_EVENT_VARIANTS: usize = 63;
+const UI_EVENT_VARIANTS: usize = 66;
 
 /// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
 /// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).

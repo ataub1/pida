@@ -481,5 +481,14 @@
       "/Users/demo/Vertrag.pdf"
     ],
     "mode": "replace"
+  },
+  {
+    "type": "go_home"
+  },
+  {
+    "type": "resume_parked"
+  },
+  {
+    "type": "discard_parked"
   }
 ]

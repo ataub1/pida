@@ -120,6 +120,12 @@
 //! öffnen“) schließt das offene Dokument und öffnet die Dateien wie in der Dokumentauswahl. Ohne `mode` wie
 //! bisher. Keines öffnet eine Sitzung (A1).
 //!
+//! „Zur Startseite“ (ADR 0004 Nachtrag 10, nur im Arbeitsbereich-Modus): `go_home` parkt das offene Dokument bzw.
+//! den Stapel (Reducer, `Queue::parked`) statt es zu verwerfen; die Projektion zeigt dann die Dokumentauswahl mit
+//! [`ViewState::parked`] (`parked.rs`). `resume_parked` setzt unverändert fort, `discard_parked` verwirft; neue Dateien
+//! kommen mit `mode: add` bzw. ohne `mode` („Öffnen mit“, Hinweis) zum Stapel, `mode: replace` beginnt neu. Nichts
+//! davon öffnet eine Sitzung (A1).
+//!
 //! Prüfmodus (K4, ADR 0004 §3.9, `verify.rs`): `open_verify`/`verify_recent` prüfen eine Datei mit
 //! `pades::verify_document` (eigene `DocId` für die Kacheln, nicht in der Warteschlange, der Zustand bleibt),
 //! `close_verify` gibt sie frei, `sign_verified` öffnet sie wie `open_files`. Ersteinrichtung (K4, §3.12,
@@ -142,6 +148,7 @@ mod first_run;
 mod keystore_info;
 pub mod logging;
 pub mod messages;
+mod parked;
 pub mod plan;
 mod recent;
 mod resume;
@@ -180,6 +187,8 @@ pub use view::{
 pub use view::{DocumentDetectionView, PdfaDecision, PdfaIdView};
 // Nachtrag 9 („PDF hinzufügen“)
 pub use view::OpenFilesMode;
+// Nachtrag 10 („Zur Startseite“ parkt offene Arbeit)
+pub use view::ParkedWorkView;
 
 use pida_backend_api::{Platform, SignatureBackend};
 use pida_config::{Overlay, Paths, Policy, SecretStore};
@@ -408,6 +417,7 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         recent: None,
         first_run: None,
         actions: actions::actions_for(&pida_workflow::State::Starting, false),
+        parked: None,
     }
 }
 

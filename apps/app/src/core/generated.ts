@@ -1380,7 +1380,13 @@ first_run: FirstRunView | null,
 /**
  * Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (ADR 0004 §3.13), aus dem Zustand berechnet
  */
-actions: ActionsView, };
+actions: ActionsView, 
+/**
+ * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): gesetzt, solange die Startansicht ein offenes
+ * Dokument bzw. einen Stapel verdeckt (Karte „In Bearbeitung“); dann sind `document` und `batch` `None`.
+ * Additiv, in TypeScript optional; der Kern liefert es immer (`None` ohne geparkte Arbeit).
+ */
+parked?: ParkedWorkView | null, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1643,7 +1649,7 @@ enabled: boolean,
 /**
  * von Hand platzierte Einträge ebenfalls automatisch platzieren
  */
-replace_manual: boolean, };
+replace_manual: boolean, } | { "type": "go_home" } | { "type": "resume_parked" } | { "type": "discard_parked" };
 
 /**
  * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).
@@ -2728,6 +2734,30 @@ verify: boolean,
  */
 settings: boolean, 
 /**
- * `navigate{Open}` erlaubt (Startansicht)
+ * „Zur Startseite“ (`go_home`; Fertig: `navigate{Open}`) erlaubt
  */
 home: boolean, };
+
+/**
+ * Geparkte Arbeit (ADR 0004 Nachtrag 10): Karte „In Bearbeitung“ der Startansicht mit „Weiter bearbeiten“
+ * (`resume_parked`) und „Schließen“ (`discard_parked`).
+ */
+export type ParkedWorkView = { 
+/**
+ * Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“)
+ */
+doc_name: string | null, 
+/**
+ * offene Dokumente (Einträge des Stapels bzw. das Dokument samt wartenden)
+ */
+documents: number, 
+/**
+ * Signatur bzw. Stapeleinträge von Hand platziert (`DocumentDetectionView::auto_placed == false` bzw.
+ * `BatchView::manual_plans > 0`): „Schließen“ fragt vorher nach
+ */
+placed_by_hand: boolean, 
+/**
+ * signiert, aber noch nicht gespeichert („Fertig“ mit „Speichern“): „Schließen“ verwirft die Signatur und fragt
+ * vorher nach
+ */
+unsaved: boolean, };

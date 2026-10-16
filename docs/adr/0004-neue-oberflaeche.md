@@ -2550,3 +2550,92 @@ Event::DocumentReplaced(Vec<InputDocument>)        // mode: replace
 (kein eigenes Vertragsfeld); „Unsichtbar signieren“ allein gilt dabei nicht als eigene Platzierung. Der Knopf „Zurück
 zum Stapel“ trägt kein `aria-keyshortcuts` (React Aria gibt das Attribut an `Button` nicht weiter); das Kürzel nennen
 Palette und Kürzelübersicht.
+
+### Nachtrag 10 (16.10.2026): „Zur Startseite“ parkt offene Arbeit – Karte „In Bearbeitung“
+
+Wunsch des Auftraggebers: Beim Wechsel zur Startseite darf offene Arbeit nicht verloren gehen. Bisher sandte „Zur
+Startseite“ (Haus-Symbol, Wortmarke, Palette) `navigate{Open}` und verwarf Dokument, Platzierung und Stapel; die
+Kopfzeile fragte deshalb bei Stapel bzw. eigener Platzierung nach. Jetzt **parkt** der Kern die Arbeit; die Rückfrage
+in der Kopfzeile entfällt. Vertrag, additiv nach §3.0 Regel 2 (in TypeScript optional bzw. neue Varianten am Ende):
+
+```rust
+pub struct ViewState {
+    // … wie §3.1 und Nachträge
+    /// geparkte Arbeit; dann `document = None`, `batch = None`, Schritt `open`
+    #[serde(default)] #[ts(optional = nullable)] pub parked: Option<ParkedWorkView>,
+}
+pub struct ParkedWorkView {                // Debug ohne Dokumentname (Regel 4)
+    pub doc_name: Option<String>,          // None = Stapel („Stapel · n Dokumente“)
+    pub documents: u32,                    // Einträge des Stapels bzw. Dokument samt wartenden
+    pub placed_by_hand: bool,              // !WorkspaceEdit::automatic bzw. BatchView::manual_plans > 0
+    pub unsaved: bool,                     // „Fertig“ signiert, nicht gespeichert
+}
+pub enum UiEvent { /* … */ GoHome, ResumeParked, DiscardParked }   // "go_home" | "resume_parked" | "discard_parked"
+// pida_workflow (intern): Queue::parked (bool, serde default), State::parked(),
+// Event::{WentHome, ParkedResumed, ParkedDiscarded} (am Ende), MSG_PARKED_FILES_ADDED = "ng-parked-files-added"
+```
+
+1. **Parken** (`go_home` → `Event::WentHome`, Reducer-Modul `reducer/parked.rs`; nur im Arbeitsbereich-Modus mit
+   Oberfläche, sonst wie `Navigate(Open)`): Arbeitsbereich (`Positioning` mit Bearbeitungszustand, auch ein aus der
+   Übersicht geöffneter Eintrag mit „Zurück zum Stapel“), Analysewarnung, Stapelübersicht und „Fertig“ ohne Speichern
+   (`Output { saved: None, decision: None }`) werden unverändert geparkt (`Queue::parked = true`, keine Effekte, nichts
+   freigegeben). „Fertig“ gespeichert mit wartenden Dokumenten (Stapelübersicht): wie „Zum Stapel“, die Übersicht mit
+   dem signierten Eintrag wird geparkt; ein Stapeleintrag, der gerade lädt, kehrt zur Übersicht zurück (Eintrag
+   unverändert), die geparkt wird. Signieren, Stapellauf, Fehlerschritt, Start, Ende und die Startansicht selbst: ohne
+   Wirkung (die Oberfläche sperrt „Zur Startseite“ dort wie bisher, `actions.home`). Sonst wie bisher `Navigate(Open)`
+   (Laden eines Einzeldokuments, „Signatur fortsetzen“, Signiermittel-Auswahl, „Fertig“ gespeichert ohne wartende).
+   `go_home` schließt zuerst einen offenen Prüfmodus.
+2. **Geparkt** projiziert core-api die Startansicht: Schritt `open` (leere Warteschlange), Hauptleiste und Freigaben wie
+   in der Dokumentauswahl (`open_files`, `verify`, `settings`, `home`; kein `sign`, `edit_placement`, `start_batch`,
+   `show_batch`), `document = None`, `batch = None`, dazu `parked`. Der Reducer lässt alles, was die verdeckte Arbeit
+   bedient (Signieren, Platzieren, Seiten, Ziel, Stapel starten/öffnen/entfernen, Abbrechen, Wiederholen, Speichern,
+   `Navigate`), ohne Wirkung (F-54); core-api ignoriert `sign_with`, `start_batch`, `confirm_position`,
+   `choose_invisible`, `choose_backend`, `move_block`, `nudge_block` schon vorher. Weiter wirken Ergebnisse der von der
+   Arbeit angeforderten Effekte und geänderte Einstellungen („sofort wirksam“): `SettingsChanged`, `Preanalyzed`
+   (Voranalyse des Stapels läuft weiter), `AutoPlaced`, `BlockResized`, `PlaceholderSearched`, `PreviewUnavailable`,
+   `Saved`/`SaveFailed`/`BatchOutputDecided` (Schreiben nach „Stapel abbrechen“), Lebenszyklus – aber nur, wenn die
+   Arbeit danach geparkt bleiben kann, sonst ohne Wirkung. `Quit` beendet wie bisher. Der Prüfmodus ist bei geparkter
+   Arbeit wie in der Dokumentauswahl erlaubt; das Angebot „Signatur fortsetzen“ erscheint erst nach dem Verwerfen.
+3. **Fortsetzen** (`resume_parked` → `ParkedResumed`): Zustand unverändert wie vor dem Parken (Platzierung, Plan,
+   Sperre, Stapel samt Voranalyse und „Für diesen Stapel automatisch positionieren“). **Verwerfen** (`discard_parked` →
+   `ParkedDiscarded`): wie „Öffnen“ (`discard_all`: Dokumente freigeben, in der Ergebnisliste „abgebrochen“, Stapel
+   entfällt; bereits signierte Ergebnisse bleiben).
+4. **Neue Dateien bei geparkter Arbeit:** `open_files { mode: add }` („Zum Stapel hinzufügen“) setzt fort und fügt
+   hinzu – Arbeitsbereich wie „Weitere PDFs hinzufügen“ (alle zusammen zum Stapel, die Platzierung des geparkten
+   Dokuments bleibt dessen Plan), Übersicht mit neuen Einträgen, Analysewarnung als Eintrag der Übersicht („Bitte prüfen“
+   nach der Voranalyse; aus der Übersicht geöffnet: zurück, Eintrag unverändert); nur Duplikate → fortgesetzt,
+   unverändert. `open_files { mode: replace }` („Offene schließen und neu beginnen“) verwirft wie 3. und öffnet die
+   Dateien wie in der Dokumentauswahl. `open_files` ohne `mode` („Öffnen mit“, zweite Instanz, „Dieses Dokument
+   signieren“ im Prüfmodus) wie `add` **ohne Rückfrage** mit Hinweis `ng-parked-files-added` (`$count`, neue
+   Meldungs-ID in `pida.ftl`; entfällt, wenn schon `ng-batch-added` erscheint). Ohne Stapelübersicht kommen neue Dateien
+   an die Warteschlange.
+5. **A1/F-54:** Parken, Fortsetzen und Verwerfen öffnen nie eine Sitzung, geparkte Arbeit wird nie vorbereitet oder
+   signiert. Property-Test `workspace_session_only_after_explicit_action` erzeugt `WentHome`, `ParkedResumed` und
+   `ParkedDiscarded` und prüft zusätzlich: bei geparkter Arbeit kein `OpenSession`/`Prepare`/`Sign*`, verdecktes
+   `SignRequested`/`BatchStarted`/`PlacementChanged`/`Cancel` ohne Wirkung, geparkt ist nur ruhende Arbeit;
+   `batch_run_invariants` prüft, dass Parken und Fortsetzen Stapel und Lauf nicht verändern. Tabellentests
+   `crates/workflow/tests/parked.rs` (16), echter Kern `crates/core-api/tests/batch.rs`
+   (`home_parks_the_document_and_resume_brings_it_back_unchanged`, `files_while_parked_join_the_batch_or_replace_it`,
+   `parked_batch_keeps_preanalysing_and_signs_only_after_resume`). Unverändert: „Fertig“ → „Nächstes Dokument“ und
+   „Neuer Stapel“ (`navigate{Open}`), Stapel-Abbruch, CLI und Startargument-Automatik D-06.
+6. **Oberfläche (UI-A):** Haus-Symbol und Wortmarke senden ohne Rückfrage `go_home` (`goHome`, wie bisher nach
+   `close_verify` im Prüfmodus); die Texte `ng-ui-shell-home-confirm-*` entfallen. Startansicht: oben (nach Titel und
+   Einleitung) die Karte „In Bearbeitung“ (`features/start/ParkedCard.tsx`, Stil der Seitenkarten) mit Dokumentname bzw.
+   „Stapel · n Dokumente“, Hinweis, „Weiter bearbeiten“ (`resume_parked`) und kleinem „Schließen“ (`discard_parked`);
+   bei `placed_by_hand`, `documents > 1` bzw. `unsaved` vorher `alertdialog` „Offene Arbeit schließen?“ (Standardknopf
+   „Abbrechen“, Escape bricht ab). PDF wählen (Knopf, ⌘/Strg+O, Palette) bzw. auf die Startseite ziehen bei geparkter
+   Arbeit: `alertdialog` „Zur offenen Arbeit hinzufügen?“ (`ParkedJoinDialog`, Shell) mit Standardknopf „Zum Stapel
+   hinzufügen“ (`mode: add`), „Offene schließen und neu beginnen“ (`mode: replace`) und „Abbrechen“ (auch Escape: nichts
+   geschieht). Texte `ng-ui-start-parked-*`, `ng-ui-start-join-*` (`ui-workspace.ftl`); die Suchbegriffe von „Zur
+   Startseite“ nennen kein „schließen“ mehr.
+7. **Proben und Mock:** `view-states.json` mit `ws_start_parked`, `ws_start_parked_batch`; `real-core-views.json` mit
+   `doc_parked`, `real-core-batch-views.json` mit `batch_parked` (`RealCore*.test.tsx` rendern sie); `ui-events.json`
+   mit den drei Ereignissen. Der Mock folgt dem Kern (`core/mock/index.ts`: `goHome`, `joinParked`, `discardParked`,
+   `parkedView`; Prüfmodus schließt bei `go_home`).
+
+**Angenommene Abweichungen:** Geparkt wird über ein Flag der Warteschlange (`Queue::parked`) statt über einen eigenen
+Zustand – der Zustand bleibt, wie er war, damit Ergebnisse laufender Effekte (Voranalyse, automatische Platzierung)
+nicht verloren gehen; core-api projiziert ihn als Dokumentauswahl. Zusätzlich zum Auftragstext geparkt werden
+Analysewarnung und „Fertig“ ohne Speichern (`ParkedWorkView::unsaved`, damit „Schließen“ die nicht gespeicherte
+Signatur nicht ohne Rückfrage verwirft). Ob „Schließen“ nachfragt, entscheidet die Oberfläche an den Angaben des Kerns
+(wie Nachtrag 9). Das Parken übersteht keinen Neustart der App (nicht persistiert).

@@ -10,7 +10,8 @@
  * (Öffnen), ⌘/Strg+↵ (Signieren – eine ausdrückliche Aktion, A1), ⌘/Strg+B (Zum Stapel bzw. Zurück zum Stapel),
  * ⌘/Strg+, (Einstellungen), ⌘/Strg+K und „?“ (sobald die Palette da ist), Zugriffstasten (Alt+Taste bzw. ⌃⌥+Taste),
  * Farbschema, Fokus beim Ansichtswechsel. Der Kern bleibt maßgeblich: Freigaben kommen aus
- * `ViewState::actions`.
+ * `ViewState::actions`. Bei geparkter Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10) fragen gewählte bzw.
+ * abgelegte PDFs erst nach, ob sie zum Stapel kommen (`ParkedJoinDialog`).
  *
  * Der Kern läuft in der App immer im Arbeitsbereich-Modus (`workspace_ui`, ADR 0004 §3.14): `StepView::Position`
  * kommt dort nur mit `document`, `StepView::Placeholder` gar nicht. Die bisherigen Bildschirme (`screens/`) sind
@@ -27,7 +28,7 @@ import { Onboarding } from '../features/onboarding';
 import { CommandPalette, PALETTE_AVAILABLE, ShortcutsDialog } from '../features/palette';
 import { SettingsPanel } from '../features/settings';
 import { cardMode, errorInCard, SigningCard } from '../features/signing';
-import { StartView } from '../features/start';
+import { ParkedJoinDialog, StartView } from '../features/start';
 import { VERIFY_AVAILABLE, VerifyView } from '../features/verify';
 import { ErrorCard, FinishedCard, LoadingCard, StartingCard, WarningCard, Workspace } from '../features/workspace';
 import { translator } from '../i18n/catalog';
@@ -201,12 +202,24 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   );
 
   // --- Dateien öffnen --------------------------------------------------------------------------
+  // Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): neue PDFs aus der Dateiauswahl bzw. abgelegte fragen
+  // vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`); „Öffnen mit“ und zweite Instanz entscheidet der Kern
+  const [joinPaths, setJoinPaths] = useState<string[] | null>(null);
+  const parkedRef = useRef(current.parked ?? null);
+  parkedRef.current = current.parked ?? null;
+  useEffect(() => {
+    if (!current.parked) setJoinPaths(null);
+  }, [current.parked]);
+
   // `mode` aus „+ PDF“ (ADR 0004 Nachtrag 9): „Anderes PDF öffnen“ wählt eine Datei, sonst Mehrfachauswahl;
   // was daraus folgt (Stapel, Schließen), entscheidet der Kern
   const browse = useCallback(
     async (mode?: OpenFilesMode) => {
       const multiple = mode !== 'replace';
-      const open = (paths: string[]) => void dispatch(mode ? { type: 'open_files', paths, mode } : { type: 'open_files', paths });
+      const open = (paths: string[]) => {
+        if (!mode && parkedRef.current) setJoinPaths(paths);
+        else void dispatch(mode ? { type: 'open_files', paths, mode } : { type: 'open_files', paths });
+      };
       if (mobile) {
         // Mobile: Dokument-Picker bzw. SAF über das Plugin; Kopien in der Sandbox (keine Pfade der Quelle)
         try {
@@ -282,8 +295,10 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       // auf „+ PDF hinzufügen“ der Miniaturleiste: wie „Weitere PDFs hinzufügen“ (Nachtrag 9)
       const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(e.x, e.y) : null;
       const add = !!hit?.closest('[data-add-drop]');
-      if (v.actions.open_files) void d(add ? { type: 'open_files', paths: e.paths, mode: 'add' } : { type: 'open_files', paths: e.paths });
-      else tst(translator(v.language).t('ng-ui-drop-not-here'));
+      if (!v.actions.open_files) tst(translator(v.language).t('ng-ui-drop-not-here'));
+      // auf die Startseite mit geparkter Arbeit: erst fragen (Nachtrag 10)
+      else if (!add && v.parked) setJoinPaths(e.paths);
+      else void d(add ? { type: 'open_files', paths: e.paths, mode: 'add' } : { type: 'open_files', paths: e.paths });
     });
   }, [bridge]);
 
@@ -437,6 +452,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           {current.settings ? <SettingsPanel settingsView={current.settings} section={section} /> : null}
           {(current.migration || current.first_run) && !current.settings ? <Onboarding migration={current.migration} firstRun={current.first_run} /> : null}
           {current.resume && !current.settings && !current.migration ? <ResumeDialog offer={current.resume} /> : null}
+          {joinPaths && current.parked ? <ParkedJoinDialog parked={current.parked} paths={joinPaths} onClose={() => setJoinPaths(null)} /> : null}
           <CommandPalette isOpen={overlay === 'palette'} onClose={() => setOverlay(null)} commands={commands} />
           <ShortcutsDialog isOpen={overlay === 'shortcuts'} onClose={() => setOverlay(null)} commands={commands} shortcuts={buildShortcuts(t, isMac)} />
           <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />

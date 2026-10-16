@@ -71,6 +71,7 @@
 //! | gespeichert mit wartenden Dokumenten | kein F-88: „Fertig“ mit „Nächstes Dokument“ (außer `cli_auto`) |
 //! | Hauptleiste Positionieren/Signieren | ohne Wirkung |
 //! | Einstellung „Automatische Positionierung“ (`auto_position`, Nachtrag 8) | nach der Analyse und bei geänderten Einstellungen [`WorkspaceEdit::follow_auto_position`]: automatisch platziert und gesperrt ([`PlacementLock::Locked`]) – [`Event::PlacementChanged`], [`Event::PageChanged`] und [`Event::TargetChosen`] bleiben ohne Wirkung, „Unsichtbar“, „Auf neuer Seite“ und „Signieren mit“ wirken; [`Event::PlacementUnlocked`] („Diesmal selbst platzieren“) hebt die Sperre für dieses Dokument auf; nie aus der Stapelübersicht geöffnet; signiert nie selbst (A1) |
+//! | [`Event::WentHome`] („Zur Startseite“, Nachtrag 10) | Arbeitsbereich, Analysewarnung, Stapelübersicht und „Fertig“ ohne Speichern werden geparkt ([`Queue::parked`], Zustand unverändert); geparkte Arbeit ist nicht bedienbar (F-54), Ergebnisse von Effekten und Einstellungen wirken weiter; [`Event::ParkedResumed`] setzt unverändert fort, [`Event::ParkedDiscarded`] verwirft wie „Öffnen“; neue Dateien kommen zum Stapel (`MoreFilesAdded`, `FilesAdded` mit Hinweis [`MSG_PARKED_FILES_ADDED`]) bzw. ersetzen (`DocumentReplaced`); beim Signieren, im Lauf und im Fehler ohne Wirkung |
 //! | [`Event::DocumentReplaced`] („Anderes PDF öffnen“, Nachtrag 9) | in `AnalysisWarning`/`Positioning`: Dokument verwerfen ([`Effect::Discard`], Ergebnis „abgebrochen“ bzw. aus dem Stapel entfernt), dann wie [`Event::FilesAdded`] in der Dokumentauswahl (wartende Dokumente bleiben; aus der Stapelübersicht geöffnet: zurück zur Übersicht mit den neuen Einträgen); sonst wie `FilesAdded`; startet nichts (A1) |
 //!
 //! Invariante **A1** (Property-Test `workspace_session_only_after_explicit_action`): `Effect::OpenSession`
@@ -120,8 +121,8 @@ pub use state::{
     MSG_BATCH_OUTPUT_FOLDER_REQUIRED, MSG_BATCH_PENDING_APP_REQUEST, MSG_CERT_CACHE_MISMATCH, MSG_CMS_TOO_LARGE,
     MSG_CONSTRAINT_CERTIFIED, MSG_CONSTRAINT_INVISIBLE_PROFILE, MSG_CONSTRAINT_SIGNED, MSG_DEFAULT_BACKEND_UNAVAILABLE,
     MSG_DOCUMENT_LEAVES_DEVICE, MSG_FIELD_LOCKED, MSG_INITIALIZATION, MSG_INVARIANT, MSG_NO_BACKEND,
-    MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED, MSG_SIGNER_UNAVAILABLE,
-    MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, MSG_UNEXPECTED, MainBarStep, ParkedPlacement, PlaceholderAnswer,
-    PlaceholderFound, PlacementLock, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase,
-    State, Step, Target, Transition, WorkflowError, WorkspaceEdit, backend_for_choice,
+    MSG_PARKED_FILES_ADDED, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SAVE_FAILED,
+    MSG_SIGNER_UNAVAILABLE, MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, MSG_UNEXPECTED, MainBarStep, ParkedPlacement,
+    PlaceholderAnswer, PlaceholderFound, PlacementLock, PlacementOrigin, PositionChoice, ResumePlan, RetryTarget,
+    SignFlow, SigningPhase, State, Step, Target, Transition, WorkflowError, WorkspaceEdit, backend_for_choice,
 };

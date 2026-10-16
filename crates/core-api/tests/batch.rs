@@ -898,6 +898,146 @@ async fn replace_opens_the_chosen_pdf_instead_of_the_open_one() {
 }
 
 // ------------------------------------------------------------------------------------------------
+// „Zur Startseite“ parkt offene Arbeit (ADR 0004 Nachtrag 10)
+// ------------------------------------------------------------------------------------------------
+
+fn parked(v: &ViewState) -> Option<&pida_core_api::ParkedWorkView> {
+    v.parked.as_ref()
+}
+
+/// Startansicht mit geparkter Arbeit (Karte „In Bearbeitung“).
+async fn start_with_parked(core: &Core) -> ViewState {
+    wait_for(core, "Startansicht mit geparkter Arbeit", |v| {
+        matches!(v.step, StepView::Open { .. }) && v.parked.is_some() && v.document.is_none() && v.batch.is_none()
+    })
+    .await
+}
+
+/// „Zur Startseite“ parkt das Dokument mit seiner Platzierung; die verdeckte Arbeit lässt sich nicht signieren,
+/// „Weiter bearbeiten“ bringt sie unverändert zurück, „Schließen“ verwirft sie. Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn home_parks_the_document_and_resume_brings_it_back_unchanged() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf"]);
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(files, &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich a", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf" && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    // eigene Platzierung (ohne PDFium: „Freie Fläche suchen“ beendet die Automatik) und „Unsichtbar signieren“
+    core.dispatch(UiEvent::UseTarget { target: pida_core_api::PlacementTarget::Free });
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    let before = wait_for(&core, "von Hand", |v| {
+        v.document.as_ref().is_some_and(|d| d.invisible && d.detection.as_ref().is_some_and(|x| !x.auto_placed))
+    })
+    .await
+    .document
+    .unwrap();
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    let p = parked(&v).unwrap();
+    assert_eq!((p.doc_name.as_deref(), p.documents, p.placed_by_hand, p.unsaved), (Some("a.pdf"), 1, true, false));
+    assert!(!v.actions.sign && !v.actions.edit_placement && v.actions.open_files && v.actions.verify);
+    assert!(v.done.is_empty(), "nichts verworfen");
+    // verdeckt: „Signieren“ (⌘↵ bzw. Palette) bleibt ohne Wirkung
+    core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
+    core.dispatch(UiEvent::ConfirmPosition);
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(core.view().parked.is_some() && !matches!(core.view().step, StepView::Signing { .. }));
+    // „Weiter bearbeiten“: Dokument und Platzierung wie vorher
+    core.dispatch(UiEvent::ResumeParked);
+    let v = wait_for(&core, "fortgesetzt", |v| v.document.is_some()).await;
+    let d = v.document.unwrap();
+    assert!(v.parked.is_none());
+    assert_eq!((d.doc.id, d.invisible, d.target, d.placement), (before.doc.id, true, before.target, before.placement));
+    assert!(d.detection.is_some_and(|x| !x.auto_placed), "Platzierung der Nutzerin bleibt");
+    // erneut parken und „Schließen“: verworfen, „abgebrochen“
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    core.dispatch(UiEvent::DiscardParked);
+    let v = wait_for(&core, "verworfen", |v| matches!(v.step, StepView::Open { .. }) && v.parked.is_none()).await;
+    assert!(v.document.is_none());
+    assert!(v.done.iter().any(|d| d.name == "a.pdf" && d.result == pida_workflow::DocResult::Cancelled));
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung ohne „Signieren“ (F-54)");
+}
+
+/// Neue Dateien bei geparkter Arbeit: „Zum Stapel hinzufügen“ (`mode: add`) bildet mit dem geparkten Dokument den
+/// Stapel (Plan bleibt), „Öffnen mit“ (ohne `mode`) kommt ohne Rückfrage dazu (Hinweis), „Offene schließen und neu
+/// beginnen“ (`mode: replace`) verwirft den geparkten Stapel. Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn files_while_parked_join_the_batch_or_replace_it() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf", "b.pdf", "c.pdf", "d.pdf"]);
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(vec![files[0].clone()], &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich a", |v| v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf")).await;
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    // „Zum Stapel hinzufügen“
+    let add = Some(pida_core_api::OpenFilesMode::Add);
+    core.dispatch(UiEvent::OpenFiles { paths: vec![files[1].clone()], mode: add });
+    let v = overview_ready(&core, 2).await;
+    assert!(v.parked.is_none());
+    let a = batch(&v).items.iter().find(|i| i.name == "a.pdf").unwrap();
+    assert_eq!(a.position, PositionSummaryView::Invisible, "Plan des geparkten Dokuments bleibt");
+    // Stapel parken, „Öffnen mit“ (zweite Instanz): ohne Rückfrage dazu, mit Hinweis
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    let p = parked(&v).unwrap();
+    assert_eq!((p.doc_name.as_deref(), p.documents, p.placed_by_hand), (None, 2, true));
+    core.dispatch(UiEvent::OpenFiles { paths: vec![files[2].clone()], mode: None });
+    let v = overview_ready(&core, 3).await;
+    assert!(v.notices.iter().any(|n| n.code == "ng-parked-files-added" && n.params["count"] == "1"));
+    // „Offene schließen und neu beginnen“: der Stapel wird verworfen, d öffnet im Arbeitsbereich
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    core.dispatch(UiEvent::OpenFiles {
+        paths: vec![files[3].clone()],
+        mode: Some(pida_core_api::OpenFilesMode::Replace),
+    });
+    let v = wait_for(&core, "Arbeitsbereich d", |v| v.document.as_ref().is_some_and(|d| d.doc.name == "d.pdf")).await;
+    assert!(v.batch.is_none() && v.parked.is_none());
+    for name in ["a.pdf", "b.pdf", "c.pdf"] {
+        assert!(v.done.iter().any(|d| d.name == name && d.result == pida_workflow::DocResult::Cancelled), "{name}");
+    }
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
+/// Ein geparkter Stapel bleibt vollständig: die Voranalyse läuft weiter, „Alle signieren“ wirkt erst nach „Weiter
+/// bearbeiten“, der Lauf signiert dann alle (eine Sitzung).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn parked_batch_keeps_preanalysing_and_signs_only_after_resume() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let core = start(&fx, keystore_overlay(inputs(&fx, &["a.pdf", "b.pdf", "c.pdf"]), &out), fake(None)).unwrap();
+    // sofort parken, noch während der Voranalyse
+    wait_for(&core, "Übersicht", |v| matches!(v.step, StepView::Batch)).await;
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    let docs: Vec<DocId> = (1..=3).map(DocId).collect();
+    core.dispatch(UiEvent::StartBatch {
+        backend: BackendId::Keystore,
+        docs,
+        output_dir: None,
+        on_existing: ExistingPolicy::KeepBoth,
+    });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(core.view().parked.is_some(), "verdeckt: kein Lauf");
+    core.dispatch(UiEvent::ResumeParked);
+    let v = overview_ready(&core, 3).await;
+    assert!(batch(&v).items.iter().all(|i| matches!(i.status, BatchItemStatusView::Ready)), "Voranalyse fertig");
+    start_batch(&core, &v, BackendId::Keystore, ExistingPolicy::KeepBoth, None);
+    let v = summary(&core).await;
+    let s = batch(&v).summary.clone().unwrap();
+    assert_eq!((s.total, s.signed), (3, 3));
+}
+
+// ------------------------------------------------------------------------------------------------
 // Punkt 7: vorhandene Zieldateien, Ordnerwahl
 // ------------------------------------------------------------------------------------------------
 
@@ -1240,6 +1380,12 @@ async fn real_core_batch_views_for_the_ui() {
     core.dispatch(UiEvent::SetBatchAutoPosition { enabled: true, replace_manual: false });
     let v = wait_for(&core, "für diesen Stapel", |v| v.batch.as_ref().is_some_and(|b| b.auto_position_once)).await;
     states.push(("batch_auto_once", v.clone()));
+    // „Zur Startseite“ parkt den Stapel (Nachtrag 10), „Weiter bearbeiten“ bringt ihn unverändert zurück
+    core.dispatch(UiEvent::GoHome);
+    states.push(("batch_parked", start_with_parked(&core).await));
+    core.dispatch(UiEvent::ResumeParked);
+    let resumed = wait_for(&core, "fortgesetzt", |v| v.batch.as_ref().is_some_and(|b| b.auto_position_once)).await;
+    assert_eq!(resumed.batch, v.batch, "Stapel unverändert");
     start_batch(&core, &v, BackendId::AtrustNative, ExistingPolicy::KeepBoth, None);
     let v = wait_for(&core, "Anmeldung", |v| form(v).is_some_and(|(_, f)| matches!(f, NativeForm::Login { .. }))).await;
     states.push(("batch_login", v));

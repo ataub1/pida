@@ -55,6 +55,8 @@ describe('Zustände des echten Kerns', () => {
       doc_auto_locked: 'workspace',
       settings_open: 'workspace',
       settings_partial: 'workspace',
+      // „Zur Startseite“ parkt das Dokument (Nachtrag 10)
+      doc_parked: 'start',
     };
     for (const [name, v] of Object.entries(states)) expect([name, mainView(v)]).toEqual([name, expected[name]]);
   });
@@ -152,6 +154,22 @@ describe('Zustände des echten Kerns', () => {
     expect(sticker()).toBeInTheDocument();
     expect(await screen.findByText('Signieren abgebrochen – es wurde nichts signiert.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('Zur Startseite (Nachtrag 10) mit dem echten Kern: Startansicht mit „In Bearbeitung“, Weiter bearbeiten, keine Sitzung', async () => {
+    const { mock, user } = renderApp({ view: state('doc_parked') });
+    await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
+    const card = screen.getByRole('region', { name: 'In Bearbeitung' });
+    expect(within(card).getByRole('heading', { level: 2, name: 'Vertrag.pdf' })).toBeInTheDocument();
+    expect(screen.queryByRole('application', { name: 'Signaturblock' })).not.toBeInTheDocument();
+    // ohne eigene Platzierung: „Schließen“ verwirft ohne Rückfrage
+    await user.click(within(card).getByRole('button', { name: 'Weiter bearbeiten' }));
+    expect(lastEvent(mock)).toEqual({ type: 'resume_parked' });
+    await user.click(within(card).getByRole('button', { name: 'Schließen' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(lastEvent(mock)).toEqual({ type: 'discard_parked' });
+    expect(sessionEvents(mock.dispatched)).toEqual([]);
+    await expectNoAxeViolations();
   });
 
   it('Einstellungen › Dokument (E3): Hinweise aus `document.detection` des Kerns, Sprechblase nennt das Ziel', async () => {

@@ -45,10 +45,7 @@ ng-ui-shell-cmd-settings = Settings
 ng-ui-shell-cmd-signature = Edit signature block
     .keywords = logo profile emblem note
 ng-ui-shell-cmd-home = Go to start
-ng-ui-shell-home-confirm-title = Go to start?
-ng-ui-shell-home-confirm-text = The open documents will be closed; placements and the batch will be lost. Files already signed are kept.
-ng-ui-shell-home-confirm = Go to start
-    .keywords = home start close
+    .keywords = home start
 ng-ui-shell-cmd-theme-light = Colour scheme: light
     .keywords = theme light
 ng-ui-shell-cmd-theme-dark = Colour scheme: dark
@@ -107,6 +104,37 @@ ng-ui-start-side = Recently signed and verification mode
 ng-ui-start-verify-title = Verify a signature?
 ng-ui-start-verify-text = Verification mode shows who signed a PDF, when, and whether it has changed since.
 ng-ui-start-verify-button = Open verification mode
+# Parked work (“Go to start” parks the open document or batch, ADR 0004 addendum 10)
+ng-ui-start-parked-label = In progress
+ng-ui-start-parked-batch =
+    { $n ->
+        [one] Batch · 1 document
+       *[other] Batch · { $n } documents
+    }
+ng-ui-start-parked-hint = Not signed yet – the placement is kept.
+ng-ui-start-parked-hint-placed = Not signed yet – your placement is kept.
+ng-ui-start-parked-hint-batch = Plans and status of the documents are kept.
+ng-ui-start-parked-hint-unsaved = Signed, but not saved yet.
+ng-ui-start-parked-resume = Continue editing
+ng-ui-start-parked-close = Close
+ng-ui-start-parked-close-title = Close the open work?
+ng-ui-start-parked-close-text = “{ $name }” will be closed and your placement discarded. Files already signed are kept.
+ng-ui-start-parked-close-text-batch = The batch will be closed; placements and status of the documents are discarded. Files already signed are kept.
+ng-ui-start-parked-close-text-unsaved = “{ $name }” is signed but not saved yet. If you close it, the signature is lost.
+ng-ui-start-parked-close-confirm = Close
+ng-ui-start-join-title = Add to the open work?
+ng-ui-start-join-text =
+    “{ $name }” is still in progress. { $count ->
+        [one] Add the chosen document? Together they form a batch; your placement is kept.
+       *[other] Add the { $count } chosen documents? Together they form a batch; your placement is kept.
+    }
+ng-ui-start-join-text-batch =
+    A batch is still in progress. { $count ->
+        [one] Add the chosen document?
+       *[other] Add the { $count } chosen documents?
+    }
+ng-ui-start-join-add = Add to batch
+ng-ui-start-join-replace = Close open work and start over
 
 ## Workspace: pages, sticker, live region, state cards
 

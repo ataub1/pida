@@ -296,7 +296,7 @@ proptest! {
     /// genannten Dokumente.
     #[test]
     fn workspace_session_only_after_explicit_action(
-        events in prop::collection::vec(0u8..75, 0..110),
+        events in prop::collection::vec(0u8..80, 0..110),
         auto_position in any::<bool>(),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
@@ -448,6 +448,10 @@ proptest! {
                     next_id += 1;
                     Event::DocumentReplaced(vec![pida_workflow::InputDocument::new(DocId(next_id), format!("/in/doc{current}.pdf"))])
                 }
+                // „Zur Startseite“ parkt offene Arbeit (Nachtrag 10): Parken, Fortsetzen, Verwerfen
+                75 | 76 => Event::WentHome,
+                77 => Event::ParkedResumed,
+                78 => Event::ParkedDiscarded,
                 _ => Event::BackendFailed(BackendError::Network("x".into())),
             };
             let before = state.clone();
@@ -484,6 +488,23 @@ proptest! {
                 && e.placement_locked()
             {
                 prop_assert!(ctx.auto_position && !e.return_to_batch, "{event:?} in {} sperrt", before.name());
+            }
+            // geparkte Arbeit (Nachtrag 10): verdeckt – nichts startet, nichts wird vorbereitet oder bestätigt; Parken,
+            // Fortsetzen und Verwerfen starten nie etwas; geparkt ist nur Arbeit, die ruht (kein Signieren, kein Lauf)
+            if before.parked() || matches!(event, Event::WentHome | Event::ParkedResumed | Event::ParkedDiscarded) {
+                let started = t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_) | Effect::SignDocument | Effect::Sign | Effect::Prepare { .. }));
+                prop_assert!(!started, "{event:?} in {} (geparkt: {}): {:?}", before.name(), before.parked(), t.effects);
+            }
+            if t.state.parked() {
+                let resting = matches!(
+                    t.state,
+                    State::Positioning { edit: Some(_), .. } | State::AnalysisWarning { .. } | State::BatchOverview { .. }
+                        | State::Output { saved: None, decision: None, .. }
+                );
+                prop_assert!(resting, "{event:?} in {} parkt {}", before.name(), t.state.name());
+            }
+            if before.parked() && matches!(event, Event::SignRequested { .. } | Event::BatchStarted { .. } | Event::PlacementChanged(_) | Event::Cancel) {
+                prop_assert_eq!(&t.state, &before, "{:?} wirkt auf verdeckte Arbeit", event);
             }
             // „PDF hinzufügen“ startet nie etwas und schließt nie ein Dokument eines Laufs bzw. beim Signieren
             if matches!(event, Event::MoreFilesAdded(_) | Event::DocumentReplaced(_)) {
@@ -619,7 +640,7 @@ proptest! {
     /// - nach dem Lauf ist kein Eintrag mehr „wartet“/„wird signiert“.
     #[test]
     fn batch_run_invariants(
-        events in prop::collection::vec(0u8..36, 0..160),
+        events in prop::collection::vec(0u8..39, 0..160),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
     ) {
@@ -652,7 +673,11 @@ proptest! {
                 32 => Event::Backgrounded,
                 33 => Event::BatchItemOpened(current),
                 34 => Event::BackToBatch,
-                _ => Event::Navigate(Step::Open),
+                35 => Event::Navigate(Step::Open),
+                // „Zur Startseite“ (Nachtrag 10): Parken und Fortsetzen ändern am Stapel nichts
+                36 => Event::WentHome,
+                37 => Event::ParkedResumed,
+                _ => Event::ParkedDiscarded,
             };
             let before = state.clone();
             let t = reduce(state, event.clone(), &ctx);
@@ -667,6 +692,15 @@ proptest! {
                         _ => false,
                     };
                     prop_assert!(allowed, "OpenSession ohne Nutzeraktion: {event:?} in {}", before.name());
+                }
+            }
+            // Parken und Fortsetzen (Nachtrag 10) lassen Stapel und Lauf unverändert; im Lauf ohne Wirkung
+            if matches!(event, Event::WentHome | Event::ParkedResumed)
+                && matches!(before, State::BatchOverview { .. } | State::BatchSigning { .. })
+            {
+                prop_assert_eq!(before.queue().and_then(|q| q.batch.clone()), t.state.queue().and_then(|q| q.batch.clone()));
+                if matches!(before, State::BatchSigning { .. }) {
+                    prop_assert_eq!(&t.state, &before, "{:?} im Lauf", event);
                 }
             }
             if let State::BatchSigning { run: before_run, .. } = &before {

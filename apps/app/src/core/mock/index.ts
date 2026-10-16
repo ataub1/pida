@@ -27,6 +27,7 @@ import type {
   Lang,
   MainBarView,
   NoticeView,
+  ParkedWorkView,
   PlatformView,
   ResumeOfferView,
   SaveDialogView,
@@ -142,6 +143,11 @@ interface FlowState {
   batch: MockBatch | null;
   /** Plan des aus dem Stapel geöffneten Dokuments (wird nach der Analyse angewendet) */
   pendingPlan: BatchPlan | null;
+  /**
+   * Arbeit geparkt („Zur Startseite“, Kern: `Queue::parked`, ADR 0004 Nachtrag 10): Stadium, Dokument, Platzierung
+   * und Stapel bleiben; projiziert wird die Startansicht mit der Karte „In Bearbeitung“
+   */
+  parked: boolean;
 }
 
 function mobile(o: MockOptions): boolean {
@@ -664,6 +670,99 @@ function navigateOpen(s: FlowState, ctx: MockCtx): void {
   }
 }
 
+/* ---------------------------------------------------------------- geparkte Arbeit (Nachtrag 10) */
+
+/** Ruht offene Arbeit, die geparkt werden kann (wie `parkable` im Kern)? */
+function parkable(s: FlowState): boolean {
+  if (s.stage === 'editing' || s.stage === 'warning') return !!current(s) && !!s.edit;
+  if (s.stage === 'batch') return !!s.batch && !s.batch.running;
+  if (s.stage === 'output') return s.output.savePending && !s.output.path;
+  return false;
+}
+
+/**
+ * „Zur Startseite“ (`go_home`) wie der Kern (`Event::WentHome`): Arbeitsbereich, Analysewarnung, Stapelübersicht und
+ * „Fertig“ ohne Speichern werden geparkt (nichts verworfen); gespeichert mit wartenden Dokumenten wird der Stapel
+ * samt signiertem Eintrag geparkt (wie „Zum Stapel“); ein Stapeleintrag, der gerade lädt, kehrt zur Übersicht zurück,
+ * die geparkt wird. Beim Signieren, im Lauf und im Fehlerschritt ohne Wirkung; sonst wie `navigate{Open}`.
+ */
+function goHome(s: FlowState, ctx: MockCtx): void {
+  if (s.parked || ['starting', 'open', 'signing', 'error', 'finished'].includes(s.stage) || s.batch?.running) return;
+  if (parkable(s)) {
+    s.parked = true;
+    return;
+  }
+  const [cur, ...rest] = s.queue;
+  if (s.stage === 'output' && s.output.path && cur && rest.length > 0 && batchOn(s) && !s.batch) {
+    finishDoc(s, { kind: 'signed', output: { path: s.output.path, len: 1024, sha256: '00' } });
+    const batch = new MockBatch(batchHost(s, ctx));
+    batch.addSigned(cur, s.output.path);
+    batch.add(rest);
+    s.batch = batch;
+    leaveSingle(s);
+    s.explicit = false;
+    s.parked = true;
+    return;
+  }
+  navigateOpen(s, ctx);
+  if (parkable(s)) s.parked = true;
+}
+
+/** „Schließen“ der Karte „In Bearbeitung“ (`discard_parked`): verwerfen wie „Öffnen“ (Dokumente „abgebrochen“). */
+function discardParked(s: FlowState): void {
+  s.parked = false;
+  if (!s.batch) for (const d of s.queue) s.done.push({ id: d.id, name: d.name, input: d.path, result: { kind: 'cancelled' } });
+  s.batch?.dispose();
+  s.batch = null;
+  s.signing?.close();
+  s.signing = null;
+  s.queue = [];
+  s.edit = null;
+  s.error = null;
+  s.output = EMPTY_OUTPUT;
+  s.summary = null;
+  s.explicit = false;
+  s.stage = 'open';
+}
+
+/**
+ * Neue Dateien bei geparkter Arbeit wie der Kern: „Zum Stapel hinzufügen“ (`mode: 'add'`) bzw. – `openWith` – „Öffnen
+ * mit“/zweite Instanz (ohne Rückfrage, Hinweis `ng-parked-files-added`). Fortsetzen, dann hinzufügen: Arbeitsbereich wie
+ * „Weitere PDFs hinzufügen“ (Platzierung bleibt Plan), Übersicht mit neuen Einträgen, Analysewarnung als Eintrag.
+ */
+function joinParked(s: FlowState, ctx: MockCtx, paths: string[], openWith: boolean): void {
+  s.parked = false;
+  const open = () => s.queue.length + (s.batch?.size ?? 0);
+  const before = open();
+  const d = current(s);
+  if (s.stage === 'editing' && batchOn(s)) addFiles(s, ctx, paths);
+  else if (s.stage === 'warning' && d && batchOn(s)) {
+    const fresh = paths.filter((p, i) => paths.indexOf(p) === i && !s.queue.some((q) => q.path === p) && !s.batch?.has(p));
+    if (fresh.length === 0) return;
+    const docs = fresh.map((p) => makeDoc(s, p));
+    const b = s.batch;
+    if (b && fromBatch(s)) {
+      b.back(d.id, undefined);
+      b.add(docs);
+      leaveSingle(s);
+    } else enterBatch(s, ctx, [...s.queue, ...docs]);
+  } else openFiles(s, ctx, paths);
+  const queued = !batchOn(s) && (s.stage === 'editing' || s.stage === 'warning');
+  const added = open() - before;
+  if (openWith && added > 0 && !queued) ctx.notify('ng-parked-files-added', { count: String(added) });
+}
+
+/** Karte „In Bearbeitung“ (`ViewState::parked`, wie `parked_view` im Kern). */
+function parkedView(s: FlowState): ParkedWorkView | null {
+  if (!s.parked) return null;
+  const e = s.edit;
+  const byHand = !!e && (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'output') && !e.automatic;
+  const unsaved = s.stage === 'output';
+  const b = s.batch;
+  if (b) return { doc_name: null, documents: b.size, placed_by_hand: byHand || b.view().manual_plans > 0, unsaved };
+  return { doc_name: current(s)?.name ?? null, documents: s.queue.length, placed_by_hand: byHand, unsaved };
+}
+
 /** Platzierung zulässig (z. B. kein neues sichtbares Feld auf DocMDP-zertifizierten Dokumenten). */
 function placementAllowed(s: FlowState): boolean {
   const d = current(s);
@@ -858,11 +957,38 @@ const flowArea: MockArea<FlowState> = {
       last: { position: 'manual', backend: null },
       batch: null,
       pendingPlan: null,
+      parked: false,
     };
     return s;
   },
 
   handle(e, s, ctx) {
+    // geparkte Arbeit (Nachtrag 10): verdeckt – nur Fortsetzen, Verwerfen, neue Dateien und Beenden wirken (F-54)
+    if (s.parked) {
+      switch (e.type) {
+        case 'resume_parked':
+          s.parked = false;
+          return true;
+        case 'discard_parked':
+          discardParked(s);
+          return true;
+        case 'open_files':
+          if (e.mode === 'replace') {
+            discardParked(s);
+            openFiles(s, ctx, e.paths);
+          } else joinParked(s, ctx, e.paths, e.mode !== 'add');
+          return true;
+        case 'quit':
+        case 'select_signer':
+          break;
+        default:
+          return true;
+      }
+    }
+    if (e.type === 'go_home') {
+      goHome(s, ctx);
+      return true;
+    }
     const d = current(s);
     const settings = ctx.settings();
     const lang = blockLang(ctx);
@@ -1124,11 +1250,28 @@ const flowArea: MockArea<FlowState> = {
       if (!s.explicit) resetSelection(s, ctx);
       s.batch?.settingsChanged();
     } else if (sig.kind === 'open-files') {
-      openFiles(s, ctx, sig.paths);
+      // „Dieses Dokument signieren“ bei geparkter Arbeit: wie „Öffnen mit“ dazu (Kern: `FilesAdded`)
+      if (s.parked) joinParked(s, ctx, sig.paths, true);
+      else openFiles(s, ctx, sig.paths);
     }
   },
 
   project(s, ctx) {
+    if (s.parked) {
+      // Startansicht über der geparkten Arbeit: Schritt, Hauptleiste und Freigaben wie im Leerlauf
+      const bp = mainBar(['AE', '', '', ''], true);
+      return {
+        step: { step: 'open', queue: [] },
+        main_bar: bp,
+        done: s.done.map((x) => structuredClone(x)),
+        resume: null,
+        document: null,
+        signers: { ...defaultSigners(), options: signerOptions(s, ctx), selected: s.selected, default: backendFor(ctx.settings().backend.default) },
+        batch: null,
+        actions: { ...noActions(), open_files: true, settings: bp.settings_enabled, home: true },
+        parked: parkedView(s),
+      };
+    }
     const d = current(s);
     const b = bar(s);
     const lang = blockLang(ctx);
@@ -1143,6 +1286,7 @@ const flowArea: MockArea<FlowState> = {
       signers: { ...defaultSigners(), options, selected: s.selected, default: backendFor(ctx.settings().backend.default) },
       batch: s.batch ? s.batch.view() : null,
       actions: actionsView(s, b),
+      parked: null,
     };
   },
 };

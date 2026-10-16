@@ -602,6 +602,8 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         MigrationItemView,
         FirstRunView,
         ActionsView,
+        // Nachtrag 10
+        ParkedWorkView,
     );
     (out, names)
 }
