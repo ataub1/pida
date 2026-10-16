@@ -116,6 +116,7 @@ ng-ui-set-keystore-storage = Password
 ng-ui-set-keystore-storage-none = Don’t store
 ng-ui-set-keystore-storage-memory = Until exit
 ng-ui-set-keystore-storage-keychain = Keychain
+ng-ui-set-keystore-storage-keychain-mobile = Secure storage
 ng-ui-set-keystore-format = Format: { $format }
 ng-ui-set-keystore-unsupported = This file is not a supported keystore. Please choose a PKCS#12 file (.p12/.pfx).
 ng-ui-set-keystore-key = Key

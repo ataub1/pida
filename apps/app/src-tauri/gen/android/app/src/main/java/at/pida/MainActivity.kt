@@ -247,6 +247,10 @@ class MainActivity : TauriActivity() {
       var t = d[d.length - 1];
       var target = t.contains(document.activeElement) ? document.activeElement : t;
       target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+      // Zurück ist eine Geste, keine Tastatur: ohne diese Zeigerbewegung (nur am document, erreicht keine
+      // Bedienelemente) bliebe React Aria in der Modalität „Tastatur“ – der Auslöser des Dialogs zeigte nach
+      // dem Schließen Fokusrahmen und Tooltip (Emulator-Abnahme 16.10.2026)
+      try { document.dispatchEvent(new PointerEvent('pointermove', { pointerType: 'touch', bubbles: true })); } catch (e) {}
       return true;
     })()"""
   }

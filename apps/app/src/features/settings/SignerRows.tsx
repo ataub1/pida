@@ -285,7 +285,8 @@ function KeystoreDetails() {
         options={[
           { value: 'none', label: t.t('ng-ui-set-keystore-storage-none') },
           { value: 'memory', label: t.t('ng-ui-set-keystore-storage-memory') },
-          { value: 'keychain', label: t.t('ng-ui-set-keystore-storage-keychain'), isDisabled: !s.view.keychain_available },
+          // Mobilgeräte haben keinen „Schlüsselbund“, sondern den sicheren Speicher des Geräts (wie „Passwort merken?“)
+          { value: 'keychain', label: t.t(s.mobile ? 'ng-ui-set-keystore-storage-keychain-mobile' : 'ng-ui-set-keystore-storage-keychain'), isDisabled: !s.view.keychain_available },
         ]}
       />
     </>

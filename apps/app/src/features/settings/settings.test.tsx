@@ -616,5 +616,8 @@ describe('Mobile (Abnahme E3 Punkt 7)', () => {
     // mit Passwort importiert: die Schlüssel sind bekannt – Auswahl statt Textfeld (zwei Schlüssel)
     expect(within(keystore).getByRole('button', { name: /Schlüssel/ })).toHaveTextContent('Schlüssel wählen');
     expect(within(keystore).queryByRole('textbox', { name: 'Alias' })).toBeNull();
+    // Speicherart: auf Mobilgeräten „Sicherer Speicher“ statt „Schlüsselbund“ (Emulator 16.10.2026)
+    expect(within(keystore).getByRole('radio', { name: 'Sicherer Speicher' })).toBeInTheDocument();
+    expect(within(keystore).queryByRole('radio', { name: 'Schlüsselbund' })).toBeNull();
   });
 });

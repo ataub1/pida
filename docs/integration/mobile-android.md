@@ -1,6 +1,6 @@
 # Android – Paket M-Android (Projekt, native Plugin-Seite, Nachweise)
 
-Stand: 15.10.2026, Welle Mobile, Paket **M-Android**. Grundlage: docs/integration/mobile.md (Fundament M0,
+Stand: 15.10.2026, Welle Mobile, Paket **M-Android**; neue Oberfläche am Gerät: §8 (16.10.2026). Grundlage: docs/integration/mobile.md (Fundament M0,
 Vertrag des Plugins §2, Lebenszyklus §3), Plan §5.2/§5.3/§7.7, ADR 0001.
 
 Ergebnis: Die App läuft im Emulator `pida_api35` (Android 15, arm64). PDFium wird zur Laufzeit
@@ -26,7 +26,7 @@ Angelegt mit `npm run tauri android init --ci` (Tauri CLI 2.12.3) und versionier
 | Datei-Zuordnung | `tauri.android.conf.json` setzt `bundle.fileAssociations = null`: der von Tauri erzeugte Filter (`VIEW`/`SEND` mit `BROWSABLE`, implizit `file:`) entfällt, der Block zwischen den Markierungen im Manifest bleibt leer (Review R-6). |
 | PDFium | `sourceSets.main.jniLibs.srcDir(tools/pdfium/android/jniLibs)` (aus `tools/fetch-pdfium.sh --jnilibs`, SHA-256 in `tools/pdfium.lock`); anderer Ort mit `-Ppida.pdfiumJniLibs=<pfad>`. Fehlt die Bibliothek, warnt Gradle; die App startet dann ohne Vorschau. Der Kern lädt `libpdfium.so` mit `dlopen` aus `nativeLibraryDir`. |
 | TLS | Kotlin-Komponente `org.rustls:rustls-platform-verifier:0.2.0` (Maven-Archiv des Projekts auf GitHub, Repository mit `includeGroup("org.rustls")` im Wurzelprojekt). **Achtung:** Die README des Crates nennt die Gruppe `rustls`, im Archiv heißt sie `org.rustls`. Das Plugin bricht den Build ab, wenn `rustls-platform-verifier-android` in `Cargo.lock` eine andere Version hat. SHA-256 der AAR (Gradle-Cache): `aa021794230fbc2f0be355999e2cf67398dd563de066a2e17001ffbd0b69101b`. |
-| Symbole, Farben | Icons aus `apps/app/src-tauri/icons/android` (adaptiv), Fensterfarbe wie die Oberfläche (`#F4F6F9`, dunkel `#11161D`); Standardvorlage (Tauri-Logo, Hello-World-Layout, Android-TV-Eintrag) entfernt. |
+| Symbole, Farben | Icons aus `apps/app/src-tauri/icons/android` (adaptiv), Fenster- und Leistenfarben wie die Tokens der Oberfläche (`window_background` = `--c-bg` `#F4F5F7`/dunkel `#0F1114`, `system_bar_top` = `--c-surface` `#FFFFFF`/dunkel `#171A1F`; danach meldet die Oberfläche die Farben selbst, §8.3 B1); Standardvorlage (Tauri-Logo, Hello-World-Layout, Android-TV-Eintrag) entfernt. |
 
 ### `MainActivity.kt`
 
@@ -41,9 +41,14 @@ Angelegt mit `npm run tauri android init --ci` (Tauri CLI 2.12.3) und versionier
 - **Systemleisten:** Android 15 (targetSdk 35) zeichnet immer randlos; die WebView meldet Status- und
   Navigationsleiste nicht als `env(safe-area-inset-*)` – im Querformat lag die Statusleiste über der
   Kopfzeile. Die Activity legt Statusleiste, Navigationsleiste, Display-Ausschnitt und Tastatur als Abstand
-  um den Inhalt (Screenshot 07).
-- **Zurück-Taste/-Geste:** schließt den obersten Dialog der Oberfläche (Esc an React Aria), sonst
-  `moveTaskToBack` – die Activity wird **nicht** beendet. Unter Tauri beendet das Zerstören der einzigen
+  um den Inhalt (Screenshot 07). Die Flächen der Leisten zeichnet sie in den Farben, die die Oberfläche nach
+  jedem Wechsel Hell/Dunkel über die Brücke `PidaSystemBars.update(top, bottom, dark)` meldet (nur `#rrggbb`,
+  `apps/app/src/app/systemBars.ts`), samt heller bzw. dunkler Symbole.
+- **Schriftgröße zur Laufzeit:** `fontScale` steht in `configChanges`; `onConfigurationChanged` setzt `textZoom`
+  der WebView (sonst galt eine geänderte Systemschrift erst nach einem Neustart).
+- **Zurück-Taste/-Geste:** schließt den obersten Dialog der Oberfläche (Esc an React Aria, danach eine
+  Zeigerbewegung am `document`, damit der wieder fokussierte Auslöser keinen Tastatur-Fokusrahmen samt Tooltip
+  zeigt), sonst `moveTaskToBack` – die Activity wird **nicht** beendet. Unter Tauri beendet das Zerstören der einzigen
   Activity auch den Prozess (§7.1) und damit einen laufenden Signiervorgang.
 - **Startprüfung (nur Debug-Builds):** Intent-Extra `pida.smoke` setzt `PIDA_SMOKE=1` vor dem Start des
   Kerns (`apps/app/src-tauri/src/smoke.rs`).
@@ -223,3 +228,132 @@ auf PIDA auf.
    vorhanden) und App Bundle sind offen.
 9. Gradle meldet Abkündigungen der Tauri-Vorlage (AGP 9 `android.newDsl=false`, Java 8 als Quelle/Ziel) –
    kommen mit einer neueren Tauri-Vorlage weg.
+
+## 8. Neue Oberfläche (16.10.2026)
+
+Die neue Oberfläche (ADR 0004, E1–E4) am Gerät durchgespielt – Branch `mobile/android`, zuletzt nach dem Merge von
+`main` (3d00383: Keystore-Einstellungen mit Formaterkennung, Schlüsselauswahl und „Passwort merken?“, Papierkorb im
+Stapel, schrumpfende Vergleichswert-Kästchen, gekürzter Konto-Chip).
+Emulator `pdfover_api35` – so heißt das AVD auf diesem Rechner; `pida_api35` in §4/§5 ist der umbenannte Name, ein solches AVD gibt es nicht. <!-- rename-to-pida:keep -->
+Android 15, API 35, `google_apis` arm64-v8a, 1080 × 2400 px, 420 dpi (411 CSS-px breit,
+`devicePixelRatio` 2,625), Sprache de-AT. Mobile 1.0 (Plan §5.2): ID Austria ohne FIDO2, PKCS#12 nur per Import, keine
+Chipkarte, keine CLI.
+
+### 8.1 Bauweg, Gerät, Bedienung
+
+```sh
+source tools/env.sh                                   # im Worktree-Root
+ln -sfn "$PWD" /tmp/pida-android                      # Pfad ohne Leerzeichen
+cd /tmp/pida-android/apps/app
+export CARGO_TARGET_DIR=/tmp/pida-android/target-android CARGO_PROFILE_DEV_DEBUG=line-tables-only
+npm run tauri android build -- --debug --target aarch64 --apk   # app-universal-debug.apk, ≈ 358 MB (Debug)
+
+AVD=pdfover_api35                                     # echter AVD-Name, rename-to-pida:keep
+emulator -avd "$AVD" -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect \
+  -http-proxy http://127.0.0.1:9 -no-snapshot-save &
+adb shell cmd connectivity airplane-mode enable       # zusätzlich zur Proxy-Sperre: „Active default network: none“
+adb root; adb shell setprop persist.sys.locale de-AT; adb shell setprop ctl.restart zygote; adb unroot
+adb install -r …/app-universal-debug.apk
+adb shell am start -W -n at.pida/.MainActivity --ez pida.smoke true
+adb -s emulator-5554 emu kill                          # am Ende
+```
+
+- **Netz:** Proxy auf den gesperrten Port 9 **und** Flugmodus; A-Trust wurde nie erreicht, keine Zugangsdaten eingegeben.
+  Der Schnellstart-Snapshot `default_boot` setzt Sprache und Installation bei jedem Emulatorstart zurück.
+- **Bedienung über CDP:** `adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>`; Bedienelemente per Name
+  finden, Mittelpunkt × `devicePixelRatio` + Lage der WebView (`uiautomator dump`) → `adb shell input tap`; Texte und
+  Zustände per `Runtime.evaluate`, Namen für den Bildschirmleser per `Accessibility.getFullAXTree`. Native Oberflächen
+  (Dateiauswahl, Teilen, PDF-Anzeige) per `uiautomator dump`; Mehrfachauswahl in der Dateiauswahl per langem Druck
+  (`input swipe x y x y 900`), dann „Auswählen“.
+- **App-Ende während eines Laufs:** `adb shell run-as at.pida kill -9 <pid>`; Ergebnisse vom Gerät mit
+  `adb exec-out run-as at.pida cat files/Documents/<Name>` (Ausgabe `files/Documents`, 0600).
+- **Startprüfung** nach dem Merge: `pida-smoke: ok step=open pdfium=true webview_ms=914 core_ms=915` (frische
+  Installation), Kaltstart `TotalTime` 458–574 ms.
+
+Aufnahmen: `docs/integration/screenshots/android-ng/` (432 px breit bzw. hoch, JPEG), Nummern unten in Klammern.
+
+### 8.2 Ergebnisse je Ablauf
+
+| # | Ablauf | Ergebnis |
+|---|---|---|
+| 1 | Start, Ersteinrichtung | Frische Installation (auch nach `pm clear`), ohne PDF-Over-Altkonfiguration: Ersteinrichtung als Bottom-Sheet, Schritt 1 Signiermittel (Keystore ausgegraut „Später in den Einstellungen einrichten“), Schritt 2 Signaturbild; „Später einrichten“ → Startseite mit „Dokument auswählen“ und „Zuletzt signiert“ (01–03, dunkel 53). |
+| 2 | PDF empfangen, Arbeitsbereich | `VIEW` (content://media) in die laufende App. Arbeitsbereich mit Bottom-Sheet, Block automatisch auf freier Fläche (Hinweis), per Touch ziehen – rastet an Rändern und unter dem Text ein, Seitenleiste mit Miniaturen, Seitenwechsel, Sheet ausgeklappt (Signaturbild, Optionen, Platzierung) (04–08). Feld-Platzhalter `Formular-mit-Platzhalter.pdf`: „Signaturfeld gefunden“, „Ins Feld setzen“ → „Im Signaturfeld“ (09, 10). QR-Platzhalter `testdata/golden/pdfas-4.4.2/inputs/qr.pdf` mit eingeschalteter Suche „QR-Code-Platzhalter“: „Positioniert im QR-Code-Platzhalter des Dokuments“, Block „Im QR-Platzhalter“, Seite 1 / 1 (64). Mehrere PDFs per Dateiauswahl → Stapel. |
+| 3 | Keystore, Signieren, Fertig | Import aus dem Signiermittel-Menü („PKCS#12-Datei importieren …“, SAF, `test-rsa2048.p12`, Passwort `test`) im neuen Stil, die Tastatur verdeckt nichts; nach „Fertig“ ist der Keystore für dieses Dokument gewählt, der lange Name im Konto-Chip wird mit „…“ gekürzt (11–13, 45, 46). Ohne „Passwort sicher speichern“ fragt die erste Signatur direkt unter dem Passwortfeld „Passwort merken?“ (Nicht speichern / Bis zum Beenden / Im sicheren Speicher); die Wahl steht danach als `password_storage` mit `storage_chosen = true` in `settings.toml`, keine weitere Rückfrage (47, dunkel mit Tastatur 54). Signiermittel-Menü mit „Einstellungen …“ (14), Statuskarte „Entsperren → Signiert“ (15), Fertig mit Selbstprüfung, „Öffnen“ (PDF-Anzeige), „Teilen“ (Auswahl ohne PIDA), „Sichern unter …“ (SAF) (16–19, dunkel 55). Einstellungen › Signiermittel › Keystore: importierte Datei, Schlüssel „PDF-Over NG Test RSA (NUR TEST) · gültig bis 11.10.2036“ mit Alias darunter, Speicherart (48 vorher, 52 nachher). **pyHanko** (`sign validate --trust testdata/keystores/test-rsa2048.crt.pem`) für die vom Gerät geholten `Vertrag_signed.pdf`, `Angebot_signed.pdf`, `Rechnung_signed.pdf`, `Protokoll_signed.pdf` und `Gutachten-gross_signed.pdf` (120 MB, nach „Fortsetzen“): je `INTACT:TRUSTED,UNTOUCHED`, „The signature is judged VALID“, deckt die ganze Datei ab; `qpdf --check` ohne Fehler. |
+| 4 | Stapel | 2–3 PDFs auf einmal → Übersicht mit Miniaturen und Papierkorb je Zeile (neu von `main`; auf Telefonen erst nach B17 sichtbar), Entfernen eines Dokuments, „Alle signieren“ → Keystore, Startdialog bei vorhandenen Zieldateien (Beide behalten / Überschreiben / Überspringen), Zusammenfassung „2 von 2 signiert“ (20–22, 49–51, 59). App während des Laufs in den Hintergrund (Home) und nach 6 s zurück: derselbe Prozess (`LaunchState: HOT`), `Lebenszyklus suspended=true/false`, der Lauf geht weiter bis „2 von 2 signiert“ (66). App-Ende (kill) im Schritt „Bestätigung 1 von 2“ → beim Neustart „Signatur fortsetzen?“ nur für `Gutachten-gross.pdf` („gerade eben“, beim Keystore ohne „Anmeldung und Bestätigung“, „Danach folgt ein weiteres Dokument“) → Passwort → signiert; das zweite Dokument bleibt „Bereit“ (23 vorher, 60, 24/61). Ein Ende vor dem Entsperren bzw. während „wird vorbereitet“ hinterlässt erwartungsgemäß kein Angebot (noch nichts vorbereitet). |
+| 5 | Einstellungen | Vollbild, alle Bereiche: Signaturbild mit Live-Vorschau (auch Amtssignatur), Dokument (PDF/A, Platzhaltersuche QR/Felder), Signiermittel, Speichern (nur „Dokumente dieser App“, Dateinamenszusatz), Darstellung (Farbschema, Sprache), Datenschutz (Zertifikats-Cache, „Zuletzt signiert“ merken/leeren), Erweitert, Über PIDA; Suche mit Tastatur (25–33). Mobile-Einschränkungen: kein Proxy, kein Ausgabeordner, keine Updates, keine Logs, keine Chipkarte; der Datenschutztext nennt auf dem Gerät nur den Keystore (31 vorher, 63 nachher). |
+| 6 | Prüfmodus | Signiertes Dokument (`Vertrag_signed (3).pdf`, zwei Revisionen): „unverändert und kryptografisch intakt“, Signaturen, „Auf der Seite zeigen“, „Dieses Dokument signieren“; das Ergebnis unter den Seiten scrollt (34–37 dunkel, 44). |
+| 7 | ID Austria ohne Netz | Auswahl im Menü, Kurzhinweis „Das Dokument wird zum Signieren an A-Trust übermittelt. Details“ über dem Konto-Chip, auch eingeklappt (57); Signieren → „Der Signaturdienst ist gerade nicht erreichbar“ mit Alltagstext, die Ursache (DNS) nur unter „Technische Details“, „Erneut versuchen“/„Schließen“ (38 vorher, 58 nachher). FIDO2 in den Einstellungen nur als Hinweis „auf diesem Gerät nicht verfügbar“ (39). |
+| 8 | Safe Areas, Tastatur, Schrift, Bildschirmleser | Statusleiste in der Farbe der Kopfzeile, Navigationsleiste in der Hintergrundfarbe, hell und dunkel (43, 53–55); Querformat mit Display-Ausschnitt als Abstand (40, 62); Tastatur über Passwort- und Suchfeldern ohne Verdecken (12, 33, 54); Schriftgröße 130 % (Systemeinstellung, wirkt zur Laufzeit) ohne abgeschnittene Texte (41, 42, 56). Bildschirmleser: AX-Baum per CDP (Fertig, Stapel mit Papierkorb) – alle Bedienelemente benannt (0 ohne Namen); Bedienelemente von Arbeitsbereich, Signierkarte und Einstellungen mit Namen (CDP-Liste), Fingerziele ≥ 44 px. Zurück-Geste: schließt den obersten Dialog (verschachtelt erst den Import, dann die Einstellungen), danach App in den Hintergrund, Prozess bleibt (65). |
+
+### 8.3 Befunde und Behebungen
+
+Plattformübergreifend in der Oberfläche, wo möglich (Desktop unverändert, solange Platz ist); Tests in Klammern.
+
+1. **B1 Systemleisten** blieben im Dunkelmodus hell, die Statusleiste grau über der weißen Kopfzeile → die Oberfläche
+   meldet nach jedem Wechsel die Farben (`app/systemBars.ts`, Brücke `PidaSystemBars` in `MainActivity.kt`,
+   `values(-night)/colors.xml`) (`systemBars.test.ts`; 43).
+2. **B2 Schriftgröße** des Systems wirkte erst nach einem Neustart → `onConfigurationChanged` setzt `textZoom`.
+3. **B3 Prüfmodus:** das Ergebnis unter den Seiten ließ sich auf Telefonen nicht scrollen (`shell.css` überstimmte
+   `verify.css`) → `.app.view-verify .app-main` (`mobile-css.test.ts`; 44).
+4. **B4 Fingerziele < 44 px:** „Befehle“/Wortmarke in der schmalen Kopfzeile, „Hinweis schließen“, „Suche löschen“,
+   kompakter Konto-Chip (`shell.css`, `components.css`; `mobile-css.test.ts`).
+5. **B5 Datenschutz-Kurzhinweis** bei ID Austria stand schmal nur im ausgeklappten Sheet → direkt über dem Konto-Chip
+   (`Inspector.tsx`; `Mobile.test.tsx`; 57).
+6. **B6** Nach dem Import aus dem Konto-Chip blieb „Signiermittel wählen“ → der Keystore ist für dieses Dokument gewählt
+   (`select_signer`, startet nichts; `SignerChip.tsx`, `KeystoreImport.tsx`; `Mobile.test.tsx`).
+7. **B7 „Signatur fortsetzen“:** „vor 0 Minuten“ und „Anmeldung und Bestätigung sind erneut nötig“ auch beim Keystore →
+   Fluent-Mehrzahl („gerade eben“, „vor einer Minute“), der Satz nur bei ID Austria, Symbol des Signiermittels
+   (`ResumeDialog.tsx`, `pida.ftl`; `Mobile.test.tsx`; 23 → 60).
+8. **B8** Keystore-Warteschritt „Verbindung wird aufgebaut …“ → „Keystore wird geöffnet …“ (`texts.ts`;
+   `signing.test.tsx`; 15).
+9. **B9** „Signaturdienst nicht erreichbar“ zeigte die Fehlerkette des HTTP-Clients als Text → Attribut `.hint`
+   (`backend-network`), die Ursache nur unter „Technische Details“ (`SigningCard.tsx`, `StateCards.tsx`, `texts.ts`;
+   `signing.test.tsx`; 38 → 58).
+10. **B10** Stapelstart mit Keystore: „Überspringen … ohne Bestätigung in der App“ → eigener Text (`StartBatchDialog.tsx`;
+    `batch.test.tsx`; 59).
+11. **B11** Der Datenschutztext nannte auf Mobilgeräten die Chipkarte → `ng-ui-privacy-local-mobile` (`privacy.tsx`;
+    `settings.test.tsx`; 31 → 63).
+12. **B12** Feldbanner „Klicken Sie dort …“ → „Wählen Sie dort …“ (Touch; `ui-workspace.ftl`).
+13. **B13 Merge:** `batch.test.tsx` legte `KeystoreSettings` ohne das neue `storage_chosen` an – `tsc` brach den
+    Android-Build (`beforeBuildCommand`) ab → ergänzt.
+14. **B14 Segmente** („Passwort merken?“ in der Signierkarte, „Passwort“ in den Einstellungen) passten auf 411 px nicht:
+    die Gruppe scrollte waagrecht, „Nicht speichern“ bzw. „Schlüsselbund“ waren angeschnitten → Segmente schrumpfen bis
+    zum längsten Wort und brechen um (Mindest- statt fester Höhe, Fingerziel 44 px bleibt; `components.css`;
+    `mobile-css.test.ts`; 47/48 → 52, 54, 56 mit 130 %).
+15. **B15** Einstellungen › Keystore auf Mobilgeräten: Speicherart „Schlüsselbund“ → „Sicherer Speicher“ (wie „Im
+    sicheren Speicher“ beim ersten Signieren; `SignerRows.tsx`, `ui-tools.ftl`; `settings.test.tsx`).
+16. **B16** Schlüsselzeile „… gültig bis 11.10.2036Alias: test-rsa2048“ ohne Trenner (für `.keystore-key` gab es keine
+    Regel, auch am Desktop) → Name und Alias untereinander (`settings.css`; `mobile-css.test.ts`; 52).
+17. **B17 Papierkorb im Stapel** (neu von `main`) war auf Telefonen unsichtbar: ≤ 520 px blendete
+    `.batch-row-action.has-caret` samt Papierkorb aus → nur der Pfeil entfällt, der Papierkorb steht rechts neben dem
+    Namen (`batch.css`; `mobile-css.test.ts`; 49, 50).
+18. **B18 Zurück-Geste:** nach dem Schließen eines Dialogs zeigte der Auslöser Fokusrahmen und Tooltip (das synthetische
+    Esc setzt in React Aria die Modalität „Tastatur“; 64 rechts oben) → `CLOSE_DIALOG_JS` sendet danach eine
+    Zeigerbewegung an `document` (erreicht keine Bedienelemente); am Gerät: Fokus zurück auf „Einstellungen“ ohne
+    `data-focus-visible` und ohne Tooltip, verschachtelte Dialoge wie vorher (65).
+
+Prüfungen nach den Behebungen: `npm ci && npm run build && npm test` 606/606 (27 Dateien);
+`cargo test -p pida-app -p pida-core-api --no-fail-fast` 253 bestanden / 0 fehlgeschlagen; `tools/rename-to-pida.py
+--check` sauber; Android-Debug-Build neu, am Gerät erneut geprüft.
+
+### 8.4 Nicht möglich bzw. offen
+
+- **A-Trust** (Anmeldung, SMS-TAN, Bestätigung in der App, Vergleichswert ohne Leerzeichen und die schrumpfenden
+  Vergleichswert-Kästchen der Signierkarte von `main`): nur mit Netz – am Gerät nicht geprüft; abgedeckt durch
+  `signing.test.tsx` und die Kern-Tests (`backend-atrust`).
+- **Fortsetzen im Stapel vergisst die Regel für vorhandene Zieldateien:** Beim Start gewählt „Beide behalten“; nach
+  App-Ende und „Fortsetzen“ fragt die Fortsetzung mit dem PDF-Over-Dialog „Datei überschreiben?“ (sicher, aber
+  inkonsistent). Kern: die Regel im persistierten Zustand mitführen (`core-api/src/resume.rs` `ResumeRecord`,
+  `workflow` `ResumePlan`) – Formatänderung, deshalb hier nicht.
+- **Platzhaltersuche nachträglich eingeschaltet:** `qr.pdf` bei ausgeschalteter Suche geöffnet → Block auf neuer Seite;
+  Suche eingeschaltet und dieselbe Datei erneut per `VIEW` empfangen → beide Einträge „im QR-Platzhalter“, das gezeigte
+  Dokument behält aber „Auf neuer Seite“ (Seite 1 / 2 mit leerer neuer Seite). Frisch geöffnet richtig (Seite 1 / 1).
+  Kern (Neuauswertung der Platzierung, `new_page`) prüfen; dazu: dieselbe Datei zweimal empfangen ergibt zwei
+  Stapel-Einträge.
+- **Leiste der Einstellungsbereiche:** im Emulator zeitweise überlagerte Beschriftungen (z. B. „Doku“ plus Teile von
+  „Signaturbild“; 25–31, 48, 52, 56) – nur in `adb screencap`; eine CDP-Aufnahme (`Page.captureScreenshot`) derselben
+  Ansicht ist sauber, das DOM ohne Überlappung. Darstellungsfehler der Emulator-Grafik (`swiftshader_indirect`,
+  Log „DisplaySurfaceGlContextHelper context was preempted“); auf einem echten Gerät gegenprüfen.
+- **Text der Stapelübersicht:** „einmal anmelden, dann jedes Dokument einzeln bestätigen“ steht auch beim Keystore bzw.
+  „Jedes Mal fragen“ – passt nur zu ID Austria.
+- TalkBack mit Sprachausgabe (geprüft wurde der AX-Baum), echte Geräte, Android 9–14, Release-Build: wie §6.

@@ -473,7 +473,7 @@ describe('Start mit Ordnerwahl und vorhandenen Dateien (E2.7)', () => {
   });
 
   it('Keystore: „Überspringen“ ohne „Bestätigung in der App“ (die gibt es dort nicht)', async () => {
-    const ks = { enabled: true, file: '/Users/demo/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'memory' as const };
+    const ks = { enabled: true, file: '/Users/demo/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'memory' as const, storage_chosen: true };
     const { user } = await openBatch({ existingFiles: existing, settings: settings({ backend: { default: null }, keystore: ks }) });
     await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
     await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Keystore/ }));
