@@ -689,7 +689,11 @@ describe('Mobile (Abnahme E3 Punkt 7; nur ID Austria, ADR 0004 Nachtrag 11)', ()
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
     await user.click(nav(dialog, 'Signiermittel'));
     expect(within(dialog).queryByRole('region', { name: 'Keystore' })).toBeNull();
+    // wie die Shell: auf iOS/Android kein FIDO2-Anbieter – Hinweis statt Schalter
+    expect(within(dialog).queryByRole('switch', { name: 'FIDO2-Sicherheitsschlüssel bevorzugen' })).toBeNull();
+    expect(within(dialog).getByText(/FIDO2-Sicherheitsschlüssel sind auf diesem Gerät nicht verfügbar/)).toBeInTheDocument();
     const v = (await mock.view()).settings!;
+    expect(v.fido2_available).toBe(false);
     expect(v.settings.backend.default).toBe('id_austria');
     expect(v.settings.keystore.file).toBe('/var/mobile/k/test.p12');
     expect([v.keystore_ready, v.keystore_format, v.keystore_entries]).toEqual([false, null, null]);

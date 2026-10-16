@@ -371,7 +371,8 @@ export const settingsArea: MockArea<SettingsState> = {
           // wie der Kern: Hinweise der aktuellen Einstellungen plus abgelehnte Felder
           problems: { ...validate(state.settings), ...state.problems },
           keychain_available: state.keychainAvailable,
-          fido2_available: state.fido2Available,
+          // wie die Shell: auf iOS/Android gibt es keinen FIDO2-Anbieter (Hinweis statt Schalter)
+          fido2_available: state.fido2Available && !ctx.platform().mobile,
           keystore_ready: keystore && state.settings.keystore.enabled && mockKeystoreFormat(state.settings.keystore.file) === 'pkcs12',
           keystore_format: keystore ? mockKeystoreFormat(state.settings.keystore.file) : null,
           keystore_entries: keystore ? keystoreEntries(state) : null,
