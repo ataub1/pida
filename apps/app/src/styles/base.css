@@ -87,6 +87,11 @@ code {
 .app-main:focus-visible {
   outline: none;
 }
+/* Überschriften und Bereiche, die die App nur per Skript fokussiert (tabindex="-1": Ansage für
+   Screenreader beim Ansichtswechsel), sind nicht bedienbar und bekommen keinen Fokusrahmen. */
+[tabindex='-1']:focus-visible {
+  outline: none;
+}
 
 .sr-only,
 .visually-hidden {
