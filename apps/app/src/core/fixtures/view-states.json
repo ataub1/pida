@@ -45,6 +45,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -110,6 +111,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -176,6 +178,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -253,6 +256,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -330,6 +334,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -468,6 +473,7 @@
           }
         }
       ],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -534,6 +540,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -626,6 +633,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -712,6 +720,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -813,6 +822,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -909,6 +919,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1043,6 +1054,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1139,6 +1151,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1235,6 +1248,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1331,6 +1345,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1427,6 +1442,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1528,6 +1544,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1624,6 +1641,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1733,6 +1751,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1842,6 +1861,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -1951,6 +1971,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2060,6 +2081,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2171,6 +2193,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2285,6 +2308,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2393,6 +2417,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2501,6 +2526,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2609,6 +2635,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2717,6 +2744,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2835,6 +2863,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -2945,6 +2974,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3054,6 +3084,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3163,6 +3194,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3271,6 +3303,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3381,6 +3414,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3484,6 +3518,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3587,6 +3622,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3690,6 +3726,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3793,6 +3830,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3895,6 +3933,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -3997,6 +4036,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4099,6 +4139,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4201,6 +4242,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4307,6 +4349,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4409,6 +4452,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4511,6 +4555,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4613,6 +4658,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4715,6 +4761,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4817,6 +4864,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4919,6 +4967,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -4993,6 +5042,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -5082,6 +5132,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -5156,6 +5207,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -5233,6 +5285,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -5309,6 +5362,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -5375,6 +5429,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -5539,6 +5594,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -5674,6 +5730,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": true,
         "os": "android"
@@ -5767,6 +5824,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": true,
         "os": "ios"
@@ -5844,6 +5902,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": true,
         "os": "android"
@@ -6088,6 +6147,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -6141,6 +6201,383 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "privacy_text": null,
+      "recent": null,
+      "resume": null,
+      "settings": null,
+      "signers": {
+        "default": "atrust_native",
+        "options": [
+          {
+            "account": "+43 660 ···123",
+            "available": true,
+            "backend": "atrust_native",
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": true,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "notes": [],
+            "unavailable_reason": null
+          },
+          {
+            "account": "max.p12 · signer",
+            "available": false,
+            "backend": "keystore",
+            "capabilities": null,
+            "notes": [],
+            "unavailable_reason": "ng-signer-keystore-missing"
+          },
+          {
+            "account": null,
+            "available": false,
+            "backend": "local_bku",
+            "capabilities": null,
+            "notes": [
+              "ng-fido2-unavailable-mobile"
+            ],
+            "unavailable_reason": "ng-signer-localbku-not-running"
+          }
+        ],
+        "selected": "atrust_native"
+      },
+      "step": {
+        "announce": {
+          "page": "2"
+        },
+        "block": {
+          "height": 82.0,
+          "preview_revision": 3,
+          "width": 232.5
+        },
+        "doc": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": false
+        },
+        "new_page": false,
+        "page": 1,
+        "placement": {
+          "height": 82.0,
+          "page_index": 1,
+          "width": 232.5,
+          "x": 297.5,
+          "y": 210.5
+        },
+        "step": "position"
+      },
+      "verify": null
+    }
+  },
+  {
+    "name": "ws_editing_locked",
+    "view": {
+      "actions": {
+        "edit_placement": true,
+        "home": true,
+        "open_files": false,
+        "settings": true,
+        "show_batch": true,
+        "sign": true,
+        "start_batch": false,
+        "verify": false
+      },
+      "batch": null,
+      "document": {
+        "announce": {
+          "bottom": "45",
+          "left": "105",
+          "page": "2",
+          "pages": "2",
+          "top": "74"
+        },
+        "block": {
+          "height": 82.0,
+          "preview_revision": 3,
+          "width": 232.5
+        },
+        "check": {
+          "clamped": false,
+          "for_revision": 4,
+          "overlaps_content": false,
+          "overlaps_widget": false
+        },
+        "constraints": {
+          "new_page_allowed": false,
+          "new_visible_field_allowed": false,
+          "reasons": [
+            "ng-constraint-signed",
+            "ng-constraint-certified"
+          ],
+          "visible_allowed": true
+        },
+        "detection": {
+          "auto_placed": true,
+          "pdfa": {
+            "conformance": "B",
+            "part": 2
+          },
+          "pdfa_decision": "detected"
+        },
+        "doc": {
+          "id": 7,
+          "name": "Vertrag.pdf",
+          "page_count": 2,
+          "page_sizes": [
+            [
+              595.5,
+              842.0
+            ],
+            [
+              842.0,
+              595.5
+            ]
+          ],
+          "signed": true
+        },
+        "existing": [
+          {
+            "field_name": "Signatur1",
+            "page": 0,
+            "rect": {
+              "bottom": 60.0,
+              "left": 300.0,
+              "right": 530.0,
+              "top": 140.0
+            },
+            "signer": "Max Mustermann",
+            "signing_time": "2026-10-14T09:30:00+02:00",
+            "status": "valid"
+          },
+          {
+            "field_name": "Signatur2",
+            "page": null,
+            "rect": null,
+            "signer": null,
+            "signing_time": null,
+            "status": "invalid"
+          },
+          {
+            "field_name": "Zeitstempel",
+            "page": null,
+            "rect": null,
+            "signer": null,
+            "signing_time": null,
+            "status": "not_verifiable"
+          }
+        ],
+        "fields": [
+          {
+            "index": 0,
+            "name": "Unterschrift.Auftraggeber",
+            "page": 1,
+            "rect": {
+              "bottom": 100.0,
+              "left": 56.0,
+              "right": 256.0,
+              "top": 160.0
+            },
+            "selectable": true
+          },
+          {
+            "index": 1,
+            "name": "Gesperrt",
+            "page": null,
+            "rect": null,
+            "selectable": false
+          }
+        ],
+        "invisible": false,
+        "layout": [
+          {
+            "content": null,
+            "free": [
+              {
+                "bottom": 36.0,
+                "left": 36.0,
+                "right": 559.5,
+                "top": 806.0
+              }
+            ],
+            "guides": [],
+            "page": 0
+          },
+          {
+            "content": {
+              "bottom": 410.0,
+              "left": 56.5,
+              "right": 538.0,
+              "top": 785.0
+            },
+            "free": [
+              {
+                "bottom": 36.0,
+                "left": 297.5,
+                "right": 559.5,
+                "top": 404.0
+              },
+              {
+                "bottom": 36.0,
+                "left": 36.0,
+                "right": 290.0,
+                "top": 404.0
+              }
+            ],
+            "guides": [
+              {
+                "at": 56.5,
+                "axis": "x",
+                "kind": "content_left"
+              },
+              {
+                "at": 538.0,
+                "axis": "x",
+                "kind": "content_right"
+              },
+              {
+                "at": 785.0,
+                "axis": "y",
+                "kind": "content_top"
+              },
+              {
+                "at": 410.0,
+                "axis": "y",
+                "kind": "content_bottom"
+              },
+              {
+                "at": 297.5,
+                "axis": "x",
+                "kind": "center_x"
+              },
+              {
+                "at": 421.0,
+                "axis": "y",
+                "kind": "center_y"
+              },
+              {
+                "at": 392.0,
+                "axis": "y",
+                "kind": "below_content"
+              },
+              {
+                "at": 36.0,
+                "axis": "x",
+                "kind": "margin_left"
+              },
+              {
+                "at": 559.5,
+                "axis": "x",
+                "kind": "margin_right"
+              },
+              {
+                "at": 806.0,
+                "axis": "y",
+                "kind": "margin_top"
+              },
+              {
+                "at": 36.0,
+                "axis": "y",
+                "kind": "margin_bottom"
+              }
+            ],
+            "page": 1
+          }
+        ],
+        "new_page": false,
+        "origin": "auto",
+        "phase": "editing",
+        "placement": {
+          "height": 82.0,
+          "page_index": 1,
+          "width": 232.5,
+          "x": 297.5,
+          "y": 210.5
+        },
+        "placement_locked": true,
+        "qr": {
+          "id": "1",
+          "page": 1,
+          "rect": {
+            "bottom": 40.0,
+            "left": 400.0,
+            "right": 480.0,
+            "top": 120.0
+          }
+        },
+        "revision": 4,
+        "size_bytes": 248512,
+        "sticker": {
+          "bottom": 128.5,
+          "left": 297.5,
+          "right": 530.0,
+          "top": 210.5
+        },
+        "target": {
+          "kind": "free"
+        }
+      },
+      "done": [],
+      "first_run": null,
+      "keystore_import": null,
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": true,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -6459,6 +6896,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -6513,6 +6951,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -6682,6 +7121,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": null,
         "revision": 4,
         "size_bytes": 248512,
@@ -6721,6 +7161,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -6994,6 +7435,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -7047,6 +7489,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -7309,6 +7752,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -7362,6 +7806,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -7639,6 +8084,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -7692,6 +8138,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -7969,6 +8416,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -8022,6 +8470,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -8299,6 +8748,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -8352,6 +8802,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -8629,6 +9080,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -8682,6 +9134,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -8959,6 +9412,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -9012,6 +9466,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -9289,6 +9744,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -9342,6 +9798,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -9619,6 +10076,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -9672,6 +10130,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -9949,6 +10408,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -10002,6 +10462,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -10279,6 +10740,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -10332,6 +10794,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -10609,6 +11072,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -10662,6 +11126,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -10939,6 +11404,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -10992,6 +11458,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -11059,6 +11526,8 @@
         "verify": false
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": {
           "backend": "atrust_native",
           "certificate_confirmation_possible": true,
@@ -11263,6 +11732,7 @@
             "thumbnail": true
           }
         ],
+        "manual_plans": 0,
         "open_item": 3,
         "output": {
           "folder_display": null,
@@ -11304,6 +11774,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -11388,6 +11859,8 @@
         "verify": false
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": {
           "backend": "atrust_native",
           "certificate_confirmation_possible": true,
@@ -11592,6 +12065,7 @@
             "thumbnail": true
           }
         ],
+        "manual_plans": 0,
         "open_item": 3,
         "output": {
           "folder_display": null,
@@ -11633,6 +12107,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -11717,6 +12192,8 @@
         "verify": false
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": {
           "backend": "atrust_native",
           "certificate_confirmation_possible": true,
@@ -11921,6 +12398,7 @@
             "thumbnail": true
           }
         ],
+        "manual_plans": 0,
         "open_item": 3,
         "output": {
           "folder_display": null,
@@ -11962,6 +12440,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -12075,6 +12554,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -12149,6 +12629,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -12223,6 +12704,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -12475,6 +12957,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -12528,6 +13011,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -12605,6 +13089,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -12679,6 +13164,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -12753,6 +13239,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -13005,6 +13492,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -13058,6 +13546,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -13334,6 +13823,7 @@
           "x": 297.5,
           "y": 210.5
         },
+        "placement_locked": false,
         "qr": {
           "id": "1",
           "page": 1,
@@ -13387,6 +13877,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": true,
         "os": "ios"
@@ -13453,6 +13944,8 @@
         "verify": true
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": {
           "backend": "atrust_native",
           "certificate_confirmation_possible": true,
@@ -13657,6 +14150,7 @@
             "thumbnail": true
           }
         ],
+        "manual_plans": 0,
         "open_item": 3,
         "output": {
           "folder_display": null,
@@ -13708,6 +14202,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -13786,6 +14281,8 @@
         "verify": true
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": {
           "backend": "atrust_native",
           "certificate_confirmation_possible": true,
@@ -13990,6 +14487,7 @@
             "thumbnail": true
           }
         ],
+        "manual_plans": 0,
         "open_item": 3,
         "output": {
           "folder_display": "/Users/demo/Signiert",
@@ -14041,6 +14539,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -14119,6 +14618,8 @@
         "verify": true
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": {
           "backend": "atrust_native",
           "certificate_confirmation_possible": true,
@@ -14323,6 +14824,7 @@
             "thumbnail": true
           }
         ],
+        "manual_plans": 0,
         "open_item": 3,
         "output": {
           "folder_display": null,
@@ -14374,6 +14876,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -14452,6 +14955,8 @@
         "verify": true
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": {
           "backend": "atrust_native",
           "certificate_confirmation_possible": true,
@@ -14656,6 +15161,7 @@
             "thumbnail": true
           }
         ],
+        "manual_plans": 0,
         "open_item": 3,
         "output": {
           "folder_display": null,
@@ -14707,6 +15213,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": true,
         "os": "android"
@@ -14785,8 +15292,11 @@
         "verify": false
       },
       "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": false,
         "estimate": null,
         "items": [],
+        "manual_plans": 0,
         "open_item": null,
         "output": {
           "folder_display": null,
@@ -14828,6 +15338,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -14840,6 +15351,680 @@
         "default": null,
         "options": [],
         "selected": null
+      },
+      "step": {
+        "step": "batch"
+      },
+      "verify": null
+    }
+  },
+  {
+    "name": "ws_batch_auto_once",
+    "view": {
+      "actions": {
+        "edit_placement": false,
+        "home": true,
+        "open_files": true,
+        "settings": true,
+        "show_batch": true,
+        "sign": false,
+        "start_batch": true,
+        "verify": true
+      },
+      "batch": {
+        "auto_position_once": true,
+        "auto_position_setting": false,
+        "estimate": {
+          "backend": "atrust_native",
+          "certificate_confirmation_possible": true,
+          "confirmations": 3,
+          "documents": 3,
+          "large": false,
+          "logins": 1
+        },
+        "items": [
+          {
+            "doc": 1,
+            "name": "a.pdf",
+            "page_count": null,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": null,
+            "status": {
+              "state": "analyzing"
+            },
+            "target_exists": false,
+            "target_name": null,
+            "thumbnail": false
+          },
+          {
+            "doc": 2,
+            "name": "b.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "manual",
+              "page": 2
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "ready"
+            },
+            "target_exists": false,
+            "target_name": "b_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 3,
+            "name": "c.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "field",
+              "name": "Unterschrift"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "positioned"
+            },
+            "target_exists": false,
+            "target_name": "c_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 4,
+            "name": "d.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "qr"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "code": "error-PDFPwdProtected",
+              "state": "rejected"
+            },
+            "target_exists": false,
+            "target_name": "d_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 5,
+            "name": "e.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "invisible"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "codes": [
+                "pdf-usage-rights"
+              ],
+              "state": "needs_review"
+            },
+            "target_exists": false,
+            "target_name": "e_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 6,
+            "name": "f.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "queued"
+            },
+            "target_exists": false,
+            "target_name": "f_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 7,
+            "name": "g.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "stage": "confirming",
+              "state": "active"
+            },
+            "target_exists": false,
+            "target_name": "g_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 8,
+            "name": "h.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "path": "/Users/demo/h_signed.pdf",
+              "state": "signed"
+            },
+            "target_exists": false,
+            "target_name": "h_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 9,
+            "name": "i.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "code": "backend-document-too-large",
+              "params": {
+                "detail": "413"
+              },
+              "state": "failed"
+            },
+            "target_exists": false,
+            "target_name": "i_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 10,
+            "name": "j.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "existing": true,
+              "state": "skipped"
+            },
+            "target_exists": true,
+            "target_name": "j_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 11,
+            "name": "k.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "existing": false,
+              "state": "skipped"
+            },
+            "target_exists": false,
+            "target_name": "k_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 12,
+            "name": "l.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "cancelled"
+            },
+            "target_exists": false,
+            "target_name": "l_signed.pdf",
+            "thumbnail": true
+          }
+        ],
+        "manual_plans": 1,
+        "open_item": 3,
+        "output": {
+          "folder_display": null,
+          "mode": "next_to_source",
+          "needs_folder": false
+        },
+        "running": false,
+        "summary": {
+          "aborted": true,
+          "cancelled": 1,
+          "failed": 1,
+          "folder_display": "/Users/demo",
+          "not_started": 6,
+          "rejected": 1,
+          "signed": 1,
+          "skipped": 2,
+          "total": 12
+        }
+      },
+      "document": null,
+      "done": [],
+      "first_run": null,
+      "keystore_import": null,
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "parked": null,
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "privacy_text": null,
+      "recent": null,
+      "resume": null,
+      "settings": null,
+      "signers": {
+        "default": "atrust_native",
+        "options": [
+          {
+            "account": "+43 660 ···123",
+            "available": true,
+            "backend": "atrust_native",
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": true,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "notes": [],
+            "unavailable_reason": null
+          },
+          {
+            "account": "max.p12 · signer",
+            "available": false,
+            "backend": "keystore",
+            "capabilities": null,
+            "notes": [],
+            "unavailable_reason": "ng-signer-keystore-missing"
+          },
+          {
+            "account": null,
+            "available": false,
+            "backend": "local_bku",
+            "capabilities": null,
+            "notes": [
+              "ng-fido2-unavailable-mobile"
+            ],
+            "unavailable_reason": "ng-signer-localbku-not-running"
+          }
+        ],
+        "selected": "atrust_native"
+      },
+      "step": {
+        "step": "batch"
+      },
+      "verify": null
+    }
+  },
+  {
+    "name": "ws_batch_auto_setting",
+    "view": {
+      "actions": {
+        "edit_placement": false,
+        "home": true,
+        "open_files": true,
+        "settings": true,
+        "show_batch": true,
+        "sign": false,
+        "start_batch": true,
+        "verify": true
+      },
+      "batch": {
+        "auto_position_once": false,
+        "auto_position_setting": true,
+        "estimate": {
+          "backend": "atrust_native",
+          "certificate_confirmation_possible": true,
+          "confirmations": 3,
+          "documents": 3,
+          "large": false,
+          "logins": 1
+        },
+        "items": [
+          {
+            "doc": 1,
+            "name": "a.pdf",
+            "page_count": null,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": null,
+            "status": {
+              "state": "analyzing"
+            },
+            "target_exists": false,
+            "target_name": null,
+            "thumbnail": false
+          },
+          {
+            "doc": 2,
+            "name": "b.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "manual",
+              "page": 2
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "ready"
+            },
+            "target_exists": false,
+            "target_name": "b_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 3,
+            "name": "c.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "field",
+              "name": "Unterschrift"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "positioned"
+            },
+            "target_exists": false,
+            "target_name": "c_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 4,
+            "name": "d.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "qr"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "code": "error-PDFPwdProtected",
+              "state": "rejected"
+            },
+            "target_exists": false,
+            "target_name": "d_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 5,
+            "name": "e.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "invisible"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "codes": [
+                "pdf-usage-rights"
+              ],
+              "state": "needs_review"
+            },
+            "target_exists": false,
+            "target_name": "e_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 6,
+            "name": "f.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "queued"
+            },
+            "target_exists": false,
+            "target_name": "f_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 7,
+            "name": "g.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "stage": "confirming",
+              "state": "active"
+            },
+            "target_exists": false,
+            "target_name": "g_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 8,
+            "name": "h.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "path": "/Users/demo/h_signed.pdf",
+              "state": "signed"
+            },
+            "target_exists": false,
+            "target_name": "h_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 9,
+            "name": "i.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "code": "backend-document-too-large",
+              "params": {
+                "detail": "413"
+              },
+              "state": "failed"
+            },
+            "target_exists": false,
+            "target_name": "i_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 10,
+            "name": "j.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "existing": true,
+              "state": "skipped"
+            },
+            "target_exists": true,
+            "target_name": "j_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 11,
+            "name": "k.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "existing": false,
+              "state": "skipped"
+            },
+            "target_exists": false,
+            "target_name": "k_signed.pdf",
+            "thumbnail": true
+          },
+          {
+            "doc": 12,
+            "name": "l.pdf",
+            "page_count": 3,
+            "position": {
+              "kind": "auto"
+            },
+            "size_bytes": 120000,
+            "status": {
+              "state": "cancelled"
+            },
+            "target_exists": false,
+            "target_name": "l_signed.pdf",
+            "thumbnail": true
+          }
+        ],
+        "manual_plans": 1,
+        "open_item": 3,
+        "output": {
+          "folder_display": null,
+          "mode": "next_to_source",
+          "needs_folder": false
+        },
+        "running": false,
+        "summary": {
+          "aborted": true,
+          "cancelled": 1,
+          "failed": 1,
+          "folder_display": "/Users/demo",
+          "not_started": 6,
+          "rejected": 1,
+          "signed": 1,
+          "skipped": 2,
+          "total": 12
+        }
+      },
+      "document": null,
+      "done": [],
+      "first_run": null,
+      "keystore_import": null,
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "parked": null,
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "privacy_text": null,
+      "recent": null,
+      "resume": null,
+      "settings": null,
+      "signers": {
+        "default": "atrust_native",
+        "options": [
+          {
+            "account": "+43 660 ···123",
+            "available": true,
+            "backend": "atrust_native",
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": true,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "notes": [],
+            "unavailable_reason": null
+          },
+          {
+            "account": "max.p12 · signer",
+            "available": false,
+            "backend": "keystore",
+            "capabilities": null,
+            "notes": [],
+            "unavailable_reason": "ng-signer-keystore-missing"
+          },
+          {
+            "account": null,
+            "available": false,
+            "backend": "local_bku",
+            "capabilities": null,
+            "notes": [
+              "ng-fido2-unavailable-mobile"
+            ],
+            "unavailable_reason": "ng-signer-localbku-not-running"
+          }
+        ],
+        "selected": "atrust_native"
       },
       "step": {
         "step": "batch"
@@ -14893,6 +16078,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -14968,6 +16154,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -15044,6 +16231,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -15259,6 +16447,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -15474,6 +16663,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -15689,6 +16879,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -15904,6 +17095,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -15985,12 +17177,157 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
       },
       "privacy_text": null,
       "recent": [],
+      "resume": null,
+      "settings": null,
+      "signers": {
+        "default": null,
+        "options": [],
+        "selected": null
+      },
+      "step": {
+        "queue": [],
+        "step": "open"
+      },
+      "verify": null
+    }
+  },
+  {
+    "name": "ws_start_parked",
+    "view": {
+      "actions": {
+        "edit_placement": false,
+        "home": true,
+        "open_files": true,
+        "settings": true,
+        "show_batch": false,
+        "sign": false,
+        "start_batch": false,
+        "verify": true
+      },
+      "batch": null,
+      "document": null,
+      "done": [],
+      "first_run": null,
+      "keystore_import": null,
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "parked": {
+        "doc_name": "Vertrag.pdf",
+        "documents": 1,
+        "placed_by_hand": true,
+        "unsaved": false
+      },
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "privacy_text": null,
+      "recent": null,
+      "resume": null,
+      "settings": null,
+      "signers": {
+        "default": null,
+        "options": [],
+        "selected": null
+      },
+      "step": {
+        "queue": [],
+        "step": "open"
+      },
+      "verify": null
+    }
+  },
+  {
+    "name": "ws_start_parked_batch",
+    "view": {
+      "actions": {
+        "edit_placement": false,
+        "home": true,
+        "open_files": true,
+        "settings": true,
+        "show_batch": false,
+        "sign": false,
+        "start_batch": false,
+        "verify": true
+      },
+      "batch": null,
+      "document": null,
+      "done": [],
+      "first_run": null,
+      "keystore_import": null,
+      "language": "de",
+      "main_bar": {
+        "settings_enabled": true,
+        "steps": [
+          {
+            "active": true,
+            "enabled": true,
+            "step": "Open"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Positioning"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Signing"
+          },
+          {
+            "active": false,
+            "enabled": false,
+            "step": "Finish"
+          }
+        ]
+      },
+      "migration": null,
+      "notices": [],
+      "parked": {
+        "doc_name": null,
+        "documents": 4,
+        "placed_by_hand": false,
+        "unsaved": false
+      },
+      "platform": {
+        "mobile": false,
+        "os": "macos"
+      },
+      "privacy_text": null,
+      "recent": null,
       "resume": null,
       "settings": null,
       "signers": {
@@ -16131,6 +17468,7 @@
         "plaintext_secrets": false
       },
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"
@@ -16203,6 +17541,7 @@
       },
       "migration": null,
       "notices": [],
+      "parked": null,
       "platform": {
         "mobile": false,
         "os": "macos"

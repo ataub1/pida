@@ -150,6 +150,11 @@ export class MockBatch {
   /** in dieser Programmsitzung geschriebene Dateien (Vorabprüfung „existiert“) */
   private readonly written: string[] = [];
   private analyzing = false;
+  /**
+   * „Für diesen Stapel automatisch positionieren“ (Kern: `Batch::auto_position_once`, Nachtrag 8): nur bis zum
+   * Ende bzw. Abbruch des nächsten Laufs; die Einstellung bleibt unverändert
+   */
+  private autoOnce = false;
 
   constructor(private readonly host: BatchHost) {}
 
@@ -191,6 +196,12 @@ export class MockBatch {
       this.entries.push({ doc, status: { state: 'analyzing' }, before: null, plan: null, autoPlan: false, analyzed: false });
     }
     this.preanalyzeNext();
+  }
+
+  /** Einzeln signiertes Dokument als „Signiert“ übernehmen (`ShowBatch` bzw. „Zur Startseite“ aus „Fertig“). */
+  addSigned(doc: MockDoc, path: string): void {
+    this.entries.push({ doc, status: { state: 'signed', path }, before: null, plan: null, autoPlan: false, analyzed: true });
+    this.written.push(path);
   }
 
   /** Aktuelles Dokument aus dem Arbeitsbereich übernehmen (`ShowBatch`: Platzierung als Plan). */
@@ -238,6 +249,33 @@ export class MockBatch {
       e.status = { state: plan ? 'positioned' : 'ready' };
       e.plan = plan;
       e.autoPlan = plan !== null;
+    }
+  }
+
+  /** Automatische Positionierung im Stapel: laut Einstellung oder nur für diesen Stapel (Kern: `Batch::auto_position`). */
+  private autoPosition(): boolean {
+    return this.ctx.settings().signature.auto_position || this.autoOnce;
+  }
+
+  /** von Hand platziert: eigener Plan, nicht aus der Automatik (Kern: `BatchItem::manual_plan`) */
+  private static manual(e: Entry): boolean {
+    return e.plan !== null && !e.autoPlan;
+  }
+
+  /**
+   * `SetBatchAutoPosition` (Kern: `BatchAutoPositionSet`): nur in der Übersicht; von Hand platzierte Einträge
+   * behalten ihren Plan, außer `replaceManual` (ausdrücklich bestätigt). Startet nichts.
+   */
+  setAutoPosition(enabled: boolean, replaceManual: boolean): void {
+    if (this.run) return;
+    this.autoOnce = enabled;
+    if (!enabled || !replaceManual) return;
+    for (const e of this.signable()) {
+      if (!MockBatch.manual(e)) continue;
+      const plan = this.autoPlanFor(e.doc);
+      e.plan = plan;
+      e.autoPlan = plan !== null;
+      e.status = { state: plan ? 'positioned' : 'ready' };
     }
   }
 
@@ -579,6 +617,7 @@ export class MockBatch {
     this.run = null;
     this.lastRun = true;
     this.lastRunAborted = true;
+    this.autoOnce = false;
     this.host.setRemembered(false);
     this.ctx.notify('ng-batch-aborted', { signed: String(run.signedInRun) });
     this.host.runEnded();
@@ -587,6 +626,7 @@ export class MockBatch {
   private finishRun(): void {
     this.run = null;
     this.lastRun = true;
+    this.autoOnce = false;
     const sum = this.summary();
     this.ctx.notify('ng-batch-done', { signed: String(sum.signed), total: String(sum.total) });
     this.host.runEnded();
@@ -622,6 +662,8 @@ export class MockBatch {
     const target = this.targetPath(e, this.run?.outputDir ?? null);
     let status: BatchItemStatusView = structuredClone(e.status);
     if (status.state === 'active' && progress && progress.doc?.id === e.doc.id) status = { state: 'active', stage: progress.stage };
+    // automatische Positionierung im Stapel: automatische Pläne gelten als „Bereit“ (Kern: `shown_status`)
+    if (status.state === 'positioned' && e.autoPlan && this.autoPosition()) status = { state: 'ready' };
     return {
       doc: e.doc.id,
       name: e.doc.name,
@@ -682,6 +724,9 @@ export class MockBatch {
       summary: this.lastRun && !this.run ? this.summary() : null,
       output: this.outputView(),
       estimate: this.estimate(),
+      auto_position_setting: this.ctx.settings().signature.auto_position,
+      auto_position_once: this.autoOnce,
+      manual_plans: this.signable().filter((e) => MockBatch.manual(e)).length,
     };
   }
 

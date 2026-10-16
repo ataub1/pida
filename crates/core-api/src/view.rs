@@ -526,6 +526,12 @@ pub struct ViewState {
     /// Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (ADR 0004 §3.13), aus dem Zustand berechnet
     #[serde(default)]
     pub actions: ActionsView,
+    /// Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): gesetzt, solange die Startansicht ein offenes
+    /// Dokument bzw. einen Stapel verdeckt (Karte „In Bearbeitung“); dann sind `document` und `batch` `None`.
+    /// Additiv, in TypeScript optional; der Kern liefert es immer (`None` ohne geparkte Arbeit).
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub parked: Option<ParkedWorkView>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -576,6 +582,21 @@ impl std::fmt::Debug for FormAnswerView {
     }
 }
 
+/// Wie `open_files` die gewählten Dateien zum offenen Dokument nimmt (Kopfzeile „+ PDF“, Miniaturleiste;
+/// ADR 0004 Nachtrag 9). Was daraus folgt, entscheidet der Kern nach dem Zustand.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpenFilesMode {
+    /// „Weitere PDFs hinzufügen“: das offene Dokument bleibt; im Arbeitsbereich werden alle zusammen zum Stapel
+    /// (Stapelübersicht, die Platzierung des offenen Dokuments bleibt dessen Plan). Sonst wie ohne `mode`.
+    Add,
+    /// „Anderes PDF öffnen“: das offene Dokument (Analysewarnung, Arbeitsbereich) wird geschlossen und nie
+    /// signiert, die Dateien öffnen wie in der Dokumentauswahl; wartende Dokumente bleiben. Sonst wie ohne
+    /// `mode`.
+    Replace,
+}
+
 /// UI-Ereignis.
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -585,6 +606,12 @@ pub enum UiEvent {
     OpenFiles {
         /// Pfade
         paths: Vec<PathBuf>,
+        /// Wie die Dateien zum offenen Dokument kommen (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9);
+        /// `None` = wie bisher (der Kern entscheidet nach dem Zustand: Auswahl öffnen, sonst an die
+        /// Warteschlange). Nur im Arbeitsbereich-Modus, sonst ohne Bedeutung. In TypeScript optional.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
+        mode: Option<OpenFilesMode>,
     },
     /// Antwort auf die Warnung der Analyse ([`StepView::Warning`]): trotzdem signieren bzw. Dokument
     /// verwerfen
@@ -885,6 +912,30 @@ pub enum UiEvent {
         #[cfg_attr(feature = "ts", ts(as = "Option<crate::ts::PasswordStorage>", optional = nullable))]
         password_storage: Option<pida_config::PasswordStorage>,
     },
+    /// „Diesmal selbst platzieren“ (Nachtrag 8): hebt die Sperre der Einstellung „Automatische
+    /// Positionierung“ (`DocumentView::placement_locked`) für das aktuelle Dokument auf – danach normales
+    /// Ziehen und Einrasten. Startet **nichts** (A1).
+    UnlockPlacement,
+    /// Stapelübersicht „Für diesen Stapel automatisch positionieren“ (Nachtrag 8, `BatchView::auto_position_once`):
+    /// nur für diesen Stapel, die Einstellung bleibt unverändert; `replace_manual` = auch die von Hand
+    /// platzierten Einträge (`BatchView::manual_plans`) neu automatisch platzieren – nur nach ausdrücklicher
+    /// Bestätigung, sonst behalten sie ihren Plan. Startet **nichts** (A1, F-54: erst „Alle signieren“).
+    SetBatchAutoPosition {
+        /// ein bzw. aus
+        enabled: bool,
+        /// von Hand platzierte Einträge ebenfalls automatisch platzieren
+        #[serde(default)]
+        replace_manual: bool,
+    },
+    /// „Zur Startseite“ (Haus-Symbol, Wortmarke, Palette; ADR 0004 Nachtrag 10): schließt einen offenen Prüfmodus
+    /// und parkt das offene Dokument (mit Platzierung) bzw. den Stapel, statt sie zu verwerfen (`ViewState::parked`).
+    /// Beim Signieren und im Stapellauf ohne Wirkung (`actions.home`). Startet **nichts** (A1).
+    GoHome,
+    /// „Weiter bearbeiten“ (Karte „In Bearbeitung“): geparkte Arbeit unverändert fortsetzen. Startet **nichts**.
+    ResumeParked,
+    /// „Schließen“ (Karte „In Bearbeitung“): geparkte Arbeit verwerfen (Dokumente „abgebrochen“; signierte Dateien
+    /// bleiben). Startet **nichts**.
+    DiscardParked,
 }
 
 impl std::fmt::Debug for UiEvent {
@@ -911,6 +962,11 @@ impl std::fmt::Debug for UiEvent {
                 .field("remember", remember)
                 .finish(),
             // ADR 0004: ohne Pfade und Einstellungswerte (Benutzername, Ordner; Regel 9)
+            UiEvent::OpenFiles { paths, mode } => f
+                .debug_struct("OpenFiles")
+                .field("paths", &format_args!("<{} Pfade>", paths.len()))
+                .field("mode", mode)
+                .finish(),
             UiEvent::OpenVerify { .. } => f.debug_struct("OpenVerify").field("path", &"<Pfad>").finish(),
             UiEvent::StartBatch { backend, docs, output_dir, on_existing } => f
                 .debug_struct("StartBatch")
@@ -1274,11 +1330,18 @@ pub struct DocumentView {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub detection: Option<DocumentDetectionView>,
+    /// Platzierung gesperrt durch die Einstellung „Automatische Positionierung“ (`signature.auto_position`
+    /// bzw. `-a`; ADR 0004 Nachtrag 8): automatisch platziert und bereit zum Signieren – der Kern ignoriert
+    /// `move_block`, `nudge_block`, `change_page`, `use_target` und `auto_place`; `set_invisible`,
+    /// `toggle_new_page` und `sign_with` wirken. `unlock_placement` („Diesmal selbst platzieren“) hebt die
+    /// Sperre für dieses Dokument auf. Nie für Einträge der Stapelübersicht.
+    #[serde(default)]
+    pub placement_locked: bool,
 }
 
 redacted_debug!(DocumentView {
     size_bytes, phase, revision, block, placement, origin, target, invisible, new_page, sticker, fields, qr,
-    constraints, layout, check, announce, detection,
+    constraints, layout, check, announce, detection, placement_locked,
 } redact { doc, existing });
 
 /// PDF/A-Kennung eines Dokuments (XMP `pdfaid:part`, `pdfaid:conformance`).
@@ -1761,6 +1824,21 @@ pub struct BatchView {
     pub output: BatchOutputView,
     /// für `signers.selected` (`None` = kein Signiermittel gewählt)
     pub estimate: Option<BatchEstimateView>,
+    /// Einstellung „Automatische Positionierung“ an (`signature.auto_position` bzw. `-a`): jeder Stapel wird
+    /// automatisch positioniert – die Übersicht zeigt „Automatische Positionierung (laut Einstellung)“
+    /// (Nachtrag 8)
+    #[serde(default)]
+    pub auto_position_setting: bool,
+    /// „Für diesen Stapel automatisch positionieren“ (`set_batch_auto_position`): nur für diesen Stapel bis zum
+    /// Ende bzw. Abbruch des Laufs bzw. bis der Stapel geschlossen wird; die Einstellung bleibt unverändert.
+    /// Mit automatischer Positionierung (Einstellung oder diese Option) gelten automatisch platzierte Einträge
+    /// als „Bereit“ (Nachtrag 8)
+    #[serde(default)]
+    pub auto_position_once: bool,
+    /// noch nicht signierte, von Hand platzierte Einträge (eigener Plan): sie behalten beim Einschalten ihren
+    /// Plan, außer `set_batch_auto_position { replace_manual: true }` nach ausdrücklicher Bestätigung
+    #[serde(default)]
+    pub manual_plans: u32,
 }
 
 // --- §3.9 Prüfmodus -----------------------------------------------------------------------------
@@ -1979,7 +2057,8 @@ redacted_debug!(RecentItemView { id, signed_at, exists } redact { file_name, fol
 // --- §3.12 Ersteinrichtung ----------------------------------------------------------------------
 
 /// Eintrag der Übernahmeliste (§3.12): i18n-ID `ng-migration-item-{block,emblem,username,output,keystore,
-/// proxy,placeholder,language}` mit Detail (z. B. Dateiname der Bildmarke).
+/// proxy,placeholder,position,language}` mit Detail (z. B. Dateiname der Bildmarke); `position` =
+/// „Automatische Positionierung“ (`SIGNATURE_POSITION=auto`, Nachtrag 8).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MigrationItemView {
@@ -2033,9 +2112,29 @@ pub struct ActionsView {
     pub verify: bool,
     /// Einstellungen erreichbar (= `main_bar.settings_enabled`)
     pub settings: bool,
-    /// `navigate{Open}` erlaubt (Startansicht)
+    /// „Zur Startseite“ (`go_home`; Fertig: `navigate{Open}`) erlaubt
     pub home: bool,
 }
+
+// --- Nachtrag 10: geparkte Arbeit --------------------------------------------------------------
+
+/// Geparkte Arbeit (ADR 0004 Nachtrag 10): Karte „In Bearbeitung“ der Startansicht mit „Weiter bearbeiten“
+/// (`resume_parked`) und „Schließen“ (`discard_parked`).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ParkedWorkView {
+    /// Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“)
+    pub doc_name: Option<String>,
+    /// offene Dokumente (Einträge des Stapels bzw. das Dokument samt wartenden)
+    pub documents: u32,
+    /// Signatur bzw. Stapeleinträge von Hand platziert (`DocumentDetectionView::auto_placed == false` bzw.
+    /// `BatchView::manual_plans > 0`): „Schließen“ fragt vorher nach
+    pub placed_by_hand: bool,
+    /// signiert, aber noch nicht gespeichert („Fertig“ mit „Speichern“): „Schließen“ verwirft die Signatur und fragt
+    /// vorher nach
+    pub unsaved: bool,
+}
+redacted_debug!(ParkedWorkView { documents, placed_by_hand, unsaved } redact { doc_name });
 
 #[cfg(test)]
 mod tests {
@@ -2126,6 +2225,9 @@ mod tests {
             needs_folder: false,
         };
         assert_redacted(format!("{output:?}"));
+        let parked =
+            ParkedWorkView { doc_name: Some(file.clone()), documents: 1, placed_by_hand: true, unsaved: false };
+        assert_redacted(format!("{parked:?}"));
         // Ereignisse mit Pfaden bzw. Einstellungswerten
         assert_redacted(format!("{:?}", UiEvent::OpenVerify { path: format!("{SECRET_DIR}/{file}").into() }));
         assert_redacted(format!(

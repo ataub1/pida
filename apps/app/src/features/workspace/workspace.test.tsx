@@ -576,3 +576,129 @@ describe('Erkennung beim Öffnen: PDF/A und Platzhalter (Einstellungen › Dokum
     }
   });
 });
+
+describe('Automatische Positionierung (Einstellung, ADR 0004 Nachtrag 8)', () => {
+  const inspector = () => screen.getByRole('complementary', { name: 'Signatur' });
+  const FIELD = { index: 0, name: 'Unterschrift_Antragsteller', page: 1, rect: { left: 299, right: 539, top: 300, bottom: 214 }, selectable: true };
+  const lockedDoc = (extra: Partial<DocumentView> = {}) =>
+    documentView({ placement_locked: true, detection: { pdfa: null, pdfa_decision: 'none', auto_placed: true }, ...extra });
+  const SESSION: UiEvent['type'][] = ['sign_with', 'choose_backend', 'retry', 'confirm_position', 'choose_invisible', 'start_batch'];
+  const moves = (dispatched: UiEvent[]) => dispatched.filter((e) => ['move_block', 'nudge_block', 'change_page', 'use_target', 'auto_place'].includes(e.type));
+  const withAutoPosition = () => ({ ...defaultSettings(), signature: { ...defaultSettings().signature, auto_position: true } });
+
+  it('gesperrter Block: kein Ziehen, keine Tastatur, kein Doppelklick, keine Feld-Angebote; Fokus auf „Signieren“; axe', async () => {
+    const { mock } = renderApp({ view: workspaceView(lockedDoc({ fields: [FIELD] })) });
+    const s = await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(s).toHaveAttribute('aria-roledescription', 'automatisch platzierter Signaturblock');
+    expect(s).toHaveAttribute('aria-disabled', 'true');
+    expect(s).toHaveAttribute('tabindex', '-1');
+    expect(s).toHaveClass('is-locked');
+    expect(s).toHaveAccessibleDescription(/Automatisch platziert laut Einstellung „Automatische Positionierung“.*„Diesmal selbst platzieren“/);
+    // nach dem Öffnen bereit: Fokus auf „Signieren“
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Signieren/ })).toHaveFocus());
+    stubRects();
+    fireEvent.pointerDown(s, { button: 0, pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(s, { pointerId: 1, ...px(2, 311, 324) });
+    fireEvent.pointerUp(s, { pointerId: 1, ...px(2, 311, 324) });
+    fireEvent.keyDown(s, { key: 'ArrowRight' });
+    fireEvent.keyDown(s, { key: 'PageUp' });
+    fireEvent.doubleClick(screen.getByRole('img', { name: 'Seite 2 von 3 – Vertrag.pdf' }), px(1, 200, 400));
+    expect(moves(mock.dispatched)).toEqual([]);
+    // leeres Feld: weder Markierung noch Hinweisleiste „Ins Feld setzen“
+    expect(screen.queryByRole('button', { name: /Hier signieren/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ins Feld setzen' })).not.toBeInTheDocument();
+    // Inspektor: „Automatisch (laut Einstellung)“, kein „Neu platzieren“
+    expect(within(inspector()).getByTestId('placement-auto')).toHaveTextContent('Automatisch (laut Einstellung)');
+    expect(within(inspector()).getByText('Bereit zum Signieren. Die Lage bestimmt die Einstellung „Automatische Positionierung“.')).toBeInTheDocument();
+    expect(within(inspector()).queryByRole('button', { name: 'Neu platzieren' })).not.toBeInTheDocument();
+    expect(mock.dispatched.filter((e) => SESSION.includes(e.type))).toEqual([]);
+    await expectNoAxeViolations();
+  });
+
+  it('„Unsichtbar signieren“ und „Auf neuer Seite“ bleiben bedienbar; „Diesmal selbst platzieren“ → unlock_placement', async () => {
+    const { mock, user } = renderApp({ view: workspaceView(lockedDoc()) });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    await user.click(screen.getByRole('switch', { name: 'Unsichtbar signieren' }));
+    expect(lastEvent(mock)).toEqual({ type: 'set_invisible', invisible: true });
+    await user.click(screen.getByRole('switch', { name: 'Auf neuer Seite' }));
+    expect(lastEvent(mock)).toEqual({ type: 'toggle_new_page' });
+    await user.click(within(inspector()).getByRole('button', { name: 'Diesmal selbst platzieren' }));
+    expect(lastEvent(mock)).toEqual({ type: 'unlock_placement' });
+    expect(mock.dispatched.filter((e) => SESSION.includes(e.type))).toEqual([]);
+  });
+
+  it('Überdeckung bei gesperrtem Block: „Diesmal selbst platzieren“ statt „Freie Fläche suchen“', async () => {
+    const doc = lockedDoc({ check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false } });
+    const { mock, user } = renderApp({ view: workspaceView(doc) });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const warn = screen.getByTestId('overlap-warning');
+    expect(within(warn).queryByRole('button', { name: 'Freie Fläche suchen' })).not.toBeInTheDocument();
+    await user.click(within(warn).getByRole('button', { name: 'Diesmal selbst platzieren' }));
+    expect(lastEvent(mock)).toEqual({ type: 'unlock_placement' });
+  });
+
+  it('Option aus: wie bisher (verschiebbar, „Neu platzieren“, kein Fokussprung auf „Signieren“)', async () => {
+    const { mock } = renderApp({ view: workspaceView() });
+    const s = await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(s).toHaveAttribute('tabindex', '0');
+    expect(s).not.toHaveClass('is-locked');
+    expect(within(inspector()).queryByTestId('placement-auto')).not.toBeInTheDocument();
+    expect(within(inspector()).queryByRole('button', { name: 'Diesmal selbst platzieren' })).not.toBeInTheDocument();
+    expect(within(inspector()).getByRole('button', { name: 'Neu platzieren' })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByRole('button', { name: /^Signieren/ })).not.toHaveFocus();
+    fireEvent.keyDown(s, { key: 'ArrowRight' });
+    expect(moves(mock.dispatched)).toEqual([{ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false }]);
+  });
+
+  it('Mock wie der Kern: Option an → gesperrt; „Diesmal selbst platzieren“ gibt nur dieses Dokument frei', async () => {
+    const { mock, user } = renderApp({ scenario: 'contract', settings: withAutoPosition() });
+    const s = await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(s).toHaveAttribute('aria-disabled', 'true');
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Signieren/ })).toHaveFocus());
+    const before = (await mock.view()).document!;
+    expect(before.placement_locked).toBe(true);
+    expect(before.detection?.auto_placed).toBe(true);
+    // Verschieben wird vom Kern ignoriert (Mock folgt): auch ein ausdrücklich gesendetes Ereignis
+    await mock.dispatch({ type: 'move_block', page: 0, x: 40, y: 500 });
+    expect((await mock.view()).document!.placement).toEqual(before.placement);
+    await user.click(within(inspector()).getByRole('button', { name: 'Diesmal selbst platzieren' }));
+    await waitFor(() => expect(sticker()).toHaveAttribute('tabindex', '0'));
+    expect(sticker()).toHaveAttribute('aria-roledescription', 'verschiebbarer Signaturblock');
+    expect(within(inspector()).getByRole('button', { name: 'Neu platzieren' })).toBeInTheDocument();
+    sticker().focus();
+    fireEvent.keyDown(sticker(), { key: 'ArrowLeft' });
+    await waitFor(async () => expect((await mock.view()).document!.placement.x).toBeLessThan(before.placement.x));
+    expect((await mock.view()).document!.placement_locked).toBe(false);
+    expect(mock.dispatched.filter((e) => SESSION.includes(e.type))).toEqual([]);
+  });
+
+  it('Mock wie der Kern: Einstellung sofort wirksam – aus gibt den Block frei, an sperrt ihn wieder', async () => {
+    const { user } = renderApp({ scenario: 'contract', settings: withAutoPosition() });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(sticker()).toHaveAttribute('aria-disabled', 'true');
+    const toggleSetting = async () => {
+      await user.click(screen.getByRole('button', { name: 'Einstellungen' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+      await user.click(within(within(dialog).getByRole('navigation', { name: 'Bereiche' })).getByRole('button', { name: 'Dokument' }));
+      await user.click(within(dialog).getByRole('switch', { name: 'Automatische Positionierung' }));
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    };
+    await toggleSetting();
+    await waitFor(() => expect(sticker()).toHaveAttribute('tabindex', '0'));
+    expect(within(inspector()).queryByTestId('placement-auto')).not.toBeInTheDocument();
+    await toggleSetting();
+    await waitFor(() => expect(sticker()).toHaveAttribute('aria-disabled', 'true'));
+    expect(within(inspector()).getByTestId('placement-auto')).toBeInTheDocument();
+  });
+
+  it('englisch und axe', async () => {
+    renderApp({ view: workspaceView(lockedDoc(), {}, 'en') });
+    const s = await screen.findByRole('application', { name: 'Signature block' });
+    expect(s).toHaveAttribute('aria-roledescription', 'automatically placed signature block');
+    expect(within(screen.getByRole('complementary', { name: 'Signature' })).getByText('Automatic (per setting)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Place it myself this time' })).toBeInTheDocument();
+    await expectNoAxeViolations();
+  });
+});

@@ -37,6 +37,7 @@ export type RowId =
   | 'signature.note'
   | 'document.pdfa'
   | 'document.placeholder'
+  | 'document.auto_position'
   | 'signers.default'
   | 'signers.id_austria'
   | 'signers.fido2'
@@ -83,6 +84,8 @@ export const ROWS: readonly RowDef[] = [
   { id: 'signature.note', section: 'signature', label: 'ng-ui-set-note', visible: textProfile },
   { id: 'document.pdfa', section: 'document', label: 'ng-ui-set-pdfa' },
   { id: 'document.placeholder', section: 'document', label: 'ng-ui-set-placeholder' },
+  // „Automatische Positionierung“ wie PDF-Over (`signature.auto_position`, ADR 0004 Nachtrag 8)
+  { id: 'document.auto_position', section: 'document', label: 'ng-ui-set-auto-position' },
   { id: 'signers.default', section: 'signers', label: 'ng-ui-set-default' },
   { id: 'signers.id_austria', section: 'signers', label: 'ng-ui-set-ida-user' },
   { id: 'signers.fido2', section: 'signers', label: 'ng-ui-set-fido2' },

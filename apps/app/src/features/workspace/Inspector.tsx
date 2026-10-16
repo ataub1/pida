@@ -9,6 +9,11 @@
  * vorhandene Signaturen, primärer Knopf „Signieren ⌘↵“, darunter „Zurück zum Stapel“ (aus der
  * Stapelübersicht geöffnet) bzw. „Zum Stapel“ (weitere Dokumente). In der Phase `warning` steht hier die Warnung
  * der Eingangsanalyse mit „Trotzdem signieren“/„Verwerfen“.
+ *
+ * Einstellung „Automatische Positionierung“ (`placement_locked`, ADR 0004 Nachtrag 8): Platzierung „Automatisch
+ * (laut Einstellung)“ mit „Diesmal selbst platzieren“ (`unlock_placement`) statt „Neu platzieren“/„Frei
+ * platzieren“; nach dem Öffnen liegt der Fokus auf „Signieren“ (das Dokument ist bereit). Optionen bleiben
+ * bedienbar.
  */
 import { useId, useRef, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
@@ -18,7 +23,7 @@ import { defaultDocumentDetection } from '../../core/defaults';
 import type { DocumentView, StepView } from '../../core/types';
 import { AccessButton, Badge, Button, Keys, SwitchField, useModKey } from '../../ui/controls';
 import { useFitScale, useNarrow } from '../../ui/hooks';
-import { IconAlert, IconChevronDown, IconFileText, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
+import { IconAlert, IconChevronDown, IconFileText, IconGrip, IconLock, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { displayPages, overlapState, zoneText } from './placement';
 import { SignerChip } from './SignerChip';
@@ -51,6 +56,10 @@ export function Inspector({
   const previewRef = useRef<HTMLDivElement>(null);
   const previewScale = useFitScale(previewRef, doc.block.width, { min: 0.4, max: 1.2, pad: 28, initial: doc.block.width > 300 ? 0.6 : 1.05 });
   const editable = view.actions.edit_placement && doc.phase === 'editing';
+  // „Automatische Positionierung“: automatisch platziert, bereit zum Signieren; verschieben erst nach „Diesmal
+  // selbst platzieren“ (der Kern ignoriert Verschieben und Zielwahl bis dahin)
+  const locked = editable && doc.placement_locked;
+  const unlock = () => void dispatch({ type: 'unlock_placement' });
   const warning = doc.phase === 'warning' && view.step.step === 'warning' ? (view.step as Extract<StepView, { step: 'warning' }>) : null;
   const sizes = displayPages(doc);
   const page = doc.placement.page_index;
@@ -188,30 +197,45 @@ export function Inspector({
               <h2 className="insp-heading" id={`${bodyId}-place`}>
                 {t.t('ng-ui-insp-placement')}
               </h2>
-              {doc.target.kind === 'free' ? (
+              {doc.target.kind === 'free' && !locked ? (
                 <Button variant="ghost" size="sm" onPress={() => void dispatch({ type: 'auto_place' })} isDisabled={!editable}>
                   <IconWand size={15} />
                   {t.t('ng-ui-insp-auto-place')}
                 </Button>
               ) : null}
             </div>
-            <p className="insp-placement">
-              <IconTarget size={16} />
-              <span>
-                {field
-                  ? t.t('ng-ui-insp-placement-field', { name: field.name })
-                  : doc.target.kind === 'qr'
-                    ? t.t('ng-ui-insp-placement-qr')
-                    : t.t('ng-ui-insp-placement-text', { page: page + 1, zone: zoneText(t, doc.sticker, pw, ph) })}
-              </span>
-            </p>
+            {locked && detection.auto_placed ? (
+              <p className="insp-placement" data-testid="placement-auto">
+                <IconLock size={16} />
+                <span>{t.t('ng-ui-insp-placement-auto')}</span>
+              </p>
+            ) : (
+              <p className="insp-placement">
+                {locked ? <IconLock size={16} /> : <IconTarget size={16} />}
+                <span>
+                  {field
+                    ? t.t('ng-ui-insp-placement-field', { name: field.name })
+                    : doc.target.kind === 'qr'
+                      ? t.t('ng-ui-insp-placement-qr')
+                      : t.t('ng-ui-insp-placement-text', { page: page + 1, zone: zoneText(t, doc.sticker, pw, ph) })}
+                </span>
+              </p>
+            )}
             {detected ? (
               <p className="insp-note" data-testid="detect-note">
                 {detected === 'qr' ? <IconQr size={15} /> : <IconPen size={15} />}
                 {t.t(detected === 'qr' ? 'ng-ui-insp-detect-qr' : 'ng-ui-insp-detect-field')}
               </p>
             ) : null}
-            {doc.target.kind !== 'free' ? (
+            {locked ? (
+              <>
+                <p className="insp-hint">{t.t('ng-ui-insp-placement-locked-hint')}</p>
+                <Button variant="secondary" size="sm" onPress={unlock} data-testid="placement-unlock">
+                  <IconGrip size={15} />
+                  {t.t('ng-ui-insp-placement-unlock')}
+                </Button>
+              </>
+            ) : doc.target.kind !== 'free' ? (
               <Button variant="secondary" size="sm" onPress={() => void dispatch({ type: 'use_target', target: { kind: 'free' } })} isDisabled={!editable}>
                 {t.t('ng-ui-insp-placement-free')}
               </Button>
@@ -253,9 +277,15 @@ export function Inspector({
           <IconAlert size={18} />
           <div>
             <p>{t.t(overlap === 'widget' ? 'ng-ui-insp-overlap-widget' : 'ng-ui-insp-overlap')}</p>
-            <Button variant="secondary" size="sm" onPress={() => void dispatch({ type: 'auto_place' })} isDisabled={!editable}>
-              {t.t('ng-ui-insp-overlap-fix')}
-            </Button>
+            {locked ? (
+              <Button variant="secondary" size="sm" onPress={unlock}>
+                {t.t('ng-ui-insp-placement-unlock')}
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" onPress={() => void dispatch({ type: 'auto_place' })} isDisabled={!editable}>
+                {t.t('ng-ui-insp-overlap-fix')}
+              </Button>
+            )}
           </div>
         </div>
       ) : null}
@@ -271,7 +301,18 @@ export function Inspector({
       {!warning ? (
         <div className="inspector-footer">
           {narrow ? <div className="inspector-footer-chip">{chip(true)}</div> : null}
-          <AccessButton msg="ng-ui-insp-sign" variant="primary" size="lg" className="sign-button" onPress={onSign} isDisabled={!view.actions.sign} icon={<IconSignature size={18} />}>
+          <AccessButton
+            msg="ng-ui-insp-sign"
+            variant="primary"
+            size="lg"
+            className="sign-button"
+            onPress={onSign}
+            isDisabled={!view.actions.sign}
+            // beim Öffnen gesperrt = bereit: Fokus auf „Signieren“ (React Aria wertet `autoFocus` nur beim Einhängen
+            // aus – nach der Analysewarnung bzw. beim Öffnen, nie bei späteren Änderungen)
+            autoFocus={locked && view.actions.sign}
+            icon={<IconSignature size={18} />}
+          >
             <Keys keys={[mod, enter]} decorative />
           </AccessButton>
           {backToBatch || view.actions.show_batch ? (

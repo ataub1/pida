@@ -4,8 +4,8 @@
 //!   prüft alle Signaturen mit `pades::verify_document` und legt das Dokument mit **eigener** `DocId` in den
 //!   `DocStore` (Seitenkacheln über `pida-render://page/<doc>/<page>`), nicht in die Warteschlange. Der
 //!   Workflow-Zustand bleibt unverändert; der Prüfmodus liegt darüber (`ViewState::verify`).
-//! - Erlaubt in `Idle`, `Output`, `BatchOverview`, `Positioning` ([`verify_allowed`], `actions.verify`);
-//!   während des Signierens Hinweis `ng-verify-busy`.
+//! - Erlaubt in `Idle`, `Output`, `BatchOverview`, `Positioning` und bei geparkter Arbeit (ADR 0004 Nachtrag 10;
+//!   [`verify_allowed`], `actions.verify`); während des Signierens Hinweis `ng-verify-busy`.
 //! - `CloseVerify` gibt das Dokument frei; ein neuer `OpenVerify` ersetzt das vorige (verspätete Ergebnisse
 //!   einer älteren Prüfung werden über eine Generation verworfen).
 //! - `SignVerified` („Dieses Dokument signieren“) schließt den Prüfmodus und öffnet die Datei wie
@@ -42,7 +42,12 @@ pub(crate) const MSG_WARNING_WEAK_KEY: &str = "ng-verify-warning-weak-key";
 /// Prüfmodus erlaubt (ADR 0004 §3.9): Start, Arbeitsbereich, Fertig, Stapelübersicht – der Zustand bleibt
 /// erhalten.
 pub(crate) fn verify_allowed(state: &State) -> bool {
-    matches!(state, State::Idle { .. } | State::Output { .. } | State::BatchOverview { .. } | State::Positioning { .. })
+    // geparkte Arbeit (ADR 0004 Nachtrag 10): die Startansicht verdeckt sie – wie in der Dokumentauswahl
+    state.parked()
+        || matches!(
+            state,
+            State::Idle { .. } | State::Output { .. } | State::BatchOverview { .. } | State::Positioning { .. }
+        )
 }
 
 /// Zustände, in denen `OpenVerify` mit `ng-verify-busy` beantwortet wird (Signieren läuft).

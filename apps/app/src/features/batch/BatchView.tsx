@@ -8,7 +8,8 @@
  * Alles kommt aus `ViewState::batch` (Status, Schätzung, Ausgabenamen, Ordner). „Alle signieren“ ist eine
  * ausdrückliche Aktion (A1): mit gewähltem Signiermittel `start_batch`, sonst öffnet sich das Menü des
  * Konto-Chips und die Wahl dort startet. Ordnerwahl und der Umgang mit vorhandenen Dateien werden **vor**
- * dem Start festgelegt (`StartBatchDialog`, nur wenn es etwas zu entscheiden gibt).
+ * dem Start festgelegt (`StartBatchDialog`, nur wenn es etwas zu entscheiden gibt). „Für diesen Stapel
+ * automatisch positionieren“ bzw. der Hinweis „laut Einstellung“: `BatchAutoPosition` (Nachtrag 8).
  */
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
@@ -19,6 +20,7 @@ import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconFolder, Ic
 import { PrivacyNote } from '../settings';
 import { formatSize } from '../workspace/placement';
 import { SignerChip } from '../workspace/SignerChip';
+import { BatchAutoPosition } from './BatchAutoPosition';
 import { StartBatchDialog } from './StartBatchDialog';
 import { estimateText, isOpenable, isSignable, outputText, statusDetail, statusLabel, statusTone, summaryCounts, summaryPlace } from './texts';
 import './batch.css';
@@ -140,6 +142,7 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
             </p>
           ) : null}
           {leaves ? <PrivacyNote /> : null}
+          <BatchAutoPosition batch={batch} />
         </div>
       ) : null}
 

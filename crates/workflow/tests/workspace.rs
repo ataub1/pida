@@ -8,8 +8,8 @@ use common::*;
 use pida_backend_api::{BackendError, BackendId};
 use pida_placement::Placement;
 use pida_workflow::{
-    Context, DocFacts, DocId, Effect, Event, PlaceholderFound, PlacementOrigin, PositionChoice, RetryTarget,
-    SigningPhase, State, Step, Target, WorkflowError, WorkspaceEdit,
+    Context, DocFacts, DocId, Effect, Event, PlaceholderFound, PlacementLock, PlacementOrigin, PositionChoice,
+    RetryTarget, SigningPhase, State, Step, Target, WorkflowError, WorkspaceEdit,
 };
 
 fn ws() -> Context {
@@ -46,6 +46,7 @@ fn workspace_state(target: Target, origin: PlacementOrigin, invisible: bool) -> 
         qr_search: Some(Some(qr())),
         automatic: matches!(origin, PlacementOrigin::Auto | PlacementOrigin::Qr),
         invisible_by_profile: false,
+        lock: PlacementLock::Off,
     };
     State::Positioning {
         queue: queue(&[1]),
@@ -837,4 +838,148 @@ fn invisible_profile_switch_is_reversible_unless_chosen_by_the_user() {
     assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))), "{:?}", t.effects);
     let t = step(t.state, sign_with(BackendId::Keystore), &ws());
     assert!(matches!(&t.state, State::Signing { position: PositionChoice::Manual(_), .. }), "{:?}", t.state);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Einstellung „Automatische Positionierung“ (ADR 0004 Nachtrag 8)
+// ---------------------------------------------------------------------------------------------
+
+fn auto_pos() -> Context {
+    Context { auto_position: true, ..ws() }
+}
+
+fn positioning_parts(s: &State) -> (usize, Option<Placement>, bool) {
+    match s {
+        State::Positioning { page, placement, new_page, .. } => (*page, *placement, *new_page),
+        other => panic!("nicht im Arbeitsbereich: {other:?}"),
+    }
+}
+
+/// Option an: nach der Analyse automatisch platziert und gesperrt („bereit zum Signieren“). Ziehen,
+/// Tastatur, Seitenwechsel und jede Zielwahl bleiben ohne Wirkung (keine Effekte); „Unsichtbar“, „Auf neuer
+/// Seite“ und „Signieren mit“ wirken. Es öffnet sich nie eine Sitzung ohne „Signieren mit“ (A1, F-54).
+#[test]
+fn auto_position_locks_the_automatic_placement() {
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 1, true), &auto_pos());
+    let e = edit_of(&t.state);
+    assert_eq!(e.lock, PlacementLock::Locked);
+    assert!(e.placement_locked() && e.automatic && e.auto_free());
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))), "automatisch platziert wie bisher: {:?}", t.effects);
+    assert!(!opens_session(&t.effects) && !t.effects.contains(&Effect::ProbeBackends));
+    // die automatische Lage trifft ein und gilt (gesperrt heißt nicht: ohne Automatik)
+    let auto = Placement { page_index: 2, x: 50.0, y: 260.0, width: 230.0, height: 49.0 };
+    let t = step(t.state, Event::AutoPlaced(auto), &auto_pos());
+    assert_eq!(positioning_parts(&t.state), (2, Some(auto), false));
+    let locked = t.state;
+    let moved = Placement { page_index: 0, x: 80.0, y: 500.0, width: 230.0, height: 49.0 };
+    for event in [
+        Event::PlacementChanged(moved),
+        Event::PageChanged(0),
+        Event::TargetChosen(Target::Free),
+        Event::TargetChosen(Target::Field(0)),
+        Event::TargetChosen(Target::Qr),
+    ] {
+        let t = step(locked.clone(), event.clone(), &auto_pos());
+        assert_eq!(t.state, locked, "{event:?} verschiebt den gesperrten Block nicht");
+        assert!(t.effects.is_empty(), "{event:?}: {:?}", t.effects);
+    }
+    // „Unsichtbar signieren“ und „Auf neuer Seite“ bleiben bedienbar, die Sperre bleibt
+    let t = step(locked.clone(), Event::InvisibleSet(true), &auto_pos());
+    assert!(edit_of(&t.state).invisible && edit_of(&t.state).placement_locked());
+    let t = step(locked.clone(), Event::NewPageToggled, &auto_pos());
+    let (page, placement, new_page) = positioning_parts(&t.state);
+    assert!(new_page && page == 3 && placement.is_some_and(|p| p.page_index == 3), "{:?}", t.state);
+    assert!(edit_of(&t.state).placement_locked(), "neue Seite: weiterhin gesperrt");
+    let t = step(t.state, Event::PlacementChanged(moved), &auto_pos());
+    assert!(positioning_parts(&t.state).2, "auf der neuen Seite gesperrt");
+    // „Signieren mit“ ist die ausdrückliche Aktion: signiert die automatische Lage
+    let t = step(locked, sign_with(BackendId::Keystore), &auto_pos());
+    assert!(
+        matches!(&t.state, State::Signing { position: PositionChoice::Manual(p), .. } if *p == auto),
+        "{:?}",
+        t.state
+    );
+    assert!(opens_session(&t.effects));
+}
+
+/// „Diesmal selbst platzieren“ hebt die Sperre nur für dieses Dokument auf: danach normales Ziehen und
+/// Einrasten, auch nach weiteren Einstellungsänderungen; das nächste Dokument ist wieder gesperrt. Abbruch
+/// des Signierens stellt den Bearbeitungszustand samt Sperre unverändert wieder her.
+#[test]
+fn unlock_applies_only_to_this_document() {
+    let t = step(State::Analyzing { queue: queue(&[1, 2]) }, analyzed_with(1, 3, None, 0, true), &auto_pos());
+    assert!(edit_of(&t.state).placement_locked());
+    let before = t.state.clone();
+    let t = step(t.state, Event::PlacementUnlocked, &auto_pos());
+    assert!(t.effects.is_empty(), "startet nichts: {:?}", t.effects);
+    assert_eq!(edit_of(&t.state).lock, PlacementLock::Released);
+    assert_eq!(positioning_parts(&t.state), positioning_parts(&before), "Lage unverändert");
+    let moved = Placement { page_index: 0, x: 80.0, y: 500.0, width: 230.0, height: 49.0 };
+    let t = step(t.state, Event::PlacementChanged(moved), &auto_pos());
+    assert_eq!(positioning_parts(&t.state), (0, Some(moved), false), "normal verschiebbar");
+    assert_eq!(edit_of(&t.state).origin, PlacementOrigin::User);
+    // Einstellungen erneut übernommen (Option weiter an bzw. aus und wieder an): bleibt freigegeben
+    let t = step(t.state, Event::SettingsChanged, &auto_pos());
+    assert_eq!(edit_of(&t.state).lock, PlacementLock::Released);
+    // nächstes Dokument: wieder gesperrt
+    let t = step(t.state, Event::Cancel, &auto_pos());
+    assert!(matches!(&t.state, State::Analyzing { queue } if queue.current_id() == Some(DocId(2))), "{:?}", t.state);
+    let t = step(t.state, analyzed_with(2, 3, None, 0, true), &auto_pos());
+    assert_eq!(edit_of(&t.state).lock, PlacementLock::Locked);
+    // Signieren abbrechen → zurück mit Sperre
+    let t = step(t.state, sign_with(BackendId::Keystore), &auto_pos());
+    let t = step(t.state, Event::Cancel, &auto_pos());
+    assert!(edit_of(&t.state).placement_locked(), "{:?}", t.state);
+    // ohne Sperre ist die Freigabe ohne Wirkung
+    let s = workspace_state(Target::Free, PlacementOrigin::User, false);
+    let t = step(s.clone(), Event::PlacementUnlocked, &ws());
+    assert_eq!(t.state, s);
+}
+
+/// Option aus: Verhalten wie bisher (nicht gesperrt, Ziehen wirkt). Die Einstellung wirkt sofort: an →
+/// gesperrt, solange die Lage aus der Automatik stammt; aus → wieder frei. Von Hand platziert bleibt frei.
+/// Der klassische Ablauf (ohne Arbeitsbereich) bleibt unverändert.
+#[test]
+fn auto_position_off_and_switched_in_the_settings() {
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 0, true), &ws());
+    assert_eq!(edit_of(&t.state).lock, PlacementLock::Off);
+    let moved = Placement { page_index: 0, x: 80.0, y: 500.0, width: 230.0, height: 49.0 };
+    let m = step(t.state.clone(), Event::PlacementChanged(moved), &ws());
+    assert_eq!(positioning_parts(&m.state).1, Some(moved), "Option aus: wie bisher");
+    // eingeschaltet: das automatisch platzierte Dokument ist sofort gesperrt
+    let t = step(t.state, Event::SettingsChanged, &auto_pos());
+    assert!(edit_of(&t.state).placement_locked());
+    assert!(!opens_session(&t.effects));
+    // ausgeschaltet: frei
+    let t = step(t.state, Event::SettingsChanged, &ws());
+    assert_eq!(edit_of(&t.state).lock, PlacementLock::Off);
+    // von Hand platziert, dann eingeschaltet: bleibt frei
+    let t = step(m.state, Event::SettingsChanged, &auto_pos());
+    assert_eq!(edit_of(&t.state).lock, PlacementLock::Off);
+    // klassischer Ablauf (ohne Arbeitsbereich): unverändert direkt zur Signiermittel-Auswahl
+    let classic = Context { auto_position: true, ..Context::default() };
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed(1, 3, None, false), &classic);
+    assert!(matches!(t.state, State::ChoosingBackend { .. }), "{:?}", t.state);
+}
+
+/// Platzhaltersuche hat Vorrang: der QR-Platzhalter wird automatisch benutzt und ist gesperrt; die
+/// Startargument-Automatik (D-06, `-b` + `-a`) bleibt der klassische automatische Weg.
+#[test]
+fn auto_position_with_placeholder_search_and_start_arguments() {
+    let ctx = Context { auto_position: true, ..qr_search() };
+    let t = step(
+        State::Analyzing { queue: queue(&[1]) },
+        analyzed_with(1, 3, Some(PlaceholderFound::Qr(qr())), 0, true),
+        &ctx,
+    );
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.origin, e.lock), (Target::Qr, PlacementOrigin::Qr, PlacementLock::Locked));
+    let s = t.state.clone();
+    let t = step(s.clone(), Event::TargetChosen(Target::Free), &ctx);
+    assert_eq!(t.state, s, "„Frei platzieren“ gesperrt");
+    // D-06: -b KS -a → klassischer automatischer Weg (Signiermittel-Prüfung), unverändert
+    let cli = Context { cli_auto: true, ..auto_pos() };
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 0, true), &cli);
+    assert!(matches!(t.state, State::ChoosingBackend { auto_choice: true, .. }), "{:?}", t.state);
+    assert_eq!(t.effects, vec![Effect::ProbeBackends]);
 }

@@ -6,7 +6,7 @@
  */
 import { createContext, useContext } from 'react';
 import type { Bridge } from '../core/bridge';
-import type { UiEvent, ViewState } from '../core/types';
+import type { OpenFilesMode, UiEvent, ViewState } from '../core/types';
 import type { Translator } from '../i18n/catalog';
 import type { Theme } from './theme';
 
@@ -57,8 +57,12 @@ export interface AppContextValue {
   openSettings: (section?: SettingsSectionId) => void;
   /** zuletzt angeforderter Abschnitt der Einstellungen (für `SettingsPanel`) */
   settingsSection: SettingsSectionId;
-  /** Dateiauswahl des Systems (Desktop: Dialog, Mobile: Dokument-Picker) → `open_files` */
-  browse: () => Promise<void>;
+  /**
+   * Dateiauswahl des Systems (Desktop: Dialog, Mobile: Dokument-Picker) → `open_files`. Mit `mode` aus „+ PDF“
+   * (ADR 0004 Nachtrag 9): `add` = „Weitere PDFs hinzufügen“ (Mehrfachauswahl), `replace` = „Anderes PDF öffnen“
+   * (eine Datei); was daraus folgt, entscheidet der Kern.
+   */
+  browse: (mode?: OpenFilesMode) => Promise<void>;
   /** offenes Shell-Overlay (Palette, Kürzel) */
   overlay: ShellOverlay;
   setOverlay: (overlay: ShellOverlay) => void;

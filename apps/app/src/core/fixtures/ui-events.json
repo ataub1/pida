@@ -322,6 +322,14 @@
     "password_storage": "keychain"
   },
   {
+    "type": "unlock_placement"
+  },
+  {
+    "type": "set_batch_auto_position",
+    "enabled": true,
+    "replace_manual": false
+  },
+  {
     "type": "submit_form",
     "request": 5,
     "answer": {
@@ -458,5 +466,29 @@
   {
     "type": "inspect_keystore",
     "password": null
+  },
+  {
+    "type": "open_files",
+    "paths": [
+      "/Users/demo/Angebot.pdf",
+      "/Users/demo/Auftrag.pdf"
+    ],
+    "mode": "add"
+  },
+  {
+    "type": "open_files",
+    "paths": [
+      "/Users/demo/Vertrag.pdf"
+    ],
+    "mode": "replace"
+  },
+  {
+    "type": "go_home"
+  },
+  {
+    "type": "resume_parked"
+  },
+  {
+    "type": "discard_parked"
   }
 ]

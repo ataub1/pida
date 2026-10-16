@@ -103,6 +103,9 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'offer_migration' },
   // Nachtrag ADR 0004 (Keystore): Einträge mit Passwort lesen, „Passwort merken?“ beantworten
   { type: 'inspect_keystore', password: 'geheim-123', password_storage: 'keychain' },
+  // Nachtrag 8: „Diesmal selbst platzieren“, „Für diesen Stapel automatisch positionieren“
+  { type: 'unlock_placement' },
+  { type: 'set_batch_auto_position', enabled: true, replace_manual: false },
 ];
 
 /** Weitere Antworten (alle `FormAnswerView`-Varianten, `save` ohne Pfad, Platzhalter ohne Feld). */
@@ -133,4 +136,11 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'update_first_run', default_backend: null, profile: 'AMTSSIGNATURBLOCK', block_language: null },
   { type: 'submit_secret', request: 3, secret: 'geheim-123', password_storage: 'none' },
   { type: 'inspect_keystore', password: null },
+  // Nachtrag 9: „+ PDF“ – „Weitere PDFs hinzufügen“, „Anderes PDF öffnen“
+  { type: 'open_files', paths: ['/Users/demo/Angebot.pdf', '/Users/demo/Auftrag.pdf'], mode: 'add' },
+  { type: 'open_files', paths: ['/Users/demo/Vertrag.pdf'], mode: 'replace' },
+  // Nachtrag 10: „Zur Startseite“ parkt offene Arbeit – „Weiter bearbeiten“, „Schließen“
+  { type: 'go_home' },
+  { type: 'resume_parked' },
+  { type: 'discard_parked' },
 ];

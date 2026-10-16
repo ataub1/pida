@@ -19,7 +19,9 @@ use pida_pades::{AcceptanceClass, OutputInfo};
 use pida_placement::{EmptyFieldCandidate, QrPlaceholder};
 
 use crate::queue::DocId;
-use crate::state::{BatchOutput, DocFacts, ExistingPolicy, PositionChoice, RetryTarget, SignFlow, WorkflowError};
+use crate::state::{
+    BatchOutput, Context, DocFacts, ExistingPolicy, PositionChoice, RetryTarget, SignFlow, WorkflowError,
+};
 
 /// Voranalyse eines Stapeleintrags (laden, analysieren, Platzhalter zählen; danach freigegeben).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -165,6 +167,21 @@ impl BatchItem {
         }
         self.status = if self.plan.is_some() { BatchItemStatus::Positioned } else { BatchItemStatus::Ready };
     }
+
+    /// Von Hand platziert: eigener Plan der Nutzerin (im Arbeitsbereich platziert, nicht aus der Automatik).
+    pub fn manual_plan(&self) -> bool {
+        !self.auto_plan && self.plan.is_some()
+    }
+
+    /// Status für die Anzeige: mit automatischer Positionierung im Stapel ([`Batch::auto_position`]) gilt ein
+    /// automatischer Plan (QR-Platzhalter bzw. erstes leeres Feld der Platzhaltersuche) als „Bereit“ – nur von
+    /// Hand platzierte Einträge heißen „Positioniert“ (ADR 0004 Nachtrag 8).
+    pub fn shown_status(&self, auto_position: bool) -> BatchItemStatus {
+        match &self.status {
+            BatchItemStatus::Positioned if auto_position && self.auto_plan => BatchItemStatus::Ready,
+            other => other.clone(),
+        }
+    }
 }
 
 /// Ergebnis des letzten Laufs (die Zahlen der Zusammenfassung zählt die Projektion über **alle** Einträge
@@ -207,9 +224,26 @@ pub struct Batch {
     /// signiert, `SaveFailed` bzw. eine noch ausstehende Zielentscheidung lassen es „Abgebrochen“)
     #[serde(default)]
     pub writing: Option<DocId>,
+    /// „Für diesen Stapel automatisch positionieren“ (ADR 0004 Nachtrag 8): gilt nur für diesen Stapel – bis zum
+    /// Ende bzw. Abbruch des nächsten Laufs bzw. bis der Stapel geschlossen wird; die Einstellung
+    /// `signature.auto_position` bleibt unverändert
+    #[serde(default)]
+    pub auto_position_once: bool,
 }
 
 impl Batch {
+    /// Automatische Positionierung im Stapel: laut Einstellung ([`Context::auto_position`]) oder nur für diesen
+    /// Stapel ([`Batch::auto_position_once`]).
+    pub fn auto_position(&self, ctx: &Context) -> bool {
+        ctx.auto_position || self.auto_position_once
+    }
+
+    /// Noch nicht signierte, von Hand platzierte Einträge ([`BatchItem::manual_plan`]) – sie behalten beim
+    /// Einschalten der automatischen Positionierung ihren Plan, außer die Nutzerin bestätigt das Neusetzen.
+    pub fn manual_plans(&self) -> usize {
+        self.items.iter().filter(|i| i.status.signable() && i.manual_plan()).count()
+    }
+
     /// Eintrag zum Dokument.
     pub fn item(&self, doc: DocId) -> Option<&BatchItem> {
         self.items.iter().find(|i| i.doc == doc)

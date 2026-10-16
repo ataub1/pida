@@ -3,7 +3,8 @@
  * `prototypes/pida-workspace/src/features/settings/SettingsPanel.tsx`): Änderungen gelten **sofort**
  * (`apply_settings`, kein Speichern/Abbrechen), Suche über alle Bereiche mit Synonymen (`.keywords`),
  * Bereichsnavigation links (schmal und auf Mobilgeräten waagrecht, im Vollbild). Bereiche: Signaturbild
- * (Live-Editor mit Vorschau, die beim Bearbeiten oben sichtbar bleibt), Dokument (PDF/A, Platzhaltersuche),
+ * (Live-Editor mit Vorschau, die beim Bearbeiten oben sichtbar bleibt), Dokument (PDF/A, Platzhaltersuche,
+ * automatische Positionierung),
  * Signiermittel, Speichern, Darstellung, Datenschutz, Erweitert (u. a. „PDF-Over-Einstellungen übernehmen“ mit
  * dem Angebot direkt im Bereich), Über.
  *
@@ -22,7 +23,7 @@ import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconClose, IconFileText, IconFolder, IconInfo, IconPhone, IconSearch, IconSettings, IconShield, IconSignature, IconSun } from '../../ui/Icons';
 import { AboutRow, CertCacheRow, LogsRow, MigrationRow, PRIVACY_HEADING_ID, PrivacyInfoRow, ProxyRow, RecentRow, ResetRow, ThemeRow, UiLangRow, UpdatesRow } from './OtherRows';
 import { ROWS, SECTIONS, search, visibleRows, type RowDef, type RowId, type SectionId } from './rows';
-import { BlockLangRow, BlockPreview, EmblemRow, LogoSizeRow, NoteRow, PdfaRow, PlaceholderRow, ProfileRow } from './SignatureRows';
+import { AutoPositionRow, BlockLangRow, BlockPreview, EmblemRow, LogoSizeRow, NoteRow, PdfaRow, PlaceholderRow, ProfileRow } from './SignatureRows';
 import { CardRow, DefaultSignerRow, Fido2Row, IdAustriaRow, KeystoreRow, PostfixRow, SaveTargetRow } from './SignerRows';
 import { SettingsProvider, useSettings } from './state';
 import './settings.css';
@@ -72,6 +73,8 @@ function SettingRow({ id, goto }: { id: RowId; goto: (section: SectionId, focus?
       return <PdfaRow />;
     case 'document.placeholder':
       return <PlaceholderRow />;
+    case 'document.auto_position':
+      return <AutoPositionRow />;
     case 'signers.default':
       return <DefaultSignerRow />;
     case 'signers.id_austria':

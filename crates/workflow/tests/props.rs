@@ -296,7 +296,7 @@ proptest! {
     /// genannten Dokumente.
     #[test]
     fn workspace_session_only_after_explicit_action(
-        events in prop::collection::vec(0u8..65, 0..110),
+        events in prop::collection::vec(0u8..80, 0..110),
         auto_position in any::<bool>(),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
@@ -431,6 +431,27 @@ proptest! {
                 62 => { ctx.placeholder_search = !ctx.placeholder_search; Event::SettingsChanged }
                 63 => { ctx.placeholder_fields = !ctx.placeholder_fields; Event::SettingsChanged }
                 64 => Event::PlaceholderSearched { doc: DocId(current), qr: next_id.is_multiple_of(2).then(qr) },
+                // Einstellung „Automatische Positionierung“ (Nachtrag 8): „Diesmal selbst platzieren“, Umschalten
+                // in den Einstellungen („sofort wirksam“), Seitenwechsel
+                65 => Event::PlacementUnlocked,
+                66 => { ctx.auto_position = !ctx.auto_position; Event::SettingsChanged }
+                67 => Event::PageChanged(0),
+                // „Für diesen Stapel automatisch positionieren“ (Nachtrag 8)
+                68 => Event::BatchAutoPositionSet { enabled: true, replace_manual: false },
+                69 => Event::BatchAutoPositionSet { enabled: true, replace_manual: true },
+                70 => Event::BatchAutoPositionSet { enabled: false, replace_manual: false },
+                // „PDF hinzufügen“ (Nachtrag 9): „Weitere PDFs hinzufügen“, „Anderes PDF öffnen“ (auch dieselbe Datei)
+                71 => { next_id += 1; Event::MoreFilesAdded(vec![doc(next_id)]) }
+                72 => { next_id += 2; Event::MoreFilesAdded(vec![doc(next_id - 1), doc(next_id)]) }
+                73 => { next_id += 1; Event::DocumentReplaced(vec![doc(next_id)]) }
+                74 => {
+                    next_id += 1;
+                    Event::DocumentReplaced(vec![pida_workflow::InputDocument::new(DocId(next_id), format!("/in/doc{current}.pdf"))])
+                }
+                // „Zur Startseite“ parkt offene Arbeit (Nachtrag 10): Parken, Fortsetzen, Verwerfen
+                75 | 76 => Event::WentHome,
+                77 => Event::ParkedResumed,
+                78 => Event::ParkedDiscarded,
                 _ => Event::BackendFailed(BackendError::Network("x".into())),
             };
             let before = state.clone();
@@ -453,6 +474,51 @@ proptest! {
                     _ => false,
                 };
                 prop_assert!(allowed, "OpenSession({id:?}) ohne Nutzeraktion: {event:?} in {} ({:?})", before.name(), t.effects);
+            }
+            // gesperrte Platzierung (Nachtrag 8): Ziehen, Tastatur, Seitenwechsel und Zielwahl ändern nichts
+            if let State::Positioning { edit: Some(e), .. } = &before
+                && e.placement_locked()
+                && matches!(event, Event::PlacementChanged(_) | Event::PageChanged(_) | Event::TargetChosen(_))
+            {
+                prop_assert_eq!(&t.state, &before, "{:?} verschiebt einen gesperrten Block", event);
+                prop_assert!(t.effects.is_empty(), "{:?}: {:?}", event, t.effects);
+            }
+            // gesperrt nur mit der Einstellung, nie für Einträge der Stapelübersicht
+            if let State::Positioning { edit: Some(e), .. } = &t.state
+                && e.placement_locked()
+            {
+                prop_assert!(ctx.auto_position && !e.return_to_batch, "{event:?} in {} sperrt", before.name());
+            }
+            // geparkte Arbeit (Nachtrag 10): verdeckt – nichts startet, nichts wird vorbereitet oder bestätigt; Parken,
+            // Fortsetzen und Verwerfen starten nie etwas; geparkt ist nur Arbeit, die ruht (kein Signieren, kein Lauf)
+            if before.parked() || matches!(event, Event::WentHome | Event::ParkedResumed | Event::ParkedDiscarded) {
+                let started = t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_) | Effect::SignDocument | Effect::Sign | Effect::Prepare { .. }));
+                prop_assert!(!started, "{event:?} in {} (geparkt: {}): {:?}", before.name(), before.parked(), t.effects);
+            }
+            if t.state.parked() {
+                let resting = matches!(
+                    t.state,
+                    State::Positioning { edit: Some(_), .. } | State::AnalysisWarning { .. } | State::BatchOverview { .. }
+                        | State::Output { saved: None, decision: None, .. }
+                );
+                prop_assert!(resting, "{event:?} in {} parkt {}", before.name(), t.state.name());
+            }
+            if before.parked() && matches!(event, Event::SignRequested { .. } | Event::BatchStarted { .. } | Event::PlacementChanged(_) | Event::Cancel) {
+                prop_assert_eq!(&t.state, &before, "{:?} wirkt auf verdeckte Arbeit", event);
+            }
+            // „PDF hinzufügen“ startet nie etwas und schließt nie ein Dokument eines Laufs bzw. beim Signieren
+            if matches!(event, Event::MoreFilesAdded(_) | Event::DocumentReplaced(_)) {
+                prop_assert!(!t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_) | Effect::SignDocument)), "{:?}", t.effects);
+                if matches!(before, State::Signing { .. } | State::BatchSigning { .. } | State::Resuming { .. }) {
+                    prop_assert!(!t.effects.iter().any(|e| matches!(e, Effect::Discard(_))), "{event:?} in {}: {:?}", before.name(), t.effects);
+                }
+            }
+            // „Für diesen Stapel automatisch positionieren“ startet nie etwas und gilt nie über einen Lauf hinaus
+            if matches!(event, Event::BatchAutoPositionSet { .. }) {
+                prop_assert!(!t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_) | Effect::SignDocument)), "{:?}", t.effects);
+            }
+            if let (State::BatchSigning { .. }, State::BatchOverview { queue }) = (&before, &t.state) {
+                prop_assert!(!queue.batch.as_ref().is_some_and(|b| b.auto_position_once), "nach dem Lauf wieder laut Einstellung");
             }
             // Stapel nur mit Stapelübersicht, nie mit der Startargument-Automatik (D-06)
             if matches!(t.state, State::BatchOverview { .. } | State::BatchSigning { .. }) {
@@ -574,7 +640,7 @@ proptest! {
     /// - nach dem Lauf ist kein Eintrag mehr „wartet“/„wird signiert“.
     #[test]
     fn batch_run_invariants(
-        events in prop::collection::vec(0u8..36, 0..160),
+        events in prop::collection::vec(0u8..39, 0..160),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
     ) {
@@ -607,7 +673,11 @@ proptest! {
                 32 => Event::Backgrounded,
                 33 => Event::BatchItemOpened(current),
                 34 => Event::BackToBatch,
-                _ => Event::Navigate(Step::Open),
+                35 => Event::Navigate(Step::Open),
+                // „Zur Startseite“ (Nachtrag 10): Parken und Fortsetzen ändern am Stapel nichts
+                36 => Event::WentHome,
+                37 => Event::ParkedResumed,
+                _ => Event::ParkedDiscarded,
             };
             let before = state.clone();
             let t = reduce(state, event.clone(), &ctx);
@@ -622,6 +692,15 @@ proptest! {
                         _ => false,
                     };
                     prop_assert!(allowed, "OpenSession ohne Nutzeraktion: {event:?} in {}", before.name());
+                }
+            }
+            // Parken und Fortsetzen (Nachtrag 10) lassen Stapel und Lauf unverändert; im Lauf ohne Wirkung
+            if matches!(event, Event::WentHome | Event::ParkedResumed)
+                && matches!(before, State::BatchOverview { .. } | State::BatchSigning { .. })
+            {
+                prop_assert_eq!(before.queue().and_then(|q| q.batch.clone()), t.state.queue().and_then(|q| q.batch.clone()));
+                if matches!(before, State::BatchSigning { .. }) {
+                    prop_assert_eq!(&t.state, &before, "{:?} im Lauf", event);
                 }
             }
             if let State::BatchSigning { run: before_run, .. } = &before {

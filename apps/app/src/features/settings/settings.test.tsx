@@ -12,6 +12,7 @@ import { defaultSettings } from '../../core/defaults';
 import type { SettingsMockOptions } from '../../core/mock/settings';
 import type { Settings, SettingsView, UiEvent } from '../../core/types';
 import { translator } from '../../i18n/catalog';
+import { expectNoAxeViolations } from '../../test/a11y';
 import { lastEvent, renderApp } from '../../test/render';
 import { IOS, onMobile, settingsView, workspaceView } from '../../test/views';
 
@@ -281,6 +282,66 @@ describe('Einstellungen › Dokument (PDF/A, Platzhaltersuche)', () => {
     await user.clear(search);
     await user.type(search, 'pdf/a');
     expect(within(dialog).getByRole('switch', { name: 'PDF/A-compatible signature' })).toBeInTheDocument();
+  });
+});
+
+describe('Einstellungen › Dokument: Automatische Positionierung (Nachtrag 8)', () => {
+  it('Schalter im Bereich Dokument (Standard aus wie PDF-Over) mit Hinweis, sofort wirksam (apply_settings)', async () => {
+    const { dialog, mock, user } = await open();
+    await user.click(nav(dialog, 'Dokument'));
+    const rows = [...dialog.querySelectorAll('.settings-row')].map((r) => r.getAttribute('data-row'));
+    expect(rows).toEqual(['document.pdfa', 'document.placeholder', 'document.auto_position']);
+    const toggle = within(dialog).getByRole('switch', { name: 'Automatische Positionierung' });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(
+      'Der Signaturblock wird beim Öffnen automatisch platziert und das Dokument ist sofort bereit zum Signieren. Die Lage lässt sich bei Bedarf trotzdem ändern.',
+    );
+    await user.click(toggle);
+    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'signature.auto_position': true }, revision: 1 });
+    expect(toggle).toBeChecked();
+    expect((await mock.view()).settings!.settings.signature.auto_position).toBe(true);
+    await user.click(toggle);
+    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'signature.auto_position': false }, revision: 2 });
+    await expectNoAxeViolations();
+  });
+
+  it('übernommener Wert (PDF-Over SIGNATURE_POSITION=auto) erscheint eingeschaltet', async () => {
+    const settings: Settings = { ...defaultSettings(), signature: { ...defaultSettings().signature, auto_position: true } };
+    const { dialog, user } = await open({ settings });
+    await user.click(nav(dialog, 'Dokument'));
+    expect(within(dialog).getByRole('switch', { name: 'Automatische Positionierung' })).toBeChecked();
+  });
+
+  it('auffindbar über „position“, „platzieren“, „automatisch“, „auto“ (DE) bzw. „position“, „place“, „auto“ (EN)', async () => {
+    const { dialog, user } = await open();
+    const search = within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' });
+    const found = () => within(dialog).getAllByRole('switch').map((s) => s.closest('.settings-row')?.getAttribute('data-row'));
+    for (const q of ['position', 'platzieren', 'positionierung']) {
+      await user.clear(search);
+      await user.type(search, q);
+      expect(within(dialog).getByRole('heading', { level: 3, name: 'Dokument' })).toBeInTheDocument();
+      expect(found(), q).toEqual(['document.auto_position']);
+    }
+    for (const q of ['automatisch', 'auto']) {
+      await user.clear(search);
+      await user.type(search, q);
+      expect(found(), q).toContain('document.auto_position');
+    }
+    // Treffer ist bedienbar
+    await user.clear(search);
+    await user.type(search, 'position');
+    await user.click(within(dialog).getByRole('switch', { name: 'Automatische Positionierung' }));
+    expect(within(dialog).getByRole('switch', { name: 'Automatische Positionierung' })).toBeChecked();
+  });
+
+  it('englisch: „Automatic positioning“ über „place“ und „auto“', async () => {
+    const { dialog, user } = await open({ language: 'en' }, 'en');
+    const search = within(dialog).getByRole('searchbox', { name: 'Search settings' });
+    for (const q of ['positioning', 'place', 'auto']) {
+      await user.clear(search);
+      await user.type(search, q);
+      expect(within(dialog).getByRole('switch', { name: 'Automatic positioning' })).toHaveAccessibleDescription(/placed automatically .* ready to sign right away/);
+    }
   });
 });
 

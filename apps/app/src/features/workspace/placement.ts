@@ -230,6 +230,22 @@ export function overlapState(doc: DocumentView): 'content' | 'widget' | null {
   return null;
 }
 
+/**
+ * Lage aus der Automatik? Der Kern entscheidet (`detection.auto_placed` = `WorkspaceEdit::automatic`: `false` nach
+ * jeder Platzierung durch die Nutzerin); ohne `detection` nach `origin`.
+ */
+export function isAutoPlaced(doc: DocumentView): boolean {
+  return doc.detection ? doc.detection.auto_placed : doc.origin === 'auto';
+}
+
+/**
+ * Hat die Nutzerin die Signatur in diesem Dokument selbst platziert? Dann fragt „Anderes PDF öffnen“ vorher nach
+ * (ADR 0004 Nachtrag 9) – die Platzierung ginge verloren.
+ */
+export function placedByHand(doc: DocumentView): boolean {
+  return doc.phase === 'editing' && !isAutoPlaced(doc);
+}
+
 /** Dateigröße zur Anzeige („214 KB“, „1,2 MB“). */
 export function formatSize(bytes: number, lang: 'de' | 'en'): string {
   const locale = lang === 'de' ? 'de-AT' : 'en-GB';

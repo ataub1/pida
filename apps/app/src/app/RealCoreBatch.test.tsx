@@ -50,8 +50,22 @@ function refValue(dialog: HTMLElement): string {
 }
 
 describe('Stapel: Zustände des echten Kerns', () => {
-  it('jeder Zustand gehört zur Stapelübersicht (die Karte liegt über der Liste)', () => {
-    for (const [name, v] of Object.entries(states)) expect([name, mainView(v)]).toEqual([name, 'batch']);
+  it('jeder Zustand gehört zur Stapelübersicht (die Karte liegt über der Liste); geparkt zur Startansicht', () => {
+    for (const [name, v] of Object.entries(states)) expect([name, mainView(v)]).toEqual([name, name === 'batch_parked' ? 'start' : 'batch']);
+  });
+
+  it('Zur Startseite (Nachtrag 10): der Stapel ist „In Bearbeitung“, „Schließen“ fragt bei mehreren Dokumenten nach', async () => {
+    const { mock, user } = renderApp({ view: state('batch_parked') });
+    await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
+    const card = screen.getByRole('region', { name: 'In Bearbeitung' });
+    expect(within(card).getByRole('heading', { level: 2, name: 'Stapel · 4 Dokumente' })).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Dokumente im Stapel' })).not.toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Schließen' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Offene Arbeit schließen?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Abbrechen' }));
+    await user.click(within(card).getByRole('button', { name: 'Weiter bearbeiten' }));
+    expect(mock.dispatched).toEqual([{ type: 'resume_parked' }]);
+    expect(sessionEvents(mock.dispatched)).toEqual([]);
   });
 
   it('kein Zustand stößt von sich aus eine Sitzung an (F-54)', async () => {
@@ -93,6 +107,19 @@ describe('Stapel: Zustände des echten Kerns', () => {
     await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
     const docs = v.batch!.items.filter((i) => i.name !== 'Geheim.pdf').map((i) => i.doc);
     expect(sessionEvents(mock.dispatched)).toEqual([{ type: 'start_batch', backend: 'atrust_native', docs, output_dir: null, on_existing: 'keep_both' }]);
+  });
+
+  it('„Für diesen Stapel automatisch positionieren“ (Nachtrag 8): Schalter an, alle „Bereit“, startet nichts; axe', async () => {
+    const v = state('batch_auto_once');
+    expect(v.batch?.auto_position_once).toBe(true);
+    const { mock, user } = renderApp({ view: v });
+    const toggle = await screen.findByRole('switch', { name: 'Für diesen Stapel automatisch positionieren' });
+    expect(toggle).toBeChecked();
+    expect(within(row('Vertrag.pdf')).getByText('Bereit')).toBeInTheDocument();
+    await expectNoAxeViolations();
+    await user.click(toggle);
+    expect(mock.dispatched.at(-1)).toEqual({ type: 'set_batch_auto_position', enabled: false, replace_manual: false });
+    expect(sessionEvents(mock.dispatched)).toEqual([]);
   });
 
   it('Lauf (E2.2–E2.4): eine Anmeldung, je Dokument „Bestätigung k von n · Name“ mit eigenem Vergleichswert, Pause Verbindung, Fortschritt in der Liste', async () => {

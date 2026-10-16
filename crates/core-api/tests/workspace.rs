@@ -446,7 +446,11 @@ async fn default_signer_with_auto_position_never_starts_by_itself() {
         let backends: Option<Vec<Arc<dyn SignatureBackend>>> =
             if default == "id_austria" { Some(vec![fake.backend()]) } else { None };
         let core = start(&fx, overlay, backends, Some(engine.clone()), false).unwrap();
-        wait_for(&core, "Arbeitsbereich", editing).await;
+        let v = wait_for(&core, "Arbeitsbereich", editing).await;
+        // „Automatische Positionierung“ (Nachtrag 8): bereit zum Signieren, Platzierung gesperrt – signiert
+        // wird trotzdem erst nach „Signieren mit“
+        assert!(v.document.as_ref().is_some_and(|d| d.placement_locked), "{default}: gesperrt");
+        assert!(v.actions.sign && v.actions.edit_placement, "{default}: Optionen und „Signieren“ bedienbar");
         tokio::time::sleep(Duration::from_millis(300)).await;
         assert!(editing(&core.view()), "{default}: {:?}", core.view().step);
         assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "{default}");
@@ -458,6 +462,97 @@ async fn default_signer_with_auto_position_never_starts_by_itself() {
         assert!(editing(&core.view()));
         assert_eq!(engine.prepares.load(Ordering::SeqCst), 0);
     }
+}
+
+/// Einstellung „Automatische Positionierung“ (ADR 0004 Nachtrag 8) gegen den echten Kern: beim Öffnen
+/// automatisch platziert (PDF-AS-Regel) und gesperrt – `move_block`, `nudge_block`, `change_page`, `use_target`
+/// und `auto_place` bleiben ohne Wirkung, „Unsichtbar“ und „Auf neuer Seite“ wirken; `unlock_placement` gibt
+/// nur dieses Dokument frei (das nächste ist wieder gesperrt); ausgeschaltet (`apply_settings`) sofort frei.
+/// Nie eine Sitzung bzw. Vorbereitung ohne „Signieren mit“ (F-54). Mit PDFium auch die Lage selbst.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn auto_position_locks_the_placement_until_unlocked() {
+    let fx = Fixture::new();
+    let input = fx.dir("in");
+    let out = fx.dir("out");
+    let a = copy_pdf(TEXT_PDF, &input, "a.pdf");
+    let b = copy_pdf(TEXT_PDF, &input, "b.pdf");
+    fx.write_settings("[signature]\nauto_position = true\n");
+    let pdfium = pdfium_dir().is_some();
+    let engine = FakeEngine::new();
+    let core = start(&fx, keystore_overlay(vec![a.clone(), b], &out), None, Some(engine.clone()), pdfium).unwrap();
+    if pdfium {
+        settled(&core, true).await;
+    } else {
+        // ohne Vorschau: keine Lage und keine Blockvorschau, die Sperre gilt trotzdem
+        wait_for(&core, "Arbeitsbereich", editing).await;
+    }
+    let v = core.view();
+    let d = v.document.clone().unwrap();
+    assert!(d.placement_locked, "gesperrt");
+    assert_eq!((d.origin, d.target), (PlacementOrigin::Auto, PlacementTarget::Free));
+    assert!(d.detection.as_ref().is_some_and(|x| x.auto_placed));
+    assert!(v.actions.sign && v.actions.edit_placement);
+    if pdfium {
+        let expected = expected_auto_position(&a);
+        assert!((d.placement.x - expected.x).abs() < 0.5 && (d.placement.y - expected.y).abs() < 0.5, "{d:?}");
+    }
+    // Verschieben aller Art bleibt ohne Wirkung (Lage und Revision unverändert)
+    for e in [
+        UiEvent::MoveBlock { page: 0, x: 40.0, y: 500.0 },
+        UiEvent::NudgeBlock { dx: 2, dy: 1, fine: false, coarse: true },
+        UiEvent::ChangePage { page: 0 },
+        UiEvent::UseTarget { target: PlacementTarget::Free },
+        UiEvent::AutoPlace,
+    ] {
+        core.dispatch(e);
+    }
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let after = core.view().document.unwrap();
+    assert_eq!((after.placement, after.revision, after.origin), (d.placement, d.revision, d.origin));
+    assert!(after.placement_locked && !after.check.clamped);
+    // „Unsichtbar signieren“ bleibt bedienbar
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible && d.placement_locked)).await;
+    core.dispatch(UiEvent::SetInvisible { invisible: false });
+    wait_for(&core, "sichtbar", |v| v.document.as_ref().is_some_and(|d| !d.invisible)).await;
+    // „Diesmal selbst platzieren“: frei, startet nichts
+    core.dispatch(UiEvent::UnlockPlacement);
+    let v = wait_for(&core, "freigegeben", |v| v.document.as_ref().is_some_and(|d| !d.placement_locked)).await;
+    assert_eq!(v.document.as_ref().unwrap().placement, d.placement, "Lage unverändert");
+    if pdfium {
+        core.dispatch(UiEvent::MoveBlock { page: 0, x: 40.0, y: 500.0 });
+        let v =
+            wait_for(&core, "verschoben", |v| v.document.as_ref().is_some_and(|d| d.origin == PlacementOrigin::User))
+                .await;
+        assert_eq!(v.document.unwrap().placement.page_index, 0);
+    }
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(engine.prepares.load(Ordering::SeqCst), 0, "nichts vorbereitet ohne „Signieren mit“ (F-54)");
+    // signieren → „Fertig“ → nächstes Dokument: wieder gesperrt
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    wait_for(&core, "gespeichert", saved).await;
+    core.dispatch(UiEvent::Navigate { step: pida_workflow::Step::Open });
+    let v = wait_for(&core, "nächstes Dokument", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.doc.name == "b.pdf")
+    })
+    .await;
+    assert!(v.document.as_ref().unwrap().placement_locked, "Freigabe galt nur für das erste Dokument");
+    // Einstellungen › Dokument: ausgeschaltet → sofort frei; wieder eingeschaltet → gesperrt (noch automatisch)
+    core.dispatch(UiEvent::OpenSettings);
+    wait_for(&core, "Einstellungen", |v| v.settings.is_some()).await;
+    let apply = |on: bool, revision: u64| UiEvent::ApplySettings {
+        changes: [("signature.auto_position".to_owned(), serde_json::json!(on))].into(),
+        revision,
+    };
+    core.dispatch(apply(false, 1));
+    let v = wait_for(&core, "aus", |v| v.document.as_ref().is_some_and(|d| !d.placement_locked)).await;
+    let view = v.settings.as_ref().unwrap();
+    assert!(!view.settings.signature.auto_position && !view.problems.contains_key("signature.auto_position"));
+    let saved_toml = std::fs::read_to_string(fx.paths.settings_file()).unwrap();
+    assert!(saved_toml.contains("auto_position = false"), "gespeichert: {saved_toml}");
+    core.dispatch(apply(true, 2));
+    wait_for(&core, "wieder an", |v| v.document.as_ref().is_some_and(|d| d.placement_locked)).await;
+    assert_eq!(engine.prepares.load(Ordering::SeqCst), 1, "nur das ausdrücklich signierte Dokument");
 }
 
 /// D-06: `-b KS -ks … -a -s a.pdf b.pdf` signiert im Arbeitsbereich-Modus beide Dokumente automatisch und
@@ -1050,7 +1145,15 @@ async fn real_core_views_for_the_ui() {
     settled(&core, pdfium).await;
     let v = core.view();
     assert!(editing(&v), "{:?}", v.step);
+    let editing_doc = v.document.clone();
     states.push(("keystore_editing".into(), v));
+    // „Zur Startseite“ parkt das Dokument (Nachtrag 10), „Weiter bearbeiten“ bringt es unverändert zurück
+    core.dispatch(UiEvent::GoHome);
+    let v = wait_for(&core, "geparkt", |v| v.parked.is_some() && v.document.is_none()).await;
+    states.push(("doc_parked".into(), v));
+    core.dispatch(UiEvent::ResumeParked);
+    let v = wait_for(&core, "fortgesetzt", |v| v.parked.is_none() && editing(v)).await;
+    assert_eq!(v.document.map(|d| (d.doc.id, d.placement)), editing_doc.map(|d| (d.doc.id, d.placement)));
     core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
     let seen = collect_until(&core, "gespeichert", saved).await;
     if let Some(v) = seen.iter().rev().find(|v| matches!(v.step, StepView::Signing { .. })) {
@@ -1108,8 +1211,10 @@ async fn real_core_views_for_the_ui() {
 
     // 4. Einstellungen › Dokument (E3, Nachtrag 5): erkannte PDF/A-Kennung, erzwungene PDF/A-Kompatibilität,
     // Platzhaltersuche „Leere Signaturfelder“ (erstes Feld automatisch) und „QR-Code-Platzhalter“ (mit PDFium)
-    let doc_cases: [(&str, &str, &str, bool); 4] = [
+    let doc_cases: [(&str, &str, &str, bool); 5] = [
         ("doc_pdfa_detected", "pdf/pdfas-suites/PDFA_SIGNATURBLOCK_DE/TestGhostscriptPdfA.pdf", "", false),
+        // Einstellung „Automatische Positionierung“ (Nachtrag 8): automatisch platziert und gesperrt
+        ("doc_auto_locked", TEXT_PDF, "[signature]\nauto_position = true\n", false),
         ("doc_pdfa_forced", TEXT_PDF, "[signature]\npdfa_force = true\n", false),
         (
             "doc_field_auto",
@@ -1152,6 +1257,7 @@ async fn real_core_views_for_the_ui() {
             "doc_field_auto" => assert!(
                 det.auto_placed && matches!(v.document.as_ref().unwrap().target, PlacementTarget::Field { index: 0 })
             ),
+            "doc_auto_locked" => assert!(det.auto_placed && v.document.as_ref().unwrap().placement_locked),
             _ => assert!(det.auto_placed && v.document.as_ref().unwrap().target == PlacementTarget::Qr),
         }
         states.push((name.into(), v));

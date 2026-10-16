@@ -10,6 +10,9 @@
  * - „Signieren“ (Knopf, ⌘↵, Palette): mit gewähltem Signiermittel `sign_with`, sonst öffnet sich das Menü
  *   des Konto-Chips und die Wahl dort signiert (§3.4, §8 F12).
  * - ⌘/Strg + Plus/Minus/0 zoomt nur die Seitenansicht.
+ * - Einstellung „Automatische Positionierung“ (`document.placement_locked`, ADR 0004 Nachtrag 8): der Block ist
+ *   gesperrt (kein Ziehen, keine Tastatur, keine Feld-Angebote), bis „Diesmal selbst platzieren“; „Unsichtbar“ und
+ *   „Auf neuer Seite“ bleiben bedienbar. Was gesperrt ist, entscheidet der Kern.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Toolbar } from 'react-aria-components';
@@ -20,7 +23,7 @@ import { useNarrow } from '../../ui/hooks';
 import { IconEyeOff, IconFitWidth, IconQr, IconSidebar, IconSignature, IconZoomIn, IconZoomOut } from '../../ui/Icons';
 import { Inspector } from './Inspector';
 import { Pages } from './Pages';
-import { announceText, displayPages, layoutPages, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
+import { announceText, displayPages, isAutoPlaced, layoutPages, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
 import { Thumbnails } from './Thumbnails';
 import './workspace.css';
 
@@ -44,7 +47,7 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   const [pagesOpen, setPagesOpen] = useState(!narrow);
   // Sprechblase „automatisch … platziert“ nur, solange die Lage aus der Automatik stammt (frei, QR-Platzhalter
   // bzw. Signaturfeld der Platzhaltersuche; ohne `detection` wie bisher nach `origin`)
-  const autoPlaced = doc.detection ? doc.detection.auto_placed : doc.origin === 'auto';
+  const autoPlaced = isAutoPlaced(doc);
   const [coach, setCoach] = useState(autoPlaced && doc.phase === 'editing');
   const [chip, setChip] = useState<{ open: boolean; sign: boolean }>({ open: false, sign: false });
   const [viewport, setViewport] = useState({ top: 0, height: 0 });
@@ -54,6 +57,8 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const lastSnap = useRef<GuideKind[]>([]);
   const editable = view.actions.edit_placement && doc.phase === 'editing';
+  // gesperrt durch „Automatische Positionierung“: Optionen bedienbar, der Block nicht verschiebbar (Kern)
+  const movable = editable && !doc.placement_locked;
 
   const scale = zoom ? (zoom / 100) * PT_TO_PX : fitScale;
   const layout = useMemo(() => layoutPages(sizes, scale), [sizes, scale]);
@@ -76,7 +81,7 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   }, [maxW]);
 
   // Hinweisleiste über den Seiten (unsichtbar signieren | Signaturfeld gefunden | QR-Platzhalter)
-  const unusedField = editable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
+  const unusedField = movable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
   const banner = doc.invisible ? 'invisible' : unusedField ? 'field' : doc.target.kind === 'qr' ? 'qr' : null;
   // Erscheint oder verschwindet die Leiste (z. B. Block aus dem Signaturfeld gezogen), verschöbe sich die
   // Seitenansicht um ihre Höhe – auf dem Telefon (Leiste bis ~130 px) läge der gerade abgelegte Block dann
@@ -307,7 +312,8 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
             scale={scale}
             layout={layout}
             loadPages={loadPages}
-            editable={editable}
+            editable={movable}
+            locked={editable && doc.placement_locked}
             coach={coach}
             hostRef={hostRef}
             stickerRef={stickerRef}

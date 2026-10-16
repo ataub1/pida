@@ -45,7 +45,7 @@ ng-ui-shell-cmd-settings = Einstellungen
 ng-ui-shell-cmd-signature = Signaturbild bearbeiten
     .keywords = logo profil bildmarke hinweis
 ng-ui-shell-cmd-home = Zur Startseite
-    .keywords = start schließen
+    .keywords = start startseite home
 ng-ui-shell-cmd-theme-light = Farbschema: Hell
     .keywords = theme hell
 ng-ui-shell-cmd-theme-dark = Farbschema: Dunkel
@@ -58,6 +58,22 @@ ng-ui-shell-cmd-lang-en = Language: English
     .keywords = language sprache englisch
 ng-ui-shell-cmd-shortcuts = Tastenkürzel anzeigen
     .keywords = hilfe tastatur kürzel
+ng-ui-shell-cmd-add = PDF hinzufügen …
+    .keywords = weitere dokumente mehrere datei anhängen stapel
+ng-ui-shell-cmd-batch = Zum Stapel
+    .keywords = stapel übersicht alle dokumente
+ng-ui-shell-cmd-batch-back = Zurück zum Stapel
+    .keywords = stapel übersicht alle dokumente
+# „PDF hinzufügen“ in der Kopfzeile (ADR 0004 Nachtrag 9): Knopf „+ PDF“ mit Menü
+ng-ui-shell-add = PDF
+ng-ui-shell-add-long = PDF hinzufügen oder öffnen
+ng-ui-shell-add-more = Weitere PDFs hinzufügen …
+ng-ui-shell-add-more-desc = Zusammen mit „{ $name }“ als Stapel signieren
+ng-ui-shell-replace = Anderes PDF öffnen …
+ng-ui-shell-replace-desc = „{ $name }“ wird geschlossen
+ng-ui-shell-replace-title = Anderes PDF öffnen?
+ng-ui-shell-replace-text = Sie haben die Signatur in „{ $name }“ selbst platziert. Wenn Sie ein anderes PDF öffnen, wird dieses Dokument geschlossen und die Platzierung verworfen.
+ng-ui-shell-replace-confirm = Anderes PDF öffnen
 ng-ui-shell-key-close = Dialog schließen, Vorgang abbrechen
 ng-ui-shell-key-accesskeys = Zugriffstasten (unterstrichene Buchstaben bei gedrückter Alt-Taste)
 ng-ui-shell-key-move = Signaturblock verschieben (15 pt)
@@ -88,6 +104,37 @@ ng-ui-start-side = Zuletzt signiert und Prüfmodus
 ng-ui-start-verify-title = Signatur prüfen?
 ng-ui-start-verify-text = Im Prüfmodus sehen Sie, wer ein PDF wann signiert hat und ob es seither verändert wurde.
 ng-ui-start-verify-button = Prüfmodus öffnen
+# Geparkte Arbeit („Zur Startseite“ parkt das offene Dokument bzw. den Stapel, ADR 0004 Nachtrag 10)
+ng-ui-start-parked-label = In Bearbeitung
+ng-ui-start-parked-batch =
+    { $n ->
+        [one] Stapel · 1 Dokument
+       *[other] Stapel · { $n } Dokumente
+    }
+ng-ui-start-parked-hint = Noch nicht signiert – die Platzierung bleibt erhalten.
+ng-ui-start-parked-hint-placed = Noch nicht signiert – Ihre Platzierung bleibt erhalten.
+ng-ui-start-parked-hint-batch = Pläne und Status der Dokumente bleiben erhalten.
+ng-ui-start-parked-hint-unsaved = Signiert, aber noch nicht gespeichert.
+ng-ui-start-parked-resume = Weiter bearbeiten
+ng-ui-start-parked-close = Schließen
+ng-ui-start-parked-close-title = Offene Arbeit schließen?
+ng-ui-start-parked-close-text = „{ $name }“ wird geschlossen; Ihre Platzierung geht verloren. Bereits signierte Dateien bleiben erhalten.
+ng-ui-start-parked-close-text-batch = Der Stapel wird geschlossen; Platzierungen und Status der Dokumente gehen verloren. Bereits signierte Dateien bleiben erhalten.
+ng-ui-start-parked-close-text-unsaved = „{ $name }“ ist signiert, aber noch nicht gespeichert. Wenn Sie schließen, geht die Signatur verloren.
+ng-ui-start-parked-close-confirm = Schließen
+ng-ui-start-join-title = Zur offenen Arbeit hinzufügen?
+ng-ui-start-join-text =
+    „{ $name }“ ist noch in Bearbeitung. { $count ->
+        [one] Soll das gewählte Dokument dazukommen? Zusammen bilden sie einen Stapel, Ihre Platzierung bleibt erhalten.
+       *[other] Sollen die { $count } gewählten Dokumente dazukommen? Zusammen bilden sie einen Stapel, Ihre Platzierung bleibt erhalten.
+    }
+ng-ui-start-join-text-batch =
+    Ein Stapel ist noch in Bearbeitung. { $count ->
+        [one] Soll das gewählte Dokument dazukommen?
+       *[other] Sollen die { $count } gewählten Dokumente dazukommen?
+    }
+ng-ui-start-join-add = Zum Stapel hinzufügen
+ng-ui-start-join-replace = Offene schließen und neu beginnen
 
 ## Arbeitsbereich: Seiten, Sticker, Live-Region, Zustandskarten
 
@@ -96,6 +143,8 @@ ng-ui-ws-toolbar = Ansicht
 ng-ui-ws-pages = Seiten
 ng-ui-ws-thumb = Seite { $n }
 ng-ui-ws-thumb-sticker = Seite { $n }, enthält den Signaturblock
+ng-ui-ws-thumbs-add = PDF hinzufügen
+ng-ui-ws-thumbs-add-hint = oder hierher ziehen
 ng-ui-ws-toggle-pages = Seitenleiste ein-/ausblenden
 ng-ui-ws-page-indicator = Seite { $n } / { $total }
 ng-ui-ws-zoom-in = Vergrößern
@@ -108,6 +157,9 @@ ng-ui-ws-new-page = Neue Seite für die Signatur
 ng-ui-ws-sticker-role = verschiebbarer Signaturblock
 ng-ui-ws-sticker-label = Signaturblock
 ng-ui-ws-sticker-help = Ziehen oder mit den Pfeiltasten verschieben, Umschalt+Pfeil verschiebt fein, Alt+Pfeil grob, Bild auf/ab wechselt die Seite, { $sign } signiert.
+# Einstellung „Automatische Positionierung“ (ADR 0004 Nachtrag 8): Block gesperrt
+ng-ui-ws-sticker-role-locked = automatisch platzierter Signaturblock
+ng-ui-ws-sticker-locked-help = Automatisch platziert laut Einstellung „Automatische Positionierung“. { $sign } signiert; „Diesmal selbst platzieren“ unter „Platzierung“ gibt den Block zum Verschieben frei.
 ng-ui-ws-sticker-overlap = Überdeckt Inhalt
 ng-ui-ws-sticker-widget = Überdeckt ein Feld
 ng-ui-ws-sticker-in-field = Im Signaturfeld
@@ -196,6 +248,10 @@ ng-ui-insp-placement-qr = Im QR-Code-Platzhalter
 ng-ui-insp-placement-free = Frei platzieren
 ng-ui-insp-placement-hint = Ziehen Sie den Block auf der Seite – er rastet an Rändern und unter dem Text ein.
 ng-ui-insp-auto-place = Neu platzieren
+# Einstellung „Automatische Positionierung“ (ADR 0004 Nachtrag 8)
+ng-ui-insp-placement-auto = Automatisch (laut Einstellung)
+ng-ui-insp-placement-locked-hint = Bereit zum Signieren. Die Lage bestimmt die Einstellung „Automatische Positionierung“.
+ng-ui-insp-placement-unlock = Diesmal selbst platzieren
 ng-ui-insp-existing = Vorhandene Signaturen
 ng-ui-insp-existing-meta = Angabe beim Signieren: { $time }
 ng-ui-insp-existing-unknown = Unterzeichner nicht lesbar
@@ -360,6 +416,18 @@ ng-ui-batch-existing =
         [one] Eine Zieldatei gibt es schon – Sie entscheiden beim Start.
        *[other] { $n } Zieldateien gibt es schon – Sie entscheiden beim Start.
     }
+# Automatische Positionierung im Stapel (ADR 0004 Nachtrag 8): nur für diesen Stapel bzw. laut Einstellung
+ng-ui-batch-auto = Für diesen Stapel automatisch positionieren
+ng-ui-batch-auto-hint = Alle Dokumente werden automatisch platziert und sind bereit zum Signieren – nur für diesen Stapel, die Einstellung bleibt unverändert.
+ng-ui-batch-auto-setting = Automatische Positionierung (laut Einstellung)
+ng-ui-batch-auto-confirm-title = Eigene Platzierungen behalten?
+ng-ui-batch-auto-confirm-text =
+    { $n ->
+        [one] Ein Dokument haben Sie selbst platziert. Soll es ebenfalls automatisch platziert werden?
+       *[other] { $n } Dokumente haben Sie selbst platziert. Sollen sie ebenfalls automatisch platziert werden?
+    }
+ng-ui-batch-auto-keep = Behalten
+ng-ui-batch-auto-replace = Auch diese automatisch platzieren
 ng-ui-batch-list = Dokumente im Stapel
 ng-ui-batch-open = „{ $name }“ öffnen und positionieren
 ng-ui-batch-review = Prüfen

@@ -509,4 +509,188 @@ describe('Stapel (ADR 0004 §3.8)', () => {
     expect(view.batch?.items[0]?.status).toEqual({ state: 'signed', path: '/var/mobile/Containers/Data/Application/DEMO/Documents/Angebot_2026-118_signed.pdf' });
     expect(view.batch?.summary?.folder_display).toBeNull();
   });
+
+  // „PDF hinzufügen“ (Nachtrag 9) wie der Kern (`Event::MoreFilesAdded`, `Event::DocumentReplaced`)
+  it('„Weitere PDFs hinzufügen“: aus dem Stapel geöffnet zurück mit dem neuen Eintrag; nur Duplikate ändern nichts', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'open_batch_item', doc: 1 });
+    expect((await until(c, hasDoc)).document?.doc.name).toBe('Angebot_2026-118.pdf');
+    // dieselbe Datei: schon im Stapel – nichts ändert sich
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Angebote/Angebot_2026-118.pdf`], mode: 'add' });
+    expect((await c.view()).document?.doc.id).toBe(1);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Neu.pdf`], mode: 'add' });
+    const back = await until(c, ready);
+    expect(back.batch?.items.map((i) => i.name)).toEqual(['Angebot_2026-118.pdf', 'Auftragsbestaetigung_4711.pdf', 'Lieferschein_Scan.pdf', 'Vertrag.pdf', 'Neu.pdf']);
+    expect(back.batch?.open_item).toBeNull();
+    expect(c.dispatched.some((e) => e.type === 'sign_with' || e.type === 'start_batch')).toBe(false);
+  });
+
+  it('„Anderes PDF öffnen“: wartende Dokumente bleiben (zusammen die Übersicht); aus dem Stapel geöffnet ersetzt es den Eintrag', async () => {
+    let c = core({ settings: batchSettings() });
+    await until(c, (x) => x.step.step === 'open');
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Vertrag.pdf`] });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Angebot.pdf`] });
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Auftrag.pdf`], mode: 'replace' });
+    let v = await until(c, ready);
+    expect(v.batch?.items.map((i) => i.name)).toEqual(['Angebot.pdf', 'Auftrag.pdf']);
+    expect(v.done.map((d) => [d.name, d.result.kind])).toEqual([['Vertrag.pdf', 'cancelled']]);
+
+    c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'open_batch_item', doc: 2 });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Ersatz.pdf`], mode: 'replace' });
+    v = await until(c, ready);
+    expect(v.batch?.items.map((i) => i.name)).toEqual(['Angebot_2026-118.pdf', 'Lieferschein_Scan.pdf', 'Vertrag.pdf', 'Ersatz.pdf']);
+  });
+
+  it('`mode` ohne Dokument im Arbeitsbereich wie `open_files` (Start: zwei Dateien → Übersicht)', async () => {
+    const c = core({ settings: batchSettings() });
+    await until(c, (x) => x.step.step === 'open');
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/A.pdf`, `${DIR}/B.pdf`], mode: 'replace' });
+    const v = await until(c, ready);
+    expect(v.batch?.items.map((i) => i.name)).toEqual(['A.pdf', 'B.pdf']);
+  });
+});
+
+describe('Automatische Positionierung (Nachtrag 8, Mock wie der Kern)', () => {
+  const autoSettings = (): Settings => ({ ...defaultSettings(), signature: { ...defaultSettings().signature, auto_position: true } });
+  const batchSettings = (): Settings => ({ ...idAustria(), placeholder: { search: true, kind: 'marker' } });
+  const ready = (v: ViewState) => v.step.step === 'batch' && !!v.batch && v.batch.items.every((i) => i.status.state !== 'analyzing');
+
+  it('Einstellung an: gesperrt, Verschieben und Zielwahl ohne Wirkung, „Diesmal selbst platzieren“ nur für dieses Dokument; keine Sitzung', async () => {
+    const c = core({ scenario: 'contract', settings: autoSettings() });
+    let v = await until(c, hasDoc);
+    const before = v.document!;
+    expect(before.placement_locked).toBe(true);
+    for (const e of [
+      { type: 'move_block', page: 0, x: 40, y: 500 },
+      { type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: true },
+      { type: 'change_page', page: 0 },
+      { type: 'auto_place' },
+      { type: 'use_target', target: { kind: 'free' } },
+    ] as UiEvent[]) await c.dispatch(e);
+    v = await c.view();
+    expect(v.document!.placement).toEqual(before.placement);
+    expect(v.document!.revision).toBe(before.revision);
+    await c.dispatch({ type: 'set_invisible', invisible: true });
+    expect((await c.view()).document!.invisible).toBe(true);
+    await c.dispatch({ type: 'set_invisible', invisible: false });
+    await c.dispatch({ type: 'unlock_placement' });
+    v = await c.view();
+    expect(v.document!.placement_locked).toBe(false);
+    await c.dispatch({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });
+    expect((await c.view()).document!.origin).toBe('user');
+    expect(c.dispatched.some((e) => e.type === 'sign_with')).toBe(false);
+    expect(v.step.step).not.toBe('signing');
+  });
+
+  it('Einstellung aus: wie bisher; aus der Stapelübersicht geöffnet nie gesperrt', async () => {
+    const c = core({ scenario: 'contract' });
+    expect((await until(c, hasDoc)).document!.placement_locked).toBe(false);
+    const b = core({ scenario: 'batch', settings: { ...batchSettings(), signature: { ...batchSettings().signature, auto_position: true } } });
+    await until(b, ready);
+    expect((await b.view()).batch?.auto_position_setting).toBe(true);
+    await b.dispatch({ type: 'open_batch_item', doc: 1 });
+    expect((await until(b, hasDoc)).document!.placement_locked).toBe(false);
+  });
+
+  it('Stapel: „Für diesen Stapel automatisch positionieren“ nur für diesen Stapel, eigene Pläne bleiben außer `replace_manual`', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'open_batch_item', doc: 1 });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'nudge_block', dx: 0, dy: 1, fine: false, coarse: false });
+    await c.dispatch({ type: 'back_to_batch' });
+    let v = await c.view();
+    expect(v.batch).toMatchObject({ auto_position_once: false, manual_plans: 1 });
+    await c.dispatch({ type: 'set_batch_auto_position', enabled: true, replace_manual: false });
+    v = await c.view();
+    expect(v.batch).toMatchObject({ auto_position_once: true, auto_position_setting: false, manual_plans: 1 });
+    expect(v.batch?.items[0]?.status.state).toBe('positioned');
+    expect(v.batch?.items.find((i) => i.position.kind === 'qr')?.status.state).toBe('ready');
+    await c.dispatch({ type: 'set_batch_auto_position', enabled: true, replace_manual: true });
+    v = await c.view();
+    expect(v.batch?.manual_plans).toBe(0);
+    expect(v.batch?.items[0]).toMatchObject({ status: { state: 'ready' }, position: { kind: 'auto' } });
+    expect(v.step.step).toBe('batch');
+    expect(c.dispatched.some((e) => e.type === 'start_batch')).toBe(false);
+  });
+});
+
+describe('„Zur Startseite“ parkt offene Arbeit (Nachtrag 10, Mock wie der Kern)', () => {
+  const DIR = '/Users/demo/Dokumente';
+  const parkedStart = (v: ViewState) => v.step.step === 'open' && !!v.parked && v.document === null && v.batch === null;
+  const ready = (v: ViewState) => v.step.step === 'batch' && !!v.batch && v.batch.items.every((i) => i.status.state !== 'analyzing');
+
+  it('Arbeitsbereich: parken, verdeckt nicht signierbar, fortsetzen mit unveränderter Platzierung', async () => {
+    const c = core({ scenario: 'contract', settings: idAustria() });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'nudge_block', dx: 0, dy: 1, fine: false, coarse: false });
+    const before = (await c.view()).document!;
+    await c.dispatch({ type: 'go_home' });
+    const v = await until(c, parkedStart);
+    expect(v.parked).toEqual({ doc_name: 'Vertrag.pdf', documents: 1, placed_by_hand: true, unsaved: false });
+    expect(v.actions).toMatchObject({ sign: false, edit_placement: false, open_files: true, verify: true });
+    // verdeckt (F-54): weder Signieren noch Verschieben wirken
+    await c.dispatch({ type: 'sign_with', backend: 'atrust_native' });
+    await c.dispatch({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });
+    expect((await c.view()).parked).not.toBeNull();
+    await c.dispatch({ type: 'resume_parked' });
+    const back = await until(c, hasDoc);
+    expect(back.parked).toBeNull();
+    expect(back.document!.placement).toEqual(before.placement);
+  });
+
+  it('neue PDFs: „Zum Stapel hinzufügen“ bildet mit dem geparkten Dokument den Stapel, „Öffnen mit“ mit Hinweis', async () => {
+    const c = core({ scenario: 'contract', settings: idAustria() });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'set_invisible', invisible: true });
+    await c.dispatch({ type: 'go_home' });
+    await until(c, parkedStart);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Angebot.pdf`], mode: 'add' });
+    let v = await until(c, ready);
+    expect(v.batch?.items.map((i) => [i.name, i.position.kind])).toEqual([
+      ['Vertrag.pdf', 'invisible'],
+      ['Angebot.pdf', 'auto'],
+    ]);
+    expect(v.notices.some((n) => n.code === 'ng-parked-files-added')).toBe(false);
+    // Stapel parken; „Öffnen mit“ (ohne `mode`): ohne Rückfrage dazu, Hinweis
+    await c.dispatch({ type: 'go_home' });
+    v = await until(c, parkedStart);
+    expect(v.parked).toMatchObject({ doc_name: null, documents: 2, placed_by_hand: true });
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Auftrag.pdf`] });
+    v = await until(c, ready);
+    expect(v.batch?.items).toHaveLength(3);
+    expect(v.notices.some((n) => n.code === 'ng-parked-files-added' && n.params.count === '1')).toBe(true);
+    // „Offene schließen und neu beginnen“: Stapel verworfen, das neue Dokument öffnet
+    await c.dispatch({ type: 'go_home' });
+    await until(c, parkedStart);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Neu.pdf`], mode: 'replace' });
+    v = await until(c, hasDoc);
+    expect([v.document?.doc.name, v.batch, v.parked]).toEqual(['Neu.pdf', null, null]);
+  });
+
+  it('„Schließen“ verwirft; beim Signieren und ohne offene Arbeit ohne Wirkung; „Neuer Stapel“ wie bisher', async () => {
+    const c = core({ scenario: 'contract', settings: idAustria() });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'go_home' });
+    await until(c, parkedStart);
+    await c.dispatch({ type: 'discard_parked' });
+    let v = await c.view();
+    expect([v.step.step, v.parked, v.document]).toEqual(['open', null, null]);
+    expect(v.done.map((d) => d.result.kind)).toEqual(['cancelled']);
+    await c.dispatch({ type: 'go_home' });
+    expect((await c.view()).parked).toBeNull();
+    // beim Signieren gesperrt
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Vertrag.pdf`] });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'sign_with', backend: 'atrust_native' });
+    await until(c, (x) => x.step.step === 'signing');
+    await c.dispatch({ type: 'go_home' });
+    v = await c.view();
+    expect([v.step.step, v.parked]).toEqual(['signing', null]);
+  });
 });

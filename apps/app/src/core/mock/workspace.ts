@@ -745,6 +745,27 @@ export interface EditState {
    * Nutzerin (Ziehen, Tastatur, Seite, neue Seite, „Ins Feld setzen“, „Frei platzieren“/„Neu platzieren“)
    */
   automatic: boolean;
+  /**
+   * Einstellung „Automatische Positionierung“ (Kern: `WorkspaceEdit::lock`, Projektion
+   * `placement_locked`; ADR 0004 Nachtrag 8): `locked` = Verschieben und Zielwahl ohne Wirkung, `released` =
+   * „Diesmal selbst platzieren“ (nur dieses Dokument)
+   */
+  lock: PlacementLock;
+}
+
+/** Sperre der Platzierung (Kern: `pida_workflow::PlacementLock`). */
+export type PlacementLock = 'off' | 'locked' | 'released';
+
+/**
+ * Einstellung „Automatische Positionierung“ anwenden (Kern: `WorkspaceEdit::follow_auto_position`): an sperrt
+ * ein Dokument, dessen Lage aus der Automatik stammt und das nicht aus der Stapelübersicht geöffnet wurde; aus
+ * hebt die Sperre auf; „Diesmal selbst platzieren“ bleibt.
+ */
+export function followAutoPosition(edit: EditState, settings: Settings, fromBatch: boolean): PlacementLock {
+  if (edit.lock === 'released') return 'released';
+  if (!settings.signature.auto_position) return 'off';
+  if (edit.lock === 'locked') return 'locked';
+  return edit.automatic && !fromBatch ? 'locked' : 'off';
 }
 
 const LOWEST_GAP = 20;
@@ -859,6 +880,7 @@ export function startEdit(doc: MockDoc, settings: Settings, lang: Lang): EditSta
     ready: [],
     invisibleProfile,
     automatic: true,
+    lock: settings.signature.auto_position ? 'locked' : 'off',
   };
   const target = automaticTarget(doc, settings, invisibleProfile);
   const placement = targetPlacement(doc, target, block);
@@ -1109,6 +1131,7 @@ export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPh
     check: check(doc, edit, sticker),
     announce,
     detection: detectionFor(doc, edit, settings),
+    placement_locked: edit.lock === 'locked',
   };
 }
 

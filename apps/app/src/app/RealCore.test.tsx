@@ -52,8 +52,11 @@ describe('Zustände des echten Kerns', () => {
       doc_pdfa_forced: 'workspace',
       doc_field_auto: 'workspace',
       doc_qr_auto: 'workspace',
+      doc_auto_locked: 'workspace',
       settings_open: 'workspace',
       settings_partial: 'workspace',
+      // „Zur Startseite“ parkt das Dokument (Nachtrag 10)
+      doc_parked: 'start',
     };
     for (const [name, v] of Object.entries(states)) expect([name, mainView(v)]).toEqual([name, expected[name]]);
   });
@@ -153,6 +156,22 @@ describe('Zustände des echten Kerns', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  it('Zur Startseite (Nachtrag 10) mit dem echten Kern: Startansicht mit „In Bearbeitung“, Weiter bearbeiten, keine Sitzung', async () => {
+    const { mock, user } = renderApp({ view: state('doc_parked') });
+    await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
+    const card = screen.getByRole('region', { name: 'In Bearbeitung' });
+    expect(within(card).getByRole('heading', { level: 2, name: 'Vertrag.pdf' })).toBeInTheDocument();
+    expect(screen.queryByRole('application', { name: 'Signaturblock' })).not.toBeInTheDocument();
+    // ohne eigene Platzierung: „Schließen“ verwirft ohne Rückfrage
+    await user.click(within(card).getByRole('button', { name: 'Weiter bearbeiten' }));
+    expect(lastEvent(mock)).toEqual({ type: 'resume_parked' });
+    await user.click(within(card).getByRole('button', { name: 'Schließen' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(lastEvent(mock)).toEqual({ type: 'discard_parked' });
+    expect(sessionEvents(mock.dispatched)).toEqual([]);
+    await expectNoAxeViolations();
+  });
+
   it('Einstellungen › Dokument (E3): Hinweise aus `document.detection` des Kerns, Sprechblase nennt das Ziel', async () => {
     const inspector = () => screen.getByRole('complementary', { name: 'Signatur' });
     const cases: [string, RegExp | string | null, string | null, string][] = [
@@ -175,6 +194,23 @@ describe('Zustände des echten Kerns', () => {
       await expectNoAxeViolations();
       unmount();
     }
+  });
+
+  it('Automatische Positionierung (Nachtrag 8) mit dem echten Kern: gesperrt, Fokus auf „Signieren“, „Diesmal selbst platzieren“', async () => {
+    const v = state('doc_auto_locked');
+    expect(v.document?.placement_locked).toBe(true);
+    const { mock, user } = renderApp({ view: v });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(sticker()).toHaveAttribute('aria-disabled', 'true');
+    expect(sticker()).toHaveAttribute('aria-roledescription', 'automatisch platzierter Signaturblock');
+    const inspector = screen.getByRole('complementary', { name: 'Signatur' });
+    expect(within(inspector).getByText('Automatisch (laut Einstellung)')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Signieren/ })).toHaveFocus());
+    expect(within(inspector).getByRole('switch', { name: 'Unsichtbar signieren' })).not.toBeDisabled();
+    await expectNoAxeViolations();
+    await user.click(within(inspector).getByRole('button', { name: 'Diesmal selbst platzieren' }));
+    expect(lastEvent(mock)).toEqual({ type: 'unlock_placement' });
+    expect(sessionEvents(mock.dispatched)).toEqual([]);
   });
 
   it('Einstellungen „sofort wirksam“ (E3) mit dem echten Kern: Teilübernahme mit Feldfehler, Werte und Beispiel des Kerns', async () => {

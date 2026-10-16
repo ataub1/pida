@@ -326,6 +326,7 @@ impl crate::runtime::CoreTask {
         let output = self.batch_output_view(queue);
         let postfix = &self.cfg.settings.output.postfix;
         let thumbs = crate::runtime::lock(&self.shared.thumbs);
+        let auto_position = batch.auto_position(&self.ctx);
         let items = batch
             .items
             .iter()
@@ -345,7 +346,7 @@ impl crate::runtime::CoreTask {
                     name: input.map(|d| d.display_name.clone()).unwrap_or_default(),
                     page_count: item.summary.as_ref().map(|s| s.page_count),
                     size_bytes: item.summary.as_ref().map(|s| s.size_bytes),
-                    status: self.item_status_view(item, run),
+                    status: self.item_status_view(item, run, auto_position),
                     position: self.position_summary(item),
                     target_name,
                     target_exists,
@@ -375,11 +376,22 @@ impl crate::runtime::CoreTask {
             }
         });
         let estimate = if running { None } else { self.batch_estimate(batch) };
-        Some(BatchView { items, open_item: batch.open, running, summary, output, estimate })
+        Some(BatchView {
+            items,
+            open_item: batch.open,
+            running,
+            summary,
+            output,
+            estimate,
+            auto_position_setting: self.ctx.auto_position,
+            auto_position_once: batch.auto_position_once,
+            manual_plans: u32::try_from(batch.manual_plans()).unwrap_or(u32::MAX),
+        })
     }
 
-    fn item_status_view(&self, item: &BatchItem, run: Option<&BatchRun>) -> BatchItemStatusView {
-        match &item.status {
+    fn item_status_view(&self, item: &BatchItem, run: Option<&BatchRun>, auto_position: bool) -> BatchItemStatusView {
+        // automatische Positionierung im Stapel: automatische Pläne gelten als „Bereit“ (Nachtrag 8)
+        match &item.shown_status(auto_position) {
             BatchItemStatus::Analyzing => BatchItemStatusView::Analyzing,
             BatchItemStatus::Ready => BatchItemStatusView::Ready,
             BatchItemStatus::Positioned => BatchItemStatusView::Positioned,

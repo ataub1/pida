@@ -653,7 +653,7 @@ async fn verify_mode_over_the_workspace_blocks_signing_the_hidden_document() {
     open(&core, &verify_file("two-signatures.pdf")).await;
     let docs = core.open_document_count();
     let b = copy_pdf(TEXT_PDF, &fx.dir("in"), "Beilage.pdf");
-    core.dispatch(UiEvent::OpenFiles { paths: vec![b] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![b], mode: None });
     let v = wait_for(&core, "Prüfmodus geschlossen", |v| v.verify.is_none()).await;
     assert!(editing(&v));
     assert!(core.open_document_count() < docs + 1, "Prüfdokument freigegeben");

@@ -59,7 +59,7 @@ describe('Mobile-Stile', () => {
     const shell = ruleInMedia(read('app/shell.css'), '(pointer: coarse)', '.command-button');
     expect(shell).toMatch(/min-width: 44px/);
     expect(shell).toMatch(/min-height: 44px/);
-    expect(read('app/shell.css')).toMatch(/\.brand,\s*\.command-button \{\s*min-width: 44px;/);
+    expect(read('app/shell.css')).toMatch(/\.brand,\s*\.command-button,\s*\.header-add \{\s*min-width: 44px;/);
     const components = read('styles/components.css');
     expect(ruleInMedia(components, '(pointer: coarse)', '.toast-close')).toMatch(/height: 44px/);
     expect(ruleInMedia(components, '(pointer: coarse)', '.search-clear')).toMatch(/height: 44px/);

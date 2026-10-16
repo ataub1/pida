@@ -343,6 +343,108 @@ fn open_item_move_and_back_to_batch_keeps_the_plan() {
     assert_eq!(status(&t.state, 1), BatchItemStatus::Ready);
 }
 
+/// Einstellung „Automatische Positionierung“ (ADR 0004 Nachtrag 8): der Stapel bleibt unverändert – Einträge
+/// automatisch platziert und „Bereit“; ein aus der Übersicht geöffneter Eintrag ist nicht gesperrt (die
+/// Nutzerin öffnet ihn, um ihn zu prüfen bzw. zu platzieren), auch nicht nach einer Einstellungsänderung.
+#[test]
+fn auto_position_leaves_the_batch_unchanged() {
+    let auto = Context { auto_position: true, ..ctx() };
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &auto);
+    let mut s = t.state;
+    for id in [1, 2] {
+        s = step(s, Event::Preanalyzed { doc: DocId(id), result: Ok(summary(3)) }, &auto).state;
+        assert_eq!(status(&s, id), BatchItemStatus::Ready);
+    }
+    let t = step(s, Event::BatchItemOpened(DocId(1)), &auto);
+    let t = step(t.state, analyzed(1, 3, None, false), &auto);
+    let State::Positioning { edit: Some(edit), .. } = &t.state else { panic!("{:?}", t.state) };
+    assert!(edit.return_to_batch && !edit.placement_locked());
+    let t = step(t.state, Event::SettingsChanged, &auto);
+    let State::Positioning { edit: Some(edit), .. } = &t.state else { panic!("{:?}", t.state) };
+    assert!(!edit.placement_locked());
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let t = step(t.state, Event::PlacementChanged(p), &auto);
+    let t = step(t.state, Event::BackToBatch, &auto);
+    assert_eq!(batch_of(&t.state).item(DocId(1)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    let t = started(t.state, BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth);
+    assert!(matches!(t.state, State::BatchSigning { .. }), "{:?}", t.state);
+}
+
+fn summary_with_qr(pages: usize) -> DocSummary {
+    DocSummary { qr: true, placeholder: Some(qr()), qr_searched: true, ..summary(pages) }
+}
+
+/// „Für diesen Stapel automatisch positionieren“ (ADR 0004 Nachtrag 8) bei ausgeschalteter Einstellung: nur
+/// für diesen Stapel; automatisch platzierte Einträge (auch QR-Platzhalter, Platzhaltersuche hat Vorrang)
+/// gelten als „Bereit“, von Hand platzierte behalten ihren Plan; erst mit `replace_manual` (ausdrücklich
+/// bestätigt) werden auch sie automatisch platziert. Startet nichts; nach dem Lauf gilt wieder die Einstellung.
+#[test]
+fn auto_position_for_this_batch_only() {
+    let qr_ctx = Context { placeholder_search: true, ..ctx() };
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2), doc(3)]), &qr_ctx);
+    let mut s = t.state;
+    s = step(s, Event::Preanalyzed { doc: DocId(1), result: Ok(summary(3)) }, &qr_ctx).state;
+    s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(summary_with_qr(3)) }, &qr_ctx).state;
+    s = step(s, Event::Preanalyzed { doc: DocId(3), result: Ok(summary(3)) }, &qr_ctx).state;
+    // Dokument 3 von Hand platzieren
+    let t = step(s, Event::BatchItemOpened(DocId(3)), &qr_ctx);
+    let t = step(t.state, analyzed(3, 3, None, false), &qr_ctx);
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let t = step(t.state, Event::PlacementChanged(p), &qr_ctx);
+    let s = step(t.state, Event::BackToBatch, &qr_ctx).state;
+    let b = batch_of(&s);
+    assert_eq!((b.manual_plans(), b.auto_position(&qr_ctx)), (1, false));
+    assert_eq!(b.item(DocId(2)).unwrap().shown_status(false), BatchItemStatus::Positioned, "QR wie bisher");
+
+    // einschalten, eigene Pläne behalten (Standard)
+    let t = step(s, Event::BatchAutoPositionSet { enabled: true, replace_manual: false }, &qr_ctx);
+    assert!(t.effects.is_empty() && opens(&t.effects) == 0, "startet nichts: {:?}", t.effects);
+    let b = batch_of(&t.state);
+    assert!(b.auto_position_once && b.auto_position(&qr_ctx));
+    let shown = |b: &pida_workflow::Batch, id: u64| b.item(DocId(id)).unwrap().shown_status(b.auto_position(&qr_ctx));
+    assert_eq!(shown(b, 1), BatchItemStatus::Ready);
+    assert_eq!(shown(b, 2), BatchItemStatus::Ready, "automatischer QR-Plan gilt als „Bereit“");
+    assert_eq!(b.item(DocId(2)).unwrap().plan, Some(PositionChoice::Placeholder(qr())), "Platzhaltersuche hat Vorrang");
+    assert_eq!(shown(b, 3), BatchItemStatus::Positioned, "von Hand platziert: behalten");
+    assert_eq!(b.item(DocId(3)).unwrap().plan, Some(PositionChoice::Manual(p)));
+    assert_eq!(b.manual_plans(), 1);
+
+    // ausdrücklich bestätigt: auch die eigenen Pläne neu automatisch
+    let t = step(t.state, Event::BatchAutoPositionSet { enabled: true, replace_manual: true }, &qr_ctx);
+    let b = batch_of(&t.state);
+    let item = b.item(DocId(3)).unwrap();
+    assert!(item.auto_plan && item.plan.is_none() && item.status == BatchItemStatus::Ready);
+    assert_eq!(b.manual_plans(), 0);
+    assert!(opens(&t.effects) == 0);
+
+    // die Einstellung wurde nicht geändert; ausschalten = wieder wie eingestellt
+    let off = step(t.state.clone(), Event::BatchAutoPositionSet { enabled: false, replace_manual: false }, &qr_ctx);
+    let b = batch_of(&off.state);
+    assert!(!b.auto_position_once && !b.auto_position(&qr_ctx));
+    assert_eq!(shown(b, 2), BatchItemStatus::Positioned);
+
+    // nach dem Lauf gilt wieder die Einstellung (Ende wie Abbruch)
+    let t = step(t.state, Event::BatchAutoPositionSet { enabled: true, replace_manual: false }, &qr_ctx);
+    let run = started(t.state, BackendId::Keystore, &[1, 2, 3], ExistingPolicy::KeepBoth);
+    assert!(matches!(run.state, State::BatchSigning { .. }), "{:?}", run.state);
+    assert!(batch_of(&run.state).auto_position_once, "gilt für diesen Lauf");
+    let aborted = step(run.state, Event::BatchAbort, &qr_ctx);
+    assert!(matches!(aborted.state, State::BatchOverview { .. }), "{:?}", aborted.state);
+    assert!(!batch_of(&aborted.state).auto_position_once, "nach dem Abbruch wieder laut Einstellung");
+    // laut Einstellung: immer automatisch
+    let setting = Context { auto_position: true, ..qr_ctx.clone() };
+    assert!(batch_of(&aborted.state).auto_position(&setting));
+    // außerhalb der Übersicht ohne Wirkung
+    let single = workspace_single();
+    let t = step(single.clone(), Event::BatchAutoPositionSet { enabled: true, replace_manual: true }, &ctx());
+    assert_eq!(t.state, single);
+}
+
+/// Einzeldokument im Arbeitsbereich (ohne Stapel).
+fn workspace_single() -> State {
+    step(State::Analyzing { queue: queue(&[1]) }, analyzed(1, 3, None, false), &ctx()).state
+}
+
 #[test]
 fn opened_item_signed_individually_returns_to_the_overview() {
     let s = overview(&[1, 2]);
@@ -509,6 +611,164 @@ fn resumed_document_of_an_interrupted_batch_returns_to_the_overview() {
     assert_eq!(status(&t.state, 6), BatchItemStatus::Analyzing, "die übrigen: neue Voranalyse");
     assert_eq!(t.effects.iter().filter(|e| matches!(e, Effect::Preanalyze(_))).count(), 1);
     assert_eq!(opens(&t.effects), 0, "der Lauf wird nicht automatisch fortgesetzt");
+}
+
+// ------------------------------------------------------------------------------------------------
+// „PDF hinzufügen“ (ADR 0004 Nachtrag 9): „Weitere PDFs hinzufügen“, „Anderes PDF öffnen“
+// ------------------------------------------------------------------------------------------------
+
+/// Arbeitsbereich mit Dokument `id` (eben analysiert, automatisch platziert).
+fn workspace_with(id: u64, c: &Context) -> State {
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(id)]), c).state;
+    let s = step(s, analyzed(id, 3, None, false), c).state;
+    assert!(matches!(s, State::Positioning { edit: Some(_), .. }), "{}", s.name());
+    s
+}
+
+fn notified(effects: &[Effect], code: &str) -> bool {
+    effects.iter().any(|e| matches!(e, Effect::NotifyWith(c, _) if c == code))
+}
+
+#[test]
+fn more_files_in_the_workspace_become_a_batch_with_the_placement_as_plan() {
+    let s = workspace_with(1, &ctx());
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(s, Event::PlacementChanged(p), &ctx()).state;
+    let t = step(s, Event::MoreFilesAdded(vec![doc(2), doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    let b = batch_of(&t.state);
+    assert_eq!(b.items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![1, 2, 3], "alle zusammen");
+    assert_eq!(b.item(DocId(1)).unwrap().plan, Some(PositionChoice::Manual(p)), "Platzierung bleibt Plan");
+    assert!(b.open.is_none());
+    assert!(t.effects.contains(&Effect::Discard(DocId(1))));
+    assert!(t.effects.contains(&Effect::Preanalyze(DocId(2))) && t.effects.contains(&Effect::Preanalyze(DocId(3))));
+    assert!(!notified(&t.effects, "ng-batch-added"), "kein Hinweis – die Übersicht zeigt sie");
+    assert_eq!(opens(&t.effects), 0, "startet nichts (A1)");
+    // automatisch platziert: kein eigener Plan, folgt den Einstellungen
+    let t = step(workspace_with(1, &ctx()), Event::MoreFilesAdded(vec![doc(2)]), &ctx());
+    let item = batch_of(&t.state).item(DocId(1)).cloned().unwrap();
+    assert!(item.plan.is_none() && item.auto_plan, "{item:?}");
+}
+
+#[test]
+fn more_files_that_are_already_open_change_nothing() {
+    let s = workspace_with(1, &ctx());
+    let same = pida_workflow::InputDocument::new(DocId(9), "/in/doc1.pdf");
+    let t = step(s.clone(), Event::MoreFilesAdded(vec![same]), &ctx());
+    assert_eq!(t.state, s);
+    assert!(t.effects.is_empty(), "{:?}", t.effects);
+}
+
+#[test]
+fn more_files_in_an_opened_item_return_to_the_overview_with_the_new_entries() {
+    let s = step(overview(&[1, 2]), Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    assert!(s.opened_from_batch());
+    let t = step(s, Event::MoreFilesAdded(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.len(), 3);
+    assert_eq!(status(&t.state, 3), BatchItemStatus::Analyzing);
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Ready);
+    assert!(t.effects.contains(&Effect::Preanalyze(DocId(3))));
+}
+
+#[test]
+fn more_files_outside_the_workspace_or_without_overview_behave_like_files_added() {
+    // Analysewarnung: an die Warteschlange mit Hinweis (wie `FilesAdded`)
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1)]), &ctx()).state;
+    let mut warning = analyzed(1, 3, None, false);
+    if let Event::Analyzed { warnings, .. } = &mut warning {
+        warnings.push("pdf-usage-rights".into());
+    }
+    let s = step(s, warning, &ctx()).state;
+    assert!(matches!(s, State::AnalysisWarning { .. }));
+    let a = step(s.clone(), Event::MoreFilesAdded(vec![doc(2)]), &ctx());
+    let b = step(s, Event::FilesAdded(vec![doc(2)]), &ctx());
+    assert_eq!((a.state, a.effects), (b.state, b.effects));
+    // Dokumentauswahl: wie `FilesAdded` (zwei → Übersicht)
+    let idle = || State::Idle { queue: Queue::default() };
+    let a = step(idle(), Event::MoreFilesAdded(vec![doc(1), doc(2)]), &ctx());
+    assert_eq!(a, step(idle(), Event::FilesAdded(vec![doc(1), doc(2)]), &ctx()));
+    // ohne Stapelübersicht: an die Warteschlange, der Arbeitsbereich bleibt
+    let single = Context { workspace: true, ..Context::default() };
+    let t = step(workspace_with(1, &single), Event::MoreFilesAdded(vec![doc(2)]), &single);
+    let State::Positioning { queue, .. } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.pending.iter().map(|d| d.id.0).collect::<Vec<_>>(), vec![2]);
+}
+
+#[test]
+fn replace_closes_the_document_and_opens_the_chosen_one() {
+    let s = workspace_with(1, &ctx());
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(s, Event::PlacementChanged(p), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(2)]), &ctx());
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(2)));
+    assert!(queue.pending.is_empty() && queue.batch.is_none());
+    assert_eq!(queue.done.len(), 1);
+    assert_eq!((queue.done[0].doc.id, &queue.done[0].result), (DocId(1), &pida_workflow::DocResult::Cancelled));
+    assert_eq!(t.effects.first(), Some(&Effect::Discard(DocId(1))));
+    assert!(t.effects.contains(&Effect::Analyze(DocId(2))));
+    assert_eq!(opens(&t.effects), 0, "startet nichts (A1)");
+    // dieselbe Datei erneut: frisch geöffnet (eigene Kennung, Platzierung neu)
+    let s = workspace_with(1, &ctx());
+    let same = pida_workflow::InputDocument::new(DocId(9), "/in/doc1.pdf");
+    let t = step(s, Event::DocumentReplaced(vec![same]), &ctx());
+    assert!(matches!(&t.state, State::Analyzing { queue } if queue.current_id() == Some(DocId(9))));
+}
+
+#[test]
+fn replace_with_waiting_documents_keeps_them() {
+    // mit Stapelübersicht: das neue und das wartende Dokument → Übersicht (ohne das geschlossene)
+    let s = workspace_with(1, &ctx());
+    let s = step(s, Event::FilesAdded(vec![doc(2)]), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![2, 3]);
+    assert!(t.effects.contains(&Effect::Discard(DocId(1))));
+    // ohne Stapelübersicht: das neue wird geöffnet, das wartende wartet weiter
+    let single = Context { workspace: true, ..Context::default() };
+    let s = step(workspace_with(1, &single), Event::FilesAdded(vec![doc(2)]), &single).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &single);
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(3)));
+    assert_eq!(queue.pending.iter().map(|d| d.id.0).collect::<Vec<_>>(), vec![2]);
+}
+
+#[test]
+fn replace_in_an_opened_item_replaces_the_entry() {
+    let s = step(overview(&[1, 2]), Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![2, 3]);
+    assert!(t.effects.contains(&Effect::Discard(DocId(1))) && t.effects.contains(&Effect::Preanalyze(DocId(3))));
+    assert!(t.state.queue().unwrap().find(DocId(1)).is_none(), "entfernt, nicht verbucht");
+    // einziger Eintrag: der Stapel entfällt, das neue Dokument öffnet im Arbeitsbereich
+    let s = step(overview(&[1, 2]), Event::BatchItemRemoved(DocId(2)), &ctx()).state;
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(3)));
+    assert!(queue.batch.is_none());
+}
+
+#[test]
+fn replace_outside_the_workspace_behaves_like_files_added() {
+    // im Stapellauf: nie ein Dokument des Laufs schließen – an die Übersicht wie `FilesAdded`
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    let a = step(d.state.clone(), Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    let b = step(d.state.clone(), Event::FilesAdded(vec![doc(3)]), &ctx());
+    assert_eq!(a, b);
+    // Stapelübersicht und Dokumentauswahl: wie `FilesAdded`
+    let a = step(overview(&[1, 2]), Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    assert_eq!(a, step(overview(&[1, 2]), Event::FilesAdded(vec![doc(3)]), &ctx()));
+    // ohne Dateien: unverändert
+    let s = workspace_with(1, &ctx());
+    let t = step(s.clone(), Event::DocumentReplaced(Vec::new()), &ctx());
+    assert_eq!((t.state, t.effects.len()), (s, 0));
 }
 
 // ------------------------------------------------------------------------------------------------

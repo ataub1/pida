@@ -14,8 +14,12 @@
 //! hinzu (Modul `batch_run`): ab zwei Dokumenten die Übersicht statt „ein Dokument nach dem anderen“, ein
 //! Lauf mit **einer** Sitzung (`Effect::OpenSession` nur nach `BatchStarted` bzw. „Erneut versuchen“ einer
 //! Sitzungspause), ein aus der Übersicht geöffnetes Dokument kehrt dorthin zurück.
+//!
+//! „Zur Startseite“ ([`Event::WentHome`], ADR 0004 Nachtrag 10, Modul `parked`) parkt offene Arbeit statt sie zu
+//! verwerfen; geparkte Arbeit ist verdeckt und öffnet nie eine Sitzung.
 
 mod batch_run;
+mod parked;
 
 use pida_backend_api::{BackendId, ErrorScope};
 use pida_pades::AcceptanceClass;
@@ -27,9 +31,9 @@ use crate::state::{
     BackendOption, Context, DocFacts, Effect, Event, MSG_BACKEND_CHOICE_REQUIRED, MSG_CONSTRAINT_CERTIFIED,
     MSG_CONSTRAINT_INVISIBLE_PROFILE, MSG_DEFAULT_BACKEND_UNAVAILABLE, MSG_DOCUMENT_LEAVES_DEVICE, MSG_FIELD_LOCKED,
     MSG_NO_BACKEND, MSG_POSITIONING_NOT_POSSIBLE, MSG_RESUME_BACKEND_UNAVAILABLE, MSG_SIGNER_UNAVAILABLE,
-    MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, ParkedPlacement, PlaceholderAnswer, PlaceholderFound, PlacementOrigin,
-    PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step, Target, Transition, WorkflowError,
-    WorkspaceEdit, backend_for_choice,
+    MSG_SIGNING_CANCELLED, MSG_SIGNING_DECLINED, ParkedPlacement, PlaceholderAnswer, PlaceholderFound, PlacementLock,
+    PlacementOrigin, PositionChoice, ResumePlan, RetryTarget, SignFlow, SigningPhase, State, Step, Target, Transition,
+    WorkflowError, WorkspaceEdit, backend_for_choice,
 };
 
 /// Meldungs-ID des Platzierungshinweises „neue Seite nicht erlaubt“ (`PlacementNotice::code`).
@@ -46,11 +50,31 @@ pub fn grown_reserve(needed: usize, reserve: usize) -> usize {
 }
 
 /// Reiner Reducer.
+///
+/// Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10, [`State::parked`]) behandelt das Modul `parked`:
+/// nur Fortsetzen, Verwerfen, neue Dateien, Beenden und Ergebnisse von Effekten bzw. geänderte Einstellungen
+/// wirken – alles andere betrifft die verdeckte Arbeit und bleibt ohne Wirkung (F-54).
 pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
+    if state.parked() {
+        return parked::reduce(state, event, ctx);
+    }
+    match event {
+        Event::WentHome => parked::went_home(state, ctx),
+        // ohne geparkte Arbeit ohne Wirkung
+        Event::ParkedResumed | Event::ParkedDiscarded => Transition::stay(state),
+        event => active(state, event, ctx),
+    }
+}
+
+/// Reducer ohne geparkte Arbeit (bzw. für die an geparkte Arbeit weitergereichten Ereignisse).
+fn active(state: State, event: Event, ctx: &Context) -> Transition {
     // Ereignisse, die in jedem Zustand gleich behandelt werden
     match event {
         Event::Quit => return quit(state),
         Event::FilesAdded(docs) => return files_added(state, docs, ctx),
+        // „+ PDF“ im Arbeitsbereich (ADR 0004 Nachtrag 9)
+        Event::MoreFilesAdded(docs) => return more_files_added(state, docs, ctx),
+        Event::DocumentReplaced(docs) => return document_replaced(state, docs, ctx),
         Event::SettingsChanged => return settings_changed(state, ctx),
         // Mobile-Lebenszyklus: ein App-Wechsel (etwa in die App „ID Austria“) ist **kein Abbruch** – weder
         // die Sitzung noch der persistierte Zustand werden angetastet (Plan §3.5)
@@ -366,15 +390,19 @@ fn start_signing(
 
 /// Arbeitsbereich (`Positioning` mit Bearbeitungszustand). Ohne gemerkte Lage gilt die Startlage des
 /// Dokuments (`DocFacts::start`, 50 %/25 %); ohne Vorschau `placement = None` mit Hinweis. `auto_place`
-/// fordert die automatische Platzierung an (PDF-AS-Regel, Ergebnis [`Event::AutoPlaced`]).
+/// fordert die automatische Platzierung an (PDF-AS-Regel, Ergebnis [`Event::AutoPlaced`]). Die Sperre der
+/// Einstellung „Automatische Positionierung“ folgt den aktuellen Einstellungen (auch nach Abbruch bzw.
+/// Fehler-„Schließen“, wenn sie inzwischen geändert wurden; Nachtrag 8).
 fn to_workspace(
     queue: Queue,
     doc: DocFacts,
     parked: Option<ParkedPlacement>,
     mut edit: WorkspaceEdit,
     auto_place: bool,
+    ctx: &Context,
     mut effects: Vec<Effect>,
 ) -> Transition {
+    edit.follow_auto_position(ctx);
     let n = doc.page_count;
     let (page, placement, new_page) = match parked {
         Some(p) => (p.page, p.placement, p.new_page),
@@ -422,15 +450,16 @@ fn restore_workspace(
             new_page: n > 0 && p.page_index >= n,
         })
     });
-    to_workspace(queue, doc, parked, edit, false, effects)
+    to_workspace(queue, doc, parked, edit, false, ctx, effects)
 }
 
 /// Nach der Analyse im Arbeitsbereich-Modus: keine Platzhalterfrage. Das automatische Ziel folgt den
 /// Einstellungen › Dokument ([`WorkspaceEdit::after_analysis`]): mit Platzhaltersuche „QR-Code-Platzhalter“
 /// der gefundene QR-Platzhalter, mit „Leere Signaturfelder“ das erste leere Signaturfeld, sonst frei mit
 /// automatischer Platzierung. Leere Felder werden immer angeboten (ohne Suche nie automatisch, §8 F2). Mit
-/// der Startargument-Automatik der klassische automatische Weg (D-06) mit dem Bearbeitungszustand für den
-/// Rückfall.
+/// der Einstellung „Automatische Positionierung“ ist die Platzierung gesperrt (nicht für Einträge der
+/// Stapelübersicht, Nachtrag 8). Mit der Startargument-Automatik der klassische automatische Weg (D-06) mit
+/// dem Bearbeitungszustand für den Rückfall.
 fn workspace_after_analysis(
     queue: Queue,
     doc: DocFacts,
@@ -451,8 +480,11 @@ fn workspace_after_analysis(
         edit.return_to_batch = true;
         let parked = if automatic { None } else { batch_run::apply_plan(&mut edit, plan.as_ref(), &doc) };
         let auto = edit.auto_free() && !edit.invisible;
-        return to_workspace(queue, doc, parked, edit, auto, Vec::new());
+        return to_workspace(queue, doc, parked, edit, auto, ctx, Vec::new());
     }
+    // Einstellung „Automatische Positionierung“: automatisch platziert und gesperrt, bereit zum Signieren –
+    // signiert wird trotzdem erst nach „Signieren mit“ (A1)
+    edit.follow_auto_position(ctx);
     if ctx.cli_auto {
         let position = if ctx.invisible {
             PositionChoice::Invisible
@@ -468,7 +500,7 @@ fn workspace_after_analysis(
         return to_backend_choice_with(queue, doc, position, Entry::Automatic, Some(edit), Vec::new());
     }
     let auto = edit.auto_free() && !edit.invisible;
-    to_workspace(queue, doc, None, edit, auto, Vec::new())
+    to_workspace(queue, doc, None, edit, auto, ctx, Vec::new())
 }
 
 /// Position zum Signieren aus dem Bearbeitungszustand (ADR 0004 §3.5 Schritt 1): unsichtbar → Invisible,
@@ -610,10 +642,60 @@ fn files_added_single(state: State, docs: Vec<crate::queue::InputDocument>, ctx:
     }
 }
 
+/// „Weitere PDFs hinzufügen“ (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9): mit der
+/// Stapelübersicht werden das offene Dokument und die neuen Dateien zusammen zum Stapel (Modul `batch_run`),
+/// sonst wie [`files_added`].
+fn more_files_added(state: State, docs: Vec<crate::queue::InputDocument>, ctx: &Context) -> Transition {
+    if ctx.batch() {
+        return batch_run::more_files_added(state, docs, ctx);
+    }
+    files_added(state, docs, ctx)
+}
+
+/// „Anderes PDF öffnen“ (ADR 0004 Nachtrag 9): das offene Dokument der Analysewarnung bzw. des
+/// Arbeitsbereichs wird geschlossen – verworfen ([`Effect::Discard`]), nie signiert; in der Ergebnisliste
+/// „abgebrochen“ wie nach „Start“, ein Stapeleintrag wird entfernt –, danach öffnen die Dateien wie in der
+/// Dokumentauswahl ([`files_added`] in `Idle`: ein Dokument → Arbeitsbereich, mit Stapelübersicht ab zwei
+/// offenen Dokumenten die Übersicht). Wartende Dokumente bleiben. Aus der Stapelübersicht geöffnet und mit
+/// weiteren Einträgen: zurück zur Übersicht mit den neuen Einträgen. In allen anderen Zuständen (und ohne
+/// Dateien) wie [`files_added`]. Startet nichts (A1).
+fn document_replaced(state: State, docs: Vec<crate::queue::InputDocument>, ctx: &Context) -> Transition {
+    if docs.is_empty() {
+        return files_added(state, docs, ctx);
+    }
+    let (mut queue, id) = match state {
+        State::AnalysisWarning { queue, doc, .. } | State::Positioning { queue, doc, .. } => (queue, doc.id),
+        s => return files_added(s, docs, ctx),
+    };
+    let mut effects = vec![Effect::Discard(id)];
+    // Stapeleintrag: entfernen wie „Entfernen“ in der Übersicht; sonst wie „Start“ als abgebrochen verbuchen
+    if let Some(batch) = queue.batch.as_mut().filter(|b| b.item(id).is_some()) {
+        batch.items.retain(|i| i.doc != id);
+        queue.remove(id);
+    } else {
+        queue.complete(id, DocResult::Cancelled);
+    }
+    if let Some(batch) = queue.batch.as_mut() {
+        batch.open = None;
+    }
+    if queue.batch.as_ref().is_some_and(|b| b.items.is_empty()) {
+        queue.batch = None;
+    }
+    if ctx.batch() && queue.batch.is_some() {
+        // aus der Übersicht geöffnet, weitere Einträge: die Dateien kommen in den Stapel, zurück zur Übersicht
+        queue.append(docs);
+        return batch_run::new_overview(queue, effects);
+    }
+    let t = files_added(State::Idle { queue }, docs, ctx);
+    effects.extend(t.effects);
+    Transition::with(t.state, effects)
+}
+
 /// Einstellungen geändert: Blockvorschau neu (Positionierung), Backends neu prüfen (Auswahl). Im
 /// Arbeitsbereich folgt ein automatisch platziertes Dokument den Einstellungen › Dokument (ADR 0004 §3.11
 /// „sofort wirksam“): QR-Platzhalter bzw. erstes leeres Signaturfeld bzw. wieder frei mit automatischer
-/// Platzierung; ein von Hand platziertes bleibt.
+/// Platzierung; ein von Hand platziertes bleibt. „Automatische Positionierung“ sperrt bzw. entsperrt die
+/// Platzierung des aktuellen Dokuments ([`WorkspaceEdit::follow_auto_position`], Nachtrag 8).
 fn settings_changed(state: State, ctx: &Context) -> Transition {
     let mut effects = match &state {
         State::Positioning { doc, .. } => vec![Effect::BuildBlockPreview(doc.id)],
@@ -626,6 +708,7 @@ fn settings_changed(state: State, ctx: &Context) -> Transition {
         State::Positioning { queue, page, placement, new_page, doc, edit: Some(mut edit) } => {
             let visible_again = edit.follow_profile(ctx);
             let follow = edit.follow_settings(ctx);
+            edit.follow_auto_position(ctx);
             if (follow.auto_place || (visible_again && edit.auto_free())) && placement.is_some() {
                 effects.push(Effect::AutoPlace(doc.id));
             }
@@ -899,7 +982,24 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
             e
         })
     };
+    // Einstellung „Automatische Positionierung“ (Nachtrag 8): solange gesperrt, verschiebt nichts den Block –
+    // weder Ziehen/Tastatur noch Seitenwechsel noch eine Zielwahl („Ins Feld setzen“, „Frei platzieren“,
+    // „Neu platzieren“); „Unsichtbar“, „Auf neuer Seite“ und „Signieren mit“ wirken weiter
+    let locked = edit.as_ref().is_some_and(WorkspaceEdit::placement_locked);
     match event {
+        Event::PlacementChanged(_) | Event::PageChanged(_) | Event::TargetChosen(_) if locked => {
+            stay(queue, page, placement, new_page, doc, edit, Vec::new())
+        }
+        Event::PlacementUnlocked => {
+            // „Diesmal selbst platzieren“: nur dieses Dokument, Lage unverändert
+            let edit = edit.map(|mut e| {
+                if e.placement_locked() {
+                    e.lock = PlacementLock::Released;
+                }
+                e
+            });
+            stay(queue, page, placement, new_page, doc, edit, Vec::new())
+        }
         Event::PlacementChanged(p) => match accept_placement(p, page, new_page, &doc) {
             Some((page, p, new_page, effects)) => stay(queue, page, Some(p), new_page, doc, by_user(edit), effects),
             None => stay(queue, page, placement, new_page, doc, edit, Vec::new()),
@@ -1107,7 +1207,7 @@ fn choosing_backend(state: State, event: Event, ctx: &Context) -> Transition {
                     _ => {
                         let auto_place = edit.as_ref().is_none_or(WorkspaceEdit::auto_free);
                         let edit = edit.unwrap_or_else(|| WorkspaceEdit::from_position(&position, ctx.invisible));
-                        to_workspace(queue, doc, None, edit, auto_place, Vec::new())
+                        to_workspace(queue, doc, None, edit, auto_place, ctx, Vec::new())
                     }
                 };
             }

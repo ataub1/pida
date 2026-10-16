@@ -1380,7 +1380,13 @@ first_run: FirstRunView | null,
 /**
  * Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (ADR 0004 §3.13), aus dem Zustand berechnet
  */
-actions: ActionsView, };
+actions: ActionsView, 
+/**
+ * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): gesetzt, solange die Startansicht ein offenes
+ * Dokument bzw. einen Stapel verdeckt (Karte „In Bearbeitung“); dann sind `document` und `batch` `None`.
+ * Additiv, in TypeScript optional; der Kern liefert es immer (`None` ohne geparkte Arbeit).
+ */
+parked?: ParkedWorkView | null, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1405,13 +1411,25 @@ remember: boolean, } | { "kind": "tan",
 tan: string, } | { "kind": "switch_to_sms" } | { "kind": "switch_to_fido2" } | { "kind": "start_fido2" } | { "kind": "continue" };
 
 /**
+ * Wie `open_files` die gewählten Dateien zum offenen Dokument nimmt (Kopfzeile „+ PDF“, Miniaturleiste;
+ * ADR 0004 Nachtrag 9). Was daraus folgt, entscheidet der Kern nach dem Zustand.
+ */
+export type OpenFilesMode = "add" | "replace";
+
+/**
  * UI-Ereignis.
  */
 export type UiEvent = { "type": "open_files", 
 /**
  * Pfade
  */
-paths: Array<string>, } | { "type": "answer_warning", 
+paths: Array<string>, 
+/**
+ * Wie die Dateien zum offenen Dokument kommen (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9);
+ * `None` = wie bisher (der Kern entscheidet nach dem Zustand: Auswahl öffnen, sonst an die
+ * Warteschlange). Nur im Arbeitsbereich-Modus, sonst ohne Bedeutung. In TypeScript optional.
+ */
+mode?: OpenFilesMode | null, } | { "type": "answer_warning", 
 /**
  * `true` = fortfahren
  */
@@ -1623,7 +1641,15 @@ password: string | null,
  * Antwort auf „Passwort merken?“ (nur solange `keystore.storage_chosen` falsch ist, sonst ohne
  * Wirkung)
  */
-password_storage?: PasswordStorage | null, };
+password_storage?: PasswordStorage | null, } | { "type": "unlock_placement" } | { "type": "set_batch_auto_position", 
+/**
+ * ein bzw. aus
+ */
+enabled: boolean, 
+/**
+ * von Hand platzierte Einträge ebenfalls automatisch platzieren
+ */
+replace_manual: boolean, } | { "type": "go_home" } | { "type": "resume_parked" } | { "type": "discard_parked" };
 
 /**
  * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).
@@ -1970,7 +1996,15 @@ announce: { [key in string]: string },
  * additiv; in TypeScript optional (`detection?: … | null`), damit bestehende UI-Literale gültig bleiben.
  * Der Kern liefert es im Arbeitsbereich immer (`Some`).
  */
-detection?: DocumentDetectionView | null, };
+detection?: DocumentDetectionView | null, 
+/**
+ * Platzierung gesperrt durch die Einstellung „Automatische Positionierung“ (`signature.auto_position`
+ * bzw. `-a`; ADR 0004 Nachtrag 8): automatisch platziert und bereit zum Signieren – der Kern ignoriert
+ * `move_block`, `nudge_block`, `change_page`, `use_target` und `auto_place`; `set_invisible`,
+ * `toggle_new_page` und `sign_with` wirken. `unlock_placement` („Diesmal selbst platzieren“) hebt die
+ * Sperre für dieses Dokument auf. Nie für Einträge der Stapelübersicht.
+ */
+placement_locked: boolean, };
 
 /**
  * Signiermittel für Konto-Chip, Menü und Stapel (§3.4).
@@ -2397,7 +2431,25 @@ output: BatchOutputView,
 /**
  * für `signers.selected` (`None` = kein Signiermittel gewählt)
  */
-estimate: BatchEstimateView | null, };
+estimate: BatchEstimateView | null, 
+/**
+ * Einstellung „Automatische Positionierung“ an (`signature.auto_position` bzw. `-a`): jeder Stapel wird
+ * automatisch positioniert – die Übersicht zeigt „Automatische Positionierung (laut Einstellung)“
+ * (Nachtrag 8)
+ */
+auto_position_setting: boolean, 
+/**
+ * „Für diesen Stapel automatisch positionieren“ (`set_batch_auto_position`): nur für diesen Stapel bis zum
+ * Ende bzw. Abbruch des Laufs bzw. bis der Stapel geschlossen wird; die Einstellung bleibt unverändert.
+ * Mit automatischer Positionierung (Einstellung oder diese Option) gelten automatisch platzierte Einträge
+ * als „Bereit“ (Nachtrag 8)
+ */
+auto_position_once: boolean, 
+/**
+ * noch nicht signierte, von Hand platzierte Einträge (eigener Plan): sie behalten beim Einschalten ihren
+ * Plan, außer `set_batch_auto_position { replace_manual: true }` nach ausdrücklicher Bestätigung
+ */
+manual_plans: number, };
 
 /**
  * Ladezustand des Prüfmodus (§3.9).
@@ -2609,7 +2661,8 @@ exists: boolean, };
 
 /**
  * Eintrag der Übernahmeliste (§3.12): i18n-ID `ng-migration-item-{block,emblem,username,output,keystore,
- * proxy,placeholder,language}` mit Detail (z. B. Dateiname der Bildmarke).
+ * proxy,placeholder,position,language}` mit Detail (z. B. Dateiname der Bildmarke); `position` =
+ * „Automatische Positionierung“ (`SIGNATURE_POSITION=auto`, Nachtrag 8).
  */
 export type MigrationItemView = { 
 /**
@@ -2681,6 +2734,30 @@ verify: boolean,
  */
 settings: boolean, 
 /**
- * `navigate{Open}` erlaubt (Startansicht)
+ * „Zur Startseite“ (`go_home`; Fertig: `navigate{Open}`) erlaubt
  */
 home: boolean, };
+
+/**
+ * Geparkte Arbeit (ADR 0004 Nachtrag 10): Karte „In Bearbeitung“ der Startansicht mit „Weiter bearbeiten“
+ * (`resume_parked`) und „Schließen“ (`discard_parked`).
+ */
+export type ParkedWorkView = { 
+/**
+ * Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“)
+ */
+doc_name: string | null, 
+/**
+ * offene Dokumente (Einträge des Stapels bzw. das Dokument samt wartenden)
+ */
+documents: number, 
+/**
+ * Signatur bzw. Stapeleinträge von Hand platziert (`DocumentDetectionView::auto_placed == false` bzw.
+ * `BatchView::manual_plans > 0`): „Schließen“ fragt vorher nach
+ */
+placed_by_hand: boolean, 
+/**
+ * signiert, aber noch nicht gespeichert („Fertig“ mit „Speichern“): „Schließen“ verwirft die Signatur und fragt
+ * vorher nach
+ */
+unsaved: boolean, };

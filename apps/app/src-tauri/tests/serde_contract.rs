@@ -24,12 +24,12 @@ use pida_core_api::{
     DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView,
     ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis,
     GuideKind, GuideView, InteractionView, KeystoreEntryView, KeystoreFormatView, KeystoreImportView, MainBarView,
-    MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, PauseScope,
-    PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView, PositionSummaryView,
-    PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView, RectPt, ResumeOfferView,
-    SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView,
-    SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent, VerifiedSignatureView,
-    VerifyStatus, VerifySummaryView, VerifyView, ViewState,
+    MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, ParkedWorkView,
+    PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView,
+    PositionSummaryView, PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView,
+    RectPt, ResumeOfferView, SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity,
+    SignedSummaryView, SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent,
+    VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView, ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -68,6 +68,7 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         recent: None,
         first_run: None,
         actions: ActionsView::default(),
+        parked: None,
     }
 }
 
@@ -798,6 +799,7 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
             pdfa_decision: PdfaDecision::Detected,
             auto_placed: origin != PlacementOrigin::User,
         }),
+        placement_locked: false,
     }
 }
 
@@ -912,6 +914,9 @@ fn batch(mode: OutputModeView) -> BatchView {
             certificate_confirmation_possible: true,
             large: false,
         }),
+        auto_position_setting: false,
+        auto_position_once: false,
+        manual_plans: 0,
     }
 }
 
@@ -1024,6 +1029,17 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     editing.signers = signers();
     editing.actions = ws_actions(true);
     out.push(("ws_editing", editing));
+
+    // Einstellung „Automatische Positionierung“ (Nachtrag 8): automatisch platziert und gesperrt
+    let mut locked = view(position_step(), position_bar());
+    let mut d = document(DocumentPhase::Editing, PlacementOrigin::Auto, PlacementTarget::Free);
+    d.placement_locked = true;
+    d.check =
+        PlacementCheckView { for_revision: 4, overlaps_content: Some(false), overlaps_widget: false, clamped: false };
+    locked.document = Some(d);
+    locked.signers = signers();
+    locked.actions = ws_actions(true);
+    out.push(("ws_editing_locked", locked));
 
     let mut field = view(position_step(), position_bar());
     let mut d = document(DocumentPhase::Editing, PlacementOrigin::Field, PlacementTarget::Field { index: 0 });
@@ -1207,8 +1223,26 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         summary: None,
         output: BatchOutputView { mode: OutputModeView::Ask, folder_display: None, needs_folder: true },
         estimate: None,
+        auto_position_setting: false,
+        auto_position_once: false,
+        manual_plans: 0,
     });
     out.push(("ws_batch_empty", empty));
+
+    // Nachtrag 8: „Für diesen Stapel automatisch positionieren“ (ein Eintrag von Hand platziert) bzw. laut
+    // Einstellung
+    for (name, setting, once) in [("ws_batch_auto_once", false, true), ("ws_batch_auto_setting", true, false)] {
+        let mut v = view(StepView::Batch, bar(["AE", "", "", ""], true));
+        v.batch = Some(BatchView {
+            auto_position_setting: setting,
+            auto_position_once: once,
+            manual_plans: 1,
+            ..batch(OutputModeView::NextToSource)
+        });
+        v.signers = signers();
+        v.actions = ActionsView { start_batch: true, ..ws_actions(false) };
+        out.push((name, v));
+    }
 
     // Prüfmodus (jeder Ladezustand, jedes Gesamtergebnis)
     for (name, status, summary) in [
@@ -1257,6 +1291,20 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     let mut recent_empty = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
     recent_empty.recent = Some(Vec::new());
     out.push(("ws_recent_empty", recent_empty));
+    // geparkte Arbeit (ADR 0004 Nachtrag 10): Startansicht mit Karte „In Bearbeitung“
+    let mut parked = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    parked.actions = ActionsView { show_batch: false, ..ws_actions(false) };
+    parked.parked = Some(ParkedWorkView {
+        doc_name: Some("Vertrag.pdf".into()),
+        documents: 1,
+        placed_by_hand: true,
+        unsaved: false,
+    });
+    out.push(("ws_start_parked", parked));
+    let mut parked_batch = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    parked_batch.actions = ActionsView { show_batch: false, ..ws_actions(false) };
+    parked_batch.parked = Some(ParkedWorkView { doc_name: None, documents: 4, placed_by_hand: false, unsaved: false });
+    out.push(("ws_start_parked_batch", parked_batch));
 
     let offer = MigrationOfferView {
         legacy_file: PathBuf::from("/Users/demo/.pdf-over/PDF-Over.config"),
@@ -1392,7 +1440,7 @@ fn typescript_events_deserialize_into_ui_event() {
 
 /// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
 /// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
-const UI_EVENT_VARIANTS: usize = 61;
+const UI_EVENT_VARIANTS: usize = 66;
 
 /// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
 /// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).

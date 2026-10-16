@@ -184,6 +184,8 @@ const documentView = obj({
       auto_placed: bool,
     }),
   ),
+  // Nachtrag 8 (Einstellung „Automatische Positionierung“)
+  placement_locked: bool,
 });
 
 const signersView = obj({
@@ -295,6 +297,10 @@ const batchView = obj({
       large: bool,
     }),
   ),
+  // Nachtrag 8: automatische Positionierung im Stapel
+  auto_position_setting: bool,
+  auto_position_once: bool,
+  manual_plans: int,
 });
 
 const verifyView = obj({
@@ -480,6 +486,8 @@ const viewState = obj({
   recent: nullable(arr(obj({ id: int, file_name: str, folder_display: nullable(str), signed_at: str, exists: bool }))),
   first_run: nullable(firstRun),
   actions,
+  // Nachtrag 10: geparkte Arbeit („Zur Startseite“) – in TS optional, vom Kern immer geliefert
+  parked: optional(obj({ doc_name: nullable(str), documents: int, placed_by_hand: bool, unsaved: bool })),
 });
 
 const formAnswer = tagged('kind', {
@@ -492,7 +500,8 @@ const formAnswer = tagged('kind', {
 });
 
 const uiEvent = tagged('type', {
-  open_files: { paths: arr(str) },
+  // Nachtrag 9: „+ PDF“ – in TS optional, ohne `mode` wie bisher
+  open_files: { paths: arr(str), mode: omittable(lit('add', 'replace')) },
   answer_warning: { proceed: bool },
   placeholder_answer: { answer: lit('Yes', 'No', 'Cancel'), field_index: nullable(int) },
   move_block: { page: int, x: num, y: num },
@@ -554,6 +563,13 @@ const uiEvent = tagged('type', {
   finish_first_run: {},
   offer_migration: {},
   inspect_keystore: { password: nullable(str), password_storage: omittable(lit('none', 'memory', 'keychain')) },
+  // Nachtrag 8 (Einstellung „Automatische Positionierung“)
+  unlock_placement: {},
+  set_batch_auto_position: { enabled: bool, replace_manual: bool },
+  // Nachtrag 10: „Zur Startseite“ parkt offene Arbeit
+  go_home: {},
+  resume_parked: {},
+  discard_parked: {},
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -639,6 +655,9 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     expect(sorted(docs.map((d) => (d.detection ? String(d.detection.auto_placed) : null)))).toEqual(['false', 'true']);
     expect(views.some((v) => Object.keys(v.settings?.locked ?? {}).length > 0)).toBe(true);
     expect(views.some((v) => v.settings !== null && v.settings.locked === null)).toBe(true);
+    // Nachtrag 10: geparkte Arbeit (Einzeldokument von Hand platziert, Stapel)
+    expect(sorted(views.map((v) => (v.parked ? (v.parked.doc_name ?? 'stapel') : null)))).toEqual(['Vertrag.pdf', 'stapel']);
+    expect(views.some((v) => v.parked?.placed_by_hand === true)).toBe(true);
   });
 
   it('defaultSettings() entspricht Settings::default() aus Rust (Mock-Kern, Tests, Zurücksetzen)', () => {
@@ -693,6 +712,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
           settings: true,
           home: true,
         },
+        parked: null,
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);
@@ -751,9 +771,10 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(validate(uiEvent, sample)).toEqual([]);
   });
 
-  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 23 davon aus ADR 0004
-  it('alle 61 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(61);
+  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 26 davon aus ADR 0004
+  // (23 aus E0, `inspect_keystore` aus Nachtrag 7, `unlock_placement` und `set_batch_auto_position` aus Nachtrag 8)
+  it('alle 63 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(63);
   });
 
   it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen, Import)', () => {

@@ -99,6 +99,22 @@
   color: var(--c-text-3);
   white-space: nowrap;
 }
+/* „+ PDF“ neben dem Dokumentnamen (ADR 0004 Nachtrag 9) */
+.header-add {
+  flex: none;
+  gap: 4px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--c-border);
+  font-weight: var(--fw-semibold);
+}
+.header-add[data-pressed],
+.header-add[aria-expanded='true'] {
+  background: var(--c-hover);
+  color: var(--c-text);
+}
+.header-add .header-add-file {
+  display: none;
+}
 .header-spacer {
   flex: 1 0 0;
 }
@@ -173,6 +189,20 @@
   .header-context {
     padding-left: var(--sp-2);
   }
+  .header-add {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+    border-color: transparent;
+  }
+  .header-add .header-add-plus,
+  .header-add .header-add-text {
+    display: none;
+  }
+  .header-add .header-add-file {
+    display: block;
+  }
   .command-button {
     width: 36px;
     height: 36px;
@@ -208,11 +238,12 @@
   }
 }
 
-/* Finger: auch Wortmarke und Befehlsknopf mindestens 44 × 44 px (WCAG 2.5.5, Apple HIG; das schmale Layout
-   oben setzt den Befehlsknopf auf 36 px, base.css deckt nur die allgemeinen Bedienelemente ab) */
+/* Finger: auch Wortmarke, Befehlsknopf und „+ PDF“ mindestens 44 × 44 px (WCAG 2.5.5, Apple HIG; das schmale
+   Layout oben setzt Befehlsknopf und „+ PDF“ auf 36 px, base.css deckt nur die allgemeinen Bedienelemente ab) */
 @media (pointer: coarse) {
   .brand,
-  .command-button {
+  .command-button,
+  .header-add {
     min-width: 44px;
     min-height: 44px;
   }

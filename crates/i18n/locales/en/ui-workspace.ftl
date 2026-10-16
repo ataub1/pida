@@ -45,7 +45,7 @@ ng-ui-shell-cmd-settings = Settings
 ng-ui-shell-cmd-signature = Edit signature block
     .keywords = logo profile emblem note
 ng-ui-shell-cmd-home = Go to start
-    .keywords = home start close
+    .keywords = home start
 ng-ui-shell-cmd-theme-light = Colour scheme: light
     .keywords = theme light
 ng-ui-shell-cmd-theme-dark = Colour scheme: dark
@@ -58,6 +58,22 @@ ng-ui-shell-cmd-lang-en = Language: English
     .keywords = language english
 ng-ui-shell-cmd-shortcuts = Show keyboard shortcuts
     .keywords = help keyboard shortcuts
+ng-ui-shell-cmd-add = Add PDFs …
+    .keywords = more documents multiple file append batch
+ng-ui-shell-cmd-batch = To the batch
+    .keywords = batch overview all documents
+ng-ui-shell-cmd-batch-back = Back to batch
+    .keywords = batch overview all documents
+# “Add PDF” in the header (ADR 0004 addendum 9): “+ PDF” button with a menu
+ng-ui-shell-add = PDF
+ng-ui-shell-add-long = Add or open a PDF
+ng-ui-shell-add-more = Add more PDFs …
+ng-ui-shell-add-more-desc = Sign together with “{ $name }” as a batch
+ng-ui-shell-replace = Open a different PDF …
+ng-ui-shell-replace-desc = “{ $name }” will be closed
+ng-ui-shell-replace-title = Open a different PDF?
+ng-ui-shell-replace-text = You placed the signature in “{ $name }” yourself. Opening a different PDF closes this document and discards the placement.
+ng-ui-shell-replace-confirm = Open a different PDF
 ng-ui-shell-key-close = Close dialog, cancel
 ng-ui-shell-key-accesskeys = Access keys (underlined letters while Alt is held)
 ng-ui-shell-key-move = Move signature block (15 pt)
@@ -88,6 +104,37 @@ ng-ui-start-side = Recently signed and verification mode
 ng-ui-start-verify-title = Verify a signature?
 ng-ui-start-verify-text = Verification mode shows who signed a PDF, when, and whether it has changed since.
 ng-ui-start-verify-button = Open verification mode
+# Parked work (“Go to start” parks the open document or batch, ADR 0004 addendum 10)
+ng-ui-start-parked-label = In progress
+ng-ui-start-parked-batch =
+    { $n ->
+        [one] Batch · 1 document
+       *[other] Batch · { $n } documents
+    }
+ng-ui-start-parked-hint = Not signed yet – the placement is kept.
+ng-ui-start-parked-hint-placed = Not signed yet – your placement is kept.
+ng-ui-start-parked-hint-batch = Plans and status of the documents are kept.
+ng-ui-start-parked-hint-unsaved = Signed, but not saved yet.
+ng-ui-start-parked-resume = Continue editing
+ng-ui-start-parked-close = Close
+ng-ui-start-parked-close-title = Close the open work?
+ng-ui-start-parked-close-text = “{ $name }” will be closed and your placement discarded. Files already signed are kept.
+ng-ui-start-parked-close-text-batch = The batch will be closed; placements and status of the documents are discarded. Files already signed are kept.
+ng-ui-start-parked-close-text-unsaved = “{ $name }” is signed but not saved yet. If you close it, the signature is lost.
+ng-ui-start-parked-close-confirm = Close
+ng-ui-start-join-title = Add to the open work?
+ng-ui-start-join-text =
+    “{ $name }” is still in progress. { $count ->
+        [one] Add the chosen document? Together they form a batch; your placement is kept.
+       *[other] Add the { $count } chosen documents? Together they form a batch; your placement is kept.
+    }
+ng-ui-start-join-text-batch =
+    A batch is still in progress. { $count ->
+        [one] Add the chosen document?
+       *[other] Add the { $count } chosen documents?
+    }
+ng-ui-start-join-add = Add to batch
+ng-ui-start-join-replace = Close open work and start over
 
 ## Workspace: pages, sticker, live region, state cards
 
@@ -96,6 +143,8 @@ ng-ui-ws-toolbar = View
 ng-ui-ws-pages = Pages
 ng-ui-ws-thumb = Page { $n }
 ng-ui-ws-thumb-sticker = Page { $n }, contains the signature block
+ng-ui-ws-thumbs-add = Add PDF
+ng-ui-ws-thumbs-add-hint = or drop it here
 ng-ui-ws-toggle-pages = Show/hide page sidebar
 ng-ui-ws-page-indicator = Page { $n } / { $total }
 ng-ui-ws-zoom-in = Zoom in
@@ -108,6 +157,9 @@ ng-ui-ws-new-page = New page for the signature
 ng-ui-ws-sticker-role = movable signature block
 ng-ui-ws-sticker-label = Signature block
 ng-ui-ws-sticker-help = Drag or move with the arrow keys, Shift+arrow moves finely, Alt+arrow in large steps, Page Up/Down changes the page, { $sign } signs.
+# Setting “Automatic positioning” (ADR 0004 addendum 8): block locked
+ng-ui-ws-sticker-role-locked = automatically placed signature block
+ng-ui-ws-sticker-locked-help = Placed automatically according to the setting “Automatic positioning”. { $sign } signs; “Place it myself this time” under “Placement” releases the block for moving.
 ng-ui-ws-sticker-overlap = Covers content
 ng-ui-ws-sticker-widget = Covers a field
 ng-ui-ws-sticker-in-field = In signature field
@@ -196,6 +248,10 @@ ng-ui-insp-placement-qr = In the QR code placeholder
 ng-ui-insp-placement-free = Place freely
 ng-ui-insp-placement-hint = Drag the block on the page – it snaps to margins and below the text.
 ng-ui-insp-auto-place = Re-place
+# Setting “Automatic positioning” (ADR 0004 addendum 8)
+ng-ui-insp-placement-auto = Automatic (per setting)
+ng-ui-insp-placement-locked-hint = Ready to sign. The position is set by the setting “Automatic positioning”.
+ng-ui-insp-placement-unlock = Place it myself this time
 ng-ui-insp-existing = Existing signatures
 ng-ui-insp-existing-meta = Stated at signing: { $time }
 ng-ui-insp-existing-unknown = Signatory not readable
@@ -360,6 +416,18 @@ ng-ui-batch-existing =
         [one] One target file already exists – you decide when you start.
        *[other] { $n } target files already exist – you decide when you start.
     }
+# Automatic positioning in the batch (ADR 0004 addendum 8): for this batch only or per setting
+ng-ui-batch-auto = Position automatically for this batch
+ng-ui-batch-auto-hint = All documents are placed automatically and ready to sign – for this batch only, the setting stays unchanged.
+ng-ui-batch-auto-setting = Automatic positioning (per setting)
+ng-ui-batch-auto-confirm-title = Keep your own placements?
+ng-ui-batch-auto-confirm-text =
+    { $n ->
+        [one] You placed one document yourself. Should it be placed automatically as well?
+       *[other] You placed { $n } documents yourself. Should they be placed automatically as well?
+    }
+ng-ui-batch-auto-keep = Keep
+ng-ui-batch-auto-replace = Place these automatically too
 ng-ui-batch-list = Documents in the batch
 ng-ui-batch-open = Open and position “{ $name }”
 ng-ui-batch-review = Review

@@ -128,6 +128,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6219,
@@ -178,6 +179,7 @@
         "params": {}
       }
     ],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -384,6 +386,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6219,
@@ -428,6 +431,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -628,6 +632,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6219,
@@ -672,6 +677,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -878,6 +884,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6219,
@@ -922,6 +929,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1138,6 +1146,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6219,
@@ -1182,6 +1191,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1370,6 +1380,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6219,
@@ -1414,6 +1425,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1497,6 +1509,274 @@
         }
       ],
       "step": "signing"
+    },
+    "verify": null
+  },
+  "doc_auto_locked": {
+    "actions": {
+      "edit_placement": true,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": true,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": {
+      "announce": {
+        "bottom": "219",
+        "left": "67",
+        "page": "1",
+        "pages": "1",
+        "top": "248"
+      },
+      "block": {
+        "height": 82.0,
+        "preview_revision": 1,
+        "width": 229.99998474121094
+      },
+      "check": {
+        "clamped": false,
+        "for_revision": 2,
+        "overlaps_content": false,
+        "overlaps_widget": false
+      },
+      "constraints": {
+        "new_page_allowed": true,
+        "new_visible_field_allowed": true,
+        "reasons": [],
+        "visible_allowed": true
+      },
+      "detection": {
+        "auto_placed": true,
+        "pdfa": null,
+        "pdfa_decision": "none"
+      },
+      "doc": {
+        "id": 1,
+        "name": "Formular.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": false
+      },
+      "existing": [],
+      "fields": [],
+      "invisible": false,
+      "layout": [
+        {
+          "content": {
+            "bottom": 723.0,
+            "left": 54.0,
+            "right": 78.0,
+            "top": 732.0
+          },
+          "free": [
+            {
+              "bottom": 0.0,
+              "left": 0.0,
+              "right": 612.0,
+              "top": 717.0
+            },
+            {
+              "bottom": 0.0,
+              "left": 84.0,
+              "right": 612.0,
+              "top": 792.0
+            }
+          ],
+          "guides": [
+            {
+              "at": 306.0,
+              "axis": "x",
+              "kind": "center_x"
+            },
+            {
+              "at": 396.0,
+              "axis": "y",
+              "kind": "center_y"
+            },
+            {
+              "at": 54.0,
+              "axis": "x",
+              "kind": "content_left"
+            },
+            {
+              "at": 78.0,
+              "axis": "x",
+              "kind": "content_right"
+            },
+            {
+              "at": 732.0,
+              "axis": "y",
+              "kind": "content_top"
+            },
+            {
+              "at": 723.0,
+              "axis": "y",
+              "kind": "content_bottom"
+            },
+            {
+              "at": 705.0,
+              "axis": "y",
+              "kind": "below_content"
+            }
+          ],
+          "page": 0
+        }
+      ],
+      "new_page": false,
+      "origin": "auto",
+      "phase": "editing",
+      "placement": {
+        "height": 82.0,
+        "page_index": 0,
+        "width": 229.99998474121094,
+        "x": 191.0,
+        "y": 704.0
+      },
+      "placement_locked": true,
+      "qr": null,
+      "revision": 2,
+      "size_bytes": 6257,
+      "sticker": {
+        "bottom": 622.0,
+        "left": 191.0,
+        "right": 421.0,
+        "top": 704.0
+      },
+      "target": {
+        "kind": "free"
+      }
+    },
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": true,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "announce": {
+        "left": "67",
+        "page": "1",
+        "pages": "1",
+        "top": "248"
+      },
+      "block": {
+        "height": 82.0,
+        "preview_revision": 1,
+        "width": 229.99998474121094
+      },
+      "doc": {
+        "id": 1,
+        "name": "Formular.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": false
+      },
+      "new_page": false,
+      "page": 0,
+      "placement": {
+        "height": 82.0,
+        "page_index": 0,
+        "width": 230.0,
+        "x": 191.0,
+        "y": 704.0
+      },
+      "step": "position"
     },
     "verify": null
   },
@@ -1669,6 +1949,7 @@
         "x": 35.654998779296875,
         "y": 766.2620239257812
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 1,
       "size_bytes": 181760,
@@ -1714,6 +1995,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -1808,6 +2090,143 @@
         "y": 198.0
       },
       "step": "position"
+    },
+    "verify": null
+  },
+  "doc_parked": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": {
+      "doc_name": "Vertrag.pdf",
+      "documents": 1,
+      "placed_by_hand": false,
+      "unsaved": false
+    },
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": "test-rsa2048.p12",
+          "available": true,
+          "backend": "keystore",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": null,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": false,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": {
+              "Digest": {
+                "algs": [
+                  "Sha256",
+                  "Sha512"
+                ]
+              }
+            },
+            "interaction": "Secret",
+            "login_once_per_batch": true,
+            "max_batch": 65535,
+            "output": "RawSignature",
+            "qualification": "AdES",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
     },
     "verify": null
   },
@@ -1949,6 +2368,7 @@
         "x": 182.5,
         "y": 741.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6635,
@@ -1993,6 +2413,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -2215,6 +2636,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6257,
@@ -2259,6 +2681,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -2475,6 +2898,7 @@
         "x": 72.0,
         "y": 720.0
       },
+      "placement_locked": false,
       "qr": {
         "id": "2",
         "page": 0,
@@ -2528,6 +2952,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -2750,6 +3175,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6257,
@@ -2794,6 +3220,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3035,6 +3462,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6257,
@@ -3079,6 +3507,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3326,6 +3755,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6257,
@@ -3370,6 +3800,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3614,6 +4045,7 @@
         "x": 191.0,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 2,
       "size_bytes": 6257,
@@ -3658,6 +4090,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"
@@ -3951,6 +4384,7 @@
         "x": 99.99993896484375,
         "y": 704.0
       },
+      "placement_locked": false,
       "qr": null,
       "revision": 3,
       "size_bytes": 6257,
@@ -3995,6 +4429,7 @@
     },
     "migration": null,
     "notices": [],
+    "parked": null,
     "platform": {
       "mobile": false,
       "os": "linux"

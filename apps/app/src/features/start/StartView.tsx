@@ -7,12 +7,16 @@
  *
  * Mobile: keine Ablagefläche und keine Tastenkürzel, Knopf „Dokument auswählen“ (Dokument-Picker bzw.
  * SAF) und der Hinweis auf „Teilen“/„Öffnen in“.
+ *
+ * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
+ * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
  */
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
 import { AccessButton, Button, Keys, useModKey } from '../../ui/controls';
 import { IconLock, IconShieldCheck, IconUpload } from '../../ui/Icons';
 import { RECENT_AVAILABLE, RecentPanel } from '../recent';
+import { ParkedCard } from './ParkedCard';
 import './start.css';
 
 export function StartView({ onVerify }: { onVerify: () => void }) {
@@ -29,6 +33,7 @@ export function StartView({ onVerify }: { onVerify: () => void }) {
           {t.t('ng-ui-start-title')}
         </h1>
         <p className="view-lead">{t.t('ng-ui-start-lead')}</p>
+        {view.parked ? <ParkedCard parked={view.parked} /> : null}
         <section className="dropzone start-drop" aria-label={t.t('ng-ui-start-drop-label')} data-drop-target={dragActive || undefined}>
           <div className={`drop-inner${dragActive ? ' is-target' : ''}`}>
             <span className="drop-icon" aria-hidden="true">

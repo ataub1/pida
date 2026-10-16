@@ -1422,7 +1422,7 @@ Abbildung der Abschnitte des Prototyps auf `pida_config::Settings` (kein neues F
 | Darstellung › Farbschema | – | UI-lokal (`pida.theme`, localStorage, je Gerät) |
 | › Sprache | `general.ui_language` | auch `SetUiLanguage` |
 | Datenschutz (V0) | `certificate_cache.enabled`, NEU `general.recent_documents` | Text aus `privacy_text` bzw. Katalog; „Liste leeren“ = `ClearRecent` |
-| Dokument (Nachtrag 5) | `signature.pdfa_force`, `placeholder.{search, kind}` | direkt nach „Signaturbild“; Auswahl „QR-Code-Platzhalter“ (`marker`) bzw. „Leere Signaturfelder“ (`fields`) gesperrt bei ausgeschalteter Suche; Standard wie PDF-Over (Suche aus, `marker`, PDF/A aus) |
+| Dokument (Nachtrag 5, Nachtrag 8) | `signature.pdfa_force`, `placeholder.{search, kind}`, `signature.auto_position` | direkt nach „Signaturbild“; Auswahl „QR-Code-Platzhalter“ (`marker`) bzw. „Leere Signaturfelder“ (`fields`) gesperrt bei ausgeschalteter Suche; Standard wie PDF-Over (Suche aus, `marker`, PDF/A aus, automatische Positionierung aus) |
 | Erweitert | `proxy.*`, `general.update_check`, `signature.cms_profile` (bis Nachtrag 5 auch `placeholder.*`, `signature.pdfa_force`) | Mobile ohne Proxy/Updates; Log-Ordner über Shell |
 | Erweitert › PDF-Over übernehmen | – | `OfferMigration` (§3.12) |
 | Über | – | Version (`appInfo`), Drittlizenzen, Log-Ordner (Shell) |
@@ -2426,3 +2426,216 @@ Wünsche des Auftraggebers (Einstellungen › Signiermittel › Keystore), Vertr
 
 Tests: `crates/core-api/tests/keystore_settings.rs`, `crates/core-api/src/keystore_info.rs`,
 `apps/app/src/features/settings/keystore.test.tsx`. Neue Meldungs-ID `ng-keystore-password-needed` (`pida.ftl`).
+
+### Nachtrag 8 (16.10.2026): „Automatische Positionierung“ – Einstellung, gesperrter Block, Stapel-Option
+
+Entscheidung des Auftraggebers: Die PDF-Over-Option „Automatische Positionierung“ (`SIGNATURE_POSITION=auto`,
+`signature.auto_position`, Startargument `-a`) wird in der neuen Oberfläche wieder angeboten. Die Notiz aus B3
+(Nachtrag 5, „`signature.auto_position` erscheint nicht mehr“) ist damit überholt. Vertrag, additiv nach §3.0 Regel 2:
+
+```rust
+pub struct DocumentView {
+    // … wie §3.3, Nachtrag 5
+    /// Platzierung gesperrt durch die Einstellung (automatisch platziert, bereit zum Signieren)
+    #[serde(default)] pub placement_locked: bool,
+}
+pub struct BatchView {
+    // … wie §3.8, Nachtrag 4
+    #[serde(default)] pub auto_position_setting: bool, // Einstellung an: „laut Einstellung“
+    #[serde(default)] pub auto_position_once: bool,    // „Für diesen Stapel automatisch positionieren“
+    #[serde(default)] pub manual_plans: u32,           // von Hand platzierte, noch nicht signierte Einträge
+}
+pub enum UiEvent {
+    // … (neue Varianten am Ende)
+    /// „Diesmal selbst platzieren“: Sperre nur für dieses Dokument aufheben
+    UnlockPlacement,
+    /// nur in der Stapelübersicht; `replace_manual` nur nach ausdrücklicher Bestätigung
+    SetBatchAutoPosition { enabled: bool, #[serde(default)] replace_manual: bool },
+}
+```
+
+1. **Einstellungen › Dokument:** Schalter „Automatische Positionierung“ (`ng-ui-set-auto-position`, Synonyme u. a.
+   „position“, „platzieren“, „automatisch“, „auto“), sofort wirksam über `apply_settings`. Die Migration aus PDF-Over
+   gab es schon (`SIGNATURE_POSITION`, Java-`trim() == "auto"`, Orakeltest); `AUTOMATIC_POSITIONING` ist kein
+   PDF-Over-Schlüssel, sondern nur die Klasse des Startarguments `-a` (bleibt als Overlay). Neu: die Übernahmeliste
+   der Ersteinrichtung nennt sie (`ng-migration-item-position`, neue ID in `pida.ftl`).
+2. **Kern (Reducer):** `WorkspaceEdit::lock` (`PlacementLock::{Off, Locked, Released}`, Workflow-intern) – nach der
+   Analyse und bei jeder Einstellungsänderung `follow_auto_position`: Einstellung an sperrt ein Dokument, dessen Lage
+   noch aus der Automatik stammt (PDF-AS-Verfahren, Platzhaltersuche hat Vorrang); aus hebt die Sperre auf;
+   `PlacementUnlocked` („Diesmal selbst platzieren“) gibt **nur dieses** Dokument frei (`Released` bleibt auch bei
+   erneutem Einschalten, das nächste Dokument ist wieder gesperrt). Gesperrt bleiben `PlacementChanged`, `PageChanged`
+   und `TargetChosen` ohne Wirkung (core-api ignoriert `move_block`/`nudge_block` schon vor dem Klemmen); „Unsichtbar“,
+   „Auf neuer Seite“ (eine Platzierung der Nutzerin wie bisher, die Sperre bleibt) und „Signieren mit“ wirken.
+   Nie für aus der Stapelübersicht geöffnete Einträge (die Nutzerin öffnet sie zum Platzieren). Signiert wird nie
+   selbst (A1/F-54 unverändert, Property-Test um `PlacementUnlocked`, Umschalten der Einstellung, `PageChanged` und
+   `BatchAutoPositionSet` erweitert, dazu: gesperrt verschiebt nichts); die Startargument-Automatik D-06 (`-b` + `-a`)
+   bleibt der klassische automatische Weg, im Rückfall (ID Austria) ist der Block gesperrt wie mit der Einstellung.
+3. **Oberfläche:** gesperrter Block ohne Ziehen, Tastatur, Doppelklick und Feld-Angebote (Rolle „automatisch
+   platzierter Signaturblock“, Hilfe nennt „Diesmal selbst platzieren“); Inspektor › Platzierung „Automatisch (laut
+   Einstellung)“ mit Hinweis „Bereit zum Signieren …“ und „Diesmal selbst platzieren“ statt „Neu platzieren“/„Frei
+   platzieren“ (auch in der Überdeckungswarnung); nach dem Öffnen liegt der Fokus auf „Signieren“ (nur beim Einhängen
+   des Knopfs). Optionen bleiben bedienbar (`actions.edit_placement` unverändert).
+4. **Stapel (Zusatzanforderung):** Ist die Einstellung aus, bietet die Übersicht „Für diesen Stapel automatisch
+   positionieren“ (`Batch::auto_position_once`): gilt nur für diesen Stapel, die Einstellung bleibt unverändert und
+   wird nicht gespeichert; nach Ende bzw. Abbruch des Laufs (`into_overview`) bzw. mit dem Schließen des Stapels gilt
+   wieder die Einstellung. Ist die Einstellung an, steht dort nur „Automatische Positionierung (laut Einstellung)“. In
+   beiden Fällen gelten automatisch platzierte Einträge als „Bereit“ (auch QR-Platzhalter bzw. erstes leeres Feld der
+   Platzhaltersuche, Projektion `BatchItem::shown_status`; die Platzierung zeigt weiter „im QR-Platzhalter“); von Hand
+   platzierte behalten ihren Plan, außer die Nutzerin bestätigt in der Rückfrage „Auch diese automatisch platzieren“
+   (`replace_manual`; Vorauswahl „Behalten“, Escape ändert nichts). Analysewarnungen („Bitte prüfen“) bleiben zu
+   prüfen. Nichts davon startet etwas (erst „Alle signieren“).
+5. **Proben und Mock:** `real-core-views.json` mit `doc_auto_locked`, `real-core-batch-views.json` mit
+   `batch_auto_once`, `view-states.json` mit `ws_editing_locked`, `ws_batch_auto_once`, `ws_batch_auto_setting`; der
+   Mock folgt dem Kern (Sperre, Freigabe, sofort wirksam, Stapel-Option, „Bereit“).
+
+**Angenommene Abweichungen:** Die Stapel-Option liegt im Stapel (`Batch`), nicht in `StartBatch`, damit die Übersicht
+schon vor dem Start „Bereit“ zeigt; die Sperre gilt mit der Einstellung auch für ein beim Einschalten noch automatisch
+platziertes, schon geöffnetes Dokument („sofort wirksam“).
+
+### Nachtrag 9 (16.10.2026): „PDF hinzufügen“ – Kopfzeile „+ PDF“, Miniaturleiste, Stapel per Palette und ⌘B
+
+Wunsch des Auftraggebers: „Dokument öffnen bzw. hinzufügen“ als sichtbare Option, nicht nur per Kommando/Kürzel. Die
+vorhandenen Ereignisse genügten nicht: `open_files` im Arbeitsbereich hängt Dateien nur an die Warteschlange (Hinweis
+`ng-batch-added`), und „Start“ + `open_files` verwürfe auch die wartenden Dokumente; die Bedeutung „zusammen zum Stapel“
+bzw. „dieses Dokument ersetzen“ hätte die Oberfläche aus mehreren Ereignissen zusammensetzen müssen (§6.4). Vertrag,
+additiv nach §3.0 Regel 2 (in TypeScript optional, bestehende Literale bleiben gültig):
+
+```rust
+pub enum OpenFilesMode { Add, Replace }            // serde: "add" | "replace"
+pub enum UiEvent {
+    OpenFiles {
+        paths: Vec<PathBuf>,
+        /// None = wie bisher; nur im Arbeitsbereich-Modus, sonst ohne Bedeutung
+        #[serde(default, skip_serializing_if = "Option::is_none")] mode: Option<OpenFilesMode>,
+    },
+    // …
+}
+// pida_workflow (intern, am Ende von `Event`)
+Event::MoreFilesAdded(Vec<InputDocument>)          // mode: add
+Event::DocumentReplaced(Vec<InputDocument>)        // mode: replace
+```
+
+1. **„Weitere PDFs hinzufügen“** (`mode: add`, Reducer `batch_run::more_files_added`): im Arbeitsbereich (`Positioning`)
+   kommen die Dateien zum offenen Dokument, und alle zusammen werden zum Stapel – die Platzierung des offenen Dokuments
+   wird wie bei „Zum Stapel“ dessen Plan (automatisch platziert: kein Plan, folgt den Einstellungen); aus der Übersicht
+   geöffnet wie „Zurück zum Stapel“ mit den neuen Einträgen; ohne Hinweis `ng-batch-added` (die Übersicht zeigt sie);
+   nur Duplikate → unverändert. In allen anderen Zuständen bzw. ohne Stapelübersicht wie `FilesAdded` (Analysewarnung:
+   an die Warteschlange mit Hinweis).
+2. **„Anderes PDF öffnen“** (`mode: replace`, Reducer `document_replaced`): in `AnalysisWarning`/`Positioning` wird das
+   offene Dokument geschlossen (`Discard`, nie signiert; in der Ergebnisliste „abgebrochen“ wie nach „Start“, ein
+   Stapeleintrag wird entfernt wie mit „Entfernen“), danach öffnen die Dateien wie in der Dokumentauswahl (ein Dokument
+   → Arbeitsbereich, mit Stapelübersicht ab zwei offenen Dokumenten die Übersicht). Wartende Dokumente bleiben; aus der
+   Übersicht geöffnet und mit weiteren Einträgen zurück zur Übersicht mit den neuen Einträgen. Sonst wie `FilesAdded`
+   (im Signieren bzw. Stapellauf wird nie ein Dokument geschlossen).
+3. **A1/F-54:** keines der beiden öffnet eine Sitzung; der Property-Test `workspace_session_only_after_explicit_action`
+   erzeugt beide Ereignisse (auch dieselbe Datei erneut) und prüft zusätzlich, dass sie beim Signieren bzw. im Lauf nichts
+   verwerfen. Tabellentests in `crates/workflow/tests/batch.rs` („PDF hinzufügen“), echter Kern in
+   `crates/core-api/tests/batch.rs` (`more_pdfs_join_the_open_document_as_a_batch_and_replace_swaps_an_entry`,
+   `replace_opens_the_chosen_pdf_instead_of_the_open_one`). `Debug` von `OpenFiles` nennt nur die Zahl der Pfade (Regel 9).
+4. **Oberfläche (UI-A):** Kopfzeile neben dem Dokumentnamen „+ PDF“ (Symbol, Beschriftung „PDF“, Tooltip „PDF hinzufügen
+   oder öffnen“) mit Menü im Stil des Konto-Chips – „Weitere PDFs hinzufügen …“ (Mehrfachauswahl) und „Anderes PDF
+   öffnen …“ (eine Datei); nur beim Bearbeiten (Phasen `editing`/`warning`) mit `actions.open_files`. Hat die Nutzerin die
+   Signatur selbst platziert (`document.detection.auto_placed == false`, die Entscheidung des Kerns), fragt „Anderes PDF
+   öffnen“ vorher nach (`alertdialog`, Standardknopf „Abbrechen“, Escape bricht ab); sonst ohne Rückfrage. Miniaturleiste
+   unten: „+ PDF hinzufügen“ (Klick wie „Weitere PDFs hinzufügen“; abgelegte Dateien über den Drop-Weg der Shell auf
+   `[data-add-drop]` mit `mode: add`, anderswo wie bisher). Befehlspalette: „PDF hinzufügen …“ sowie „Zum Stapel“ bzw.
+   „Zurück zum Stapel“ (Freigabe `actions.show_batch` bzw. aus der Übersicht geöffnet, `batchNav`), Tastenkürzel
+   ⌘B/Strg+B samt Kürzelübersicht. Schmal/Mobile: derselbe Knopf in der Kopfzeile (unter 760 px nur als Dokument-Symbol mit Plus, 36 px,
+   damit der Dokumentname Platz behält) öffnet die System-Dateiauswahl (`pickMobileFiles`, mehrere bzw. eine Datei). Texte `ng-ui-shell-add*`, `ng-ui-shell-replace*`,
+   `ng-ui-shell-cmd-{add,batch,batch-back}`, `ng-ui-ws-thumbs-add*` (`ui-workspace.ftl`); keine neuen Meldungs-IDs.
+5. **Mock folgt dem Kern** (`core/mock/index.ts`: `addFiles`, `replaceDocument`); Fixture `ui-events.json` mit beiden
+   Modi, `contract.test.ts` prüft `mode` als weglassbar.
+
+**Angenommene Abweichungen:** Die Rückfrage „Anderes PDF öffnen?“ entscheidet die Oberfläche an `detection.auto_placed`
+(kein eigenes Vertragsfeld); „Unsichtbar signieren“ allein gilt dabei nicht als eigene Platzierung. Der Knopf „Zurück
+zum Stapel“ trägt kein `aria-keyshortcuts` (React Aria gibt das Attribut an `Button` nicht weiter); das Kürzel nennen
+Palette und Kürzelübersicht.
+
+### Nachtrag 10 (16.10.2026): „Zur Startseite“ parkt offene Arbeit – Karte „In Bearbeitung“
+
+Wunsch des Auftraggebers: Beim Wechsel zur Startseite darf offene Arbeit nicht verloren gehen. Bisher sandte „Zur
+Startseite“ (Haus-Symbol, Wortmarke, Palette) `navigate{Open}` und verwarf Dokument, Platzierung und Stapel; die
+Kopfzeile fragte deshalb bei Stapel bzw. eigener Platzierung nach. Jetzt **parkt** der Kern die Arbeit; die Rückfrage
+in der Kopfzeile entfällt. Vertrag, additiv nach §3.0 Regel 2 (in TypeScript optional bzw. neue Varianten am Ende):
+
+```rust
+pub struct ViewState {
+    // … wie §3.1 und Nachträge
+    /// geparkte Arbeit; dann `document = None`, `batch = None`, Schritt `open`
+    #[serde(default)] #[ts(optional = nullable)] pub parked: Option<ParkedWorkView>,
+}
+pub struct ParkedWorkView {                // Debug ohne Dokumentname (Regel 4)
+    pub doc_name: Option<String>,          // None = Stapel („Stapel · n Dokumente“)
+    pub documents: u32,                    // Einträge des Stapels bzw. Dokument samt wartenden
+    pub placed_by_hand: bool,              // !WorkspaceEdit::automatic bzw. BatchView::manual_plans > 0
+    pub unsaved: bool,                     // „Fertig“ signiert, nicht gespeichert
+}
+pub enum UiEvent { /* … */ GoHome, ResumeParked, DiscardParked }   // "go_home" | "resume_parked" | "discard_parked"
+// pida_workflow (intern): Queue::parked (bool, serde default), State::parked(),
+// Event::{WentHome, ParkedResumed, ParkedDiscarded} (am Ende), MSG_PARKED_FILES_ADDED = "ng-parked-files-added"
+```
+
+1. **Parken** (`go_home` → `Event::WentHome`, Reducer-Modul `reducer/parked.rs`; nur im Arbeitsbereich-Modus mit
+   Oberfläche, sonst wie `Navigate(Open)`): Arbeitsbereich (`Positioning` mit Bearbeitungszustand, auch ein aus der
+   Übersicht geöffneter Eintrag mit „Zurück zum Stapel“), Analysewarnung, Stapelübersicht und „Fertig“ ohne Speichern
+   (`Output { saved: None, decision: None }`) werden unverändert geparkt (`Queue::parked = true`, keine Effekte, nichts
+   freigegeben). „Fertig“ gespeichert mit wartenden Dokumenten (Stapelübersicht): wie „Zum Stapel“, die Übersicht mit
+   dem signierten Eintrag wird geparkt; ein Stapeleintrag, der gerade lädt, kehrt zur Übersicht zurück (Eintrag
+   unverändert), die geparkt wird. Signieren, Stapellauf, Fehlerschritt, Start, Ende und die Startansicht selbst: ohne
+   Wirkung (die Oberfläche sperrt „Zur Startseite“ dort wie bisher, `actions.home`). Sonst wie bisher `Navigate(Open)`
+   (Laden eines Einzeldokuments, „Signatur fortsetzen“, Signiermittel-Auswahl, „Fertig“ gespeichert ohne wartende).
+   `go_home` schließt zuerst einen offenen Prüfmodus.
+2. **Geparkt** projiziert core-api die Startansicht: Schritt `open` (leere Warteschlange), Hauptleiste und Freigaben wie
+   in der Dokumentauswahl (`open_files`, `verify`, `settings`, `home`; kein `sign`, `edit_placement`, `start_batch`,
+   `show_batch`), `document = None`, `batch = None`, dazu `parked`. Der Reducer lässt alles, was die verdeckte Arbeit
+   bedient (Signieren, Platzieren, Seiten, Ziel, Stapel starten/öffnen/entfernen, Abbrechen, Wiederholen, Speichern,
+   `Navigate`), ohne Wirkung (F-54); core-api ignoriert `sign_with`, `start_batch`, `confirm_position`,
+   `choose_invisible`, `choose_backend`, `move_block`, `nudge_block` schon vorher. Weiter wirken Ergebnisse der von der
+   Arbeit angeforderten Effekte und geänderte Einstellungen („sofort wirksam“): `SettingsChanged`, `Preanalyzed`
+   (Voranalyse des Stapels läuft weiter), `AutoPlaced`, `BlockResized`, `PlaceholderSearched`, `PreviewUnavailable`,
+   `Saved`/`SaveFailed`/`BatchOutputDecided` (Schreiben nach „Stapel abbrechen“), Lebenszyklus – aber nur, wenn die
+   Arbeit danach geparkt bleiben kann, sonst ohne Wirkung. `Quit` beendet wie bisher. Der Prüfmodus ist bei geparkter
+   Arbeit wie in der Dokumentauswahl erlaubt; das Angebot „Signatur fortsetzen“ erscheint erst nach dem Verwerfen.
+3. **Fortsetzen** (`resume_parked` → `ParkedResumed`): Zustand unverändert wie vor dem Parken (Platzierung, Plan,
+   Sperre, Stapel samt Voranalyse und „Für diesen Stapel automatisch positionieren“). **Verwerfen** (`discard_parked` →
+   `ParkedDiscarded`): wie „Öffnen“ (`discard_all`: Dokumente freigeben, in der Ergebnisliste „abgebrochen“, Stapel
+   entfällt; bereits signierte Ergebnisse bleiben).
+4. **Neue Dateien bei geparkter Arbeit:** `open_files { mode: add }` („Zum Stapel hinzufügen“) setzt fort und fügt
+   hinzu – Arbeitsbereich wie „Weitere PDFs hinzufügen“ (alle zusammen zum Stapel, die Platzierung des geparkten
+   Dokuments bleibt dessen Plan), Übersicht mit neuen Einträgen, Analysewarnung als Eintrag der Übersicht („Bitte prüfen“
+   nach der Voranalyse; aus der Übersicht geöffnet: zurück, Eintrag unverändert); nur Duplikate → fortgesetzt,
+   unverändert. `open_files { mode: replace }` („Offene schließen und neu beginnen“) verwirft wie 3. und öffnet die
+   Dateien wie in der Dokumentauswahl. `open_files` ohne `mode` („Öffnen mit“, zweite Instanz, „Dieses Dokument
+   signieren“ im Prüfmodus) wie `add` **ohne Rückfrage** mit Hinweis `ng-parked-files-added` (`$count`, neue
+   Meldungs-ID in `pida.ftl`; entfällt, wenn schon `ng-batch-added` erscheint). Ohne Stapelübersicht kommen neue Dateien
+   an die Warteschlange.
+5. **A1/F-54:** Parken, Fortsetzen und Verwerfen öffnen nie eine Sitzung, geparkte Arbeit wird nie vorbereitet oder
+   signiert. Property-Test `workspace_session_only_after_explicit_action` erzeugt `WentHome`, `ParkedResumed` und
+   `ParkedDiscarded` und prüft zusätzlich: bei geparkter Arbeit kein `OpenSession`/`Prepare`/`Sign*`, verdecktes
+   `SignRequested`/`BatchStarted`/`PlacementChanged`/`Cancel` ohne Wirkung, geparkt ist nur ruhende Arbeit;
+   `batch_run_invariants` prüft, dass Parken und Fortsetzen Stapel und Lauf nicht verändern. Tabellentests
+   `crates/workflow/tests/parked.rs` (16), echter Kern `crates/core-api/tests/batch.rs`
+   (`home_parks_the_document_and_resume_brings_it_back_unchanged`, `files_while_parked_join_the_batch_or_replace_it`,
+   `parked_batch_keeps_preanalysing_and_signs_only_after_resume`). Unverändert: „Fertig“ → „Nächstes Dokument“ und
+   „Neuer Stapel“ (`navigate{Open}`), Stapel-Abbruch, CLI und Startargument-Automatik D-06.
+6. **Oberfläche (UI-A):** Haus-Symbol und Wortmarke senden ohne Rückfrage `go_home` (`goHome`, wie bisher nach
+   `close_verify` im Prüfmodus); die Texte `ng-ui-shell-home-confirm-*` entfallen. Startansicht: oben (nach Titel und
+   Einleitung) die Karte „In Bearbeitung“ (`features/start/ParkedCard.tsx`, Stil der Seitenkarten) mit Dokumentname bzw.
+   „Stapel · n Dokumente“, Hinweis, „Weiter bearbeiten“ (`resume_parked`) und kleinem „Schließen“ (`discard_parked`);
+   bei `placed_by_hand`, `documents > 1` bzw. `unsaved` vorher `alertdialog` „Offene Arbeit schließen?“ (Standardknopf
+   „Abbrechen“, Escape bricht ab). PDF wählen (Knopf, ⌘/Strg+O, Palette) bzw. auf die Startseite ziehen bei geparkter
+   Arbeit: `alertdialog` „Zur offenen Arbeit hinzufügen?“ (`ParkedJoinDialog`, Shell) mit Standardknopf „Zum Stapel
+   hinzufügen“ (`mode: add`), „Offene schließen und neu beginnen“ (`mode: replace`) und „Abbrechen“ (auch Escape: nichts
+   geschieht). Texte `ng-ui-start-parked-*`, `ng-ui-start-join-*` (`ui-workspace.ftl`); die Suchbegriffe von „Zur
+   Startseite“ nennen kein „schließen“ mehr.
+7. **Proben und Mock:** `view-states.json` mit `ws_start_parked`, `ws_start_parked_batch`; `real-core-views.json` mit
+   `doc_parked`, `real-core-batch-views.json` mit `batch_parked` (`RealCore*.test.tsx` rendern sie); `ui-events.json`
+   mit den drei Ereignissen. Der Mock folgt dem Kern (`core/mock/index.ts`: `goHome`, `joinParked`, `discardParked`,
+   `parkedView`; Prüfmodus schließt bei `go_home`).
+
+**Angenommene Abweichungen:** Geparkt wird über ein Flag der Warteschlange (`Queue::parked`) statt über einen eigenen
+Zustand – der Zustand bleibt, wie er war, damit Ergebnisse laufender Effekte (Voranalyse, automatische Platzierung)
+nicht verloren gehen; core-api projiziert ihn als Dokumentauswahl. Zusätzlich zum Auftragstext geparkt werden
+Analysewarnung und „Fertig“ ohne Speichern (`ParkedWorkView::unsaved`, damit „Schließen“ die nicht gespeicherte
+Signatur nicht ohne Rückfrage verwirft). Ob „Schließen“ nachfragt, entscheidet die Oberfläche an den Angaben des Kerns
+(wie Nachtrag 9). Das Parken übersteht keinen Neustart der App (nicht persistiert).

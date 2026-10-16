@@ -619,6 +619,11 @@ ng-batch-added =
        *[other] { $count } weitere Dokumente wurden hinzugefügt.
     }
 ng-batch-item-signed = „{ $file }“ wurde signiert.
+ng-parked-files-added =
+    { $count ->
+        [one] Das Dokument wurde zur offenen Arbeit hinzugefügt.
+       *[other] { $count } Dokumente wurden zur offenen Arbeit hinzugefügt.
+    }
 ng-batch-done = { $signed } von { $total } Dokumenten signiert.
 ng-batch-nothing-to-sign = Im Stapel ist kein Dokument zum Signieren bereit.
 ng-batch-output-folder-required = Bitte wählen Sie vor dem Start einen Ordner für die signierten Dokumente.
@@ -644,6 +649,7 @@ ng-migration-item-output = Speicherort und Dateiname
 ng-migration-item-keystore = Keystore
 ng-migration-item-proxy = Proxy
 ng-migration-item-placeholder = Platzhaltersuche
+ng-migration-item-position = Automatische Positionierung
 ng-migration-item-language = Sprache
 ng-migration-not-found = Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.
 ng-firstrun-done = Einrichtung abgeschlossen. Sie können alles jederzeit in den Einstellungen ändern.

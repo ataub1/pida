@@ -548,6 +548,7 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         SettingsView,
         ViewState,
         FormAnswerView,
+        OpenFilesMode,
         UiEvent,
         // ADR 0004 (neue Oberfläche, Vertrag E0)
         RectPt,
@@ -601,6 +602,8 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         MigrationItemView,
         FirstRunView,
         ActionsView,
+        // Nachtrag 10
+        ParkedWorkView,
     );
     (out, names)
 }

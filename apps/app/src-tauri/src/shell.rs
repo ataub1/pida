@@ -222,7 +222,7 @@ impl Shell {
             return;
         }
         if let Some(core) = self.core() {
-            let _ = catch_unwind(AssertUnwindSafe(|| core.dispatch(UiEvent::OpenFiles { paths })));
+            let _ = catch_unwind(AssertUnwindSafe(|| core.dispatch(UiEvent::OpenFiles { paths, mode: None })));
         } else {
             let mut pending = lock(&self.pending);
             for path in paths {
@@ -395,6 +395,7 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         recent: None,
         first_run: None,
         actions: pida_core_api::ActionsView::default(),
+        parked: None,
     }
 }
 

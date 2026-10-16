@@ -17,6 +17,7 @@
 //! | `BatchSigning` | nicht wiederholbarer Dokumentfehler | `Failed`, weiter mit dem nächsten |
 //! | `BatchSigning` | `BatchAbort`/`Cancel` | `CancelSession`; aktuelles `Cancelled`, wartende wieder `Ready`/`Positioned` |
 //! | `BatchSigning` | letztes Dokument fertig | `CloseSession` → Übersicht mit Zusammenfassung, Hinweis `ng-batch-done` |
+//! | `BatchOverview` | `BatchAutoPositionSet` | „Für diesen Stapel automatisch positionieren“ (Nachtrag 8): nur für diesen Stapel bis Ende/Abbruch des Laufs; automatische Pläne gelten als „Bereit“, Pläne der Nutzerin bleiben (außer `replace_manual`); startet nichts |
 //!
 //! Invariante A1: `Effect::OpenSession` entsteht hier nur für (`BatchStarted`, `BatchOverview`) und
 //! (`Retry`, `BatchSigning` mit Sitzungspause).
@@ -204,6 +205,22 @@ fn back(mut queue: Queue, doc: DocId, how: Back, mut effects: Vec<Effect>) -> Tr
     Transition::with(State::BatchOverview { queue }, effects)
 }
 
+/// Einzeldokument im Arbeitsbereich → Übersicht mit der Platzierung als Plan des Dokuments („Zurück zum
+/// Stapel“, „Zum Stapel“, „Weitere PDFs hinzufügen“).
+fn back_with_plan(
+    queue: Queue,
+    placement: Option<Placement>,
+    new_page: bool,
+    doc: &DocFacts,
+    edit: &WorkspaceEdit,
+) -> Transition {
+    let plan = plan_of(edit, placement, new_page, doc);
+    // „Unsichtbar signieren“ von der Nutzerin ist ihr Plan: er folgt nicht mehr den Einstellungen
+    // (sonst ginge er beim erneuten Öffnen bzw. bei der nächsten Einstellungsänderung verloren)
+    let automatic = edit.automatic && !(edit.invisible && !edit.invisible_by_profile);
+    back(queue, doc.id, Back::Plan(plan, automatic), Vec::new())
+}
+
 /// Zustand und Ereignis, die [`intercept`] nicht behandelt (geboxt: beide sind groß).
 pub(super) type Unhandled = Box<(State, Event)>;
 
@@ -217,11 +234,7 @@ pub(super) fn intercept(state: State, event: Event, _ctx: &Context) -> Result<Tr
             State::Positioning { queue, placement, new_page, doc, edit: Some(edit), .. }
                 if opened || (show && !queue.pending.is_empty()) =>
             {
-                let plan = plan_of(&edit, placement, new_page, &doc);
-                // „Unsichtbar signieren“ von der Nutzerin ist ihr Plan: er folgt nicht mehr den Einstellungen
-                // (sonst ginge er beim erneuten Öffnen bzw. bei der nächsten Einstellungsänderung verloren)
-                let automatic = edit.automatic && !(edit.invisible && !edit.invisible_by_profile);
-                Ok(back(queue, doc.id, Back::Plan(plan, automatic), Vec::new()))
+                Ok(back_with_plan(queue, placement, new_page, &doc, &edit))
             }
             State::Output { mut queue, saved: Some(output), doc, .. }
                 if show && !opened && !queue.pending.is_empty() =>
@@ -465,14 +478,75 @@ pub(super) fn files_added(state: State, docs: Vec<InputDocument>, ctx: &Context)
     }
 }
 
+/// „Weitere PDFs hinzufügen“ (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9): im Arbeitsbereich kommen
+/// die Dateien zum offenen Dokument, und alle zusammen werden zum Stapel – die Platzierung des offenen Dokuments
+/// wird wie bei „Zum Stapel“ dessen Plan (aus der Übersicht geöffnet: wie „Zurück zum Stapel“ mit den neuen
+/// Einträgen). Nur Duplikate → unverändert. In allen anderen Zuständen wie [`files_added`] (z. B. Analysewarnung:
+/// an die Warteschlange mit Hinweis `ng-batch-added`). Startet nichts (A1).
+pub(super) fn more_files_added(state: State, docs: Vec<InputDocument>, ctx: &Context) -> Transition {
+    match state {
+        State::Positioning { mut queue, page, placement, new_page, doc, edit: Some(edit) } => {
+            if queue.append(docs).is_empty() {
+                let edit = Some(edit);
+                return Transition::stay(State::Positioning { queue, page, placement, new_page, doc, edit });
+            }
+            back_with_plan(queue, placement, new_page, &doc, &edit)
+        }
+        s => files_added(s, docs, ctx),
+    }
+}
+
+/// Neue Dateien zur geparkten Arbeit („Zum Stapel hinzufügen“, „Öffnen mit“; ADR 0004 Nachtrag 10, Modul
+/// `parked`): die geparkten und die neuen Dokumente bilden den Stapel. Arbeitsbereich wie „Weitere PDFs
+/// hinzufügen“ (die Platzierung bleibt Plan des Dokuments), Stapelübersicht mit neuen Einträgen; eine
+/// Analysewarnung kommt als Eintrag in die Übersicht („Bitte prüfen“ nach der Voranalyse; aus der Übersicht
+/// geöffnet: zurück, Eintrag unverändert). Nur Duplikate → unverändert. Sonst wie [`more_files_added`]. Startet
+/// nichts (A1).
+pub(super) fn join_parked(state: State, docs: Vec<InputDocument>, ctx: &Context) -> Transition {
+    match state {
+        State::AnalysisWarning { mut queue, warnings, doc, placeholder, fields } => {
+            if queue.append(docs).is_empty() {
+                return Transition::stay(State::AnalysisWarning { queue, warnings, doc, placeholder, fields });
+            }
+            if queue.batch.as_ref().is_some_and(|b| b.open == Some(doc.id)) {
+                return back(queue, doc.id, Back::Keep, Vec::new());
+            }
+            new_overview(queue, vec![Effect::Discard(doc.id)])
+        }
+        s => more_files_added(s, docs, ctx),
+    }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Stapelübersicht
 // ------------------------------------------------------------------------------------------------
 
-pub(super) fn overview(state: State, event: Event, _ctx: &Context) -> Transition {
+pub(super) fn overview(state: State, event: Event, ctx: &Context) -> Transition {
     let State::BatchOverview { mut queue } = state else { unreachable!("BatchOverview") };
     let stay = |queue| Transition::stay(State::BatchOverview { queue });
     match event {
+        // „Für diesen Stapel automatisch positionieren“ (Nachtrag 8): ändert die Einstellung nicht; von Hand
+        // platzierte Einträge behalten ihren Plan, außer die Nutzerin bestätigt das Neusetzen ausdrücklich
+        Event::BatchAutoPositionSet { enabled, replace_manual } => {
+            let Some(batch) = queue.batch.as_mut() else { return stay(queue) };
+            batch.auto_position_once = enabled;
+            let mut effects = Vec::new();
+            if enabled && replace_manual {
+                for item in batch.items.iter_mut().filter(|i| i.status.signable() && !i.auto_plan) {
+                    item.auto_plan = true;
+                    if needs_qr_search(item.summary.as_ref(), ctx) {
+                        item.summary = None;
+                        item.plan = None;
+                        item.status = BatchItemStatus::Analyzing;
+                        effects.push(Effect::Preanalyze(item.doc));
+                        continue;
+                    }
+                    item.plan = automatic_plan(item.summary.as_ref(), ctx);
+                    item.settle();
+                }
+            }
+            Transition::with(State::BatchOverview { queue }, effects)
+        }
         Event::BatchItemOpened(doc) => {
             let openable = queue.batch.as_ref().and_then(|b| b.item(doc)).is_some_and(|i| {
                 !matches!(
@@ -850,6 +924,8 @@ impl Lauf<'_> {
             }
         }
         batch.last_run = Some(BatchSummary { total, signed: self.run.signed, aborted, folder });
+        // „Für diesen Stapel automatisch positionieren“ galt nur für diesen Lauf (Nachtrag 8)
+        batch.auto_position_once = false;
         Transition::with(State::BatchOverview { queue: self.queue }, self.effects)
     }
 
