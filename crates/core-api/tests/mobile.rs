@@ -810,3 +810,75 @@ async fn batch_on_mobile_resumes_only_the_interrupted_document() {
     assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "keine weitere Sitzung");
     assert!(!resume_dir(&fx).exists(), "nach Erfolg kein persistierter Zustand");
 }
+
+/// Fortsetzen im Stapel behält die beim Start gewählte Regel für vorhandene Zieldateien (Emulator-Abnahme
+/// 16.10.2026): Mit „Beide behalten“ schreibt das fortgesetzte Dokument die erste freie Nummer – ohne die
+/// Rückfrage „Datei überschreiben?“, die vorhandene Datei bleibt unverändert.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn batch_resume_keeps_the_rule_for_existing_files() {
+    let fx = Fixture::new();
+    let docs = fx.dir("docs");
+    let inbox = fx.dir("inbox");
+    let files: Vec<PathBuf> = ["a.pdf", "b.pdf"]
+        .iter()
+        .map(|n| {
+            let p = copy_pdf(PDF, &inbox, n);
+            std::fs::write(&p, [std::fs::read(&p).unwrap().as_slice(), format!("\n%{n}\n").as_bytes()].concat())
+                .unwrap();
+            p
+        })
+        .collect();
+    let original_b = std::fs::read(&files[1]).unwrap();
+    std::fs::write(docs.join("b_signed.pdf"), b"vorher signiert").unwrap();
+    let batch_options = |engine: &Arc<FakeEngine>, fake: &Arc<FakeAtrust>| CoreOptions {
+        workspace_ui: Some(true),
+        batch_overview: Some(true),
+        ..mobile_options(engine, &docs, Some(vec![fake.backend()]))
+    };
+
+    // 1. Lauf: „Beide behalten“, a signiert, bei b „vom System beendet“
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let core = start(&fx, Platform::Android, batch_options(&engine, &fake));
+    wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    core.dispatch(UiEvent::OpenFiles { paths: files.clone() });
+    let v = wait_for(&core, "Übersicht", |v| batch_ready(v, 2)).await;
+    let ids = v.batch.as_ref().unwrap().items.iter().map(|i| i.doc).collect();
+    core.dispatch(UiEvent::StartBatch {
+        backend: BackendId::AtrustNative,
+        docs: ids,
+        output_dir: None,
+        on_existing: pida_workflow::ExistingPolicy::KeepBoth,
+    });
+    login(&core).await;
+    let v = wait_for(&core, "Bestätigung 1", |v| batch_tan(v, 1)).await;
+    let (request, _) = form_request(&v).unwrap();
+    core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
+    wait_for(&core, "Bestätigung 2", |v| batch_tan(v, 2)).await;
+    assert!(resume_dir(&fx).join("resume.json").is_file(), "nach prepare gesichert");
+    let record = std::fs::read_to_string(resume_dir(&fx).join("resume.json")).unwrap();
+    assert!(record.contains("\"on_existing\":\"keep_both\""), "Regel des Laufs gesichert");
+    core.dispatch(UiEvent::Backgrounded);
+    drop(core);
+
+    // 2. Lauf: „Signatur fortsetzen“ für b – Ausgabe „b_signed (2).pdf“, keine Rückfrage
+    let engine = FakeEngine::new();
+    let fake = FakeAtrust::new();
+    let core = start(&fx, Platform::Android, batch_options(&engine, &fake));
+    wait_for(&core, "Angebot", |v| matches!(v.step, StepView::Open { .. }) && v.resume.is_some()).await;
+    core.dispatch(UiEvent::ResumeSignature);
+    login(&core).await;
+    let request = wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
+    core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
+    // kein wartendes Dokument mehr: „Fertig“ mit dem gespeicherten Ergebnis (ohne `ask_overwrite`)
+    let saved = |v: &ViewState| match &v.step {
+        StepView::Output { result, .. } => result.ask_overwrite.is_none() && result.path.is_some(),
+        _ => false,
+    };
+    let v = wait_for(&core, "gespeichert ohne Rückfrage", saved).await;
+    let StepView::Output { result, .. } = &v.step else { unreachable!() };
+    assert_eq!(result.path.as_deref(), Some(docs.join("b_signed (2).pdf").as_path()), "erste freie Nummer");
+    verify_fake_output(&docs.join("b_signed (2).pdf"), &original_b);
+    assert_eq!(std::fs::read(docs.join("b_signed.pdf")).unwrap(), b"vorher signiert", "vorhandene Datei unverändert");
+    assert!(!resume_dir(&fx).exists(), "nach Erfolg kein persistierter Zustand");
+}

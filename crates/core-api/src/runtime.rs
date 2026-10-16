@@ -21,8 +21,8 @@ use pida_placement::{PageTransform, Placement, Point, ScreenGeometry};
 use pida_render::RenderBackend;
 use pida_sigblock::{FontProvider, ProfileStore};
 use pida_workflow::{
-    BackendOption, Context, DocId, Effect, Event, ExitCode, FsProbe, InputDocument, OutputDecision, PositionChoice,
-    ResumePlan, State, Step, WorkflowError, chosen_path, decide_output, reduce, resolve_without_dialog,
+    BackendOption, Context, DocId, Effect, Event, ExistingPolicy, ExitCode, FsProbe, InputDocument, OutputDecision,
+    PositionChoice, ResumePlan, State, Step, WorkflowError, chosen_path, decide_output, reduce, resolve_without_dialog,
 };
 use tokio::sync::{mpsc, watch};
 
@@ -426,6 +426,9 @@ pub(crate) struct CoreTask {
     resume_offer_leaves_device: bool,
     /// angenommener Vorgang: Dokument und Zustand für die Wiederherstellung beim nächsten `Prepare`
     resume_active: Option<(DocId, resume::Persisted)>,
+    /// fortgesetztes Stapeldokument: die beim Start des Stapels gewählte Regel für vorhandene Zieldateien
+    /// (gilt bis zur Ausgabe dieses Dokuments; `resume_active` ist dann schon verbraucht)
+    resumed_on_existing: Option<(DocId, ExistingPolicy)>,
     /// der Ordner des persistierten Zustands gehört dem laufenden Vorgang (sonst hält er ein noch nicht
     /// angenommenes Angebot, das `DeletePersisted` eines anderen Vorgangs nicht löschen darf)
     persist_owned: bool,
@@ -530,6 +533,7 @@ impl CoreTask {
             resume_offer: None,
             resume_offer_leaves_device: false,
             resume_active: None,
+            resumed_on_existing: None,
             persist_owned: false,
             keystore_import: None,
             ws,
@@ -639,6 +643,9 @@ impl CoreTask {
         let pending = self.input_documents(&persisted.existing_pending());
         let plan = ResumePlan { position: persisted.record.position.clone(), backend: persisted.record.backend };
         tracing::info!(backend = plan.backend.as_str(), pending = pending.len(), "Signatur wird fortgesetzt");
+        // Stapel: „Beide behalten“ usw. aus dem Startdialog gilt weiter (sonst fragte die Ausgabe „Datei
+        // überschreiben?“ – Emulator-Abnahme 16.10.2026)
+        self.resumed_on_existing = persisted.record.on_existing.map(|p| (id, p));
         self.persist_owned = true;
         self.resume_active = Some((id, persisted));
         self.apply(Event::ResumeRequested { document: input, plan, pending });
@@ -1770,7 +1777,13 @@ impl CoreTask {
                     .and_then(|q| q.current.as_ref())
                     .map(|d| d.display_name.clone())
                     .unwrap_or_else(|| data.name.clone());
-                Some(PersistJob { dir: self.resume_dir(), name, backend, pending })
+                // Regel für vorhandene Zieldateien: im Stapellauf die des Laufs, beim fortgesetzten
+                // Stapeldokument (neu vorbereitet) die gespeicherte
+                let on_existing = match &self.state {
+                    State::BatchSigning { run, .. } => Some(run.on_existing),
+                    _ => self.resumed_on_existing.filter(|(id, _)| *id == doc).map(|(_, p)| p),
+                };
+                Some(PersistJob { dir: self.resume_dir(), name, backend, pending, on_existing })
             }
             _ => None,
         };
@@ -2094,6 +2107,15 @@ impl CoreTask {
         });
         let d = decide_output(&input.path, output.as_deref(), &self.cfg.settings.output.postfix, &FsProbe);
         let d = if self.headless { resolve_without_dialog(d, &FsProbe) } else { d };
+        // fortgesetztes Stapeldokument mit „Beide behalten“: erste freie Nummer wie im Lauf, keine Rückfrage
+        // „Datei überschreiben?“ („Überschreiben“ fragt weiterhin – nach dem App-Ende ist nicht mehr
+        // feststellbar, ob die Datei ein Ergebnis desselben Stapels ist)
+        let d = match (d, self.resumed_on_existing.filter(|(id, _)| *id == doc)) {
+            (OutputDecision::Save { path, exists: true }, Some((_, ExistingPolicy::KeepBoth))) => {
+                OutputDecision::Save { path: crate::batch::keep_both(&path), exists: false }
+            }
+            (d, _) => d,
+        };
         self.queue.push_back(Event::OutputDecided(d));
     }
 
@@ -3264,6 +3286,8 @@ struct PersistJob {
     name: String,
     backend: BackendId,
     pending: Vec<PathBuf>,
+    /// Stapellauf: Regel für vorhandene Zieldateien
+    on_existing: Option<ExistingPolicy>,
 }
 
 impl PersistJob {
@@ -3271,7 +3295,8 @@ impl PersistJob {
     fn save(&self, data: &DocData, prepared: &dyn PreparedDoc, position: &PositionChoice) {
         let src = data.src.bytes();
         let now = SystemTime::now();
-        match resume::persist(&self.dir, &self.name, src, prepared, position, self.backend, self.pending.clone(), now) {
+        let (pending, on_existing) = (self.pending.clone(), self.on_existing);
+        match resume::persist(&self.dir, &self.name, src, prepared, position, self.backend, pending, on_existing, now) {
             Ok(()) => tracing::info!("vorbereiteter Zustand für „Signatur fortsetzen“ gesichert"),
             Err(e) => {
                 tracing::warn!(error = %e, "vorbereiteter Zustand nicht gesichert – ohne „Signatur fortsetzen“");

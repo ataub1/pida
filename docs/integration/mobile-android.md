@@ -109,7 +109,7 @@ cd src-tauri/gen/android && ./gradlew :tauri-plugin-pida-mobile:testDebugUnitTes
 Emulator und Startprüfung:
 
 ```sh
-emulator -avd pida_api35 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &
+emulator -avd pdfover_api35 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &   # echter AVD-Name, rename-to-pida:keep
 adb wait-for-device; until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 2; done
 adb install -r app-universal-debug.apk
 adb shell am start -W -n at.pida/.MainActivity --ez pida.smoke true
@@ -277,7 +277,7 @@ Aufnahmen: `docs/integration/screenshots/android-ng/` (432 px breit bzw. hoch, J
 | # | Ablauf | Ergebnis |
 |---|---|---|
 | 1 | Start, Ersteinrichtung | Frische Installation (auch nach `pm clear`), ohne PDF-Over-Altkonfiguration: Ersteinrichtung als Bottom-Sheet, Schritt 1 Signiermittel (Keystore ausgegraut „Später in den Einstellungen einrichten“), Schritt 2 Signaturbild; „Später einrichten“ → Startseite mit „Dokument auswählen“ und „Zuletzt signiert“ (01–03, dunkel 53). |
-| 2 | PDF empfangen, Arbeitsbereich | `VIEW` (content://media) in die laufende App. Arbeitsbereich mit Bottom-Sheet, Block automatisch auf freier Fläche (Hinweis), per Touch ziehen – rastet an Rändern und unter dem Text ein, Seitenleiste mit Miniaturen, Seitenwechsel, Sheet ausgeklappt (Signaturbild, Optionen, Platzierung) (04–08). Feld-Platzhalter `Formular-mit-Platzhalter.pdf`: „Signaturfeld gefunden“, „Ins Feld setzen“ → „Im Signaturfeld“ (09, 10). QR-Platzhalter `testdata/golden/pdfas-4.4.2/inputs/qr.pdf` mit eingeschalteter Suche „QR-Code-Platzhalter“: „Positioniert im QR-Code-Platzhalter des Dokuments“, Block „Im QR-Platzhalter“, Seite 1 / 1 (64). Mehrere PDFs per Dateiauswahl → Stapel. |
+| 2 | PDF empfangen, Arbeitsbereich | `VIEW` (content://media) in die laufende App. Arbeitsbereich mit Bottom-Sheet, Block automatisch auf freier Fläche (Hinweis), per Touch ziehen – rastet an Rändern und unter dem Text ein, Seitenleiste mit Miniaturen, Seitenwechsel, Sheet ausgeklappt (Signaturbild, Optionen, Platzierung) (04–08). Feld-Platzhalter `Formular-mit-Platzhalter.pdf`: „Signaturfeld gefunden“, „Ins Feld setzen“ → „Im Signaturfeld“ (09, 10). QR-Platzhalter `testdata/golden/pdfas-4.4.2/inputs/qr.pdf` mit eingeschalteter Suche „QR-Code-Platzhalter“: „Positioniert im QR-Code-Platzhalter des Dokuments“, Block „Im QR-Platzhalter“, Seite 1 / 1 (67 aus der Gegenprüfung; 64 zeigt dagegen den Randfall aus §8.4 mit Seite 1 / 2 und noch den Fokusrahmen vor B18). Mehrere PDFs per Dateiauswahl → Stapel. |
 | 3 | Keystore, Signieren, Fertig | Import aus dem Signiermittel-Menü („PKCS#12-Datei importieren …“, SAF, `test-rsa2048.p12`, Passwort `test`) im neuen Stil, die Tastatur verdeckt nichts; nach „Fertig“ ist der Keystore für dieses Dokument gewählt, der lange Name im Konto-Chip wird mit „…“ gekürzt (11–13, 45, 46). Ohne „Passwort sicher speichern“ fragt die erste Signatur direkt unter dem Passwortfeld „Passwort merken?“ (Nicht speichern / Bis zum Beenden / Im sicheren Speicher); die Wahl steht danach als `password_storage` mit `storage_chosen = true` in `settings.toml`, keine weitere Rückfrage (47, dunkel mit Tastatur 54). Signiermittel-Menü mit „Einstellungen …“ (14), Statuskarte „Entsperren → Signiert“ (15), Fertig mit Selbstprüfung, „Öffnen“ (PDF-Anzeige), „Teilen“ (Auswahl ohne PIDA), „Sichern unter …“ (SAF) (16–19, dunkel 55). Einstellungen › Signiermittel › Keystore: importierte Datei, Schlüssel „PDF-Over NG Test RSA (NUR TEST) · gültig bis 11.10.2036“ mit Alias darunter, Speicherart (48 vorher, 52 nachher). **pyHanko** (`sign validate --trust testdata/keystores/test-rsa2048.crt.pem`) für die vom Gerät geholten `Vertrag_signed.pdf`, `Angebot_signed.pdf`, `Rechnung_signed.pdf`, `Protokoll_signed.pdf` und `Gutachten-gross_signed.pdf` (120 MB, nach „Fortsetzen“): je `INTACT:TRUSTED,UNTOUCHED`, „The signature is judged VALID“, deckt die ganze Datei ab; `qpdf --check` ohne Fehler. |
 | 4 | Stapel | 2–3 PDFs auf einmal → Übersicht mit Miniaturen und Papierkorb je Zeile (neu von `main`; auf Telefonen erst nach B17 sichtbar), Entfernen eines Dokuments, „Alle signieren“ → Keystore, Startdialog bei vorhandenen Zieldateien (Beide behalten / Überschreiben / Überspringen), Zusammenfassung „2 von 2 signiert“ (20–22, 49–51, 59). App während des Laufs in den Hintergrund (Home) und nach 6 s zurück: derselbe Prozess (`LaunchState: HOT`), `Lebenszyklus suspended=true/false`, der Lauf geht weiter bis „2 von 2 signiert“ (66). App-Ende (kill) im Schritt „Bestätigung 1 von 2“ → beim Neustart „Signatur fortsetzen?“ nur für `Gutachten-gross.pdf` („gerade eben“, beim Keystore ohne „Anmeldung und Bestätigung“, „Danach folgt ein weiteres Dokument“) → Passwort → signiert; das zweite Dokument bleibt „Bereit“ (23 vorher, 60, 24/61). Ein Ende vor dem Entsperren bzw. während „wird vorbereitet“ hinterlässt erwartungsgemäß kein Angebot (noch nichts vorbereitet). |
 | 5 | Einstellungen | Vollbild, alle Bereiche: Signaturbild mit Live-Vorschau (auch Amtssignatur), Dokument (PDF/A, Platzhaltersuche QR/Felder), Signiermittel, Speichern (nur „Dokumente dieser App“, Dateinamenszusatz), Darstellung (Farbschema, Sprache), Datenschutz (Zertifikats-Cache, „Zuletzt signiert“ merken/leeren), Erweitert, Über PIDA; Suche mit Tastatur (25–33). Mobile-Einschränkungen: kein Proxy, kein Ausgabeordner, keine Updates, keine Logs, keine Chipkarte; der Datenschutztext nennt auf dem Gerät nur den Keystore (31 vorher, 63 nachher). |
@@ -332,6 +332,17 @@ Plattformübergreifend in der Oberfläche, wo möglich (Desktop unverändert, so
     Zeigerbewegung an `document` (erreicht keine Bedienelemente); am Gerät: Fokus zurück auf „Einstellungen“ ohne
     `data-focus-visible` und ohne Tooltip, verschachtelte Dialoge wie vorher (65).
 
+19. **B19 Fortsetzen im Stapel vergaß die Regel für vorhandene Zieldateien** (Gegenprüfung, am Gerät nachgestellt):
+    Start mit „Beide behalten“, App-Ende während „Bestätigung 1 von 2“, „Fortsetzen“ → die Ausgabe fragte „Datei
+    überschreiben?“ mit nur „Abbrechen“/„Überschreiben“ (68) – fertig in die App-Dokumente ging es nur durch Überschreiben
+    eines früher signierten Dokuments. → Der Kern sichert die Regel des Laufs im persistierten Zustand
+    (`ResumeRecord::on_existing`, optional, Format 1 bleibt lesbar) und wendet „Beide behalten“ bei der Ausgabe des
+    fortgesetzten Dokuments an (erste freie Nummer, keine Rückfrage); „Überschreiben“ fragt weiterhin, weil nach dem
+    App-Ende nicht mehr feststellbar ist, ob die Datei ein Ergebnis desselben Stapels ist (`core-api/src/resume.rs`,
+    `runtime.rs`; `resume::tests::records_without_a_batch_policy_still_load`,
+    `tests/mobile.rs::batch_resume_keeps_the_rule_for_existing_files`; am Gerät `Gutachten-gross_signed (2).pdf`, die
+    vorhandene Datei unverändert, pyHanko `INTACT:TRUSTED,UNTOUCHED`; 69).
+
 Prüfungen nach den Behebungen: `npm ci && npm run build && npm test` 606/606 (27 Dateien);
 `cargo test -p pida-app -p pida-core-api --no-fail-fast` 253 bestanden / 0 fehlgeschlagen; `tools/rename-to-pida.py
 --check` sauber; Android-Debug-Build neu, am Gerät erneut geprüft.
@@ -341,10 +352,6 @@ Prüfungen nach den Behebungen: `npm ci && npm run build && npm test` 606/606 (2
 - **A-Trust** (Anmeldung, SMS-TAN, Bestätigung in der App, Vergleichswert ohne Leerzeichen und die schrumpfenden
   Vergleichswert-Kästchen der Signierkarte von `main`): nur mit Netz – am Gerät nicht geprüft; abgedeckt durch
   `signing.test.tsx` und die Kern-Tests (`backend-atrust`).
-- **Fortsetzen im Stapel vergisst die Regel für vorhandene Zieldateien:** Beim Start gewählt „Beide behalten“; nach
-  App-Ende und „Fortsetzen“ fragt die Fortsetzung mit dem PDF-Over-Dialog „Datei überschreiben?“ (sicher, aber
-  inkonsistent). Kern: die Regel im persistierten Zustand mitführen (`core-api/src/resume.rs` `ResumeRecord`,
-  `workflow` `ResumePlan`) – Formatänderung, deshalb hier nicht.
 - **Platzhaltersuche nachträglich eingeschaltet:** `qr.pdf` bei ausgeschalteter Suche geöffnet → Block auf neuer Seite;
   Suche eingeschaltet und dieselbe Datei erneut per `VIEW` empfangen → beide Einträge „im QR-Platzhalter“, das gezeigte
   Dokument behält aber „Auf neuer Seite“ (Seite 1 / 2 mit leerer neuer Seite). Frisch geöffnet richtig (Seite 1 / 1).
@@ -355,5 +362,41 @@ Prüfungen nach den Behebungen: `npm ci && npm run build && npm test` 606/606 (2
   Ansicht ist sauber, das DOM ohne Überlappung. Darstellungsfehler der Emulator-Grafik (`swiftshader_indirect`,
   Log „DisplaySurfaceGlContextHelper context was preempted“); auf einem echten Gerät gegenprüfen.
 - **Text der Stapelübersicht:** „einmal anmelden, dann jedes Dokument einzeln bestätigen“ steht auch beim Keystore bzw.
-  „Jedes Mal fragen“ – passt nur zu ID Austria.
+  „Jedes Mal fragen“ – passt nur zu ID Austria; ebenso der Zähler „Bestätigungen k von n“ bzw. „Bestätigung 1 von 2“ in
+  der Stapelkarte beim Keystore (Gegenprüfung).
 - TalkBack mit Sprachausgabe (geprüft wurde der AX-Baum), echte Geräte, Android 9–14, Release-Build: wie §6.
+
+### 8.5 Gegenprüfung (16.10.2026, Stand `36ff4d1` plus B19)
+
+Neu gebaut (Frontend aus dem Stand, Rust-Bibliothek identisch mit der geprüften APK; nach B19 erneut gebaut und
+installiert), Emulator wie in 8.1 mit Proxy-Sperre und Flugmodus, A-Trust nie erreicht, keine Zugangsdaten. Die Abläufe
+2–4 selbst am Gerät durchgespielt (Rohbilder nur im Arbeitsordner, für die Doku 67–69):
+
+- **2:** frische Installation, `VIEW` mit Ersteinrichtung davor (das Dokument öffnet nach „Später einrichten“), Block
+  automatisch platziert, Touch-Ziehen mit Ansage „5 mm von links, 4 mm von unten“, Seitenleiste und Seitenwechsel,
+  Sheet ausgeklappt; Felder (`manySignFields-xref-stream.pdf`) „Ins Feld setzen“ → „Im Signaturfeld „Signature_0““;
+  QR-Platzhalter frisch mit eingeschalteter Suche: Seite 1 / 1 im Platzhalter (67). Die Angabe „Seite 1 / 1 (64)“ in
+  8.2 belegte das Bild nicht (64 zeigt Seite 1 / 2) – korrigiert.
+- **3:** Import aus dem Konto-Chip ohne „Passwort sicher speichern“, „Fertig“ wählt den Keystore, erste Signatur fragt
+  „Passwort merken?“ (Segmente umbrechend), `settings.toml`: `password_storage = "memory"`, `storage_chosen = true`;
+  Fertig mit Selbstprüfung, „Öffnen“ (Auswahl), „Teilen“ (ohne PIDA), „Sichern unter …“ (SAF; Kopie bytegleich);
+  Einstellungen › Keystore mit „Sicherer Speicher“ und Alias unter dem Schlüssel; Zurück-Geste ohne Fokusrahmen.
+- **4:** drei PDFs per Dateiauswahl, Papierkorb je Zeile, „Alle signieren“ → „2 von 2 signiert“; Startdialog bei
+  vorhandener Zieldatei („Überspringen“ ohne App-Text), Home während des Laufs → `HOT`, gleiche PID, „Beide behalten“
+  ergibt `Angebot_signed (2).pdf`; App-Ende nach dem Sichern des Zustands → „Signatur fortsetzen?“ („gerade eben“, ohne
+  Anmeldesatz) → B19 gefunden (68), behoben und am Gerät bestätigt (69).
+- **pyHanko** (`--trust-replace --trust testdata/keystores/test-rsa2048.crt.pem`): `Vertrag_signed.pdf`,
+  `Angebot_signed.pdf`, `Gutachten-gross_signed (2).pdf` (120 MB, nach „Fortsetzen“) je `INTACT:TRUSTED,UNTOUCHED`;
+  `Protokoll_signed.pdf` (Eingabe mit hybrider Querverweistabelle) erst mit `--no-strict-syntax` – pyHanko lehnt
+  hybride Dateien sonst grundsätzlich ab, kein Fehler der Signatur. `qpdf --check` ohne Fehler.
+- **Tests nach B19:** `npm test` 606/606; `cargo test -p pida-app -p pida-core-api -p pida-workflow` 430 bestanden /
+  0 fehlgeschlagen (darunter die zwei neuen); `cargo clippy -p pida-core-api --all-targets` ohne neue Warnung;
+  `tools/rename-to-pida.py --check` sauber.
+- **Weitere Beobachtungen (niedrig, offen):** In `manySignFields-xref-stream.pdf` meldet die Automatik „auf freier
+  Fläche platziert“, der Block überdeckt aber ein Signaturfeld (Warnung „Überdeckt ein Feld“ mit „Freie Fläche
+  suchen“; Kern, nicht Android-spezifisch – `main` hat die Automatik inzwischen überarbeitet). Die Ansage der Lage
+  (`aria-live`) enthielt nach dem Öffnen eines anderen Stapeldokuments zunächst noch die Lage des vorigen
+  („Seite 1 von 2 … Im Signaturfeld“ bei `qr.pdf`). „Sichern unter …“ meldet „„Vertrag_signed.pdf“ wurde gesichert“, obwohl die Dateiauswahl
+  „Vertrag_signed (3).pdf“ anlegte. Nach „Fortsetzen“ fehlen in der Stapelzeile des fortgesetzten Dokuments Miniatur
+  und Seiten/Größe. Die Leiste der Einstellungsbereiche zeigte das Überlagern auch hier nur in `adb screencap`
+  (CDP-Aufnahme sauber).
