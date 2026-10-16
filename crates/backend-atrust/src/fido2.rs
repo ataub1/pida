@@ -116,6 +116,11 @@ pub enum Fido2Error {
     /// Kein Zugriff auf das HID-Gerät (Linux: udev-Regel `uaccess` fehlt; additiv, Welle 3).
     #[error("kein Zugriff auf den Sicherheitsschlüssel (udev-Regel fehlt)")]
     HidPermission,
+    /// Die Plattform unterstützt FIDO2, es ist aber gerade kein Sicherheitsschlüssel angesteckt
+    /// (CTAP-HID findet kein Gerät). Getrennt von [`Fido2Error::Unavailable`], damit die Meldung
+    /// nicht „System unterstützt kein FIDO2“ lautet.
+    #[error("kein FIDO2-Sicherheitsschlüssel angesteckt")]
+    NoDevice,
 }
 
 impl Fido2Error {
@@ -135,13 +140,17 @@ impl Fido2Error {
             Fido2Error::Timeout => "fido2-timeout",
             Fido2Error::U2fOnly => "fido2-u2f-only",
             Fido2Error::HidPermission => "fido2-hid-permission",
+            Fido2Error::NoDevice => "fido2-no-device",
         }
     }
 }
 
 /// Plattform-Authenticator.
 pub trait Fido2Provider: Send + Sync + std::fmt::Debug {
-    /// Verfügbar (steuert Sichtbarkeit des FIDO2-Buttons und `FIDO2_DEFAULT`).
+    /// Die Plattform unterstützt FIDO2 (steuert Sichtbarkeit des FIDO2-Buttons und `FIDO2_DEFAULT`).
+    /// Ob gerade ein Sicherheitsschlüssel angesteckt ist, prüft erst die Anfrage selbst
+    /// ([`Fido2Error::NoDevice`]); sonst hinge die Einstellung davon ab, ob beim App-Start zufällig
+    /// ein Schlüssel steckte.
     fn is_available(&self) -> bool;
 
     /// Holt eine Assertion (blockierend; der Aufrufer nutzt `spawn_blocking`).

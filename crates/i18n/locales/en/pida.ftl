@@ -148,6 +148,7 @@ fido2-pin-auth-blocked = Too many wrong PIN entries in a row. Please unplug the 
 fido2-u2f-only = The security key does not support FIDO2 (U2F only).
 fido2-no-user-verification = The security key cannot verify the user (no PIN or biometrics set up).
 fido2-hid-permission = No access to the security key – the udev rule (uaccess) for FIDO devices is missing.
+fido2-no-device = No FIDO2 security key found. Please plug in your security key and try again.
 
 ## Signature block (`pida_sigblock::SigBlockError::code`, `NOTICE_CHARS_REPLACED`)
 

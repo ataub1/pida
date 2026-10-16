@@ -150,8 +150,10 @@ impl HidFido2Provider {
 }
 
 impl Fido2Provider for HidFido2Provider {
+    /// CTAP-HID ist auf macOS und Linux ohne Zusatzinstallation nutzbar; ob ein Schlüssel steckt,
+    /// prüft erst die Anfrage ([`Fido2Error::NoDevice`]).
     fn is_available(&self) -> bool {
-        !enumerate().is_empty()
+        cfg!(any(target_os = "macos", target_os = "linux"))
     }
 
     fn get_assertion(
@@ -177,7 +179,7 @@ impl Fido2Provider for HidFido2Provider {
         self.active.lock().map_err(|_| Fido2Error::Device("interner Zustand".into()))?.push(Arc::clone(&flag));
         let registration = Registration { active: &self.active, flag };
         let options = AssertionOptions::parse(&request.options_json, &request.origin)?;
-        let device = enumerate().into_iter().next().ok_or(Fido2Error::Unavailable)?;
+        let device = enumerate().into_iter().next().ok_or(Fido2Error::NoDevice)?;
         tracing::debug!(product = ?device.product, "FIDO2-HID-Gerät");
         let connection = open(&device)?;
         let mut ctap = CtapHidDevice::init(connection, random_nonce())?;
@@ -242,22 +244,26 @@ mod tests {
     }
 
     #[test]
-    fn provider_without_devices_is_unavailable() {
+    fn provider_without_devices_reports_no_device() {
         let p = HidFido2Provider::new();
         assert!(p.supports_pin(), "clientPIN seit Welle 3");
+        assert_eq!(
+            p.is_available(),
+            cfg!(any(target_os = "macos", target_os = "linux")),
+            "Plattform unterstützt FIDO2 auch ohne angesteckten Schlüssel"
+        );
         if enumerate().is_empty() {
-            assert!(!p.is_available());
             let r = p.get_assertion(
                 &Fido2Request { options_json: r#"{"challenge":"AQ"}"#.into(), origin: crate::WEBAUTHN_ORIGIN.into() },
                 None,
             );
-            assert_eq!(r.unwrap_err(), Fido2Error::Unavailable);
+            assert_eq!(r.unwrap_err(), Fido2Error::NoDevice);
             let r = p.get_assertion_with_pin(
                 &Fido2Request { options_json: r#"{"challenge":"AQ"}"#.into(), origin: crate::WEBAUTHN_ORIGIN.into() },
                 None,
                 Some("1234"),
             );
-            assert_eq!(r.unwrap_err(), Fido2Error::Unavailable);
+            assert_eq!(r.unwrap_err(), Fido2Error::NoDevice);
         }
         p.cancel();
     }
