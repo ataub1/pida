@@ -37,6 +37,7 @@ import { AppContext, type AppContextValue, type SettingsSectionId, type ShellOve
 import { EMBLEM_DROP_EVENT } from './events';
 import { Header } from './Header';
 import { ResumeDialog } from './ResumeDialog';
+import { syncSystemBars, watchSystemBars } from './systemBars';
 import { applyTheme, readTheme, writeTheme, type Theme } from './theme';
 import './shell.css';
 
@@ -150,7 +151,12 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
     };
   }, [bridge]);
 
-  useEffect(() => applyTheme(theme), [theme]);
+  useEffect(() => {
+    applyTheme(theme);
+    // Android: Systemleisten in den Farben des Schemas (nach dem Setzen von `data-theme`)
+    syncSystemBars();
+  }, [theme]);
+  useEffect(() => watchSystemBars(), []);
   useEffect(() => trackAltKey(), []);
   useEffect(() => {
     document.documentElement.lang = current.language;

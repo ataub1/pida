@@ -243,7 +243,9 @@
     grid-template-columns: minmax(0, 1fr);
     height: auto;
   }
-  .view-verify .app-main {
+  /* `.app.` hebt die Spezifität über `shell.css` (`.view-verify .app-main { overflow: hidden }`, später
+     geladen) – sonst ließ sich das Ergebnis unter den Seiten auf Telefonen nicht scrollen (Emulator 16.10.2026) */
+  .app.view-verify .app-main {
     overflow: auto;
   }
   .verify-preview {

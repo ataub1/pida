@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_background">#FF11161D</color>
+    <!-- Dunkel: Token c-bg bzw. c-surface aus apps/app/src/styles/tokens.css -->
+    <color name="window_background">#FF0F1114</color>
+    <color name="system_bar_top">#FF171A1F</color>
 </resources>

@@ -3,7 +3,7 @@
  * (`FormProblem`, Katalog-IDs aus PDF-Over), Fortschritt, Meldungen (A-Trust-Text roh), QR-Bild und
  * die freundlichen Fehlertexte (Fluent-Attribute `.title`/`.action` der stabilen Codes, ADR 0004 §3.16).
  */
-import type { FormProblem, Notice, Progress, QrImage } from '../../core/types';
+import type { BackendId, FormProblem, Notice, Progress, QrImage } from '../../core/types';
 import type { Translator } from '../../i18n/catalog';
 
 /** Text eines `FormProblem` (Katalog-IDs aus PDF-Over, sonst eigene `ng-ui-*`). */
@@ -38,12 +38,15 @@ export function problemText(t: Translator, problem: FormProblem): string {
   return `${t.t('mobileBKU-notice')} ${problem.Atrust}`;
 }
 
-/** Text eines Fortschritts (Warteschritt der Karte). */
-export function progressText(t: Translator, progress: Progress): string {
+/**
+ * Text eines Fortschritts (Warteschritt der Karte). Der Keystore liegt auf dem Gerät: statt „Verbindung wird
+ * aufgebaut“ (Standard des Kerns vor dem ersten Fortschritt) „Keystore wird geöffnet“.
+ */
+export function progressText(t: Translator, progress: Progress, backend: BackendId | null = null): string {
   if (typeof progress === 'string') {
     switch (progress) {
       case 'Connecting':
-        return t.t('ng-ui-sc-connecting');
+        return t.t(backend === 'keystore' ? 'ng-ui-sc-keystore-opening' : 'ng-ui-sc-connecting');
       case 'ReadingCertificate':
         return t.t('ng-ui-sc-certificate');
       case 'WaitingForServer':
@@ -113,6 +116,8 @@ export function qrDataUrl(image: QrImage): string {
 /**
  * Freundliche Fehlertexte (ADR 0004 §3.16): Titel und Aktion aus den Fluent-Attributen `.title`/`.action`
  * des Codes; für die Codes des erzeugten PDF-Over-Katalogs (ohne Attribute) eigene IDs der Oberfläche.
+ * `.hint` (optional) ersetzt den Meldungstext, wenn dieser nur die technische Ursache weiterreicht (z. B.
+ * `backend-network` mit der Fehlerkette des HTTP-Clients) – die Ursache steht dann nur unter „Technische Details“.
  */
 const UI_FALLBACK: Record<string, { title: string; action: string | null }> = {
   'error-PDFPwdProtected': { title: 'ng-ui-ws-locked-title', action: 'ng-ui-ws-locked-other' },
@@ -121,12 +126,12 @@ const UI_FALLBACK: Record<string, { title: string; action: string | null }> = {
   'output-save_failed': { title: 'ng-ui-fin-save-failed-title', action: 'ng-ui-ws-retry' },
 };
 
-export function friendlyError(t: Translator, code: string): { title: string; action: string | null } {
+export function friendlyError(t: Translator, code: string): { title: string; action: string | null; hint: string | null } {
   const dashed = code.replace(/\./g, '-');
   const id = t.has(code) ? code : dashed;
   const title = t.attr(id, 'title');
-  if (title) return { title, action: t.attr(id, 'action') };
+  if (title) return { title, action: t.attr(id, 'action'), hint: t.attr(id, 'hint') };
   const fallback = UI_FALLBACK[id];
-  if (fallback) return { title: t.t(fallback.title), action: fallback.action ? t.t(fallback.action) : null };
-  return { title: t.t('ng-ui-sc-error-title'), action: null };
+  if (fallback) return { title: t.t(fallback.title), action: fallback.action ? t.t(fallback.action) : null, hint: null };
+  return { title: t.t('ng-ui-sc-error-title'), action: null, hint: null };
 }

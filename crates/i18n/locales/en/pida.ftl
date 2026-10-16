@@ -107,6 +107,7 @@ backend-unavailable = The signing method is not available: { $detail }
 backend-network = The connection to the signature service failed: { $detail }
     .title = The signature service cannot be reached right now
     .action = Try again
+    .hint = Please check the internet connection and try again. The exact cause is shown under “Technical details”.
 backend-proxy-auth = The proxy server requires authentication.
 backend-document-too-large = The document exceeds the size limit of the signature service.
 backend-http = The signature service rejected the request: HTTP { $status } { $reason }
@@ -550,7 +551,12 @@ ng-ui-output-export = Save as …
     .accesskey = v
 ng-ui-output-mobile-hint = The signed document is stored in this app's documents.
 ng-ui-resume-title = Resume signature?
-ng-ui-resume-text = The signature of "{ $name }" was interrupted { $minutes } minutes ago (the system closed the app). You can resume it with the same position; you will need to log in and confirm again.
+ng-ui-resume-text = The signature of "{ $name }" was interrupted { $minutes ->
+        [0] just now
+        [one] a minute ago
+       *[other] { $minutes } minutes ago
+    } (the system closed the app). You can resume it with the same position.
+ng-ui-resume-again = You will need to log in and confirm again.
 ng-ui-resume-pending-one = One more document follows.
 ng-ui-resume-pending = { $count } more documents follow.
 ng-ui-resume-continue = Resume
@@ -587,6 +593,7 @@ ng-ui-privacy-statement = The software PIDA processes the data required for the 
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Privacy details
 ng-ui-privacy-local = With a keystore or the smart card (local smart card software) the document is signed on this device and is not uploaded.
+ng-ui-privacy-local-mobile = With a keystore the document is signed on this device and is not uploaded.
 ng-ui-privacy-atrust-link = A-Trust privacy policy: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Where your documents go when signing is described in the <a>Privacy</a> section.
 ng-ui-certcache-title = Certificate cache

@@ -7,11 +7,13 @@
  *
  * Der vollständige Text ([`PrivacyInfo`]) ist der Datenschutztext aus PDF-Over bzw. – per Richtlinie
  * `privacy_notice_text` – der eigene Text der Organisation, dazu der Hinweis auf das lokale Signieren mit
- * Keystore und Chipkarte und der Link zur Datenschutzerklärung von A-Trust.
+ * Keystore und Chipkarte (Mobilgeräte: nur Keystore – dort gibt es keine Chipkarte) und der Link zur
+ * Datenschutzerklärung von A-Trust.
  */
 import { useState } from 'react';
 import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
+import { isMobile } from '../../core/types';
 import { AccessButton } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
 import { IconShield } from '../../ui/Icons';
@@ -27,7 +29,7 @@ export function PrivacyInfo() {
       <p className="pre-line">
         {custom ? custom : <Markup text={t.t('ng-ui-privacy-statement')} targets={[{ href: url }]} />}
       </p>
-      <p>{t.t('ng-ui-privacy-local')}</p>
+      <p>{t.t(isMobile(view) ? 'ng-ui-privacy-local-mobile' : 'ng-ui-privacy-local')}</p>
       {custom ? (
         // Der Text aus PDF-Over nennt die Datenschutzerklärung von A-Trust selbst; ein eigener Text evtl. nicht
         <p>

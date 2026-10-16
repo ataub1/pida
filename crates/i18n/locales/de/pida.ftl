@@ -107,6 +107,7 @@ backend-unavailable = Das Signiermittel ist nicht verfügbar: { $detail }
 backend-network = Die Verbindung zum Signaturdienst ist fehlgeschlagen: { $detail }
     .title = Der Signaturdienst ist gerade nicht erreichbar
     .action = Erneut versuchen
+    .hint = Bitte prüfen Sie die Internetverbindung und versuchen Sie es erneut. Die genaue Ursache steht unter „Technische Details“.
 backend-proxy-auth = Der Proxy-Server verlangt eine Anmeldung.
 backend-document-too-large = Das Dokument überschreitet die Größengrenze des Signaturdienstes.
 backend-http = Der Signaturdienst hat die Anfrage abgelehnt: HTTP { $status } { $reason }
@@ -550,7 +551,12 @@ ng-ui-output-export = Sichern unter …
     .accesskey = u
 ng-ui-output-mobile-hint = Das signierte Dokument liegt in den Dokumenten dieser App.
 ng-ui-resume-title = Signatur fortsetzen?
-ng-ui-resume-text = Die Signatur von „{ $name }“ wurde vor { $minutes } Minuten unterbrochen (die App wurde vom System beendet). Sie können sie mit derselben Position fortsetzen; Anmeldung und Bestätigung sind erneut nötig.
+ng-ui-resume-text = Die Signatur von „{ $name }“ wurde { $minutes ->
+        [0] gerade eben
+        [one] vor einer Minute
+       *[other] vor { $minutes } Minuten
+    } unterbrochen (die App wurde vom System beendet). Sie können sie mit derselben Position fortsetzen.
+ng-ui-resume-again = Anmeldung und Bestätigung sind erneut nötig.
 ng-ui-resume-pending-one = Danach folgt ein weiteres Dokument.
 ng-ui-resume-pending = Danach folgen { $count } weitere Dokumente.
 ng-ui-resume-continue = Fortsetzen
@@ -587,6 +593,7 @@ ng-ui-privacy-statement = Die Software PIDA verarbeitet die für den Signaturvor
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Details zum Datenschutz
 ng-ui-privacy-local = Mit einem Keystore oder der Chipkarte (lokale BKU) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
+ng-ui-privacy-local-mobile = Mit einem Keystore wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
 ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.
 ng-ui-certcache-title = Zertifikats-Cache

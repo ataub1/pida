@@ -787,6 +787,10 @@
   .inspector-warn {
     margin: var(--sp-2) var(--gutter) 0;
   }
+  .inspector-privacy {
+    flex: none;
+    padding: var(--sp-2) var(--gutter) 0;
+  }
   .inspector-footer-chip .signer-chip {
     width: 100%;
   }

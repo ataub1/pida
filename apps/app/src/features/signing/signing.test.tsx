@@ -212,18 +212,35 @@ describe('Signierkarte: Schritte und Stepper', () => {
   });
 });
 
+describe('Signierkarte: Warten', () => {
+  it('Keystore: „Keystore wird geöffnet“ statt „Verbindung wird aufgebaut“ (lokal, Emulator 16.10.2026)', async () => {
+    const waiting: InteractionView = { kind: 'waiting', progress: 'Connecting' };
+    const { unmount } = renderApp({ view: cardView(waiting, { backend: 'keystore', stage: 'connecting' }) });
+    let dialog = await card();
+    expect(dialog).toHaveAccessibleName('Signieren mit Keystore');
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Keystore wird geöffnet …');
+    unmount();
+    renderApp({ view: cardView(waiting, { stage: 'connecting' }) });
+    dialog = await card();
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Verbindung wird aufgebaut …');
+  });
+});
+
 describe('Signierkarte: Fehler, Rückfall, Fertigstellen', () => {
   it('Fehler „A-Trust nicht erreichbar“: Alltagstext, Details (Code, Zeitpunkt), Erneut versuchen (gleiche Sitzung)', async () => {
     const { mock, user } = renderApp({ view: cardErrorView('backend-network', { detail: 'service.a-trust.at:443' }) });
     const dialog = await card();
     expect(within(dialog).getByRole('heading', { name: 'Der Signaturdienst ist gerade nicht erreichbar' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('Die Verbindung zum Signaturdienst ist fehlgeschlagen');
+    // Alltagstext statt der Fehlerkette des HTTP-Clients (`.hint`); die Ursache steht unter „Technische Details“
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Bitte prüfen Sie die Internetverbindung und versuchen Sie es erneut.');
+    expect(within(dialog).getByRole('alert')).not.toHaveTextContent('service.a-trust.at:443');
     // Stepper zeigt den Fehler nicht nur über die Farbe
     const failed = within(dialog).getAllByRole('listitem').find((li) => li.classList.contains('is-error'));
     expect(failed).toHaveTextContent('!');
     expect(failed).toHaveTextContent('fehlgeschlagen');
     await user.click(within(dialog).getByRole('button', { name: 'Technische Details' }));
     expect(dialog).toHaveTextContent('backend-network · ID Austria · 15.10.2026');
+    expect(dialog).toHaveTextContent('service.a-trust.at:443');
     await expectNoAxeViolations();
     await user.click(within(dialog).getByRole('button', { name: 'Erneut versuchen' }));
     expect(lastEvent(mock)).toEqual({ type: 'retry' });

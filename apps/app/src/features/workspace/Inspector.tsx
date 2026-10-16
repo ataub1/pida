@@ -260,6 +260,14 @@ export function Inspector({
         </div>
       ) : null}
 
+      {/* Schmal (Bottom-Sheet): der Konto-Chip steht unten – der Kurzhinweis „wird an A-Trust übermittelt“
+          (ADR 0003, „bei der Signiermittel-Auswahl“) deshalb direkt darüber, auch eingeklappt */}
+      {narrow && leaves && !warning ? (
+        <div className="inspector-privacy">
+          <PrivacyNote />
+        </div>
+      ) : null}
+
       {!warning ? (
         <div className="inspector-footer">
           {narrow ? <div className="inspector-footer-chip">{chip(true)}</div> : null}

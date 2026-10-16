@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="window_background">#FFF4F6F9</color>
+    <!-- Hintergrund und Navigationsleiste = Token c-bg, Statusleiste = Token c-surface (Kopfzeile) aus
+         apps/app/src/styles/tokens.css; gelten, bis die Oberfläche ihre Farben meldet (PidaSystemBars, MainActivity). -->
+    <color name="window_background">#FFF4F5F7</color>
+    <color name="system_bar_top">#FFFFFFFF</color>
 </resources>

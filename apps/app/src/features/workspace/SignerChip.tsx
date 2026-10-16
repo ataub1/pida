@@ -6,7 +6,8 @@
  * - Öffnet „Signieren“ das Menü (kein Signiermittel gewählt, „Jedes Mal fragen“, §8 F12), sendet die Wahl
  *   direkt `sign_with` – eine ausdrückliche Aktion. In der Stapelübersicht startet die Wahl stattdessen den
  *   Stapel (`onSignWith`, „Alle signieren mit X“).
- * - Mobile: „PKCS#12 importieren …“ öffnet den Import-Assistenten (UI-B).
+ * - Mobile: „PKCS#12 importieren …“ öffnet den Import-Assistenten (UI-B); nach dem Import ist der Keystore für
+ *   dieses Dokument gewählt (`select_signer`, startet nichts).
  */
 import { useState } from 'react';
 import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator, type Key } from 'react-aria-components';
@@ -41,6 +42,13 @@ export function SignerChip({
   const offerImport = mobile && !options.some((o) => o.backend === 'keystore' && o.available);
   const canMakeDefault = selected !== null && selected !== view.signers.default;
   const disabled = options.filter((o) => !o.available).map((o) => `signer:${o.backend}`);
+
+  // Import aus dem Menü des Chips: der neue Keystore gilt gleich für dieses Dokument (wählt nur, startet nichts –
+  // „Signieren“ bleibt die ausdrückliche Aktion, A1)
+  const imported = (ok: boolean) => {
+    setImporting(false);
+    if (ok) void dispatch({ type: 'select_signer', backend: 'keystore', make_default: false });
+  };
 
   const onAction = (key: Key) => {
     const k = String(key);
@@ -113,7 +121,7 @@ export function SignerChip({
           </Menu>
         </Popover>
       </MenuTrigger>
-      {importing ? <KeystoreImportDialog onClose={() => setImporting(false)} /> : null}
+      {importing ? <KeystoreImportDialog onClose={imported} /> : null}
     </>
   );
 }

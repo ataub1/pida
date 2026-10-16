@@ -369,7 +369,7 @@ function PausePane({ pause, onAbort, onSkip }: { pause: BatchPauseView; onAbort:
       </span>
       <div role="alert" className="step-prose">
         <StepTitle>{generic ? t.t('ng-ui-sc-batch-pause-title') : friendly.title}</StepTitle>
-        <p className="step-text pre-line">{t.code(pause.code, pause.params)}</p>
+        <p className="step-text pre-line">{friendly.hint ?? t.code(pause.code, pause.params)}</p>
         {/* ohne eigene Überschrift steht „Der Stapel ist angehalten“ schon im Titel */}
         <p className="step-text">{generic ? t.t('ng-ui-sc-batch-pause-decide') : t.code('ng-batch-paused')}</p>
         {pause.new_session ? <p className="step-footnote">{t.t('ng-ui-sc-batch-pause-new-session')}</p> : null}
@@ -534,8 +534,8 @@ function InteractionPane({ interaction, backend, onCancel }: { interaction: Inte
   switch (interaction.kind) {
     case 'waiting':
       if (backend === 'local_bku' && interaction.progress === 'Signing') return <CardPane onCancel={onCancel} />;
-      if (interaction.progress === 'Signing' || interaction.progress === 'Done') return <BusyPane progress={interaction.progress} />;
-      return <BusyPane progress={interaction.progress} onCancel={onCancel} />;
+      if (interaction.progress === 'Signing' || interaction.progress === 'Done') return <BusyPane progress={interaction.progress} backend={backend} />;
+      return <BusyPane progress={interaction.progress} backend={backend} onCancel={onCancel} />;
     case 'form':
       return <FormPane key={interaction.request} request={interaction.request} form={interaction.form} onCancel={onCancel} />;
     case 'secret':
@@ -545,14 +545,14 @@ function InteractionPane({ interaction, backend, onCancel }: { interaction: Inte
   }
 }
 
-function BusyPane({ progress, onCancel }: { progress: Extract<InteractionView, { kind: 'waiting' }>['progress']; onCancel?: () => void }) {
+function BusyPane({ progress, backend, onCancel }: { progress: Extract<InteractionView, { kind: 'waiting' }>['progress']; backend: BackendId | null; onCancel?: () => void }) {
   const { t } = useApp();
   return (
     <div className="step-pane step-pane-center">
       <div className="busy" role="status">
         <Spinner size={36} className="step-spinner" />
         <p className="step-title" tabIndex={-1}>
-          {progressText(t, progress)}
+          {progressText(t, progress, backend)}
         </p>
       </div>
       {onCancel ? (
@@ -1028,7 +1028,7 @@ function ErrorPane({ step }: { step: Extract<StepView, { step: 'error' }> }) {
       </span>
       <div role="alert">
         <StepTitle>{friendly.title}</StepTitle>
-        <p className="step-text pre-line">{message}</p>
+        <p className="step-text pre-line">{friendly.hint ?? message}</p>
       </div>
       <Details label={t.t('ng-ui-sc-details')} level={4}>
         <p className="mono-small">

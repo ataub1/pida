@@ -201,3 +201,14 @@
     bottom: calc(132px + env(safe-area-inset-bottom));
   }
 }
+
+/* Telefon: Wortmarke und „Befehle“ als Fingerziele (≥ 44 px wie die übrigen Kopfzeilen-Knöpfe) */
+@media (max-width: 760px) and (pointer: coarse) {
+  .brand {
+    min-height: 44px;
+  }
+  .command-button {
+    width: 44px;
+    height: 44px;
+  }
+}
