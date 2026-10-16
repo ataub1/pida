@@ -35,14 +35,15 @@ export function DefaultSignerRow() {
   const { t } = useApp();
   const s = useSettings();
   const current = s.get<BackendChoice | null>('backend.default');
-  const keystore = s.get<boolean>('keystore.enabled');
+  // Keystore erst als Standard wählbar, wenn er eingerichtet ist (aktiviert, Datei vorhanden; Kern)
+  const keystore = s.view.keystore_ready;
   const locked = s.locked('backend.default');
   const options: { value: DefaultChoice; label: string; description: string; icon?: ReactNode; isDisabled?: boolean }[] = [
     { value: 'id_austria', label: t.t('ng-ui-set-signer-ida'), description: t.t(s.mobile ? 'ng-ui-set-signer-ida-desc-mobile' : 'ng-ui-set-signer-ida-desc'), icon: <IconPhone size={18} /> },
     {
       value: 'keystore',
       label: t.t('ng-ui-set-signer-keystore'),
-      description: t.t(keystore || current === 'keystore' ? 'ng-ui-set-signer-keystore-desc' : 'ng-ui-set-signer-keystore-off'),
+      description: t.t(keystore ? 'ng-ui-set-signer-keystore-desc' : 'ng-ui-set-signer-keystore-off'),
       icon: <IconFileKey size={18} />,
       isDisabled: !keystore && current !== 'keystore',
     },

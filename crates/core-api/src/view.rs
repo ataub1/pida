@@ -402,6 +402,10 @@ pub struct SettingsView {
     pub keychain_available: bool,
     /// FIDO2 verfügbar
     pub fido2_available: bool,
+    /// Keystore ist eingerichtet (aktiviert und die gewählte Datei existiert); erst dann ist er als
+    /// Standard-Signiermittel wählbar
+    #[serde(default)]
+    pub keystore_ready: bool,
     /// Einstellungen werden nicht gespeichert (Altdatei per `-c`, unlesbare Datei)
     #[serde(default)]
     pub read_only: bool,

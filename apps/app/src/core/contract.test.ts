@@ -447,6 +447,7 @@ const viewState = obj({
       problems: record(str),
       keychain_available: bool,
       fido2_available: bool,
+      keystore_ready: bool,
       read_only: bool,
       preview_revision: int,
       applied_revision: int,

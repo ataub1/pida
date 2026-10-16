@@ -257,8 +257,11 @@ pub(crate) fn validate(settings: &Settings) -> Vec<FieldProblem> {
     {
         problems.push(("signature.emblem".into(), "exception-PathNotExist", false));
     }
-    if settings.keystore.enabled && settings.keystore.file.as_deref().is_none_or(|f| !f.is_file()) {
-        problems.push(("keystore.file".into(), "error-KeyStoreFileNotExist", false));
+    // Noch keine Datei gewählt ist kein Fehler (die Zeile zeigt „Keine Datei gewählt“, der Keystore ist
+    // nur noch nicht als Standard wählbar: `SettingsView::keystore_ready`). Fehler nur, wenn die gewählte
+    // Datei verschwunden ist.
+    if settings.keystore.enabled && settings.keystore.file.as_deref().is_some_and(|f| !f.is_file()) {
+        problems.push(("keystore.file".into(), "ng-keystore-file-not-found", false));
     }
     let size = settings.signature.logo_only_size_mm;
     if !(size.is_finite() && size > 0.0 && size <= pida_sigblock::profile::MAX_LOGO_SIZE_MM) {

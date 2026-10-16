@@ -1130,9 +1130,8 @@ async fn real_core_views_for_the_ui() {
         }
         let fx = Fixture::new();
         add_roots(&fx);
-        if !toml.is_empty() {
-            fx.write_settings(toml);
-        }
+        // Bestandsnutzer: ohne Ersteinrichtung (K4; Merge E4 – sonst läge sie über dem Arbeitsbereich)
+        fx.write_settings(if toml.is_empty() { "[general]\n" } else { toml });
         let a = copy_pdf(pdf, &fx.dir("in"), "Formular.pdf");
         let core =
             start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, None, None, pdfium).expect("Kern");
@@ -1162,6 +1161,7 @@ async fn real_core_views_for_the_ui() {
     // 5. Einstellungen „sofort wirksam“ (E3): offene Ansicht mit Dokument, dann eine Teilübernahme mit
     // ungültigem Proxy-Port (Feldfehler) und gültigen Änderungen (Signaturbild, Einstellungen › Dokument)
     let fx = Fixture::new();
+    fx.write_settings("[general]\n"); // Bestandsnutzer: ohne Ersteinrichtung (K4)
     add_roots(&fx);
     let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "Vertrag.pdf");
     let core = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, None, None, pdfium).expect("Kern");
@@ -1189,6 +1189,10 @@ async fn real_core_views_for_the_ui() {
     let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let repo = repo.canonicalize().unwrap_or(repo);
     roots.push((repo.display().to_string(), "/Users/test/pida"));
+    // die Proben zeigen Arbeitsbereich und Einstellungen ohne die Ersteinrichtung darüber (Merge E4)
+    for (name, v) in &states {
+        assert!(v.first_run.is_none(), "{name}: Ersteinrichtung offen – Probe als Bestandsnutzer erzeugen");
+    }
     let fixture: serde_json::Map<String, serde_json::Value> =
         states.iter().map(|(name, v)| (name.clone(), ui_fixture_state(v, &roots))).collect();
     if std::env::var_os("PIDA_BLESS").is_some() {

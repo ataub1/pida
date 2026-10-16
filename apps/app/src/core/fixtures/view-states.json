@@ -5381,6 +5381,7 @@
         },
         "fido2_available": false,
         "keychain_available": true,
+        "keystore_ready": false,
         "locked": {
           "general.recent_documents": "ng-recent-policy",
           "proxy": "ng-settings-policy"
@@ -5519,6 +5520,7 @@
         "examples": {},
         "fido2_available": true,
         "keychain_available": false,
+        "keystore_ready": false,
         "locked": null,
         "preview_revision": 0,
         "problems": {},

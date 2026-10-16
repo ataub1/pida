@@ -144,6 +144,7 @@ export function settingsView(settings: Settings = defaultSettings(), extra: Part
         problems: {},
         keychain_available: true,
         fido2_available: true,
+        keystore_ready: settings.keystore.enabled && !!settings.keystore.file,
         read_only: false,
         preview_revision: 0,
         applied_revision: 0,

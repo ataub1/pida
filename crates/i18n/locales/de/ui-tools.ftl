@@ -177,7 +177,6 @@ ng-ui-set-proxy-port = Port
 ng-ui-set-proxy-user = Benutzer (optional)
 ng-ui-set-updates = Automatisch nach Updates suchen
     .keywords = update updates aktualisierung version
-ng-ui-set-cms = Signaturformat (Keystore)
     .keywords = signaturformat format cms pades pdf-as keystore
 ng-ui-set-reset = Zurücksetzen
     .keywords = zurücksetzen standard standardwerte werkseinstellungen

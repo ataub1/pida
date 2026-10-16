@@ -1509,7 +1509,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -1820,7 +1820,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -2095,7 +2095,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -2361,7 +2361,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -3494,7 +3494,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -3672,6 +3672,7 @@
       },
       "fido2_available": false,
       "keychain_available": false,
+      "keystore_ready": false,
       "locked": {},
       "preview_revision": 1,
       "problems": {},
@@ -3826,7 +3827,7 @@
       "show_batch": false,
       "sign": true,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": null,
     "document": {
@@ -4004,6 +4005,7 @@
       },
       "fido2_available": false,
       "keychain_available": false,
+      "keystore_ready": false,
       "locked": {},
       "preview_revision": 2,
       "problems": {

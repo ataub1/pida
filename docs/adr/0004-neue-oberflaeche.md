@@ -2358,6 +2358,13 @@ Vertrag unverändert (alle Typen aus K0); K4 füllt `ViewState::verify`, `ViewSt
     rendert `apps/app/src/app/RealCoreTools.test.tsx`: Gesamtergebnis und Status je Signatur, Zeit als Angabe des
     Signierenden, QES laut Zertifikat, SHA-1-Hinweis, spätere Revisionen, Rechteck auf der gedrehten Seite, nie
     „gültig“, Übernahmeliste mit den Details des Kerns, Übernehmen → Schritte 2/3 → Fertig, keine Sitzung (F-54), axe.
+    Alle Proben in `real-core-views.json` entstehen als Bestandsnutzer (im Merge auch die E3-Proben `doc_*` und
+    `settings_*`, die sonst mit offener Ersteinrichtung erzeugt würden; der Generator prüft `first_run == None`).
+14. **Stand `main` beim Merge:** mitgenommen wurden die Entscheidungen des Auftraggebers, die während E4 direkt auf
+    `main` kamen – u. a. `SettingsView::keystore_ready` (Keystore erst eingerichtet als Standard wählbar) und das
+    Entfallen der Auswahl „Signaturformat“ (lokal immer PDF-AS-Verfahren; die §3.11-Zeile „Erweitert“ nennt
+    `signature.cms_profile` damit nur noch als Altwert; ein gespeichertes `pades_bb` wird ignoriert). Einstellungen › Erweitert
+    zeigt Proxy, Update-Prüfung, „PDF-Over-Einstellungen übernehmen“ und Zurücksetzen.
 
 **Angenommene Abweichungen K4:** Übernahme über eine vorhandene `settings.toml` schreibt mit Sicherung statt mit
 „existiert bereits“ abzubrechen (auch klassisch, wenn die Datei vor der Entscheidung entstand); `accept_migration`

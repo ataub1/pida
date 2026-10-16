@@ -646,3 +646,5 @@ ng-settings-invalid-port = Der Port muss zwischen 1 und 65535 liegen.
 ng-settings-policy = Diese Einstellung ist von Ihrer Organisation festgelegt.
 ng-settings-unavailable-mobile = Diese Einstellung gibt es auf Mobilgeräten nicht.
 ng-window-title = PIDA – PDF-Signatur ID Austria
+ng-keystore-file-not-found = Die gewählte Keystore-Datei wurde nicht gefunden. Bitte wählen Sie sie erneut aus.
+ng-keystore-file-not-found-at = Die Keystore-Datei „{ $name }“ wurde nicht gefunden. Bitte wählen Sie sie unter Einstellungen › Signiermittel erneut aus.

@@ -6,21 +6,21 @@
  * - Datenschutz (ADR 0003): Datenschutztext (bzw. Text der Organisation), lokales Signieren, A-Trust-Link,
  *   Zertifikats-Cache, „Zuletzt signiert merken“ (`general.recent_documents`; Abschalten löscht die Liste im
  *   Kern sofort) und „Liste leeren“ (`clear_recent`). Kein Dialog, kein Zustimmungszwang.
- * - Erweitert: Proxy, Update-Prüfung (Desktop), Signaturformat, „PDF-Over-Einstellungen übernehmen“
- *   (`offer_migration`, das Angebot erscheint direkt im Bereich; Desktop), Zurücksetzen (mit Rückfrage – das ist
+ * - Erweitert: Proxy, Update-Prüfung (Desktop), „PDF-Over-Einstellungen übernehmen“ (`offer_migration`, das
+ *   Angebot erscheint direkt im Bereich; Desktop), Zurücksetzen (mit Rückfrage – das ist
  *   unumkehrbar). „Ausführliche Protokolle“ entfällt (kein Settings-Feld, `--log-level`).
  * - Über: Version, Lizenztext, Drittlizenzen, Protokollordner (Desktop).
  */
 import { useEffect, useState } from 'react';
 import { useApp } from '../../app/context';
 import type { Theme } from '../../app/theme';
-import type { CmsProfileChoice, Lang, ProxyMode } from '../../core/types';
+import type { Lang, ProxyMode } from '../../core/types';
 import { AccessButton, Button, SwitchField } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
 import { IconMonitor, IconMoon, IconSun, IconTrash } from '../../ui/Icons';
 import { Markup } from '../../ui/Markup';
 import { MigrationOfferPane } from '../onboarding';
-import { ChoiceCards, ChoiceSegments, SettingTextField } from './controls';
+import { ChoiceSegments, SettingTextField } from './controls';
 import { PrivacyInfo } from './privacy';
 import { useSettings, useTextSetting } from './state';
 
@@ -187,24 +187,6 @@ export function UpdatesRow() {
       isSelected={s.get<boolean>('general.update_check')}
       isDisabled={!!locked}
       onChange={(v) => s.apply({ 'general.update_check': v })}
-    />
-  );
-}
-
-export function CmsRow() {
-  const { t } = useApp();
-  const s = useSettings();
-  return (
-    <ChoiceCards<CmsProfileChoice>
-      label={t.t('ng-ui-set-cms')}
-      value={s.get<CmsProfileChoice>('signature.cms_profile')}
-      columns={2}
-      description={t.t('ng-ui-cms-profile-hint')}
-      onChange={(v) => s.apply({ 'signature.cms_profile': v })}
-      options={[
-        { value: 'pdfas_compat', label: t.t('ng-ui-cms-pdfas') },
-        { value: 'pades_bb', label: t.t('ng-ui-cms-pades') },
-      ]}
     />
   );
 }

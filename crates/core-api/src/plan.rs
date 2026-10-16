@@ -315,12 +315,11 @@ impl FreeSpaceScanner for EmptyPages {
     }
 }
 
-/// CMS-Profil der Einstellung.
-pub fn cms_profile(choice: CmsProfileChoice) -> CmsProfile {
-    match choice {
-        CmsProfileChoice::PdfasCompat => CmsProfile::PdfasCompat,
-        CmsProfileChoice::PadesBb => CmsProfile::PadesBB,
-    }
+/// CMS-Profil für lokal erstellte Signaturen (Keystore, Modell A): immer das PDF-AS-Verfahren
+/// (Entscheidung des Auftraggebers, 16.10.2026: „wir machen alles nach PDF-AS-Verfahren“). Ein in älteren
+/// Einstellungsdateien gespeichertes `pades_bb` wird ignoriert; die Einstellung hat keine Oberfläche mehr.
+pub fn cms_profile(_choice: CmsProfileChoice) -> CmsProfile {
+    CmsProfile::PdfasCompat
 }
 
 /// Eingaben für [`build_plan`].
@@ -606,7 +605,7 @@ mod tests {
 
     #[test]
     fn cms_profile_mapping() {
-        assert_eq!(cms_profile(CmsProfileChoice::PadesBb), CmsProfile::PadesBB);
+        assert_eq!(cms_profile(CmsProfileChoice::PadesBb), CmsProfile::PdfasCompat, "immer PDF-AS-Verfahren");
         assert_eq!(cms_profile(CmsProfileChoice::PdfasCompat), CmsProfile::PdfasCompat);
     }
 

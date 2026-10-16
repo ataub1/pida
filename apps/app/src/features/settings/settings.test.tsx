@@ -343,12 +343,18 @@ describe('Signiermittel und Speichern', () => {
     // Keystore einrichten: Datei (Typ aus der Endung), Alias, Speicherart
     const keystore = within(dialog).getByRole('region', { name: 'Keystore' });
     await user.click(within(keystore).getByRole('switch', { name: 'Keystore verwenden' }));
+    // aktiviert, aber noch ohne Datei: kein Fehler, als Standard weiterhin nicht wählbar
+    expect(within(keystore).getByText('Keine Datei gewählt')).toBeInTheDocument();
+    expect(within(keystore).queryByText(/nicht gefunden|existiert nicht/)).toBeNull();
+    expect(within(group).getByRole('radio', { name: /Keystore/ })).toBeDisabled();
+    expect(within(group).getByText('Zuerst unten den Keystore einrichten.')).toBeInTheDocument();
     await user.click(within(keystore).getByRole('button', { name: 'Datei wählen …' }));
     await waitFor(() => expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'keystore.file': '/Users/demo/Zertifikate/max.p12', 'keystore.declared_type': 'PKCS12' }, revision: 6 }));
     expect(within(keystore).getByText('/Users/demo/Zertifikate/max.p12')).toBeInTheDocument();
     await user.type(within(keystore).getByLabelText('Alias'), 'max');
     await user.click(within(keystore).getByRole('radio', { name: 'Nicht speichern' }));
     await waitFor(async () => expect((await mock.view()).settings!.settings.keystore).toEqual({ enabled: true, file: '/Users/demo/Zertifikate/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'none' }));
+    expect(within(group).getByRole('radio', { name: /Keystore/ })).toBeEnabled();
     await user.click(within(group).getByRole('radio', { name: /Keystore/ }));
     // Keystore aus: die Voreinstellung fällt auf „Jedes Mal fragen“ zurück (ein Ereignis)
     await user.click(within(keystore).getByRole('switch', { name: 'Keystore verwenden' }));
@@ -365,6 +371,19 @@ describe('Signiermittel und Speichern', () => {
     expect(within(dialog).getByText('Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Programmende gespeichert.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('switch', { name: /FIDO2/ })).toBeNull();
     expect(within(dialog).getByText('Ihr System unterstützt keine Authentifizierung mittels FIDO2-Token.')).toBeInTheDocument();
+  });
+
+  it('gewählte Keystore-Datei verschwunden: verständlicher Hinweis ohne Platzhalter', async () => {
+    const base = defaultSettings();
+    const { user } = renderApp({
+      view: settingsView({ ...base, keystore: { ...base.keystore, enabled: true, file: '/weg/max.p12' } }, { keystore_ready: false, problems: { 'keystore.file': 'ng-keystore-file-not-found' } }),
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    await user.click(nav(dialog, 'Signiermittel'));
+    const keystore = within(dialog).getByRole('region', { name: 'Keystore' });
+    expect(within(keystore).getByText('Die gewählte Keystore-Datei wurde nicht gefunden. Bitte wählen Sie sie erneut aus.')).toHaveAttribute('role', 'alert');
+    expect(within(keystore).queryByText(/\$arg1|existiert nicht/)).toBeNull();
+    expect(within(within(dialog).getByRole('radiogroup', { name: 'Standard-Signiermittel' })).getByRole('radio', { name: /Keystore/ })).toBeDisabled();
   });
 
   it('Speichern: neben dem Original, fester Ordner (Dialog), jedes Mal fragen; Namenszusatz mit Beispiel des Kerns', async () => {
@@ -497,13 +516,12 @@ describe('Datenschutz (Abnahme E3 Punkt 4)', () => {
 });
 
 describe('Erweitert und Über', () => {
-  it('Signaturformat, Update-Prüfung, Zurücksetzen mit Rückfrage', async () => {
+  it('Update-Prüfung, Zurücksetzen mit Rückfrage; kein Signaturformat (immer PDF-AS-Verfahren)', async () => {
     const { dialog, mock, user } = await open();
     await user.click(nav(dialog, 'Erweitert'));
-    await user.click(within(dialog).getByRole('radio', { name: 'PAdES-BASELINE-B' }));
-    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'signature.cms_profile': 'pades_bb' }, revision: 1 });
+    expect(within(dialog).queryByText(/Signaturformat|PAdES-BASELINE-B/)).toBeNull();
     await user.click(within(dialog).getByRole('switch', { name: 'Automatisch nach Updates suchen' }));
-    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'general.update_check': false }, revision: 2 });
+    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'general.update_check': false }, revision: 1 });
     await user.click(within(dialog).getByRole('button', { name: /Einstellungen zurücksetzen/ }));
     const confirm = await screen.findByRole('alertdialog', { name: /Einstellungen zurücksetzen/ });
     await user.click(within(confirm).getByRole('button', { name: 'Zurücksetzen' }));

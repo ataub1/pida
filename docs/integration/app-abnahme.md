@@ -16,7 +16,7 @@ PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft di
 
 | Nr. | Prüfung | Befehl | Ergebnis |
 |---|---|---|---|
-| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review); seit E1 15 Testdateien, 379 Tests (inkl. axe-core, Mock-Projektion, Token-Kontrast, echte Kernzustände); seit E2 17 Testdateien, 429 Tests; seit E3 20 Testdateien, 464 Tests; seit E4 24 Testdateien, 567 Tests |
+| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review); seit E1 15 Testdateien, 379 Tests (inkl. axe-core, Mock-Projektion, Token-Kontrast, echte Kernzustände); seit E2 17 Testdateien, 429 Tests; seit E3 20 Testdateien, 464 Tests; seit E4 24 Testdateien, 568 Tests |
 | N-02 | Shell-Crate | `cargo test -p pida-app` | grün: 40 Tests nach dem Review (Startargumente, Kernstart/Fehlerschritt, Shell-Funktionen, Startprüfung, Custom Protocol, Dateien, frühe Dokumente/Single-Instance-Socket, PDFium-Auflösung, Sicherheitskonfiguration, Serde-Vertrag) |
 | N-03 | Vertrag Kern ↔ UI | `cargo test -p pida-core-api --test ts_bindings` | grün: `generated.ts` entspricht den Rust-Typen (ts-rs 12.0.1) |
 | N-04 | Debug-Bundle mit PDFium und Drittlizenzen | `npm run notices && PIDA_PDFIUM_DIR=… npm run bundle:mac:debug` | `PIDA.app` **121,3 MiB** (Binary 112 MiB unoptimiert mit Debug-Infos, `Contents/Frameworks/libpdfium.dylib` 7,0 MiB, `Contents/Resources/THIRD-PARTY-NOTICES.md` + `RUST-STD-COPYRIGHT.html`) |

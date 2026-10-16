@@ -296,11 +296,14 @@ mod tests {
         s.proxy.mode = ProxyMode::Manual;
         s.signature.logo_only_size_mm = 500.0;
         s.keystore.enabled = true;
+        let (p, _) = validate(&s);
+        assert!(!p.contains_key("keystore.file"), "ohne gewählte Datei kein Fehler, nur nicht als Standard wählbar");
+        s.keystore.file = Some("/gibt/es/nicht.p12".into());
         let (p, blocking) = validate(&s);
         assert!(blocking);
         assert_eq!(p["output.postfix"], "ng-settings-invalid-postfix");
         assert_eq!(p["proxy.host"], "ng-settings-proxy-host-missing");
         assert_eq!(p["signature.logo_only_size_mm"], "ng-settings-invalid-logo-size");
-        assert_eq!(p["keystore.file"], "error-KeyStoreFileNotExist");
+        assert_eq!(p["keystore.file"], "ng-keystore-file-not-found");
     }
 }
