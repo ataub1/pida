@@ -960,8 +960,8 @@
 }
 
 /* Bildschirmtastatur (Mobile): Die iOS-WebView verkleinert beim Einblenden nur den sichtbaren Bereich, nicht
-   das Fenster – ein Sheet am unteren Rand läge samt Eingabefeld und Knöpfen unter der Tastatur (Keystore-
-   Passwort in der Signierkarte, Keystore-Import, Anmeldung bei ID Austria). React Aria setzt am Overlay
+   das Fenster – ein Sheet am unteren Rand läge samt Eingabefeld und Knöpfen unter der Tastatur (Anmeldung bei
+   ID Austria, TAN, Benutzername in den Einstellungen). React Aria setzt am Overlay
    `--visual-viewport-height` (`ModalOverlay`); um den Rest rückt der Dialog nach oben und rollt in sich
    (Fokus: app/keyboard.ts). Ohne Tastatur, auf Android (dort schrumpft das Fenster) und am Desktop: 0. */
 :root[data-mobile] .overlay {

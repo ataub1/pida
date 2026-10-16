@@ -146,6 +146,10 @@ pub(crate) struct SignedMeta {
     pub prepared: PreparedMeta,
     pub byte_range: ByteRange,
     pub contents_range: (u64, u64),
+    #[allow(
+        dead_code,
+        reason = "geschriebene Objekte des Increments für Diagnose; derzeit liest sie niemand (docs/entwicklung.md §5)"
+    )]
     pub written: Vec<(ObjectId, WrittenKind)>,
     /// Signer laut CMS (geprüft in `finish_*`)
     pub signer: Certificate,

@@ -18,7 +18,7 @@
 //!   Probleme unter `keystore.*`).
 //! - **Ereignisse:** `import_keystore`, `inspect_keystore`, die Antwort auf „Passwort merken?“ und jede Wahl
 //!   des Keystores (`choose_backend`, `select_signer`, `sign_with`, `start_batch`) sind ohne Wirkung (Notiz im
-//!   Log) – [`is_keystore_event`].
+//!   Log), ebenso `select_signer` mit der Chipkarte – [`ignored_on_mobile`].
 //! - **Übernahme aus PDF-Over:** ohne Keystore-Datei, Alias und Keystore-Passwörter, Standard-Signiermittel
 //!   ID Austria ([`restrict_migration`]); die Übernahmeliste erklärt das mit [`MSG_MIGRATION_ITEM_SIGNER`].
 //! - **Sicherer Speicher:** gespeicherte Keystore-Passwörter eines früheren Mobile-Builds entfernt der Kern
@@ -30,7 +30,9 @@
 use std::path::{Path, PathBuf};
 
 use pida_backend_api::{BackendId, Platform};
-use pida_config::{BackendChoice, KeystoreSettings, LegacyKey, MigrationResult, ReportMessage, SecretId, Settings};
+use pida_config::{
+    BackendChoice, KeystoreSettings, LegacyKey, MigrationResult, ReportMessage, SecretId, SecretStore, Settings,
+};
 use pida_i18n::Lang;
 
 use crate::runtime::{CoreTask, KEYSTORE_DIR};
@@ -109,24 +111,41 @@ pub(crate) fn restrict_migration(r: &mut MigrationResult, lang: Lang) -> bool {
     dropped
 }
 
-/// UI-Ereignis, das den Keystore betrifft (auf Mobilgeräten ohne Wirkung)? Liefert die Art für das Log.
-pub(crate) fn is_keystore_event(e: &UiEvent) -> Option<&'static str> {
+/// UI-Ereignis, das auf Mobilgeräten ohne Wirkung bleibt? Liefert die Art für das Log. Das sind alle Ereignisse
+/// zum Keystore und die Wahl der Chipkarte im Konto-Chip (`select_signer` – sie wählte sonst ein Signiermittel
+/// bzw. speicherte mit `make_default` einen Standard, den es auf dem Gerät nicht gibt; `sign_with` und
+/// `start_batch` mit der Chipkarte melden wie bisher „nicht verfügbar“).
+pub(crate) fn ignored_on_mobile(e: &UiEvent) -> Option<&'static str> {
     match e {
         UiEvent::ImportKeystore { .. } => Some("import_keystore"),
         UiEvent::InspectKeystore { .. } => Some("inspect_keystore"),
         UiEvent::ChooseBackend { backend: BackendId::Keystore } => Some("choose_backend"),
         UiEvent::SignWith { backend: BackendId::Keystore } => Some("sign_with"),
         UiEvent::StartBatch { backend: BackendId::Keystore, .. } => Some("start_batch"),
-        UiEvent::SelectSigner { backend: Some(BackendId::Keystore), .. } => Some("select_signer"),
+        UiEvent::SelectSigner { backend: Some(BackendId::Keystore | BackendId::LocalBku), .. } => Some("select_signer"),
         _ => None,
+    }
+}
+
+/// Passwort eines verworfenen Ereignisses ([`ignored_on_mobile`]) sofort überschreiben (wie beim Verarbeiten:
+/// `Zeroizing`), statt den Klartext einfach freizugeben.
+pub(crate) fn discard_event(e: UiEvent) {
+    if let UiEvent::ImportKeystore { password: Some(p), .. } | UiEvent::InspectKeystore { password: Some(p), .. } = e {
+        drop(zeroize::Zeroizing::new(p));
     }
 }
 
 /// Kennungen der Keystore-Passwörter, die ein früherer Mobile-Build im sicheren Speicher abgelegt haben kann:
 /// zur Datei aus den Einstellungen (auch in der Schreibweise `/var` ↔ `/private/var`, iOS) und zu jeder
 /// importierten Datei im Ordner `imported` (`data_dir/keystores`, auch nach einem Umzug der Sandbox), je
-/// kanonisch und wie gespeichert, mit dem eingestellten bzw. leeren Alias.
-fn former_keystore_secret_ids(keystore: &KeystoreSettings, imported: &Path) -> Vec<SecretId> {
+/// kanonisch und wie gespeichert, mit dem eingestellten bzw. leeren Alias und jedem Alias aus `aliases_of`
+/// (Schlüssel der Datei: ein früherer Build legte zu jedem gewählten Schlüssel ein Schlüsselpasswort ab, auch
+/// wenn die Einstellungen inzwischen einen anderen nennen).
+fn former_keystore_secret_ids(
+    keystore: &KeystoreSettings,
+    imported: &Path,
+    aliases_of: impl Fn(&Path) -> Vec<String>,
+) -> Vec<SecretId> {
     let mut files: Vec<PathBuf> = Vec::new();
     if let Some(file) = &keystore.file {
         files.push(file.clone());
@@ -148,14 +167,32 @@ fn former_keystore_secret_ids(keystore: &KeystoreSettings, imported: &Path) -> V
     for file in &files {
         ids.push(SecretId::keystore_store(file));
         ids.push(SecretId::KeystoreStorePassword { keystore: file.clone() });
-        for alias in &aliases {
-            ids.push(SecretId::keystore_key(file, alias));
-            ids.push(SecretId::KeystoreKeyPassword { keystore: file.clone(), alias: alias.clone() });
+        for alias in aliases.iter().cloned().chain(aliases_of(file)) {
+            ids.push(SecretId::keystore_key(file, &alias));
+            ids.push(SecretId::KeystoreKeyPassword { keystore: file.clone(), alias });
         }
     }
     ids.sort_by_key(SecretId::account);
     ids.dedup();
     ids
+}
+
+/// Aliase der Schlüssel in `file`, sofern das Passwort der Datei noch im sicheren Speicher liegt (sonst – auch bei
+/// fehlender, zu großer oder unlesbarer Datei – keine). Nur für [`former_keystore_secret_ids`]: die Datei wird
+/// mit dem gespeicherten Passwort gelesen, nichts geschrieben; Passwort und Inhalt nur im RAM.
+fn stored_key_aliases(secrets: &dyn SecretStore, file: &Path) -> Vec<String> {
+    if !std::fs::metadata(file).is_ok_and(|m| m.is_file() && m.len() <= crate::runtime::MAX_KEYSTORE_BYTES) {
+        return Vec::new();
+    }
+    let Ok(Some(password)) = secrets.get(&SecretId::keystore_store(file)) else { return Vec::new() };
+    let Ok(bytes) = std::fs::read(file).map(zeroize::Zeroizing::new) else { return Vec::new() };
+    match pida_backend_keystore::list_aliases(&bytes, &password) {
+        Ok(entries) => entries.into_iter().map(|e| e.alias).collect(),
+        Err(e) => {
+            tracing::debug!(code = e.code(), "Schlüssel eines früheren Keystores nicht lesbar");
+            Vec::new()
+        }
+    }
 }
 
 impl CoreTask {
@@ -180,7 +217,9 @@ impl CoreTask {
         let secrets = self.cfg.secrets.as_ref();
         let mut removed = 0usize;
         let mut failed = false;
-        for id in former_keystore_secret_ids(&self.cfg.settings.keystore, &imported) {
+        let ids =
+            former_keystore_secret_ids(&self.cfg.settings.keystore, &imported, |f| stored_key_aliases(secrets, f));
+        for id in ids {
             match secrets.get(&id) {
                 Ok(None) => continue,
                 Ok(Some(_)) => {}
@@ -286,12 +325,15 @@ mod tests {
     #[test]
     fn keystore_events_are_recognised() {
         let ks = BackendId::Keystore;
+        let card = BackendId::LocalBku;
         let yes = [
             UiEvent::ImportKeystore { path: "/x.p12".into(), password: None, remember: false },
             UiEvent::InspectKeystore { password: None, password_storage: Some(PasswordStorage::Keychain) },
             UiEvent::ChooseBackend { backend: ks },
             UiEvent::SignWith { backend: ks },
             UiEvent::SelectSigner { backend: Some(ks), make_default: true },
+            // die Chipkarte im Konto-Chip: sonst ausgewählt bzw. als Standard gespeichert
+            UiEvent::SelectSigner { backend: Some(card), make_default: true },
             UiEvent::StartBatch {
                 backend: ks,
                 docs: Vec::new(),
@@ -300,17 +342,28 @@ mod tests {
             },
         ];
         for e in &yes {
-            assert!(is_keystore_event(e).is_some(), "{e:?}");
+            assert!(ignored_on_mobile(e).is_some(), "{e:?}");
         }
         let ida = BackendId::AtrustNative;
         for e in [
             UiEvent::ChooseBackend { backend: ida },
             UiEvent::SignWith { backend: ida },
             UiEvent::SelectSigner { backend: None, make_default: false },
+            UiEvent::SelectSigner { backend: Some(ida), make_default: true },
+            // „nicht verfügbar“ meldet der Ablauf selbst (wie bisher)
+            UiEvent::SignWith { backend: card },
             UiEvent::DismissKeystoreImport,
         ] {
-            assert!(is_keystore_event(&e).is_none(), "{e:?}");
+            assert!(ignored_on_mobile(&e).is_none(), "{e:?}");
         }
+        // verworfen: das Passwort wird dabei überschrieben (kein Absturz, auch ohne Passwort)
+        discard_event(UiEvent::ImportKeystore {
+            path: "/x.p12".into(),
+            password: Some("geheim".into()),
+            remember: true,
+        });
+        discard_event(UiEvent::InspectKeystore { password: Some("geheim".into()), password_storage: None });
+        discard_event(UiEvent::SignWith { backend: ks });
     }
 
     #[test]
@@ -325,7 +378,10 @@ mod tests {
             alias: Some("max".into()),
             ..KeystoreSettings::default()
         };
-        let ids = former_keystore_secret_ids(&ks, &imported);
+        // Schlüssel der Datei (aus ihr gelesen): auch ein früher gewählter, nicht mehr eingestellter Alias
+        let ids = former_keystore_secret_ids(&ks, &imported, |f| {
+            if f.ends_with("neu.p12") { vec!["frueher".to_owned()] } else { Vec::new() }
+        });
         let accounts: Vec<String> = ids.iter().map(SecretId::account).collect();
         let has = |s: &str| accounts.iter().any(|a| a == s);
         assert!(has("keystore-store:/var/mobile/Containers/Data/Application/ALT/data/keystores/alt.p12"));
@@ -335,10 +391,35 @@ mod tests {
         let neu = std::fs::canonicalize(imported.join("neu.p12")).unwrap();
         assert!(has(&format!("keystore-store:{}", neu.display())));
         assert!(has(&format!("keystore-key:{}:", neu.display())));
+        assert!(has(&format!("keystore-key:{}:frueher", neu.display())));
+        assert!(!has("keystore-key:/var/mobile/Containers/Data/Application/ALT/data/keystores/alt.p12:frueher"));
         assert!(accounts.iter().all(|a| a.starts_with("keystore-")), "nie Proxy oder anderes");
         let mut sorted = accounts.clone();
         sorted.dedup();
         assert_eq!(sorted, accounts, "keine Doppelten");
-        assert!(former_keystore_secret_ids(&KeystoreSettings::default(), &tmp.path().join("fehlt")).is_empty());
+        let none = former_keystore_secret_ids(&KeystoreSettings::default(), &tmp.path().join("fehlt"), |_| {
+            vec!["x".to_owned()]
+        });
+        assert!(none.is_empty());
+    }
+
+    /// Aliase nur aus einer lesbaren Datei mit gespeichertem Passwort; sonst keine (kein Fehler).
+    #[test]
+    fn stored_key_aliases_need_the_stored_password() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("k.p12");
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/keystores/test-rsa2048.p12"), &file)
+            .unwrap();
+        let store = pida_config::MemorySecretStore::default();
+        assert!(stored_key_aliases(&store, &file).is_empty(), "ohne Passwort");
+        store.set(&SecretId::keystore_store(&file), "falsch").unwrap();
+        assert!(stored_key_aliases(&store, &file).is_empty(), "falsches Passwort");
+        store.set(&SecretId::keystore_store(&file), "test").unwrap();
+        let bytes = std::fs::read(&file).unwrap();
+        let expected: Vec<String> =
+            pida_backend_keystore::list_aliases(&bytes, "test").unwrap().into_iter().map(|e| e.alias).collect();
+        assert!(!expected.is_empty());
+        assert_eq!(stored_key_aliases(&store, &file), expected);
+        assert!(stored_key_aliases(&store, &tmp.path().join("fehlt.p12")).is_empty());
     }
 }

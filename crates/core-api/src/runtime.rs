@@ -389,7 +389,7 @@ pub(crate) const MSG_KEYSTORE_IMPORT_FORMAT: &str = "ng-keystore-import-format";
 /// Meldungs-ID: Kopie in die Sandbox fehlgeschlagen.
 pub(crate) const MSG_KEYSTORE_IMPORT_FAILED: &str = "ng-keystore-import-failed";
 /// Höchstgröße einer importierten PKCS#12-Datei (typisch wenige KiB).
-const MAX_KEYSTORE_BYTES: u64 = 4 * 1024 * 1024;
+pub(crate) const MAX_KEYSTORE_BYTES: u64 = 4 * 1024 * 1024;
 /// Ordner der importierten Keystores unter `Paths::data_dir`.
 pub(crate) const KEYSTORE_DIR: &str = "keystores";
 
@@ -2275,11 +2275,12 @@ impl CoreTask {
             return;
         }
         // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): Import, Prüfung und jede Wahl des Keystores
-        // bleiben ohne Wirkung
+        // (bzw. die Wahl der Chipkarte im Konto-Chip) bleiben ohne Wirkung
         if !self.cfg.keystore_offered
-            && let Some(kind) = crate::mobile_signers::is_keystore_event(&event)
+            && let Some(kind) = crate::mobile_signers::ignored_on_mobile(&event)
         {
-            tracing::info!(event = kind, "Keystore auf Mobilgeräten nicht verfügbar (nur ID Austria) – ignoriert");
+            tracing::info!(event = kind, "Signiermittel auf Mobilgeräten nicht verfügbar (nur ID Austria) – ignoriert");
+            crate::mobile_signers::discard_event(event);
             return;
         }
         match event {

@@ -514,9 +514,19 @@ fn earlier_mobile_build(fx: &Fixture, storage: &FakeSecureStorage, secrets: &dyn
     secrets.set(&SecretId::keystore_store(&ks), "test").unwrap();
     secrets.set(&SecretId::keystore_key(&ks, "max"), "test").unwrap();
     secrets.set(&SecretId::keystore_key(&ks, ""), "test").unwrap();
+    // Schlüsselpasswort zu einem früher gewählten Schlüssel (die Einstellungen nennen inzwischen „max“)
+    secrets.set(&SecretId::keystore_key(&ks, &file_alias(&ks)), "test").unwrap();
     secrets.set(&SecretId::proxy("proxy.example.test", "u"), "proxy-geheim").unwrap();
     storage.set("ANDERE-APP/keystore-store:/x.p12", "fremd").unwrap();
     ks
+}
+
+/// Alias des Schlüssels in der Test-Datei (weder „max“ noch leer).
+fn file_alias(ks: &Path) -> String {
+    let entries = pida_backend_keystore::list_aliases(&std::fs::read(ks).unwrap(), "test").unwrap();
+    let alias = entries.into_iter().find(|e| e.is_key_entry).expect("Schlüssel").alias;
+    assert!(!alias.is_empty() && alias != "max", "{alias}");
+    alias
 }
 
 fn keystore_entries(storage: &FakeSecureStorage) -> Vec<String> {
@@ -552,7 +562,7 @@ async fn keystore_of_an_earlier_mobile_build_is_ignored_and_its_passwords_remove
     let (storage, secrets) = shell_secrets();
     let ks = earlier_mobile_build(&fx, &storage, secrets.as_ref());
     let keystore_before = file_settings(&fx).keystore;
-    assert_eq!(keystore_entries(&storage).len(), 3);
+    assert_eq!(keystore_entries(&storage).len(), 4);
     let docs = fx.dir("docs");
     let core = start(&fx, Platform::Ios, workspace_options(&secrets, &docs));
     let v = wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. })).await;
@@ -619,6 +629,8 @@ async fn keystore_of_an_earlier_mobile_build_is_ignored_and_its_passwords_remove
     core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     wait_for(&core, "Arbeitsbereich", |v| v.document.is_some() && v.actions.sign).await;
     core.dispatch(UiEvent::SelectSigner { backend: Some(BackendId::Keystore), make_default: true });
+    // die Chipkarte gibt es auf dem Gerät ebenso wenig: weder gewählt noch als Standard gespeichert
+    core.dispatch(UiEvent::SelectSigner { backend: Some(BackendId::LocalBku), make_default: true });
     core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
     core.dispatch(UiEvent::SubmitSecret {
         request: 1,
@@ -630,6 +642,7 @@ async fn keystore_of_an_earlier_mobile_build_is_ignored_and_its_passwords_remove
     assert!(v.document.is_some() && v.actions.sign, "kein Signieren: {:?}", v.step);
     assert_eq!(v.signers.selected, Some(BackendId::AtrustNative));
     assert_eq!(v.signers.default, Some(BackendId::AtrustNative));
+    assert_eq!(file_settings(&fx).backend.default, Some(pida_config::BackendChoice::IdAustria));
     core.dispatch(UiEvent::OpenFiles { paths: vec![b], mode: Some(pida_core_api::OpenFilesMode::Add) });
     let v = wait_for(&core, "Stapel", |v| batch_ready(v, 2)).await;
     let docs_in_batch = v.batch.as_ref().unwrap().items.iter().map(|i| i.doc).collect();
@@ -666,7 +679,7 @@ async fn desktop_keeps_the_keystore_of_the_same_settings() {
     assert!(keystore.available);
     assert_eq!(keystore.account.as_deref(), Some("test.p12 · max"));
     assert_eq!(v.signers.default, Some(BackendId::Keystore));
-    assert_eq!(keystore_entries(&storage).len(), 3, "nichts entfernt");
+    assert_eq!(keystore_entries(&storage).len(), 4, "nichts entfernt");
     assert!(!fx.paths.data_dir.join("keystore-secrets-removed").exists());
     core.dispatch(UiEvent::OpenSettings);
     let v =

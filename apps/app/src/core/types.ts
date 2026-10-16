@@ -39,7 +39,7 @@ export type VerifyState = VerifyStatus['state'];
 /** Daten einer Maske (`NativeForm`) mit dem Variantennamen `K`. */
 export type FormData<K extends string> = Extract<NativeForm, Record<K, unknown>> extends Record<K, infer D> ? D : never;
 
-/** Mobile Oberfläche (iOS/Android: Teilen statt Ordner, PKCS#12-Import, kein FIDO2, keine lokale BKU). */
+/** Mobile Oberfläche (iOS/Android: Teilen statt Ordner, nur ID Austria – kein Keystore, keine lokale BKU –, kein FIDO2). */
 export function isMobile(view: Pick<ViewState, 'platform'>): boolean {
   return view.platform?.mobile === true;
 }

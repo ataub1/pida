@@ -101,6 +101,32 @@ describe.each(PLATFORMS)('Mobile nur mit ID Austria (%s)', (platform, view) => {
     expectNoKeystoreText('Stapel › Konto-Chip');
   });
 
+  it('Einstellungen eines früheren Builds (Keystore als Standard, Datei, Schlüsselbund): nirgends ein Keystore', async () => {
+    restore = emulateMedia({ narrow: true, coarse: true });
+    const base = defaultSettings();
+    const settings = {
+      ...base,
+      backend: { default: 'keystore' as const },
+      keystore: { ...base.keystore, enabled: true, file: '/var/mobile/Containers/Data/Application/ALT/data/keystores/max.p12', alias: 'max', password_storage: 'keychain' as const, storage_chosen: false },
+    };
+    const { user, mock } = renderApp({ platform, scenario: 'contract', settings });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.getByTestId('signer-chip')).toHaveTextContent('ID Austria');
+    expectNoKeystoreText('Arbeitsbereich (früherer Build)');
+    await user.click(screen.getByTestId('signer-chip'));
+    const menu = await screen.findByRole('menu');
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Einstellungen …']);
+    await user.click(within(menu).getByRole('menuitem', { name: 'Einstellungen …' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    const nav = within(dialog).getByRole('navigation', { name: 'Bereiche' });
+    for (const section of within(nav).getAllByRole('button')) {
+      await user.click(section);
+      expectNoKeystoreText(`Einstellungen › ${section.textContent} (früherer Build)`);
+    }
+    await expectNoAxeViolations();
+    expect((await mock.view()).signers).toMatchObject({ default: 'atrust_native', options: [{ backend: 'atrust_native' }] });
+  });
+
   it('„Fertig“ mit Teilen und Sichern', async () => {
     renderApp({ view: onMobile(doneView(outputResult({ path: '/var/mobile/X/Documents/Vertrag_signed.pdf' })), view) });
     await screen.findByRole('heading', { level: 1 });

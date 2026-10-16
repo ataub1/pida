@@ -2676,13 +2676,16 @@ heißt jetzt `keystore_imported` (Desktop), `ws_batch_mobile` zeigt nur ID Austr
    Bildmarke neu zu (`[keystore] file` bleibt unberührt).
 4. **Ereignisse ohne Wirkung** (Log-Notiz, kein Fehler, keine Sitzung): `import_keystore`, `inspect_keystore`,
    `submit_secret.password_storage` („Passwort merken?“), `choose_backend`, `sign_with`, `start_batch` und
-   `select_signer` mit dem Keystore (`mobile_signers::is_keystore_event`). Die Shell lehnt `mobile_pick_files` mit
-   `kind = pkcs12` ab (`ng-ui-event-invalid`); das Plugin bleibt unverändert.
+   `select_signer` mit dem Keystore, dazu `select_signer` mit der Chipkarte (sie wählte bzw. speicherte sonst ein
+   Signiermittel, das es auf dem Gerät nicht gibt; `mobile_signers::ignored_on_mobile`). Ein Passwort im verworfenen
+   Ereignis wird sofort überschrieben (`Zeroizing`). Die Shell lehnt `mobile_pick_files` mit `kind = pkcs12` ab
+   (`ng-ui-event-invalid`); das Plugin bleibt unverändert.
 5. **Sicherer Speicher:** Keystore-Passwörter, die ein früherer Mobile-Build in Keychain bzw. Android-Keystore-Speicher
    abgelegt hat, entfernt der Kern beim ersten Start **einmalig** (`remove_former_keystore_secrets`): nur Einträge von PIDA
    (Dienst „PIDA“, Konten `keystore-store:`/`keystore-key:` zur Datei aus den Einstellungen – auch `/var` ↔ `/private/var` –
-   und zu jeder Datei in `data_dir/keystores`, mit eingestelltem bzw. leerem Alias). Proxy-Passwörter und fremde Einträge
-   bleiben; das ID-Austria-Passwort wird ohnehin nie gespeichert. Danach steht der Merker `data_dir/keystore-secrets-removed`;
+   und zu jeder Datei in `data_dir/keystores`, mit eingestelltem bzw. leerem Alias und – ist das Passwort der Datei noch
+   gespeichert – jedem Schlüssel-Alias der Datei, falls früher ein anderer Schlüssel gewählt war). Proxy-Passwörter und
+   fremde Einträge bleiben; das ID-Austria-Passwort wird ohnehin nie gespeichert. Danach steht der Merker `data_dir/keystore-secrets-removed`;
    ohne dauerhaften Speicher oder nach einem Fehler beim Löschen fehlt er (nächster Start versucht es erneut). Keine Pfade
    oder Werte im Log. Die Dateien `data_dir/keystores/*.p12` selbst bleiben liegen (durch ihr Passwort geschützt, weiter
    von der Sicherung ausgenommen, mobile.md R-5).

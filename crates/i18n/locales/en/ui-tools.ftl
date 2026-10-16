@@ -201,7 +201,6 @@ ng-ui-set-proxy-port = Port
 ng-ui-set-proxy-user = User (optional)
 ng-ui-set-updates = Check for updates automatically
     .keywords = update updates version
-    .keywords = signature format format cms pades pdf-as keystore
 ng-ui-set-reset = Reset
     .keywords = reset default defaults factory settings
 ng-ui-set-migration = Import PDF-Over settings

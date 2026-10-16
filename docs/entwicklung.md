@@ -161,7 +161,10 @@ PIDA_HOME="$(mktemp -d)" target/release/pida-cli profiles
   `crates/sigblock/src/fonts.rs:169` (Feld `scaling`), `crates/placement/tests/golden_pdfas442.rs:78`
   (Feld `profile`), `crates/backend-keystore/tests/backend.rs:30` (Funktion `copy_to`). `pida-workflow`, `pida-core-api`, `pida-cli` und `pida-app` sind seit
   Welle 3 streng geprüft. Behebung: entfernen oder mit `#[allow(dead_code, reason = "…")]` begründen,
-  dann das Crate aus der Liste streichen. Ziel ist eine leere Liste.
+  dann das Crate aus der Liste streichen. Ziel ist eine leere Liste. Stand 16.10.2026 (`mob2/core`): die Stellen in
+  `pida-pades` (dazu `tests/e2e_corpus.rs`, Feld `key_stem`) und `pida-backend-keystore` sind begründet bzw. entfernt;
+  `cargo clippy --workspace --all-targets -- -D warnings` läuft unter macOS ohne Befund – die Liste lässt sich kürzen,
+  sobald die CI das auch unter Linux und Windows bestätigt.
 
 ## 6. Abhängigkeiten, Lizenzen, Lieferkette
 

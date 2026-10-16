@@ -64,6 +64,13 @@ describe('Suche', () => {
     expect(hit(de, 'Proxy')).toEqual(['advanced.proxy']);
   });
 
+  it('„Keystore“ findet nur Keystore und Standard-Signiermittel, „Aktualisierung“ die Updates (keine doppelten `.keywords`)', () => {
+    expect(hit(de, 'keystore')).toEqual(['signers.default', 'signers.keystore']);
+    expect(hit(en, 'keystore')).toEqual(['signers.default', 'signers.keystore']);
+    expect(hit(de, 'aktualisierung')).toEqual(['advanced.updates']);
+    expect(hit(en, 'updates')).toEqual(['advanced.updates']);
+  });
+
   it('Dokument: „pdf/a“, „platzhalter“, „qr“, „signaturfeld“; englisch „signature field“', () => {
     expect(hit(de, 'pdf/a')).toEqual(['document.pdfa']);
     expect(hit(de, 'PDF/A')).toEqual(['document.pdfa']);

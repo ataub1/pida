@@ -265,7 +265,8 @@ export const settingsArea: MockArea<SettingsState> = {
         return true;
       case 'select_signer':
         if (!e.make_default) return false;
-        if (ctx.platform().mobile && e.backend === 'keystore') return true;
+        // iOS/Android: Keystore und Chipkarte gibt es nicht (`mobile_signers::ignored_on_mobile`)
+        if (ctx.platform().mobile && (e.backend === 'keystore' || e.backend === 'local_bku')) return true;
         changed(state, ctx, { ...state.settings, backend: { default: choiceOf(e.backend) } });
         return true;
       case 'submit_form': {

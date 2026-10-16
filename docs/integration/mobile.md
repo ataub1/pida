@@ -472,7 +472,8 @@ Keystore-Option und keine Keystore-Angaben); Folgen für die Geräteprotokolle: 
   bleibt in `settings.toml` unverändert stehen und wird ignoriert (nicht gelöscht); `keystore.*` lässt sich auf dem Gerät
   nicht mehr ändern (`ng-settings-unavailable-mobile`).
 - **Sicherer Speicher:** Keystore-Passwörter (Dienst „PIDA“, Konten `keystore-store:`/`keystore-key:` zur Datei aus den
-  Einstellungen und zu jeder Datei in `data/keystores`) entfernt der Kern beim ersten Start einmalig; Merker
+  Einstellungen und zu jeder Datei in `data/keystores`; Schlüsselpasswörter zum eingestellten, zum leeren und – ist das
+  Passwort der Datei noch gespeichert – zu jedem Alias der Datei) entfernt der Kern beim ersten Start einmalig; Merker
   `data/keystore-secrets-removed`. Andere Einträge (Proxy, fremde Apps) bleiben. Ohne dauerhaften Speicher bzw. nach
   einem Fehler beim Löschen versucht er es beim nächsten Start erneut.
 - **Dateien:** `data/keystores/*.p12` bleiben liegen (durch ihr Passwort geschützt, weiter von der Sicherung
@@ -480,7 +481,8 @@ Keystore-Option und keine Keystore-Angaben); Folgen für die Geräteprotokolle: 
 - **„Signatur fortsetzen“:** ein gesicherter Keystore-Vorgang wird beim Start mit Hinweis `ng-resume-signer-not-offered`
   verworfen statt angeboten; ein ID-Austria-Vorgang wird wie bisher angeboten.
 - **Ereignisse:** `import_keystore`, `inspect_keystore`, „Passwort merken?“ und jede Wahl des Keystores sind ohne Wirkung
-  (Log-Notiz, keine Sitzung, kein Fehler).
+  (Log-Notiz, keine Sitzung, kein Fehler), ebenso `select_signer` mit der Chipkarte (sonst gewählt bzw. mit
+  `make_default` als Standard gespeichert); ein Passwort im verworfenen Ereignis wird sofort überschrieben.
 
 ### 12.3 Nachweise
 
@@ -525,8 +527,42 @@ neu erzeugt – nur Doku-Kommentare, Probe `keystore_imported` (vorher `mobile_k
 mit nur ID Austria; `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p pida-app` für
 `aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK 29) grün, je eigenes `CARGO_TARGET_DIR`.
 
+**Adversariales Review (Stand 4080126, 16.10.2026):** Behauptungen des Umsetzers am Code und mit eigenen Proben
+nachgeprüft (Kern: Ereignisse, alte Einstellungen, `SaveSettings`, Übernahme, „Fortsetzen“, Richtlinie, sicherer
+Speicher; Oberfläche: alle Ansichten mit Einstellungen eines früheren Builds). Behoben:
+
+- `select_signer` mit der Chipkarte wählte sie auf Mobilgeräten im Konto-Chip aus und speicherte mit `make_default` den
+  Standard `local_bku` in die Datei (niedrig) – jetzt ohne Wirkung wie beim Keystore (`mobile_signers::ignored_on_mobile`,
+  Test in `tests/mobile.rs`; Mock gleichgezogen).
+- Schlüsselpasswörter zu einem früher gewählten, nicht mehr eingestellten Alias blieben im sicheren Speicher (niedrig) –
+  der Kern liest die Aliase der Datei mit ihrem noch gespeicherten Passwort (`stored_key_aliases`, Tests).
+- Passwörter verworfener Keystore-Ereignisse wurden ohne Überschreiben freigegeben (niedrig) – `discard_event`.
+- Doppeltes `.keywords` an `ng-ui-set-updates` (DE/EN, seit B3): die Desktop-Suche fand „Updates“ bei „Keystore“, aber
+  nicht bei „Aktualisierung“ (niedrig, nur Desktop) – entfernt, Tests in `units.test.ts` und `i18n.test.ts` (kein
+  Attribut doppelt).
+- Die wörtliche Prüfung `cargo clippy --workspace --all-targets -- -D warnings` brach an drei alten `dead_code`-Stellen
+  (`pades/src/signed.rs` Feld `written`, `pades/tests/e2e_corpus.rs` Feld `key_stem`, `backend-keystore/tests/backend.rs`
+  `copy_to`) – begründet (`#[allow(dead_code, reason = …)]`) bzw. entfernt; der Lauf ist jetzt ohne Befund
+  (`CLIPPY_LENIENT` in der CI unverändert).
+- Veraltete Kommentare (`core/types.ts`, `styles/components.css`).
+
+Prüfungen nach dem Review: `cargo test --workspace --no-fail-fast` 1436 bestanden, 0 fehlgeschlagen, 5 ignoriert;
+`cargo clippy --workspace --all-targets -- -D warnings` und `cargo fmt --all --check` ohne Befund; `npm ci && npm run
+build && npm test` 33 Dateien, 704 Tests; `ts_bindings` und `serde_contract` unverändert grün (Vertrag unberührt);
+`python3 tools/rename-to-pida.py --check`; `cargo check -p pida-app` für `aarch64-apple-ios-sim` und
+`aarch64-linux-android` grün. Kein Simulator bzw. Emulator gestartet.
+
+Ohne Befund: Desktop-Pfade (Registrierung, Standard, Einstellungen, Ersteinrichtung, Konto-Chip, Mock) verhalten sich wie
+vorher; `SaveSettings`/`ApplySettings` lassen `[keystore]` auf dem Gerät unverändert; keine Mobile-Probe des Vertrags
+nennt einen Keystore; das Plugin bietet `pkcs12` weiter an, die Shell lehnt es ab.
+
 **Offen:**
 
+- **Neuinstallation unter iOS:** Die Keychain überdauert das Löschen der App, der Datenordner nicht. Wer einen früheren
+  Build mit gespeichertem Keystore-Passwort löscht und neu installiert, behält diese Einträge (Dienst „PIDA“) – ohne
+  Einstellungen kennt der Kern die Konten nicht, und der sichere Speicher des Plugins kann nicht aufzählen. Die Einträge
+  werden nie gelesen; entfernen ließen sie sich nur mit einer neuen Plugin-Methode (z. B. „alle `keystore-`-Konten
+  löschen“).
 - **Nicht am Gerät:** Simulator und Emulator wurden für diese Änderung nicht gestartet; belegt durch die Tests aus
   12.3. Beim nächsten Gerätedurchgang prüfen: Einstellungen › Signiermittel, Konto-Chip-Menü, Ersteinrichtung und
   ein Update von einem Build mit importiertem Keystore (Keychain- bzw. Speichereinträge danach weg, Merker gesetzt).

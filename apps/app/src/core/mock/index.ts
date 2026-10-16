@@ -175,9 +175,14 @@ function defaultBackend(ctx: MockCtx): BackendId | null {
   return ctx.platform().mobile ? 'atrust_native' : backendFor(ctx.settings().backend.default);
 }
 
-/** Wahl des Keystores auf Mobilgeräten (dort ohne Wirkung wie `mobile_signers::is_keystore_event`)? */
+/** Wahl des Keystores auf Mobilgeräten (dort ohne Wirkung wie `mobile_signers::ignored_on_mobile`)? */
 function mobileKeystore(ctx: MockCtx, backend: BackendId | null): boolean {
   return ctx.platform().mobile && backend === 'keystore';
+}
+
+/** Wahl im Konto-Chip, die es auf Mobilgeräten nicht gibt (Keystore, Chipkarte – `ignored_on_mobile`)? */
+function mobileUnofferedSigner(mobile: boolean, backend: BackendId | null): boolean {
+  return mobile && (backend === 'keystore' || backend === 'local_bku');
 }
 
 function signerOptions(s: FlowState, ctx: MockCtx): SignerView[] {
@@ -1161,7 +1166,7 @@ const flowArea: MockArea<FlowState> = {
         return true;
       }
       case 'select_signer':
-        if (mobileKeystore(ctx, e.backend)) return true;
+        if (mobileUnofferedSigner(ctx.platform().mobile, e.backend)) return true;
         s.selected = e.backend && available(s, ctx, e.backend) ? e.backend : null;
         s.explicit = e.backend !== null;
         return true;
