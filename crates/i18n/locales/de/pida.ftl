@@ -106,6 +106,7 @@ backend-cancelled = Der Vorgang wurde abgebrochen.
 backend-unavailable = Das Signiermittel ist nicht verfügbar: { $detail }
 backend-network = Die Verbindung zum Signaturdienst ist fehlgeschlagen: { $detail }
     .title = Der Signaturdienst ist gerade nicht erreichbar
+    .text = Die Verbindung zum Signaturdienst ist fehlgeschlagen. Prüfen Sie die Internetverbindung und versuchen Sie es erneut; die genaue Ursache steht unter „Technische Details“.
     .action = Erneut versuchen
 backend-proxy-auth = Der Proxy-Server verlangt eine Anmeldung.
 backend-document-too-large = Das Dokument überschreitet die Größengrenze des Signaturdienstes.

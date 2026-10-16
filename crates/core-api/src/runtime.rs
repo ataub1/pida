@@ -3318,7 +3318,7 @@ fn remove_cache_copy(source: &Path, kept: &Path, cache_dir: &Path) {
 
 /// Neuer Ort einer in die Sandbox importierten Datei nach einem Umzug der Sandbox: `old` fehlt, lag in
 /// einem Ordner mit dem Namen von `dir` (z. B. `keystores`), und `dir/<Dateiname>` ist vorhanden.
-fn relocated(old: &Path, dir: &Path) -> Option<PathBuf> {
+pub(crate) fn relocated(old: &Path, dir: &Path) -> Option<PathBuf> {
     if old.is_file() || old.parent()?.file_name()? != dir.file_name()? {
         return None;
     }

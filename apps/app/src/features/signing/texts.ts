@@ -113,6 +113,9 @@ export function qrDataUrl(image: QrImage): string {
 /**
  * Freundliche Fehlertexte (ADR 0004 §3.16): Titel und Aktion aus den Fluent-Attributen `.title`/`.action`
  * des Codes; für die Codes des erzeugten PDF-Over-Katalogs (ohne Attribute) eigene IDs der Oberfläche.
+ * `.text` (optional) ersetzt in der Karte die Meldung mit technischer Ursache (`{ $detail }`, z. B. die
+ * Fehlerkette der Verbindung auf Englisch) – die Ursache steht dann nur unter „Technische Details“; CLI und
+ * Log behalten die vollständige Meldung.
  */
 const UI_FALLBACK: Record<string, { title: string; action: string | null }> = {
   'error-PDFPwdProtected': { title: 'ng-ui-ws-locked-title', action: 'ng-ui-ws-locked-other' },
@@ -121,12 +124,12 @@ const UI_FALLBACK: Record<string, { title: string; action: string | null }> = {
   'output-save_failed': { title: 'ng-ui-fin-save-failed-title', action: 'ng-ui-ws-retry' },
 };
 
-export function friendlyError(t: Translator, code: string): { title: string; action: string | null } {
+export function friendlyError(t: Translator, code: string): { title: string; action: string | null; text: string | null } {
   const dashed = code.replace(/\./g, '-');
   const id = t.has(code) ? code : dashed;
   const title = t.attr(id, 'title');
-  if (title) return { title, action: t.attr(id, 'action') };
+  if (title) return { title, action: t.attr(id, 'action'), text: t.attr(id, 'text') };
   const fallback = UI_FALLBACK[id];
-  if (fallback) return { title: t.t(fallback.title), action: fallback.action ? t.t(fallback.action) : null };
-  return { title: t.t('ng-ui-sc-error-title'), action: null };
+  if (fallback) return { title: t.t(fallback.title), action: fallback.action ? t.t(fallback.action) : null, text: null };
+  return { title: t.t('ng-ui-sc-error-title'), action: null, text: null };
 }

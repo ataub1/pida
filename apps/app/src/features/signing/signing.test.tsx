@@ -226,16 +226,34 @@ describe('Signierkarte: Fehler, Rückfall, Fertigstellen', () => {
     const { mock, user } = renderApp({ view: cardErrorView('backend-network', { detail: 'service.a-trust.at:443' }) });
     const dialog = await card();
     expect(within(dialog).getByRole('heading', { name: 'Der Signaturdienst ist gerade nicht erreichbar' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('Die Verbindung zum Signaturdienst ist fehlgeschlagen');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Die Verbindung zum Signaturdienst ist fehlgeschlagen. Prüfen Sie die Internetverbindung');
+    // die technische Ursache (Fehlerkette, oft Englisch) nur unter „Technische Details“
+    expect(within(dialog).getByRole('alert')).not.toHaveTextContent('service.a-trust.at:443');
     // Stepper zeigt den Fehler nicht nur über die Farbe
     const failed = within(dialog).getAllByRole('listitem').find((li) => li.classList.contains('is-error'));
     expect(failed).toHaveTextContent('!');
     expect(failed).toHaveTextContent('fehlgeschlagen');
     await user.click(within(dialog).getByRole('button', { name: 'Technische Details' }));
     expect(dialog).toHaveTextContent('backend-network · ID Austria · 15.10.2026');
+    expect(dialog).toHaveTextContent('service.a-trust.at:443');
     await expectNoAxeViolations();
     await user.click(within(dialog).getByRole('button', { name: 'Erneut versuchen' }));
     expect(lastEvent(mock)).toEqual({ type: 'retry' });
+  });
+
+  it('Zeitüberschreitung: vor der Bestätigung „Erneut versuchen“, beim Warten auf die App „Neue Bestätigung anfordern“', async () => {
+    const { mock, unmount } = renderApp({ view: cardErrorView('backend-timeout') });
+    let dialog = await card();
+    expect(within(dialog).getByRole('heading', { name: 'Die Zeit ist abgelaufen' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Erneut versuchen' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Neue Bestätigung anfordern' })).not.toBeInTheDocument();
+    mock.dispose();
+    unmount();
+    const second = renderApp({ view: cardView(APP(), { stage: 'confirming' }) });
+    await card();
+    act(() => second.mock.setView(cardErrorView('backend-timeout')));
+    dialog = await card();
+    expect(await within(dialog).findByRole('button', { name: 'Neue Bestätigung anfordern' })).toBeInTheDocument();
   });
 
   it('„In der App abgelehnt“ (ng-signing-declined): Erneut versuchen und Schließen', async () => {

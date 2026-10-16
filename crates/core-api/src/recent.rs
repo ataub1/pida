@@ -65,6 +65,7 @@ impl CoreTask {
             return;
         }
         if self.recent_enabled() {
+            self.relocate_recent();
             self.recent.reload();
             return;
         }
@@ -72,6 +73,25 @@ impl CoreTask {
         self.recent.exists.clear();
         if let Err(e) = self.recent.store.clear() {
             tracing::warn!(id = e.message_id(), "„Zuletzt signiert“ nicht gelöscht");
+        }
+    }
+
+    /// Mobile: Einträge nach einem Umzug der Sandbox auf die App-Dokumente umstellen. iOS vergibt bei
+    /// jedem Update einen neuen Container (`…/Application/<UUID>/`), die signierten Dateien ziehen mit –
+    /// die gespeicherten absoluten Pfade zeigten danach ins Leere („Datei nicht mehr vorhanden“). Wie
+    /// Keystore und Bildmarke (`relocate_sandbox_files`): nur fehlende Dateien, deren Ordner wie die
+    /// App-Dokumente heißt und die dort unter demselben Namen liegen.
+    fn relocate_recent(&mut self) {
+        if self.mobile.platform.is_desktop() {
+            return;
+        }
+        let Some(dir) = self.mobile.default_output_dir.clone() else { return };
+        match self.recent.store.relocate(|path| crate::runtime::relocated(path, &dir)) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(entries = n, "„Zuletzt signiert“ nach Umzug der Sandbox neu zugeordnet"),
+            Err(e) => {
+                tracing::warn!(id = e.message_id(), "„Zuletzt signiert“ nach Umzug der Sandbox nicht gespeichert")
+            }
         }
     }
 

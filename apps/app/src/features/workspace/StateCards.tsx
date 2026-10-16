@@ -77,7 +77,7 @@ export function ErrorCard({ step }: { step: Extract<StepView, { step: 'error' }>
   return (
     <StateCard icon={locked ? <IconLock size={26} /> : <IconAlertCircle size={26} />} tone={locked ? 'warning' : 'danger'} title={friendly.title} labelId="error-title">
       <p className="state-text pre-line" role="alert">
-        {locked ? t.t('ng-ui-ws-locked-text') : t.code(step.code, step.params)}
+        {locked ? t.t('ng-ui-ws-locked-text') : (friendly.text ?? t.code(step.code, step.params))}
       </p>
       <div className="state-actions">
         {step.retry ? (

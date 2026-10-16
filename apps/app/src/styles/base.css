@@ -214,11 +214,9 @@ code {
   }
 }
 
-/* Safe Areas (Notch, Home-Indikator; `viewport-fit=cover` in index.html) */
-.app-header {
-  padding-left: max(var(--sp-4), env(safe-area-inset-left));
-  padding-right: max(var(--sp-4), env(safe-area-inset-right));
-}
+/* Safe Areas (Notch, Home-Indikator; `viewport-fit=cover` in index.html): Kopfzeile und Hauptbereich in
+   app/shell.css (dort setzt `.app-header` das Padding ohnehin vollständig), Einstellungen im Vollbild in
+   features/settings/settings.css, Sheets in components.css */
 
 /* Finger statt Maus: Ziele mindestens 44 × 44 px (WCAG 2.5.5, Apple HIG) */
 @media (pointer: coarse) {

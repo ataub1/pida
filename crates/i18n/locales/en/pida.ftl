@@ -106,6 +106,7 @@ backend-cancelled = The operation was cancelled.
 backend-unavailable = The signing method is not available: { $detail }
 backend-network = The connection to the signature service failed: { $detail }
     .title = The signature service cannot be reached right now
+    .text = The connection to the signature service failed. Check your internet connection and try again; the exact cause is shown under “Technical details”.
     .action = Try again
 backend-proxy-auth = The proxy server requires authentication.
 backend-document-too-large = The document exceeds the size limit of the signature service.

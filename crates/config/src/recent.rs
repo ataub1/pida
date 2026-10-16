@@ -119,6 +119,26 @@ impl RecentStore {
         Ok(entry)
     }
 
+    /// Pfade umstellen (Mobile: neuer Sandbox-Container nach einem Update). `relocate` liefert je Pfad den
+    /// neuen Ort oder `None` (unverändert). Ergebnis: Anzahl umgestellter Einträge; ohne Änderung wird
+    /// nichts geschrieben. Derselbe Pfad danach nur einmal (der neuere Eintrag zählt).
+    pub fn relocate(&self, relocate: impl Fn(&Path) -> Option<PathBuf>) -> Result<usize> {
+        let mut entries = self.load();
+        let mut moved = 0;
+        for entry in &mut entries {
+            if let Some(new) = relocate(&entry.path) {
+                entry.path = new;
+                moved += 1;
+            }
+        }
+        if moved > 0 {
+            let mut seen = std::collections::HashSet::new();
+            entries.retain(|e| seen.insert(e.path.clone()));
+            self.write(&entries)?;
+        }
+        Ok(moved)
+    }
+
     /// Eintrag entfernen (unbekannte Kennung: nichts zu tun).
     pub fn remove(&self, id: u64) -> Result<()> {
         let mut entries = self.load();
@@ -231,6 +251,29 @@ mod tests {
         assert!(s.load().is_empty(), "unbekannte Felder (z. B. Unterzeichner) werden nicht übernommen");
         assert_eq!(s.push(entry("a.pdf", tmp.path())).unwrap().id, 1);
         assert_eq!(s.load().len(), 1);
+    }
+
+    #[test]
+    fn relocate_rewrites_only_returned_paths_and_writes_only_on_change() {
+        let (tmp, s) = store();
+        let old = tmp.path().join("ALT/Documents");
+        s.push(entry("a.pdf", &old)).unwrap();
+        s.push(entry("b.pdf", tmp.path())).unwrap();
+        let before = std::fs::read(s.file()).unwrap();
+        assert_eq!(s.relocate(|_| None).unwrap(), 0);
+        assert_eq!(std::fs::read(s.file()).unwrap(), before, "ohne Änderung nicht geschrieben");
+        let new = tmp.path().join("NEU/Documents");
+        let moved = s.relocate(|p| p.starts_with(&old).then(|| new.join(p.file_name().unwrap()))).unwrap();
+        assert_eq!(moved, 1);
+        let list = s.load();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[1].path, new.join("a.pdf"));
+        assert_eq!(list[1].id, 1, "Kennung bleibt");
+        assert_eq!(list[0].path, tmp.path().join("b.pdf"));
+        // fällt ein Pfad auf einen vorhandenen, bleibt nur der neuere Eintrag
+        s.relocate(|_| Some(tmp.path().join("x.pdf"))).unwrap();
+        assert_eq!(s.load().len(), 1);
+        assert_eq!(s.load()[0].file_name, "b.pdf");
     }
 
     #[test]

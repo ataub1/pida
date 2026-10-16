@@ -10,6 +10,7 @@
 //   `destination` (Presentation.swift, SandboxFiles.swift).
 // - `takePendingOpenDocuments`: „Öffnen in“/Teilen/Dateien-App inkl. Security-Scoped URLs
 //   (OpenedDocuments.swift – Hooks vor den Delegates von tao).
+// - Schriftgröße: Dynamic Type als Grundschrift der Oberfläche (TextSize.swift).
 // - Lebenszyklus: kommt ohne Zutun dieses Plugins bei Rust an (tao: `sceneWillResignActive` bzw.
 //   `applicationWillResignActive` → `WindowEvent::Suspended`, `sceneWillEnterForeground` bzw.
 //   `applicationWillEnterForeground` → `WindowEvent::Resumed`; die Shell macht daraus
@@ -89,6 +90,11 @@ class PidaMobilePlugin: Plugin {
     OpenURLHooks.install()
     SecureStore.purgeAfterReinstall()
     SandboxFiles.excludeImportedKeystoresFromBackup()
+  }
+
+  /// WebView angelegt: Systemschriftgröße (Dynamic Type) übernehmen (TextSize.swift).
+  override func load(webview: WKWebView) {
+    TextSize.attach(to: webview)
   }
 
   // MARK: Hilfen

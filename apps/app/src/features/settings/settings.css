@@ -150,6 +150,13 @@
 .settings-row[data-row='signature.preview'] + .settings-row {
   border-top: 0;
 }
+/* Niedrige Fenster (Telefon im Querformat): Die mitlaufende Vorschau wäre höher als der sichtbare
+   Inhaltsbereich – alle Einstellungen darunter rollten unsichtbar hinter ihr vorbei. Dann rollt sie mit. */
+@media (max-height: 520px) {
+  .settings-row[data-row='signature.preview'] {
+    position: static;
+  }
+}
 .block-preview-stage {
   display: grid;
   place-items: center;
@@ -357,6 +364,14 @@
   display: grid;
   gap: var(--sp-3);
 }
+/* Schlüssel des Keystores: „Name · gültig bis …“ und Alias – mit Abstand, schmal untereinander
+   (ohne stand „…2036Alias: …“ zusammengeklebt) */
+.keystore-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--sp-2);
+}
 .path-row {
   display: flex;
   flex-wrap: wrap;
@@ -467,8 +482,8 @@
   max-width: none;
   border-radius: 0;
   border: 0;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 :root[data-mobile] .settings-modal .settings-layout {
   grid-template-columns: minmax(0, 1fr);

@@ -32,6 +32,8 @@ pub const ENV_SMOKE: &str = "PIDA_SMOKE";
 pub const WATCHDOG: Duration = Duration::from_secs(60);
 /// Exit-Code bei Zeitüberschreitung.
 pub const EXIT_TIMEOUT: i32 = 3;
+/// iOS: Zeit für die Weiterleitung von stdout in das System-Log vor `process::exit` (siehe [`finish`]).
+const IOS_LOG_DRAIN: Duration = Duration::from_millis(500);
 
 static PROCESS_START: OnceLock<Instant> = OnceLock::new();
 static UI_SEEN: AtomicBool = AtomicBool::new(false);
@@ -96,10 +98,13 @@ pub fn arm_watchdog(app: &AppHandle) {
 
 /// Beendet die App nach der Startprüfung. iOS: tao kennt kein `ControlFlow::Exit` (`app.exit` endet dort
 /// in einer Panik im Run-Loop-Beobachter und damit in `abort`) – deshalb direkt `process::exit`.
+/// Tauri leitet stdout dort über eine Pipe und eine Dispatch-Quelle (QoS „utility“) in das System-Log;
+/// ohne kurze Pause endet der Prozess, bevor die Zeile `pida-smoke: …` im Log ankommt.
 fn finish(app: &AppHandle, code: i32) {
     if cfg!(target_os = "ios") {
         use std::io::Write as _;
         let _ = std::io::stdout().flush();
+        std::thread::sleep(IOS_LOG_DRAIN);
         std::process::exit(code);
     }
     app.exit(code);

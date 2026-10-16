@@ -524,7 +524,8 @@
 .inspector-footer {
   display: grid;
   gap: var(--sp-2);
-  padding: var(--sp-4) var(--sp-5);
+  /* Querformat auf Telefonen: „Signieren“ über dem Home-Indikator */
+  padding: var(--sp-4) var(--sp-5) max(var(--sp-4), env(safe-area-inset-bottom));
   border-top: 1px solid var(--c-border);
   background: var(--c-surface);
 }

@@ -691,6 +691,41 @@ async fn imported_keystore_follows_a_moved_sandbox() {
     }
 }
 
+/// „Zuletzt signiert“ speichert absolute Pfade; nach einem Update (neuer iOS-Container) zeigen sie in den
+/// alten Container. Der Kern stellt sie auf die App-Dokumente um (gleicher Dateiname, Ordner gleichen
+/// Namens) – die Liste zeigt die Dateien weiter als vorhanden. Desktop: unverändert.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn recent_documents_follow_a_moved_sandbox() {
+    for platform in [Platform::Ios, Platform::Linux] {
+        let fx = Fixture::new();
+        let docs = fx.tmp.path().join("NEUE-UUID/Documents");
+        std::fs::create_dir_all(&docs).unwrap();
+        std::fs::write(docs.join("a_signed.pdf"), b"%PDF-1.7").unwrap();
+        let old = fx.tmp.path().join("ALTE-UUID/Documents");
+        let elsewhere = fx.tmp.path().join("ALTE-UUID/anderswo/b_signed.pdf");
+        let entries = serde_json::json!([
+            { "id": 2, "file_name": "a_signed.pdf", "path": old.join("a_signed.pdf"), "signed_at": "2026-10-16T13:57:35+02:00" },
+            { "id": 1, "file_name": "b_signed.pdf", "path": elsewhere, "signed_at": "2026-10-16T13:49:07+02:00" },
+        ]);
+        let recent_file = fx.paths.data_dir.join("recent.json");
+        std::fs::create_dir_all(&fx.paths.data_dir).unwrap();
+        std::fs::write(&recent_file, serde_json::to_vec(&entries).unwrap()).unwrap();
+        let core = start(&fx, platform, mobile_options(&FakeEngine::new(), &docs, None));
+        let v = wait_for(&core, "Liste", |v| v.recent.as_ref().is_some_and(|r| r.len() == 2)).await;
+        let recent = v.recent.unwrap();
+        let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(&recent_file).unwrap()).unwrap();
+        if platform == Platform::Linux {
+            assert!(!recent[0].exists, "Desktop: kein Umzug");
+            assert_eq!(saved, entries);
+            continue;
+        }
+        assert!(recent[0].exists, "umgestellt auf die App-Dokumente");
+        assert!(!recent[1].exists, "anderer Ordner bleibt unangetastet");
+        assert_eq!(saved[0]["path"], serde_json::json!(docs.join("a_signed.pdf")));
+        assert_eq!(saved[1]["path"], serde_json::json!(elsewhere));
+    }
+}
+
 /// Eingeschalteter, aber fehlender Keystore (nicht neu zuordenbar): auf Mobile **keine** automatische
 /// ID-Austria-Sitzung (F-54 wie PDF-Over: nur ohne aktiven Keystore), sondern die Auswahl.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

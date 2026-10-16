@@ -15,7 +15,7 @@
  * kommt dort nur mit `document`, `StepView::Placeholder` gar nicht. Die bisherigen Bildschirme (`screens/`) sind
  * mit dem Merge von A1 entfernt (§3.15); ein klassischer Zustand ohne Dokument zeigt die Startansicht.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { I18nProvider } from 'react-aria-components';
 import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar, workspaceDefaults } from '../core/defaults';
@@ -335,6 +335,13 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   useEffect(() => {
     document.title = `PIDA – ${t.t(TITLE[main])}`;
   }, [main, t]);
+  // Jede Ansicht beginnt oben: `.app-main` ist für alle Ansichten derselbe Container. Ohne Zurücksetzen
+  // übernähme z. B. der Arbeitsbereich (`overflow: hidden`) den Bildlauf der Startseite – im Querformat des
+  // Telefons stünden Werkzeugleiste und Sheet dann verschoben und ließen sich nicht zurückrollen.
+  useLayoutEffect(() => {
+    const el = document.getElementById('main');
+    if (el) el.scrollTop = 0;
+  }, [main]);
   const firstView = useRef(true);
   useEffect(() => {
     if (firstView.current) {

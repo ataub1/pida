@@ -268,7 +268,7 @@ function SigningDialog({
                 {mode === 'interaction' && interaction ? <InteractionPane interaction={interaction} backend={backend} onCancel={batch ? abort : cancel} /> : null}
                 {mode === 'pause' && batch?.pause ? <PausePane pause={batch.pause} onAbort={abort} onSkip={skip} /> : null}
                 {mode === 'choose' && step.step === 'backend' ? <ChoosePane step={step} onCancel={cancel} /> : null}
-                {mode === 'error' && step.step === 'error' ? <ErrorPane step={step} /> : null}
+                {mode === 'error' && step.step === 'error' ? <ErrorPane step={step} beforeConfirm={index === 0} /> : null}
                 {mode === 'finishing' ? <DonePane /> : null}
               </>
             )}
@@ -371,7 +371,7 @@ function PausePane({ pause, onAbort, onSkip }: { pause: BatchPauseView; onAbort:
       </span>
       <div role="alert" className="step-prose">
         <StepTitle>{generic ? t.t('ng-ui-sc-batch-pause-title') : friendly.title}</StepTitle>
-        <p className="step-text pre-line">{t.code(pause.code, pause.params)}</p>
+        <p className="step-text pre-line">{friendly.text ?? t.code(pause.code, pause.params)}</p>
         {/* ohne eigene Überschrift steht „Der Stapel ist angehalten“ schon im Titel */}
         <p className="step-text">{generic ? t.t('ng-ui-sc-batch-pause-decide') : t.code('ng-batch-paused')}</p>
         {pause.new_session ? <p className="step-footnote">{t.t('ng-ui-sc-batch-pause-new-session')}</p> : null}
@@ -1047,13 +1047,18 @@ function formatTimestamp(iso: string | null, lang: 'de' | 'en'): string | null {
   return new Intl.DateTimeFormat(lang === 'de' ? 'de-AT' : 'en-GB', { dateStyle: 'medium', timeStyle: 'medium' }).format(d);
 }
 
-/** Fehlerschritt in der Karte: Alltagstext, eine Aktion, „Technische Details“ (Code, Zeitpunkt). */
-function ErrorPane({ step }: { step: Extract<StepView, { step: 'error' }> }) {
+/**
+ * Fehlerschritt in der Karte: Alltagstext, eine Aktion, „Technische Details“ (Code, Zeitpunkt).
+ * `beforeConfirm`: gescheitert vor der Bestätigung (Stepper auf „Anmelden“) – eine Zeitüberschreitung beim
+ * Verbindungsaufbau bietet dann „Erneut versuchen“ statt „Neue Bestätigung anfordern“ an.
+ */
+function ErrorPane({ step, beforeConfirm }: { step: Extract<StepView, { step: 'error' }>; beforeConfirm: boolean }) {
   const { t, dispatch } = useApp();
   const friendly = friendlyError(t, step.code);
-  const message = t.code(step.code, step.params);
+  const message = friendly.text ?? t.code(step.code, step.params);
   const at = formatTimestamp(step.context.occurred_at, t.lang);
   const declined = step.code === 'ng-signing-declined';
+  const plainRetry = declined || (beforeConfirm && step.code === 'backend-timeout');
   return (
     <div className="step-pane">
       <span className="step-hero step-hero-danger" aria-hidden="true">
@@ -1076,7 +1081,7 @@ function ErrorPane({ step }: { step: Extract<StepView, { step: 'error' }> }) {
         </Button>
         {step.retry ? (
           <Button variant="primary" onPress={() => void dispatch({ type: 'retry' })}>
-            {declined ? t.t('ng-ui-ws-retry') : (friendly.action ?? t.t('ng-ui-ws-retry'))}
+            {plainRetry ? t.t('ng-ui-ws-retry') : (friendly.action ?? t.t('ng-ui-ws-retry'))}
           </Button>
         ) : null}
       </div>

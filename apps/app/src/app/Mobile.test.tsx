@@ -51,6 +51,18 @@ describe('Signatur fortsetzen', () => {
   });
 });
 
+describe('Ansichtswechsel', () => {
+  it('der Arbeitsbereich beginnt oben, auch wenn die Startseite gerollt war (Querformat)', async () => {
+    const { mock } = renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }), IOS) });
+    await screen.findByRole('heading', { level: 1 });
+    const main = document.getElementById('main') as HTMLElement;
+    main.scrollTop = 180;
+    act(() => mock.setView(onMobile(workspaceView(), IOS)));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(main.scrollTop).toBe(0);
+  });
+});
+
 describe('Bottom-Sheet und Touch', () => {
   it('schmal: Inspektor als Bottom-Sheet, Miniaturen eingeklappt, axe', async () => {
     restore = emulateMedia({ narrow: true });

@@ -48,6 +48,18 @@
   font-size: var(--fs-15);
   border-radius: var(--r-4);
 }
+/* Finger: große Systemschrift (iOS Dynamic Type, Android-Schriftgröße) – Beschriftungen brechen um, statt
+   den Knopf und damit Karte und Spalte über den Bildschirmrand zu schieben (Höhe: mind. 44 px, base.css) */
+@media (pointer: coarse) {
+  .btn {
+    max-width: 100%;
+    height: auto;
+    padding-block: 6px;
+    line-height: 1.2;
+    white-space: normal;
+    text-align: center;
+  }
+}
 .btn-primary {
   background: var(--c-primary);
   color: var(--c-on-primary);
@@ -359,6 +371,14 @@
   letter-spacing: 0.3em;
   height: 48px;
 }
+/* Finger (iOS-WebView): Ein Feld mit Schrift unter 16 px vergrößert beim Fokus die ganze Seite, und sie bleibt
+   danach vergrößert (Kopfzeile unter der Statusleiste, Ränder abgeschnitten) – deshalb mindestens 16 px. */
+@media (pointer: coarse) {
+  .input:not(.input-tan),
+  .textarea {
+    font-size: var(--fs-16);
+  }
+}
 
 /* ------------------------------------------------------------ Schalter, Kontrollkästchen */
 .switch-field {
@@ -534,8 +554,11 @@
   gap: 6px;
   justify-items: start;
 }
+/* Passen die Segmente nicht in eine Zeile (Telefon, große Schrift, lange Übersetzung), brechen sie um –
+   sonst läge z. B. „Schlüsselbund“ abgeschnitten hinter einer waagrechten Scrollleiste. */
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
   padding: 3px;
   gap: 2px;
   border-radius: var(--r-3);
@@ -934,15 +957,16 @@
 /* ------------------------------------------------------------ Benachrichtigungen */
 .toasts {
   position: fixed;
-  right: var(--sp-4);
-  bottom: var(--sp-4);
+  /* Querformat auf Telefonen: nicht unter Notch/Dynamic Island bzw. Home-Indikator */
+  right: max(var(--sp-4), env(safe-area-inset-right));
+  bottom: max(var(--sp-4), env(safe-area-inset-bottom));
   z-index: 150;
   width: min(380px, calc(100vw - 2 * var(--gutter)));
   pointer-events: none;
 }
 /* Im Arbeitsbereich links neben der Seitenleiste, damit kein Hinweis „Signieren“ verdeckt */
 .view-workspace .toasts {
-  right: calc(var(--insp-w) + var(--sp-4));
+  right: calc(var(--insp-w) + var(--sp-4) + env(safe-area-inset-right));
 }
 .toasts-list {
   display: grid;

@@ -1,6 +1,7 @@
 # iOS – Paket M-iOS (Projekt, native Plugin-Seite, Nachweise)
 
-Stand: 15.10.2026, Welle Mobile, Paket **M-iOS** auf dem Fundament M0 (docs/integration/mobile.md).
+Stand: 15.10.2026, Welle Mobile, Paket **M-iOS** auf dem Fundament M0 (docs/integration/mobile.md); neue Oberfläche
+am Gerät durchgespielt am 16.10.2026 (§8).
 Gemessen auf macOS 27 (arm64), Xcode 27.0 (27A266a), Swift 6.4, Rust 1.99, Tauri 2.12.4 / CLI 2.12.3,
 iOS-Simulator **iOS 27.0** (iPhone 17), PDFium chromium/8100.
 
@@ -206,7 +207,8 @@ kein Request A-Trust erreichen kann.
 4. **Behoben (R-4).** **Kern/Shell:** Kopien im Cache bleiben liegen: `Caches/…/import/<n>/test-rsa2048.p12` (der importierte
    Keystore liegt danach ein zweites Mal im Cache) und `inbox/<n>/…`. Nach dem Import bzw. nach Abschluss
    löschen.
-5. Logs im System-Log enthalten ANSI-Farbcodes (stderr-Ausgabe im Debug-Build).
+5. **Behoben (16.10.2026, §8).** Logs im System-Log enthielten ANSI-Farbcodes (stderr-Ausgabe im Debug-Build) –
+   `core-api/src/logging.rs` schaltet sie auf iOS/Android, ohne Terminal und mit `NO_COLOR` ab.
 6. **Behoben (R-7).** `tauri-plugin-dialog` ist auch auf Mobile registriert und zieht `Photos`/`PhotosUI` in das Binary – vor
    der App-Store-Einreichung prüfen, ob Zweckangaben verlangt werden, sonst das Plugin nur auf dem Desktop
    registrieren.
@@ -219,3 +221,124 @@ kein Request A-Trust erreichen kann.
 9. Hooks vor den Delegates von tao (§2.5) hängen an Klassen- und Selektornamen von tao 0.37.1 – bei
    Tauri-Updates prüfen (Log „hook … nicht installiert“).
 10. Optional: Pinch-Zoom in der Vorschau, Bildmarke aus der Fotomediathek, Managed App Configuration.
+
+## 8. Neue Oberfläche (16.10.2026)
+
+Branch `mobile/ios` mit dem Stand von `main` vom 16.10. (neue Oberfläche E1–E4 nach ADR 0004, dazu
+Keystore-Formaterkennung mit Schlüsselauswahl und „Passwort merken?“, Papierkorb im Stapel, Signierkarte mit
+schrumpfenden Vergleichswert-Kästchen). Gerät: Simulator iPhone 17, iOS 27.0, Sprache de, Debug-Build.
+Aufnahmen: `docs/integration/screenshots/ios-ng/01-…` bis `79-…` (540 px breit bzw. hoch; `…-befund-…` zeigt den
+Zustand vor der jeweiligen Behebung). 01–50 stammen aus dem ersten, wegen des Nutzungslimits unterbrochenen Lauf
+(WIP-Commit), 51–79 aus der Fortsetzung mit dem gemergten `main`.
+
+### 8.1 Bauweg und Bedienung
+
+- Bauen wie in §4 über den Symlink ohne Leerzeichen (`/tmp/pida-ios`, `CARGO_TARGET_DIR=/tmp/pida-ios/target-ios`):
+  `npx tauri ios build --target aarch64-sim --debug` (inkrementell 1–3 min), danach `xcrun simctl install`.
+  Ein Update-Install vergibt einen neuen Container – genau der Fall aus Befund 1 unten.
+- Start **immer ohne Weg zu A-Trust**: `SIMCTL_CHILD_HTTPS_PROXY`, `…_HTTP_PROXY`, `…_ALL_PROXY` (auch klein
+  geschrieben) = `http://127.0.0.1:9` (Verbindung abgelehnt). Für die Warteansicht von ID Austria stattdessen ein
+  lokales „schwarzes Loch“ auf `127.0.0.1:9999`, das Verbindungen annimmt und nie antwortet (leitet nichts weiter).
+  Keine Zugangsdaten eingegeben.
+- Startprüfung: `SIMCTL_CHILD_PIDA_SMOKE=1` → im System-Log
+  `[stdout] pida-smoke: ok step=open pdfium=true webview_ms=827 core_ms=827` (erst nach Befund 2 sichtbar).
+- Oberfläche bedient über den **Web-Inspektor der WKWebView** (Debug-Build; WIRP-Protokoll über den Socket von
+  `webinspectord_sim`, `Runtime.evaluate`): Knöpfe per `click()`, Feldwerte per Wert-Setter + `input`-Ereignis,
+  Messungen (Überlauf, Safe Areas, Zoom, Barrierefreiheit). Native Teile (Dokument-Picker, Share-Sheet,
+  Home-Taste, Schalter im Import) per Tipp im Simulator; Aufnahmen mit `xcrun simctl io <udid> screenshot`.
+- **Querformat:** `simctl` kann nicht drehen und UI-Scripting des Simulators ist auf diesem Mac nicht freigegeben –
+  gedreht mit einem kleinen XCUITest-Hilfsprojekt (`XCUIDevice.shared.orientation`, `xcodebuild
+  test-without-building`), dessen Runner danach wieder deinstalliert wurde. Dunkel: `xcrun simctl ui <udid>
+  appearance dark`; Schriftgröße: `xcrun simctl ui <udid> content_size accessibility-extra-large`.
+- Eigenheiten der Werkzeuge: Der Web-Inspektor antwortet nicht, solange ein Menü (React-Aria-Popover) offen ist
+  bzw. kurz nach großen Ansichtswechseln – dann Tipp statt Skript oder App neu starten. Eingefügter Text
+  (Simulator-Zwischenablage) kommt in WKWebView-Feldern nicht an. Die Software-Tastatur erscheint nicht, weil die
+  Hardware-Tastatur verbunden ist (nur die Zubehörleiste); Aufnahmen 16 und 35 aus dem ersten Lauf zeigen sie.
+
+### 8.2 Ergebnisse je Ablauf
+
+| Nr. | Ablauf | Aufnahmen | Ergebnis |
+|---|---|---|---|
+| 1 | Start, Ersteinrichtung (frisch, ohne PDF-Over-Altkonfiguration), „Später einrichten“ | 01–03, 73 | ok; nach „Später einrichten“ `first_run_completed`, Keystore-Speicherart noch nicht gewählt (`storage_chosen = false`) |
+| 2 | PDF empfangen (Teilen/„Öffnen in“ aus Dateien, Dokumentauswahl), Arbeitsbereich mit Bottom-Sheet, Block automatisch platziert, Touch-Ziehen mit Einrasten, Seitenwechsel, Signaturfeld/QR-Platzhalter | 04–12, 24, 25, 48, 56 | ok. Befund 17 (Teilen mehrerer PDFs, offen) |
+| 3 | Keystore per Import im neuen Stil, Signiermittel-Menü, Signieren → Statuskarte → Fertig, Teilen, „Sichern unter“, Öffnen (QuickLook) | 13–23, 49, 52, 74–78 | ok; „Passwort merken?“ bei der ersten Verwendung nach Neuinstallation (76) → `password_storage = "keychain"`, danach liest die Einstellungsansicht den Schlüssel selbst (78). pyHanko `--trust test-rsa2048.crt.pem`: *trusted, cryptographically sound, covers the entire file, VALID* (Einzeldokument erster Lauf, `Testdokument_signed.pdf` nach Neuinstallation) |
+| 4 | Stapel: mehrere PDFs (Mehrfachauswahl), Übersicht mit Miniaturen, Papierkorb je Zeile, „Alle signieren“ mit Keystore, Zusammenfassung; App in den Hintergrund und zurück; App beenden während des Laufs | 25–29, 50, 63–67 | ok: Hintergrund/Vordergrund mitten im Lauf (Passwortabfrage) → `Lebenszyklus suspended=true/false`, Karte und Lauf bleiben, danach 3 von 3 signiert (67); pyHanko *VALID* für beide Stapel (je 3 Dokumente). App-Kill: siehe 8.4 |
+| 5 | Einstellungen im Vollbild: alle Bereiche, Suche, Bereich „Dokument“ (PDF/A, Platzhaltersuche), Live-Vorschau des Signaturbilds, Datenschutz/„Zuletzt signiert“, Mobile-Einschränkungen | 30–43, 51, 54, 68, 71, 72, 78 | ok; ohne Proxy, Ausgabeordner, Update-Prüfung und Log-Ordner (38, 40), Suche „Proxy“ ohne Treffer (68). Befunde 1, 5, 6, 11, 16 |
+| 6 | Prüfmodus mit signiertem Dokument (Status, „Auf der Seite zeigen“), „Dieses Dokument signieren“ | 44–47, 70 | ok (auch aus „Zuletzt signiert“ und im Querformat) |
+| 7 | ID Austria ohne Netz: Auswahl, Datenschutz-Kurzhinweis, Signieren → Fehler-/Warteansicht, FIDO2 | 57–62, 78 | ok: Kurzhinweis „Das Dokument wird zum Signieren an A-Trust übermittelt. Details“ in der Karte (58), App-Wechsel während des Verbindungsaufbaus ist kein Abbruch (61), Abbruch nach Zeitüberschreitung (62); FIDO2 in den Einstellungen mit Hinweis „auf diesem Gerät nicht verfügbar“ (78). Befunde 13, 14 |
+| 8 | Safe Areas (Dynamic Island, Statusleiste, Home-Indikator), Tastatur, Schriftgröße, Bildschirmleser | 53–55, 68–72, 79 | nach den Befunden 4, 7–10, 15 ok: Hochformat und Querformat ohne Inhalt in der Unsicher-Zone (Messung gegen `env(safe-area-inset-*)`: 62 px links/rechts, 20 px unten), kein Zoom beim Fokus (`visualViewport.scale = 1`), Dynamic Type bis 200 % ohne waagrechten Überlauf. Barrierefreiheit per Inspektion auf Start, Arbeitsbereich, Einstellungen, Stapel, Prüfmodus: `lang="de"`, keine Bedienelemente ohne Namen, keine Bilder ohne `alt`, keine fokussierbaren Elemente unter `aria-hidden`, keine doppelten IDs, Überschriften je Ansicht; Knöpfe ≥ 44 × 44 px (außer dem nur bei Tastaturfokus sichtbaren Sprunglink) |
+
+### 8.3 Befunde und Behebungen
+
+1. **Kern: „Zuletzt signiert“ nach einem Update leer** („Datei nicht mehr vorhanden“): `recent.json` speichert
+   absolute Pfade, iOS vergibt bei jedem Update einen neuen Container. Wie Keystore und Bildmarke (§7 Nr. 1)
+   stellt der Kern auf Mobile fehlende Einträge auf die App-Dokumente um (`pida_config::RecentStore::relocate`,
+   `core-api/src/recent.rs` `relocate_recent`); Log „„Zuletzt signiert“ nach Umzug der Sandbox neu zugeordnet
+   entries=4“, Aufnahme 51. Tests: `recent::tests::relocate_…`, `tests/mobile.rs`
+   `recent_documents_follow_a_moved_sandbox` (iOS umgestellt, Desktop unverändert).
+2. **Shell: Zeile der Startprüfung fehlte im System-Log.** Tauri leitet stdout über eine Pipe und eine
+   Dispatch-Quelle (QoS „utility“) weiter, `process::exit` kam ihr zuvor. `smoke.rs` wartet unter iOS 500 ms.
+3. **ANSI-Farbcodes im System-Log** (§7 Nr. 5): `core-api/src/logging.rs` (`stderr_ansi`, Test) – Log jetzt
+   `[stderr]  INFO PIDA startet version=0.1.0`, keine `ESC[`-Folgen.
+4. **Oberfläche: Seite blieb nach dem Fokus eines Felds vergrößert** (`visualViewport.scale = 1.067`,
+   Kopfzeile unter der Statusleiste, Ränder abgeschnitten, Aufnahme 52): WebKit zoomt bei Schrift unter 16 px.
+   Eingabefelder auf Touch-Geräten mit 16 px (`components.css`).
+5. **Segmentierte Auswahl abgeschnitten** („Schlüsselbund“ bzw. „Im sicheren Speicher“ hinter einer
+   Scrollleiste, betrifft auch das neue „Passwort merken?“): Segmente brechen um (`.segmented`, 54, 76, 78).
+6. **Schlüsselanzeige** „…gültig bis 11.10.2036Alias: test-rsa2048“ ohne Abstand (alle Plattformen):
+   `.keystore-key` (`settings.css`), Aufnahme 78.
+7. **Plugin: Dynamic Type wurde ignoriert.** Neues `ios/Sources/TextSize.swift`: Grundschrift
+   `html { font-size }` = 16 px × `UIFontMetrics(.body)` (Standardgröße = 16 px, begrenzt auf 0,85–2,0), folgt
+   Änderungen zur Laufzeit (`UIContentSizeCategory.didChangeNotification`), Aufnahmen 53, 55.
+8. **Große Schrift: Startfläche und Karten ragten über den Rand** (54): Startspalte `minmax(0, 1fr)`, Knöpfe
+   brechen auf Touch-Geräten um (`.btn`), Aufnahme 79.
+9. **Querformat: Safe Area links/rechts ignoriert** – Wortmarke, Inhalt und Einstellungen lagen unter der
+   Dynamic Island: Kopfzeile, Hauptbereich, Einstellungen im Vollbild, Hinweise (Toasts) und Fuß des Inspektors
+   berücksichtigen `env(safe-area-inset-*)` (69–72).
+10. **Ansichtswechsel übernahm den Bildlauf der Startseite:** `.app-main` ist für alle Ansichten derselbe
+    Container; im Querformat (Startseite rollt) stand der Arbeitsbereich danach um 82 px verschoben und ließ sich
+    nicht zurückrollen. `App.tsx` setzt den Bildlauf bei jedem Ansichtswechsel zurück (Test in `Mobile.test.tsx`).
+11. **Einstellungen im Querformat:** die mitlaufende Vorschau des Signaturbilds (273 px) war höher als der
+    Inhaltsbereich (193 px) – alles darunter rollte unsichtbar vorbei (71). Bei Fensterhöhe ≤ 520 px rollt sie
+    mit (72).
+12. **Stapel schmal: Papierkorb unsichtbar** (neu aus `main`, 63): Die Regel „Pfeil ausblenden“ blendete die
+    ganze Aktionsspalte aus. Jetzt steht der Papierkorb oben rechts in der Zeile, nur der Pfeil entfällt (64).
+13. **ID Austria ohne Netz: Fehlerkette im Alltagstext** („Proxy: error sending request: client error
+    (Connect): tunnel error …“, 59): `backend-network` hat ein Attribut `.text` ohne `{ $detail }`; Karte,
+    Stapelpause und Fehlerkarte zeigen es, die Ursache steht nur unter „Technische Details“ (60). CLI und Log
+    behalten die vollständige Meldung (Test in `signing.test.tsx`).
+14. **Zeitüberschreitung beim Verbindungsaufbau** bot „Neue Bestätigung anfordern“ an, obwohl noch keine
+    Bestätigung lief (62): vor der Bestätigung (Stepper auf „Anmelden“) „Erneut versuchen“ (Test).
+15. **Kopfzeile:** Befehlsknopf (Suche) 36 px breit → mindestens 44 × 44 px auf Touch-Geräten (`shell.css`).
+16. **Bezeichnung** der Speicherart in Einstellungen › Keystore auf Mobile „Sicherer Speicher“ statt
+    „Schlüsselbund“ (wie „Im sicheren Speicher“ bei „Passwort merken?“; Android kennt keinen Schlüsselbund).
+
+Prüfungen nach den Behebungen: `npm ci && npm run build && npm test` (25 Dateien, 595 Tests grün),
+`cargo test -p pida-app -p pida-core-api -p pida-config -p pida-i18n --no-fail-fast` (404 Tests grün),
+`cargo fmt --check`, `python3 tools/rename-to-pida.py --check` grün; Oberflächenänderungen zusätzlich am Desktop
+mit dem Mock-Kern geprüft (Fehlerkarte „Signaturdienst nicht erreichbar“).
+
+### 8.4 Nicht am Gerät nachweisbar, offene Punkte
+
+17. **Teilen mehrerer PDFs** aus der Dateien-App an PIDA liefert nur das erste (24): Ohne Share-Extension übergibt
+    iOS beim „Öffnen in“ ein Dokument (Plan: keine Share-Extension). Stapel auf dem iPhone über „Dokument
+    auswählen“ bzw. „PDF hinzufügen“ mit Mehrfachauswahl (25, 63). Hinweis in der Hilfe oder eine Share-Extension
+    wären die Optionen – Entscheidung des Auftraggebers.
+18. **„Signatur fortsetzen“ nach App-Kill** nur mit ID Austria (Wartezustand nach `prepare`); der Keystore wird
+    vor `prepare` entsperrt und signiert sofort, nach einem Kill gibt es nichts fortzusetzen (50). Mit ID Austria
+    braucht es A-Trust – abgedeckt durch `core-api/tests/mobile.rs`
+    (`batch_on_mobile_resumes_only_the_interrupted_document`, `app_kill_offers_resume_…`) und `Mobile.test.tsx`.
+19. **Vergleichswert-Kästchen der Signierkarte** (neu aus `main`) erscheinen erst nach der Anmeldung bei A-Trust –
+    am Gerät nicht prüfbar; UI-Tests in `signing.test.tsx`.
+20. **Links** sind 24 px hoch (WCAG 2.5.8 erfüllt); die Regel „44 px auf Touch-Geräten“ in `base.css` für `.link`
+    wirkt nicht, weil `components.css` sie überschreibt. Bewusst nicht geändert: Links stehen oft im Fließtext
+    (z. B. „Details“ im Datenschutz-Hinweis), 44 px würden die Zeilen auseinanderziehen.
+21. **Texte:** „Überspringen – … ohne Bestätigung in der App“ erscheint auch beim Keystore (65); Speicherart
+    heißt in den Einstellungen „Bis Programmende“, bei „Passwort merken?“ „Bis zum Beenden“.
+22. Dynamic Type ist bei 200 % begrenzt; Wortmarke und Bildschirmmaße in `px` wachsen nicht mit. Lange Namen
+    (Dokument, Signiermittel-Chip) werden bei großer Schrift mit „…“ gekürzt (55).
+23. VoiceOver selbst wurde nicht gehört (Simulator ohne VoiceOver-Steuerung); geprüft sind Namen, Rollen und
+    Struktur per Inspektion (§8.2 Nr. 8) sowie axe in den UI-Tests.
+24. `general.last_source_directory` bleibt nach einem Update ein Pfad im alten Container (auf Mobile ungenutzt).
+25. Bei großer Schrift rollt die waagrechte Bereichsnavigation der Einstellungen den aktiven Bereich nicht in
+    den sichtbaren Teil (79: „Signiermittel“ aktiv, sichtbar sind „Signaturbild“ und „Dokument“).

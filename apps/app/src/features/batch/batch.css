@@ -279,9 +279,28 @@ button.batch-row-main {
     justify-content: flex-start;
     padding: var(--sp-2) 0 0 72px;
   }
-  .batch-row-action.has-caret,
   .batch-row-action:empty {
     display: none;
+  }
+  /* Der Pfeil entfällt (die ganze Zeile öffnet das Dokument); der Papierkorb steht oben rechts in der Zeile –
+     früher verschwand mit dem Pfeil die ganze Aktionsspalte und damit auch der Papierkorb. Bleibt nichts
+     anderes (z. B. „Prüfen“), braucht die Aktion keine eigene Zeile. */
+  .batch-row {
+    position: relative;
+  }
+  .batch-row-caret {
+    display: none;
+  }
+  .batch-row-action:not(:has(> :not(.batch-row-caret, .batch-row-remove))) {
+    display: contents;
+  }
+  .batch-row-remove {
+    position: absolute;
+    top: var(--sp-2);
+    right: var(--sp-1);
+  }
+  .batch-row:has(.batch-row-remove) .batch-row-main {
+    padding-right: 48px;
   }
 }
 @media (forced-colors: active) {
