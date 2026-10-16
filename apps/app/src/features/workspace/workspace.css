@@ -407,6 +407,9 @@
 .inspector-scroll {
   flex: 1;
   display: grid;
+  /* Spalte nie breiter als der Inspektor: lange Namen (z. B. Keystore-Datei im Konto-Chip) werden mit „…“
+     gekürzt, statt die Spalte aufzudehnen und Optionen rechts abzuschneiden */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--sp-5);
   padding: var(--sp-5);
@@ -416,6 +419,7 @@
   display: none;
 }
 .insp-section {
+  min-width: 0;
   display: grid;
   gap: var(--sp-3);
 }

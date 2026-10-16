@@ -65,7 +65,7 @@ export function SignerChip({
           <span className={`signer-chip-icon ${signerClass(selected)}`}>
             <SignerIcon backend={selected} size={16} />
           </span>
-          <span className="signer-chip-text">{label}</span>
+          <span className="signer-chip-text" title={label}>{label}</span>
           <IconChevronDown size={16} className="signer-chip-caret" />
         </Button>
         <Popover className="popover" placement="bottom end" offset={6}>
