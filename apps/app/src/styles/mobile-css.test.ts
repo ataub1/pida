@@ -56,7 +56,7 @@ describe('Mobile-Stile', () => {
 
   it('Fingerziele ≥ 44 px', () => {
     // auf allen Finger-Geräten (auch Tablets): Mindestmaße überstimmen die 36 px der schmalen Kopfzeile
-    const shell = ruleInMedia(read('app/shell.css'), '(pointer: coarse)', '.command-button');
+    const shell = ruleInMedia(read('app/shell.css'), '(pointer: coarse)', '.header-add');
     expect(shell).toMatch(/min-width: 44px/);
     expect(shell).toMatch(/min-height: 44px/);
     expect(read('app/shell.css')).toMatch(/\.brand,\s*\.command-button,\s*\.header-add \{\s*min-width: 44px;/);

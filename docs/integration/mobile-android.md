@@ -308,7 +308,8 @@ Plattformübergreifend in der Oberfläche, wo möglich (Desktop unverändert, so
    `signing.test.tsx`; 15).
 9. **B9** „Signaturdienst nicht erreichbar“ zeigte die Fehlerkette des HTTP-Clients als Text → Attribut `.hint`
    (`backend-network`), die Ursache nur unter „Technische Details“ (`SigningCard.tsx`, `StateCards.tsx`, `texts.ts`;
-   `signing.test.tsx`; 38 → 58).
+   `signing.test.tsx`; 38 → 58). Integration: dasselbe hatte iOS als Attribut `.text` umgesetzt – es gilt `.text`
+   („Die Verbindung zum Signaturdienst ist fehlgeschlagen. Prüfen Sie die Internetverbindung …“), `.hint` entfällt.
 10. **B10** Stapelstart mit Keystore: „Überspringen … ohne Bestätigung in der App“ → eigener Text (`StartBatchDialog.tsx`;
     `batch.test.tsx`; 59).
 11. **B11** Der Datenschutztext nannte auf Mobilgeräten die Chipkarte → `ng-ui-privacy-local-mobile` (`privacy.tsx`;
@@ -319,7 +320,8 @@ Plattformübergreifend in der Oberfläche, wo möglich (Desktop unverändert, so
 14. **B14 Segmente** („Passwort merken?“ in der Signierkarte, „Passwort“ in den Einstellungen) passten auf 411 px nicht:
     die Gruppe scrollte waagrecht, „Nicht speichern“ bzw. „Schlüsselbund“ waren angeschnitten → Segmente schrumpfen bis
     zum längsten Wort und brechen um (Mindest- statt fester Höhe, Fingerziel 44 px bleibt; `components.css`;
-    `mobile-css.test.ts`; 47/48 → 52, 54, 56 mit 130 %).
+    `mobile-css.test.ts`; 47/48 → 52, 54, 56 mit 130 %). Integration: zusätzlich bricht die Gruppe selbst um
+    (`.segmented { flex-wrap: wrap }`, iOS Befund 5) – passt eine Zeile nicht, rutschen Segmente in die nächste.
 15. **B15** Einstellungen › Keystore auf Mobilgeräten: Speicherart „Schlüsselbund“ → „Sicherer Speicher“ (wie „Im
     sicheren Speicher“ beim ersten Signieren; `SignerRows.tsx`, `ui-tools.ftl`; `settings.test.tsx`).
 16. **B16** Schlüsselzeile „… gültig bis 11.10.2036Alias: test-rsa2048“ ohne Trenner (für `.keystore-key` gab es keine

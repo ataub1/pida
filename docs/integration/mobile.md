@@ -333,4 +333,104 @@ Offen (nicht behoben, siehe auch mobile-ios.md §7 und mobile-android.md §7): A
 System die Activity ohne Konfigurationsänderung zerstört (Tauri/wry, upstream); Startprüfung unter Android endet in
 `exit()` (FORTIFY-Meldung möglich, nur Debug-Startprüfung); App-Wechsel zur App „ID Austria“ und „Signatur fortsetzen“
 nach App-Kill nur durch Kern-Tests belegt (brauchen A-Trust); `CFBundleShortVersionString`/`versionName` 1.0.0 statt
-0.1.0; iOS bietet im Share-Sheet die App selbst und „Markup“ an.
+0.1.0 (behoben 16.10.2026, §11); iOS bietet im Share-Sheet die App selbst und „Markup“ an.
+
+## 11. Neue Oberfläche auf Mobile (16.10.2026)
+
+Die neue Oberfläche (ADR 0004, E1–E4: Arbeitsbereich mit Bottom-Sheet, Signier-Statuskarte, Fertig mit Teilen und
+„Sichern unter“, Stapel, Einstellungen im Vollbild mit Bereich „Dokument“, Prüfmodus, Ersteinrichtung) wurde auf
+beiden Plattformen am Gerät durchgespielt, die Befunde behoben und beide Stände in `mobile/int` mit `main`
+zusammengeführt. Einzelheiten, Aufnahmen und Befundlisten: mobile-ios.md §8 (Simulator iPhone 17 und zur
+Gegenprüfung iPhone 17e, iOS 27; `docs/integration/screenshots/ios-ng/`) und mobile-android.md §8 (Emulator
+API 35, 411 CSS-px; `docs/integration/screenshots/android-ng/`). Umfang Mobile 1.0 (Plan §5.2): ID Austria
+(App-Bestätigung/SMS, kein FIDO2), PKCS#12 nur per Import, keine lokale Chipkarte, keine CLI. Netz immer gesperrt
+(iOS: Proxy `127.0.0.1:9`; Android: Proxy und Flugmodus), A-Trust nie erreicht, keine Zugangsdaten eingegeben.
+
+### 11.1 Ergebnisse
+
+| Ablauf | iOS | Android |
+|---|---|---|
+| Start, Ersteinrichtung, „Später einrichten“ | ok | ok |
+| PDF empfangen, Arbeitsbereich, Ziehen per Touch, Signaturfeld/QR-Platzhalter | ok nach R1 (Block nach dem Ziehen unter dem Sheet); mehrere PDFs per „Teilen“ nur das erste (offen) | ok |
+| Keystore-Import, Signieren, Fertig, Teilen, „Sichern unter“, Öffnen | ok nach R2 (Tastatur verdeckte Dialoge), R4 (Systemtexte englisch); pyHanko *VALID* | ok; pyHanko *VALID* (5 Dateien, auch 120 MB) |
+| Stapel, Hintergrund/Vordergrund, App-Ende im Lauf | ok (3 von 3 nach Hintergrund); Keystore hat nach Kill nichts fortzusetzen | ok nach B19 („Fortsetzen“ behält „Beide behalten“) |
+| Einstellungen im Vollbild, Suche, Mobile-Einschränkungen | ok nach Befunden 5, 6, 11, 16 | ok nach B11, B14–B16 |
+| Prüfmodus | ok | ok nach B3 (Ergebnis scrollt) |
+| ID Austria ohne Netz | ok nach 13, 14 und R3 (Benutzername eingebbar) | ok nach B5, B9 |
+| Safe Areas, Tastatur, Schriftgröße, Bildschirmleser (Inspektion) | ok nach 4, 7–10, 15 (Dynamic Type bis 200 %) | ok (130 %, Zurück-Geste nach B18) |
+
+### 11.2 Wichtigste Behebungen
+
+- **Beide Plattformen (unabhängig gefunden):** Segmente brechen um; Keystore-Schlüssel mit Alias darunter;
+  Papierkorb im schmalen Stapel sichtbar; Fingerziele ≥ 44 px (Kopfzeile, Hinweis schließen, Suche löschen,
+  kompakter Konto-Chip); „Signaturdienst nicht erreichbar“ ohne technische Fehlerkette; Speicherart „Sicherer
+  Speicher“ statt „Schlüsselbund“.
+- **iOS:** Dynamic Type über das Plugin (`TextSize.swift`); Software-Tastatur verdeckt keine Bottom-Sheet-Dialoge
+  mehr (`components.css`, `app/keyboard.ts`); kein WebKit-Zoom nach Fokus (Felder 16 px); Safe Areas im
+  Querformat; `CFBundleLocalizations` de/en; „Zuletzt signiert“ folgt nach einem Update dem neuen Container;
+  Zeile der Startprüfung im System-Log; keine ANSI-Farbcodes im Log.
+- **Android:** Farben der Systemleisten, Schriftgröße zur Laufzeit, Zurück-Geste ohne Fokusrahmen; Kern:
+  `ResumeRecord::on_existing` – ein fortgesetzter Stapel behält die Regel für vorhandene Dateien.
+- **Plattformübergreifend aus den Gerätetests:** Bildlauf bei Ansichtswechsel zurückgesetzt; Bildlauf-Ausgleich,
+  wenn die Leiste „Signaturfeld gefunden“ erscheint oder verschwindet; „Erneut versuchen“ bei Zeitüberschreitung
+  vor der Bestätigung; „Telefonnummer oder Benutzername“ mit Standardtastatur.
+
+### 11.3 Zusammenführung (`mobile/int`)
+
+Beide Branches (`mobile/ios` 750b71c, `mobile/android` d2bf925) und danach `main` (6656e62: automatische
+Positionierung, „+ PDF“, „Zur Startseite“/„In Bearbeitung“) gemergt. Wo beide Plattformen denselben Befund
+verschieden behoben hatten, gilt eine Lösung:
+
+| Thema | gilt | entfällt |
+|---|---|---|
+| Fehlertext ohne Fehlerkette | Attribut `.text` (iOS) in `friendlyError()`, Karte, Stapelpause, Fehlerkarte | `.hint` (Android) samt Texten in `pida.ftl` |
+| Kopfzeile ≥ 44 px | `min-width`/`min-height` auf allen Finger-Geräten (iOS), dazu „+ PDF“ aus `main` | feste 44 px nur ≤ 760 px (Android) |
+| Papierkorb im schmalen Stapel | `.batch-row-action.has-caret` in der ersten Zeile (Android, mit Test) | absolut positionierter Papierkorb (iOS) |
+| Keystore-Schlüssel | Name und Alias untereinander (Android, mit Test) | Flex-Zeile mit Umbruch (iOS) |
+| Segmente | beides: Gruppe bricht um (iOS) **und** Beschriftung bricht um (Android) | – |
+| Konto-Chip ≥ 44 px | eine Touch-Regel | doppelte Regel |
+
+Nachträge der Integration: Android-Test `batch_resume_keeps_the_rule_for_existing_files` an `OpenFiles { mode }`
+aus `main` angepasst; Hinweisleiste „Signaturfeld gefunden“ nur bei verschiebbarem Block (`movable` aus `main`)
+zusammen mit dem Bildlauf-Ausgleich (iOS R1); `pida-cli` kompilierte seit „Passwort merken?“ (458f6d5) nicht mehr
+(`SubmitSecret` ohne `password_storage`, Muster `InteractionView::Secret`) – die Kommandozeile ändert die
+Speicherart nicht (`password_storage: None`). **App-Version vereinheitlicht:** 0.1.0 in `Cargo.toml`,
+`package.json`, `tauri.conf.json` (`version`, vorher fehlend – die CLI setzte iOS auf 1.0.0), `Info.plist` und
+`project.yml` (`CFBundleShortVersionString`/`CFBundleVersion`), Android über `tauri.properties` aus `version`
+(`versionName` 0.1.0, `versionCode` 1000) mit denselben Rückfallwerten in `build.gradle.kts`; Test
+`apps/app/src/app/version.test.ts`.
+
+**Prüfungen (Stand `mobile/int`):** `cargo test --workspace --no-fail-fast` 1424 bestanden, 0 fehlgeschlagen,
+5 ignoriert (darin `ts_bindings` und `serde_contract` ohne Neuerzeugung); `npm ci && npm run build && npm test`
+32 Dateien, 687 Tests; `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p pida-app` für
+`aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK) grün, je eigenes `CARGO_TARGET_DIR`. macOS-Debug-Bundle:
+Startprüfung `PIDA_SMOKE=1` mit leerem `PIDA_HOME`/`HOME` dreimal `pida-smoke: ok step=open pdfium=true`
+(507/430/414 ms), Bundle-Version 0.1.0. Wie in §10 mit `--config '{"identifier":"at.pida.smoketest"}'` gebaut, damit
+die Prüfung nicht an eine laufende PIDA (Socket `/tmp/at_pida_si.sock`) übergibt.
+
+### 11.4 Offen
+
+- **Gemergter Stand nicht erneut am Gerät:** Die Kombinationen aus 11.3 (z. B. iOS-Tastaturabstand auf Android,
+  Android-Segmente und -Papierkorb auf iOS) sind per Test und Durchsicht geprüft, nicht erneut im Simulator bzw.
+  Emulator; ebenso die neuen Funktionen aus `main` („+ PDF“, „In Bearbeitung“, automatische Positionierung) auf
+  dem Telefon.
+- **Entscheidung Auftraggeber:** Teilen mehrerer PDFs aus der iOS-Dateien-App liefert nur das erste (ohne
+  Share-Extension; Stapel über „Dokument auswählen“/„PDF hinzufügen“) – Hinweis oder Share-Extension.
+- **Nur durch Tests belegt (braucht A-Trust):** Anmeldung, SMS-TAN, App-Bestätigung, Vergleichswert-Kästchen,
+  „Signatur fortsetzen“ nach App-Kill mit ID Austria.
+- **Texte:** ID-Austria-Wortlaut beim Keystore-Stapel („Bestätigung 1 von 3“, „einmal anmelden, dann …
+  bestätigen“, „Überspringen … ohne Bestätigung in der App“); „Einrichtung abgeschlossen“ nach „Später
+  einrichten“; „Bis Programmende“ (Einstellungen) gegenüber „Bis zum Beenden“ („Passwort merken?“).
+- **Randfälle:** seitenfüllendes Signaturfeld auf der letzten Seite bzw. `manySignFields-xref-stream.pdf` –
+  „automatisch auf freier Fläche platziert“ trotz Warnung „überdeckt ein Feld“; auf dem Telefon liegt ein Toast
+  über dem unteren Rand eines Dialogs; nach Wahl einer Miniatur Fokusrahmen samt Tooltip auf dem Umschalter;
+  QR-Platzhaltersuche nachträglich eingeschaltet und dasselbe PDF erneut empfangen (Ansicht bleibt „Auf neuer
+  Seite“, doppelter Stapeleintrag); aria-live-Text nach Dokumentwechsel im Stapel zunächst noch vom vorigen;
+  Toast nach „Sichern unter“ nennt den vorgeschlagenen statt den vom System vergebenen Namen; fortgesetztes
+  Dokument im Stapel ohne Miniatur und Seitenzahl.
+- **Barrierefreiheit:** VoiceOver und TalkBack nicht akustisch geprüft (nur Namen, Rollen, Struktur und axe);
+  Dynamic Type bis 200 %, `px`-Maße wachsen nicht mit; die waagrechte Bereichsnavigation der Einstellungen rollt
+  bei großer Schrift den aktiven Bereich nicht ins Bild; `.link` 24 px (WCAG 2.5.8 erfüllt, bewusst so).
+- **Nicht abgedeckt:** echte Geräte, Android 9–14, Release-Builds; Überlappungen in der Bereichsleiste nur in
+  `adb screencap` (vermutlich Grafikartefakt des Emulators); `general.last_source_directory` bleibt nach einem
+  iOS-Update ein Pfad im alten Container (auf Mobile ungenutzt).

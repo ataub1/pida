@@ -183,7 +183,8 @@ fn ask(term: &dyn Terminal, lang: Lang, prompt: &Prompt) -> Option<UiEvent> {
                 SecretKind::Fido2Pin => "ng-cli-fido2-pin",
             };
             let secret: Zeroizing<String> = term.secret(&tr(lang, id, &[("name", subject.clone())]))?;
-            Some(UiEvent::SubmitSecret { request: *request, secret: secret.to_string() })
+            // „Passwort merken?“ gibt es nur in der Oberfläche: die Kommandozeile ändert die Speicherart nicht
+            Some(UiEvent::SubmitSecret { request: *request, secret: secret.to_string(), password_storage: None })
         }
         Prompt::Notice { request, text, buttons } => {
             term.info(text);
@@ -331,7 +332,7 @@ impl Ui {
                     InteractionView::Form { request, form } if self.handled.insert(*request) => {
                         self.form(*request, form, term)
                     }
-                    InteractionView::Secret { request, prompt } if self.handled.insert(*request) => {
+                    InteractionView::Secret { request, prompt, .. } if self.handled.insert(*request) => {
                         if !self.interactive {
                             return (None, Some(UiEvent::Cancel));
                         }

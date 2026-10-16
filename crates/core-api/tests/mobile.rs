@@ -876,7 +876,7 @@ async fn batch_resume_keeps_the_rule_for_existing_files() {
     let fake = FakeAtrust::new();
     let core = start(&fx, Platform::Android, batch_options(&engine, &fake));
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
-    core.dispatch(UiEvent::OpenFiles { paths: files.clone() });
+    core.dispatch(UiEvent::OpenFiles { paths: files.clone(), mode: None });
     let v = wait_for(&core, "Übersicht", |v| batch_ready(v, 2)).await;
     let ids = v.batch.as_ref().unwrap().items.iter().map(|i| i.doc).collect();
     core.dispatch(UiEvent::StartBatch {

@@ -213,8 +213,9 @@ kein Request A-Trust erreichen kann.
 6. **Behoben (R-7).** `tauri-plugin-dialog` ist auch auf Mobile registriert und zieht `Photos`/`PhotosUI` in das Binary – vor
    der App-Store-Einreichung prüfen, ob Zweckangaben verlangt werden, sonst das Plugin nur auf dem Desktop
    registrieren.
-7. `CFBundleShortVersionString`/`CFBundleVersion` setzt die CLI auf 1.0.0, die App meldet 0.1.0 –
-   `version` in `tauri.conf.json` bzw. `bundle.iOS.bundleVersion` festlegen.
+7. **Behoben (16.10.2026, Integration `mobile/int`).** `CFBundleShortVersionString`/`CFBundleVersion` setzte die CLI
+   auf 1.0.0, die App meldete 0.1.0 – jetzt `version` 0.1.0 in `tauri.conf.json`, `Info.plist`/`project.yml`
+   ebenso (Test `apps/app/src/app/version.test.ts`).
 8. **Behoben (R-10).** Doku-Tabellen in `apps/app/plugins/pida-mobile/src/lib.rs` und docs/integration/mobile.md §2 nennen
    für die Keychain noch `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`; umgesetzt ist (Vorgabe M-iOS)
    `…WhenUnlockedThisDeviceOnly` – der Kern liest Secrets nur im Vordergrund. Ebenso ist dort `openFile`
@@ -286,8 +287,9 @@ Zustand vor der jeweiligen Behebung). 01–50 stammen aus dem ersten, wegen des 
    Eingabefelder auf Touch-Geräten mit 16 px (`components.css`).
 5. **Segmentierte Auswahl abgeschnitten** („Schlüsselbund“ bzw. „Im sicheren Speicher“ hinter einer
    Scrollleiste, betrifft auch das neue „Passwort merken?“): Segmente brechen um (`.segmented`, 54, 76, 78).
+   Nach der Integration mit Android (B14) zusätzlich: die Beschriftung eines Segments darf umbrechen.
 6. **Schlüsselanzeige** „…gültig bis 11.10.2036Alias: test-rsa2048“ ohne Abstand (alle Plattformen):
-   `.keystore-key` (`settings.css`), Aufnahme 78.
+   `.keystore-key` (`settings.css`), Aufnahme 78. Integration: Android-Regel B16 (Name und Alias untereinander).
 7. **Plugin: Dynamic Type wurde ignoriert.** Neues `ios/Sources/TextSize.swift`: Grundschrift
    `html { font-size }` = 16 px × `UIFontMetrics(.body)` (Standardgröße = 16 px, begrenzt auf 0,85–2,0), folgt
    Änderungen zur Laufzeit (`UIContentSizeCategory.didChangeNotification`), Aufnahmen 53, 55.
@@ -304,13 +306,15 @@ Zustand vor der jeweiligen Behebung). 01–50 stammen aus dem ersten, wegen des 
     mit (72).
 12. **Stapel schmal: Papierkorb unsichtbar** (neu aus `main`, 63): Die Regel „Pfeil ausblenden“ blendete die
     ganze Aktionsspalte aus. Jetzt steht der Papierkorb oben rechts in der Zeile, nur der Pfeil entfällt (64).
+    Integration: Android-Regel B17 (`.batch-row-action.has-caret` in der ersten Zeile rechts neben dem Namen).
 13. **ID Austria ohne Netz: Fehlerkette im Alltagstext** („Proxy: error sending request: client error
     (Connect): tunnel error …“, 59): `backend-network` hat ein Attribut `.text` ohne `{ $detail }`; Karte,
     Stapelpause und Fehlerkarte zeigen es, die Ursache steht nur unter „Technische Details“ (60). CLI und Log
     behalten die vollständige Meldung (Test in `signing.test.tsx`).
 14. **Zeitüberschreitung beim Verbindungsaufbau** bot „Neue Bestätigung anfordern“ an, obwohl noch keine
     Bestätigung lief (62): vor der Bestätigung (Stepper auf „Anmelden“) „Erneut versuchen“ (Test).
-15. **Kopfzeile:** Befehlsknopf (Suche) 36 px breit → mindestens 44 × 44 px auf Touch-Geräten (`shell.css`).
+15. **Kopfzeile:** Befehlsknopf (Suche) 36 px breit → mindestens 44 × 44 px auf Touch-Geräten (`shell.css`);
+    bei der Integration auch „+ PDF“ (neu aus `main`).
 16. **Bezeichnung** der Speicherart in Einstellungen › Keystore auf Mobile „Sicherer Speicher“ statt
     „Schlüsselbund“ (wie „Im sicheren Speicher“ bei „Passwort merken?“; Android kennt keinen Schlüsselbund).
 
