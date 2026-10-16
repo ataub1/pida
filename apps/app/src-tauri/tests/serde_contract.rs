@@ -23,13 +23,13 @@ use pida_core_api::{
     BatchOutputView, BatchPauseView, BatchSummaryView, BatchView, BlockView, CertificateSource, ConfirmMethod,
     DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView,
     ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis,
-    GuideKind, GuideView, InteractionView, KeystoreImportView, MainBarView, MigrationItemView, MigrationOfferView,
-    NoticeView, OutputModeView, OutputView, PageLayoutView, PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView,
-    PlacementTarget, PlatformOs, PlatformView, PositionSummaryView, PriorStatusView, QrInfo, QrTargetView,
-    QualificationClaim, QueueItemView, RecentItemView, RectPt, ResumeOfferView, SaveDialogView, SettingsView,
-    SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView, SignerView, SignersView,
-    SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent, VerifiedSignatureView, VerifyStatus,
-    VerifySummaryView, VerifyView, ViewState,
+    GuideKind, GuideView, InteractionView, KeystoreEntryView, KeystoreFormatView, KeystoreImportView, MainBarView,
+    MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, PauseScope,
+    PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView, PositionSummaryView,
+    PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView, RectPt, ResumeOfferView,
+    SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView,
+    SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent, VerifiedSignatureView,
+    VerifyStatus, VerifySummaryView, VerifyView, ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -369,17 +369,20 @@ fn samples() -> Vec<(&'static str, ViewState)> {
             NativeForm::Fido2 { in_progress: false, ctx: ctx(Some(FormProblem::Fido2Failed("fido2-timeout".into()))) },
         ),
     ));
-    for (name, kind, retry) in [
-        ("secret_keystore", SecretKind::KeystorePassword, false),
-        ("secret_key_retry", SecretKind::KeyPassword, true),
-        ("secret_proxy", SecretKind::ProxyPassword, false),
-        ("secret_fido2_pin", SecretKind::Fido2Pin, false),
+    // erste Verwendung des Keystores: „Passwort merken?“ unter dem Passwortfeld (Nachtrag ADR 0004)
+    for (name, kind, retry, ask_storage) in [
+        ("secret_keystore", SecretKind::KeystorePassword, false, true),
+        ("secret_key_retry", SecretKind::KeyPassword, true, false),
+        ("secret_proxy", SecretKind::ProxyPassword, false, false),
+        ("secret_fido2_pin", SecretKind::Fido2Pin, false, false),
     ] {
         out.push((
             name,
             signing(InteractionView::Secret {
                 request: 11,
                 prompt: SecretPrompt { kind, subject: "keystore.p12".into(), retry },
+                ask_storage,
+                keychain_available: ask_storage,
             }),
         ));
     }
@@ -530,6 +533,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     settings.signature.emblem = Some(PathBuf::from("/Users/demo/logo.png"));
     settings.keystore.enabled = true;
     settings.keystore.file = Some(PathBuf::from("/Users/demo/keystore.p12"));
+    settings.keystore.storage_chosen = false;
     settings.output.folder = Some(PathBuf::from("."));
     settings.proxy.port = Some(8080);
     settings.unknown.insert("signature.future_key".into(), toml::Value::String("bleibt".into()));
@@ -542,7 +546,25 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         problems,
         keychain_available: true,
         fido2_available: false,
-        keystore_ready: false,
+        keystore_ready: true,
+        keystore_format: Some(KeystoreFormatView::Pkcs12),
+        // Alias-Auswahl (Nachtrag ADR 0004): Schlüssel und ein Zertifikat ohne Schlüssel
+        keystore_entries: Some(vec![
+            KeystoreEntryView {
+                alias: "erster".into(),
+                subject_cn: Some("Max Muster (NUR TEST)".into()),
+                not_after: Some("2036-10-14T08:00:00Z".into()),
+                is_key_entry: true,
+            },
+            KeystoreEntryView {
+                alias: "vertrauensanker".into(),
+                subject_cn: Some("Test Root CA (NUR TEST)".into()),
+                not_after: Some("2040-01-01T00:00:00Z".into()),
+                is_key_entry: false,
+            },
+            KeystoreEntryView { alias: "ohne-name".into(), subject_cn: None, not_after: None, is_key_entry: true },
+        ]),
+        keystore_inspect_problem: None,
         read_only: false,
         preview_revision: 3,
         applied_revision: 12,
@@ -564,6 +586,9 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         keychain_available: false,
         fido2_available: true,
         keystore_ready: false,
+        keystore_format: Some(KeystoreFormatView::Jks),
+        keystore_entries: None,
+        keystore_inspect_problem: Some("keystore-wrong-password".into()),
         read_only: true,
         preview_revision: 0,
         applied_revision: 0,
@@ -1400,7 +1425,7 @@ fn typescript_events_deserialize_into_ui_event() {
 
 /// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
 /// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
-const UI_EVENT_VARIANTS: usize = 62;
+const UI_EVENT_VARIANTS: usize = 63;
 
 /// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
 /// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).

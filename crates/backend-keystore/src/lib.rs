@@ -337,7 +337,7 @@ impl std::fmt::Debug for KeystoreConfig {
     }
 }
 
-/// Eintrag eines Keystores (Einstellungen: „Keystore laden“ füllt die Alias-Liste).
+/// Eintrag eines Keystores (Einstellungen: „Schlüssel anzeigen“ füllt die Alias-Auswahl).
 #[derive(Clone, PartialEq, Eq)]
 pub struct AliasInfo {
     /// Alias
@@ -346,16 +346,22 @@ pub struct AliasInfo {
     pub is_key_entry: bool,
     /// Subject des Zertifikats
     pub subject: Option<String>,
+    /// erster Common Name (CN) des Subjects – für die Anzeige „Name · gültig bis …“
+    pub subject_cn: Option<String>,
+    /// Ende der Gültigkeit des (End-)Zertifikats
+    pub not_after: Option<time::OffsetDateTime>,
 }
 
 impl std::fmt::Debug for AliasInfo {
-    /// Subject ist Personendatum (Regel 9) – nur „vorhanden“; ebenso der Alias, der ohne
+    /// Subject und CN sind Personendaten (Regel 9) – nur „vorhanden“; ebenso der Alias, der ohne
     /// friendlyName der Subject-Text ist (nur Länge).
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AliasInfo")
             .field("alias_len", &self.alias.chars().count())
             .field("is_key_entry", &self.is_key_entry)
             .field("subject", &self.subject.as_ref().map(|_| "<redigiert>"))
+            .field("subject_cn", &self.subject_cn.as_ref().map(|_| "<redigiert>"))
+            .field("not_after", &self.not_after)
             .finish()
     }
 }
@@ -373,7 +379,13 @@ pub fn list_aliases(bytes: &[u8], password: &str) -> Result<Vec<AliasInfo>, Keys
                 Entry::Cert(c) => (false, Some(c)),
                 Entry::Secret => (false, None),
             };
-            AliasInfo { alias: alias.clone(), is_key_entry, subject: cert.map(Certificate::subject_string) }
+            AliasInfo {
+                alias: alias.clone(),
+                is_key_entry,
+                subject: cert.map(Certificate::subject_string),
+                subject_cn: cert.and_then(Certificate::subject_cn),
+                not_after: cert.map(Certificate::not_after),
+            }
         })
         .collect())
 }
@@ -1102,7 +1114,13 @@ mod tests {
         let mut cfg = KeystoreConfig::new("/k.p12");
         cfg.store_password = Some(Zeroizing::new("geheim".into()));
         assert!(!format!("{cfg:?}").contains("geheim"));
-        let info = AliasInfo { alias: "a".into(), is_key_entry: true, subject: Some("CN=Max Mustermann".into()) };
+        let info = AliasInfo {
+            alias: "a".into(),
+            is_key_entry: true,
+            subject: Some("CN=Max Mustermann".into()),
+            subject_cn: Some("Max Mustermann".into()),
+            not_after: None,
+        };
         assert!(!format!("{info:?}").contains("Mustermann"));
     }
 }

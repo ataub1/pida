@@ -179,6 +179,7 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::UpdateFirstRun { .. } => "update_first_run",
         UiEvent::FinishFirstRun => "finish_first_run",
         UiEvent::OfferMigration => "offer_migration",
+        UiEvent::InspectKeystore { .. } => "inspect_keystore",
         UiEvent::UnlockPlacement => "unlock_placement",
         UiEvent::SetBatchAutoPosition { .. } => "set_batch_auto_position",
     }
@@ -411,7 +412,7 @@ pub(crate) struct CoreTask {
     notices: Vec<NoticeView>,
     next_notice: u64,
     next_doc: u64,
-    settings_view: Option<SettingsView>,
+    pub(crate) settings_view: Option<SettingsView>,
     pub(crate) options: Vec<BackendOption>,
     dialog: Option<OutputDialog>,
     queue: VecDeque<Event>,
@@ -454,6 +455,8 @@ pub(crate) struct CoreTask {
     qr_searches: QrSearches,
     /// Prüfmodus (ADR 0004 §3.9, K4)
     pub(crate) verify: crate::verify::VerifyState,
+    /// Einstellungen › Keystore: Format, Einträge für die Alias-Auswahl (Nachtrag ADR 0004)
+    pub(crate) keystore_info: crate::keystore_info::KeystoreInfo,
 }
 
 /// QR-Platzhaltersuchen je Dokument (Einstellungen › Dokument, K3).
@@ -542,6 +545,7 @@ impl CoreTask {
             recent: crate::recent::RecentState::new(&paths),
             qr_searches: QrSearches::default(),
             verify: crate::verify::VerifyState::default(),
+            keystore_info: crate::keystore_info::KeystoreInfo::default(),
         }
     }
 
@@ -750,15 +754,17 @@ impl CoreTask {
         }
         // Passwort prüfen (falls angegeben); bei genau einem Schlüssel wird dessen Alias übernommen
         let mut alias = None;
+        let mut entries = None;
         if let Some(pw) = &password {
-            let entries = pida_backend_keystore::list_aliases(&bytes, pw).map_err(|e| e.code().to_owned())?;
-            let keys: Vec<_> = entries.into_iter().filter(|e| e.is_key_entry).collect();
-            if keys.is_empty() {
-                return Err("keystore-no-key-entry".into());
+            let list = pida_backend_keystore::list_aliases(&bytes, pw).map_err(|e| e.code().to_owned())?;
+            let mut keys = list.iter().filter(|e| e.is_key_entry);
+            match (keys.next(), keys.next()) {
+                (None, _) => return Err("keystore-no-key-entry".into()),
+                (Some(only), None) => alias = Some(only.alias.clone()),
+                _ => {}
             }
-            if keys.len() == 1 {
-                alias = keys.into_iter().next().map(|k| k.alias);
-            }
+            // für die Alias-Auswahl in den Einstellungen (ohne erneute Passworteingabe)
+            entries = Some(list);
         }
         // in die Sandbox kopieren (Ordner 0700, Datei 0600, atomar)
         let dir = self.cfg.paths.data_dir.join(KEYSTORE_DIR);
@@ -795,8 +801,13 @@ impl CoreTask {
         ks.alias = alias;
         if stored {
             ks.password_storage = pida_config::PasswordStorage::Keychain;
+            // „Passwort sicher speichern“ ist eine ausdrückliche Wahl (keine Rückfrage beim ersten Signieren)
+            ks.storage_chosen = true;
         } else if ks.password_storage == pida_config::PasswordStorage::Keychain {
             ks.password_storage = pida_config::PasswordStorage::Memory;
+        }
+        if let Some(list) = entries {
+            self.keystore_info.adopt(&target, list);
         }
         if let Err(e) = self.cfg.save() {
             tracing::warn!(id = e.message_id(), "Einstellungen nach dem Import nicht gespeichert");
@@ -902,6 +913,7 @@ impl CoreTask {
         self.pump_preanalysis();
         self.prune_thumbnails();
         self.refresh_recent_exists(false);
+        self.refresh_keystore_info();
     }
 
     /// Nächste Voranalyse beginnen (eine zur Zeit; verworfene Einträge entfallen).
@@ -2278,8 +2290,12 @@ impl CoreTask {
                     tracing::debug!(request, "Maskenantwort ohne offene Anfrage");
                 }
             }
-            UiEvent::SubmitSecret { request, secret } => {
+            UiEvent::SubmitSecret { request, secret, password_storage } => {
                 let secret = zeroize::Zeroizing::new(secret);
+                // „Passwort merken?“ (erste Verwendung): vor der Antwort, damit sie schon für dieses Passwort gilt
+                if let Some(storage) = password_storage {
+                    self.answer_storage_for_prompt(request, storage);
+                }
                 if !self.shared.broker.answer_secret(request, secret) {
                     tracing::debug!(request, "Passwortantwort ohne offene Anfrage");
                 }
@@ -2396,6 +2412,11 @@ impl CoreTask {
                 self.import_keystore(&path, password, remember);
             }
             UiEvent::DismissKeystoreImport => self.keystore_import = None,
+            // Einstellungen › Keystore „Schlüssel anzeigen“ (Nachtrag ADR 0004; in beiden Modi, nur mit offener
+            // Ansicht)
+            UiEvent::InspectKeystore { password, password_storage } => {
+                self.inspect_keystore(password.map(zeroize::Zeroizing::new), password_storage);
+            }
             UiEvent::Quit => {
                 self.ws.own_cancel = true;
                 self.apply(Event::Quit);
@@ -2633,15 +2654,18 @@ impl CoreTask {
         }
     }
 
+    /// Einstellungsansicht; Keystore-Angaben, Revisionen, Beispiele und Sperren ergänzt die Projektion
+    /// ([`CoreTask::live_settings_view`]).
     fn settings_view_for(&self, settings: Settings, problems: BTreeMap<String, String>) -> SettingsView {
-        let keystore_ready =
-            settings.keystore.enabled && settings.keystore.file.as_deref().is_some_and(std::path::Path::is_file);
         SettingsView {
             settings,
             problems,
             keychain_available: self.cfg.secrets.is_persistent(),
             fido2_available: self.fido2_available,
-            keystore_ready,
+            keystore_ready: false,
+            keystore_format: None,
+            keystore_entries: None,
+            keystore_inspect_problem: None,
             read_only: self.cfg.read_only(),
             preview_revision: 0,
             applied_revision: 0,
@@ -3067,6 +3091,12 @@ impl CoreTask {
         v.applied_revision = self.apply_state.published;
         v.examples = crate::settings_apply::examples(&v.settings);
         v.locked = Some(crate::settings_apply::locked_paths(self.cfg.policy.as_ref()));
+        // Keystore (Nachtrag ADR 0004): Format am Inhalt; als Standard wählbar nur mit PKCS#12
+        let (format, entries, problem) = self.keystore_info.view_for(v.settings.keystore.file.as_deref());
+        v.keystore_ready = v.settings.keystore.enabled && format == Some(crate::view::KeystoreFormatView::Pkcs12);
+        v.keystore_format = format;
+        v.keystore_entries = entries;
+        v.keystore_inspect_problem = problem;
         v
     }
 
@@ -3087,7 +3117,7 @@ impl CoreTask {
             }
             // Fortsetzen: Dokument geladen, Signiermittel wird geprüft
             State::Resuming { doc: Some(doc), plan, .. } => StepView::Signing {
-                interaction: self.shared.broker.current(),
+                interaction: self.interaction_view(),
                 queue: self.queue_items(),
                 document_leaves_device: self.leaves_device(plan.backend),
                 progress: self.progress_view(plan.backend, None, doc, None),
@@ -3141,7 +3171,7 @@ impl CoreTask {
                 StepView::Backend { options: option_views(options, self.mobile.platform) }
             }
             State::Signing { backend, phase, doc, flow, .. } => StepView::Signing {
-                interaction: self.shared.broker.current(),
+                interaction: self.interaction_view(),
                 queue: self.queue_items(),
                 document_leaves_device: self.leaves_device(*backend),
                 progress: self.progress_view(*backend, Some(*phase), doc, Some(flow)),
@@ -3203,7 +3233,7 @@ impl CoreTask {
             State::BatchSigning { queue, run } => StepView::Signing {
                 // ohne offene Maske meldet core-api den Fortschritt des Laufs selbst (Dokument k von n); in
                 // der Pause wertet die UI `interaction` nicht aus
-                interaction: match self.shared.broker.current() {
+                interaction: match self.interaction_view() {
                     InteractionView::Waiting { .. }
                         if !matches!(
                             run.phase,

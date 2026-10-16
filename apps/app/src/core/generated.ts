@@ -660,7 +660,11 @@ alias: string | null,
 /**
  * Passwort-Speicherart
  */
-password_storage: PasswordStorage, };
+password_storage: PasswordStorage, 
+/**
+ * Speicherart ausdrücklich gewählt (`false` = die erste Passworteingabe fragt „Passwort merken?“)
+ */
+storage_chosen: boolean, };
 
 /**
  * Spiegel von `pida_config::OutputSettings`.
@@ -1006,6 +1010,34 @@ code: string,
 password_stored: boolean, };
 
 /**
+ * Am Inhalt erkanntes Keystore-Format (Einstellungen › Signiermittel › Keystore; ersetzt die Typauswahl).
+ */
+export type KeystoreFormatView = "pkcs12" | "jks" | "jceks" | "unknown";
+
+/**
+ * Eintrag eines PKCS#12-Keystores für die Alias-Auswahl (Einstellungen › Signiermittel › Keystore; nur
+ * Schlüsseleinträge sind wählbar). Name und Alias sind Personendaten (ohne friendlyName ist der Alias der
+ * Subject-Text) – `Debug` redigiert sie (Regel 9).
+ */
+export type KeystoreEntryView = { 
+/**
+ * Alias (Wert für `keystore.alias`)
+ */
+alias: string, 
+/**
+ * erster Common Name (CN) des Zertifikats
+ */
+subject_cn: string | null, 
+/**
+ * Ende der Gültigkeit des Zertifikats (RFC 3339 mit Offset, UTC)
+ */
+not_after: string | null, 
+/**
+ * Schlüsseleintrag (sonst nur ein Zertifikat, z. B. eine Zertifizierungsstelle)
+ */
+is_key_entry: boolean, };
+
+/**
  * Interaktion während des Signierens.
  */
 export type InteractionView = { "kind": "waiting", 
@@ -1028,7 +1060,17 @@ request: number,
 /**
  * Abfrage
  */
-prompt: SecretPrompt, } | { "kind": "notice", 
+prompt: SecretPrompt, 
+/**
+ * Erste Verwendung des Keystores: unter dem Passwortfeld „Passwort merken?“ anbieten (Antwort in
+ * [`UiEvent::SubmitSecret::password_storage`]); nur für das Keystore-Passwort einer Datei aus den
+ * Einstellungen, deren Speicherart noch nie gewählt wurde
+ */
+ask_storage: boolean, 
+/**
+ * Schlüsselbund bzw. sicherer Speicher verfügbar (sonst ist „Im Schlüsselbund“ nicht wählbar)
+ */
+keychain_available: boolean, } | { "kind": "notice", 
 /**
  * Anfrage-ID
  */
@@ -1210,10 +1252,26 @@ keychain_available: boolean,
  */
 fido2_available: boolean, 
 /**
- * Keystore ist eingerichtet (aktiviert und die gewählte Datei existiert); erst dann ist er als
- * Standard-Signiermittel wählbar
+ * Keystore ist eingerichtet (aktiviert, die gewählte Datei existiert und ist PKCS#12); erst dann ist
+ * er als Standard-Signiermittel wählbar
  */
 keystore_ready: boolean, 
+/**
+ * Am Dateiinhalt erkanntes Format der gewählten Keystore-Datei (`None` = keine/fehlende Datei). Ersetzt
+ * die Typauswahl aus PDF-Over (dort aus der Dateiendung); signiert wird nur mit PKCS#12.
+ */
+keystore_format: KeystoreFormatView | null, 
+/**
+ * Einträge der gewählten PKCS#12-Datei für die Alias-Auswahl (nach Alias sortiert), sobald das Passwort
+ * bekannt ist: automatisch mit einem gemerkten Passwort (Speicherart), sonst nach
+ * [`UiEvent::InspectKeystore`]. `None` = noch unbekannt (bzw. keine PKCS#12-Datei)
+ */
+keystore_entries: Array<KeystoreEntryView> | null, 
+/**
+ * Problem der letzten Prüfung über [`UiEvent::InspectKeystore`] (Meldungs-ID, z. B.
+ * `keystore-wrong-password`); `None` = keines
+ */
+keystore_inspect_problem: string | null, 
 /**
  * Einstellungen werden nicht gespeichert (Altdatei per `-c`, unlesbare Datei)
  */
@@ -1417,7 +1475,13 @@ request: number,
 /**
  * Passwort
  */
-secret: string, } | { "type": "answer_notice", 
+secret: string, 
+/**
+ * Antwort auf „Passwort merken?“ ([`InteractionView::Secret::ask_storage`]): wird als
+ * `keystore.password_storage` gespeichert und gilt schon für dieses Passwort; danach fragt PIDA nicht
+ * mehr. Ohne Rückfrage ohne Wirkung
+ */
+password_storage?: PasswordStorage | null, } | { "type": "answer_notice", 
 /**
  * Anfrage-ID
  */
@@ -1549,7 +1613,17 @@ profile: SignatureProfile,
 /**
  * Sprache des Signaturblocks (`None` = System)
  */
-block_language: Lang | null, } | { "type": "finish_first_run" } | { "type": "offer_migration" } | { "type": "unlock_placement" } | { "type": "set_batch_auto_position", 
+block_language: Lang | null, } | { "type": "finish_first_run" } | { "type": "offer_migration" } | { "type": "inspect_keystore", 
+/**
+ * Passwort (nur RAM, sofort in `Zeroizing`; nie geloggt); `None` = ein bekanntes (gemerktes)
+ * Passwort verwenden
+ */
+password: string | null, 
+/**
+ * Antwort auf „Passwort merken?“ (nur solange `keystore.storage_chosen` falsch ist, sonst ohne
+ * Wirkung)
+ */
+password_storage?: PasswordStorage | null, } | { "type": "unlock_placement" } | { "type": "set_batch_auto_position", 
 /**
  * ein bzw. aus
  */

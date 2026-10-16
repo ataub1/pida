@@ -133,6 +133,7 @@ mod config;
 mod docs;
 pub mod engine;
 mod first_run;
+mod keystore_info;
 pub mod logging;
 pub mod messages;
 pub mod plan;
@@ -155,9 +156,9 @@ use std::sync::{Arc, Mutex};
 pub use backends::{SecretStoreCache, password_storage};
 pub use broker::ShellHooks;
 pub use view::{
-    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, FormAnswerView, InteractionView,
-    KeystoreImportView, MainBarView, MigrationOfferView, NoticeView, OutputView, PlatformOs, PlatformView, QrInfo,
-    QueueItemView, ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
+    BackendOptionView, BlockView, DocInfo, DoneItemView, FieldInfo, FormAnswerView, InteractionView, KeystoreEntryView,
+    KeystoreFormatView, KeystoreImportView, MainBarView, MigrationOfferView, NoticeView, OutputView, PlatformOs,
+    PlatformView, QrInfo, QueueItemView, ResumeOfferView, SaveDialogView, SettingsView, StepView, UiEvent, ViewState,
 };
 // ADR 0004 (neue Oberfläche „Arbeitsbereich“, Vertrag E0)
 pub use view::{

@@ -19,6 +19,7 @@ import {
   num,
   obj,
   objOpen,
+  omittable,
   optional,
   record,
   str,
@@ -109,6 +110,9 @@ const interaction = tagged('kind', {
   secret: {
     request: int,
     prompt: obj({ kind: lit('KeystorePassword', 'KeyPassword', 'ProxyPassword', 'Fido2Pin'), subject: str, retry: bool }),
+    // erste Verwendung des Keystores: „Passwort merken?“ (Nachtrag ADR 0004)
+    ask_storage: bool,
+    keychain_available: bool,
   },
   notice: { request: int, notice },
 });
@@ -418,6 +422,7 @@ const settings = objOpen({
     declared_type: nullable(str),
     alias: nullable(str),
     password_storage: lit('none', 'memory', 'keychain'),
+    storage_chosen: bool,
   }),
   output: obj({ folder: nullable(str), postfix: str }),
   proxy: obj({ mode: lit('system', 'none', 'manual'), host: nullable(str), port: nullable(int), user: nullable(str) }),
@@ -454,6 +459,10 @@ const viewState = obj({
       keychain_available: bool,
       fido2_available: bool,
       keystore_ready: bool,
+      // Nachtrag ADR 0004 (Keystore): Format am Inhalt, Einträge für die Alias-Auswahl
+      keystore_format: nullable(lit('pkcs12', 'jks', 'jceks', 'unknown')),
+      keystore_entries: nullable(arr(obj({ alias: str, subject_cn: nullable(str), not_after: nullable(str), is_key_entry: bool }))),
+      keystore_inspect_problem: nullable(str),
       read_only: bool,
       preview_revision: int,
       applied_revision: int,
@@ -501,7 +510,7 @@ const uiEvent = tagged('type', {
   choose_invisible: {},
   choose_backend: { backend: backendId },
   submit_form: { request: int, answer: formAnswer },
-  submit_secret: { request: int, secret: str },
+  submit_secret: { request: int, secret: str, password_storage: omittable(lit('none', 'memory', 'keychain')) },
   answer_notice: { request: int, answer: lit('Ok', 'Retry', 'Cancel') },
   open_signature_data: { request: int },
   cancel: {},
@@ -550,6 +559,7 @@ const uiEvent = tagged('type', {
   update_first_run: { default_backend: nullable(backendChoice), profile: signatureProfile, block_language: nullable(lang) },
   finish_first_run: {},
   offer_migration: {},
+  inspect_keystore: { password: nullable(str), password_storage: omittable(lit('none', 'memory', 'keychain')) },
   // Nachtrag 8 (Einstellung „Automatische Positionierung“)
   unlock_placement: {},
   set_batch_auto_position: { enabled: bool, replace_manual: bool },
@@ -750,10 +760,10 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(validate(uiEvent, sample)).toEqual([]);
   });
 
-  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 25 davon aus ADR 0004
-  // (23 aus E0, `unlock_placement` und `set_batch_auto_position` aus Nachtrag 8)
-  it('alle 62 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(62);
+  // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 26 davon aus ADR 0004
+  // (23 aus E0, `inspect_keystore` aus Nachtrag 7, `unlock_placement` und `set_batch_auto_position` aus Nachtrag 8)
+  it('alle 63 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(63);
   });
 
   it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen, Import)', () => {

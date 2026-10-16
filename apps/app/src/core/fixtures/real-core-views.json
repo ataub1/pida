@@ -3953,6 +3953,9 @@
       },
       "fido2_available": false,
       "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
       "keystore_ready": false,
       "locked": {},
       "preview_revision": 1,
@@ -3983,7 +3986,8 @@
           "declared_type": null,
           "enabled": false,
           "file": null,
-          "password_storage": "memory"
+          "password_storage": "memory",
+          "storage_chosen": true
         },
         "output": {
           "folder": null,
@@ -4287,6 +4291,9 @@
       },
       "fido2_available": false,
       "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
       "keystore_ready": false,
       "locked": {},
       "preview_revision": 2,
@@ -4319,7 +4326,8 @@
           "declared_type": null,
           "enabled": false,
           "file": null,
-          "password_storage": "memory"
+          "password_storage": "memory",
+          "storage_chosen": true
         },
         "output": {
           "folder": null,

@@ -7,3 +7,4 @@
 export { KeystoreImportDialog } from './KeystoreImport';
 export { PrivacyInfo, PrivacyNote } from './privacy';
 export { SettingsPanel, type SettingsPanelProps } from './SettingsPanel';
+export { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion } from './StorageQuestion';

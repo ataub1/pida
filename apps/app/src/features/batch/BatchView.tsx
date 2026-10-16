@@ -15,8 +15,8 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile, type BackendId, type BatchItemView, type BatchView as BatchViewData } from '../../core/types';
-import { AccessButton, Badge, Button, Progress, Spinner } from '../../ui/controls';
-import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconFolder, IconInfo, IconLayers, IconLock, IconPlus, IconSignature, IconTarget } from '../../ui/Icons';
+import { AccessButton, Badge, Button, IconButton, Progress, Spinner } from '../../ui/controls';
+import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconFolder, IconInfo, IconLayers, IconLock, IconPlus, IconSignature, IconTarget, IconTrash } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { formatSize } from '../workspace/placement';
 import { SignerChip } from '../workspace/SignerChip';
@@ -250,6 +250,12 @@ function BatchRow({ item, running }: { item: BatchItemView; running: boolean }) 
         {detail ? <span className="batch-row-detail">{detail}</span> : null}
       </span>
       <span className={`batch-row-action${openable && s.state !== 'needs_review' ? ' has-caret' : ''}`}>
+        {/* Entfernen für jedes noch nicht signierte Dokument, solange kein Lauf aktiv ist (abgelehnte zeigen es als Hauptaktion) */}
+        {!running && s.state !== 'signed' && s.state !== 'rejected' && s.state !== 'active' && s.state !== 'queued' ? (
+          <IconButton size="sm" className="batch-row-remove" label={t.t('ng-ui-batch-remove', { name: item.name })} onPress={() => void dispatch({ type: 'remove_from_batch', doc: item.doc })}>
+            <IconTrash size={15} />
+          </IconButton>
+        ) : null}
         {s.state === 'needs_review' && !running ? (
           <Button variant="secondary" size="sm" onPress={open}>
             <IconAlert size={15} />

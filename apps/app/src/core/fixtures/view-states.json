@@ -3397,6 +3397,8 @@
       "step": {
         "document_leaves_device": false,
         "interaction": {
+          "ask_storage": true,
+          "keychain_available": true,
           "kind": "secret",
           "prompt": {
             "kind": "KeystorePassword",
@@ -3498,6 +3500,8 @@
       "step": {
         "document_leaves_device": false,
         "interaction": {
+          "ask_storage": false,
+          "keychain_available": false,
           "kind": "secret",
           "prompt": {
             "kind": "KeyPassword",
@@ -3599,6 +3603,8 @@
       "step": {
         "document_leaves_device": false,
         "interaction": {
+          "ask_storage": false,
+          "keychain_available": false,
           "kind": "secret",
           "prompt": {
             "kind": "ProxyPassword",
@@ -3700,6 +3706,8 @@
       "step": {
         "document_leaves_device": false,
         "interaction": {
+          "ask_storage": false,
+          "keychain_available": false,
           "kind": "secret",
           "prompt": {
             "kind": "Fido2Pin",
@@ -5381,7 +5389,29 @@
         },
         "fido2_available": false,
         "keychain_available": true,
-        "keystore_ready": false,
+        "keystore_entries": [
+          {
+            "alias": "erster",
+            "is_key_entry": true,
+            "not_after": "2036-10-14T08:00:00Z",
+            "subject_cn": "Max Muster (NUR TEST)"
+          },
+          {
+            "alias": "vertrauensanker",
+            "is_key_entry": false,
+            "not_after": "2040-01-01T00:00:00Z",
+            "subject_cn": "Test Root CA (NUR TEST)"
+          },
+          {
+            "alias": "ohne-name",
+            "is_key_entry": true,
+            "not_after": null,
+            "subject_cn": null
+          }
+        ],
+        "keystore_format": "pkcs12",
+        "keystore_inspect_problem": null,
+        "keystore_ready": true,
         "locked": {
           "general.recent_documents": "ng-recent-policy",
           "proxy": "ng-settings-policy"
@@ -5417,7 +5447,8 @@
             "declared_type": null,
             "enabled": true,
             "file": "/Users/demo/keystore.p12",
-            "password_storage": "memory"
+            "password_storage": "memory",
+            "storage_chosen": false
           },
           "output": {
             "folder": ".",
@@ -5520,6 +5551,9 @@
         "examples": {},
         "fido2_available": true,
         "keychain_available": false,
+        "keystore_entries": null,
+        "keystore_format": "jks",
+        "keystore_inspect_problem": "keystore-wrong-password",
         "keystore_ready": false,
         "locked": null,
         "preview_revision": 0,
@@ -5550,7 +5584,8 @@
             "declared_type": null,
             "enabled": false,
             "file": null,
-            "password_storage": "memory"
+            "password_storage": "memory",
+            "storage_chosen": true
           },
           "output": {
             "folder": null,

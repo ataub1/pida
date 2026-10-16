@@ -96,6 +96,15 @@ describe('Signierkarte: Schritte und Stepper', () => {
     expect(dialog).toHaveTextContent('Bestätigen Sie in der App „ID Austria“ und kehren Sie dann zu PIDA zurück.');
   });
 
+  it('Vergleichswert: Leerzeichen erscheinen nicht als leere Kästchen', async () => {
+    const spaced = form({ WaitForApp: { reference_value: 'U B K n 6', timeout_secs: 300, ctx: ctx({}) } }, 2);
+    renderApp({ view: cardView(spaced, { stage: 'confirming', method: 'app', login_done: true }) });
+    const dialog = await card();
+    const chars = [...dialog.querySelectorAll('.refvalue-char')].map((e) => e.textContent);
+    expect(chars).toEqual(['U', 'B', 'K', 'n', '6']);
+    expect(within(dialog).getByText('U B K n 6')).toHaveClass('sr-only');
+  });
+
   it('QR-Code: Bild, Vergleichswert, Weiter', async () => {
     const bytes = Array.from(new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'));
     const qr = form({ QrCode: { reference_value: 'Ab12', image: { bytes, mime: 'image/svg+xml' }, timeout_secs: 300, ctx: ctx() } }, 4);
@@ -140,7 +149,7 @@ describe('Signierkarte: Schritte und Stepper', () => {
   });
 
   it('FIDO2-PIN (SecretKind::Fido2Pin) über submit_secret', async () => {
-    const pin: InteractionView = { kind: 'secret', request: 8, prompt: { kind: 'Fido2Pin', subject: '', retry: false } };
+    const pin: InteractionView = { kind: 'secret', request: 8, prompt: { kind: 'Fido2Pin', subject: '', retry: false }, ask_storage: false, keychain_available: false };
     const { mock, user } = renderApp({ view: cardView(pin, { stage: 'confirming', method: 'fido2', login_done: true }) });
     const dialog = await card();
     const field = within(dialog).getByLabelText('PIN des Sicherheitsschlüssels');
@@ -150,7 +159,7 @@ describe('Signierkarte: Schritte und Stepper', () => {
   });
 
   it('Keystore: Passwort mit Hinweis bei falschem Versuch; Stepper „Entsperren → Signiert“; kein Kurzhinweis A-Trust', async () => {
-    const ks: InteractionView = { kind: 'secret', request: 9, prompt: { kind: 'KeystorePassword', subject: 'max.p12', retry: true } };
+    const ks: InteractionView = { kind: 'secret', request: 9, prompt: { kind: 'KeystorePassword', subject: 'max.p12', retry: true }, ask_storage: false, keychain_available: true };
     const { mock, user } = renderApp({ view: cardView(ks, { backend: 'keystore', stage: 'confirming', method: 'password', certificate: 'not_needed' }) });
     const dialog = await screen.findByRole('dialog', { name: 'Signieren mit Keystore' });
     expect(within(dialog).getAllByRole('listitem').map((l) => l.textContent?.replace(/,.*/, ''))).toEqual(['1Entsperren', '2Signiert']);

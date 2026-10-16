@@ -18,7 +18,7 @@
  * Hinweis auf eine mögliche neue Anmeldung), „Überspringen“ (nur mit Dokument) und „Stapel abbrechen“. Esc/×
  * fragen im Stapel erst nach, bevor der Stapel abgebrochen wird.
  */
-import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import type {
@@ -32,10 +32,12 @@ import type {
   NativeForm,
   Notice,
   NoticeAnswer,
+  PasswordStorage,
   SecretPrompt,
   SigningProgressView,
   SigningStage,
   StepView,
+  UiEvent,
   ViewState,
 } from '../../core/types';
 import { isMobile } from '../../core/types';
@@ -43,7 +45,7 @@ import { Badge, Button, CheckboxField, Details, Progress, RadioCards, Spinner, T
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconAlert, IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage, IconPhone, IconQr, IconUsbKey } from '../../ui/Icons';
 import { statusLabel, statusTone } from '../batch/texts';
-import { KeystoreImportDialog, PrivacyNote } from '../settings';
+import { DEFAULT_STORAGE_CHOICE, KeystoreImportDialog, PasswordStorageQuestion, PrivacyNote } from '../settings';
 import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerClass, signerName } from '../workspace/signers';
 import { CountdownRing, useCountdown } from './CountdownRing';
 import { friendlyError, noticeTexts, problemText, progressText, qrDataUrl } from './texts';
@@ -409,17 +411,20 @@ function StepTitle({ children }: { children: ReactNode }) {
 
 function ReferenceValue({ value, size = 'lg', onShowData }: { value: string; size?: 'lg' | 'sm'; onShowData?: () => void }) {
   const { t } = useApp();
+  // Ein Kästchen je Zeichen, Leerzeichen der A-Trust-Gliederung nicht als leeres Kästchen (der Kern liefert
+  // den Wert bereits kompakt; das schützt auch ältere Kernstände)
+  const chars = Array.from(value).filter((c) => c.trim() !== '');
   return (
     <div className={`refvalue refvalue-${size}`}>
       <span className="refvalue-label">{t.t('ng-ui-sc-ref')}</span>
-      <span className="refvalue-chars" aria-hidden="true">
-        {value.split('').map((c, i) => (
+      <span className="refvalue-chars" aria-hidden="true" style={{ '--n': chars.length } as CSSProperties}>
+        {chars.map((c, i) => (
           <span key={i} className="refvalue-char">
             {c}
           </span>
         ))}
       </span>
-      <span className="sr-only">{value.split('').join(' ')}</span>
+      <span className="sr-only">{chars.join(' ')}</span>
       {onShowData ? (
         <AriaButton className="link refvalue-data" onPress={onShowData}>
           {t.t('ng-ui-sc-data')}
@@ -539,7 +544,16 @@ function InteractionPane({ interaction, backend, onCancel }: { interaction: Inte
     case 'form':
       return <FormPane key={interaction.request} request={interaction.request} form={interaction.form} onCancel={onCancel} />;
     case 'secret':
-      return <SecretPane key={interaction.request} request={interaction.request} prompt={interaction.prompt} onCancel={onCancel} />;
+      return (
+        <SecretPane
+          key={interaction.request}
+          request={interaction.request}
+          prompt={interaction.prompt}
+          askStorage={interaction.ask_storage}
+          keychainAvailable={interaction.keychain_available}
+          onCancel={onCancel}
+        />
+      );
     case 'notice':
       return <NoticePane key={interaction.request} request={interaction.request} notice={interaction.notice} />;
   }
@@ -844,9 +858,26 @@ const SECRET_TEXT: Record<SecretPrompt['kind'], { title: string; label: string; 
   Fido2Pin: { title: 'ng-ui-sc-fido2-title', label: 'ng-ui-sc-fido2-pin', retry: 'ng-ui-sc-fido2-pin-retry', submit: 'ng-ui-sc-continue' },
 };
 
-function SecretPane({ request, prompt, onCancel }: { request: number; prompt: SecretPrompt; onCancel: () => void }) {
+/**
+ * Passwortabfrage. Erste Verwendung des Keystores (`ask_storage`): unter dem Feld „Passwort merken?“ (kein
+ * eigener Dialog); die Wahl geht mit dem Absenden als `password_storage` an den Kern.
+ */
+function SecretPane({
+  request,
+  prompt,
+  askStorage,
+  keychainAvailable,
+  onCancel,
+}: {
+  request: number;
+  prompt: SecretPrompt;
+  askStorage: boolean;
+  keychainAvailable: boolean;
+  onCancel: () => void;
+}) {
   const { t, dispatch } = useApp();
   const [secret, setSecret] = useState('');
+  const [storage, setStorage] = useState<PasswordStorage>(DEFAULT_STORAGE_CHOICE);
   const [sent, setSent] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const texts = SECRET_TEXT[prompt.kind];
@@ -855,7 +886,8 @@ function SecretPane({ request, prompt, onCancel }: { request: number; prompt: Se
     if (sent) return;
     if (!secret) return setErr(t.t('ng-ui-sc-secret-empty'));
     setSent(true);
-    void dispatch({ type: 'submit_secret', request, secret }).then((ok) => {
+    const event: UiEvent = askStorage ? { type: 'submit_secret', request, secret, password_storage: storage } : { type: 'submit_secret', request, secret };
+    void dispatch(event).then((ok) => {
       if (!ok) setSent(false);
     });
     setSecret('');
@@ -889,6 +921,7 @@ function SecretPane({ request, prompt, onCancel }: { request: number; prompt: Se
           inputMode={prompt.kind === 'Fido2Pin' ? 'numeric' : undefined}
         />
       </div>
+      {askStorage ? <PasswordStorageQuestion value={storage} onChange={setStorage} keychainAvailable={keychainAvailable} /> : null}
       <div className="step-actions">
         <CancelButton onCancel={onCancel} />
         <Button variant="primary" type="submit" isDisabled={sent}>

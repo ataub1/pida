@@ -456,7 +456,7 @@ async fn output_goes_to_app_documents_and_can_be_shared_and_exported() {
     })
     .await;
     let StepView::Signing { interaction: InteractionView::Secret { request, .. }, .. } = v.step else { unreachable!() };
-    core.dispatch(UiEvent::SubmitSecret { request, secret: "test".into() });
+    core.dispatch(UiEvent::SubmitSecret { request, secret: "test".into(), password_storage: None });
     let v =
         wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
             .await;

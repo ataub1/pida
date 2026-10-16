@@ -648,4 +648,5 @@ ng-settings-policy = This setting is set by your organisation.
 ng-settings-unavailable-mobile = This setting is not available on mobile devices.
 ng-window-title = PIDA – PDF signature with ID Austria
 ng-keystore-file-not-found = The selected keystore file could not be found. Please choose it again.
+ng-keystore-password-needed = Please enter the keystore password.
 ng-keystore-file-not-found-at = The keystore file “{ $name }” could not be found. Please choose it again under Settings › Signing methods.

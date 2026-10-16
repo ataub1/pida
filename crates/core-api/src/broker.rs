@@ -315,7 +315,11 @@ impl InteractionBroker for CoreBroker {
             return Err(InteractionError::Unsupported);
         }
         let (tx, rx) = oneshot::channel();
-        let id = self.register(|request| InteractionView::Secret { request, prompt }, Reply::Secret(tx));
+        // „Passwort merken?“ ergänzt die Projektion (`CoreTask::interaction_view`)
+        let id = self.register(
+            |request| InteractionView::Secret { request, prompt, ask_storage: false, keychain_available: false },
+            Reply::Secret(tx),
+        );
         let _guard = RemoveOnDrop { broker: self, id };
         rx.await.unwrap_or(Err(InteractionError::Cancelled))
     }

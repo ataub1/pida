@@ -93,10 +93,11 @@ interface Run {
 }
 
 /** Vergleichswerte je Dokument (frei erfunden, je Dokument ein eigener). */
-const REFERENCE_VALUES = ['Xk7Pq', 'R4mZt', 'b9QwL', 'T2nHs', 'pE6Vd', 'Kz3Ya', 'w8GcN', 'Hq5Uj'];
+// realistische Länge wie bei A-Trust (~10 Zeichen, ohne Leerzeichen)
+const REFERENCE_VALUES = ['tpJXmaU/Aj', 'R4mZtq8Lw2', 'b9QwLx3Kp7', 'T2nHs6YfR1', 'pE6Vd0Jm4Q', 'Kz3Ya9Cn5T', 'w8GcN2Hb6P', 'Hq5Uj7Dr3X'];
 
 export function referenceValueFor(doc: DocId): string {
-  return REFERENCE_VALUES[(doc - 1 + REFERENCE_VALUES.length) % REFERENCE_VALUES.length] ?? 'Xk7Pq';
+  return REFERENCE_VALUES[(doc - 1 + REFERENCE_VALUES.length) % REFERENCE_VALUES.length] ?? 'tpJXmaU/Aj';
 }
 
 /** `Vertrag_signed.pdf` → `Vertrag_signed (2).pdf` (erste freie Nummer ab 2, §3.8). */

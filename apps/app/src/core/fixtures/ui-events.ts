@@ -27,7 +27,7 @@ const settings: Settings = {
     logo_only_size_mm: 30.5,
     cms_profile: 'pades_bb',
   },
-  keystore: { enabled: true, file: '/Users/demo/keystore.p12', declared_type: 'PKCS12', alias: 'signer', password_storage: 'keychain' },
+  keystore: { enabled: true, file: '/Users/demo/keystore.p12', declared_type: 'PKCS12', alias: 'signer', password_storage: 'keychain', storage_chosen: false },
   proxy: { mode: 'manual', host: 'proxy.example.invalid', port: 3128, user: 'demo' },
   // unbekannte Einträge (Settings::unknown, flatten) müssen den Rundlauf überstehen
   'signature.future_key': 'bleibt',
@@ -101,6 +101,8 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'update_first_run', default_backend: 'id_austria', profile: 'SIGNATURBLOCK_SMALL', block_language: 'de' },
   { type: 'finish_first_run' },
   { type: 'offer_migration' },
+  // Nachtrag ADR 0004 (Keystore): Einträge mit Passwort lesen, „Passwort merken?“ beantworten
+  { type: 'inspect_keystore', password: 'geheim-123', password_storage: 'keychain' },
   // Nachtrag 8: „Diesmal selbst platzieren“, „Für diesen Stapel automatisch positionieren“
   { type: 'unlock_placement' },
   { type: 'set_batch_auto_position', enabled: true, replace_manual: false },
@@ -132,4 +134,6 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'apply_settings', changes: {}, revision: 0 },
   { type: 'set_ui_language', language: null },
   { type: 'update_first_run', default_backend: null, profile: 'AMTSSIGNATURBLOCK', block_language: null },
+  { type: 'submit_secret', request: 3, secret: 'geheim-123', password_storage: 'none' },
+  { type: 'inspect_keystore', password: null },
 ];

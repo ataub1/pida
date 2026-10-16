@@ -241,7 +241,8 @@ fn app_pages() {
 
     let p = classify(&url("signtype.aspx"), &fixture("app-signtype.html", &[]), &s).unwrap();
     let PageBlock::WaitingForApp2Fa { reference_value, poll } = &p.block else { panic!() };
-    assert_eq!(reference_value.as_deref(), Some("K9 x2"));
+    // Vergleichswert ohne Leerzeichen (Entscheidung des Auftraggebers): „K9 x2“ → „K9x2“
+    assert_eq!(reference_value.as_deref(), Some("K9x2"));
     assert_eq!(poll.as_ref().unwrap().token, "T-1");
     // #SignType ohne .ida-signtype-Vorfahr zählt nicht
     let bare = fixture("app-signtype.html", &[]).replace("class=\"ida-signtype\"", "class=\"andere\"");
