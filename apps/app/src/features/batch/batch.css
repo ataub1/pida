@@ -261,46 +261,38 @@ button.batch-row-main {
     flex: 1;
   }
 }
-/* Stapel schmal: Dateiname über die volle Breite, Status und Aktion darunter */
+/* Stapel schmal: Dateiname über die volle Breite, Status und Aktion darunter. Öffnet die Zeile per Tipp
+   (`has-caret`), entfällt nur der Pfeil – der Papierkorb („aus dem Stapel entfernen“) steht dann rechts neben
+   dem Namen (vorher war er auf Telefonen mit dem Pfeil ausgeblendet, Emulator-Abnahme 16.10.2026) */
 @media (max-width: 520px) {
   .batch-row {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 0;
     padding-bottom: var(--sp-3);
   }
-  .batch-row-status {
+  .batch-row-main {
     grid-column: 1;
+    grid-row: 1;
+  }
+  .batch-row-status {
+    grid-column: 1 / -1;
     grid-row: 2;
     padding: 0 0 0 72px;
   }
   .batch-row-action {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 3;
     justify-content: flex-start;
     padding: var(--sp-2) 0 0 72px;
   }
+  .batch-row-action.has-caret {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 0;
+  }
+  .batch-row-action.has-caret .batch-row-caret,
   .batch-row-action:empty {
     display: none;
-  }
-  /* Der Pfeil entfällt (die ganze Zeile öffnet das Dokument); der Papierkorb steht oben rechts in der Zeile –
-     früher verschwand mit dem Pfeil die ganze Aktionsspalte und damit auch der Papierkorb. Bleibt nichts
-     anderes (z. B. „Prüfen“), braucht die Aktion keine eigene Zeile. */
-  .batch-row {
-    position: relative;
-  }
-  .batch-row-caret {
-    display: none;
-  }
-  .batch-row-action:not(:has(> :not(.batch-row-caret, .batch-row-remove))) {
-    display: contents;
-  }
-  .batch-row-remove {
-    position: absolute;
-    top: var(--sp-2);
-    right: var(--sp-1);
-  }
-  .batch-row:has(.batch-row-remove) .batch-row-main {
-    padding-right: 48px;
   }
 }
 @media (forced-colors: active) {

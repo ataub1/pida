@@ -329,6 +329,12 @@
   cursor: not-allowed;
   opacity: 0.6;
 }
+/* Schlüssel des Keystores: „Name · gültig bis …“ und darunter der Alias (liefen sonst ohne Trenner ineinander) */
+.keystore-key {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
 .account-card {
   display: grid;
   gap: var(--sp-3);
@@ -363,14 +369,6 @@
 .account-body {
   display: grid;
   gap: var(--sp-3);
-}
-/* Schlüssel des Keystores: „Name · gültig bis …“ und Alias – mit Abstand, schmal untereinander
-   (ohne stand „…2036Alias: …“ zusammengeklebt) */
-.keystore-key {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px var(--sp-2);
 }
 .path-row {
   display: flex;

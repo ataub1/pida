@@ -20,7 +20,8 @@ import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconCheckCircle, IconFileKey, IconKey } from '../../ui/Icons';
 import './keystore-import.css';
 
-export function KeystoreImportDialog({ onClose }: { onClose: () => void }) {
+/** `onClose(imported)`: `imported` = der Kern hat den Keystore übernommen (Ergebnis „importiert“ wurde gezeigt). */
+export function KeystoreImportDialog({ onClose }: { onClose: (imported: boolean) => void }) {
   const { t, view, bridge, dispatch, toast } = useApp();
   const [file, setFile] = useState<string | null>(null);
   const [password, setPassword] = useState('');
@@ -57,7 +58,7 @@ export function KeystoreImportDialog({ onClose }: { onClose: () => void }) {
 
   const close = () => {
     if (result) void dispatch({ type: 'dismiss_keystore_import' });
-    onClose();
+    onClose(result?.ok === true);
   };
 
   const title = t.t('ng-ui-keystore-import-title');

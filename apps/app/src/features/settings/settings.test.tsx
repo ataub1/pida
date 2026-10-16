@@ -588,6 +588,10 @@ describe('Mobile (Abnahme E3 Punkt 7)', () => {
     await user.click(nav(dialog, 'Über PIDA'));
     expect(within(dialog).queryByRole('button', { name: /Logs/ })).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Drittlizenzen anzeigen' })).toBeInTheDocument();
+    // Datenschutz: lokales Signieren nur mit dem Keystore (keine Chipkarte auf Mobilgeräten)
+    await user.click(nav(dialog, 'Datenschutz'));
+    expect(within(dialog).getByText('Mit einem Keystore wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Mit einem Keystore oder der Chipkarte/)).toBeNull();
   });
 
   it('Keystore nur per Import: Assistent im neuen Stil, danach Datei und Alias in den Einstellungen', async () => {
@@ -615,5 +619,8 @@ describe('Mobile (Abnahme E3 Punkt 7)', () => {
     // mit Passwort importiert: die Schlüssel sind bekannt – Auswahl statt Textfeld (zwei Schlüssel)
     expect(within(keystore).getByRole('button', { name: /Schlüssel/ })).toHaveTextContent('Schlüssel wählen');
     expect(within(keystore).queryByRole('textbox', { name: 'Alias' })).toBeNull();
+    // Speicherart: auf Mobilgeräten „Sicherer Speicher“ statt „Schlüsselbund“ (Emulator 16.10.2026)
+    expect(within(keystore).getByRole('radio', { name: 'Sicherer Speicher' })).toBeInTheDocument();
+    expect(within(keystore).queryByRole('radio', { name: 'Schlüsselbund' })).toBeNull();
   });
 });

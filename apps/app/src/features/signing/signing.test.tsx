@@ -225,6 +225,20 @@ describe('Signierkarte: Schritte und Stepper', () => {
   });
 });
 
+describe('Signierkarte: Warten', () => {
+  it('Keystore: „Keystore wird geöffnet“ statt „Verbindung wird aufgebaut“ (lokal, Emulator 16.10.2026)', async () => {
+    const waiting: InteractionView = { kind: 'waiting', progress: 'Connecting' };
+    const { unmount } = renderApp({ view: cardView(waiting, { backend: 'keystore', stage: 'connecting' }) });
+    let dialog = await card();
+    expect(dialog).toHaveAccessibleName('Signieren mit Keystore');
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Keystore wird geöffnet …');
+    unmount();
+    renderApp({ view: cardView(waiting, { stage: 'connecting' }) });
+    dialog = await card();
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Verbindung wird aufgebaut …');
+  });
+});
+
 describe('Signierkarte: Fehler, Rückfall, Fertigstellen', () => {
   it('Fehler „A-Trust nicht erreichbar“: Alltagstext, Details (Code, Zeitpunkt), Erneut versuchen (gleiche Sitzung)', async () => {
     const { mock, user } = renderApp({ view: cardErrorView('backend-network', { detail: 'service.a-trust.at:443' }) });

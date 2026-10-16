@@ -539,8 +539,8 @@ function InteractionPane({ interaction, backend, onCancel }: { interaction: Inte
   switch (interaction.kind) {
     case 'waiting':
       if (backend === 'local_bku' && interaction.progress === 'Signing') return <CardPane onCancel={onCancel} />;
-      if (interaction.progress === 'Signing' || interaction.progress === 'Done') return <BusyPane progress={interaction.progress} />;
-      return <BusyPane progress={interaction.progress} onCancel={onCancel} />;
+      if (interaction.progress === 'Signing' || interaction.progress === 'Done') return <BusyPane progress={interaction.progress} backend={backend} />;
+      return <BusyPane progress={interaction.progress} backend={backend} onCancel={onCancel} />;
     case 'form':
       return <FormPane key={interaction.request} request={interaction.request} form={interaction.form} onCancel={onCancel} />;
     case 'secret':
@@ -559,14 +559,14 @@ function InteractionPane({ interaction, backend, onCancel }: { interaction: Inte
   }
 }
 
-function BusyPane({ progress, onCancel }: { progress: Extract<InteractionView, { kind: 'waiting' }>['progress']; onCancel?: () => void }) {
+function BusyPane({ progress, backend, onCancel }: { progress: Extract<InteractionView, { kind: 'waiting' }>['progress']; backend: BackendId | null; onCancel?: () => void }) {
   const { t } = useApp();
   return (
     <div className="step-pane step-pane-center">
       <div className="busy" role="status">
         <Spinner size={36} className="step-spinner" />
         <p className="step-title" tabIndex={-1}>
-          {progressText(t, progress)}
+          {progressText(t, progress, backend)}
         </p>
       </div>
       {onCancel ? (

@@ -87,7 +87,7 @@ export function StartBatchDialog({ batch, backend, onClose }: { batch: BatchView
               options={[
                 { value: 'keep_both', label: t.t('ng-ui-batch-start-keep'), description: t.t('ng-ui-batch-start-keep-desc', { example }) },
                 { value: 'overwrite', label: t.t('ng-ui-batch-start-overwrite'), description: t.t('ng-ui-batch-start-overwrite-desc') },
-                { value: 'skip', label: t.t('ng-ui-batch-start-skip'), description: t.t('ng-ui-batch-start-skip-desc') },
+                { value: 'skip', label: t.t('ng-ui-batch-start-skip'), description: t.t(leaves ? 'ng-ui-batch-start-skip-desc' : 'ng-ui-batch-start-skip-desc-local') },
               ]}
             />
           </section>

@@ -3,7 +3,7 @@
  * (`FormProblem`, Katalog-IDs aus PDF-Over), Fortschritt, Meldungen (A-Trust-Text roh), QR-Bild und
  * die freundlichen Fehlertexte (Fluent-Attribute `.title`/`.action` der stabilen Codes, ADR 0004 §3.16).
  */
-import type { FormProblem, Notice, Progress, QrImage } from '../../core/types';
+import type { BackendId, FormProblem, Notice, Progress, QrImage } from '../../core/types';
 import type { Translator } from '../../i18n/catalog';
 
 /** Text eines `FormProblem` (Katalog-IDs aus PDF-Over, sonst eigene `ng-ui-*`). */
@@ -38,12 +38,15 @@ export function problemText(t: Translator, problem: FormProblem): string {
   return `${t.t('mobileBKU-notice')} ${problem.Atrust}`;
 }
 
-/** Text eines Fortschritts (Warteschritt der Karte). */
-export function progressText(t: Translator, progress: Progress): string {
+/**
+ * Text eines Fortschritts (Warteschritt der Karte). Der Keystore liegt auf dem Gerät: statt „Verbindung wird
+ * aufgebaut“ (Standard des Kerns vor dem ersten Fortschritt) „Keystore wird geöffnet“.
+ */
+export function progressText(t: Translator, progress: Progress, backend: BackendId | null = null): string {
   if (typeof progress === 'string') {
     switch (progress) {
       case 'Connecting':
-        return t.t('ng-ui-sc-connecting');
+        return t.t(backend === 'keystore' ? 'ng-ui-sc-keystore-opening' : 'ng-ui-sc-connecting');
       case 'ReadingCertificate':
         return t.t('ng-ui-sc-certificate');
       case 'WaitingForServer':

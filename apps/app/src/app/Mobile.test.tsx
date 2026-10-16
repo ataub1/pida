@@ -24,6 +24,7 @@ describe('Signatur fortsetzen', () => {
     const { mock, user } = renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: offer })) });
     const dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
     expect(dialog).toHaveTextContent('Die Signatur von „Vertrag.pdf“ wurde vor 3 Minuten unterbrochen');
+    expect(dialog).toHaveTextContent('Anmeldung und Bestätigung sind erneut nötig.');
     expect(dialog).toHaveTextContent('Danach folgt ein weiteres Dokument.');
     await user.keyboard('{Escape}');
     expect(mock.dispatched).toEqual([]);
@@ -40,6 +41,19 @@ describe('Signatur fortsetzen', () => {
     renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: { ...offer, backend: 'keystore', document_leaves_device: false } })) });
     dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
     expect(within(dialog).queryByTestId('privacy-note')).not.toBeInTheDocument();
+  });
+
+  it('Keystore, eben unterbrochen: „gerade eben“, ohne Anmeldung/Bestätigung (Emulator 16.10.2026)', async () => {
+    const keystore = { ...offer, backend: 'keystore' as const, age_minutes: 0, pending: 0, document_leaves_device: false };
+    const { unmount } = renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: keystore }), ANDROID) });
+    let dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
+    expect(dialog).toHaveTextContent('Die Signatur von „Vertrag.pdf“ wurde gerade eben unterbrochen');
+    expect(dialog).not.toHaveTextContent('vor 0 Minuten');
+    expect(dialog).not.toHaveTextContent('Anmeldung');
+    unmount();
+    renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: { ...offer, age_minutes: 1 } }), ANDROID) });
+    dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
+    expect(dialog).toHaveTextContent('wurde vor einer Minute unterbrochen');
   });
 
   it('Mock-Kern: Fortsetzen öffnet die Signierkarte über dem Dokument (ausdrückliche Aktion)', async () => {
@@ -77,6 +91,20 @@ describe('Bottom-Sheet und Touch', () => {
     await expectNoAxeViolations();
   });
 
+  it('schmal mit ID Austria: Kurzhinweis „an A-Trust übermittelt“ über dem Konto-Chip, auch eingeklappt', async () => {
+    restore = emulateMedia({ narrow: true });
+    const { unmount } = renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), ANDROID) });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const sheet = screen.getByRole('complementary', { name: 'Signatur' });
+    expect(within(sheet).getByRole('button', { name: /Optionen einblenden/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(sheet).getByTestId('privacy-note')).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
+    await expectNoAxeViolations();
+    unmount();
+    renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({ selected: 'keystore' }, true) }), ANDROID) });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.queryByTestId('privacy-note')).not.toBeInTheDocument();
+  });
+
   it('Touch-Ziehen: Haptik, Lage beim Loslassen an den Kern', async () => {
     const vibrate: number[] = [];
     Object.defineProperty(navigator, 'vibrate', { configurable: true, value: (ms: number) => vibrate.push(ms) });
@@ -111,6 +139,9 @@ describe('Konto-Chip und Signiermittel auf Mobilgeräten', () => {
     expect(sent).toMatchObject({ type: 'import_keystore', password: 'geheim', remember: true });
     act(() => mock.setView({ ...view, keystore_import: { file_name: 'test.p12', ok: true, code: 'ng-keystore-imported', password_stored: true } }));
     expect(await screen.findByText('Der Keystore „test.p12“ wurde importiert.')).toBeInTheDocument();
+    // „Fertig“: der neue Keystore gilt gleich für dieses Dokument (wählt nur, startet nichts)
+    await user.click(screen.getByRole('button', { name: 'Fertig' }));
+    expect(mock.dispatched.slice(-2)).toEqual([{ type: 'dismiss_keystore_import' }, { type: 'select_signer', backend: 'keystore', make_default: false }]);
   });
 
   it('ID Austria ohne FIDO2: Beschreibung im Menü ohne FIDO2', async () => {

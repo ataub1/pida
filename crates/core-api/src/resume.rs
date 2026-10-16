@@ -7,7 +7,7 @@
 //!
 //! | Datei (unter `Paths::temp_dir/resume/`, Ordner 0700, Dateien 0600) | Inhalt |
 //! |---|---|
-//! | `resume.json` | [`ResumeRecord`]: Name, Signiermittel, Position, wartende Dokumente, Prüfsummen, Zeitpunkt |
+//! | `resume.json` | [`ResumeRecord`]: Name, Signiermittel, Position, wartende Dokumente, Regel für vorhandene Zieldateien (Stapel), Prüfsummen, Zeitpunkt |
 //! | `document/<Dateiname>` | Kopie des Originals (Eingabe beim Fortsetzen; der Dateiname bestimmt den Ausgabenamen) |
 //! | `pida-prepared-….pdf` + `.json` | `pades::Prepared::persist` (Platzhalter-PDF und Begleitdatei) |
 //!
@@ -25,7 +25,7 @@ use pida_backend_api::BackendId;
 use pida_cades::DigestAlg;
 use pida_pades::PreparedHandle;
 use pida_pdf_cos::SourcePdf;
-use pida_workflow::PositionChoice;
+use pida_workflow::{ExistingPolicy, PositionChoice};
 
 use crate::engine::{PadesEngine, PreparedDoc};
 
@@ -66,6 +66,11 @@ pub(crate) struct ResumeRecord {
     pub backend: BackendId,
     /// wartende Dokumente des Batches (absolute Pfade in der Sandbox; beim Fortsetzen nur vorhandene)
     pub pending: Vec<PathBuf>,
+    /// Stapellauf: beim Start gewählte Regel für vorhandene Zieldateien – gilt auch für das fortgesetzte
+    /// Dokument („Beide behalten“ statt der Rückfrage „Datei überschreiben?“). `None` = Einzeldokument bzw.
+    /// Datensatz ohne Angabe (vor dieser Ergänzung gesichert; Format unverändert)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_existing: Option<ExistingPolicy>,
 }
 
 impl std::fmt::Debug for ResumeRecord {
@@ -168,6 +173,7 @@ pub(crate) fn persist(
     position: &PositionChoice,
     backend: BackendId,
     pending: Vec<PathBuf>,
+    on_existing: Option<ExistingPolicy>,
     now: SystemTime,
 ) -> Result<(), String> {
     delete(dir);
@@ -199,6 +205,7 @@ pub(crate) fn persist(
         position: position.clone(),
         backend,
         pending,
+        on_existing,
     };
     let json = serde_json::to_vec(&record).map_err(|e| e.to_string())?;
     write_private(&dir.join(RECORD_FILE), &json).map_err(io)
@@ -295,6 +302,7 @@ mod tests {
             &position(),
             BackendId::AtrustNative,
             vec![pending.clone(), gone],
+            Some(ExistingPolicy::KeepBoth),
             now,
         )
         .unwrap();
@@ -309,6 +317,7 @@ mod tests {
         assert_eq!(persisted.record.name, "Vertrag 1.pdf");
         assert_eq!(persisted.record.backend, BackendId::AtrustNative);
         assert_eq!(persisted.record.position, position());
+        assert_eq!(persisted.record.on_existing, Some(ExistingPolicy::KeepBoth), "Regel des Stapels");
         assert_eq!(persisted.age_minutes(now + Duration::from_secs(125)), 2);
         assert_eq!(persisted.document().file_name().unwrap(), "Vertrag 1.pdf", "Ausgabename wie beim Original");
         assert_eq!(std::fs::read(persisted.document()).unwrap(), bytes);
@@ -335,7 +344,8 @@ mod tests {
         let engine = FakeEngine::default();
         let p = prepared(&engine, &src);
         let now = SystemTime::now();
-        persist(&dir, "a.pdf", &bytes, p.as_ref(), &PositionChoice::Auto, BackendId::Keystore, vec![], now).unwrap();
+        persist(&dir, "a.pdf", &bytes, p.as_ref(), &PositionChoice::Auto, BackendId::Keystore, vec![], None, now)
+            .unwrap();
         assert_eq!(load(&dir, now + MAX_AGE + Duration::from_secs(1)), Loaded::Expired);
         // Uhr zurückgestellt
         assert_eq!(load(&dir, now - Duration::from_secs(3600)), Loaded::Expired);
@@ -348,6 +358,31 @@ mod tests {
         // Ordner ohne Datensatz
         std::fs::remove_file(dir.join(RECORD_FILE)).unwrap();
         assert!(matches!(load(&dir, now), Loaded::Invalid(_)));
+    }
+
+    /// Datensätze ohne `on_existing` (vor der Ergänzung gesichert) bleiben lesbar: Einzeldokument-Verhalten;
+    /// ein Einzeldokument schreibt das Feld nicht (Format unverändert).
+    #[test]
+    fn records_without_a_batch_policy_still_load() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join(RESUME_DIR);
+        let bytes = std::fs::read(PDF).unwrap();
+        let src = open(&bytes);
+        let engine = FakeEngine::default();
+        let p = prepared(&engine, &src);
+        let now = SystemTime::now();
+        persist(&dir, "a.pdf", &bytes, p.as_ref(), &PositionChoice::Auto, BackendId::Keystore, vec![], None, now)
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join(RECORD_FILE)).unwrap()).unwrap();
+        assert!(json.get("on_existing").is_none(), "Einzeldokument: Feld fehlt wie im bisherigen Format");
+        let Loaded::Offer(persisted) = load(&dir, now) else { panic!("kein Angebot") };
+        assert_eq!(persisted.record.on_existing, None);
+        // Stapel: als snake_case gespeichert und wieder gelesen
+        let mut json = json;
+        json["on_existing"] = serde_json::Value::String("keep_both".into());
+        std::fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&json).unwrap()).unwrap();
+        let Loaded::Offer(persisted) = load(&dir, now) else { panic!("kein Angebot") };
+        assert_eq!(persisted.record.on_existing, Some(ExistingPolicy::KeepBoth));
     }
 
     #[test]
@@ -366,6 +401,7 @@ mod tests {
             position: PositionChoice::Auto,
             backend: BackendId::Keystore,
             pending: vec![],
+            on_existing: None,
         };
         std::fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&record).unwrap()).unwrap();
         assert_eq!(load(&dir, SystemTime::now()), Loaded::Invalid("Pfad außerhalb des Ordners".into()));

@@ -3,21 +3,24 @@
  * letzten Lauf wurde die App während eines Signiervorgangs vom System beendet (z. B. beim Wechsel in die
  * App „ID Austria“). Der Kern hat das vorbereitete Dokument gesichert und bietet es im Schritt „Öffnen“ an;
  * Fortsetzen signiert mit derselben Position und demselben Signiermittel weiter (Anmeldung und Bestätigung
- * erneut), Verwerfen löscht den gesicherten Zustand. Geht das Dokument mit dem Signiermittel an A-Trust
+ * erneut – nur bei ID Austria, der Keystore signiert ohne Anmeldung; „gerade eben“ statt „vor 0 Minuten“),
+ * Verwerfen löscht den gesicherten Zustand. Geht das Dokument mit dem Signiermittel an A-Trust
  * (`document_leaves_device`, ID Austria), steht der Kurzhinweis mit „Details“ auch hier (ADR 0003):
  * „Fortsetzen“ startet die Sitzung – eine ausdrückliche Nutzeraktion (A1).
  */
 import { useState } from 'react';
 import type { ResumeOfferView } from '../core/types';
 import { PrivacyNote } from '../features/settings';
+import { SignerIcon } from '../features/workspace/signers';
 import { AccessButton } from '../ui/controls';
 import { ConfirmDialog } from '../ui/Dialog';
-import { IconPhone } from '../ui/Icons';
 import { useApp } from './context';
 
 export function ResumeDialog({ offer }: { offer: ResumeOfferView }) {
   const { t, dispatch } = useApp();
   const [busy, setBusy] = useState(false);
+  // Keystore/Chipkarte signieren auf dem Gerät: keine Anmeldung, keine Bestätigung in einer App
+  const remote = offer.backend !== 'keystore' && offer.backend !== 'local_bku';
   const answer = async (resume: boolean) => {
     if (busy) return;
     setBusy(true);
@@ -28,7 +31,7 @@ export function ResumeDialog({ offer }: { offer: ResumeOfferView }) {
     // ohne Escape/Abbrechen: Verwerfen löscht den gesicherten Zustand und soll nur ausdrücklich passieren
     <ConfirmDialog
       title={t.t('ng-ui-resume-title')}
-      icon={<IconPhone size={20} />}
+      icon={<SignerIcon backend={offer.backend} size={20} />}
       actions={
         <>
           <AccessButton msg="ng-ui-resume-discard" variant="ghost" isDisabled={busy} onPress={() => void answer(false)} />
@@ -36,7 +39,10 @@ export function ResumeDialog({ offer }: { offer: ResumeOfferView }) {
         </>
       }
     >
-      <p>{t.t('ng-ui-resume-text', { name: offer.name, minutes: offer.age_minutes })}</p>
+      <p>
+        {t.t('ng-ui-resume-text', { name: offer.name, minutes: offer.age_minutes })}
+        {remote ? ` ${t.t('ng-ui-resume-again')}` : null}
+      </p>
       {offer.pending > 0 ? (
         // Zahlen gehen als Text an Fluent (wie in Rust) – Einzahl deshalb als eigene Meldung
         <p className="hint">{offer.pending === 1 ? t.t('ng-ui-resume-pending-one') : t.t('ng-ui-resume-pending', { count: offer.pending })}</p>

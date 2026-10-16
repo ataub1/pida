@@ -472,6 +472,17 @@ describe('Start mit Ordnerwahl und vorhandenen Dateien (E2.7)', () => {
     expect(await within(row(list, 'Vertrag.pdf')).findByText('als Vertrag_signed (2).pdf')).toBeInTheDocument();
   });
 
+  it('Keystore: „Überspringen“ ohne „Bestätigung in der App“ (die gibt es dort nicht)', async () => {
+    const ks = { enabled: true, file: '/Users/demo/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'memory' as const, storage_chosen: true };
+    const { user } = await openBatch({ existingFiles: existing, settings: settings({ backend: { default: null }, keystore: ks }) });
+    await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
+    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Keystore/ }));
+    const start = await screen.findByRole('dialog', { name: '3 Dokumente signieren' });
+    const skip = within(start).getByRole('radio', { name: /Überspringen/ });
+    expect(skip.closest('label')).toHaveTextContent('Diese Dokumente werden nicht signiert.');
+    expect(start).not.toHaveTextContent('ohne Bestätigung in der App');
+  });
+
   it('„Überspringen“: für dieses Dokument keine Bestätigung', async () => {
     const { list, user, mock } = await openBatch({ existingFiles: existing });
     await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
