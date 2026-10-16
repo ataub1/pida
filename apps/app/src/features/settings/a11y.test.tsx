@@ -1,10 +1,10 @@
 /**
  * Barrierefreiheit der Einstellungen (ADR 0004 §4.7, Abnahme E3 Punkt 8): axe ohne Verstöße je Bereich und im
  * Suchmodus (Treffer und ohne Treffer), mit Feldfehler, mit gesperrter Platzhalterart, schreibgeschützt, auf
- * Mobilgeräten (Vollbild) und im PKCS#12-Import-Assistenten.
+ * Mobilgeräten (Vollbild; Signiermittel nur ID Austria, ADR 0004 Nachtrag 11).
  */
 import { screen, within } from '@testing-library/react';
-import { afterEach, describe, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings } from '../../core/defaults';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { emulateMedia, renderApp } from '../../test/render';
@@ -83,16 +83,13 @@ describe('Einstellungen: axe', () => {
     await expectNoAxeViolations();
   });
 
-  it('PKCS#12-Import-Assistent (Mobile)', async () => {
+  it('Signiermittel auf Mobilgeräten: nur ID Austria (ADR 0004 Nachtrag 11)', async () => {
     const { user } = renderApp({ platform: 'android' });
     await user.click(await screen.findByRole('button', { name: 'Einstellungen' }));
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
     await user.click(within(within(dialog).getByRole('navigation', { name: 'Bereiche' })).getByRole('button', { name: 'Signiermittel' }));
-    await user.click(within(dialog).getByRole('button', { name: 'PKCS#12-Datei importieren …' }));
-    const wizard = await screen.findByRole('alertdialog', { name: 'PKCS#12-Keystore importieren' });
-    await expectNoAxeViolations();
-    await user.click(within(wizard).getByRole('button', { name: 'Datei wählen …' }));
-    await within(wizard).findByTestId('keystore-import-file');
+    expect(within(dialog).getByRole('region', { name: 'ID Austria' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('region', { name: 'Keystore' })).toBeNull();
     await expectNoAxeViolations();
   });
 });

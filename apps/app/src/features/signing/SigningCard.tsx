@@ -45,7 +45,7 @@ import { Badge, Button, CheckboxField, Details, Progress, RadioCards, Spinner, T
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconAlert, IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage, IconPhone, IconQr, IconUsbKey } from '../../ui/Icons';
 import { statusLabel, statusTone } from '../batch/texts';
-import { DEFAULT_STORAGE_CHOICE, KeystoreImportDialog, PasswordStorageQuestion, PrivacyNote } from '../settings';
+import { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion, PrivacyNote } from '../settings';
 import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerClass, signerName } from '../workspace/signers';
 import { CountdownRing, useCountdown } from './CountdownRing';
 import { friendlyError, noticeTexts, problemText, progressText, qrDataUrl } from './texts';
@@ -994,15 +994,15 @@ function NoticePane({ request, notice }: { request: number; notice: Notice }) {
   );
 }
 
-/** Rückfall „Signiermittel wählen“ (nur nach „Signatur fortsetzen“ mit nicht mehr verfügbarem Signiermittel). */
+/**
+ * Rückfall „Signiermittel wählen“ (nur nach „Signatur fortsetzen“ mit nicht mehr verfügbarem Signiermittel). Die
+ * Optionen kommen vom Kern (iOS/Android: nur ID Austria, ADR 0004 Nachtrag 11).
+ */
 function ChoosePane({ step, onCancel }: { step: Extract<StepView, { step: 'backend' }>; onCancel: () => void }) {
-  const { t, view, dispatch } = useApp();
-  const mobile = isMobile(view);
-  const [importing, setImporting] = useState(false);
+  const { t, dispatch } = useApp();
   const options = step.options.filter((o) => SHOWN_BACKENDS.includes(o.id));
   const [choice, setChoice] = useState<BackendId | null>(options.find((o) => o.available)?.id ?? null);
   const selected = options.find((o) => o.id === choice);
-  const offerImport = mobile && !options.some((o) => o.id === 'keystore' && o.available);
   return (
     <div className="step-pane">
       <StepTitle>{t.t('ng-ui-sc-choose-title')}</StepTitle>
@@ -1025,18 +1025,12 @@ function ChoosePane({ step, onCancel }: { step: Extract<StepView, { step: 'backe
         }))}
       />
       {selected?.capabilities?.document_leaves_device ? <PrivacyNote /> : null}
-      {offerImport ? (
-        <Button variant="secondary" size="sm" onPress={() => setImporting(true)}>
-          {t.t('ng-ui-insp-signer-import')}
-        </Button>
-      ) : null}
       <div className="step-actions">
         <CancelButton onCancel={onCancel} />
         <Button variant="primary" isDisabled={!choice} onPress={() => choice && void dispatch({ type: 'choose_backend', backend: choice })}>
           {t.t('ng-ui-sc-choose-sign')}
         </Button>
       </div>
-      {importing ? <KeystoreImportDialog onClose={() => setImporting(false)} /> : null}
     </div>
   );
 }

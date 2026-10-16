@@ -32,11 +32,13 @@ describe('Bereiche und Zeilen', () => {
     }
   });
 
-  it('Mobile ohne Proxy, Updates, Protokolle, Chipkarte und Bildmarke; Profilzeilen je Profil', () => {
+  it('Mobile ohne Proxy, Updates, Protokolle, Chipkarte, Keystore, Standardwahl und Bildmarke; Profilzeilen je Profil', () => {
     const mobile = ids(visibleRows({ mobile: true, profile: 'SIGNATURBLOCK_SMALL' }));
-    for (const id of ['advanced.proxy', 'advanced.updates', 'advanced.migration', 'about.logs', 'signers.card', 'signature.emblem']) expect(mobile).not.toContain(id);
-    expect(ids(desktop)).toContain('advanced.migration');
-    expect(mobile).toContain('signers.keystore');
+    const desktopOnly = ['advanced.proxy', 'advanced.updates', 'advanced.migration', 'about.logs', 'signers.card', 'signers.keystore', 'signers.default', 'signature.emblem'];
+    for (const id of desktopOnly) expect(mobile).not.toContain(id);
+    for (const id of desktopOnly) expect(ids(desktop)).toContain(id);
+    // Mobile nur ID Austria (ADR 0004 Nachtrag 11): Konto und FIDO2-Hinweis bleiben
+    expect(mobile.filter((id) => id.startsWith('signers.'))).toEqual(['signers.id_austria', 'signers.fido2']);
     expect(ids(desktop)).toContain('signature.note');
     expect(ids(desktop)).not.toContain('signature.logo_size');
     const logo = ids(visibleRows({ mobile: false, profile: 'BASE_LOGO' }));
@@ -60,6 +62,13 @@ describe('Suche', () => {
     expect(hit(de, 'PDF-Over')).toEqual(['advanced.migration']);
     expect(hit(en, 'import')).toEqual(['advanced.migration']);
     expect(hit(de, 'Proxy')).toEqual(['advanced.proxy']);
+  });
+
+  it('„Keystore“ findet nur Keystore und Standard-Signiermittel, „Aktualisierung“ die Updates (keine doppelten `.keywords`)', () => {
+    expect(hit(de, 'keystore')).toEqual(['signers.default', 'signers.keystore']);
+    expect(hit(en, 'keystore')).toEqual(['signers.default', 'signers.keystore']);
+    expect(hit(de, 'aktualisierung')).toEqual(['advanced.updates']);
+    expect(hit(en, 'updates')).toEqual(['advanced.updates']);
   });
 
   it('Dokument: „pdf/a“, „platzhalter“, „qr“, „signaturfeld“; englisch „signature field“', () => {

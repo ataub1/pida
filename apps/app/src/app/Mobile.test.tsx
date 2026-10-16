@@ -1,14 +1,14 @@
 /**
  * Mobile-Oberfläche (ADR 0004 §4.6, Plan §5.2, docs/integration/mobile.md): Bottom-Sheet, Touch-Ziehen mit
- * Fingerversatz, „Signatur fortsetzen“ (mit Kurzhinweis), PKCS#12-Import aus dem Konto-Chip-Menü,
- * Teilen/Sichern unter, FIDO2 ausgegraut, Dateiauswahl über das Plugin, Plattform-Kennzeichen; dieselben
- * Ansichten mit `platform: ios|android` wie `?platform=` (Abnahme E1 Punkt 9 [M]).
+ * Fingerversatz, „Signatur fortsetzen“ (mit Kurzhinweis), nur ID Austria (ADR 0004 Nachtrag 11: Konto-Chip ohne
+ * Wechsel, nirgends Keystore-Texte), Teilen/Sichern unter, FIDO2 ausgegraut, Dateiauswahl über das Plugin,
+ * Plattform-Kennzeichen; dieselben Ansichten mit `platform: ios|android` wie `?platform=` (Abnahme E1 Punkt 9 [M]).
  */
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { UiEvent } from '../core/types';
 import { expectNoAxeViolations } from '../test/a11y';
-import { emulateMedia, lastEvent, renderApp } from '../test/render';
+import { emulateMedia, renderApp } from '../test/render';
 import { ANDROID, documentView, IOS, onMobile, signersView, viewOf, workspaceView } from '../test/views';
 
 let restore: (() => void) | null = null;
@@ -33,19 +33,21 @@ describe('Signatur fortsetzen', () => {
     await expectNoAxeViolations();
   });
 
-  it('Kurzhinweis zum Datenschutz bei ID Austria, nicht beim Keystore', async () => {
+  // Ein Angebot mit einem Signiermittel auf dem Gerät (Keystore) kommt seit ADR 0004 Nachtrag 11 nicht mehr auf
+  // Mobilgeräten vor (der Kern verwirft einen solchen Vorgang beim Start); der Dialog behandelt es weiter.
+  it('Kurzhinweis zum Datenschutz bei ID Austria, nicht bei einem Signiermittel auf dem Gerät', async () => {
     const { unmount } = renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: offer })) });
     let dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
     expect(within(dialog).getByTestId('privacy-note')).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
     unmount();
-    renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: { ...offer, backend: 'keystore', document_leaves_device: false } })) });
+    renderApp({ view: viewOf({ step: 'open', queue: [] }, { resume: { ...offer, backend: 'keystore', document_leaves_device: false } }) });
     dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
     expect(within(dialog).queryByTestId('privacy-note')).not.toBeInTheDocument();
   });
 
-  it('Keystore, eben unterbrochen: „gerade eben“, ohne Anmeldung/Bestätigung (Emulator 16.10.2026)', async () => {
+  it('eben unterbrochen: „gerade eben“; auf dem Gerät ohne Anmeldung/Bestätigung (Emulator 16.10.2026)', async () => {
     const keystore = { ...offer, backend: 'keystore' as const, age_minutes: 0, pending: 0, document_leaves_device: false };
-    const { unmount } = renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { resume: keystore }), ANDROID) });
+    const { unmount } = renderApp({ view: viewOf({ step: 'open', queue: [] }, { resume: keystore }) });
     let dialog = await screen.findByRole('alertdialog', { name: 'Signatur fortsetzen?' });
     expect(dialog).toHaveTextContent('Die Signatur von „Vertrag.pdf“ wurde gerade eben unterbrochen');
     expect(dialog).not.toHaveTextContent('vor 0 Minuten');
@@ -100,7 +102,8 @@ describe('Bottom-Sheet und Touch', () => {
     expect(within(sheet).getByTestId('privacy-note')).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
     await expectNoAxeViolations();
     unmount();
-    renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({ selected: 'keystore' }, true) }), ANDROID) });
+    // schmal am Desktop mit Keystore: kein Kurzhinweis (auf Mobilgeräten gibt es keinen Keystore)
+    renderApp({ view: workspaceView(documentView(), { signers: signersView({ selected: 'keystore' }) }) });
     await screen.findByRole('application', { name: 'Signaturblock' });
     expect(screen.queryByTestId('privacy-note')).not.toBeInTheDocument();
   });
@@ -123,33 +126,25 @@ describe('Bottom-Sheet und Touch', () => {
 });
 
 describe('Konto-Chip und Signiermittel auf Mobilgeräten', () => {
-  it('PKCS#12-Import aus dem Menü des Konto-Chips (Datei wählen, Passwort, Ergebnis)', async () => {
+  it('nur ID Austria: Konto-Chip ohne Wechsel – das Menü bietet nur „Einstellungen …“ (ADR 0004 Nachtrag 11)', async () => {
     const view = onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), IOS);
-    const { mock, user } = renderApp({ view, platform: 'ios' });
-    await user.click(await screen.findByTestId('signer-chip'));
+    const { user } = renderApp({ view, platform: 'ios' });
+    const chip = await screen.findByTestId('signer-chip');
+    expect(chip).toHaveAccessibleName('Signiermittel: ID Austria · +43 660 ···123');
+    await user.click(chip);
     const menu = await screen.findByRole('menu');
-    expect(within(menu).getByRole('menuitem', { name: /Keystore/ })).toHaveTextContent('importieren Sie eine PKCS#12-Datei');
-    await user.click(within(menu).getByRole('menuitem', { name: 'PKCS#12-Datei importieren …' }));
-    const dialog = await screen.findByRole('alertdialog', { name: 'PKCS#12-Keystore importieren' });
-    await user.click(within(dialog).getByRole('button', { name: 'Datei wählen …' }));
-    expect(await within(dialog).findByTestId('keystore-import-file')).toHaveTextContent('Gewählte Datei: test.p12');
-    await user.type(within(dialog).getByLabelText('Passwort des Keystores'), 'geheim');
-    await user.click(within(dialog).getByRole('button', { name: 'Importieren' }));
-    const sent = lastEvent(mock) as Extract<UiEvent, { type: 'import_keystore' }>;
-    expect(sent).toMatchObject({ type: 'import_keystore', password: 'geheim', remember: true });
-    act(() => mock.setView({ ...view, keystore_import: { file_name: 'test.p12', ok: true, code: 'ng-keystore-imported', password_stored: true } }));
-    expect(await screen.findByText('Der Keystore „test.p12“ wurde importiert.')).toBeInTheDocument();
-    // „Fertig“: der neue Keystore gilt gleich für dieses Dokument (wählt nur, startet nichts)
-    await user.click(screen.getByRole('button', { name: 'Fertig' }));
-    expect(mock.dispatched.slice(-2)).toEqual([{ type: 'dismiss_keystore_import' }, { type: 'select_signer', backend: 'keystore', make_default: false }]);
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Einstellungen …']);
+    expect(within(menu).queryByText('Signiermittel wechseln')).not.toBeInTheDocument();
+    expect(menu.textContent).not.toMatch(/Keystore|PKCS/);
+    await expectNoAxeViolations();
   });
 
-  it('ID Austria ohne FIDO2: Beschreibung im Menü ohne FIDO2', async () => {
-    const { user } = renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), ANDROID) });
+  it('ID Austria ohne FIDO2: Beschreibung im Menü ohne FIDO2 (noch nicht gewählt)', async () => {
+    const { user } = renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({ selected: null, default: null }, true) }), ANDROID) });
     await user.click(await screen.findByTestId('signer-chip'));
     const item = await screen.findByRole('menuitem', { name: /ID Austria/ });
     expect(item).toHaveTextContent('Bestätigung in der App „ID Austria“ oder per SMS-TAN');
-    expect(screen.queryByRole('menuitem', { name: /Chipkarte/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Chipkarte|Keystore/ })).not.toBeInTheDocument();
   });
 
   it('Dateiauswahl über das Plugin (Kopien in der Sandbox)', async () => {
@@ -172,8 +167,8 @@ describe('Konto-Chip und Signiermittel auf Mobilgeräten', () => {
   it('Mock-Kern mit `platform: android`: Arbeitsbereich und Karte im Szenario „Vertrag“', async () => {
     const { user } = renderApp({ platform: 'android', scenario: 'contract' });
     await screen.findByRole('application', { name: 'Signaturblock' });
-    await user.click(screen.getByTestId('signer-chip'));
-    await user.click(await screen.findByRole('menuitem', { name: /ID Austria/ }));
+    // ID Austria ist das einzige Signiermittel und schon gewählt; „Signieren“ bleibt die ausdrückliche Aktion
+    expect(screen.getByTestId('signer-chip')).toHaveTextContent('ID Austria');
     await user.click(screen.getByRole('button', { name: /^Signieren/ }));
     expect(await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' })).toBeInTheDocument();
     await expectNoAxeViolations();

@@ -3,7 +3,8 @@
  * letzten Lauf wurde die App während eines Signiervorgangs vom System beendet (z. B. beim Wechsel in die
  * App „ID Austria“). Der Kern hat das vorbereitete Dokument gesichert und bietet es im Schritt „Öffnen“ an;
  * Fortsetzen signiert mit derselben Position und demselben Signiermittel weiter (Anmeldung und Bestätigung
- * erneut – nur bei ID Austria, der Keystore signiert ohne Anmeldung; „gerade eben“ statt „vor 0 Minuten“),
+ * erneut – nur bei ID Austria, ein Signiermittel auf dem Gerät signiert ohne Anmeldung; auf Mobilgeräten gibt es
+ * seit ADR 0004 Nachtrag 11 nur ID Austria; „gerade eben“ statt „vor 0 Minuten“),
  * Verwerfen löscht den gesicherten Zustand. Geht das Dokument mit dem Signiermittel an A-Trust
  * (`document_leaves_device`, ID Austria), steht der Kurzhinweis mit „Details“ auch hier (ADR 0003):
  * „Fortsetzen“ startet die Sitzung – eine ausdrückliche Nutzeraktion (A1).

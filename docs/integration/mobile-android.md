@@ -9,6 +9,14 @@ PKCS#12-Keystore wird importiert, das Passwort liegt verschlüsselt mit einem An
 ein Test-PDF wird in der App mit dem Keystore signiert, über „Sichern unter …“ (SAF) exportiert und ist laut
 pyHanko gültig (§6).
 
+> **Seit 16.10.2026: Mobile nur mit ID Austria** (Entscheidung des Auftraggebers, ADR 0004 Nachtrag 11,
+> mobile.md §12). Die Keystore-Abläufe dieses Protokolls – PKCS#12-Import über SAF, Passwort im Android-Keystore-
+> verschlüsselten sicheren Speicher, Signatur und Stapel mit dem Keystore, Speicherart „Sicherer Speicher“ (§5
+> Keystore-Import/Signatur, §8.2 Abläufe 3/4, §8.3 B6–B8, B10, B15, B16, §8.5) – **entfallen**; sie bleiben als
+> Nachweis des damaligen Stands stehen. Auf Android gibt es seitdem nur ID Austria; der Kern ignoriert
+> Keystore-Einstellungen früherer Builds und entfernt deren Keystore-Passwörter aus dem sicheren Speicher einmalig
+> (§9).
+
 ## 1. Projekt `apps/app/src-tauri/gen/android`
 
 Angelegt mit `npm run tauri android init --ci` (Tauri CLI 2.12.3) und versioniert (vorher in
@@ -402,3 +410,22 @@ installiert), Emulator wie in 8.1 mit Proxy-Sperre und Flugmodus, A-Trust nie er
   „Vertrag_signed (3).pdf“ anlegte. Nach „Fortsetzen“ fehlen in der Stapelzeile des fortgesetzten Dokuments Miniatur
   und Seiten/Größe. Die Leiste der Einstellungsbereiche zeigte das Überlagern auch hier nur in `adb screencap`
   (CDP-Aufnahme sauber).
+
+## 9. Mobile nur mit ID Austria (16.10.2026)
+
+Entscheidung des Auftraggebers: „Signieren mit Keystore brauchen wir auf mobilen Apps nicht, da reicht ID Austria.“
+Umsetzung und Nachweise für beide Plattformen: mobile.md §12, ADR 0004 Nachtrag 11. Für Android bedeutet das:
+
+- **Entfallen:** Abläufe mit Keystore (§5 Keystore-Import, Signatur mit dem Keystore, Screenshots `04-keystore-import`,
+  `10-keystore-dateiauswahl`; §8.2 Abläufe 3 und 4 mit Keystore; §8.3 B6–B8, B10, B15, B16; §8.5 Punkt 3). Die
+  Dateiauswahl der Shell fragt nur noch PDFs an (`mobile_pick_files` lehnt `pkcs12` ab); das Plugin behält
+  `importFile` mit `pkcs12` unverändert (keine native Änderung).
+- **Bleibt:** Signieren mit ID Austria (App-Bestätigung/SMS-TAN, FIDO2 ausgegraut), Stapel, „Signatur fortsetzen“
+  (B19), Teilen, „Sichern unter“, „Öffnen“ über den FileProvider; `allowBackup=false` und die Verschlüsselung des
+  sicheren Speichers unverändert.
+- **Übergang früherer Builds:** gespeicherter Standard Keystore → ID Austria (beim Lesen, `[keystore]` bleibt in
+  `settings.toml`), Keystore-Passwörter im sicheren Speicher (Schlüssel `PIDA/keystore-store:…`/`PIDA/keystore-key:…`
+  zur Datei aus den Einstellungen und zu jeder Datei in `files/…/data/keystores`) werden beim ersten Start einmalig
+  entfernt (Merker `data/keystore-secrets-removed`); ein gesicherter Keystore-Vorgang für „Signatur fortsetzen“ wird
+  mit Hinweis verworfen. Die Datei `data/keystores/*.p12` selbst bleibt liegen (durch ihr Passwort geschützt).
+- **Am Emulator:** nicht erneut durchgespielt (belegt durch Kern- und Oberflächentests, mobile.md §12.3).

@@ -1,12 +1,14 @@
 # Mobile (iOS/Android) – Fundament M0 und Aufgaben für M-iOS/M-Android
 
-Stand: 15.10.2026, Welle Mobile, Paket **M0** (plattformneutrales Fundament). Grundlage: Plan
+Stand: 15.10.2026, Welle Mobile, Paket **M0** (plattformneutrales Fundament); ergänzt am 16.10.2026: **Mobile
+nur mit ID Austria** – kein Keystore auf iOS/Android (Entscheidung des Auftraggebers, §12, ADR 0004 Nachtrag 11).
+Grundlage: Plan
 §5 (Plattform-Matrix, §5.2 Mobile 1.0, §5.3 Plattformspezifika), §3.5 (Lebenszyklus), §4.7 (FIDO2),
 §7.7 (Sicherheit); ADR 0001; docs/analyse/02 (A-Trust auf Mobile: kein FIDO2, App-Wechsel).
 
 Mobile 1.0 (Plan §5.2): ID Austria nativ (Szenario A: Anmeldung, SMS-TAN, Bestätigung in der App
-„ID Austria“ mit App-Wechsel; **kein FIDO2** – ausgegraut mit Hinweis), PKCS#12 nur nach Import in die
-App-Sandbox, **keine lokale BKU, keine CLI**. Dokumente über Share-Sheet/„Öffnen in“ (iOS) bzw.
+„ID Austria“ mit App-Wechsel; **kein FIDO2** – ausgegraut mit Hinweis), **kein Keystore** (der ursprünglich
+vorgesehene PKCS#12-Import in die App-Sandbox entfällt seit 16.10.2026, §12), **keine lokale BKU, keine CLI**. Dokumente über Share-Sheet/„Öffnen in“ (iOS) bzw.
 Intents `VIEW`/`SEND` `application/pdf` (Android) und die System-Dateiauswahl; Ausgabe in die
 App-Dokumente plus Teilen/„Sichern unter“; Positionieren per Touch, die Zahlenfelder bleiben.
 
@@ -18,7 +20,7 @@ parallel in diesem Worktree (Zuständigkeiten siehe §9).
 
 ```
 React-Oberfläche (apps/app/src)            ── ViewState / UiEvent (Tauri-IPC, unverändert) ──┐
-  isMobile(view): Teilen/Exportieren, PKCS#12-Assistent, „Signatur fortsetzen“, FIDO2-Hinweis   │
+  isMobile(view): Teilen/Exportieren, nur ID Austria, „Signatur fortsetzen“, FIDO2-Hinweis       │
                                                                                                 ▼
 Tauri-Shell (apps/app/src-tauri, Crate pida-app)                                pida-core-api (Kern)
   cfg(mobile): Sandbox-Pfade, Lebenszyklus, Dokument-Eingang,  ── CoreOptions ──▶  Workflow-Reducer (State::Resuming)
@@ -52,7 +54,7 @@ Rust-API (`PidaMobileExt::pida_mobile()` auf `AppHandle`):
 | `share_file(path, mime)` | `shareFile` | `{ path, mimeType }` | `{}` sobald gezeigt | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI + `FLAG_GRANT_READ_URI_PERMISSION` |
 | `open_file(path, mime)` | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | QuickLook (`QLPreviewController`, ohne Bearbeiten) / `ACTION_VIEW` mit `FileProvider`-URI an eine fremde PDF-App – Ergebnis „Öffnen“ (`ShellHooks::open_path`; nur `not-implemented` fällt auf `opener` zurück) |
 | `export_file(path, name, mime)` → `bool` | `exportFile` | `{ path, fileName, mimeType }` | `{ saved }` | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT` + Kopie |
-| `import_file(kind, multiple, dest)` → Dateien | `importFile` | `{ kind: "pdf"\|"pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; **Bytes** nach `destination` kopieren |
+| `import_file(kind, multiple, dest)` → Dateien | `importFile` | `{ kind: "pdf"\|"pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; **Bytes** nach `destination` kopieren (die Shell fragt seit §12 nur noch `pdf` an) |
 | `take_pending_open_documents(urls, dest)` → Dateien | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | vorgemerkte Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE`) **und** die übergebenen URLs (Security-Scoped `file://`, `content://`) nach `destination` kopieren, Warteschlange leeren |
 
 Fehler: `invoke.reject(message, code)` – `not-implemented` (Hülle), `cancelled` (Nutzerin hat
@@ -101,8 +103,8 @@ nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
   legt Kopien in `<app_cache_dir>/inbox/<n>/<Name>` ab (Name bleibt → Ausgabename `<Name>_signed.pdf`);
   nicht lesbare URLs (Android `content://`, Security-Scoped) und Intents holt die Shell über
   `take_pending_open_documents` – beim Start und nach jeder Rückkehr in den Vordergrund. Die
-  Dateiauswahl der Oberfläche läuft über den Befehl `mobile_pick_files` (`kind` `pdf`/`pkcs12`, Kopien in
-  `<app_cache_dir>/import/`).
+  Dateiauswahl der Oberfläche läuft über den Befehl `mobile_pick_files` (`kind` `pdf`, Kopien in
+  `<app_cache_dir>/import/`; `pkcs12` lehnt die Shell seit §12 mit `ng-ui-event-invalid` ab).
 - **Ausgabe:** `CoreOptions::default_output_dir` = iOS `Documents` (Tauri `document_dir`, in der Dateien-App
   sichtbar), Android `filesDir/Documents` (`mobile::ANDROID_OUTPUT_DIR`; **nicht** `getExternalFilesDir`, den unter
   Android 9/10 Apps mit Speicher-Berechtigung mitlesen), dann ohne Speichern-Dialog; vorhandene Datei → Rückfrage
@@ -112,10 +114,10 @@ nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
   `PIDA/<SecretId::account>`); Verfügbarkeit beim ersten Zugriff (Probe `secureStoreGet`). Solange
   die native Seite leer ist: nur RAM, `is_persistent() == false` (UI-Hinweis `ng-secrets-not-persistent`).
   Das ID-Austria-Passwort hat keinen `SecretId` und erreicht den Speicher nie.
-- **Signiermittel:** keine lokale BKU (Registry nur auf dem Desktop); ID Austria mit
-  `BackendOptionView.notes = ["ng-fido2-unavailable-mobile"]` – die Oberfläche zeigt FIDO2 ausgegraut mit
-  Hinweis (Auswahl, Masken mit `can_switch_to_fido2`, Einstellungen › FIDO2).
-- **PKCS#12-Import:** `import_keystore { path, password, remember }` – der Kern prüft Format und Passwort
+- **Signiermittel:** nur ID Austria – keine lokale BKU und kein Keystore (Registry beide nur auf dem Desktop,
+  §12); ID Austria mit `BackendOptionView.notes = ["ng-fido2-unavailable-mobile"]` – die Oberfläche zeigt FIDO2
+  ausgegraut mit Hinweis (Auswahl, Masken mit `can_switch_to_fido2`, Einstellungen › FIDO2).
+- **PKCS#12-Import (bis 16.10.2026; seit §12 auf Mobilgeräten ohne Wirkung):** `import_keystore { path, password, remember }` – der Kern prüft Format und Passwort
   (`backend-keystore::list_aliases`), kopiert die Datei nach `Paths::data_dir/keystores/` (0600), setzt
   Einstellungen › Keystore (aktiviert, `PKCS12`, Alias bei genau einem Schlüssel) und legt das Passwort
   mit `remember` im sicheren Speicher ab (Speicherart „Schlüsselbund“); Ergebnis in
@@ -153,9 +155,9 @@ A-Trust-Verbindung.
 
 - `ViewState.platform.mobile` (`isMobile`) schaltet: Durchsuchen über `mobile_pick_files`; Ergebnis mit
   „Teilen“/„Sichern unter …“ statt „Im Ordner anzeigen“; Einstellungen ohne Ausgabeordner, Proxy,
-  Update-Prüfung und Log-Ordner; Keystore-Tab mit Import-Assistent (`features/settings/KeystoreImport.tsx`, auch
-  aus der Signiermittel-Auswahl); „Signatur fortsetzen“-Dialog (`app/ResumeDialog.tsx`, Verwerfen nur
-  ausdrücklich); FIDO2 ausgegraut mit Hinweis.
+  Update-Prüfung und Log-Ordner; Signiermittel nur ID Austria (bis 16.10.2026 Keystore-Tab mit Import-Assistent
+  `features/settings/KeystoreImport.tsx` – entfernt, §12); „Signatur fortsetzen“-Dialog (`app/ResumeDialog.tsx`,
+  Verwerfen nur ausdrücklich); FIDO2 ausgegraut mit Hinweis.
 - Positionieren per Touch: außerhalb des Blocks angetippt steht der Block mittig **über** dem Finger
   (`TOUCH_OFFSET_PT` 12 pt), ein zweiter Finger verschiebt nichts, kurze Haptik (Android), größere
   Trefferfläche; Zahlenfelder gibt es seit 15.10.2026 nicht mehr (D1). Pinch-Zoom ist optional und offen.
@@ -175,7 +177,8 @@ A-Trust-Verbindung.
   Doppeltippen setzt den Block, Haptik beim Einrasten; Zahlenfelder gibt es nicht mehr (D1). Signierkarte als
   Vollbild-Overlay über der Seitenansicht (App-Wechsel zur ID-Austria-App ist kein Abbruch), FIDO2 ausgegraut
   mit Hinweis; „Fertig“ mit „Öffnen“, „Teilen“, „Sichern unter …“ (kein Ordner), kleinere Vorschau, damit die
-  Aktionen ohne Scrollen sichtbar bleiben; PKCS#12-Import aus dem Menü des Konto-Chips; „Signatur fortsetzen“
+  Aktionen ohne Scrollen sichtbar bleiben; PKCS#12-Import aus dem Menü des Konto-Chips (entfällt seit §12: der
+  Konto-Chip zeigt ID Austria ohne Wechsel); „Signatur fortsetzen“
   mit Kurzhinweis bei ID Austria. Nachweise: `src/app/Mobile.test.tsx` (`?platform=ios|android` im Mock),
   Screenshots `docs/integration/screenshots/stage1/mobil-*.png` (375 × 812 @2x, hell/dunkel). Offen [H]:
   Simulator/Emulator (Safe Areas, App-Wechsel bei der Bestätigung, Touch-Ziehen auf dem Gerät).
@@ -189,15 +192,16 @@ A-Trust-Verbindung.
   [H]: Simulator/Emulator (App-Wechsel je Bestätigung, App-Kill im Lauf).
 - **Seit E3 (ADR 0004 §3.10/§3.11, Nachtrag 5):** Einstellungen als Vollbild mit waagrechter Bereichsleiste und
   Suche, sofort wirksam; ohne Proxy, Ausgabeordner, Update-Prüfung, Protokolle, Chipkarte und Bildmarken-Zeile
-  (der Kern lehnt `proxy.*`, `output.folder`, `general.update_check`, `keystore.file` auf Mobilgeräten mit
-  `ng-settings-unavailable-mobile` ab); Keystore nur über den PKCS#12-Import-Assistenten (neuer Stil); Bereich
+  (der Kern lehnt `proxy.*`, `output.folder`, `general.update_check`, seit §12 `keystore.*` und Keystore bzw.
+  Chipkarte als Standard auf Mobilgeräten mit `ng-settings-unavailable-mobile` ab); Keystore bis 16.10.2026 nur
+  über den PKCS#12-Import-Assistenten, seit §12 gar nicht; Bereich
   „Dokument“ (PDF/A, Platzhaltersuche) wie am Desktop, Hinweise im ausgeklappten Bottom-Sheet; „Zuletzt
   signiert“ ohne Ordneranzeige. Nachweise: `features/settings/{settings,a11y}.test.tsx` (Mobile), Kern
   `crates/core-api/tests/settings.rs::mobile_restrictions`, Screenshots `docs/integration/screenshots/stage3/mobil-*.png`
   (375 × 812 @2x); 375 px ohne waagrechtes Scrollen der Seite. Offen [H]: Simulator/Emulator.
 - **Seit E4 (ADR 0004 §3.9/§3.12, Nachtrag 6):** Prüfmodus mit den Seiten über dem Ergebnis (Kopfzeile
   „Prüfmodus“), Datei über die Dokumentauswahl (`pickMobileFiles`) bzw. „Zuletzt signiert“; Ersteinrichtung als
-  Sheet ohne Chipkarte (Keystore erst nach dem PKCS#12-Import wählbar), ohne „neben dem Original“ (Ausgabe bleibt in
+  Sheet ohne Chipkarte (seit §12 ohne Signiermittel-Schritt – nur ID Austria), ohne „neben dem Original“ (Ausgabe bleibt in
   den App-Dokumenten) und ohne „PDF-Over-Einstellungen übernehmen“ in Einstellungen › Erweitert (auf Mobilgeräten
   gibt es kein PDF-Over); Palette ohne Tastenkappen. Nachweise: `features/verify/verify.test.tsx`,
   `features/onboarding/onboarding.test.tsx`, `features/palette/palette.test.tsx` (Mobile, schmal, axe), Kern
@@ -259,7 +263,7 @@ Testdaten (`testdata/pdf`, `testdata/keystores`, Passwort `test`), kein Netzverk
    (`exportFile`, `importFile` mit Kopie nach `destination`), „Öffnen in“/Share-Eingang inkl.
    Security-Scoped URLs (`takePendingOpenDocuments`).
 4. Im Simulator nachweisen: Start, PDFium gebunden (Vorschau), Dokument über „Teilen“ öffnen, Keystore-
-   Import + Signatur mit `test-rsa2048.p12`, Ausgabe teilen/sichern, App-Wechsel während einer
+   Import + Signatur mit `test-rsa2048.p12` (historisch – entfällt seit §12), Ausgabe teilen/sichern, App-Wechsel während einer
    (simulierten) Wartemaske, App beenden → „Signatur fortsetzen“; Screenshots.
 5. QuickLook für „Öffnen“ des Ergebnisses (`opener` öffnet auf iOS keine Pfade) – ggf. `ShellHooks::open_path`
    über das Plugin (Vertrag mit M0/Integration abstimmen).
@@ -302,6 +306,12 @@ Belege; beide Plattformen neu gebaut und im Simulator bzw. Emulator durchgespiel
 | R-9 | niedrig | Android-Secure-Store verwarf leere Werte (Längenprüfung `>` statt `>=`); `hooks::open_path` fiel unter iOS bei jedem Fehler auf `opener` zurück | korrigiert; Rückfall nur noch bei `not-implemented` |
 | R-10 | niedrig | Doku: Keychain-Zugriffsklasse, `openFile` unter iOS, Mindest-iOS veraltet | korrigiert (§2, §5, Plugin-Moduldoku) |
 
+**Nachtrag 16.10.2026 (§12):** Seit „Mobile nur mit ID Austria“ betreffen R-1 (b) für den Keystore und R-4 nur
+noch frühere Builds – `relocate_sandbox_files` ordnet nur noch die Bildmarke neu zu, `[keystore] file` bleibt
+unberührt; R-5 (Sicherungsausschluss von `data/keystores`) schützt weiter liegengebliebene Dateien früherer Builds.
+R-1 (a) gilt unverändert am Desktop; auf Mobilgeräten verhindert jetzt der Autostart-Befund F-54 (ohne „Signieren“
+keine Sitzung bei A-Trust) dasselbe.
+
 Geprüft und **in Ordnung**: WebView erreicht das Plugin nicht (Tauri prüft die ACL vor `run_mobile_plugin`;
 `mobile.json` ohne `pida-mobile:*`), CSP/Capabilities minimal, ID-Austria-Passwort ohne `SecretId` (nur RAM der
 Sitzung), Fehler/Logs ohne Pfade, URIs oder Werte, Pfadprüfungen bei Import/Eingang (Rust `within`, Swift
@@ -343,7 +353,8 @@ beiden Plattformen am Gerät durchgespielt, die Befunde behoben und beide Ständ
 zusammengeführt. Einzelheiten, Aufnahmen und Befundlisten: mobile-ios.md §8 (Simulator iPhone 17 und zur
 Gegenprüfung iPhone 17e, iOS 27; `docs/integration/screenshots/ios-ng/`) und mobile-android.md §8 (Emulator
 API 35, 411 CSS-px; `docs/integration/screenshots/android-ng/`). Umfang Mobile 1.0 (Plan §5.2): ID Austria
-(App-Bestätigung/SMS, kein FIDO2), PKCS#12 nur per Import, keine lokale Chipkarte, keine CLI. Netz immer gesperrt
+(App-Bestätigung/SMS, kein FIDO2), PKCS#12 nur per Import (seit §12: kein Keystore mehr), keine lokale Chipkarte,
+keine CLI. Netz immer gesperrt
 (iOS: Proxy `127.0.0.1:9`; Android: Proxy und Flugmodus), A-Trust nie erreicht, keine Zugangsdaten eingegeben.
 
 ### 11.1 Ergebnisse
@@ -352,7 +363,7 @@ API 35, 411 CSS-px; `docs/integration/screenshots/android-ng/`). Umfang Mobile 1
 |---|---|---|
 | Start, Ersteinrichtung, „Später einrichten“ | ok | ok |
 | PDF empfangen, Arbeitsbereich, Ziehen per Touch, Signaturfeld/QR-Platzhalter | ok nach R1 (Block nach dem Ziehen unter dem Sheet); mehrere PDFs per „Teilen“ nur das erste (offen) | ok |
-| Keystore-Import, Signieren, Fertig, Teilen, „Sichern unter“, Öffnen | ok nach R2 (Tastatur verdeckte Dialoge), R4 (Systemtexte englisch); pyHanko *VALID* | ok; pyHanko *VALID* (5 Dateien, auch 120 MB) |
+| Keystore-Import (entfällt seit §12), Signieren, Fertig, Teilen, „Sichern unter“, Öffnen | ok nach R2 (Tastatur verdeckte Dialoge), R4 (Systemtexte englisch); pyHanko *VALID* | ok; pyHanko *VALID* (5 Dateien, auch 120 MB) |
 | Stapel, Hintergrund/Vordergrund, App-Ende im Lauf | ok (3 von 3 nach Hintergrund); Keystore hat nach Kill nichts fortzusetzen | ok nach B19 („Fortsetzen“ behält „Beide behalten“) |
 | Einstellungen im Vollbild, Suche, Mobile-Einschränkungen | ok nach Befunden 5, 6, 11, 16 | ok nach B11, B14–B16 |
 | Prüfmodus | ok | ok nach B3 (Ergebnis scrollt) |
@@ -364,7 +375,7 @@ API 35, 411 CSS-px; `docs/integration/screenshots/android-ng/`). Umfang Mobile 1
 - **Beide Plattformen (unabhängig gefunden):** Segmente brechen um; Keystore-Schlüssel mit Alias darunter;
   Papierkorb im schmalen Stapel sichtbar; Fingerziele ≥ 44 px (Kopfzeile, Hinweis schließen, Suche löschen,
   kompakter Konto-Chip); „Signaturdienst nicht erreichbar“ ohne technische Fehlerkette; Speicherart „Sicherer
-  Speicher“ statt „Schlüsselbund“.
+  Speicher“ statt „Schlüsselbund“ (entfällt mit dem Keystore seit §12).
 - **iOS:** Dynamic Type über das Plugin (`TextSize.swift`); Software-Tastatur verdeckt keine Bottom-Sheet-Dialoge
   mehr (`components.css`, `app/keyboard.ts`); kein WebKit-Zoom nach Fokus (Felder 16 px); Safe Areas im
   Querformat; `CFBundleLocalizations` de/en; „Zuletzt signiert“ folgt nach einem Update dem neuen Container;
@@ -418,7 +429,7 @@ die Prüfung nicht an eine laufende PIDA (Socket `/tmp/at_pida_si.sock`) übergi
   Share-Extension; Stapel über „Dokument auswählen“/„PDF hinzufügen“) – Hinweis oder Share-Extension.
 - **Nur durch Tests belegt (braucht A-Trust):** Anmeldung, SMS-TAN, App-Bestätigung, Vergleichswert-Kästchen,
   „Signatur fortsetzen“ nach App-Kill mit ID Austria.
-- **Texte:** ID-Austria-Wortlaut beim Keystore-Stapel („Bestätigung 1 von 3“, „einmal anmelden, dann …
+- **Texte:** ID-Austria-Wortlaut beim Keystore-Stapel (seit §12 nur noch am Desktop) („Bestätigung 1 von 3“, „einmal anmelden, dann …
   bestätigen“, „Überspringen … ohne Bestätigung in der App“); „Einrichtung abgeschlossen“ nach „Später
   einrichten“; „Bis Programmende“ (Einstellungen) gegenüber „Bis zum Beenden“ („Passwort merken?“).
 - **Randfälle:** seitenfüllendes Signaturfeld auf der letzten Seite bzw. `manySignFields-xref-stream.pdf` –
@@ -434,3 +445,129 @@ die Prüfung nicht an eine laufende PIDA (Socket `/tmp/at_pida_si.sock`) übergi
 - **Nicht abgedeckt:** echte Geräte, Android 9–14, Release-Builds; Überlappungen in der Bereichsleiste nur in
   `adb screencap` (vermutlich Grafikartefakt des Emulators); `general.last_source_directory` bleibt nach einem
   iOS-Update ein Pfad im alten Container (auf Mobile ungenutzt).
+
+## 12. Mobile nur mit ID Austria (16.10.2026)
+
+Entscheidung des Auftraggebers: „Signieren mit Keystore brauchen wir auf mobilen Apps nicht, da reicht ID Austria.“
+Plan §5.2 sah den PKCS#12-Import in die App-Sandbox vor – er entfällt. Auf iOS und Android ist ID Austria das einzige
+Signiermittel (App-Bestätigung bzw. SMS-TAN, FIDO2 ausgegraut wie bisher); der Desktop behält den Keystore unverändert.
+Regeln und Vertrag: ADR 0004 Nachtrag 11 (kein neues Feld, keine neue Variante – der Kern liefert auf Mobilgeräten keine
+Keystore-Option und keine Keystore-Angaben); Folgen für die Geräteprotokolle: mobile-ios.md §9, mobile-android.md §9.
+
+### 12.1 Was sich auf iOS/Android ändert
+
+| Bereich | vorher (Mobile 1.0 bis 16.10.2026) | jetzt |
+|---|---|---|
+| Signiermittel (Auswahl, Konto-Chip, Stapel) | ID Austria und Keystore (nach Import), „PKCS#12-Datei importieren …“ im Menü | nur ID Austria; Konto-Chip ohne „Signiermittel wechseln“, Menü nur „Einstellungen …“ |
+| Standard-Signiermittel | Einstellung (`backend.default`), Ersteinrichtung mit Auswahl | immer ID Austria; Ersteinrichtung ohne Signiermittel-Schritt |
+| Einstellungen › Signiermittel | Standard, ID Austria, FIDO2-Hinweis, Keystore (Import-Assistent, Schlüssel, Speicherart „Sicherer Speicher“) | ID Austria (Telefonnummer/Benutzername, „merken“) und FIDO2-Hinweis; Suche findet keine Keystore-Einträge |
+| „Passwort merken?“ (Keystore) | beim ersten Keystore-Passwort | entfällt |
+| Dateiauswahl der Shell | `pdf` und `pkcs12` | nur `pdf` (`pkcs12` → `ng-ui-event-invalid`); Plugin unverändert |
+| Übernahme aus PDF-Over | Keystore samt Passwörtern | ohne Keystore, Standard ID Austria, Übernahmeliste erklärt es |
+| Datenschutz (Einstellungen) | „Mit einem Keystore wird auf diesem Gerät signiert …“ | „Auf diesem Gerät wird mit ID Austria signiert; dazu wird das Dokument an A-Trust übermittelt.“ |
+
+### 12.2 Übergang von früheren Mobile-Builds
+
+- **Einstellungen:** `backend.default = keystore` (bzw. `local_bku`) gilt beim Lesen als `id_austria`; `[keystore]`
+  bleibt in `settings.toml` unverändert stehen und wird ignoriert (nicht gelöscht); `keystore.*` lässt sich auf dem Gerät
+  nicht mehr ändern (`ng-settings-unavailable-mobile`).
+- **Sicherer Speicher:** Keystore-Passwörter (Dienst „PIDA“, Konten `keystore-store:`/`keystore-key:` zur Datei aus den
+  Einstellungen und zu jeder Datei in `data/keystores`; Schlüsselpasswörter zum eingestellten, zum leeren und – ist das
+  Passwort der Datei noch gespeichert – zu jedem Alias der Datei) entfernt der Kern beim ersten Start einmalig; Merker
+  `data/keystore-secrets-removed`. Andere Einträge (Proxy, fremde Apps) bleiben. Ohne dauerhaften Speicher bzw. nach
+  einem Fehler beim Löschen versucht er es beim nächsten Start erneut.
+- **Dateien:** `data/keystores/*.p12` bleiben liegen (durch ihr Passwort geschützt, weiter von der Sicherung
+  ausgenommen, R-5); `relocate_sandbox_files` ordnet nur noch die Bildmarke neu zu.
+- **„Signatur fortsetzen“:** ein gesicherter Keystore-Vorgang wird beim Start mit Hinweis `ng-resume-signer-not-offered`
+  verworfen statt angeboten; ein ID-Austria-Vorgang wird wie bisher angeboten.
+- **Ereignisse:** `import_keystore`, `inspect_keystore`, „Passwort merken?“ und jede Wahl des Keystores sind ohne Wirkung
+  (Log-Notiz, keine Sitzung, kein Fehler), ebenso `select_signer` mit der Chipkarte (sonst gewählt bzw. mit
+  `make_default` als Standard gespeichert); ein Passwort im verworfenen Ereignis wird sofort überschrieben.
+
+### 12.3 Nachweise
+
+Kern (`cargo test -p pida-core-api`):
+
+- `mobile_signers.rs`: nur der Desktop bietet den Keystore an; Abbildung des Standards ohne Änderung an `[keystore]`;
+  Übernahme ohne Datei, Alias und Keystore-Passwörter (Proxy-Passwort bleibt, keine Werte im `Debug`); Erkennung der
+  Keystore-Ereignisse; Kennungen der zu entfernenden Passwörter (`/var` ↔ `/private/var`, importierte Dateien, Alias).
+- `backends.rs::registry_offers_only_id_austria_on_mobile` (auch mit Overlay und fest vorgegebenen Backends; Desktop
+  unverändert), `config.rs::mobile_default_signer_is_id_austria` (Richtlinie, „Jedes Mal fragen“),
+  `settings_apply.rs` (Mobile-Sperren für `keystore.*` und den Standard; Desktop unverändert).
+- `tests/mobile.rs`: `keystore_of_an_earlier_mobile_build_is_ignored_and_its_passwords_removed_once` (iOS: nur ID
+  Austria als Standard, Passwörter einmalig entfernt, `[keystore]` bleibt, Import/Prüfung/Wahl/Stapel mit Keystore ohne
+  Wirkung), `desktop_keeps_the_keystore_of_the_same_settings` (Gegenprobe Linux), `keystore_settings_of_an_earlier_build_do_not_start_id_austria_automatically`
+  (F-54, iOS und Linux), `keystore_resume_of_an_earlier_build_is_discarded` (Android), `migration_on_mobile_takes_over_no_keystore`
+  (Android und Linux), `pkcs12_import_is_without_effect_on_mobile` (iOS und Android), `mobile_backend_list_has_only_id_austria_and_marks_fido2`,
+  `output_goes_to_app_documents_and_can_be_shared_and_exported` (jetzt mit ID Austria); die bisherigen Import-Tests laufen
+  als Desktop-Tests weiter.
+
+Oberfläche (`npm test`, Mock-Kern mit `platform: ios|android`):
+
+- `app/MobileIdAustriaOnly.test.tsx` je Plattform: Arbeitsbereich mit Konto-Chip und Menü, Signierkarte, jeder
+  Einstellungsbereich und die Suche (`keystore`, `pkcs12`, `p12`, `zertifikatsdatei`, `alias`, `schlüsselbund`),
+  Ersteinrichtung ohne und mit Altkonfiguration, Stapel, „Fertig“ – nirgends „Keystore“, „PKCS“, „Datei mit Zertifikat“,
+  „Zertifikatsdatei“, „Passwort merken“, „Sicherer Speicher“, „Schlüssel anzeigen“; jeweils axe ohne Verstöße;
+  Desktop-Gegenprobe (Keystore im Menü und in den Einstellungen).
+- `app/Mobile.test.tsx` (Konto-Chip ohne Wechsel), `features/settings/{settings,keystore,a11y,units}.test.tsx`,
+  `features/onboarding/onboarding.test.tsx` („Schritt 1 von 1“, Übernahme mit Hinweis), `features/signing/signing.test.tsx`
+  (Rückfall ohne Import), `core/contract.test.ts` (keine Mobile-Probe mit Keystore).
+
+Prüfungen: siehe 12.4.
+
+### 12.4 Prüfungen und Offenes
+
+**Prüfungen (Stand `mob2/core`, ab `main` 8606b0c):** `cargo test --workspace --no-fail-fast` 1435 bestanden,
+0 fehlgeschlagen, 5 ignoriert; `cargo clippy` wie die CI (`--workspace --exclude` je Crate aus `CLIPPY_LENIENT`
+`--no-deps --all-targets --locked -- -D warnings`) ohne Befund – ohne die Ausnahmen bricht der Lauf weiter nur an den
+bekannten `dead_code`-Stellen in `pida-pades` (`signed.rs`, Feld `written`) und `pida-backend-keystore`
+(`tests/backend.rs`, `copy_to`), unverändert seit Welle 3 (docs/entwicklung.md §5); `cargo fmt --all --check`;
+`npm ci && npm run build && npm test` 33 Dateien, 700 Tests; TypeScript (`ts_bindings`) und Proben (`serde_contract`)
+neu erzeugt – nur Doku-Kommentare, Probe `keystore_imported` (vorher `mobile_keystore_imported`) und `ws_batch_mobile`
+mit nur ID Austria; `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p pida-app` für
+`aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK 29) grün, je eigenes `CARGO_TARGET_DIR`.
+
+**Adversariales Review (Stand 4080126, 16.10.2026):** Behauptungen des Umsetzers am Code und mit eigenen Proben
+nachgeprüft (Kern: Ereignisse, alte Einstellungen, `SaveSettings`, Übernahme, „Fortsetzen“, Richtlinie, sicherer
+Speicher; Oberfläche: alle Ansichten mit Einstellungen eines früheren Builds). Behoben:
+
+- `select_signer` mit der Chipkarte wählte sie auf Mobilgeräten im Konto-Chip aus und speicherte mit `make_default` den
+  Standard `local_bku` in die Datei (niedrig) – jetzt ohne Wirkung wie beim Keystore (`mobile_signers::ignored_on_mobile`,
+  Test in `tests/mobile.rs`; Mock gleichgezogen).
+- Schlüsselpasswörter zu einem früher gewählten, nicht mehr eingestellten Alias blieben im sicheren Speicher (niedrig) –
+  der Kern liest die Aliase der Datei mit ihrem noch gespeicherten Passwort (`stored_key_aliases`, Tests).
+- Passwörter verworfener Keystore-Ereignisse wurden ohne Überschreiben freigegeben (niedrig) – `discard_event`.
+- Doppeltes `.keywords` an `ng-ui-set-updates` (DE/EN, seit B3): die Desktop-Suche fand „Updates“ bei „Keystore“, aber
+  nicht bei „Aktualisierung“ (niedrig, nur Desktop) – entfernt, Tests in `units.test.ts` und `i18n.test.ts` (kein
+  Attribut doppelt).
+- Die wörtliche Prüfung `cargo clippy --workspace --all-targets -- -D warnings` brach an drei alten `dead_code`-Stellen
+  (`pades/src/signed.rs` Feld `written`, `pades/tests/e2e_corpus.rs` Feld `key_stem`, `backend-keystore/tests/backend.rs`
+  `copy_to`) – begründet (`#[allow(dead_code, reason = …)]`) bzw. entfernt; der Lauf ist jetzt ohne Befund
+  (`CLIPPY_LENIENT` in der CI unverändert).
+- Veraltete Kommentare (`core/types.ts`, `styles/components.css`).
+
+Prüfungen nach dem Review: `cargo test --workspace --no-fail-fast` 1436 bestanden, 0 fehlgeschlagen, 5 ignoriert;
+`cargo clippy --workspace --all-targets -- -D warnings` und `cargo fmt --all --check` ohne Befund; `npm ci && npm run
+build && npm test` 33 Dateien, 704 Tests; `ts_bindings` und `serde_contract` unverändert grün (Vertrag unberührt);
+`python3 tools/rename-to-pida.py --check`; `cargo check -p pida-app` für `aarch64-apple-ios-sim` und
+`aarch64-linux-android` grün. Kein Simulator bzw. Emulator gestartet.
+
+Ohne Befund: Desktop-Pfade (Registrierung, Standard, Einstellungen, Ersteinrichtung, Konto-Chip, Mock) verhalten sich wie
+vorher; `SaveSettings`/`ApplySettings` lassen `[keystore]` auf dem Gerät unverändert; keine Mobile-Probe des Vertrags
+nennt einen Keystore; das Plugin bietet `pkcs12` weiter an, die Shell lehnt es ab.
+
+**Offen:**
+
+- **Neuinstallation unter iOS:** Die Keychain überdauert das Löschen der App, der Datenordner nicht. Wer einen früheren
+  Build mit gespeichertem Keystore-Passwort löscht und neu installiert, behält diese Einträge (Dienst „PIDA“) – ohne
+  Einstellungen kennt der Kern die Konten nicht, und der sichere Speicher des Plugins kann nicht aufzählen. Die Einträge
+  werden nie gelesen; entfernen ließen sie sich nur mit einer neuen Plugin-Methode (z. B. „alle `keystore-`-Konten
+  löschen“).
+- **Nicht am Gerät:** Simulator und Emulator wurden für diese Änderung nicht gestartet; belegt durch die Tests aus
+  12.3. Beim nächsten Gerätedurchgang prüfen: Einstellungen › Signiermittel, Konto-Chip-Menü, Ersteinrichtung und
+  ein Update von einem Build mit importiertem Keystore (Keychain- bzw. Speichereinträge danach weg, Merker gesetzt).
+- **Liegengebliebene Dateien:** `data/keystores/*.p12` früherer Builds bleiben auf dem Gerät (bewusst nur ignoriert);
+  ob sie später gelöscht werden sollen, entscheidet der Auftraggeber.
+- **Aufräumen im Vertrag:** `UiEvent::ImportKeystore`/`DismissKeystoreImport`, `KeystoreImportView` und der
+  Import im Kern werden von keiner Oberfläche mehr genutzt (der Desktop wählt die Datei direkt); sie bleiben, bis der
+  Vertrag einmal bereinigt wird (§3.0: nur additiv).

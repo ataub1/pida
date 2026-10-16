@@ -953,8 +953,9 @@ export type PlatformView = {
 os: PlatformOs, 
 /**
  * Mobile Oberfläche (iOS/Android, Plan §5.2): Teilen und Exportieren statt „Im Ordner anzeigen“,
- * PKCS#12-Import in die App statt Dateipfad, kein FIDO2 (ausgegraut mit Hinweis), keine lokale
- * BKU, keine Proxy-Einstellungen (System-Proxy), keine Ausgabeordner-Wahl (App-Dokumente)
+ * signiert wird nur mit ID Austria (kein Keystore, ADR 0004 Nachtrag 11; keine lokale BKU), kein FIDO2
+ * (ausgegraut mit Hinweis), keine Proxy-Einstellungen (System-Proxy), keine Ausgabeordner-Wahl
+ * (App-Dokumente)
  */
 mobile: boolean, };
 
@@ -987,8 +988,9 @@ pending: number,
 document_leaves_device: boolean, };
 
 /**
- * Ergebnis des PKCS#12-Imports in die App-Sandbox (Mobile, Import-Assistent; Plan §5.2) – schließen
- * mit [`UiEvent::DismissKeystoreImport`].
+ * Ergebnis des PKCS#12-Imports in die App-Sandbox (früherer Mobile-Import-Assistent; Plan §5.2) – schließen
+ * mit [`UiEvent::DismissKeystoreImport`]. Seit ADR 0004 Nachtrag 11 gibt es auf Mobilgeräten keinen Keystore
+ * (nur ID Austria): der Kern setzt es dort nie; der Typ bleibt im Vertrag (additiv, §3.0 Regel 2).
  */
 export type KeystoreImportView = { 
 /**
@@ -1341,7 +1343,8 @@ platform: PlatformView,
  */
 resume: ResumeOfferView | null, 
 /**
- * Ergebnis des PKCS#12-Imports (Import-Assistent)
+ * Ergebnis des PKCS#12-Imports (früherer Mobile-Import-Assistent; seit ADR 0004 Nachtrag 11 immer `None`
+ * auf Mobilgeräten)
  */
 keystore_import: KeystoreImportView | null, 
 /**
@@ -2011,7 +2014,7 @@ placement_locked: boolean, };
  */
 export type SignersView = { 
 /**
- * Optionen (ohne reservierte Backends)
+ * Optionen (ohne reservierte Backends; auf iOS/Android nur ID Austria, ADR 0004 Nachtrag 11)
  */
 options: Array<SignerView>, 
 /**
@@ -2020,7 +2023,8 @@ options: Array<SignerView>,
  */
 selected: BackendId | null, 
 /**
- * Standard aus den Einstellungen (`None` = „Jedes Mal fragen“)
+ * Standard aus den Einstellungen (`None` = „Jedes Mal fragen“); auf iOS/Android immer ID Austria (das
+ * einzige Signiermittel, sofern die Richtlinie es erlaubt)
  */
 default: BackendId | null, };
 
@@ -2051,7 +2055,8 @@ capabilities: Capabilities | null,
 notes: Array<string>, 
 /**
  * Grund, falls nicht verfügbar (i18n-ID): `ng-signer-localbku-not-running`,
- * `ng-signer-keystore-missing`, `ng-signer-keystore-import` (Mobile), `ng-signer-policy`
+ * `ng-signer-keystore-missing`, `ng-signer-policy` (der frühere Mobile-Grund „PKCS#12-Datei importieren“ entfiel
+ * mit ADR 0004 Nachtrag 11 – auf Mobilgeräten gibt es keinen Keystore mehr)
  */
 unavailable_reason: string | null, };
 

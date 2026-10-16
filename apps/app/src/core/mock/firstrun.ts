@@ -47,6 +47,8 @@ export function migrationItems(emblem: string | null, mobile: boolean): Migratio
   }
   items.push({ code: 'ng-migration-item-placeholder', detail: null });
   items.push({ code: 'ng-migration-item-language', detail: 'Deutsch' });
+  // Mobile: nur ID Austria – der Keystore der Altkonfiguration wird nicht übernommen (ADR 0004 Nachtrag 11)
+  if (mobile) items.push({ code: 'ng-migration-item-signer-mobile', detail: null });
   return items;
 }
 
@@ -65,6 +67,9 @@ export function migratedSettings(settings: Settings, emblem: string | null, mobi
   if (!mobile) {
     next.output = { ...settings.output, folder: '/Users/demo/Dokumente/Signiert' };
     next.keystore = { ...settings.keystore, enabled: true, file: '/Users/demo/Zertifikate/max.p12', alias: 'max', declared_type: 'PKCS12' };
+  } else if (next.backend.default === 'keystore' || next.backend.default === 'local_bku') {
+    // Mobile: nur ID Austria (`mobile_signers::restrict_migration`)
+    next.backend = { default: 'id_austria' };
   }
   // übernommene Speicherart gilt als gewählt (wie `pida_config::migrate`)
   next.keystore = { ...next.keystore, storage_chosen: true };

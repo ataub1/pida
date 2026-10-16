@@ -49,6 +49,7 @@ struct Row {
     out: Option<PathBuf>,
     original: PathBuf,
     field: String,
+    #[allow(dead_code, reason = "Dateistamm des Testschlüssels je Zeile; der Bericht nennt bisher nur `key`")]
     key_stem: String,
 }
 

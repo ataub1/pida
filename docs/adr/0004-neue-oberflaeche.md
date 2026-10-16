@@ -33,7 +33,8 @@
    umgedeutet. Was die neue UI nicht mehr nutzt, bleibt mit Migrationsregel (§3.15).
 6. **UI:** Design-Tokens und Bausteine des Prototyps werden übernommen, **nicht** sein Reducer, seine Mock-Dokumente
    und sein Geometriemodell (das ist Fachlogik und kommt aus dem Kern). Texte über Fluent (`crates/i18n/locales`).
-   Die vorhandene Mobile-Logik (Teilen/Export, PKCS#12-Import, „Signatur fortsetzen“, Lebenszyklus) bleibt.
+   Die vorhandene Mobile-Logik (Teilen/Export, PKCS#12-Import, „Signatur fortsetzen“, Lebenszyklus) bleibt. (Der
+   PKCS#12-Import entfällt seit Nachtrag 11: auf Mobilgeräten wird nur mit ID Austria signiert.)
 7. **Etappen** E0 (Vertrag als Code) → E1 Arbeitsbereich + Signieren → E2 Stapel → E3 Einstellungen/Datenschutz/
    Zuletzt signiert → E4 Prüfmodus/Palette/Ersteinrichtung. **Drei Pakete** (K, UI-A, UI-B) arbeiten parallel in
    getrennten Worktrees mit exakter Datei-Ownership; die Bridge-Typen entstehen in E0 aus Rust, die UI arbeitet
@@ -266,7 +267,7 @@ Legende: **✓** vorhanden · **◐** teilweise vorhanden · **✗** neu im Kern
 | **Sofort wirksam** (kein Speichern/Abbrechen) | ◐ `SaveSettings` mit Arbeitskopie, alles oder nichts | ✗ `ApplySettings { settings, revision }` mit Teilübernahme §3.11 | K, UI-B |
 | **Live-Editor Signaturbild** (Vorschau bleibt oben sichtbar) | ✓ Vorschau (`SettingsView::preview_revision`) | Vorschau wird nach jedem `ApplySettings` neu gebaut | K, UI-B |
 | Profil Standard/Amtssignatur, Blocksprache, Bildmarke (Drag & Drop, Datei), Hinweistext + „Standardtext wiederherstellen“ | ✓ `signature.{profile, block_language, emblem, note}` (`NoteSetting::Default/None/Custom`) | Abbildung §3.11; Bildmarke ist ein **Pfad** (Desktop: Dialog/`EMBLEM_DROP_EVENT`; Mobile: siehe §3.14) | UI-B |
-| Signiermittel: Standard inkl. „Jedes Mal fragen“, ID-Austria-Benutzer + merken, Keystore-Datei + Alias, Bürgerkarte erkannt, FIDO2 bevorzugen | ✓ `backend.default`, `id_austria.*`, `keystore.*`, Verfügbarkeit (Optionen) | + `signers` für „erkannt“; Mobile: PKCS#12-Import-Assistent bleibt | K, UI-B |
+| Signiermittel: Standard inkl. „Jedes Mal fragen“, ID-Austria-Benutzer + merken, Keystore-Datei + Alias, Bürgerkarte erkannt, FIDO2 bevorzugen | ✓ `backend.default`, `id_austria.*`, `keystore.*`, Verfügbarkeit (Optionen) | + `signers` für „erkannt“; Mobile: PKCS#12-Import-Assistent bleibt (entfällt seit Nachtrag 11: Mobile nur ID Austria) | K, UI-B |
 | Speichern: neben dem Original / fester Ordner / jedes Mal fragen | ✓ `output.folder` (relativ zum Quellordner, F-82) | Abbildungsregel §3.11 (kein neues Feld); Standard „neben dem Original“ nur bei **Neuinstallation** über §3.12 (nicht über `OutputSettings::default()`, sonst wechselten Bestandsnutzer ohne Schlüssel still vom Speichern-Dialog weg, §8 F4) | UI-B (K: §3.12) |
 | Namensmuster `{name}_signiert` mit `{datum}` | ◐ nur Postfix (`output.postfix`, Standard `_signed`) | Postfix mit Live-Beispiel; Muster und Standardtext: §8 F5 | UI-B |
 | Darstellung: Farbschema, Oberflächensprache | ✓ Farbschema lokal (`pida.theme`), `general.ui_language` | + `SetUiLanguage` für Kopfzeile/Palette §3.11 | K, UI-B |
@@ -309,7 +310,7 @@ Legende: **✓** vorhanden · **◐** teilweise vorhanden · **✗** neu im Kern
 | < 760 px: Inspektor als Bottom-Sheet, Miniaturen als Überlagerung, Signierkarte und Dialoge als Sheet, Einstellungen im Vollbild | UI | UI (§4.6) | UI-A, UI-B |
 | Touch-Ziehen mit Fingerversatz, Haptik, Doppeltippen | ✓ in `PositionScreen` (`grabPoint`, `TOUCH_OFFSET_PT`, `haptic`) | Logik in den neuen Sticker übernehmen | UI-A |
 | Safe Areas, Zielgrößen ≥ 44 px (`pointer: coarse`), `forced-colors` | ✓ in `styles.css` (im Prototyp **fehlend**) | in `base.css`/`components.css` ergänzen | UI-A |
-| Teilen/Exportieren, PKCS#12-Import, FIDO2 ausgegraut, „Signatur fortsetzen“, Lebenszyklus | ✓ | bleiben (§4.6) | UI-A, UI-B |
+| Teilen/Exportieren, PKCS#12-Import, FIDO2 ausgegraut, „Signatur fortsetzen“, Lebenszyklus | ✓ | bleiben (§4.6; der PKCS#12-Import entfällt seit Nachtrag 11) | UI-A, UI-B |
 
 ---
 
@@ -1415,7 +1416,7 @@ Abbildung der Abschnitte des Prototyps auf `pida_config::Settings` (kein neues F
 | › Hinweistext | `signature.note` | `Default` ↔ „Standardtext wiederherstellen“, `None` = kein Hinweis, `Custom(text)` |
 | Signiermittel › Standard | `backend.default` | `None` = „Jedes Mal fragen“ (Chip ohne Vorauswahl) |
 | › ID Austria | `id_austria.{username, remember, fido2_default}` | Benutzername speichert der Kern normalisiert |
-| › Keystore | `keystore.{enabled, file, alias, password_storage, declared_type}` | Mobile: nur über Import-Assistent |
+| › Keystore | `keystore.{enabled, file, alias, password_storage, declared_type}` | nur Desktop (Mobile: kein Keystore, Nachtrag 11; bis dahin nur über den Import-Assistenten) |
 | › Bürgerkarte | – | Status aus `signers` (`local_bku`) |
 | Speichern › Ziel | `output.folder` | **neben dem Original** = `Some(".")` (relativ zum Quellordner, F-82); **fester Ordner** = absoluter Pfad; **jedes Mal fragen** = `None` (Desktop: Speichern-Dialog); Mobile: nicht wählbar (App-Dokumente) |
 | › Name | `output.postfix` | Live-Beispiel aus `SettingsView::examples` (siehe unten) |
@@ -1706,7 +1707,8 @@ fortsetzen“ (`ResumeOfferView::document_leaves_device`).
 
 Bestehende Mobile-Logik bleibt vollständig erhalten: `isMobile(view)` schaltet Dateiauswahl (`pickMobileFiles`),
 „Fertig“ mit **Öffnen/Teilen/Sichern unter …** (`open_result`, `share_result`, `export_result`), keine Ordneranzeige,
-PKCS#12-Import-Assistent (Konto-Chip-Menü und Einstellungen), FIDO2 ausgegraut mit `ng-fido2-unavailable-mobile`,
+PKCS#12-Import-Assistent (Konto-Chip-Menü und Einstellungen; entfällt seit Nachtrag 11 – Mobile nur mit ID Austria),
+FIDO2 ausgegraut mit `ng-fido2-unavailable-mobile`,
 „Signatur fortsetzen“ beim Start, keine Proxy-/Ordner-/Update-/Log-Einstellungen. Neu: Bottom-Sheet-Inspektor
 (eingeklappt: Konto-Chip, „Signieren“, Überdeckungswarnung), Miniaturen als Überlagerung, Karte und Dialoge als
 Sheet, Einstellungen im Vollbild mit waagrechter Bereichsnavigation, keine Tastenkürzel-Hinweise bei
@@ -2639,3 +2641,92 @@ nicht verloren gehen; core-api projiziert ihn als Dokumentauswahl. Zusätzlich z
 Analysewarnung und „Fertig“ ohne Speichern (`ParkedWorkView::unsaved`, damit „Schließen“ die nicht gespeicherte
 Signatur nicht ohne Rückfrage verwirft). Ob „Schließen“ nachfragt, entscheidet die Oberfläche an den Angaben des Kerns
 (wie Nachtrag 9). Das Parken übersteht keinen Neustart der App (nicht persistiert).
+
+### Nachtrag 11 (16.10.2026): Mobile nur mit ID Austria – kein Keystore auf iOS/Android
+
+Entscheidung des Auftraggebers: „Signieren mit Keystore brauchen wir auf mobilen Apps nicht, da reicht ID Austria.“
+Der in Plan §5.2 vorgesehene PKCS#12-Import in die App-Sandbox entfällt; auf iOS/Android ist ID Austria das einzige
+Signiermittel. Der **Desktop bleibt unverändert** (Keystore mit Datei, Schlüsselauswahl, „Passwort merken?“, Nachtrag 7).
+Umgesetzt mit demselben Mechanismus wie Chipkarte und FIDO2 (Plattform aus `CoreConfig::platform`, `PlatformView::mobile`,
+Registry in `backends.rs`); die Regeln stehen gesammelt im Modul `crates/core-api/src/mobile_signers.rs`.
+
+**Vertrag:** keine neuen Felder, Varianten oder Umdeutungen (§3.0) – der Kern liefert auf Mobilgeräten einfach keine
+Keystore-Option und keine Keystore-Angaben, die Oberfläche rendert nur, was kommt. `KeystoreImportView`,
+`ViewState::keystore_import`, `UiEvent::{ImportKeystore, DismissKeystoreImport, InspectKeystore}` bleiben (Desktop-Kern,
+Stabilität des Vertrags); geändert sind nur Doku-Kommentare (TypeScript neu erzeugt). Die Probe `mobile_keystore_imported`
+heißt jetzt `keystore_imported` (Desktop), `ws_batch_mobile` zeigt nur ID Austria.
+
+1. **Registrierung und Angebot:** `Registry::configure` registriert auf iOS/Android keinen Keystore – weder aus
+   `[keystore]` noch aus dem Overlay noch unter fest vorgegebenen Backends (`Registry::all`); `keystore_configured` ist
+   dort immer `false`. Signiermittel-Auswahl (`StepView::Backend`), Konto-Chip (`SignersView` ohne Platzhalter „Keystore
+   einrichten“; `ng-signer-keystore-import` entfällt), Stapel und Ersteinrichtung bieten nur ID Austria an (mit
+   `ng-fido2-unavailable-mobile` wie bisher).
+2. **Standard-Signiermittel:** `ConfigState::default_backend` liefert auf Mobilgeräten immer ID Austria (sofern die
+   Richtlinie es erlaubt), auch bei „Jedes Mal fragen“ – es gibt nichts zu fragen. Signiert wird trotzdem nur nach einer
+   ausdrücklichen Aktion (A1, F-54): der Konto-Chip steht auf ID Austria, „Signieren“ bleibt die Aktion. Eine Richtlinie
+   `forced_backend` = Keystore bzw. Chipkarte wählt auf Mobilgeräten nichts vor.
+3. **Einstellungen früherer Mobile-Builds:** Beim Laden (auch nach Zurücksetzen und Übernehmen,
+   `ConfigState::adopt_platform`) gilt ein gespeichertes `backend.default = keystore` bzw. `local_bku` als `id_austria`.
+   Der Abschnitt `[keystore]` bleibt unverändert in `settings.toml` (nur ignoriert, nie gelöscht); eine Desktop-Datei bleibt
+   unverändert lesbar. `SettingsView` ohne Keystore-Angaben (`keystore_ready = false`, `keystore_format`,
+   `keystore_entries`, `keystore_inspect_problem` = `None`, keine Probleme unter `keystore.*`). `ApplySettings` und
+   `UpdateFirstRun` lehnen `keystore.*` sowie Keystore bzw. Chipkarte als Standard mit `ng-settings-unavailable-mobile` ab
+   („Jedes Mal fragen“ bleibt annehmbar), `SaveSettings` übernimmt `[keystore]` nicht. Kein Hinweis
+   `ng-secrets-not-persistent` wegen der Keystore-Speicherart; nach einem Umzug der Sandbox ordnet der Kern nur noch die
+   Bildmarke neu zu (`[keystore] file` bleibt unberührt).
+4. **Ereignisse ohne Wirkung** (Log-Notiz, kein Fehler, keine Sitzung): `import_keystore`, `inspect_keystore`,
+   `submit_secret.password_storage` („Passwort merken?“), `choose_backend`, `sign_with`, `start_batch` und
+   `select_signer` mit dem Keystore, dazu `select_signer` mit der Chipkarte (sie wählte bzw. speicherte sonst ein
+   Signiermittel, das es auf dem Gerät nicht gibt; `mobile_signers::ignored_on_mobile`). Ein Passwort im verworfenen
+   Ereignis wird sofort überschrieben (`Zeroizing`). Die Shell lehnt `mobile_pick_files` mit `kind = pkcs12` ab
+   (`ng-ui-event-invalid`); das Plugin bleibt unverändert.
+5. **Sicherer Speicher:** Keystore-Passwörter, die ein früherer Mobile-Build in Keychain bzw. Android-Keystore-Speicher
+   abgelegt hat, entfernt der Kern beim ersten Start **einmalig** (`remove_former_keystore_secrets`): nur Einträge von PIDA
+   (Dienst „PIDA“, Konten `keystore-store:`/`keystore-key:` zur Datei aus den Einstellungen – auch `/var` ↔ `/private/var` –
+   und zu jeder Datei in `data_dir/keystores`, mit eingestelltem bzw. leerem Alias und – ist das Passwort der Datei noch
+   gespeichert – jedem Schlüssel-Alias der Datei, falls früher ein anderer Schlüssel gewählt war). Proxy-Passwörter und
+   fremde Einträge bleiben; das ID-Austria-Passwort wird ohnehin nie gespeichert. Danach steht der Merker `data_dir/keystore-secrets-removed`;
+   ohne dauerhaften Speicher oder nach einem Fehler beim Löschen fehlt er (nächster Start versucht es erneut). Keine Pfade
+   oder Werte im Log. Die Dateien `data_dir/keystores/*.p12` selbst bleiben liegen (durch ihr Passwort geschützt, weiter
+   von der Sicherung ausgenommen, mobile.md R-5).
+6. **„Signatur fortsetzen“:** Ein gesicherter Keystore-Vorgang eines früheren Builds wird beim Start verworfen statt
+   angeboten (`ng-resume-signer-not-offered`, nicht blockierender Hinweis; das Original bleibt). Fortsetzen mit ID Austria
+   ist unverändert.
+7. **Übernahme aus PDF-Over** (`restrict_migration`, Probelauf der Übernahmeliste und Übernehmen): ohne Keystore-Datei,
+   Alias, Typ, Speicherart und Keystore-Passwörter; Standard Keystore bzw. Chipkarte wird ID Austria. Der Bericht führt die
+   Keystore-Schlüssel als nicht übernommen (`ng-migrate-keystore-mobile`), die Übernahmeliste nennt statt
+   `ng-migration-item-keystore` kurz `ng-migration-item-signer-mobile`; nur wegen Keystore-Passwörtern gibt es keine Frage
+   nach Klartext-Passwörtern mehr. Alles andere (Benutzername, Profil, Platzhalter …) wird wie bisher übernommen.
+8. **Oberfläche:** Der PKCS#12-Import-Assistent (`KeystoreImport.tsx`, `keystore-import.css`) ist entfernt.
+   Einstellungen › Signiermittel zeigt auf Mobilgeräten nur „ID Austria“ (Telefonnummer/Benutzername, „merken“) und den
+   FIDO2-Hinweis – die Zeilen `signers.default` und `signers.keystore` sind wie `signers.card` nur am Desktop sichtbar,
+   die Suche findet deshalb keine Keystore-Einträge. Konto-Chip: mit genau einem, bereits gewählten Signiermittel ohne
+   Abschnitt „Signiermittel wechseln“ (kein leeres Menü) – das Menü bietet nur „Einstellungen …“, der Name lautet
+   „Signiermittel: …“ (`ng-ui-insp-chip-label-single`, Menüname `ng-ui-insp-signer-menu`); ist nichts gewählt bzw. öffnet
+   „Signieren“ das Menü, steht ID Austria als ausdrückliche Wahl darin. Signierkarte (Rückfall „Signiermittel wählen“)
+   ohne Import-Knopf. Ersteinrichtung ohne Schritt „Standard-Signiermittel“: ohne Altkonfiguration nur „Signaturbild“
+   („Schritt 1 von 1“, ohne „Zurück“), mit Altkonfiguration Übernahme → Signaturbild; der Eintrag
+   `ng-migration-item-signer-mobile` steht als Hinweis (Info-Symbol). Datenschutz: `ng-ui-privacy-local-mobile` sagt
+   jetzt, dass auf dem Gerät mit ID Austria signiert und das Dokument dazu an A-Trust übermittelt wird. Der Mock-Kern folgt
+   dem Kern (keine Keystore-Option, Standard ID Austria, Keystore-Ereignisse und -Einstellungen ohne Wirkung).
+9. **Texte:** neu `ng-migration-item-signer-mobile`, `ng-migrate-keystore-mobile`, `ng-resume-signer-not-offered`
+   (`pida.ftl`), `ng-ui-insp-signer-menu`, `ng-ui-insp-chip-label-single` (`ui-workspace.ftl`); entfallen die nur mobil
+   genutzten `ng-ui-set-signer-ida-desc-mobile`, `ng-ui-set-keystore-storage-keychain-mobile`,
+   `ng-ui-set-ks-remember-keychain-mobile`, `ng-ui-insp-signer-import`, `ng-signer-keystore-import`,
+   `ng-ui-keystore-import*`, `ng-ui-keystore-current`, `ng-ui-backend-keystore-import-hint`. Die Codes
+   `ng-keystore-import*` bleiben (Desktop-Kern).
+
+Tests: `crates/core-api/src/mobile_signers.rs` (Plattformen, Abbildung, Übernahme, Ereignisse, Kennungen), `backends.rs`
+(`registry_offers_only_id_austria_on_mobile`), `config.rs` (`mobile_default_signer_is_id_austria`), `settings_apply.rs`
+(Mobile-Sperren), `crates/core-api/tests/mobile.rs` (Einstellungen und Passwörter eines früheren Builds,
+Desktop-Gegenprobe, kein Autostart, „Fortsetzen“ verworfen, Übernahme, Import ohne Wirkung, Stapel nur ID Austria),
+`apps/app/src/app/MobileIdAustriaOnly.test.tsx` (iOS und Android: alle Ansichten ohne Keystore-Texte, Suche, axe;
+Desktop-Gegenprobe), `Mobile.test.tsx`, `features/settings/{settings,keystore,a11y,units}.test.tsx`,
+`features/onboarding/onboarding.test.tsx`, `features/signing/signing.test.tsx`, `core/contract.test.ts`. Nachweis:
+docs/integration/mobile.md §12.
+
+**Angenommene Abweichungen:** „Jedes Mal fragen“ wirkt auf Mobilgeräten wie ID Austria als Standard (einziges
+Signiermittel); der Wert bleibt in der Datei. Ein gespeicherter Chipkarten-Standard wird ebenso abgebildet (die
+Chipkarte gab es mobil nie). Der Desktop-Kern behält `import_keystore` (keine Oberfläche nutzt es mehr; Kandidat zum
+Aufräumen, wenn der Vertrag einmal bereinigt wird). Simulator und Emulator wurden für diesen Nachtrag nicht erneut
+durchgespielt; die Abläufe sind durch Kern- und Oberflächentests belegt (mobile.md §12.3).

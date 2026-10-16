@@ -86,10 +86,11 @@ export const ROWS: readonly RowDef[] = [
   { id: 'document.placeholder', section: 'document', label: 'ng-ui-set-placeholder' },
   // „Automatische Positionierung“ wie PDF-Over (`signature.auto_position`, ADR 0004 Nachtrag 8)
   { id: 'document.auto_position', section: 'document', label: 'ng-ui-set-auto-position' },
-  { id: 'signers.default', section: 'signers', label: 'ng-ui-set-default' },
+  // Mobile: nur ID Austria (ADR 0004 Nachtrag 11) – keine Wahl des Standards, kein Keystore, keine Chipkarte
+  { id: 'signers.default', section: 'signers', label: 'ng-ui-set-default', visible: desktop },
   { id: 'signers.id_austria', section: 'signers', label: 'ng-ui-set-ida-user' },
   { id: 'signers.fido2', section: 'signers', label: 'ng-ui-set-fido2' },
-  { id: 'signers.keystore', section: 'signers', label: 'ng-ui-set-keystore' },
+  { id: 'signers.keystore', section: 'signers', label: 'ng-ui-set-keystore', visible: desktop },
   { id: 'signers.card', section: 'signers', label: 'ng-ui-set-card', visible: desktop },
   { id: 'save.target', section: 'save', label: 'ng-ui-set-target' },
   { id: 'save.postfix', section: 'save', label: 'ng-ui-set-postfix' },

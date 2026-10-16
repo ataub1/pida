@@ -151,13 +151,33 @@ describe('Ersteinrichtung', () => {
     expect(within(dialog).getByRole('radio', { name: /Keystore/ })).toBeDisabled();
   });
 
-  it('Mobile: ohne Chipkarte, als Sheet; axe', async () => {
+  it('Mobile: nur ID Austria – ohne Signiermittel-Schritt, gleich das Signaturbild, als Sheet; axe', async () => {
     restore = emulateMedia({ narrow: true, coarse: true });
-    renderApp({ firstRun: true, platform: 'ios' });
+    const { mock, user } = renderApp({ firstRun: true, platform: 'ios' });
     const dialog = await welcome();
-    expect(within(dialog).queryByRole('radio', { name: /Chipkarte/ })).not.toBeInTheDocument();
-    expect(within(dialog).getByText('Bestätigung in der App „ID Austria“ oder per SMS-TAN')).toBeInTheDocument();
+    expect(within(dialog).getByText('Schritt 1 von 1')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('radio', { name: /Chipkarte|Keystore|ID Austria/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: /Amtssignatur/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Zurück' })).not.toBeInTheDocument();
+    expect(dialog.textContent).not.toMatch(/Keystore|Chipkarte|PKCS/);
     await expectNoAxeViolations();
+    await user.click(within(dialog).getByRole('radio', { name: /Amtssignatur/ }));
+    expect(lastEvent(mock)).toMatchObject({ type: 'update_first_run', profile: 'AMTSSIGNATURBLOCK' });
+    // der Konto-Chip zeigt danach ID Austria (das einzige Signiermittel, als Standard)
+    expect((await mock.view()).signers).toMatchObject({ default: 'atrust_native', options: [{ backend: 'atrust_native' }] });
+  });
+
+  it('Mobile mit Altkonfiguration: Übernahme erklärt „nur ID Austria“, danach gleich das Signaturbild', async () => {
+    restore = emulateMedia({ narrow: true, coarse: true });
+    const { user } = renderApp({ firstRun: true, platform: 'android', migrationOffer: '/Users/demo/.pdf-over/PDF-Over.config' });
+    const dialog = await welcome();
+    expect(within(dialog).getByText('Schritt 1 von 2')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('migration-note')).toHaveTextContent('Signiermittel: ID Austria – andere Signiermittel aus PDF-Over gibt es auf diesem Gerät nicht');
+    expect(dialog.textContent).not.toMatch(/Keystore|PKCS/);
+    await expectNoAxeViolations();
+    await user.click(within(dialog).getByRole('button', { name: /^Übernehmen/ }));
+    expect(await within(dialog).findByText('Schritt 2 von 2')).toBeInTheDocument();
+    expect(within(dialog).getByRole('radio', { name: /Amtssignatur/ })).toBeInTheDocument();
   });
 
   it('Proben des Kerns: Schritt 1 mit allen acht Einträgen (eigene Bildmarke), ohne Migration Schritt 2', async () => {

@@ -333,7 +333,7 @@ Das Diagramm zeigt die Bauteile, nicht den Ablauf; den zeigen §3.7 und §3.8. D
 | `atrust-native` (A) | Dokument | CMS | ja | `NativeForms`, FIDO2 nativ auf dem Desktop | keiner | nein, aber nur eine Anmeldung je Batch | ja | alle; FIDO2 nur Desktop |
 | `csc` (C) | Hash über SignedAttributes | Rohsignatur | ja (`credentials/info`) | `SystemBrowser` (OAuth2) | `csc-bff`, entfällt bei PKCE | **ja** (`numSignatures`) | nein, nur Hashes | alle 5 |
 | `localbku` | Dokument | CMS | ja | `External` (eigene Oberfläche der BKU) | keiner | nein | nein, bleibt lokal | Desktop |
-| `keystore` | Hash | Rohsignatur | ja (lokal) | `Secret` (Passwort) | keiner | ja | nein | alle 5 (Mobile per Import) |
+| `keystore` | Hash | Rohsignatur | ja (lokal) | `Secret` (Passwort) | keiner | ja | nein | Desktop (Mobile entfällt: nur ID Austria, ADR 0004 Nachtrag 11) |
 | `wallet` (später) | Dokument oder Hash | CMS oder Rohsignatur | modellabhängig | `ExternalApp` | QTSP | offen | modellabhängig | Mobile zuerst |
 
 Aus den Capabilities leitet der Workflow ab:
@@ -861,7 +861,7 @@ Einen eigenen Reader gibt es frühestens später und nur als Clean-Room-Implemen
 | CSC (Vertrag) | ja | ja | ja | ja | ja |
 | FIDO2 | §4.7 | §4.7 | §4.7 | §4.7 | §4.7 |
 | Lokale BKU | Plugin | Plugin | Plugin | – | – |
-| PKCS#12 | Datei | Datei | Datei | Import in die Sandbox | Import in die Sandbox |
+| PKCS#12 | Datei | Datei | Datei | – (nur ID Austria, ADR 0004 Nachtrag 11) | – (nur ID Austria, ADR 0004 Nachtrag 11) |
 | JCEKS/JKS | Assistent | Assistent | Assistent | – | – |
 | CLI | ja, mit Konsolen-Shim | ja | ja | – | – |
 | Secrets | Credential Manager | Keychain | Secret Service, sonst nur im RAM | Keychain | Android Keystore |
@@ -883,11 +883,16 @@ Zur Mindest-OS-Zeile: Die App „ID Austria“ verlangt iOS 16 bzw. Android 12 [
 - alle Profile, Signaturhinweis
 - Bildmarke aus der Fotomediathek: HEIC über den Plattform-Decoder, EXIF für alle Formate. Das ist eine bewusste Erweiterung; das Original wertet EXIF nur bei JPEG aus.
 - ID Austria in Szenario B mit App-Bestätigung bzw. SMS. Der QR-Faktor bleibt auf der A-Trust-Seite verfügbar, die UI empfiehlt auf demselben Gerät aber die App-Bestätigung.
-- PKCS#12-Import, Sichern und Teilen
+- Sichern und Teilen
 - Persistenz im Lebenszyklus, Tablets
 
 **Nicht enthalten:**
 - lokale BKU (gibt es mobil nicht)
+- **Keystore (PKCS#12)** – Entscheidung des Auftraggebers vom 16.10.2026: „Signieren mit Keystore brauchen wir auf
+  mobilen Apps nicht, da reicht ID Austria.“ Der ursprünglich vorgesehene PKCS#12-Import in die Sandbox entfällt;
+  auf iOS/Android ist ID Austria das einzige Signiermittel (Umsetzung und Übergang früherer Builds:
+  [ADR 0004 Nachtrag 11](adr/0004-neue-oberflaeche.md), [mobile.md §12](integration/mobile.md)). Der Desktop behält
+  den Keystore unverändert.
 - CLI, JCEKS
 - Proxy-UI (es gilt der System-Proxy)
 - Update-Check (übernehmen die Stores)

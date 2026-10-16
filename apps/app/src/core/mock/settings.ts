@@ -98,9 +98,26 @@ function answerStorage(state: SettingsState, ctx: MockCtx, storage: PasswordStor
   changed(state, ctx, { ...state.settings, keystore: { ...ks, password_storage: chosen, storage_chosen: true } });
 }
 
+/** iOS/Android wie der Kern: nur ID Austria (ADR 0004 Nachtrag 11). */
+function isMobileOpts(o: MockOptions): boolean {
+  return (o.platform ?? 'desktop') !== 'desktop';
+}
+
+/**
+ * Auf Mobilgeräten nicht einstellbar (wie `settings_apply::MOBILE_UNAVAILABLE`): Proxy, Ausgabeordner, Updates,
+ * Keystore (ganzer Abschnitt); als Standard-Signiermittel nur ID Austria bzw. „Jedes Mal fragen“.
+ */
+function mobileUnavailable(path: string, value: unknown): boolean {
+  const section = path.split('.')[0];
+  if (section === 'proxy' || section === 'keystore' || path === 'output.folder' || path === 'general.update_check') return true;
+  return path === 'backend.default' && (value === 'keystore' || value === 'local_bku');
+}
+
 /** Einstellungen beim Start: Ersteinrichtung (fehlende Datei) wie K4 (ADR 0004 §3.12, §8 F4). */
 function initialSettings(o: MockOptions): Settings {
   const base = o.settings ? structuredClone(o.settings) : defaultSettings();
+  // Mobile: ein Keystore- bzw. Chipkarten-Standard gilt als ID Austria (`ConfigState::adopt_platform`)
+  if (isMobileOpts(o) && (base.backend.default === 'keystore' || base.backend.default === 'local_bku')) base.backend = { default: 'id_austria' };
   if (!o.firstRun) return base;
   const next: Settings = { ...base, general: { ...base.general, first_run_completed: false } };
   // Neuinstallation: die erste Keystore-Passworteingabe fragt „Passwort merken?“
@@ -229,7 +246,11 @@ export const settingsArea: MockArea<SettingsState> = {
         const rejected: Record<string, string> = { ...state.problems };
         for (const path of Object.keys(e.changes)) delete rejected[path];
         let next = state.settings;
-        for (const [path, value] of Object.entries(e.changes)) next = applyPath(next, path, value, rejected, state.locked);
+        const mobile = ctx.platform().mobile;
+        for (const [path, value] of Object.entries(e.changes)) {
+          if (mobile && !state.locked[path] && mobileUnavailable(path, value)) rejected[path] = 'ng-settings-unavailable-mobile';
+          else next = applyPath(next, path, value, rejected, state.locked);
+        }
         // wie `settings_apply::normalize`: eine Wahl der Speicherart gilt als gewählt
         if ('keystore.password_storage' in e.changes && !rejected['keystore.password_storage'] && !next.keystore.storage_chosen) {
           next = { ...next, keystore: { ...next.keystore, storage_chosen: true } };
@@ -244,6 +265,8 @@ export const settingsArea: MockArea<SettingsState> = {
         return true;
       case 'select_signer':
         if (!e.make_default) return false;
+        // iOS/Android: Keystore und Chipkarte gibt es nicht (`mobile_signers::ignored_on_mobile`)
+        if (ctx.platform().mobile && (e.backend === 'keystore' || e.backend === 'local_bku')) return true;
         changed(state, ctx, { ...state.settings, backend: { default: choiceOf(e.backend) } });
         return true;
       case 'submit_form': {
@@ -255,6 +278,8 @@ export const settingsArea: MockArea<SettingsState> = {
         return true;
       }
       case 'import_keystore': {
+        // iOS/Android: kein Keystore (ADR 0004 Nachtrag 11) – ohne Wirkung
+        if (ctx.platform().mobile) return true;
         const fileName = fileNameOf(e.path);
         if (!/\.(p12|pfx|pkcs12)$/i.test(fileName)) {
           state.keystoreImport = { file_name: fileName, ok: false, code: 'ng-keystore-import-format', password_stored: false };
@@ -285,7 +310,9 @@ export const settingsArea: MockArea<SettingsState> = {
         state.keystoreImport = null;
         return true;
       case 'submit_secret':
-        // „Passwort merken?“ aus der Signierkarte; die Abfrage selbst behandelt der Bereich Signieren
+        // „Passwort merken?“ aus der Signierkarte; die Abfrage selbst behandelt der Bereich Signieren (Mobile: ohne
+        // Keystore, die Antwort bleibt ohne Wirkung)
+        if (ctx.platform().mobile) return false;
         answerStorage(state, ctx, e.password_storage);
         if (state.settings.keystore.password_storage !== 'none' && state.settings.keystore.file && e.secret === MOCK_KEYSTORE_PASSWORD) {
           state.keystoreKnown.add(state.settings.keystore.file);
@@ -293,7 +320,7 @@ export const settingsArea: MockArea<SettingsState> = {
         return false;
       case 'inspect_keystore': {
         const file = state.settings.keystore.file;
-        if (!state.open || !file) return true;
+        if (!state.open || !file || ctx.platform().mobile) return true;
         const format = mockKeystoreFormat(file);
         if (format !== 'pkcs12') {
           state.keystoreProblem = { file, code: format === 'unknown' ? 'keystore-malformed' : 'keystore-conversion-needed' };
@@ -316,7 +343,8 @@ export const settingsArea: MockArea<SettingsState> = {
       case 'update_first_run':
         changed(state, ctx, {
           ...state.settings,
-          backend: { default: e.default_backend },
+          // Mobile: Keystore bzw. Chipkarte als Standard abgelehnt (wie `apply_changes_now`)
+          backend: { default: ctx.platform().mobile && mobileUnavailable('backend.default', e.default_backend) ? state.settings.backend.default : e.default_backend },
           signature: { ...state.settings.signature, profile: e.profile, block_language: e.block_language },
         });
         return true;
@@ -333,7 +361,9 @@ export const settingsArea: MockArea<SettingsState> = {
     }
   },
 
-  project(state) {
+  project(state, ctx) {
+    // iOS/Android: keine Keystore-Angaben (nur ID Austria, ADR 0004 Nachtrag 11)
+    const keystore = !ctx.platform().mobile;
     const view: SettingsView | null = state.open
       ? {
           settings: structuredClone(state.settings),
@@ -341,10 +371,11 @@ export const settingsArea: MockArea<SettingsState> = {
           problems: { ...validate(state.settings), ...state.problems },
           keychain_available: state.keychainAvailable,
           fido2_available: state.fido2Available,
-          keystore_ready: state.settings.keystore.enabled && mockKeystoreFormat(state.settings.keystore.file) === 'pkcs12',
-          keystore_format: mockKeystoreFormat(state.settings.keystore.file),
-          keystore_entries: keystoreEntries(state),
-          keystore_inspect_problem: state.keystoreProblem && state.keystoreProblem.file === state.settings.keystore.file ? state.keystoreProblem.code : null,
+          keystore_ready: keystore && state.settings.keystore.enabled && mockKeystoreFormat(state.settings.keystore.file) === 'pkcs12',
+          keystore_format: keystore ? mockKeystoreFormat(state.settings.keystore.file) : null,
+          keystore_entries: keystore ? keystoreEntries(state) : null,
+          keystore_inspect_problem:
+            keystore && state.keystoreProblem && state.keystoreProblem.file === state.settings.keystore.file ? state.keystoreProblem.code : null,
           read_only: state.readOnly,
           preview_revision: state.previewRevision,
           applied_revision: state.appliedRevision,

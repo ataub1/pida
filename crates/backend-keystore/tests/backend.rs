@@ -2,7 +2,7 @@
 //! (Overlay → Ablage → Abfrage), Wiederholung nach falschem Passwort, Speicherarten, Dialoge für
 //! fehlende Datei/Alias, headless, Abbruch, Signieraufträge (Modell A) und Capabilities.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,13 +24,6 @@ use zeroize::Zeroizing;
 
 fn td(rel: &str) -> PathBuf {
     PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata")).join(rel)
-}
-
-/// Kopie eines Test-Keystores in ein Temp-Verzeichnis (Dateiexistenz steuerbar).
-fn copy_to(dir: &Path, rel: &str, name: &str) -> PathBuf {
-    let p = dir.join(name);
-    std::fs::copy(td(rel), &p).unwrap();
-    p
 }
 
 fn ctx(headless: bool) -> SessionContext {

@@ -10,6 +10,14 @@ Ergebnis: Die App baut für den Simulator, startet (`pida-smoke: ok … pdfium=t
 Keystore-Passwort in der Keychain ab und signiert damit gültig (pyHanko: *VALID*). Ergebnis teilen, „Sichern
 unter …“ und „Öffnen“ (QuickLook) laufen nativ. FIDO2 ist ausgegraut mit Hinweis.
 
+> **Seit 16.10.2026: Mobile nur mit ID Austria** (Entscheidung des Auftraggebers, ADR 0004 Nachtrag 11,
+> mobile.md §12). Die Keystore-Abläufe dieses Protokolls – PKCS#12-Import in die Sandbox, Keystore-Passwort in der
+> Keychain, Signatur und Stapel mit dem Keystore, Speicherart „Sicherer Speicher“, „Passwort merken?“, Umzug des
+> Keystores nach einem Update (§5 I-06/I-08–I-10, §7 Nr. 1 und 4, §8.2 Abläufe 3/4, §8.3 Nr. 16/18/21, §8.5) –
+> **entfallen**; sie bleiben als Nachweis des damaligen Stands stehen. Auf iOS gibt es seitdem nur ID Austria; der
+> Kern ignoriert Keystore-Einstellungen früherer Builds und entfernt deren Keystore-Passwörter aus der Keychain
+> einmalig (§9).
+
 ## 1. Projekt `apps/app/src-tauri/gen/apple`
 
 Angelegt mit `npm run tauri ios init -- --ci --skip-targets-install` und **versioniert** (Build-Ausgaben
@@ -408,3 +416,22 @@ Nicht behoben (niedrig, plattformübergreifend bzw. Textfragen):
 Prüfungen danach: `npm run build`, `npm test` (26 Dateien, 598 Tests grün; die neuen Tests scheitern ohne die
 Behebungen), `python3 tools/rename-to-pida.py --check`; `cargo test -p pida-config -p pida-core-api -p pida-i18n
 -p pida-app` (404 Tests grün, Stand `daf4679`; die Behebungen ändern keinen Rust-Code).
+
+## 9. Mobile nur mit ID Austria (16.10.2026)
+
+Entscheidung des Auftraggebers: „Signieren mit Keystore brauchen wir auf mobilen Apps nicht, da reicht ID Austria.“
+Umsetzung und Nachweise für beide Plattformen: mobile.md §12, ADR 0004 Nachtrag 11. Für iOS bedeutet das:
+
+- **Entfallen:** Abläufe mit Keystore (§5 I-06 „PKCS#12“-Filter, I-08 „Keystore wählbar“, I-09, I-10; §8.2 Abläufe 3
+  und 4 mit Keystore; §8.3 Nr. 16 „Sicherer Speicher“, Nr. 18 Keystore nach App-Kill, Nr. 21 Texte beim Keystore).
+  Die Dateiauswahl der Shell fragt nur noch PDFs an (`mobile_pick_files` lehnt `pkcs12` ab); das Plugin behält
+  `importFile` mit `pkcs12` unverändert (keine native Änderung).
+- **Bleibt:** Signieren mit ID Austria (App-Bestätigung/SMS-TAN, FIDO2 ausgegraut), Stapel, „Signatur fortsetzen“,
+  Teilen, „Sichern unter“, QuickLook. Der Sicherungsausschluss von `Library/Application Support/…/data/keystores`
+  (R-5) bleibt für Dateien früherer Builds.
+- **Übergang früherer Builds:** gespeicherter Standard Keystore → ID Austria (beim Lesen, `[keystore]` bleibt in
+  `settings.toml`), Keystore-Passwörter in der Keychain (Dienst „PIDA“, Konten `keystore-store:`/`keystore-key:` zur
+  Datei aus den Einstellungen und zu jeder Datei in `data/keystores`) werden beim ersten Start einmalig entfernt
+  (Merker `data/keystore-secrets-removed`); ein gesicherter Keystore-Vorgang für „Signatur fortsetzen“ wird mit Hinweis
+  verworfen. Die Datei `data/keystores/*.p12` selbst bleibt liegen (durch ihr Passwort geschützt).
+- **Am Simulator:** nicht erneut durchgespielt (belegt durch Kern- und Oberflächentests, mobile.md §12.3).

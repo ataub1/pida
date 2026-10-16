@@ -598,7 +598,8 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     });
     out.push(("settings_defaults", defaults));
 
-    // Mobile (Plan §5.2): Plattform, FIDO2-Hinweis, „Signatur fortsetzen“, PKCS#12-Import
+    // Mobile (Plan §5.2): Plattform, FIDO2-Hinweis, „Signatur fortsetzen“; das Ergebnis des PKCS#12-Imports setzt
+    // der Kern seit ADR 0004 Nachtrag 11 nur noch am Desktop (auf iOS/Android nur ID Austria)
     let android = PlatformView { os: PlatformOs::Android, mobile: true };
     let mut mobile_caps = caps_native();
     mobile_caps.factors.fido2 = false;
@@ -626,14 +627,13 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     });
     out.push(("mobile_resume_offer", resume));
     let mut imported = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
-    imported.platform = android;
     imported.keystore_import = Some(KeystoreImportView {
         file_name: "test.p12".into(),
         ok: true,
         code: "ng-keystore-imported".into(),
         password_stored: true,
     });
-    out.push(("mobile_keystore_imported", imported));
+    out.push(("keystore_imported", imported));
     out.extend(workspace_samples());
     out
 }
@@ -691,6 +691,24 @@ fn signers() -> SignersView {
                 unavailable_reason: Some("ng-signer-localbku-not-running".into()),
             },
         ],
+        selected: Some(BackendId::AtrustNative),
+        default: Some(BackendId::AtrustNative),
+    }
+}
+
+/// Konto-Chip auf iOS/Android: nur ID Austria, FIDO2 mit Hinweis (ADR 0004 Nachtrag 11).
+fn mobile_signers() -> SignersView {
+    let mut caps = caps_native();
+    caps.factors.fido2 = false;
+    SignersView {
+        options: vec![SignerView {
+            backend: BackendId::AtrustNative,
+            available: true,
+            account: Some("+43 660 ···123".into()),
+            capabilities: Some(caps),
+            notes: vec!["ng-fido2-unavailable-mobile".into()],
+            unavailable_reason: None,
+        }],
         selected: Some(BackendId::AtrustNative),
         default: Some(BackendId::AtrustNative),
     }
@@ -1212,6 +1230,7 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         v.actions = ActionsView { start_batch: true, ..ws_actions(false) };
         if mode == OutputModeView::AppDocuments {
             v.platform = PlatformView { os: PlatformOs::Android, mobile: true };
+            v.signers = mobile_signers();
         }
         out.push((name, v));
     }

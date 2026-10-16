@@ -1,6 +1,7 @@
 //! Backend-Registrierung (ADR 0001 §3: `core-api` ist die einzige Stelle, die konkrete Backends
 //! kennt): ID Austria Szenario A, lokale BKU (nur Desktop, Erreichbarkeits-Polling 5 s/30 s),
-//! PKCS#12-Keystore mit [`SecretStoreCache`] als `PasswordCache` auf `config::SecretStore`.
+//! PKCS#12-Keystore (nur Desktop, ADR 0004 Nachtrag 11) mit [`SecretStoreCache`] als `PasswordCache` auf
+//! `config::SecretStore`. Auf iOS/Android ist ID Austria das einzige Signiermittel.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -252,10 +253,12 @@ impl Registry {
             let config = LocalBkuConfig::new(&self.app_version);
             self.localbku = Some(Arc::new(LocalBkuBackend::new(config, self.availability.clone())));
         }
-        // Keystore
+        // Keystore (nur Desktop: auf iOS/Android nur ID Austria, ADR 0004 Nachtrag 11 – die Werte unter
+        // `[keystore]` bleiben dort unberührt und werden ignoriert)
         self.keystore = None;
         self.keystore_configured = false;
-        if eff.keystore_enabled()
+        if self.keystore_offered()
+            && eff.keystore_enabled()
             && let Some(file) = eff.keystore_file()
         {
             self.keystore_configured = file.is_file();
@@ -361,10 +364,16 @@ impl Registry {
         self.fixed.is_some()
     }
 
-    /// Alle registrierten Backends.
+    /// Signieren mit Keystore auf dieser Plattform (Desktop; iOS/Android nur ID Austria)?
+    pub(crate) fn keystore_offered(&self) -> bool {
+        crate::mobile_signers::keystore_offered(self.platform)
+    }
+
+    /// Alle registrierten Backends (auf iOS/Android nie ein Keystore, auch nicht unter fest vorgegebenen).
     pub(crate) fn all(&self) -> Vec<Arc<dyn SignatureBackend>> {
         if let Some(fixed) = &self.fixed {
-            return fixed.clone();
+            let offered = self.keystore_offered();
+            return fixed.iter().filter(|b| offered || b.id() != BackendId::Keystore).cloned().collect();
         }
         let mut out: Vec<Arc<dyn SignatureBackend>> = Vec::new();
         if let Some((_, a)) = &self.atrust {
@@ -419,7 +428,7 @@ impl Registry {
     pub(crate) fn environment(&self, interactive: bool, cfg: &ConfigState) -> Environment {
         let keystore_configured = if self.fixed.is_some() {
             let eff = cfg.effective();
-            eff.keystore_enabled() && eff.keystore_file().is_some_and(Path::is_file)
+            self.keystore_offered() && eff.keystore_enabled() && eff.keystore_file().is_some_and(Path::is_file)
         } else {
             self.keystore_configured
         };
@@ -523,6 +532,47 @@ mod tests {
         assert!(ks.available());
         // ohne Oberfläche kein ID Austria
         assert!(!opts.iter().find(|o| o.id == BackendId::AtrustNative).unwrap().available());
+    }
+
+    /// iOS/Android (ADR 0004 Nachtrag 11): nur ID Austria – ein eingerichteter Keystore (Einstellung bzw.
+    /// Overlay, Datei vorhanden) wird nicht registriert, auch nicht unter fest vorgegebenen Backends.
+    #[tokio::test]
+    async fn registry_offers_only_id_austria_on_mobile() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ks = concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/keystores/test-rsa2048.p12");
+        let (mut cfg, _) = ConfigState::load(
+            Paths::under(tmp.path()),
+            Overlay { keystore_file: Some(ks.into()), ..Overlay::default() },
+            None,
+            Arc::new(MemorySecretStore::default()),
+            None,
+            false,
+        )
+        .unwrap();
+        cfg.settings.keystore.enabled = true;
+        cfg.settings.keystore.file = Some(ks.into());
+        for platform in [Platform::Ios, Platform::Android] {
+            let mut reg = Registry::new(platform, None, "0.1.0", None, false);
+            reg.configure(&cfg);
+            assert!(!reg.keystore_offered());
+            let env = reg.environment(true, &cfg);
+            assert!(!env.keystore_configured, "{platform:?}");
+            let ids: Vec<BackendId> = reg.options(&env).iter().map(|o| o.id).collect();
+            assert_eq!(ids, vec![BackendId::AtrustNative], "{platform:?}");
+            assert!(reg.get(BackendId::Keystore).is_none());
+        }
+        // Desktop unverändert: Keystore registriert und verfügbar
+        let mut reg = Registry::new(Platform::MacOs, None, "0.1.0", None, false);
+        reg.configure(&cfg);
+        let env = reg.environment(true, &cfg);
+        assert!(reg.options(&env).iter().any(|o| o.id == BackendId::Keystore && o.available()));
+        // fest vorgegebene Backends: auf Mobile ohne Keystore
+        let key = KeystoreBackend::new(KeystoreConfig::new(ks));
+        let fixed: Vec<Arc<dyn SignatureBackend>> = vec![Arc::new(key)];
+        let reg = Registry::new(Platform::Ios, None, "0.1.0", Some(fixed.clone()), false);
+        assert!(reg.all().is_empty());
+        let reg = Registry::new(Platform::Linux, None, "0.1.0", Some(fixed), false);
+        assert_eq!(reg.all().len(), 1);
     }
 
     /// „Merken“ bei der Anmeldung: der Kern speichert den Benutzernamen; das ID-Austria-Backend (mit dem

@@ -46,6 +46,29 @@ describe('Kataloge', () => {
     expect(catalogs().issues).toEqual([]);
   });
 
+  it('kein Attribut doppelt an einer Meldung (Fluent nimmt still das letzte, z. B. falsche `.keywords` der Suche)', () => {
+    const doubled: string[] = [];
+    for (const lang of ['de', 'en'] as const) {
+      for (const s of SOURCES[lang]) {
+        let id: string | null = null;
+        let seen = new Set<string>();
+        for (const line of s.text.split('\n')) {
+          const message = /^([A-Za-z][\w-]*)\s*=/.exec(line);
+          if (message) {
+            id = message[1] ?? null;
+            seen = new Set();
+            continue;
+          }
+          const attr = /^\s+\.([\w-]+)\s*=/.exec(line);
+          if (!attr || !id) continue;
+          if (seen.has(attr[1] ?? '')) doubled.push(`${s.name}: ${id}.${attr[1]}`);
+          seen.add(attr[1] ?? '');
+        }
+      }
+    }
+    expect(doubled).toEqual([]);
+  });
+
   it('UI-Texte (ng-ui-*): Quellen pida.ftl + ui-*.ftl, je Datei gleiche IDs und Variablen in DE und EN', () => {
     let total = 0;
     for (const file of UI_SOURCES) {

@@ -162,8 +162,9 @@ pub struct PlatformView {
     /// Betriebssystem
     pub os: PlatformOs,
     /// Mobile Oberfläche (iOS/Android, Plan §5.2): Teilen und Exportieren statt „Im Ordner anzeigen“,
-    /// PKCS#12-Import in die App statt Dateipfad, kein FIDO2 (ausgegraut mit Hinweis), keine lokale
-    /// BKU, keine Proxy-Einstellungen (System-Proxy), keine Ausgabeordner-Wahl (App-Dokumente)
+    /// signiert wird nur mit ID Austria (kein Keystore, ADR 0004 Nachtrag 11; keine lokale BKU), kein FIDO2
+    /// (ausgegraut mit Hinweis), keine Proxy-Einstellungen (System-Proxy), keine Ausgabeordner-Wahl
+    /// (App-Dokumente)
     pub mobile: bool,
 }
 
@@ -206,8 +207,9 @@ pub struct ResumeOfferView {
     pub document_leaves_device: bool,
 }
 
-/// Ergebnis des PKCS#12-Imports in die App-Sandbox (Mobile, Import-Assistent; Plan §5.2) – schließen
-/// mit [`UiEvent::DismissKeystoreImport`].
+/// Ergebnis des PKCS#12-Imports in die App-Sandbox (früherer Mobile-Import-Assistent; Plan §5.2) – schließen
+/// mit [`UiEvent::DismissKeystoreImport`]. Seit ADR 0004 Nachtrag 11 gibt es auf Mobilgeräten keinen Keystore
+/// (nur ID Austria): der Kern setzt es dort nie; der Typ bleibt im Vertrag (additiv, §3.0 Regel 2).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct KeystoreImportView {
@@ -494,7 +496,8 @@ pub struct ViewState {
     /// Angebot „Signatur fortsetzen“ (nur Mobile, nur im Schritt `open`)
     #[serde(default)]
     pub resume: Option<ResumeOfferView>,
-    /// Ergebnis des PKCS#12-Imports (Import-Assistent)
+    /// Ergebnis des PKCS#12-Imports (früherer Mobile-Import-Assistent; seit ADR 0004 Nachtrag 11 immer `None`
+    /// auf Mobilgeräten)
     #[serde(default)]
     pub keystore_import: Option<KeystoreImportView>,
     /// Eigener Datenschutztext der Organisation (Richtlinie `privacy_notice_text`) für Einstellungen ›
@@ -752,10 +755,10 @@ pub enum UiEvent {
     ResumeSignature,
     /// „Signatur fortsetzen“ verwerfen (persistierter Zustand wird gelöscht)
     DiscardResume,
-    /// PKCS#12-Datei in die App-Sandbox importieren (Mobile, Import-Assistent): Datei kopieren,
+    /// PKCS#12-Datei in die App-Sandbox importieren (früherer Mobile-Import-Assistent): Datei kopieren,
     /// Passwort prüfen (falls angegeben), Einstellungen › Keystore setzen; mit `remember` und
     /// verfügbarem sicheren Speicher wird das Passwort dort abgelegt. Ergebnis in
-    /// [`ViewState::keystore_import`].
+    /// [`ViewState::keystore_import`]. Auf iOS/Android seit ADR 0004 Nachtrag 11 ohne Wirkung (nur ID Austria).
     ImportKeystore {
         /// Datei (von der Shell bereits in die Sandbox kopiert, `import_file`)
         path: PathBuf,
@@ -901,7 +904,8 @@ pub enum UiEvent {
     /// Einstellungen › Signiermittel › Keystore „Schlüssel anzeigen“: die gewählte PKCS#12-Datei mit dem
     /// Passwort öffnen und ihre Einträge in [`SettingsView::keystore_entries`] zeigen (Problem in
     /// [`SettingsView::keystore_inspect_problem`]). Ein richtiges Passwort wird gemäß
-    /// `keystore.password_storage` behalten (wie nach dem Signieren). Nur bei geöffneter Einstellungsansicht.
+    /// `keystore.password_storage` behalten (wie nach dem Signieren). Nur bei geöffneter Einstellungsansicht;
+    /// auf iOS/Android ohne Wirkung (nur ID Austria, ADR 0004 Nachtrag 11).
     InspectKeystore {
         /// Passwort (nur RAM, sofort in `Zeroizing`; nie geloggt); `None` = ein bekanntes (gemerktes)
         /// Passwort verwenden
@@ -1391,12 +1395,13 @@ pub struct DocumentDetectionView {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct SignersView {
-    /// Optionen (ohne reservierte Backends)
+    /// Optionen (ohne reservierte Backends; auf iOS/Android nur ID Austria, ADR 0004 Nachtrag 11)
     pub options: Vec<SignerView>,
     /// Auswahl des Konto-Chips (Start = Standard, sofern verfügbar; bei Richtlinie `forced_backend` fest);
     /// mit „Jedes Mal fragen“ nur bis zum Ende des Dokuments bzw. Stapellaufs (§8 F12)
     pub selected: Option<BackendId>,
-    /// Standard aus den Einstellungen (`None` = „Jedes Mal fragen“)
+    /// Standard aus den Einstellungen (`None` = „Jedes Mal fragen“); auf iOS/Android immer ID Austria (das
+    /// einzige Signiermittel, sofern die Richtlinie es erlaubt)
     pub default: Option<BackendId>,
 }
 
@@ -1416,7 +1421,8 @@ pub struct SignerView {
     /// Hinweise (i18n-IDs) wie [`BackendOptionView::notes`]
     pub notes: Vec<String>,
     /// Grund, falls nicht verfügbar (i18n-ID): `ng-signer-localbku-not-running`,
-    /// `ng-signer-keystore-missing`, `ng-signer-keystore-import` (Mobile), `ng-signer-policy`
+    /// `ng-signer-keystore-missing`, `ng-signer-policy` (der frühere Mobile-Grund „PKCS#12-Datei importieren“ entfiel
+    /// mit ADR 0004 Nachtrag 11 – auf Mobilgeräten gibt es keinen Keystore mehr)
     pub unavailable_reason: Option<String>,
 }
 

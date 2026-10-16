@@ -65,9 +65,10 @@ export interface PlatformServices {
   /**
    * Mobile: System-Dateiauswahl über das Plugin `pida-mobile` (Dokument-Picker bzw. SAF); die Dateien
    * liegen danach als Kopien in der App-Sandbox. `[]` = abgebrochen. Fehler tragen einen Code
-   * (`ng-mobile-not-implemented`, `ng-mobile-unsupported` …).
+   * (`ng-mobile-not-implemented`, `ng-mobile-unsupported` …). Nur PDFs: einen PKCS#12-Import gibt es seit ADR
+   * 0004 Nachtrag 11 nicht mehr (auf Mobilgeräten nur ID Austria).
    */
-  pickMobileFiles(options: { kind: 'pdf' | 'pkcs12'; multiple: boolean }): Promise<string[]>;
+  pickMobileFiles(options: { kind: 'pdf'; multiple: boolean }): Promise<string[]>;
   /** Drag & Drop von Dateien über das Fenster. */
   onFileDrag(cb: (event: FileDragEvent) => void): () => void;
   /** Öffnet eine `https:`/`mailto:`-URL im Systembrowser. */

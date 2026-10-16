@@ -41,7 +41,7 @@
 //! `reset_settings`), `done` (Ergebnisliste), `main_bar` (Matrix docs/analyse/01 §3.5), `platform`
 //! (Desktop/Mobile), `resume` („Signatur fortsetzen“: `resume_signature`/`discard_resume`),
 //! `keystore_import` (Ergebnis von `import_keystore{path, password, remember}`, schließen mit
-//! `dismiss_keystore_import`), `privacy_text` (eigener Datenschutztext per Richtlinie für Einstellungen ›
+//! `dismiss_keystore_import`; seit ADR 0004 Nachtrag 11 auf Mobilgeräten ohne Wirkung), `privacy_text` (eigener Datenschutztext per Richtlinie für Einstellungen ›
 //! Datenschutz). Lebenszyklus: `backgrounded`/`foregrounded` (kein Abbruch). `acknowledge_privacy` ist
 //! veraltet und ohne Wirkung (kein Zustimmungsschritt mehr, ADR 0003).
 //! Dateien öffnen bzw. URLs im Browser, Teilen und Exportieren übernimmt die Shell über [`ShellHooks`]
@@ -58,8 +58,11 @@
 //!   `Prepared::restore` wieder her. `Effect::DeletePersisted` löscht ihn nach Erfolg/Abbruch/Fehler.
 //! - **Ausgabe:** [`CoreOptions::default_output_dir`] (App-Dokumente) statt Speichern-Dialog;
 //!   Teilen/Exportieren über [`ShellHooks::share_path`]/[`ShellHooks::export_path`].
-//! - **Signiermittel:** keine lokale BKU; FIDO2 nur mit Hinweis `ng-fido2-unavailable-mobile`
-//!   (`BackendOptionView::notes`); PKCS#12 nur nach Import in die Sandbox (`import_keystore`).
+//! - **Signiermittel:** nur ID Austria (ADR 0004 Nachtrag 11, Modul `mobile_signers`): keine lokale BKU,
+//!   kein Keystore (nicht registriert, nirgends angeboten; `import_keystore`/`inspect_keystore` und jede Wahl
+//!   des Keystores ohne Wirkung); FIDO2 nur mit Hinweis `ng-fido2-unavailable-mobile`
+//!   (`BackendOptionView::notes`). Ein gespeicherter Standard Keystore gilt als ID Austria, die
+//!   Keystore-Werte der Datei bleiben unberührt; Keystore-Passwörter früherer Builds entfernt der Kern einmalig.
 //! - **Secrets:** die Shell setzt [`CoreOptions::secret_store`] auf `pida_config::ShellSecretStore`
 //!   (Keychain bzw. Android Keystore); das ID-Austria-Passwort wird nie persistiert.
 //!
@@ -148,6 +151,7 @@ mod first_run;
 mod keystore_info;
 pub mod logging;
 pub mod messages;
+mod mobile_signers;
 mod parked;
 pub mod plan;
 mod recent;
@@ -468,7 +472,7 @@ impl Core {
         let secrets = options.secret_store.clone().unwrap_or_else(pida_config::platform_secret_store);
         let legacy_dir =
             options.legacy_dir.clone().or_else(|| if options.detect_legacy_dir { Paths::legacy_dir() } else { None });
-        let (cfg, startup) = config::ConfigState::load(
+        let (mut cfg, startup) = config::ConfigState::load(
             config.paths.clone(),
             config.overlay.clone(),
             policy,
@@ -476,6 +480,8 @@ impl Core {
             legacy_dir,
             !config.headless,
         )?;
+        // iOS/Android: nur ID Austria (ADR 0004 Nachtrag 11)
+        cfg.adopt_platform(config.platform);
 
         let render: Option<Arc<dyn RenderBackend>> = match options.render.clone() {
             Some(r) => Some(r),

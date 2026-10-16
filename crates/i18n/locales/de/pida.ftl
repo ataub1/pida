@@ -526,7 +526,8 @@ ng-placeholder-profile-unknown = Der Signaturplatzhalter nennt das unbekannte Pr
 ng-ui-args-cli-only = Die Option { $option } gibt es nur in der Kommandozeile (pida-cli).
 ng-ui-about-notices = Drittlizenzen anzeigen
 
-## Mobile (Welle Mobile, Paket M0: Lebenszyklus, „Signatur fortsetzen“, PKCS#12-Import, Teilen; Plan §5.2)
+## Mobile (Welle Mobile, Paket M0: Lebenszyklus, „Signatur fortsetzen“, Teilen; Plan §5.2). Die Codes `ng-keystore-import*`
+## liefert der Kern seit ADR 0004 Nachtrag 11 nur noch am Desktop (auf iOS/Android nur ID Austria).
 
 ng-fido2-unavailable-mobile = FIDO2-Sicherheitsschlüssel sind auf diesem Gerät nicht verfügbar. Bitte bestätigen Sie in der App „ID Austria“ oder per SMS-TAN.
 ng-resume-expired = Eine unterbrochene Signatur war älter als eine Stunde und wurde verworfen.
@@ -563,23 +564,7 @@ ng-ui-resume-continue = Fortsetzen
     .accesskey = F
 ng-ui-resume-discard = Verwerfen
     .accesskey = V
-ng-ui-keystore-import = PKCS#12-Datei importieren …
-    .accesskey = I
-ng-ui-keystore-import-title = PKCS#12-Keystore importieren
-ng-ui-keystore-import-lead = Die Datei wird in den geschützten Bereich dieser App kopiert; das Original bleibt unverändert.
-ng-ui-keystore-import-choose = Datei wählen …
-    .accesskey = D
-ng-ui-keystore-import-file = Gewählte Datei: { $name }
-ng-ui-keystore-import-password = Passwort des Keystores
-ng-ui-keystore-import-remember = Passwort sicher auf diesem Gerät speichern
-ng-ui-keystore-import-start = Importieren
-    .accesskey = m
-ng-ui-keystore-import-done = Fertig
-ng-ui-keystore-import-stored = Das Passwort ist im sicheren Speicher des Geräts abgelegt.
-ng-ui-keystore-import-not-stored = Das Passwort wurde nicht gespeichert; es wird beim Signieren abgefragt.
-ng-ui-keystore-current = Importierte Datei: { $name }
 ng-ui-backend-atrust-desc-mobile = Signieren mit ID Austria: Bestätigung in der App „ID Austria“ oder per SMS-TAN.
-ng-ui-backend-keystore-import-hint = Noch kein Keystore auf diesem Gerät.
 ng-ui-fido2-unavailable-badge = FIDO2 nicht verfügbar
 ng-ui-browse-mobile = Dokument wählen …
     .accesskey = w
@@ -593,7 +578,7 @@ ng-ui-privacy-statement = Die Software PIDA verarbeitet die für den Signaturvor
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Details zum Datenschutz
 ng-ui-privacy-local = Mit einem Keystore oder der Chipkarte (lokale BKU) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
-ng-ui-privacy-local-mobile = Mit einem Keystore wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
+ng-ui-privacy-local-mobile = Auf diesem Gerät wird mit ID Austria signiert; dazu wird das Dokument an A-Trust übermittelt.
 ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.
 ng-ui-certcache-title = Zertifikats-Cache
@@ -604,7 +589,6 @@ ng-ui-certcache-title = Zertifikats-Cache
 ng-signer-unavailable = Das gewählte Signiermittel ist gerade nicht verfügbar. Bitte wählen Sie ein anderes.
 ng-signer-localbku-not-running = Die Chipkarten-Software (lokale BKU) läuft nicht. Starten Sie sie und versuchen Sie es erneut.
 ng-signer-keystore-missing = Es ist kein Keystore eingerichtet oder die Datei fehlt (Einstellungen › Signiermittel).
-ng-signer-keystore-import = Auf diesem Gerät ist noch kein Keystore – importieren Sie eine PKCS#12-Datei.
 ng-signer-policy = Dieses Signiermittel ist von Ihrer Organisation nicht freigegeben.
 ng-signing-cancelled = Signieren abgebrochen – es wurde nichts signiert.
 ng-signing-declined = In der App abgelehnt oder abgelaufen – es wurde nichts signiert.
@@ -662,3 +646,9 @@ ng-window-title = PIDA – PDF-Signatur ID Austria
 ng-keystore-file-not-found = Die gewählte Keystore-Datei wurde nicht gefunden. Bitte wählen Sie sie erneut aus.
 ng-keystore-password-needed = Bitte geben Sie das Passwort des Keystores ein.
 ng-keystore-file-not-found-at = Die Keystore-Datei „{ $name }“ wurde nicht gefunden. Bitte wählen Sie sie unter Einstellungen › Signiermittel erneut aus.
+
+## Mobile nur mit ID Austria (Entscheidung des Auftraggebers 16.10.2026, ADR 0004 Nachtrag 11)
+
+ng-migration-item-signer-mobile = Signiermittel: ID Austria – andere Signiermittel aus PDF-Over gibt es auf diesem Gerät nicht
+ng-migrate-keystore-mobile = { $key } wird nicht übernommen (auf Mobilgeräten wird nur mit ID Austria signiert).
+ng-resume-signer-not-offered = Eine unterbrochene Signatur wurde verworfen, weil es ihr Signiermittel in dieser App nicht mehr gibt. Bitte öffnen Sie das Dokument erneut und signieren Sie mit ID Austria.
