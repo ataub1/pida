@@ -1,7 +1,8 @@
 //! Werkzeuge für die CLI-Subcommands `verify`, `profiles`, `render-block` (Plan §7.4).
 //!
 //! `verify` ist ein Entwickler-Werkzeug (QA, Golden- und Interop-Tests): Es prüft, ob eine Signatur unverändert
-//! und kryptografisch intakt ist, nicht Vertrauenskette und Sperrstatus.
+//! und kryptografisch intakt ist, nicht Vertrauenskette und Sperrstatus. Die App hat keinen Prüfmodus mehr
+//! (ADR 0004 Nachtrag 15); wie PDF-Over verweist sie auf signaturpruefung.gv.at.
 
 use std::path::Path;
 
@@ -122,7 +123,7 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
         };
         match pida_cades::verify_detached(cms, &mut data, &expect) {
             // der signierte Bereich lässt Teile der Datei offen (Anfang bzw. Bytes neben /Contents in der Lücke):
-            // wie Prüfmodus und Inspektor nicht intakt (`pades::gap_is_hex_string`, ADR 0004 §3.9)
+            // wie der Inspektor nicht intakt (`pades::gap_is_hex_string`)
             Ok(_) if first.start != 0 || !pida_pades::gap_is_hex_string(&bytes[first.end..second.start], &contents) => {
                 check.error = Some("ng-verify-byte-range".into());
             }
@@ -216,7 +217,7 @@ mod tests {
     }
 
     /// Signature Wrapping (Merge E4): Bytes neben `/Contents` in der Lücke der `/ByteRange` – kryptografisch
-    /// passt die Signatur, `pida verify` nennt sie aber wie Prüfmodus und Inspektor nicht intakt.
+    /// passt die Signatur, `pida verify` nennt sie aber wie der Inspektor nicht intakt.
     #[test]
     fn verify_rejects_bytes_hidden_in_the_gap() {
         let p = Path::new(TESTDATA).join("verify/pdfas-signed.pdf");

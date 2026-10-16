@@ -177,7 +177,7 @@ fn verify_signed_unsigned_and_broken() {
     assert_eq!((v["intact"].as_bool(), v["trust_checked"].as_bool()), (Some(true), Some(false)));
     assert!(v["signatures"].as_array().unwrap().len() >= 2);
     assert!(v["signatures"].as_array().unwrap().iter().all(|s| s["intact"] == true && s.get("valid").is_none()));
-    // Text (Entwickler-Werkzeug): „intakt“ und der Umfang, nie „gültig“
+    // Text (Entwickler-Werkzeug, ADR 0004 Nachtrag 15): „intakt“ und der Umfang, nie „gültig“
     for (lang, intact, scope, claim) in [
         (DE, "Intakt (unverändert):", "Vertrauenskette und Sperrstatus nicht geprüft", "gültig"),
         (EN, "Intact (unchanged):", "Chain of trust and revocation status not checked", "valid"),

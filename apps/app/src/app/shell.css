@@ -154,8 +154,7 @@
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
-.view-workspace .app-main,
-.view-verify .app-main {
+.view-workspace .app-main {
   overflow: hidden;
 }
 .header-theme-icon {

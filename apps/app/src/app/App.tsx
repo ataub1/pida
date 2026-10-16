@@ -2,8 +2,9 @@
  * Wurzel der Oberfläche „Arbeitsbereich“ (ADR 0004 §4.2): abonniert den `ViewState` und rendert je Zustand
  * eine Ansicht – Start, Arbeitsbereich (Warnung, Positionieren, Signieren als Overlay), Fertig, Stapel
  * (Übersicht, Lauf mit der Stapelkarte als Overlay), Zustandskarten – dazu Kopfzeile, Sprunglink,
- * Signierkarte, Overlays der Pakete UI-B (Einstellungen, Ersteinrichtung,
- * Prüfmodus, Palette), „Signatur fortsetzen“, Hinweise und die Live-Region.
+ * Signierkarte, Overlays der Pakete UI-B (Einstellungen, Ersteinrichtung, Palette), „Signatur fortsetzen“,
+ * Hinweise und die Live-Region. Einen Prüfmodus gibt es nicht (ADR 0004 Nachtrag 15): wie PDF-Over verweist PIDA
+ * für die Prüfung fremder Signaturen auf signaturpruefung.gv.at.
  *
  * Shell-Dienste: Dateiauswahl (Desktop-Dialog bzw. Mobile-Picker), Drag & Drop über die Fenster-Ereignisse
  * (Pfade; auf „+ PDF hinzufügen“ der Miniaturleiste wie „Weitere PDFs hinzufügen“), Tastenkürzel ⌘/Strg+O
@@ -11,7 +12,8 @@
  * ⌘/Strg+, (Einstellungen), ⌘/Strg+K und „?“ (sobald die Palette da ist), Zugriffstasten (Alt+Taste bzw. ⌃⌥+Taste),
  * Farbschema, Fokus beim Ansichtswechsel. Der Kern bleibt maßgeblich: Freigaben kommen aus
  * `ViewState::actions`. Bei geparkter Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10) fragen gewählte bzw.
- * abgelegte PDFs erst nach, ob sie zum Stapel kommen (`ParkedJoinDialog`).
+ * abgelegte PDFs und „Erneut signieren“ aus „Zuletzt signiert“ erst nach, ob sie zum Stapel kommen
+ * (`ParkedJoinDialog`).
  *
  * Der Kern läuft in der App immer im Arbeitsbereich-Modus (`workspace_ui`, ADR 0004 §3.14): `StepView::Position`
  * kommt dort nur mit `document`, `StepView::Placeholder` gar nicht. Die bisherigen Bildschirme (`screens/`) sind
@@ -28,8 +30,7 @@ import { Onboarding } from '../features/onboarding';
 import { CommandPalette, PALETTE_AVAILABLE, ShortcutsDialog } from '../features/palette';
 import { SettingsPanel } from '../features/settings';
 import { cardMode, errorInCard, SigningCard } from '../features/signing';
-import { ParkedJoinDialog, StartView } from '../features/start';
-import { VERIFY_AVAILABLE, VerifyView } from '../features/verify';
+import { ParkedJoinDialog, StartView, type JoinRequest } from '../features/start';
 import { ErrorCard, FinishedCard, LoadingCard, StartingCard, WarningCard, Workspace } from '../features/workspace';
 import { translator } from '../i18n/catalog';
 import { accessKeyFromEvent, trackAltKey, triggerAccessKey } from '../ui/AccessKeys';
@@ -64,14 +65,13 @@ const STARTING: ViewState = {
 const IMAGE_EXT = /\.(png|jpe?g|gif)$/i;
 
 /** Ansicht des Hauptbereichs. */
-export type MainView = 'starting' | 'start' | 'loading' | 'workspace' | 'warning' | 'done' | 'error' | 'finished' | 'verify' | 'batch';
+export type MainView = 'starting' | 'start' | 'loading' | 'workspace' | 'warning' | 'done' | 'error' | 'finished' | 'batch';
 
 /**
  * Ansicht je Zustand (ADR 0004 §3.1: `document` gesetzt in Warnung, Positionieren, Signieren, Fertig; im
  * Stapellauf liegt die Karte über der Stapelübersicht, §3.8).
  */
 export function mainView(view: ViewState): MainView {
-  if (VERIFY_AVAILABLE && view.verify) return 'verify';
   const s = view.step;
   const doc = view.document;
   switch (s.step) {
@@ -110,7 +110,6 @@ const TITLE: Record<MainView, string> = {
   done: 'ng-ui-fin-title',
   error: 'ng-ui-sc-error-title',
   finished: 'ng-ui-finished',
-  verify: 'ng-ui-shell-verify-mode',
   batch: 'ng-ui-batch-title',
 };
 
@@ -211,13 +210,14 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   );
 
   // --- Dateien öffnen --------------------------------------------------------------------------
-  // Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): neue PDFs aus der Dateiauswahl bzw. abgelegte fragen
-  // vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`); „Öffnen mit“ und zweite Instanz entscheidet der Kern
-  const [joinPaths, setJoinPaths] = useState<string[] | null>(null);
+  // Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): neue PDFs aus der Dateiauswahl bzw. abgelegte und
+  // „Erneut signieren“ aus „Zuletzt signiert“ fragen vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`); „Öffnen
+  // mit“ und zweite Instanz entscheidet der Kern
+  const [join, setJoin] = useState<JoinRequest | null>(null);
   const parkedRef = useRef(current.parked ?? null);
   parkedRef.current = current.parked ?? null;
   useEffect(() => {
-    if (!current.parked) setJoinPaths(null);
+    if (!current.parked) setJoin(null);
   }, [current.parked]);
 
   // `mode` aus „+ PDF“ (ADR 0004 Nachtrag 9): „Anderes PDF öffnen“ wählt eine Datei, sonst Mehrfachauswahl;
@@ -226,7 +226,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
     async (mode?: OpenFilesMode) => {
       const multiple = mode !== 'replace';
       const open = (paths: string[]) => {
-        if (!mode && parkedRef.current) setJoinPaths(paths);
+        if (!mode && parkedRef.current) setJoin({ paths });
         else void dispatch(mode ? { type: 'open_files', paths, mode } : { type: 'open_files', paths });
       };
       if (mobile) {
@@ -257,19 +257,15 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
     [bridge, dispatch, t, toast, mobile],
   );
 
-  /** Prüfmodus: Datei wählen → `open_verify` (Freigabe `actions.verify`, ab K4). */
-  const openVerify = useCallback(async () => {
-    if (!current.actions.verify) return;
-    try {
-      const paths = mobile
-        ? await bridge.pickMobileFiles({ kind: 'pdf', multiple: false })
-        : await bridge.pickFiles({ title: t.t('ng-ui-shell-verify-long'), multiple: false, filters: [{ name: t.t('common-PDFExtension_Description'), extensions: ['pdf'] }] });
-      const path = paths?.[0];
-      if (path) void dispatch({ type: 'open_verify', path });
-    } catch {
-      toast(t.t('ng-ui-dialog-failed'), 'error');
-    }
-  }, [bridge, current.actions.verify, dispatch, mobile, t, toast]);
+  // „Erneut signieren“ aus „Zuletzt signiert“ (ADR 0004 Nachtrag 15): wie „Öffnen“ (`sign_recent`, der Kern kennt
+  // den Pfad), bei geparkter Arbeit erst die Rückfrage
+  const signRecent = useCallback(
+    (id: number) => {
+      if (parkedRef.current) setJoin({ recentId: id });
+      else void dispatch({ type: 'sign_recent', id });
+    },
+    [dispatch],
+  );
 
   const requestSign = useCallback(() => signHandler.current?.(), []);
   const registerSign = useCallback((handler: (() => void) | null) => {
@@ -288,13 +284,6 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       setDragActive(false);
       if (e.type !== 'drop' || e.paths.length === 0) return;
       const { current: v, dispatch: d, toast: tst } = dropState.current;
-      // Prüfmodus: die abgelegte Datei prüfen (wie im Prototyp), nicht verdeckt im Arbeitsbereich öffnen
-      if (VERIFY_AVAILABLE && v.verify && !v.settings) {
-        const path = e.paths[0];
-        if (v.actions.verify && path) void d({ type: 'open_verify', path });
-        else tst(translator(v.language).t('ng-ui-drop-not-here'));
-        return;
-      }
       if (v.settings) {
         const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(e.x, e.y) : null;
         const image = e.paths.find((p) => IMAGE_EXT.test(p));
@@ -306,7 +295,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       const add = !!hit?.closest('[data-add-drop]');
       if (!v.actions.open_files) tst(translator(v.language).t('ng-ui-drop-not-here'));
       // auf die Startseite mit geparkter Arbeit: erst fragen (Nachtrag 10)
-      else if (!add && v.parked) setJoinPaths(e.paths);
+      else if (!add && v.parked) setJoin({ paths: e.paths });
       else void d(add ? { type: 'open_files', paths: e.paths, mode: 'add' } : { type: 'open_files', paths: e.paths });
     });
   }, [bridge]);
@@ -414,8 +403,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, [overlayOpen]);
 
   const ctx = useMemo<AppContextValue>(
-    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, settingsSection: section, browse, overlay, setOverlay, requestSign, registerSign }),
-    [bridge, current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, section, browse, overlay, requestSign, registerSign],
+    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, settingsSection: section, browse, signRecent, overlay, setOverlay, requestSign, registerSign }),
+    [bridge, current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, section, browse, signRecent, overlay, requestSign, registerSign],
   );
 
   const commands = useMemo(
@@ -430,9 +419,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         openSettings,
         setTheme,
         setOverlay,
-        openVerify: () => void openVerify(),
       }),
-    [current, t, isMac, dispatch, browse, requestSign, openSettings, setTheme, openVerify],
+    [current, t, isMac, dispatch, browse, requestSign, openSettings, setTheme],
   );
 
   const step = current.step;
@@ -440,7 +428,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
     <I18nProvider locale={current.language === 'de' ? 'de-AT' : 'en-GB'}>
       <AppContext.Provider value={ctx}>
         <div
-          className={`app view-${main === 'workspace' ? 'workspace' : main === 'done' ? 'done' : main === 'verify' ? 'verify' : main === 'batch' ? 'batch' : 'start'}`}
+          className={`app view-${main === 'workspace' ? 'workspace' : main === 'done' ? 'done' : main === 'batch' ? 'batch' : 'start'}`}
           data-step={step.step}
           data-view={main}
           data-drag={dragActive || undefined}
@@ -450,10 +438,10 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           <a className="skip-link" href="#main">
             {t.t('ng-ui-shell-skip')}
           </a>
-          <Header theme={theme} onTheme={setTheme} onVerify={() => void openVerify()} />
+          <Header theme={theme} onTheme={setTheme} />
           <main id="main" className="app-main" tabIndex={-1}>
             {main === 'starting' ? <StartingCard /> : null}
-            {main === 'start' ? <StartView onVerify={() => void openVerify()} /> : null}
+            {main === 'start' ? <StartView /> : null}
             {main === 'loading' && step.step === 'loading' ? <LoadingCard step={step} /> : null}
             {main === 'workspace' && current.document ? <Workspace doc={current.document} /> : null}
             {main === 'batch' && current.batch ? <BatchView batch={current.batch} /> : null}
@@ -461,14 +449,13 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
             {main === 'done' && step.step === 'output' ? <DoneView step={step} /> : null}
             {main === 'error' && step.step === 'error' ? <ErrorCard step={step} /> : null}
             {main === 'finished' && step.step === 'finished' ? <FinishedCard exitCode={step.exit_code} /> : null}
-            {main === 'verify' && current.verify ? <VerifyView verify={current.verify} /> : null}
           </main>
           <SigningCard />
           {step.step === 'output' ? <OutputDialogs result={step.result} /> : null}
           {current.settings ? <SettingsPanel settingsView={current.settings} section={section} /> : null}
           {(current.migration || current.first_run) && !current.settings ? <Onboarding migration={current.migration} firstRun={current.first_run} /> : null}
           {current.resume && !current.settings && !current.migration ? <ResumeDialog offer={current.resume} /> : null}
-          {joinPaths && current.parked ? <ParkedJoinDialog parked={current.parked} paths={joinPaths} onClose={() => setJoinPaths(null)} /> : null}
+          {join && current.parked ? <ParkedJoinDialog parked={current.parked} request={join} onClose={() => setJoin(null)} /> : null}
           <CommandPalette isOpen={overlay === 'palette'} onClose={() => setOverlay(null)} commands={commands} />
           <ShortcutsDialog isOpen={overlay === 'shortcuts'} onClose={() => setOverlay(null)} commands={commands} shortcuts={buildShortcuts(t, isMac)} />
           <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />

@@ -21,9 +21,6 @@ ng-ui-shell-pages =
         [one] { $n } page
        *[other] { $n } pages
     }
-ng-ui-shell-verify = Verify
-ng-ui-shell-verify-long = Verify a signature
-ng-ui-shell-verify-mode = Verification mode
 ng-ui-shell-commands = Commands
 ng-ui-shell-commands-long = Commands and search
 ng-ui-shell-lang = Interface language
@@ -38,8 +35,6 @@ ng-ui-shell-cmd-open = Open document …
     .keywords = open file pdf load
 ng-ui-shell-cmd-sign = Sign
     .keywords = signature
-ng-ui-shell-cmd-verify = Verify signature (verification mode)
-    .keywords = verify check prüfen
 ng-ui-shell-cmd-settings = Settings
     .keywords = options preferences configuration
 ng-ui-shell-cmd-signature = Edit signature block
@@ -100,10 +95,7 @@ ng-ui-start-pick = Choose PDF
 ng-ui-start-pick-mobile = Choose document
 ng-ui-start-local = Your documents stay on this device until you sign.
 ng-ui-start-shortcut = opens the file chooser
-ng-ui-start-side = Recently signed and verification mode
-ng-ui-start-verify-title = Verify a signature?
-ng-ui-start-verify-text = Verification mode shows who signed a PDF, when, and whether it has changed since.
-ng-ui-start-verify-button = Open verification mode
+ng-ui-start-side = Recently signed
 # Parked work (“Go to start” parks the open document or batch, ADR 0004 addendum 10)
 ng-ui-start-parked-label = In progress
 ng-ui-start-parked-batch =

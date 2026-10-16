@@ -48,9 +48,6 @@ describe('Szenarien', () => {
           expect(v.actions.open_files).toBe(true);
           expect(v.actions.sign).toBe(false);
           break;
-        case 'verify':
-          expect(v.verify).not.toBeNull();
-          break;
         case 'batch': {
           // Stapelübersicht (ADR 0004 §3.8): kein Dokument im Arbeitsbereich, Voranalyse im Hintergrund
           const b = await until(c, (x) => x.step.step === 'batch' && (x.batch?.items.every((i) => i.status.state !== 'analyzing') ?? false));
@@ -116,19 +113,18 @@ describe('Szenarien', () => {
     expect(v.actions.show_batch).toBe(false);
   });
 
-  it('Beispiele der späteren Etappen (`examples`): zuletzt signiert, Prüfbericht, Ersteinrichtung (Stapel: echter Ablauf)', async () => {
+  it('Beispiele der späteren Etappen (`examples`): zuletzt signiert, Ersteinrichtung (Stapel: echter Ablauf)', async () => {
     const v = await until(core({ examples: true, firstRun: true }), (x) => x.step.step === 'open');
     expect(v.recent?.length).toBeGreaterThan(0);
-    // Prüfmodus seit B4 nur im Szenario `verify` (er läge sonst über der Startansicht)
-    expect(v.verify).toBeNull();
-    expect((await until(core({ scenario: 'verify' }), (x) => x.step.step === 'open')).verify).not.toBeNull();
+    // kein Prüfmodus mehr (ADR 0004 Nachtrag 15): weder Szenario noch Ansicht noch Freigabe
+    expect(MOCK_SCENARIOS as readonly string[]).not.toContain('verify');
+    expect('verify' in v || 'verify' in v.actions).toBe(false);
     expect(v.first_run).not.toBeNull();
     // der Stapel kommt seit A2 aus dem Ablauf (Szenario `batch`), nicht als festes Beispiel
     expect(v.batch).toBeNull();
     expect(v.actions.show_batch).toBe(false);
     const plain = await until(core(), (x) => x.step.step === 'open');
     expect(plain.recent).toBeNull();
-    expect(plain.verify).toBeNull();
     expect(plain.first_run).toBeNull();
     expect(plain.batch).toBeNull();
   });
@@ -633,7 +629,7 @@ describe('„Zur Startseite“ parkt offene Arbeit (Nachtrag 10, Mock wie der Ke
     await c.dispatch({ type: 'go_home' });
     const v = await until(c, parkedStart);
     expect(v.parked).toEqual({ doc_name: 'Vertrag.pdf', documents: 1, placed_by_hand: true, unsaved: false });
-    expect(v.actions).toMatchObject({ sign: false, edit_placement: false, open_files: true, verify: true });
+    expect(v.actions).toMatchObject({ sign: false, edit_placement: false, open_files: true });
     // verdeckt (F-54): weder Signieren noch Verschieben wirken
     await c.dispatch({ type: 'sign_with', backend: 'atrust_native' });
     await c.dispatch({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });

@@ -480,7 +480,7 @@ ng-settings-invalid-postfix = The file name suffix must not contain path separat
 ng-settings-proxy-host-missing = A host is required for a manual proxy.
 ng-settings-invalid-logo-size = The logo size must be greater than 0 and at most 120 mm.
 
-## Prüfung vorhandener Signaturen (`verify`) – Welle 2
+## Prüfung vorhandener Signaturen (`pida verify`, Entwickler-Werkzeug; die App hat keinen Prüfmodus, ADR 0004 Nachtrag 15) – Welle 2
 
 ng-verify-failed = The file could not be checked: { $detail }
 ng-verify-no-signature-dictionary = Signature field without signature data.
@@ -636,11 +636,6 @@ ng-batch-aborted =
 ng-batch-paused = The batch is paused. Please decide how to continue.
 ng-batch-large = { $count } documents: each document is confirmed separately in the app.
 ng-batch-pending-app-request = Please decline any request still open in the app; always compare the reference value.
-ng-verify-open-failed = The file could not be opened for verification.
-ng-verify-busy = No document can be verified while signing.
-ng-verify-warning-sha1 = The signature uses the outdated hash algorithm SHA-1; it is unchanged but no longer considered secure.
-ng-verify-warning-signing-certificate-v1 = The signature binds its certificate only through the older “signing-certificate” attribute (SHA-1).
-ng-verify-warning-weak-key = The key of this signature is too short by today’s standards.
 ng-recent-missing = The file is no longer at the saved location.
 ng-recent-policy = “Recently signed” has been switched off by your organisation.
 ng-migration-item-block = Signature block (profile, language, note)

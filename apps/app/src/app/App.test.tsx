@@ -160,14 +160,16 @@ describe('Kernpfad mit dem Mock-Kern', () => {
 });
 
 describe('Kopfzeile und Kürzel', () => {
-  it('Wortmarke ohne „Prototyp“, Dokumentkontext, Prüfen (Platzhalter, gesperrt), DE/EN, Einstellungen', async () => {
+  it('Wortmarke ohne „Prototyp“, Dokumentkontext, kein „Prüfen“ (Nachtrag 15), DE/EN, Einstellungen', async () => {
     const { mock, user } = renderApp({ view: workspaceView() });
     const header = await screen.findByRole('banner');
     expect(header).not.toHaveTextContent(/Prototyp/i);
     expect(within(header).getByRole('button', { name: 'PIDA – Startseite' })).toHaveTextContent('PIDA');
     expect(header).toHaveTextContent('Vertrag.pdf');
     expect(header).toHaveTextContent('3 Seiten · 214 KB');
-    expect(within(header).getByRole('button', { name: 'Signatur prüfen' })).toBeDisabled();
+    // kein Prüfmodus mehr (ADR 0004 Nachtrag 15): weder Knopf noch Kontext in der Kopfzeile
+    expect(within(header).queryByRole('button', { name: /prüfen/i })).not.toBeInTheDocument();
+    expect(header).not.toHaveTextContent(/Prüf/);
     await user.click(within(header).getByRole('radio', { name: 'EN' }));
     expect(lastEvent(mock)).toEqual({ type: 'set_ui_language', language: 'en' });
     await user.click(within(header).getByRole('button', { name: 'Einstellungen' }));
@@ -207,11 +209,13 @@ describe('Kopfzeile und Kürzel', () => {
   it('Befehlsliste: alle Befehle des Prototyps mit Freigaben aus `actions`, Kürzel 15/1/50 pt', () => {
     const t = translator('de');
     const view = workspaceView();
-    const deps = { view, t, isMac: true, dispatch: async () => true, browse: async () => undefined, requestSign: () => undefined, openSettings: () => undefined, setTheme: () => undefined, setOverlay: () => undefined, openVerify: () => undefined };
+    const deps = { view, t, isMac: true, dispatch: async () => true, browse: async () => undefined, requestSign: () => undefined, openSettings: () => undefined, setTheme: () => undefined, setOverlay: () => undefined };
     const cmds = buildCommands(deps);
     expect(cmds.map((c) => c.id)).toEqual(COMMANDS.map((c) => c.id));
     expect(cmds.find((c) => c.id === 'sign')).toMatchObject({ label: 'Signieren', keys: ['⌘', '↵'], isDisabled: false });
-    expect(cmds.find((c) => c.id === 'verify')?.isDisabled).toBe(true);
+    // kein Befehl „Signatur prüfen“ mehr (Nachtrag 15)
+    expect(cmds.map((c) => c.id)).not.toContain('verify');
+    expect(cmds.some((c) => /prüf/i.test(c.label) || /verify|prüfen/i.test(c.keywords))).toBe(false);
     expect(cmds.find((c) => c.id === 'signature')?.keywords).toContain('logo');
     const keys = buildShortcuts(t, false);
     expect(keys.find((k) => k.id === 'move')?.label).toBe('Signaturblock verschieben (15 pt)');

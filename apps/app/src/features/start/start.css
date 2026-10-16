@@ -76,11 +76,6 @@
     transform: translateY(-4px);
   }
 }
-.drop-icon-verify {
-  background: var(--c-success-soft);
-  color: var(--c-success-on-soft);
-  border-color: var(--c-success-border);
-}
 .drop-title {
   font-size: var(--fs-20);
   font-weight: var(--fw-bold);
@@ -133,15 +128,6 @@
   font-size: var(--fs-15);
   font-weight: var(--fw-semibold);
 }
-.side-icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--r-4);
-  background: var(--c-success-soft);
-  color: var(--c-success-on-soft);
-}
 .recent-list {
   display: grid;
   gap: 2px;
@@ -189,12 +175,8 @@
   font-size: var(--fs-12);
   color: var(--c-text-3);
 }
-.recent-caret {
-  flex: none;
-  color: var(--c-text-3);
-}
 
-/* Ohne Seitenspalte (bis „Zuletzt signiert“ und Prüfmodus kommen): eine Spalte, mittig */
+/* Ohne Seitenspalte („Zuletzt signiert“ abgeschaltet): eine Spalte, mittig */
 .start-view.is-single {
   grid-template-columns: minmax(0, 1fr);
   max-width: 820px;

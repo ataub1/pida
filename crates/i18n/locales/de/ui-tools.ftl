@@ -1,7 +1,7 @@
-### PIDA – Texte der neuen Oberfläche, UI-B (Einstellungen, Prüfmodus, Befehlspalette, Kürzel, Ersteinrichtung, Zuletzt signiert), deutsch (EUPL-1.2)
+### PIDA – Texte der neuen Oberfläche, UI-B (Einstellungen, Befehlspalette, Kürzel, Ersteinrichtung, Zuletzt signiert), deutsch (EUPL-1.2)
 ###
 ### Von Hand gepflegt (ADR 0004 §4.5). IDs: `ng-ui-<bereich>-<name>`, Bereiche dieser Datei:
-### set, vf, pal, sh, ob, recent. Alle Kataloge einer Sprache bilden ein Fluent-Bündel: keine ID aus `pida.ftl`,
+### set, pal, sh, ob, recent. Alle Kataloge einer Sprache bilden ein Fluent-Bündel: keine ID aus `pida.ftl`,
 ### `pdfover.ftl` oder der anderen `ui-*.ftl` wiederverwenden; jede ID mit denselben Variablen in
 ### `de/` und `en/` (Test `crates/i18n/tests/catalogs.rs`). Einzahl/Mehrzahl über Selektoren.
 ###
@@ -219,104 +219,15 @@ ng-ui-set-about = PIDA
 ng-ui-set-logs = Protokolle
     .keywords = protokoll protokolle log logs fehlersuche
 
-## Zuletzt signiert (Startansicht, ADR 0004 §3.10)
+## Zuletzt signiert (Startansicht, ADR 0004 §3.10; Aktionen wie „Fertig“, Nachtrag 15 – kein Prüfmodus)
 
 ng-ui-recent-title = Zuletzt signiert
 ng-ui-recent-empty = Noch keine signierten Dokumente.
-ng-ui-recent-open = „{ $name }“ im Prüfmodus öffnen
+ng-ui-recent-open = „{ $name }“ öffnen
+ng-ui-recent-more = Weitere Aktionen für „{ $name }“
+ng-ui-recent-sign = Erneut signieren
 ng-ui-recent-remove = „{ $name }“ aus der Liste entfernen
 ng-ui-recent-missing = Datei nicht mehr vorhanden
-
-## Prüfmodus (ADR 0004 §3.9; Wortlaut §8 F3: PIDA sagt nie „gültig“ oder „rechtsgültig“)
-
-ng-ui-vf-title = Prüfmodus
-ng-ui-vf-preview = Seiten des geprüften Dokuments
-ng-ui-vf-page = Seite { $n } von { $total }
-ng-ui-vf-meta = { $pages } · { $revisions }
-ng-ui-vf-pages =
-    { $n ->
-        [one] eine Seite
-       *[other] { $n } Seiten
-    }
-ng-ui-vf-revisions =
-    { $n ->
-        [one] eine Revision
-       *[other] { $n } Revisionen
-    }
-ng-ui-vf-loading = Signaturen werden geprüft …
-ng-ui-vf-failed = Die Datei konnte nicht geprüft werden
-ng-ui-vf-summary-none = Dieses Dokument enthält keine Signatur
-ng-ui-vf-summary-none-text = Es gibt nichts zu prüfen. Sie können das Dokument signieren.
-ng-ui-vf-summary-intact =
-    { $n ->
-        [one] Die Signatur ist unverändert und kryptografisch intakt
-       *[other] Alle { $n } Signaturen sind unverändert und kryptografisch intakt
-    }
-ng-ui-vf-summary-intact-text = Das Dokument wurde seit der letzten Signatur nicht verändert.
-ng-ui-vf-summary-broken =
-    { $n ->
-        [one] Achtung: Eine Signatur ist nicht intakt
-       *[other] Achtung: { $n } Signaturen sind nicht intakt
-    }
-ng-ui-vf-summary-broken-text = Das Dokument wurde nach dem Signieren verändert oder eine Signatur ist beschädigt. Verwenden Sie die signierte Originaldatei oder fordern Sie eine neue, signierte Fassung an.
-ng-ui-vf-summary-unverifiable = Nicht alle Signaturen konnten geprüft werden
-ng-ui-vf-summary-unverifiable-text = Keine Signatur ist verletzt, aber mindestens eine verwendet ein Verfahren, das PIDA nicht prüfen kann.
-ng-ui-vf-summary-modified = Nach der letzten Signatur ergänzt oder geändert
-ng-ui-vf-summary-modified-text = Alle Signaturen sind intakt, die Datei wurde aber nach der letzten Signatur noch ergänzt oder geändert. Dieser Teil ist von keiner Signatur abgedeckt.
-ng-ui-vf-scope = PIDA prüft auf diesem Gerät, ob das Dokument seit dem Signieren unverändert ist, und zeigt die Angaben der Zertifikate. Vertrauenskette und Sperrstatus prüft PIDA nicht.
-ng-ui-vf-full-check = Vollständige Prüfung bei signaturpruefung.gv.at
-ng-ui-vf-signatures = Signaturen
-ng-ui-vf-unknown-signer = Signatur { $n } (Unterzeichner unbekannt)
-ng-ui-vf-status-intact = Intakt
-ng-ui-vf-status-broken = Verändert
-ng-ui-vf-status-unverifiable = Nicht prüfbar
-ng-ui-vf-time = Signiert am { $time } (Angabe des Signierenden)
-ng-ui-vf-time-none = Ohne Angabe des Signaturzeitpunkts
-ng-ui-vf-qes = Qualifizierte elektronische Signatur laut Zertifikat
-ng-ui-vf-qc = Qualifiziertes Zertifikat ohne qualifizierte Signaturerstellungseinheit (laut Zertifikat)
-ng-ui-vf-not-qualified = Nicht qualifiziert (laut Zertifikat)
-ng-ui-vf-qual-unknown = Qualifikation nicht feststellbar
-ng-ui-vf-qual-hint = Angabe aus dem Zertifikat, nicht gegen die EU-Vertrauensliste geprüft.
-ng-ui-vf-whole = Dokument seit dieser Signatur unverändert
-ng-ui-vf-revision = Stand dieser Signatur unverändert
-ng-ui-vf-later =
-    Danach { $revisions ->
-        [one] eine weitere Revision
-       *[other] { $revisions } weitere Revisionen
-    }, { $signatures ->
-        [0] ohne weitere Signatur
-        [one] davon eine mit Signatur
-       *[other] davon { $signatures } mit Signatur
-    }
-ng-ui-vf-broken = Dokument nach dieser Signatur verändert oder Signatur beschädigt
-ng-ui-vf-unverifiable = Diese Signatur kann PIDA nicht prüfen
-ng-ui-vf-time-outside = Der angegebene Zeitpunkt liegt außerhalb der Gültigkeitsdauer des Zertifikats.
-ng-ui-vf-details = Zertifikatsdetails
-ng-ui-vf-cert-org = Organisation
-ng-ui-vf-cert-issuer = Aussteller
-ng-ui-vf-cert-serial = Seriennummer
-ng-ui-vf-cert-validity = Gültigkeitsdauer
-ng-ui-vf-cert-range = { $from } bis { $to }
-ng-ui-vf-cert-algorithm = Verfahren
-ng-ui-vf-cert-format = Format
-ng-ui-vf-cert-qualification = Qualifikation
-ng-ui-vf-cert-field = Signaturfeld
-ng-ui-vf-cert-appearance = Signaturbild
-ng-ui-vf-cert-page = Seite { $n }
-ng-ui-vf-cert-invisible = unsichtbar
-ng-ui-vf-cert-trust = Vertrauenskette
-ng-ui-vf-cert-trust-not-checked = Nicht geprüft
-ng-ui-vf-cert-code = Technischer Code
-ng-ui-vf-cert-unknown = unbekannt
-ng-ui-vf-format-pades = PAdES (ETSI.CAdES.detached)
-ng-ui-vf-format-pkcs7 = PKCS#7 (adbe.pkcs7.detached)
-ng-ui-vf-format-pkcs7-sha1 = PKCS#7 mit SHA-1 (adbe.pkcs7.sha1)
-ng-ui-vf-format-other = Anderes Format
-ng-ui-vf-show = Auf der Seite zeigen
-ng-ui-vf-shown = Signaturbild von { $name } auf Seite { $page } hervorgehoben.
-ng-ui-vf-sign = Dieses Dokument signieren
-ng-ui-vf-other = Anderes Dokument prüfen
-ng-ui-vf-exit = Prüfmodus verlassen
 
 ## Befehlspalette (⌘/Strg+K; die Befehle stehen in ui-workspace.ftl, Bereich shell)
 

@@ -7,8 +7,7 @@
       "settings": true,
       "show_batch": false,
       "sign": false,
-      "start_batch": true,
-      "verify": true
+      "start_batch": true
     },
     "batch": {
       "auto_position_once": true,
@@ -169,8 +168,7 @@
     },
     "step": {
       "step": "batch"
-    },
-    "verify": null
+    }
   },
   "batch_confirm_1": {
     "actions": {
@@ -180,8 +178,7 @@
       "settings": false,
       "show_batch": false,
       "sign": false,
-      "start_batch": false,
-      "verify": false
+      "start_batch": false
     },
     "batch": {
       "auto_position_once": true,
@@ -392,8 +389,7 @@
         }
       ],
       "step": "signing"
-    },
-    "verify": null
+    }
   },
   "batch_confirm_2": {
     "actions": {
@@ -403,8 +399,7 @@
       "settings": false,
       "show_batch": false,
       "sign": false,
-      "start_batch": false,
-      "verify": false
+      "start_batch": false
     },
     "batch": {
       "auto_position_once": true,
@@ -633,8 +628,7 @@
         }
       ],
       "step": "signing"
-    },
-    "verify": null
+    }
   },
   "batch_login": {
     "actions": {
@@ -644,8 +638,7 @@
       "settings": false,
       "show_batch": false,
       "sign": false,
-      "start_batch": false,
-      "verify": false
+      "start_batch": false
     },
     "batch": {
       "auto_position_once": true,
@@ -857,8 +850,7 @@
         }
       ],
       "step": "signing"
-    },
-    "verify": null
+    }
   },
   "batch_overview": {
     "actions": {
@@ -868,8 +860,7 @@
       "settings": true,
       "show_batch": false,
       "sign": false,
-      "start_batch": true,
-      "verify": true
+      "start_batch": true
     },
     "batch": {
       "auto_position_once": false,
@@ -1023,8 +1014,7 @@
     },
     "step": {
       "step": "batch"
-    },
-    "verify": null
+    }
   },
   "batch_overview_estimate": {
     "actions": {
@@ -1034,8 +1024,7 @@
       "settings": true,
       "show_batch": false,
       "sign": false,
-      "start_batch": true,
-      "verify": true
+      "start_batch": true
     },
     "batch": {
       "auto_position_once": false,
@@ -1196,8 +1185,7 @@
     },
     "step": {
       "step": "batch"
-    },
-    "verify": null
+    }
   },
   "batch_parked": {
     "actions": {
@@ -1207,8 +1195,7 @@
       "settings": true,
       "show_batch": false,
       "sign": false,
-      "start_batch": false,
-      "verify": true
+      "start_batch": false
     },
     "batch": null,
     "document": null,
@@ -1292,8 +1279,7 @@
     "step": {
       "queue": [],
       "step": "open"
-    },
-    "verify": null
+    }
   },
   "batch_paused_connection": {
     "actions": {
@@ -1303,8 +1289,7 @@
       "settings": false,
       "show_batch": false,
       "sign": false,
-      "start_batch": false,
-      "verify": false
+      "start_batch": false
     },
     "batch": {
       "auto_position_once": true,
@@ -1538,8 +1523,7 @@
         }
       ],
       "step": "signing"
-    },
-    "verify": null
+    }
   },
   "batch_summary": {
     "actions": {
@@ -1549,8 +1533,7 @@
       "settings": true,
       "show_batch": false,
       "sign": false,
-      "start_batch": false,
-      "verify": true
+      "start_batch": false
     },
     "batch": {
       "auto_position_once": false,
@@ -1773,7 +1756,6 @@
     },
     "step": {
       "step": "batch"
-    },
-    "verify": null
+    }
   }
 }

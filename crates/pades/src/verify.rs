@@ -1,11 +1,12 @@
-//! Prüfmodus (ADR 0004 §3.9): alle Signaturen eines Dokuments mit dem eigenen Verifier prüfen und die
-//! Angaben für die Anzeige liefern.
+//! Prüfung vorhandener Signaturen (entstanden für den Prüfmodus, ADR 0004 §3.9; dieser ist aus der App entfernt,
+//! Nachtrag 15 – die Bibliothek bleibt für Tests, Golden- und Interop-Tests): alle Signaturen eines Dokuments mit
+//! dem eigenen Verifier prüfen und die Angaben je Signatur liefern.
 //!
 //! Geprüft wird wie bei Vorsignaturen (Invariante I4, `cades::verify_detached` mit
 //! [`AlgorithmPolicy::PriorSignature`](pida_cades::AlgorithmPolicy)): message-digest über die
 //! ByteRange-Daten, Signaturwert, signing-certificate(-v2), falls vorhanden. **Nicht** geprüft werden
-//! Vertrauenskette, Sperrstatus und Vertrauensliste – der Prüfmodus behauptet deshalb nie
-//! „gültig“/„rechtsgültig“ (ADR 0004 §8 F3), sondern „unverändert und kryptografisch intakt“.
+//! Vertrauenskette, Sperrstatus und Vertrauensliste – ein Ergebnis heißt deshalb nie „gültig“/„rechtsgültig“
+//! (ADR 0004 §8 F3), sondern „unverändert und kryptografisch intakt“.
 //!
 //! | Befund | [`Integrity`] | Code |
 //! |---|---|---|

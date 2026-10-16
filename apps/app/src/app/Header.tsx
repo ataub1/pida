@@ -2,9 +2,9 @@
  * Kopfzeile (Gestalt aus dem Prototyp, ADR 0004 §3 „Informationsarchitektur“): Wortmarke (→ Start, ohne
  * „Prototyp“-Plakette), Dokumentkontext (Name, Seiten, Größe; aus dem Stapel geöffnet mit „Zurück zum
  * Stapel“; daneben „+ PDF“ mit „Weitere PDFs hinzufügen“ und „Anderes PDF öffnen“, Nachtrag 9) bzw.
- * Stapelkontext („Stapel · 4 Dokumente“) bzw. im Prüfmodus „Prüfmodus“ (ohne den Knopf „Prüfen“; die Wortmarke
- * verlässt ihn), „Prüfen“ (Freigabe `actions.verify`), „Befehle ⌘K“, DE/EN (`set_ui_language`),
- * Farbschema (lokal je Gerät) und Einstellungen (`actions.settings`).
+ * Stapelkontext („Stapel · 4 Dokumente“), „Befehle ⌘K“, DE/EN (`set_ui_language`), Farbschema (lokal je Gerät)
+ * und Einstellungen (`actions.settings`). Kein Knopf „Prüfen“: den Prüfmodus gibt es nicht mehr (ADR 0004
+ * Nachtrag 15).
  *
  * „Zur Startseite“ (Wortmarke, Haus-Symbol) schließt nichts: Der Kern parkt das offene Dokument bzw. den Stapel
  * (`go_home`, ADR 0004 Nachtrag 10), die Startansicht bietet „Weiter bearbeiten“ – deshalb ohne Rückfrage.
@@ -12,29 +12,25 @@
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
 import { isMobile } from '../core/types';
 import { PALETTE_AVAILABLE } from '../features/palette';
-import { VERIFY_AVAILABLE } from '../features/verify';
 import { AddPdfMenu } from '../features/workspace';
 import { formatSize } from '../features/workspace/placement';
 import { IconButton, Keys, Segmented, useModKey } from '../ui/controls';
-import { IconArrowLeft, IconCheck, IconFileText, IconHome, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconShieldCheck, IconSun } from '../ui/Icons';
+import { IconArrowLeft, IconCheck, IconFileText, IconHome, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconSun } from '../ui/Icons';
 import { Wordmark } from '../ui/Logo';
 import { batchNav, goHome } from './commands';
 import { useApp } from './context';
 import type { Theme } from './theme';
 
-export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (theme: Theme) => void; onVerify: () => void }) {
+export function Header({ theme, onTheme }: { theme: Theme; onTheme: (theme: Theme) => void }) {
   const { t, view, dispatch, openSettings, setOverlay } = useApp();
   const { mod } = useModKey();
   const doc = view.document;
   const mobile = isMobile(view);
   const themeIcon = theme === 'dark' ? <IconMoon size={18} /> : theme === 'light' ? <IconSun size={18} /> : <IconMonitor size={18} />;
-  // Prüfmodus (liegt über dem Zustand darunter): Kontext „Prüfmodus“ statt des verdeckten Dokuments wie im
-  // Prototyp; die Wortmarke führt wie dort zur Startansicht (Prüfmodus schließen, dann `go_home`)
-  const verify = VERIFY_AVAILABLE && view.verify !== null;
   const home = () => void goHome(view, dispatch);
   // Haus-Symbol (Wunsch des Auftraggebers): sichtbar, sobald man nicht auf der Startansicht ist; beim Signieren
   // und im Stapellauf gesperrt (`actions.home`). Offene Arbeit parkt der Kern, nichts geht verloren.
-  const awayFromStart = verify || !!view.document || !!view.batch;
+  const awayFromStart = !!view.document || !!view.batch;
   const pages = doc ? doc.doc.page_count : 0;
   const batch = view.batch;
   // aus dem Stapel geöffnet (`return_to_batch`) bzw. weitere Dokumente in der Warteschlange (`show_batch`)
@@ -50,14 +46,7 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
           <IconHome size={18} />
         </IconButton>
       ) : null}
-      {verify ? (
-        <div className="header-context">
-          <span className="header-doc">
-            <IconShieldCheck size={17} className="header-doc-icon" />
-            <span className="header-doc-name">{t.t('ng-ui-shell-verify-mode')}</span>
-          </span>
-        </div>
-      ) : doc && doc.phase !== 'done' ? (
+      {doc && doc.phase !== 'done' ? (
         <div className="header-context">
           {nav ? (
             <IconButton label={t.t(nav === 'back' ? 'ng-ui-batch-back' : 'ng-ui-batch-show')} onPress={() => void dispatch({ type: nav === 'back' ? 'back_to_batch' : 'show_batch' })}>
@@ -85,12 +74,6 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
       ) : null}
       <div className="header-spacer" />
       <div className="header-actions">
-        {verify ? null : (
-          <AriaButton className="btn btn-ghost btn-md header-verify" onPress={onVerify} isDisabled={!view.actions.verify} aria-label={t.t('ng-ui-shell-verify-long')}>
-            <IconShieldCheck size={18} />
-            <span className="hide-narrow">{t.t('ng-ui-shell-verify')}</span>
-          </AriaButton>
-        )}
         {PALETTE_AVAILABLE ? (
           <AriaButton className="command-button" onPress={() => setOverlay('palette')} aria-label={t.t('ng-ui-shell-commands-long')}>
             <IconSearch size={16} />

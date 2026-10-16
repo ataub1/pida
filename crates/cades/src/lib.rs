@@ -19,8 +19,8 @@
 //! Zusätzlich (additiv): [`LocalSigner`] (PKCS#8 → [`RawSigner`] für RSA PKCS#1 v1.5 und ECDSA
 //! P-256/384/521), [`verify_raw`] (Selbstprüfung einer Rohsignatur), [`pdfas_algorithm`] (exakte
 //! PDF-AS-Regel ohne die Abweichungen aus Plan §4.9), [`CmsWarning`], [`CmsError::code`],
-//! [`Certificate::from_pem_all`], [`qc_statements`] (qcStatements laut Zertifikat für den Prüfmodus,
-//! ADR 0004 §3.9).
+//! [`Certificate::from_pem_all`], [`qc_statements`] (qcStatements laut Zertifikat: Qualifikation auf „Fertig“
+//! und in `pades::verify_document`, ADR 0004 §3.7/§3.17).
 //!
 //! DER wird mit einem eigenen, kleinen Kodierer erzeugt und mit einem BER-toleranten TLV-Leser
 //! gelesen (`der_util`): Signiert und geprüft wird immer über die **Originalbytes** der

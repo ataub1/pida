@@ -19,17 +19,16 @@ use pida_backend_api::{
 };
 use pida_config::{NoteSetting, Settings};
 use pida_core_api::{
-    ActionsView, AppearanceView, BackendOptionView, BatchEstimateView, BatchItemStatusView, BatchItemView,
-    BatchOutputView, BatchPauseView, BatchSummaryView, BatchView, BlockView, CertificateSource, ConfirmMethod,
-    DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView,
-    ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis,
-    GuideKind, GuideView, InteractionView, KeystoreEntryView, KeystoreFormatView, KeystoreImportView, MainBarView,
-    MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, ParkedWorkView,
-    PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView,
-    PositionSummaryView, PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView,
-    RectPt, ResumeOfferView, SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity,
-    SignedSummaryView, SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent,
-    VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView, ViewState,
+    ActionsView, BackendOptionView, BatchEstimateView, BatchItemStatusView, BatchItemView, BatchOutputView,
+    BatchPauseView, BatchSummaryView, BatchView, BlockView, CertificateSource, ConfirmMethod, DocConstraintsView,
+    DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView, ErrorContextView,
+    ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis, GuideKind, GuideView,
+    InteractionView, KeystoreEntryView, KeystoreFormatView, KeystoreImportView, MainBarView, MigrationItemView,
+    MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, ParkedWorkView, PauseScope,
+    PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView, PositionSummaryView,
+    PriorStatusView, QrInfo, QrTargetView, QueueItemView, RecentItemView, RectPt, ResumeOfferView, SaveDialogView,
+    SettingsView, SignedSummaryView, SignerView, SignersView, SigningProgressView, SigningStage, StepView, UiEvent,
+    ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -64,7 +63,6 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         document: None,
         signers: SignersView::default(),
         batch: None,
-        verify: None,
         recent: None,
         first_run: None,
         actions: ActionsView::default(),
@@ -657,7 +655,6 @@ fn ws_actions(sign: bool) -> ActionsView {
         edit_placement: sign,
         start_batch: false,
         show_batch: true,
-        verify: !sign,
         settings: true,
         home: true,
     }
@@ -920,93 +917,6 @@ fn batch(mode: OutputModeView) -> BatchView {
     }
 }
 
-fn verified(
-    index: u32,
-    integrity: SignatureIntegrity,
-    coverage: SignatureCoverage,
-    qualification: QualificationClaim,
-    format: SignatureFormat,
-    appearance: Option<AppearanceView>,
-) -> VerifiedSignatureView {
-    VerifiedSignatureView {
-        index,
-        field_name: format!("Signatur{index}"),
-        signer: Some("Max Mustermann".into()),
-        organization: Some("Beispiel GmbH".into()),
-        issuer: Some("a-sign-premium-mobile-07".into()),
-        serial: Some("1234567890".into()),
-        cert_valid_from: Some("2025-01-01T00:00:00+00:00".into()),
-        cert_valid_to: Some("2030-01-01T00:00:00+00:00".into()),
-        signing_time: Some("2026-10-14T09:30:00+02:00".into()),
-        cert_valid_at_signing: Some(true),
-        integrity,
-        coverage,
-        qualification,
-        format,
-        digest: Some("SHA-256".into()),
-        algorithm: Some("ECDSA P-256".into()),
-        appearance,
-        warnings: Vec::new(),
-        trust: TrustCheck::NotChecked,
-    }
-}
-
-fn verify_view(status: VerifyStatus, summary: VerifySummaryView) -> VerifyView {
-    let mut sha1 = verified(
-        3,
-        SignatureIntegrity::Intact,
-        SignatureCoverage::WholeDocument,
-        QualificationClaim::Unknown,
-        SignatureFormat::Other,
-        None,
-    );
-    sha1.signer = None;
-    sha1.organization = None;
-    sha1.issuer = None;
-    sha1.serial = None;
-    sha1.cert_valid_from = None;
-    sha1.cert_valid_to = None;
-    sha1.signing_time = None;
-    sha1.cert_valid_at_signing = None;
-    sha1.digest = None;
-    sha1.algorithm = None;
-    sha1.warnings = vec!["ng-verify-warning-sha1".into()];
-    VerifyView {
-        file_name: "Vertrag_signed.pdf".into(),
-        status,
-        doc: Some(DocInfo { id: DocId(100), ..doc() }),
-        signatures: vec![
-            verified(
-                1,
-                SignatureIntegrity::Intact,
-                SignatureCoverage::Revision { later_revisions: 1, later_signatures: 1 },
-                QualificationClaim::Qualified { qscd: true },
-                SignatureFormat::Pades,
-                Some(AppearanceView { page: 1, rect: rect(297.5, 128.5, 530.0, 210.5) }),
-            ),
-            verified(
-                2,
-                SignatureIntegrity::Broken { code: "pades-byte-range-mismatch".into() },
-                SignatureCoverage::WholeDocument,
-                QualificationClaim::NotQualified,
-                SignatureFormat::Pkcs7Detached,
-                None,
-            ),
-            sha1,
-            verified(
-                4,
-                SignatureIntegrity::NotVerifiable { code: "pdf-signature-subfilter".into() },
-                SignatureCoverage::WholeDocument,
-                QualificationClaim::Qualified { qscd: false },
-                SignatureFormat::Pkcs7Sha1,
-                None,
-            ),
-        ],
-        summary,
-        revisions: 3,
-    }
-}
-
 fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     let mut out: Vec<(&'static str, ViewState)> = Vec::new();
     let position_bar = || bar(["AE", "A", "", ""], true);
@@ -1241,30 +1151,6 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         });
         v.signers = signers();
         v.actions = ActionsView { start_batch: true, ..ws_actions(false) };
-        out.push((name, v));
-    }
-
-    // Prüfmodus (jeder Ladezustand, jedes Gesamtergebnis)
-    for (name, status, summary) in [
-        ("ws_verify_loading", VerifyStatus::Loading, VerifySummaryView::NoSignatures),
-        (
-            "ws_verify_failed",
-            VerifyStatus::Failed { code: "ng-verify-open-failed".into() },
-            VerifySummaryView::NoSignatures,
-        ),
-        ("ws_verify_intact", VerifyStatus::Ready, VerifySummaryView::AllIntact),
-        ("ws_verify_broken", VerifyStatus::Ready, VerifySummaryView::SomeBroken),
-        ("ws_verify_not_verifiable", VerifyStatus::Ready, VerifySummaryView::SomeNotVerifiable),
-        ("ws_verify_modified", VerifyStatus::Ready, VerifySummaryView::ModifiedAfterLastSignature),
-    ] {
-        let mut v = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
-        let mut vv = verify_view(status, summary);
-        if summary == VerifySummaryView::NoSignatures {
-            vv.signatures = Vec::new();
-            vv.doc = None;
-            vv.revisions = 0;
-        }
-        v.verify = Some(vv);
         out.push((name, v));
     }
 

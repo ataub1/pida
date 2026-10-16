@@ -480,7 +480,7 @@ ng-settings-invalid-postfix = Der Dateinamenzusatz darf keine Pfadtrenner (/ ode
 ng-settings-proxy-host-missing = Für einen manuellen Proxy ist ein Host anzugeben.
 ng-settings-invalid-logo-size = Die Größe der Bildmarke muss größer als 0 und höchstens 120 mm sein.
 
-## Prüfung vorhandener Signaturen (`verify`) – Welle 2
+## Prüfung vorhandener Signaturen (`pida verify`, Entwickler-Werkzeug; die App hat keinen Prüfmodus, ADR 0004 Nachtrag 15) – Welle 2
 
 ng-verify-failed = Die Datei konnte nicht geprüft werden: { $detail }
 ng-verify-no-signature-dictionary = Signaturfeld ohne Signaturdaten.
@@ -636,11 +636,6 @@ ng-batch-aborted =
 ng-batch-paused = Der Stapel ist angehalten. Bitte entscheiden Sie, wie es weitergeht.
 ng-batch-large = { $count } Dokumente: Jedes Dokument wird einzeln in der App bestätigt.
 ng-batch-pending-app-request = Eine noch offene Anfrage in der App lehnen Sie bitte ab; vergleichen Sie immer den Vergleichswert.
-ng-verify-open-failed = Die Datei konnte nicht zum Prüfen geöffnet werden.
-ng-verify-busy = Während des Signierens kann kein Dokument geprüft werden.
-ng-verify-warning-sha1 = Die Signatur verwendet das veraltete Hashverfahren SHA-1; sie ist unverändert, gilt aber nach heutigem Stand nicht mehr als sicher.
-ng-verify-warning-signing-certificate-v1 = Die Signatur bindet ihr Zertifikat nur über das ältere Attribut „signing-certificate“ (SHA-1).
-ng-verify-warning-weak-key = Der Schlüssel dieser Signatur ist nach heutigem Stand zu kurz.
 ng-recent-missing = Die Datei ist nicht mehr am gespeicherten Ort.
 ng-recent-policy = „Zuletzt signiert“ ist von Ihrer Organisation abgeschaltet.
 ng-migration-item-block = Signaturbild (Profil, Sprache, Hinweistext)

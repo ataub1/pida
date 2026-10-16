@@ -82,7 +82,7 @@
 //! # Neue Oberfläche „Arbeitsbereich“ (ADR 0004, Vertrag E0)
 //!
 //! Alle Bridge-Typen und Ereignisse aus ADR 0004 §3 stehen additiv in `view.rs` (neue Felder mit
-//! `#[serde(default)]`, neue Varianten am Ende): [`ViewState::document`], `signers`, `batch`, `verify`,
+//! `#[serde(default)]`, neue Varianten am Ende): [`ViewState::document`], `signers`, `batch`,
 //! `recent`, `first_run`, `actions`; `StepView::Signing::progress`, `StepView::Error::context`,
 //! [`StepView::Batch`]; [`OutputView::summary`]; `SettingsView::{applied_revision, examples}`;
 //! [`MigrationOfferView::items`] sowie 23 neue [`UiEvent`]s (`set_invisible` … `offer_migration`).
@@ -126,14 +126,17 @@
 //! kommen mit `mode: add` bzw. ohne `mode` („Öffnen mit“, Hinweis) zum Stapel, `mode: replace` beginnt neu. Nichts
 //! davon öffnet eine Sitzung (A1).
 //!
-//! Prüfmodus (K4, ADR 0004 §3.9, `verify.rs`): `open_verify`/`verify_recent` prüfen eine Datei mit
-//! `pades::verify_document` (eigene `DocId` für die Kacheln, nicht in der Warteschlange, der Zustand bleibt),
-//! `close_verify` gibt sie frei, `sign_verified` öffnet sie wie `open_files`. Ersteinrichtung (K4, §3.12,
-//! `first_run.rs`): nur bei fehlender Einstellungsdatei, Übernahmeliste per Probelauf, Neuinstallation
-//! „neben dem Original“, `update_first_run`/`finish_first_run`/`offer_migration`. Keines dieser Ereignisse
-//! öffnet eine Sitzung. Im klassischen Ablauf (ohne `workspace_ui`) bleiben die Ereignisse des
-//! Arbeitsbereichs, des Prüfmodus und der Ersteinrichtung ohne Wirkung, ohne `batch_overview` die des
-//! Stapels.
+//! Ersteinrichtung (K4, §3.12, `first_run.rs`): nur bei fehlender Einstellungsdatei, Übernahmeliste per
+//! Probelauf, Neuinstallation „neben dem Original“, `update_first_run`/`finish_first_run`/`offer_migration`.
+//! Keines dieser Ereignisse öffnet eine Sitzung. Im klassischen Ablauf (ohne `workspace_ui`) bleiben die
+//! Ereignisse des Arbeitsbereichs und der Ersteinrichtung ohne Wirkung, ohne `batch_overview` die des Stapels.
+//!
+//! Kein Prüfmodus (ADR 0004 Nachtrag 15): Die App prüft keine fremden Signaturen mehr – wie PDF-Over verweist
+//! sie auf signaturpruefung.gv.at. Vorhandene Signaturen erkennt der Kern weiter beim Signieren
+//! ([`ExistingSignatureView`], Sperren, Zertifizierung). „Zuletzt signiert“ bietet, was „Fertig“ kann:
+//! `open_recent`, `reveal_recent` (Desktop), `share_recent` (Mobile) und `sign_recent` („Erneut signieren“ wie
+//! `open_files`); keines öffnet eine Sitzung. `pades::verify_document` bleibt als Bibliothek (Tests, Golden- und
+//! Interop-Tests); das Entwickler-Werkzeug `pida verify` prüft mit [`tools::verify_file`].
 //!
 //! Ownership: **Integration**.
 
@@ -159,7 +162,6 @@ pub mod testing;
 pub mod tools;
 #[cfg(feature = "ts")]
 pub mod ts;
-mod verify;
 mod view;
 mod workspace;
 
@@ -175,13 +177,12 @@ pub use view::{
 };
 // ADR 0004 (neue Oberfläche „Arbeitsbereich“, Vertrag E0)
 pub use view::{
-    ActionsView, AppearanceView, BatchEstimateView, BatchItemStatusView, BatchItemView, BatchOutputView,
-    BatchPauseView, BatchSummaryView, BatchView, CertificateSource, ConfirmMethod, DocConstraintsView, DocRefView,
-    DocumentPhase, DocumentView, ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldTargetView, FirstRunView,
-    GuideAxis, GuideKind, GuideView, MigrationItemView, OutputModeView, PageLayoutView, PauseScope, PlacementCheckView,
-    PlacementTarget, PositionSummaryView, PriorStatusView, QrTargetView, QualificationClaim, RecentItemView, RectPt,
-    SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView, SignerView, SignersView,
-    SigningProgressView, SigningStage, TrustCheck, VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView,
+    ActionsView, BatchEstimateView, BatchItemStatusView, BatchItemView, BatchOutputView, BatchPauseView,
+    BatchSummaryView, BatchView, CertificateSource, ConfirmMethod, DocConstraintsView, DocRefView, DocumentPhase,
+    DocumentView, ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldTargetView, FirstRunView, GuideAxis,
+    GuideKind, GuideView, MigrationItemView, OutputModeView, PageLayoutView, PauseScope, PlacementCheckView,
+    PlacementTarget, PositionSummaryView, PriorStatusView, QrTargetView, RecentItemView, RectPt, SignedSummaryView,
+    SignerView, SignersView, SigningProgressView, SigningStage,
 };
 // Nachtrag K3 (Einstellungen › Dokument)
 pub use view::{DocumentDetectionView, PdfaDecision, PdfaIdView};
@@ -413,7 +414,6 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         document: None,
         signers: SignersView::default(),
         batch: None,
-        verify: None,
         recent: None,
         first_run: None,
         actions: actions::actions_for(&pida_workflow::State::Starting, false),

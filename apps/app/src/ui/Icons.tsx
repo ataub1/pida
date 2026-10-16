@@ -372,3 +372,9 @@ export const IconStar = (p: IconProps) => (
     <path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" />
   </Icon>
 );
+/** Weitere Aktionen (Menü eines Listeneintrags, z. B. „Zuletzt signiert“). */
+export const IconMore = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth={3} />
+  </Icon>
+);

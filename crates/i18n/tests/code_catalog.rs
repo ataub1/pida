@@ -658,7 +658,7 @@ fn translate_calls_use_existing_ids() {
 /// Später bewusst entfernte IDs der Welle-2-Liste (die Liste bleibt als Bericht unverändert), entfernt am
 /// 15.10.2026: der Abschnitt „Position“ der Positionierung (manuelle Koordinaten in mm/pt, Seitenfeld) und
 /// der blockierende Datenschutzdialog samt CLI-Rückfrage (ADR 0003); am 17.10.2026 der Wortlaut „gültig“/„ungültig“
-/// von `pida verify` (jetzt `ng-cli-verify-*`). Sie dürfen nicht mehr im Katalog stehen.
+/// von `pida verify` (jetzt `ng-cli-verify-*`, ADR 0004 Nachtrag 15). Sie dürfen nicht mehr im Katalog stehen.
 const RETIRED_WAVE2_IDS: &[&str] = &[
     "ng-ui-unit",
     "ng-ui-position-coordinates",

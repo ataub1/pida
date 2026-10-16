@@ -939,7 +939,7 @@ async fn home_parks_the_document_and_resume_brings_it_back_unchanged() {
     let v = start_with_parked(&core).await;
     let p = parked(&v).unwrap();
     assert_eq!((p.doc_name.as_deref(), p.documents, p.placed_by_hand, p.unsaved), (Some("a.pdf"), 1, true, false));
-    assert!(!v.actions.sign && !v.actions.edit_placement && v.actions.open_files && v.actions.verify);
+    assert!(!v.actions.sign && !v.actions.edit_placement && v.actions.open_files);
     assert!(v.done.is_empty(), "nichts verworfen");
     // verdeckt: „Signieren“ (⌘↵ bzw. Palette) bleibt ohne Wirkung
     core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
@@ -1005,6 +1005,50 @@ async fn files_while_parked_join_the_batch_or_replace_it() {
     for name in ["a.pdf", "b.pdf", "c.pdf"] {
         assert!(v.done.iter().any(|d| d.name == name && d.result == pida_workflow::DocResult::Cancelled), "{name}");
     }
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
+/// „Erneut signieren“ aus „Zuletzt signiert“ (ADR 0004 Nachtrag 15) bei geparkter Arbeit wie „Öffnen“: nach der
+/// Rückfrage „Zum Stapel hinzufügen“ (`mode: add`) bildet die Datei mit dem geparkten Dokument den Stapel, „Offene
+/// schließen und neu beginnen“ (`mode: replace`) verwirft ihn. Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn sign_recent_while_parked_joins_or_replaces_like_open_files() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf", "Vertrag_signed.pdf"]);
+    let store = pida_config::RecentStore::new(&fx.paths);
+    let entry = store
+        .push(pida_config::RecentEntry {
+            id: 0,
+            file_name: "Vertrag_signed.pdf".into(),
+            path: files[1].clone(),
+            signed_at: "2026-10-16T10:00:00+02:00".into(),
+        })
+        .unwrap();
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(vec![files[0].clone()], &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich a", |v| v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf")).await;
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    assert!(v.recent.as_ref().is_some_and(|r| r.iter().any(|i| i.id == entry.id && i.exists)));
+    // „Zum Stapel hinzufügen“
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: Some(pida_core_api::OpenFilesMode::Add) });
+    let v = overview_ready(&core, 2).await;
+    assert!(v.parked.is_none());
+    let a = batch(&v).items.iter().find(|i| i.name == "a.pdf").unwrap();
+    assert_eq!(a.position, PositionSummaryView::Invisible, "Plan des geparkten Dokuments bleibt");
+    assert!(batch(&v).items.iter().any(|i| i.name == "Vertrag_signed.pdf"));
+    // „Offene schließen und neu beginnen“: der Stapel wird verworfen, die Datei öffnet im Arbeitsbereich
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: Some(pida_core_api::OpenFilesMode::Replace) });
+    let v =
+        wait_for(&core, "Arbeitsbereich", |v| v.document.as_ref().is_some_and(|d| d.doc.name == "Vertrag_signed.pdf"))
+            .await;
+    assert!(v.batch.is_none() && v.parked.is_none());
+    assert!(v.done.iter().any(|d| d.name == "a.pdf" && d.result == pida_workflow::DocResult::Cancelled));
     assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
 }
 

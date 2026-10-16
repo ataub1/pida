@@ -67,8 +67,6 @@ pub(crate) enum Msg {
         page: usize,
         grid: Option<Arc<pida_placement::OccupancyGrid>>,
     },
-    /// Prüfmodus: Datei geladen und geprüft (ADR 0004 §3.9; verworfen, wenn inzwischen eine andere geprüft wird)
-    Verified(Box<crate::verify::Verified>),
     /// Voranalyse eines Stapeleintrags fertig (ADR 0004 §3.8) samt Miniatur
     Preanalyzed {
         doc: DocId,
@@ -168,10 +166,6 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::StartBatch { .. } => "start_batch",
         UiEvent::SkipBatchDocument => "skip_batch_document",
         UiEvent::AbortBatch => "abort_batch",
-        UiEvent::OpenVerify { .. } => "open_verify",
-        UiEvent::VerifyRecent { .. } => "verify_recent",
-        UiEvent::CloseVerify => "close_verify",
-        UiEvent::SignVerified => "sign_verified",
         UiEvent::RemoveRecent { .. } => "remove_recent",
         UiEvent::ClearRecent => "clear_recent",
         UiEvent::ApplySettings { .. } => "apply_settings",
@@ -185,6 +179,10 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::GoHome => "go_home",
         UiEvent::ResumeParked => "resume_parked",
         UiEvent::DiscardParked => "discard_parked",
+        UiEvent::OpenRecent { .. } => "open_recent",
+        UiEvent::RevealRecent { .. } => "reveal_recent",
+        UiEvent::ShareRecent { .. } => "share_recent",
+        UiEvent::SignRecent { .. } => "sign_recent",
     }
 }
 
@@ -316,7 +314,7 @@ impl Shared {
         let _ = self.tx.send(msg);
     }
 
-    fn shell(&self) -> Option<Arc<dyn ShellHooks>> {
+    pub(crate) fn shell(&self) -> Option<Arc<dyn ShellHooks>> {
         lock(&self.shell).clone()
     }
 
@@ -459,8 +457,6 @@ pub(crate) struct CoreTask {
     pub(crate) recent: crate::recent::RecentState,
     /// QR-Platzhaltersuchen (Einstellungen › Dokument, K3)
     qr_searches: QrSearches,
-    /// Prüfmodus (ADR 0004 §3.9, K4)
-    pub(crate) verify: crate::verify::VerifyState,
     /// Einstellungen › Keystore: Format, Einträge für die Alias-Auswahl (Nachtrag ADR 0004)
     pub(crate) keystore_info: crate::keystore_info::KeystoreInfo,
 }
@@ -551,16 +547,8 @@ impl CoreTask {
             block_change: None,
             recent: crate::recent::RecentState::new(&paths),
             qr_searches: QrSearches::default(),
-            verify: crate::verify::VerifyState::default(),
             keystore_info: crate::keystore_info::KeystoreInfo::default(),
         }
-    }
-
-    /// Nächste freie `DocId` (Warteschlange und Prüfdokumente teilen den Zähler).
-    pub(crate) fn allocate_doc_id(&mut self) -> DocId {
-        let id = DocId(self.next_doc);
-        self.next_doc += 1;
-        id
     }
 
     /// [`Self::refresh_ctx`] für die Module des Kern-Tasks.
@@ -985,7 +973,6 @@ impl CoreTask {
         self.settings_view = None;
         // eine abgebrochene Übernahme (`apply_settings`) darf spätere Vorschauen nicht unterdrücken
         self.block_change = None;
-        self.release_verify();
         self.cancel_session();
         let error = WorkflowError::Unexpected("Programmfehler".into());
         let mut queue = self.state.queue().cloned().unwrap_or_default();
@@ -1051,7 +1038,6 @@ impl CoreTask {
             Msg::Refresh => self.on_interaction_changed(),
             Msg::BackendEvent(e) => self.on_backend_event(e),
             Msg::GridReady { doc, page, grid } => self.on_grid_ready(doc, page, grid),
-            Msg::Verified(v) => self.on_verified(*v),
             Msg::Preanalyzed { doc, result, thumb } => {
                 self.preanalysis.finished(doc);
                 let known = self.state.queue().and_then(|q| q.batch.as_ref()).is_some_and(|b| b.item(doc).is_some());
@@ -2141,7 +2127,8 @@ impl CoreTask {
         });
     }
 
-    fn effect_open_result(&mut self, path: &Path) {
+    /// Datei mit der Standardanwendung öffnen (Ergebnis, „Zuletzt signiert“); Fehler als Hinweis.
+    pub(crate) fn effect_open_result(&mut self, path: &Path) {
         let result = match self.shared.shell() {
             Some(shell) => shell.open_path(path),
             None => Err("keine Shell".into()),
@@ -2155,7 +2142,7 @@ impl CoreTask {
     }
 
     /// Ergebnis teilen (Mobile, Share-Sheet); im Hintergrund, Fehler als Hinweis.
-    fn effect_share(&mut self, path: PathBuf) {
+    pub(crate) fn effect_share(&mut self, path: PathBuf) {
         let Some(shell) = self.shared.shell() else {
             self.notify("ng-share-failed", BTreeMap::new());
             return;
@@ -2227,24 +2214,25 @@ impl CoreTask {
     // UI-Ereignisse
     // --------------------------------------------------------------------------------------------
 
+    /// Dateien öffnen (`open_files`, „Erneut signieren“ aus „Zuletzt signiert“): nicht vorhandene Pfade fallen weg
+    /// (F-12). Liefert, ob mindestens eine Datei übergeben wurde.
+    pub(crate) fn open_paths(&mut self, paths: &[PathBuf], mode: Option<crate::view::OpenFilesMode>) -> bool {
+        let docs = self.input_documents(paths);
+        if docs.is_empty() {
+            return false;
+        }
+        // „+ PDF“ (ADR 0004 Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ im Zustand bedeutet, entscheidet der
+        // Reducer; im klassischen Ablauf ohne Bedeutung
+        self.apply(match mode.filter(|_| self.ws.enabled) {
+            None => Event::FilesAdded(docs),
+            Some(crate::view::OpenFilesMode::Add) => Event::MoreFilesAdded(docs),
+            Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
+        });
+        true
+    }
+
     pub(crate) fn on_ui(&mut self, event: UiEvent) {
         tracing::debug!(event = ui_event_kind(&event), "UI");
-        // Prüfmodus offen (ADR 0004 §3.9, Merge E4): das Dokument darunter ist verdeckt – „Signieren“ bzw.
-        // „Alle signieren“ wirken erst nach dem Verlassen (F-54: keine Sitzung für ein Dokument, das die
-        // Nutzerin gerade nicht sieht; die Freigaben `sign`/`start_batch` sind dann aus)
-        if self.verify_open()
-            && matches!(
-                event,
-                UiEvent::SignWith { .. }
-                    | UiEvent::StartBatch { .. }
-                    | UiEvent::ConfirmPosition
-                    | UiEvent::ChooseInvisible
-                    | UiEvent::ChooseBackend { .. }
-            )
-        {
-            tracing::debug!(event = ui_event_kind(&event), "Prüfmodus offen – ignoriert");
-            return;
-        }
         // geparkte Arbeit (ADR 0004 Nachtrag 10): die Startansicht verdeckt sie – nichts daran signieren oder
         // verschieben (F-54); der Reducer lässt diese Ereignisse ohnehin ohne Wirkung, hier bleiben auch Auswahl
         // und Klemmhinweis unberührt
@@ -2265,19 +2253,7 @@ impl CoreTask {
         }
         match event {
             UiEvent::OpenFiles { paths, mode } => {
-                let docs = self.input_documents(&paths);
-                if !docs.is_empty() {
-                    // Öffnen zeigt die Datei im Arbeitsbereich: ein offener Prüfmodus schließt (sonst läge sie
-                    // verdeckt darunter)
-                    self.release_verify();
-                    // „+ PDF“ (ADR 0004 Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ im Zustand bedeutet,
-                    // entscheidet der Reducer; im klassischen Ablauf ohne Bedeutung
-                    self.apply(match mode.filter(|_| self.ws.enabled) {
-                        None => Event::FilesAdded(docs),
-                        Some(crate::view::OpenFilesMode::Add) => Event::MoreFilesAdded(docs),
-                        Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
-                    });
-                }
+                self.open_paths(&paths, mode);
             }
             UiEvent::AnswerWarning { proceed } => self.apply(Event::WarningAnswered(proceed)),
             UiEvent::PlaceholderAnswer { answer, field_index } => {
@@ -2531,12 +2507,11 @@ impl CoreTask {
             // ADR 0004 §3.10 (K3): „Zuletzt signiert“
             UiEvent::RemoveRecent { id } => self.remove_recent(id),
             UiEvent::ClearRecent => self.clear_recent(),
-            UiEvent::VerifyRecent { id } => self.verify_recent(id),
-            // ADR 0004 §3.9 (K4): Prüfmodus (nur Arbeitsbereich; ändert den Workflow-Zustand nicht, außer
-            // „Dieses Dokument signieren“ = Öffnen wie `open_files`)
-            UiEvent::OpenVerify { path } if self.ws.enabled => self.open_verify(path),
-            UiEvent::CloseVerify if self.ws.enabled => self.close_verify(),
-            UiEvent::SignVerified if self.ws.enabled => self.sign_verified(),
+            // Nachtrag 15: „Zuletzt signiert“ bietet, was „Fertig“ kann (statt des entfernten Prüfmodus)
+            UiEvent::OpenRecent { id } => self.open_recent(id),
+            UiEvent::RevealRecent { id } => self.reveal_recent(id),
+            UiEvent::ShareRecent { id } => self.share_recent(id),
+            UiEvent::SignRecent { id, mode } => self.sign_recent(id, mode),
             // ADR 0004 §3.12 (K4): Ersteinrichtung und erneutes Übernahmeangebot (Einstellungen › Erweitert)
             UiEvent::UpdateFirstRun { default_backend, profile, block_language } if self.ws.enabled => {
                 self.update_first_run(default_backend, profile, block_language);
@@ -2546,12 +2521,9 @@ impl CoreTask {
             // Einstellung „Automatische Positionierung“: „Diesmal selbst platzieren“ (Nachtrag 8) – nur dieses
             // Dokument, startet nichts (A1)
             UiEvent::UnlockPlacement if self.ws.enabled => self.apply(Event::PlacementUnlocked),
-            // „Zur Startseite“ (Nachtrag 10): Prüfmodus schließen, dann parkt der Reducer offene Arbeit (im
-            // klassischen Ablauf wie `navigate{Open}`); Fortsetzen und Verwerfen nur im Arbeitsbereich-Modus
-            UiEvent::GoHome => {
-                self.release_verify();
-                self.apply(Event::WentHome);
-            }
+            // „Zur Startseite“ (Nachtrag 10): der Reducer parkt offene Arbeit (im klassischen Ablauf wie
+            // `navigate{Open}`); Fortsetzen und Verwerfen nur im Arbeitsbereich-Modus
+            UiEvent::GoHome => self.apply(Event::WentHome),
             UiEvent::ResumeParked if self.ws.enabled => self.apply(Event::ParkedResumed),
             UiEvent::DiscardParked if self.ws.enabled => self.apply(Event::ParkedDiscarded),
             // ADR 0004: im klassischen Ablauf ohne Wirkung die Ereignisse des Arbeitsbereichs, ohne
@@ -2568,9 +2540,6 @@ impl CoreTask {
             | UiEvent::StartBatch { .. }
             | UiEvent::SkipBatchDocument
             | UiEvent::AbortBatch
-            | UiEvent::OpenVerify { .. }
-            | UiEvent::CloseVerify
-            | UiEvent::SignVerified
             | UiEvent::UpdateFirstRun { .. }
             | UiEvent::FinishFirstRun
             | UiEvent::OfferMigration
@@ -3084,23 +3053,12 @@ impl CoreTask {
         if self.ws.enabled {
             // Arbeitsbereich: keine Hauptleiste Positionieren/Signieren; „Signieren“ nur mit zulässiger Platzierung
             actions.sign = actions.sign && crate::actions::workspace_sign_allowed(shown);
-        } else {
-            // Prüfmodus nur in der neuen Oberfläche (ADR 0004 §3.9; klassischer Ablauf unverändert, §3.0 Regel 7)
-            actions.verify = false;
         }
         if self.ctx.batch() {
             // Stapel (ADR 0004 §3.13): „Alle signieren“ mit mindestens einem signierbaren Eintrag,
             // „Zur Stapelübersicht“ aus einem Einzeldokument mit weiteren Dokumenten
             actions.start_batch = crate::actions::batch_start_allowed(shown);
             actions.show_batch = crate::actions::batch_show_allowed(shown);
-        }
-        if self.verify_open() {
-            // Prüfmodus über dem Arbeitsbereich bzw. der Stapelübersicht (Merge E4): das Dokument darunter ist
-            // verdeckt – nichts daran signieren oder bearbeiten, bis der Prüfmodus verlassen ist
-            actions.sign = false;
-            actions.edit_placement = false;
-            actions.start_batch = false;
-            actions.show_batch = false;
         }
         let done = self
             .state
@@ -3133,11 +3091,10 @@ impl CoreTask {
             }),
             keystore_import: self.keystore_import.clone(),
             privacy_text: self.cfg.privacy_text(),
-            // ADR 0004: K1 document, signers (Arbeitsbereich), K2 batch, K3 recent, K4 verify, first_run
+            // ADR 0004: K1 document, signers (Arbeitsbereich), K2 batch, K3 recent, K4 first_run
             document: if parked { None } else { self.document_view() },
             signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
             batch: if parked { None } else { self.batch_view() },
-            verify: self.verify_view(),
             recent: self.recent_view(),
             first_run: self.first_run_view(),
             actions,

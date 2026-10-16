@@ -18,7 +18,7 @@ function parkedStart(parked: Partial<ParkedWorkView> = {}) {
   return viewOf(
     { step: 'open', queue: [] },
     {
-      actions: { ...noActions(), open_files: true, settings: true, home: true, verify: true },
+      actions: { ...noActions(), open_files: true, settings: true, home: true },
       parked: { doc_name: 'Vertrag.pdf', documents: 1, placed_by_hand: false, unsaved: false, ...parked },
     },
   );

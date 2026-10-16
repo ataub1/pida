@@ -1,5 +1,6 @@
 //! Shell-Funktionen für den Kern ([`pida_core_api::ShellHooks`]): Ergebnis mit der
-//! Standardanwendung öffnen (F-87), „Signaturdaten anzeigen“ im Systembrowser (F-68), das
+//! Standardanwendung öffnen (F-87) bzw. – „Zuletzt signiert“ › „Im Ordner zeigen“ (ADR 0004 Nachtrag 15) – im
+//! Dateimanager zeigen wie `reveal_output`, „Signaturdaten anzeigen“ im Systembrowser (F-68), das
 //! Elternfenster für modale Systemdialoge (Windows-Hello/FIDO2 über `webauthn.dll`) und auf Mobile
 //! Teilen/Exportieren über das Plugin `pida-mobile` (Share-Sheet, Dokument-Picker bzw. SAF).
 //!
@@ -99,6 +100,16 @@ impl<R: Runtime> ShellHooks for TauriHooks<R> {
             return Err("keine Datei".into());
         }
         self.app.pida_mobile().export_file(path, file_name, crate::mobile::PDF_MIME).map_err(|e| e.code().to_owned())
+    }
+
+    /// Wie der Command `reveal_output` (Finder bzw. Explorer); auf Mobilgeräten meldet `opener` „nicht unterstützt“
+    /// (der Kern ruft es dort nicht auf).
+    fn reveal_path(&self, path: &Path) -> Result<(), String> {
+        use tauri_plugin_opener::OpenerExt;
+        if !path.is_file() {
+            return Err("keine Datei".into());
+        }
+        self.app.opener().reveal_item_in_dir(path).map_err(|e| opener_error_kind(&e))
     }
 }
 

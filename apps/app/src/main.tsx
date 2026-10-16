@@ -28,8 +28,8 @@ async function bridge(): Promise<Bridge> {
 }
 
 /**
- * Browser-Vorschau (ADR 0004 §4.8): `?scenario=start|blank|contract|field|signed|batch|verify|
- * error-password|error-atrust` wie im Prototyp, `&platform=ios|android` (Mobile-Oberfläche), `&flow=app|sms|
+ * Browser-Vorschau (ADR 0004 §4.8): `?scenario=start|blank|contract|field|signed|batch|error-password|
+ * error-atrust` wie im Prototyp (ohne dessen Prüfmodus, ADR 0004 Nachtrag 15), `&platform=ios|android` (Mobile-Oberfläche), `&flow=app|sms|
  * qr|fido2|decline|timeout` (Antwort von ID Austria nach der Anmeldung), `&resume=1` (Angebot „Signatur
  * fortsetzen“), `&lang=en`, `&examples=1` (Beispiele der späteren Etappen). Stapel (ADR 0004 §3.8):
  * `&batch=0` (ohne Stapelübersicht), `&search=0|1` (Platzhaltersuche; im Szenario `batch` an), `&kind=fields`

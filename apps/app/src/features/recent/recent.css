@@ -1,5 +1,5 @@
 /* „Zuletzt signiert“ (Paket UI-B): Liste und Karte aus `features/start/start.css` (Prototyp), hier nur
-   Entfernen-Knopf und fehlende Dateien. */
+   Aktionsmenü, Entfernen-Knopf und fehlende Dateien. */
 .recent-card {
   justify-items: stretch;
 }
@@ -13,6 +13,7 @@
   flex: 1;
   min-width: 0;
 }
+.recent-more,
 .recent-remove {
   flex: none;
   color: var(--c-text-3);
@@ -22,4 +23,9 @@
 }
 .recent-missing {
   color: var(--c-warning-on-soft);
+}
+/* Aktionsmenü: „Erneut signieren“ gesperrt, solange nichts geöffnet werden kann (`actions.open_files`) */
+.recent-menu .menu-item[data-disabled] {
+  cursor: default;
+  opacity: 0.5;
 }

@@ -64,7 +64,7 @@ describe('Kataloge', () => {
   it('keine doppelten IDs zwischen den Katalogen einer Sprache; ui-*.ftl nur mit eigenen Bereichen', () => {
     const areas: Record<string, string[]> = {
       'ui-workspace.ftl': ['shell', 'start', 'ws', 'insp', 'sc', 'fin', 'batch'],
-      'ui-tools.ftl': ['set', 'vf', 'pal', 'sh', 'ob', 'recent'],
+      'ui-tools.ftl': ['set', 'pal', 'sh', 'ob', 'recent'],
     };
     for (const lang of ['de', 'en'] as const) {
       const seen = new Map<string, string>();

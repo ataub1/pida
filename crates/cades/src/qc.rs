@@ -1,5 +1,5 @@
-//! qcStatements eines Zertifikats (RFC 3739 §3.2.6, ETSI EN 319 412-5) für den Prüfmodus
-//! (ADR 0004 §3.9).
+//! qcStatements eines Zertifikats (RFC 3739 §3.2.6, ETSI EN 319 412-5) für die Qualifikation „laut Zertifikat“
+//! (Fertig-Ansicht, `pades::verify_document`; ADR 0004 §3.7/§3.17).
 //!
 //! Ausgewertet werden nur die Angaben **im Zertifikat**: `QcCompliance` (0.4.0.1862.1.1, „qualifiziertes
 //! Zertifikat“), `QcSSCD` (0.4.0.1862.1.4, privater Schlüssel in einer qualifizierten

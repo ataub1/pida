@@ -391,7 +391,6 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         document: None,
         signers: pida_core_api::SignersView::default(),
         batch: None,
-        verify: None,
         recent: None,
         first_run: None,
         actions: pida_core_api::ActionsView::default(),

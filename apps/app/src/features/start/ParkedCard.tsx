@@ -7,16 +7,17 @@
  *   unverändert) und ein kleines „Schließen“ (`discard_parked`; signierte Dateien bleiben). Verwirft „Schließen“
  *   Arbeit der Nutzerin – eigene Platzierung, Stapel mit mehreren Dokumenten, signiert und nicht gespeichert –,
  *   fragt es kurz nach (Standard „Abbrechen“).
- * - Rückfrage beim Wählen bzw. Ablegen neuer PDFs (`ParkedJoinDialog`, von der Shell geöffnet): Standard „Zum Stapel
- *   hinzufügen“ (`open_files { mode: 'add' }`), „Offene schließen und neu beginnen“ (`mode: 'replace'`), Abbrechen
- *   ändert nichts. „Öffnen mit“ bzw. eine zweite Instanz fragen nicht – der Kern fügt hinzu und meldet es.
+ * - Rückfrage beim Wählen bzw. Ablegen neuer PDFs und bei „Erneut signieren“ aus „Zuletzt signiert“
+ *   (`ParkedJoinDialog`, von der Shell geöffnet): Standard „Zum Stapel hinzufügen“ (`open_files { mode: 'add' }` bzw.
+ *   `sign_recent { mode: 'add' }`), „Offene schließen und neu beginnen“ (`mode: 'replace'`), Abbrechen ändert nichts.
+ *   „Öffnen mit“ bzw. eine zweite Instanz fragen nicht – der Kern fügt hinzu und meldet es.
  *
  * Was „hinzufügen“, „fortsetzen“ und „verwerfen“ bedeutet, entscheidet der Kern (§6.4); die Rückfrage liest nur
  * seine Angaben (`placed_by_hand`, `documents`, `unsaved`).
  */
 import { useId, useState } from 'react';
 import { useApp } from '../../app/context';
-import type { ParkedWorkView } from '../../core/types';
+import type { ParkedWorkView, UiEvent } from '../../core/types';
 import type { Translator } from '../../i18n/catalog';
 import { Button } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
@@ -96,19 +97,25 @@ export function ParkedCard({ parked }: { parked: ParkedWorkView }) {
 }
 
 /**
- * Rückfrage, wenn bei geparkter Arbeit neue PDFs gewählt bzw. abgelegt werden: Standard „Zum Stapel hinzufügen“,
- * „Offene schließen und neu beginnen“, Abbrechen (auch Escape) ändert nichts.
+ * Was bei geparkter Arbeit dazukommen soll: gewählte bzw. abgelegte PDFs (`paths`) oder die Datei eines Eintrags aus
+ * „Zuletzt signiert“ („Erneut signieren“, `recentId`; den Pfad kennt nur der Kern).
  */
-export function ParkedJoinDialog({ parked, paths, onClose }: { parked: ParkedWorkView; paths: string[]; onClose: () => void }) {
+export type JoinRequest = { paths: string[] } | { recentId: number };
+
+/**
+ * Rückfrage, wenn bei geparkter Arbeit neue PDFs gewählt bzw. abgelegt werden oder ein zuletzt signiertes Dokument
+ * erneut signiert werden soll: Standard „Zum Stapel hinzufügen“, „Offene schließen und neu beginnen“, Abbrechen (auch
+ * Escape) ändert nichts.
+ */
+export function ParkedJoinDialog({ parked, request, onClose }: { parked: ParkedWorkView; request: JoinRequest; onClose: () => void }) {
   const { t, dispatch } = useApp();
+  const count = 'paths' in request ? request.paths.length : 1;
   const open = (mode: 'add' | 'replace') => {
     onClose();
-    void dispatch({ type: 'open_files', paths, mode });
+    const event: UiEvent = 'paths' in request ? { type: 'open_files', paths: request.paths, mode } : { type: 'sign_recent', id: request.recentId, mode };
+    void dispatch(event);
   };
-  const text =
-    parked.doc_name === null
-      ? t.t('ng-ui-start-join-text-batch', { count: paths.length })
-      : t.t('ng-ui-start-join-text', { name: parked.doc_name, count: paths.length });
+  const text = parked.doc_name === null ? t.t('ng-ui-start-join-text-batch', { count }) : t.t('ng-ui-start-join-text', { name: parked.doc_name, count });
   return (
     <ConfirmDialog
       title={t.t('ng-ui-start-join-title')}

@@ -1,7 +1,7 @@
 /**
  * Start/Leerzustand (Gestalt aus dem Prototyp, ADR 0004 §2.1): große Ablagefläche, „PDF auswählen“,
- * daneben der Slot „Zuletzt signiert“ (Paket UI-B, `RecentPanel`) und der Hinweis auf den Prüfmodus (erst,
- * wenn der Kern ihn freigibt). Die Ablagefläche ist nur optisch: Dateien kommen über die
+ * daneben der Slot „Zuletzt signiert“ (Paket UI-B, `RecentPanel`; ohne Liste eine Spalte). Einen Prüfmodus gibt
+ * es nicht (ADR 0004 Nachtrag 15). Die Ablagefläche ist nur optisch: Dateien kommen über die
  * Fenster-Ereignisse der Shell (Pfade, `bridge.onFileDrag`); hervorgehoben wird sie beim Ziehen
  * (`dragActive`). Die Oberfläche filtert nicht nach Endung – der Kern meldet Nicht-PDFs.
  *
@@ -13,19 +13,18 @@
  */
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
-import { AccessButton, Button, Keys, useModKey } from '../../ui/controls';
-import { IconLock, IconShieldCheck, IconUpload } from '../../ui/Icons';
+import { AccessButton, Keys, useModKey } from '../../ui/controls';
+import { IconLock, IconUpload } from '../../ui/Icons';
 import { RECENT_AVAILABLE, RecentPanel } from '../recent';
 import { ParkedCard } from './ParkedCard';
 import './start.css';
 
-export function StartView({ onVerify }: { onVerify: () => void }) {
+export function StartView() {
   const { t, view, dragActive, browse } = useApp();
   const { mod } = useModKey();
   const mobile = isMobile(view);
   const showRecent = RECENT_AVAILABLE && view.recent !== null;
-  const showVerify = view.actions.verify;
-  const single = !showRecent && !showVerify;
+  const single = !showRecent;
   return (
     <div className={`start-view${single ? ' is-single' : ''}`}>
       <div className="start-main">
@@ -66,19 +65,7 @@ export function StartView({ onVerify }: { onVerify: () => void }) {
 
       {single ? null : (
         <aside className="start-side" aria-label={t.t('ng-ui-start-side')}>
-          {showRecent ? <RecentPanel items={view.recent} /> : null}
-          {showVerify ? (
-            <section className="side-card side-card-verify">
-              <span className="side-icon" aria-hidden="true">
-                <IconShieldCheck size={22} />
-              </span>
-              <h2 className="side-title">{t.t('ng-ui-start-verify-title')}</h2>
-              <p className="muted">{t.t('ng-ui-start-verify-text')}</p>
-              <Button variant="secondary" onPress={onVerify}>
-                {t.t('ng-ui-start-verify-button')}
-              </Button>
-            </section>
-          ) : null}
+          <RecentPanel items={view.recent} />
         </aside>
       )}
     </div>

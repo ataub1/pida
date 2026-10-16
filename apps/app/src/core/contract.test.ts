@@ -303,37 +303,6 @@ const batchView = obj({
   manual_plans: int,
 });
 
-const verifyView = obj({
-  file_name: str,
-  status: tagged('state', { loading: {}, ready: {}, failed: { code: str } }),
-  doc: nullable(docInfo),
-  signatures: arr(
-    obj({
-      index: int,
-      field_name: str,
-      signer: nullable(str),
-      organization: nullable(str),
-      issuer: nullable(str),
-      serial: nullable(str),
-      cert_valid_from: nullable(str),
-      cert_valid_to: nullable(str),
-      signing_time: nullable(str),
-      cert_valid_at_signing: nullable(bool),
-      integrity: tagged('kind', { intact: {}, broken: { code: str }, not_verifiable: { code: str } }),
-      coverage: tagged('kind', { whole_document: {}, revision: { later_revisions: int, later_signatures: int } }),
-      qualification: tagged('kind', { qualified: { qscd: bool }, not_qualified: {}, unknown: {} }),
-      format: lit('pades', 'pkcs7_detached', 'pkcs7_sha1', 'other'),
-      digest: nullable(str),
-      algorithm: nullable(str),
-      appearance: nullable(obj({ page: int, rect: rectPt })),
-      warnings: arr(str),
-      trust: lit('not_checked'),
-    }),
-  ),
-  summary: lit('no_signatures', 'all_intact', 'some_broken', 'some_not_verifiable', 'modified_after_last_signature'),
-  revisions: int,
-});
-
 const migrationOffer = obj({ legacy_file: str, plaintext_secrets: bool, items: arr(obj({ code: str, detail: nullable(str) })) });
 
 const firstRun = obj({
@@ -350,7 +319,6 @@ const actions = obj({
   edit_placement: bool,
   start_batch: bool,
   show_batch: bool,
-  verify: bool,
   settings: bool,
   home: bool,
 });
@@ -482,7 +450,6 @@ const viewState = obj({
   document: nullable(documentView),
   signers: signersView,
   batch: nullable(batchView),
-  verify: nullable(verifyView),
   recent: nullable(arr(obj({ id: int, file_name: str, folder_display: nullable(str), signed_at: str, exists: bool }))),
   first_run: nullable(firstRun),
   actions,
@@ -551,10 +518,6 @@ const uiEvent = tagged('type', {
   start_batch: { backend: backendId, docs: arr(int), output_dir: nullable(str), on_existing: lit('overwrite', 'keep_both', 'skip') },
   skip_batch_document: {},
   abort_batch: {},
-  open_verify: { path: str },
-  verify_recent: { id: int },
-  close_verify: {},
-  sign_verified: {},
   remove_recent: { id: int },
   clear_recent: {},
   apply_settings: { changes: record(unknownValue), revision: int },
@@ -570,6 +533,11 @@ const uiEvent = tagged('type', {
   go_home: {},
   resume_parked: {},
   discard_parked: {},
+  // Nachtrag 15: „Zuletzt signiert“ statt des entfernten Prüfmodus (`mode` in TS optional, wie `open_files`)
+  open_recent: { id: int },
+  reveal_recent: { id: int },
+  share_recent: { id: int },
+  sign_recent: { id: int, mode: omittable(lit('add', 'replace')) },
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -623,7 +591,6 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     const docs = views.flatMap((v) => (v.document ? [v.document] : []));
     const progress = views.flatMap((v) => (v.step.step === 'signing' ? [v.step.progress] : []));
     const items = views.flatMap((v) => v.batch?.items ?? []);
-    const sigs = views.flatMap((v) => v.verify?.signatures ?? []);
     const sorted = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => typeof x === 'string'))].sort();
     expect(sorted(docs.map((d) => d.phase))).toEqual(['done', 'editing', 'signing', 'warning']);
     expect(sorted(docs.map((d) => d.origin))).toEqual(['auto', 'field', 'qr', 'user']);
@@ -639,13 +606,9 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     expect(sorted(items.map((i) => i.status.state))).toHaveLength(11);
     expect(sorted(items.map((i) => i.position.kind))).toEqual(['auto', 'field', 'invisible', 'manual', 'qr']);
     expect(sorted(views.map((v) => v.batch?.output.mode))).toEqual(['app_documents', 'ask', 'folder', 'next_to_source']);
-    expect(sorted(views.map((v) => v.verify?.status.state))).toEqual(['failed', 'loading', 'ready']);
-    expect(sorted(views.map((v) => v.verify?.summary))).toHaveLength(5);
-    expect(sorted(sigs.map((s) => s.integrity.kind))).toEqual(['broken', 'intact', 'not_verifiable']);
-    expect(sorted(sigs.map((s) => s.coverage.kind))).toEqual(['revision', 'whole_document']);
-    expect(sorted(sigs.map((s) => s.qualification.kind))).toEqual(['not_qualified', 'qualified', 'unknown']);
-    expect(sorted(sigs.map((s) => s.format))).toEqual(['other', 'pades', 'pkcs7_detached', 'pkcs7_sha1']);
     expect(views.some((v) => (v.recent?.length ?? 0) > 0)).toBe(true);
+    // Nachtrag 15: kein Prüfmodus mehr – weder Ansicht noch Freigabe im Vertrag
+    expect(views.every((v) => !('verify' in v) && !('verify' in v.actions))).toBe(true);
     expect(views.some((v) => (v.first_run?.migration?.items.length ?? 0) === 8)).toBe(true);
     expect(views.some((v) => v.signers.options.length > 0 && v.actions.sign)).toBe(true);
     expect(views.some((v) => v.settings !== null && Object.keys(v.settings.examples).length > 0)).toBe(true);
@@ -672,8 +635,8 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     const error = at('error');
     expect(error.step.step === 'error' ? error.step.context : null).toEqual(defaultErrorContext());
     const starting = at('starting');
-    const { document, signers, batch, verify, recent, first_run, actions } = starting;
-    expect({ document, signers, batch, verify, recent, first_run, actions }).toEqual(workspaceDefaults());
+    const { document, signers, batch, recent, first_run, actions } = starting;
+    expect({ document, signers, batch, recent, first_run, actions }).toEqual(workspaceDefaults());
   });
 
   it('unbekannte Einstellungen stehen auf oberster Ebene (flatten)', () => {
@@ -699,7 +662,6 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         document: null,
         signers: { options: [], selected: null, default: null },
         batch: null,
-        verify: null,
         recent: null,
         first_run: null,
         actions: {
@@ -708,7 +670,6 @@ describe('Vertrag ViewState (Rust → TS)', () => {
           edit_placement: false,
           start_batch: false,
           show_batch: false,
-          verify: false,
           settings: true,
           home: true,
         },
@@ -720,8 +681,9 @@ describe('Vertrag ViewState (Rust → TS)', () => {
   });
 });
 
-// K4 (ADR 0004 §6.2 Punkt 4): Zustände des echten Kerns (Prüfmodus, Ersteinrichtung) für die Oberfläche (B4);
-// erzeugt von `PIDA_BLESS=1 cargo test -p pida-core-api --test verify real_core_tools_views`.
+// K4 (ADR 0004 §6.2 Punkt 4): Zustände des echten Kerns (Ersteinrichtung; die des Prüfmodus sind mit ihm entfallen,
+// Nachtrag 15) für die Oberfläche (B4); erzeugt von `PIDA_BLESS=1 cargo test -p pida-core-api --test first_run
+// real_core_tools_views`.
 describe('Zustände des echten Kerns passen zum Vertrag', () => {
   const load = (name: string) => Object.entries(JSON.parse(readFileSync(fixtureUrl(name), 'utf8')) as Record<string, unknown>);
 
@@ -731,24 +693,9 @@ describe('Zustände des echten Kerns passen zum Vertrag', () => {
     expect(validate(viewState, view)).toEqual([]);
   });
 
-  it('Prüfmodus und Ersteinrichtung: jede Zusammenfassung, Integrität, QES laut Zertifikat, Lage, Übernahmeliste', () => {
+  it('Ersteinrichtung: Übernahmeliste, nach der Übernahme; kein Prüfmodus (Nachtrag 15)', () => {
     const views = load('real-core-tools-views.json').map(([, v]) => v as ViewState);
-    const sigs = views.flatMap((v) => v.verify?.signatures ?? []);
-    const sorted = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => typeof x === 'string'))].sort();
-    expect(sorted(views.map((v) => v.verify?.summary))).toEqual([
-      'all_intact',
-      'modified_after_last_signature',
-      'no_signatures',
-      'some_broken',
-      'some_not_verifiable',
-    ]);
-    expect(sorted(views.map((v) => v.verify?.status.state))).toEqual(['failed', 'ready']);
-    expect(sorted(sigs.map((s) => s.integrity.kind))).toEqual(['broken', 'intact', 'not_verifiable']);
-    expect(sorted(sigs.map((s) => s.coverage.kind))).toEqual(['revision', 'whole_document']);
-    expect(sorted(sigs.map((s) => s.qualification.kind))).toEqual(['not_qualified', 'qualified']);
-    expect(sorted(sigs.flatMap((s) => s.warnings))).toEqual(['ng-verify-warning-sha1', 'ng-verify-warning-signing-certificate-v1']);
-    expect(sigs.some((s) => s.appearance === null)).toBe(true);
-    expect(sigs.every((s) => s.trust === 'not_checked')).toBe(true);
+    expect(views.every((v) => !('verify' in v) && !('verify' in v.actions))).toBe(true);
     const items = views.flatMap((v) => v.first_run?.migration?.items ?? []);
     expect(items.map((i) => i.code.replace('ng-migration-item-', ''))).toEqual([
       'block',
@@ -772,7 +719,9 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
   });
 
   // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 26 davon aus ADR 0004
-  // (23 aus E0, `inspect_keystore` aus Nachtrag 7, `unlock_placement` und `set_batch_auto_position` aus Nachtrag 8)
+  // (19 aus E0 – ohne die vier des entfernten Prüfmodus –, `inspect_keystore` aus Nachtrag 7, `unlock_placement` und
+  // `set_batch_auto_position` aus Nachtrag 8, `open_recent`/`reveal_recent`/`share_recent`/`sign_recent` aus
+  // Nachtrag 15)
   it('alle 63 Varianten sind vertreten', () => {
     expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(63);
   });

@@ -8,20 +8,27 @@
 //!   Kern die Liste **sofort** samt Datei und schreibt nichts mehr; `ViewState::recent = None`.
 //! - `exists` prüft der Kern beim Projizieren mit Cache (höchstens alle [`EXISTS_TTL`] bzw. nach jeder
 //!   Änderung der Liste).
-//! - `VerifyRecent` auf eine fehlende Datei → Hinweis `ng-recent-missing`, der Eintrag bleibt (Entfernen ist
-//!   eine ausdrückliche Aktion); sonst öffnet er den Prüfmodus (K4).
+//! - Ein Eintrag bietet, was „Fertig“ kann (ADR 0004 Nachtrag 15, statt des entfernten Prüfmodus): `OpenRecent`
+//!   (Standardanwendung, Mobile: Vorschau), `RevealRecent` (nur Desktop: Finder bzw. Explorer), `ShareRecent`
+//!   (nur Mobile: Share-Sheet) und `SignRecent` („Erneut signieren“ wie `open_files`, nur mit
+//!   `actions.open_files`). Keines öffnet eine Sitzung (A1). Auf eine fehlende Datei → Hinweis
+//!   `ng-recent-missing`, der Eintrag bleibt (Entfernen ist eine ausdrückliche Aktion).
+//! - Gespeichert bleibt das Format von K3 (`recent.json`: `id`, `file_name`, `path`, `signed_at`); ältere Listen
+//!   werden unverändert gelesen.
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::collections::{BTreeMap, HashMap};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use pida_config::{Paths, RecentEntry, RecentStore};
 
 use crate::runtime::CoreTask;
-use crate::view::RecentItemView;
+use crate::view::{OpenFilesMode, RecentItemView};
 
 /// Meldungs-ID: Datei eines Eintrags nicht mehr vorhanden.
 pub(crate) const MSG_RECENT_MISSING: &str = "ng-recent-missing";
+/// Meldungs-ID: „Im Ordner zeigen“ fehlgeschlagen.
+const MSG_OPEN_FAILED: &str = "ng-ui-open-failed";
 
 /// Gültigkeit der Existenzprüfung.
 pub(crate) const EXISTS_TTL: Duration = Duration::from_secs(2);
@@ -132,20 +139,68 @@ impl CoreTask {
         self.recent.exists.clear();
     }
 
-    /// Eintrag prüfen (`VerifyRecent`): fehlt die Datei → Hinweis, der Eintrag bleibt; sonst Prüfmodus
-    /// (ADR 0004 §3.9).
-    pub(crate) fn verify_recent(&mut self, id: u64) {
-        let Some(entry) = self.recent.entries.iter().find(|e| e.id == id).cloned() else {
-            tracing::debug!(id, "verify_recent: unbekannter Eintrag");
-            return;
+    /// Datei eines Eintrags für eine Aktion: fehlt sie → Hinweis `ng-recent-missing`, der Eintrag bleibt (die
+    /// Existenz wird dabei neu vermerkt); unbekannte Kennung → nichts.
+    fn recent_file(&mut self, id: u64, action: &'static str) -> Option<PathBuf> {
+        let Some(path) = self.recent.entries.iter().find(|e| e.id == id).map(|e| e.path.clone()) else {
+            tracing::debug!(id, action, "„Zuletzt signiert“: unbekannter Eintrag");
+            return None;
         };
-        let exists = entry.path.is_file();
+        let exists = path.is_file();
         self.recent.exists.insert(id, exists);
         if !exists {
             self.notify_code(MSG_RECENT_MISSING);
+            return None;
+        }
+        Some(path)
+    }
+
+    /// `OpenRecent`: mit der Standardanwendung öffnen (Mobile: Vorschau) – wie `open_result`.
+    pub(crate) fn open_recent(&mut self, id: u64) {
+        if let Some(path) = self.recent_file(id, "open_recent") {
+            self.effect_open_result(&path);
+        }
+    }
+
+    /// `RevealRecent`: im Finder bzw. Explorer zeigen (nur Desktop; Fehler als Hinweis `ng-ui-open-failed`).
+    pub(crate) fn reveal_recent(&mut self, id: u64) {
+        if !self.mobile.platform.is_desktop() {
+            tracing::debug!("reveal_recent nur auf dem Desktop");
             return;
         }
-        self.verify_recent_path(entry.path);
+        let Some(path) = self.recent_file(id, "reveal_recent") else { return };
+        let result = match self.shared.shell() {
+            Some(shell) => shell.reveal_path(&path),
+            None => Err("keine Shell".into()),
+        };
+        if let Err(e) = result {
+            tracing::warn!(error = %e, "Datei konnte nicht im Ordner gezeigt werden");
+            self.notify(MSG_OPEN_FAILED, BTreeMap::new());
+        }
+    }
+
+    /// `ShareRecent`: teilen (nur Mobile, Share-Sheet) – wie `share_result`.
+    pub(crate) fn share_recent(&mut self, id: u64) {
+        if self.mobile.platform.is_desktop() {
+            tracing::debug!("share_recent nur auf Mobilgeräten");
+            return;
+        }
+        if let Some(path) = self.recent_file(id, "share_recent") {
+            self.effect_share(path);
+        }
+    }
+
+    /// `SignRecent` („Erneut signieren“): die Datei öffnen wie `open_files` – nur mit `actions.open_files`; öffnet
+    /// keine Sitzung (A1).
+    pub(crate) fn sign_recent(&mut self, id: u64, mode: Option<OpenFilesMode>) {
+        let actions = crate::actions::actions_for(&self.state, self.state.settings_enabled());
+        if !actions.open_files {
+            tracing::debug!(state = self.state.name(), "sign_recent: Öffnen gerade nicht möglich");
+            return;
+        }
+        if let Some(path) = self.recent_file(id, "sign_recent") {
+            self.open_paths(std::slice::from_ref(&path), mode);
+        }
     }
 
     /// Existenz der Dateien höchstens alle [`EXISTS_TTL`] neu prüfen (`force` = sofort).

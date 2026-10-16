@@ -194,3 +194,55 @@ async fn real_engine_certificate_cache_mismatch_is_caught_and_retried() {
         Some(std::fs::read(testdata("keystores/test-rsa2048.crt.der")).unwrap().as_slice())
     );
 }
+
+/// „Fertig“ nennt die Qualifikation laut Zertifikat (qcStatements des Signerzertifikats, ADR 0004 §3.7): das
+/// RSA-Testzertifikat ohne qcStatements ergibt AdES, das QES-Testzertifikat (QcCompliance + QcSSCD) QES – auch mit
+/// dem Keystore, dessen Fähigkeiten AdES melden. Das Ergebnis der echten Engine erkennt das Entwickler-Werkzeug
+/// `pida verify` (`tools::verify_file`) als intakt; einen Prüfmodus hat die App nicht mehr (ADR 0004 Nachtrag 15).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn done_summary_names_the_qualification_from_the_certificate() {
+    for (keystore, name, qualification, signer) in [
+        (
+            "keystores/test-rsa2048.p12",
+            "Vertrag",
+            pida_backend_api::Qualification::AdES,
+            "PDF-Over NG Test RSA (NUR TEST)",
+        ),
+        (
+            "verify/keys/test-qes-ecp256.p12",
+            "Bescheid",
+            pida_backend_api::Qualification::Qes,
+            "PIDA Test QES P-256 (NUR TEST)",
+        ),
+    ] {
+        let fx = Fixture::new();
+        fx.write_settings("[general]\n");
+        let out = fx.dir("out");
+        let a = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &fx.dir("in"), &format!("{name}.pdf"));
+        let overlay = Overlay {
+            input_files: vec![a],
+            keystore_file: Some(testdata(keystore)),
+            keystore_store_password: Some(Zeroizing::new("test".into())),
+            output: Some(out.clone()),
+            ..Overlay::default()
+        };
+        let opts = CoreOptions { workspace_ui: Some(true), ..CoreOptions::isolated() };
+        let core = pida_core_api::Core::new_with(fx.config(overlay, false), opts).expect("Kern startet");
+        wait_for(&core, "Arbeitsbereich", |v| v.document.is_some() && matches!(v.step, StepView::Position { .. }))
+            .await;
+        core.dispatch(UiEvent::SignWith { backend: pida_backend_api::BackendId::Keystore });
+        let v = wait_for(
+            &core,
+            "gespeichert",
+            |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some() && result.summary.is_some()),
+        )
+        .await;
+        let StepView::Output { result, .. } = &v.step else { unreachable!() };
+        let summary = result.summary.clone().unwrap();
+        assert_eq!(summary.qualification, qualification, "{keystore}");
+        assert_eq!(summary.signer.as_deref(), Some(signer), "{keystore}");
+        let checks = pida_core_api::tools::verify_file(&out.join(format!("{name}_signed.pdf"))).expect("lesbar");
+        assert!(checks.len() == 1 && checks[0].intact, "{keystore}: {checks:?}");
+        assert_eq!(checks[0].signer.as_deref(), Some(signer));
+    }
+}

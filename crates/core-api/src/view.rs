@@ -513,9 +513,6 @@ pub struct ViewState {
     /// Stapel (nur mit `batch_overview`, ADR 0004 §3.8); ab K2, bis dahin `None`
     #[serde(default)]
     pub batch: Option<BatchView>,
-    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9; nur im Arbeitsbereich)
-    #[serde(default)]
-    pub verify: Option<VerifyView>,
     /// „Zuletzt signiert“ (neueste zuerst, höchstens zehn); `None` = Funktion abgeschaltet (Einstellung,
     /// Richtlinie) bzw. ohne Oberfläche (ADR 0004 §3.10)
     #[serde(default)]
@@ -843,21 +840,6 @@ pub enum UiEvent {
     SkipBatchDocument,
     /// Stapel abbrechen (Sitzung abbrechen, F-72; `cancel` im Lauf bedeutet dasselbe; §3.8)
     AbortBatch,
-    /// Datei im Prüfmodus prüfen (Dialog/Drop; §3.9)
-    OpenVerify {
-        /// Datei
-        path: PathBuf,
-    },
-    /// Eintrag aus „Zuletzt signiert“ prüfen (§3.9)
-    VerifyRecent {
-        /// Kennung ([`RecentItemView::id`])
-        id: u64,
-    },
-    /// Prüfmodus schließen (§3.9)
-    CloseVerify,
-    /// „Dieses Dokument signieren“ (Gegenzeichnen): Prüfmodus schließen, Datei öffnen wie `open_files`
-    /// (§3.9)
-    SignVerified,
     /// Eintrag aus „Zuletzt signiert“ entfernen (§3.10)
     RemoveRecent {
         /// Kennung
@@ -927,8 +909,8 @@ pub enum UiEvent {
         #[serde(default)]
         replace_manual: bool,
     },
-    /// „Zur Startseite“ (Haus-Symbol, Wortmarke, Palette; ADR 0004 Nachtrag 10): schließt einen offenen Prüfmodus
-    /// und parkt das offene Dokument (mit Platzierung) bzw. den Stapel, statt sie zu verwerfen (`ViewState::parked`).
+    /// „Zur Startseite“ (Haus-Symbol, Wortmarke, Palette; ADR 0004 Nachtrag 10): parkt das offene Dokument (mit
+    /// Platzierung) bzw. den Stapel, statt sie zu verwerfen (`ViewState::parked`).
     /// Beim Signieren und im Stapellauf ohne Wirkung (`actions.home`). Startet **nichts** (A1).
     GoHome,
     /// „Weiter bearbeiten“ (Karte „In Bearbeitung“): geparkte Arbeit unverändert fortsetzen. Startet **nichts**.
@@ -936,6 +918,36 @@ pub enum UiEvent {
     /// „Schließen“ (Karte „In Bearbeitung“): geparkte Arbeit verwerfen (Dokumente „abgebrochen“; signierte Dateien
     /// bleiben). Startet **nichts**.
     DiscardParked,
+    /// „Zuletzt signiert“ › „Öffnen“ (ADR 0004 Nachtrag 15): die Datei des Eintrags mit der Standardanwendung
+    /// öffnen, auf Mobilgeräten als Vorschau (QuickLook bzw. `ACTION_VIEW`) – wie `open_result` auf „Fertig“.
+    /// Fehlt die Datei: Hinweis `ng-recent-missing`, der Eintrag bleibt. Startet **nichts** (A1).
+    OpenRecent {
+        /// Kennung ([`RecentItemView::id`])
+        id: u64,
+    },
+    /// „Zuletzt signiert“ › „Im Ordner zeigen“ (Desktop: Finder bzw. Explorer; Nachtrag 15) – wie auf „Fertig“.
+    /// Auf Mobilgeräten ohne Wirkung. Startet **nichts** (A1).
+    RevealRecent {
+        /// Kennung ([`RecentItemView::id`])
+        id: u64,
+    },
+    /// „Zuletzt signiert“ › „Teilen“ (Mobile: Share-Sheet bzw. `ACTION_SEND`; Nachtrag 15) – wie `share_result`.
+    /// Auf dem Desktop ohne Wirkung. Startet **nichts** (A1).
+    ShareRecent {
+        /// Kennung ([`RecentItemView::id`])
+        id: u64,
+    },
+    /// „Zuletzt signiert“ › „Erneut signieren“ (Nachtrag 15): die Datei des Eintrags öffnen wie `open_files` (nur
+    /// mit `actions.open_files`); `mode` wie dort, z. B. nach der Rückfrage bei geparkter Arbeit. Öffnet **keine**
+    /// Sitzung (A1) – signiert wird erst mit „Signieren“.
+    SignRecent {
+        /// Kennung ([`RecentItemView::id`])
+        id: u64,
+        /// wie [`UiEvent::OpenFiles`] (`None` = der Kern entscheidet nach dem Zustand). In TypeScript optional.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
+        mode: Option<OpenFilesMode>,
+    },
 }
 
 impl std::fmt::Debug for UiEvent {
@@ -967,7 +979,6 @@ impl std::fmt::Debug for UiEvent {
                 .field("paths", &format_args!("<{} Pfade>", paths.len()))
                 .field("mode", mode)
                 .finish(),
-            UiEvent::OpenVerify { .. } => f.debug_struct("OpenVerify").field("path", &"<Pfad>").finish(),
             UiEvent::StartBatch { backend, docs, output_dir, on_existing } => f
                 .debug_struct("StartBatch")
                 .field("backend", backend)
@@ -1841,199 +1852,6 @@ pub struct BatchView {
     pub manual_plans: u32,
 }
 
-// --- §3.9 Prüfmodus -----------------------------------------------------------------------------
-
-/// Ladezustand des Prüfmodus (§3.9).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "state", rename_all = "snake_case")]
-pub enum VerifyStatus {
-    /// wird geladen
-    Loading,
-    /// geprüft
-    Ready,
-    /// nicht prüfbar (z. B. `ng-verify-open-failed`)
-    Failed {
-        /// Code
-        code: String,
-    },
-}
-
-/// Gesamtergebnis (§3.9; Wortlaut §8 F3 – PIDA behauptet nie Rechtsgültigkeit).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum VerifySummaryView {
-    /// keine Signaturen
-    NoSignatures,
-    /// alle unverändert und kryptografisch intakt
-    AllIntact,
-    /// mindestens eine verändert/ungültig
-    SomeBroken,
-    /// keine verletzt, aber mindestens eine nicht prüfbar
-    SomeNotVerifiable,
-    /// alle intakt, aber die Datei wurde nach der letzten Signatur noch ergänzt oder geändert
-    ModifiedAfterLastSignature,
-}
-
-/// Integrität einer Signatur (§3.9).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum SignatureIntegrity {
-    /// unverändert und kryptografisch intakt
-    Intact,
-    /// verändert bzw. ungültig
-    Broken {
-        /// Code
-        code: String,
-    },
-    /// nicht prüfbar
-    NotVerifiable {
-        /// Code
-        code: String,
-    },
-}
-
-/// Abdeckung einer Signatur (§3.9).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum SignatureCoverage {
-    /// ganze Datei
-    WholeDocument,
-    /// eine frühere Revision
-    Revision {
-        /// spätere Revisionen
-        later_revisions: u32,
-        /// Signaturen in späteren Revisionen
-        later_signatures: u32,
-    },
-}
-
-/// Qualifikation **laut Zertifikat** (qcStatements; nicht gegen die EU-Vertrauensliste geprüft; §3.9).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum QualificationClaim {
-    /// QcCompliance (0.4.0.1862.1.1); `qscd` = QcSSCD (0.4.0.1862.1.4)
-    Qualified {
-        /// qualifizierte Signaturerstellungseinheit laut Zertifikat
-        qscd: bool,
-    },
-    /// nicht qualifiziert
-    NotQualified,
-    /// unbekannt
-    Unknown,
-}
-
-/// Format einer Signatur (`/SubFilter`; §3.9).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SignatureFormat {
-    /// `ETSI.CAdES.detached`
-    Pades,
-    /// `adbe.pkcs7.detached`
-    Pkcs7Detached,
-    /// `adbe.pkcs7.sha1` (immer nicht prüfbar)
-    Pkcs7Sha1,
-    /// sonstiges (u. a. Dokument-Zeitstempel `ETSI.RFC3161`)
-    Other,
-}
-
-/// Lage eines Signaturbilds (`PAGE_ABS`; §3.9).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct AppearanceView {
-    /// Seite
-    pub page: usize,
-    /// Rechteck
-    pub rect: RectPt,
-}
-
-/// Prüfung von Vertrauenskette und Sperrstatus (§3.9): in v1 nie (Hinweis auf signaturpruefung.gv.at).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TrustCheck {
-    /// nicht geprüft
-    #[default]
-    NotChecked,
-}
-
-/// Eine geprüfte Signatur (§3.9).
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct VerifiedSignatureView {
-    /// 1-basiert in Dokumentreihenfolge
-    pub index: u32,
-    /// Feldname
-    pub field_name: String,
-    /// CN des Unterzeichners
-    pub signer: Option<String>,
-    /// O des Subjects
-    pub organization: Option<String>,
-    /// CN des Ausstellers
-    pub issuer: Option<String>,
-    /// Seriennummer (dezimal)
-    pub serial: Option<String>,
-    /// Gültigkeit des Zertifikats ab (RFC 3339)
-    pub cert_valid_from: Option<String>,
-    /// Gültigkeit des Zertifikats bis (RFC 3339)
-    pub cert_valid_to: Option<String>,
-    /// Angabe des Signierenden (`signing-time`), kein geprüfter Zeitstempel
-    pub signing_time: Option<String>,
-    /// Zertifikat zum angegebenen Zeitpunkt gültig
-    pub cert_valid_at_signing: Option<bool>,
-    /// Integrität
-    pub integrity: SignatureIntegrity,
-    /// Abdeckung
-    pub coverage: SignatureCoverage,
-    /// Qualifikation laut Zertifikat
-    pub qualification: QualificationClaim,
-    /// Format
-    pub format: SignatureFormat,
-    /// Hashverfahren, z. B. „SHA-256“
-    pub digest: Option<String>,
-    /// Signaturverfahren, z. B. „ECDSA P-256“
-    pub algorithm: Option<String>,
-    /// Signaturbild (`None` = unsichtbar)
-    pub appearance: Option<AppearanceView>,
-    /// Hinweise zu einer intakten Signatur (i18n-IDs): `ng-verify-warning-sha1`,
-    /// `ng-verify-warning-signing-certificate-v1`, `ng-verify-warning-weak-key`
-    pub warnings: Vec<String>,
-    /// Vertrauenskette/Sperrstatus (in v1 immer `not_checked`)
-    pub trust: TrustCheck,
-}
-
-// Feldnamen sind Dokumentinhalt (wie `pades::SignatureVerification`), der Aussteller eines selbstsignierten
-// Zertifikats (Keystore) ist der Unterzeichner selbst – beides nicht im Log
-redacted_debug!(VerifiedSignatureView {
-    index, cert_valid_from, cert_valid_to, signing_time, cert_valid_at_signing, integrity,
-    coverage, qualification, format, digest, algorithm, appearance, warnings, trust,
-} redact { field_name, signer, organization, issuer, serial });
-
-/// Prüfmodus (§3.9) – liegt über dem Workflow-Zustand.
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct VerifyView {
-    /// Dateiname
-    pub file_name: String,
-    /// Ladezustand
-    pub status: VerifyStatus,
-    /// für Kacheln über `pida-render://page/<doc.id>/<page>` (eigene `DocId`, nicht in der Warteschlange)
-    pub doc: Option<DocInfo>,
-    /// Signaturen
-    pub signatures: Vec<VerifiedSignatureView>,
-    /// Gesamtergebnis
-    pub summary: VerifySummaryView,
-    /// Revisionen der Datei
-    pub revisions: u32,
-}
-
-redacted_debug!(VerifyView { status, signatures, summary, revisions } redact { file_name, doc });
-
 // --- §3.10 Zuletzt signiert ---------------------------------------------------------------------
 
 /// Eintrag „Zuletzt signiert“ (§3.10; gespeichert werden nur Dateiname, Pfad und Zeitpunkt).
@@ -2093,8 +1911,7 @@ redacted_debug!(FirstRunView { default_backend, profile, block_language, preview
 // --- §3.13 Freigaben ----------------------------------------------------------------------------
 
 /// Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (§3.13), berechnet aus dem Zustand
-/// (`actions::actions_for`). Bei offenem Prüfmodus (`ViewState::verify`) sind `sign`, `edit_placement`,
-/// `start_batch` und `show_batch` aus: das Dokument darunter ist verdeckt (Nachtrag 6).
+/// (`actions::actions_for`).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ActionsView {
@@ -2108,8 +1925,6 @@ pub struct ActionsView {
     pub start_batch: bool,
     /// weitere Dokumente in der Warteschlange (`show_batch`)
     pub show_batch: bool,
-    /// `open_verify` erlaubt
-    pub verify: bool,
     /// Einstellungen erreichbar (= `main_bar.settings_enabled`)
     pub settings: bool,
     /// „Zur Startseite“ (`go_home`; Fertig: `navigate{Open}`) erlaubt
@@ -2229,7 +2044,6 @@ mod tests {
             ParkedWorkView { doc_name: Some(file.clone()), documents: 1, placed_by_hand: true, unsaved: false };
         assert_redacted(format!("{parked:?}"));
         // Ereignisse mit Pfaden bzw. Einstellungswerten
-        assert_redacted(format!("{:?}", UiEvent::OpenVerify { path: format!("{SECRET_DIR}/{file}").into() }));
         assert_redacted(format!(
             "{:?}",
             UiEvent::StartBatch {

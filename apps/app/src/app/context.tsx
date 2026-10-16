@@ -63,6 +63,11 @@ export interface AppContextValue {
    * (eine Datei); was daraus folgt, entscheidet der Kern.
    */
   browse: (mode?: OpenFilesMode) => Promise<void>;
+  /**
+   * „Erneut signieren“ aus „Zuletzt signiert“ (ADR 0004 Nachtrag 15): öffnet die Datei des Eintrags wie „Öffnen“
+   * (`sign_recent`); bei geparkter Arbeit fragt die Shell vorher wie bei neuen PDFs (`ParkedJoinDialog`).
+   */
+  signRecent: (id: number) => void;
   /** offenes Shell-Overlay (Palette, Kürzel) */
   overlay: ShellOverlay;
   setOverlay: (overlay: ShellOverlay) => void;

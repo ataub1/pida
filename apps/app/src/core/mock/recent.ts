@@ -4,12 +4,15 @@
  * Einträge, neueste zuerst; neue Einträge kommen über das Signal `signed` (nur Dateiname, Ordner, Zeitpunkt –
  * kein Signiermittel), höchstens zehn. `general.recent_documents = false` (Signal `settings-changed`) löscht
  * die Liste sofort (`None`), Wiedereinschalten beginnt leer; eine Richtlinie `recent_documents = false`
- * schaltet sie ganz ab. `verify_recent` öffnet den Prüfmodus (Signal `verify-file` an den Bereich Prüfmodus);
- * auf eine fehlende Datei → Hinweis `ng-recent-missing`, der Eintrag bleibt.
+ * schaltet sie ganz ab. Ein Eintrag bietet, was „Fertig“ kann (ADR 0004 Nachtrag 15, wie der Kern):
+ * `open_recent` (Standardanwendung bzw. Vorschau), `reveal_recent` (nur Desktop), `share_recent` (nur Mobile) –
+ * als native Aufrufe protokolliert (`nativeCalls`: `openRecent:<Pfad>` …) – und `sign_recent` („Erneut signieren“:
+ * Signal `open-files` wie `open_files`, mit `mode`). Auf eine fehlende Datei → Hinweis `ng-recent-missing`, der
+ * Eintrag bleibt.
  */
-import type { RecentItemView } from '../types';
+import type { RecentItemView, UiEvent } from '../types';
 import type { SettingsMockOptions } from './settings';
-import { folderOf, isoWithOffset, joinPath, type MockArea } from './shared';
+import { folderOf, isoWithOffset, joinPath, type MockArea, type MockCtx, type MockSignal } from './shared';
 
 export interface RecentState {
   items: RecentItemView[] | null;
@@ -29,6 +32,22 @@ const EXAMPLES: RecentItemView[] = [
   { id: 2, file_name: 'Mietvertrag_signiert.pdf', folder_display: '/Users/demo/Dokumente/Wohnung', signed_at: '2026-10-13T08:47:00+02:00', exists: true },
   { id: 1, file_name: 'Angebot_2026-117_signed.pdf', folder_display: '/Users/demo/Dokumente/Angebote', signed_at: '2026-10-12T11:05:00+02:00', exists: false },
 ];
+
+/** Datei eines Eintrags; fehlt sie → Hinweis `ng-recent-missing` (der Eintrag bleibt), unbekannt → nichts. */
+function recentFile(state: RecentState, id: number, ctx: MockCtx): string | null {
+  const item = state.items?.find((i) => i.id === id);
+  const path = state.paths[id];
+  if (!item) return null;
+  if (!item.exists || !path) {
+    ctx.notify('ng-recent-missing');
+    return null;
+  }
+  return path;
+}
+
+function signRecentSignal(e: Extract<UiEvent, { type: 'sign_recent' }>, path: string): MockSignal {
+  return e.mode ? { kind: 'open-files', paths: [path], mode: e.mode } : { kind: 'open-files', paths: [path] };
+}
 
 export const recentArea: MockArea<RecentState> = {
   init: (o) => {
@@ -51,12 +70,17 @@ export const recentArea: MockArea<RecentState> = {
       case 'clear_recent':
         if (state.items) state.items = [];
         return true;
-      case 'verify_recent': {
-        const item = state.items?.find((i) => i.id === e.id);
-        const path = state.paths[e.id];
-        if (!item) return true;
-        if (!item.exists || !path) ctx.notify('ng-recent-missing');
-        else ctx.emit({ kind: 'verify-file', path });
+      case 'open_recent':
+      case 'reveal_recent':
+      case 'share_recent':
+      case 'sign_recent': {
+        const path = recentFile(state, e.id, ctx);
+        if (!path) return true;
+        const mobile = ctx.platform().mobile;
+        if (e.type === 'open_recent') ctx.native(`openRecent:${path}`);
+        else if (e.type === 'reveal_recent' && !mobile) ctx.native(`revealRecent:${path}`);
+        else if (e.type === 'share_recent' && mobile) ctx.native(`shareRecent:${path}`);
+        else if (e.type === 'sign_recent') ctx.emit(signRecentSignal(e, path));
         return true;
       }
       default:

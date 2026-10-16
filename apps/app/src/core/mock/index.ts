@@ -9,7 +9,7 @@
  * Signiersitzung beginnt nur nach `sign_with`, `choose_backend` (Rückfall), `resume_signature` oder
  * „Erneut versuchen“.
  *
- * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, settings, verify, recent, firstrun }` mit je
+ * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, settings, recent, firstrun }` mit je
  * eigenem Zustandsausschnitt (`shared.ts`), verteilt jedes Ereignis an alle, leitet Signale weiter und
  * setzt die Projektionen zusammen. Der Bereich `flow` (Kern, Arbeitsbereich, Signieren, Stapel) steht hier
  * und nutzt `workspace.ts` (Dokumente, Platzierung), `signing.ts` (Signiersitzung) und `batch.ts`
@@ -59,7 +59,6 @@ import {
   type MockSignal,
 } from './shared';
 import { SigningSession } from './signing';
-import { verifyAllowed, verifyArea, verifyPageTile, type VerifyState } from './verify';
 import {
   autoPlace,
   blockPreviewSvg,
@@ -1250,9 +1249,9 @@ const flowArea: MockArea<FlowState> = {
       if (!s.explicit) resetSelection(s, ctx);
       s.batch?.settingsChanged();
     } else if (sig.kind === 'open-files') {
-      // „Dieses Dokument signieren“ bei geparkter Arbeit: wie „Öffnen mit“ dazu (Kern: `FilesAdded`)
-      if (s.parked) joinParked(s, ctx, sig.paths, true);
-      else openFiles(s, ctx, sig.paths);
+      // „Erneut signieren“ aus „Zuletzt signiert“ (`sign_recent`, Nachtrag 15): wie `open_files` mit demselben `mode`
+      // (bei geparkter Arbeit ohne `mode` wie „Öffnen mit“ dazu, Kern: `FilesAdded`)
+      flowArea.handle(sig.mode ? { type: 'open_files', paths: sig.paths, mode: sig.mode } : { type: 'open_files', paths: sig.paths }, s, ctx);
     }
   },
 
@@ -1316,7 +1315,6 @@ export class MockCore implements Bridge {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private readonly flow: FlowState;
   private readonly areas: Area[];
-  private readonly verifyState: VerifyState;
   private notices: NoticeView[] = [];
   private noticeId = 0;
   private readonly ctx: MockCtx;
@@ -1324,11 +1322,9 @@ export class MockCore implements Bridge {
   constructor(options: MockOptions = {}) {
     this.opts = { ...options };
     this.flow = flowArea.init(this.opts);
-    this.verifyState = verifyArea.init(this.opts);
     this.areas = [
       { area: flowArea as MockArea<unknown>, state: this.flow },
       { area: settingsArea as MockArea<unknown>, state: settingsArea.init(this.opts) },
-      { area: verifyArea as MockArea<unknown>, state: this.verifyState },
       { area: recentArea as MockArea<unknown>, state: recentArea.init(this.opts) },
       { area: firstRunArea as MockArea<unknown>, state: firstRunArea.init(this.opts) },
     ];
@@ -1337,6 +1333,7 @@ export class MockCore implements Bridge {
       emit: (signal: MockSignal) => {
         for (const a of this.areas) a.area.signal?.(signal, a.state, this.ctx);
       },
+      native: (call) => this.nativeCalls.push(call),
       settings: () => settingsState.settings,
       platform: () => this.platformView(),
       notify: (code, params = {}) => this.notify(code, params),
@@ -1375,9 +1372,6 @@ export class MockCore implements Bridge {
   }
 
   pageTileUrl(doc: DocId, page: number, scale: number): string {
-    // Prüfdokumente (eigene `DocId`, nicht in der Warteschlange; ADR 0004 §3.9)
-    const verifyTile = verifyPageTile(this.verifyState, doc, page, scale);
-    if (verifyTile) return verifyTile;
     const d = this.doc(doc);
     const p = d?.spec.pages[page] ?? null;
     const last = d?.spec.pages[d.spec.pages.length - 1];
@@ -1402,9 +1396,6 @@ export class MockCore implements Bridge {
     this.dispatched.push(event);
     if (this.forced) return; // feste Testzustände reagieren nicht; Tests prüfen `dispatched`
     if (event.type === 'dismiss_notice') this.notices = this.notices.filter((n) => n.id !== event.id);
-    // wie K4 (Merge E4): bei offenem Prüfmodus ist das Dokument darunter verdeckt – kein Signieren (F-54)
-    const signing = ['sign_with', 'start_batch', 'confirm_position', 'choose_invisible', 'choose_backend'].includes(event.type);
-    if (this.verifyState.view && signing) return;
     for (const a of this.areas) a.area.handle(event, a.state, this.ctx);
     const session = this.flow.signing ?? this.flow.batch?.session() ?? null;
     if (event.type === 'open_signature_data' && session) {
@@ -1544,10 +1535,6 @@ export class MockCore implements Bridge {
       ...workspaceDefaults(),
     };
     const view = this.areas.reduce<ViewState>((v, a) => ({ ...v, ...a.area.project(a.state, this.ctx) }), base);
-    // Freigabe des Prüfmodus wie K4 (Leerlauf, Positionieren, Fertig, Stapelübersicht; ADR 0004 §3.9)
-    view.actions = { ...view.actions, verify: verifyAllowed(view) };
-    // Prüfmodus offen: das Dokument darunter ist verdeckt (wie K4, Merge E4)
-    if (view.verify) view.actions = { ...view.actions, sign: false, edit_placement: false, start_batch: false, show_batch: false };
     // Einstellungen offen: Einstellungen nicht erneut erreichbar (wie `main_bar.settings_enabled` im Kern)
     if (view.settings) {
       view.main_bar = { ...view.main_bar, settings_enabled: false };

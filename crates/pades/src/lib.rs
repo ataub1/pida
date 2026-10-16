@@ -1,7 +1,9 @@
 //! `pida-pades` – PAdES-Signatur-Engine (Plan §3.6, §6; docs/analyse/03).
 //!
-//! Prüfmodus (ADR 0004 §3.9): [`verify_document`] prüft alle Signaturen eines Dokuments und liefert je
-//! Signatur Integrität, Abdeckung, Zertifikat, Verfahren, Hinweise und das Widget.
+//! Prüfung vorhandener Signaturen: [`verify_document`] prüft alle Signaturen eines Dokuments und liefert je
+//! Signatur Integrität, Abdeckung, Zertifikat, Verfahren, Hinweise und das Widget – als Bibliothek für Tests,
+//! Golden- und Interop-Tests (ADR 0004 §3.17). Der Prüfmodus der App, für den sie entstand (§3.9), ist entfernt
+//! (ADR 0004 Nachtrag 15).
 //!
 //! Ablauf: [`analyze`] → Annahmeklasse K1–K5 → [`SignPlan`] (Profil, Position, Feld; bequem über
 //! [`plan_signature`]) → ggf. Zertifikat vom Backend → [`prepare`] → Backend `sign` →

@@ -1365,10 +1365,6 @@ signers: SignersView,
  */
 batch: BatchView | null, 
 /**
- * Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9; nur im Arbeitsbereich)
- */
-verify: VerifyView | null, 
-/**
  * „Zuletzt signiert“ (neueste zuerst, höchstens zehn); `None` = Funktion abgeschaltet (Einstellung,
  * Richtlinie) bzw. ohne Oberfläche (ADR 0004 §3.10)
  */
@@ -1595,15 +1591,7 @@ output_dir: string | null,
 /**
  * Umgang mit vorhandenen Zieldateien
  */
-on_existing: ExistingPolicy, } | { "type": "skip_batch_document" } | { "type": "abort_batch" } | { "type": "open_verify", 
-/**
- * Datei
- */
-path: string, } | { "type": "verify_recent", 
-/**
- * Kennung ([`RecentItemView::id`])
- */
-id: number, } | { "type": "close_verify" } | { "type": "sign_verified" } | { "type": "remove_recent", 
+on_existing: ExistingPolicy, } | { "type": "skip_batch_document" } | { "type": "abort_batch" } | { "type": "remove_recent", 
 /**
  * Kennung
  */
@@ -1649,7 +1637,27 @@ enabled: boolean,
 /**
  * von Hand platzierte Einträge ebenfalls automatisch platzieren
  */
-replace_manual: boolean, } | { "type": "go_home" } | { "type": "resume_parked" } | { "type": "discard_parked" };
+replace_manual: boolean, } | { "type": "go_home" } | { "type": "resume_parked" } | { "type": "discard_parked" } | { "type": "open_recent", 
+/**
+ * Kennung ([`RecentItemView::id`])
+ */
+id: number, } | { "type": "reveal_recent", 
+/**
+ * Kennung ([`RecentItemView::id`])
+ */
+id: number, } | { "type": "share_recent", 
+/**
+ * Kennung ([`RecentItemView::id`])
+ */
+id: number, } | { "type": "sign_recent", 
+/**
+ * Kennung ([`RecentItemView::id`])
+ */
+id: number, 
+/**
+ * wie [`UiEvent::OpenFiles`] (`None` = der Kern entscheidet nach dem Zustand). In TypeScript optional.
+ */
+mode?: OpenFilesMode | null, };
 
 /**
  * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).
@@ -2452,189 +2460,6 @@ auto_position_once: boolean,
 manual_plans: number, };
 
 /**
- * Ladezustand des Prüfmodus (§3.9).
- */
-export type VerifyStatus = { "state": "loading" } | { "state": "ready" } | { "state": "failed", 
-/**
- * Code
- */
-code: string, };
-
-/**
- * Gesamtergebnis (§3.9; Wortlaut §8 F3 – PIDA behauptet nie Rechtsgültigkeit).
- */
-export type VerifySummaryView = "no_signatures" | "all_intact" | "some_broken" | "some_not_verifiable" | "modified_after_last_signature";
-
-/**
- * Integrität einer Signatur (§3.9).
- */
-export type SignatureIntegrity = { "kind": "intact" } | { "kind": "broken", 
-/**
- * Code
- */
-code: string, } | { "kind": "not_verifiable", 
-/**
- * Code
- */
-code: string, };
-
-/**
- * Abdeckung einer Signatur (§3.9).
- */
-export type SignatureCoverage = { "kind": "whole_document" } | { "kind": "revision", 
-/**
- * spätere Revisionen
- */
-later_revisions: number, 
-/**
- * Signaturen in späteren Revisionen
- */
-later_signatures: number, };
-
-/**
- * Qualifikation **laut Zertifikat** (qcStatements; nicht gegen die EU-Vertrauensliste geprüft; §3.9).
- */
-export type QualificationClaim = { "kind": "qualified", 
-/**
- * qualifizierte Signaturerstellungseinheit laut Zertifikat
- */
-qscd: boolean, } | { "kind": "not_qualified" } | { "kind": "unknown" };
-
-/**
- * Format einer Signatur (`/SubFilter`; §3.9).
- */
-export type SignatureFormat = "pades" | "pkcs7_detached" | "pkcs7_sha1" | "other";
-
-/**
- * Lage eines Signaturbilds (`PAGE_ABS`; §3.9).
- */
-export type AppearanceView = { 
-/**
- * Seite
- */
-page: number, 
-/**
- * Rechteck
- */
-rect: RectPt, };
-
-/**
- * Prüfung von Vertrauenskette und Sperrstatus (§3.9): in v1 nie (Hinweis auf signaturpruefung.gv.at).
- */
-export type TrustCheck = "not_checked";
-
-/**
- * Eine geprüfte Signatur (§3.9).
- */
-export type VerifiedSignatureView = { 
-/**
- * 1-basiert in Dokumentreihenfolge
- */
-index: number, 
-/**
- * Feldname
- */
-field_name: string, 
-/**
- * CN des Unterzeichners
- */
-signer: string | null, 
-/**
- * O des Subjects
- */
-organization: string | null, 
-/**
- * CN des Ausstellers
- */
-issuer: string | null, 
-/**
- * Seriennummer (dezimal)
- */
-serial: string | null, 
-/**
- * Gültigkeit des Zertifikats ab (RFC 3339)
- */
-cert_valid_from: string | null, 
-/**
- * Gültigkeit des Zertifikats bis (RFC 3339)
- */
-cert_valid_to: string | null, 
-/**
- * Angabe des Signierenden (`signing-time`), kein geprüfter Zeitstempel
- */
-signing_time: string | null, 
-/**
- * Zertifikat zum angegebenen Zeitpunkt gültig
- */
-cert_valid_at_signing: boolean | null, 
-/**
- * Integrität
- */
-integrity: SignatureIntegrity, 
-/**
- * Abdeckung
- */
-coverage: SignatureCoverage, 
-/**
- * Qualifikation laut Zertifikat
- */
-qualification: QualificationClaim, 
-/**
- * Format
- */
-format: SignatureFormat, 
-/**
- * Hashverfahren, z. B. „SHA-256“
- */
-digest: string | null, 
-/**
- * Signaturverfahren, z. B. „ECDSA P-256“
- */
-algorithm: string | null, 
-/**
- * Signaturbild (`None` = unsichtbar)
- */
-appearance: AppearanceView | null, 
-/**
- * Hinweise zu einer intakten Signatur (i18n-IDs): `ng-verify-warning-sha1`,
- * `ng-verify-warning-signing-certificate-v1`, `ng-verify-warning-weak-key`
- */
-warnings: Array<string>, 
-/**
- * Vertrauenskette/Sperrstatus (in v1 immer `not_checked`)
- */
-trust: TrustCheck, };
-
-/**
- * Prüfmodus (§3.9) – liegt über dem Workflow-Zustand.
- */
-export type VerifyView = { 
-/**
- * Dateiname
- */
-file_name: string, 
-/**
- * Ladezustand
- */
-status: VerifyStatus, 
-/**
- * für Kacheln über `pida-render://page/<doc.id>/<page>` (eigene `DocId`, nicht in der Warteschlange)
- */
-doc: DocInfo | null, 
-/**
- * Signaturen
- */
-signatures: Array<VerifiedSignatureView>, 
-/**
- * Gesamtergebnis
- */
-summary: VerifySummaryView, 
-/**
- * Revisionen der Datei
- */
-revisions: number, };
-
-/**
  * Eintrag „Zuletzt signiert“ (§3.10; gespeichert werden nur Dateiname, Pfad und Zeitpunkt).
  */
 export type RecentItemView = { 
@@ -2701,8 +2526,7 @@ preview_revision: number, };
 
 /**
  * Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (§3.13), berechnet aus dem Zustand
- * (`actions::actions_for`). Bei offenem Prüfmodus (`ViewState::verify`) sind `sign`, `edit_placement`,
- * `start_batch` und `show_batch` aus: das Dokument darunter ist verdeckt (Nachtrag 6).
+ * (`actions::actions_for`).
  */
 export type ActionsView = { 
 /**
@@ -2725,10 +2549,6 @@ start_batch: boolean,
  * weitere Dokumente in der Warteschlange (`show_batch`)
  */
 show_batch: boolean, 
-/**
- * `open_verify` erlaubt
- */
-verify: boolean, 
 /**
  * Einstellungen erreichbar (= `main_bar.settings_enabled`)
  */

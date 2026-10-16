@@ -24,7 +24,7 @@ pub fn profiles(term: &dyn Terminal, json: bool) -> ExitCode {
     if ids.iter().all(|(_, ok)| *ok) { ExitCode::Success } else { ExitCode::General }
 }
 
-/// `verify <datei>` (Entwickler-Werkzeug): alle Signaturen mit dem eigenen Verifier prüfen –
+/// `verify <datei>` (Entwickler-Werkzeug, ADR 0004 Nachtrag 15): alle Signaturen mit dem eigenen Verifier prüfen –
 /// unverändert und kryptografisch intakt; Vertrauenskette und Sperrstatus prüft es **nicht** (der Text sagt das
 /// ausdrücklich, nie „gültig“). Exit 0 = alle intakt (bzw. keine Signatur), 6 = mindestens eine nicht intakt,
 /// 3 = Datei nicht lesbar.
