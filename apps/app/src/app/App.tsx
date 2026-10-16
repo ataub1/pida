@@ -183,9 +183,14 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, []);
   const dismiss = useCallback((id: number) => setToasts((list) => list.filter((x) => x.id !== id)), []);
 
+  // Leeren und kurz danach setzen, damit derselbe Text erneut angesagt wird; eine noch ausstehende Ansage verfällt
+  // (sonst landete nach `announce('')` – z. B. beim Dokumentwechsel – noch der Text des vorigen Dokuments)
+  const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const announce = useCallback((text: string) => {
+    if (liveTimer.current) clearTimeout(liveTimer.current);
+    liveTimer.current = null;
     setLiveText('');
-    setTimeout(() => setLiveText(text), 30);
+    if (text) liveTimer.current = setTimeout(() => setLiveText(text), 30);
   }, []);
 
   const language = current.language;

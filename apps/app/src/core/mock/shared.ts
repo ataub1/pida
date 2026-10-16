@@ -11,7 +11,7 @@
  * Der Mock ist keine zweite Fachlogik: Regeln nur so weit, wie Bedienung und Tests sie brauchen. Keine
  * echten Zugangsdaten, kein Netz.
  */
-import type { BackendId, Capabilities, InteractionView, Lang, PlatformView, ResumeOfferView, Settings, UiEvent, ViewState } from '../types';
+import type { BackendId, BatchFlowView, Capabilities, InteractionView, Lang, PlatformView, ResumeOfferView, Settings, UiEvent, ViewState } from '../types';
 
 /** Szenarien wie im Prototyp (`?scenario=`). */
 export type MockScenario = 'start' | 'blank' | 'contract' | 'field' | 'signed' | 'batch' | 'verify' | 'error-password' | 'error-atrust';
@@ -222,14 +222,25 @@ export function capabilitiesFor(id: BackendId, mobile = false): Capabilities {
         certificate: 'Required',
         interaction: 'Secret',
         server: 'None',
-        max_batch: 1,
-        login_once_per_batch: false,
+        // wie `backend-keystore`: eine Freigabe für den ganzen Stapel (Passwort einmal)
+        max_batch: 65535,
+        login_once_per_batch: true,
         document_leaves_device: false,
         qualification: 'AdES',
         factors: { app: false, sms: false, qr: false, fido2: false, card: false },
         cms_reserve: null,
       };
   }
+}
+
+/**
+ * Ablauf eines Stapellaufs aus den Fähigkeiten wie der Kern (`BatchFlowView::from_capabilities`, ADR 0004
+ * Nachtrag 12) – nur für Mock und Testdaten; die Oberfläche liest `SignerView::batch_flow`.
+ */
+export function batchFlowFor(capabilities: Capabilities | null): BatchFlowView | null {
+  if (!capabilities) return null;
+  if (capabilities.max_batch > 1) return 'unlock_once';
+  return capabilities.login_once_per_batch ? 'login_then_confirm_each' : 'confirm_each';
 }
 
 /** Telefonnummer bzw. Benutzername maskiert wie im Kern (`SignerView::account`): „+43 660 ···123“. */

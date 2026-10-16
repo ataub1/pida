@@ -226,7 +226,7 @@ class PidaMobilePlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
-    /** `{ path, fileName, mimeType }` → `{ saved: bool }` nach der Wahl (SAF ACTION_CREATE_DOCUMENT) */
+    /** `{ path, fileName, mimeType }` → `{ saved: bool, name? }` nach der Wahl (SAF ACTION_CREATE_DOCUMENT) */
     @Command
     fun exportFile(invoke: Invoke) {
         val args = invoke.parseArgs(ExportArgs::class.java)
@@ -269,9 +269,23 @@ class PidaMobilePlugin(private val activity: Activity) : Plugin(activity) {
                 }
                 throw if (e is CodedException) e else CodedException("export-failed")
             }
-            invoke.resolve(JSObject().put("saved", true))
+            // tatsächlicher Name am Ziel (die Dateiauswahl nummeriert z. B. „Vertrag_signed (3).pdf“)
+            val response = JSObject().put("saved", true)
+            displayName(target)?.let { response.put("name", it) }
+            invoke.resolve(response)
         }
     }
+
+    /** `DISPLAY_NAME` eines Dokuments; `null`, wenn der Anbieter ihn nicht liefert. */
+    private fun displayName(uri: Uri): String? =
+        try {
+            app.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                val n = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (c.moveToFirst() && n >= 0 && !c.isNull(n)) c.getString(n) else null
+            }
+        } catch (_: Exception) {
+            null
+        }
 
     // --- Import (Dateiauswahl) --------------------------------------------------------------------
 

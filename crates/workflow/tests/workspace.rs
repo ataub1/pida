@@ -763,6 +763,56 @@ fn document_settings_replace_automatic_placements_only() {
     }
 }
 
+/// Mobile-Check 16.10.2026 (`qr.pdf`): ohne Suche automatisch auf der neuen Seite platziert, dann QR-Suche an →
+/// im QR-Platzhalter; „Auf neuer Seite“ entfällt und die Ansicht wechselt von der virtuellen Seite auf die Seite
+/// des Platzhalters (vorher blieb „Seite 1 / 2“ mit leerer neuer Seite). Ebenso nach Wahl eines Felds bzw. des QR
+/// durch die Nutzerin und mit der Suche „Leere Signaturfelder“. Suche wieder aus: die Automatik bestimmt die Seite
+/// neu (`AutoPlace`).
+#[test]
+fn target_on_an_existing_page_ends_the_new_page() {
+    let one_page = |fields: usize| {
+        let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 1, None, fields, true), &ws());
+        // die PDF-AS-Regel fand keinen Platz: neue Seite
+        let auto = Placement { page_index: 1, x: 180.0, y: 820.0, width: 230.0, height: 82.0 };
+        let s = step(t.state, Event::AutoPlaced(auto), &ws()).state;
+        assert_eq!(positioning_parts(&s), (1, Some(auto), true), "auf neuer Seite");
+        s
+    };
+    let on_page_zero = |s: &State| {
+        let (page, placement, new_page) = positioning_parts(s);
+        assert_eq!((page, new_page), (0, false), "{s:?}");
+        assert_eq!(placement.map(|p| p.page_index), Some(0), "keine Lage auf der virtuellen Seite");
+    };
+    // Suche „QR-Code-Platzhalter“ eingeschaltet → nachgeholte Suche findet ihn
+    let t = step(one_page(0), Event::SettingsChanged, &qr_search());
+    assert!(t.effects.contains(&Effect::SearchPlaceholder(DocId(1))));
+    let t = step(t.state, Event::PlaceholderSearched { doc: DocId(1), qr: Some(qr()) }, &qr_search());
+    assert_eq!(edit_of(&t.state).target, Target::Qr);
+    on_page_zero(&t.state);
+    assert!(t.effects.contains(&Effect::RenderPage { doc: DocId(1), page: 0 }), "{:?}", t.effects);
+    // wieder an, nachdem die Suche schon lief: direkt beim Einschalten
+    let off = step(t.state, Event::SettingsChanged, &ws());
+    assert!(off.effects.contains(&Effect::AutoPlace(DocId(1))), "Automatik bestimmt die Seite neu");
+    let auto = Placement { page_index: 1, x: 180.0, y: 820.0, width: 230.0, height: 82.0 };
+    let s = step(off.state, Event::AutoPlaced(auto), &ws()).state;
+    assert!(positioning_parts(&s).2, "wieder auf neuer Seite");
+    let t = step(s, Event::SettingsChanged, &qr_search());
+    assert_eq!(edit_of(&t.state).target, Target::Qr);
+    on_page_zero(&t.state);
+    // Suche „Leere Signaturfelder“
+    let t = step(one_page(1), Event::SettingsChanged, &fields_search());
+    assert_eq!(edit_of(&t.state).target, Target::Field(0));
+    on_page_zero(&t.state);
+    // „Ins Feld setzen“ von Hand
+    let t = step(one_page(1), Event::TargetChosen(Target::Field(0)), &ws());
+    assert_eq!(edit_of(&t.state).target, Target::Field(0));
+    on_page_zero(&t.state);
+    // frei gewählt: die Seite bleibt Sache der Automatik
+    let t = step(one_page(0), Event::TargetChosen(Target::Free), &ws());
+    assert_eq!(positioning_parts(&t.state).0, 1);
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))));
+}
+
 /// Jede Platzierung durch die Nutzerin beendet die Automatik: „Ins Feld setzen“, QR wählen, „Frei
 /// platzieren“/„Freie Fläche suchen“, Seite, neue Seite, Ziehen. Ein von Hand gewähltes QR-Ziel bleibt auch
 /// nach dem Ausschalten der Suche.

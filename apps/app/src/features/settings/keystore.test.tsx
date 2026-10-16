@@ -224,7 +224,7 @@ describe('„Passwort merken?“ bei der ersten Verwendung', () => {
     await user.click(within(keystore).getByRole('button', { name: 'Schlüssel anzeigen …' }));
     const question = within(keystore).getByRole('radiogroup', { name: 'Passwort merken?' });
     expect(within(question).getByRole('radio', { name: 'Im Schlüsselbund' })).toBeDisabled();
-    expect(within(question).getByText('Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Programmende gespeichert.')).toBeInTheDocument();
+    expect(within(question).getByText('Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Beenden von PIDA gespeichert.')).toBeInTheDocument();
     await expectNoAxeViolations();
   });
 

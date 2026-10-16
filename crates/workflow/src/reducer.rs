@@ -715,6 +715,7 @@ fn settings_changed(state: State, ctx: &Context) -> Transition {
             if follow.search_qr {
                 effects.push(Effect::SearchPlaceholder(doc.id));
             }
+            let (page, placement, new_page) = settle_on_target(&edit, page, placement, new_page, &doc, &mut effects);
             State::Positioning { queue, page, placement, new_page, doc, edit: Some(edit) }
         }
         other => other,
@@ -966,6 +967,40 @@ fn accept_placement(
     Some((p.page_index, p, new_page, Vec::new()))
 }
 
+/// Ziel Feld bzw. QR-Platzhalter (Automatik nach den Einstellungen › Dokument oder Wahl der Nutzerin): Der
+/// Block liegt dann im Ziel auf einer vorhandenen Seite – „Auf neuer Seite“ entfällt, und die Ansicht verlässt
+/// die virtuelle neue Seite zur Seite des Ziels (Mobile-Check 16.10.2026: `qr.pdf` mit ausgeschalteter Suche auf
+/// neuer Seite, Suche eingeschaltet → im QR-Platzhalter, aber weiter „Seite 1 / 2“ mit leerer neuer Seite). Frei
+/// bleibt alles, wie es ist (die automatische Platzierung bestimmt die Seite selbst). Eine freie Lage auf der
+/// virtuellen Seite rückt auf die letzte vorhandene (sie gilt erst wieder nach „Frei platzieren“ bzw. der
+/// Automatik, die sie neu berechnen). Liefert (Seite, Lage, neue Seite).
+fn settle_on_target(
+    edit: &WorkspaceEdit,
+    page: usize,
+    placement: Option<Placement>,
+    new_page: bool,
+    doc: &DocFacts,
+    effects: &mut Vec<Effect>,
+) -> (usize, Option<Placement>, bool) {
+    let target_page = match edit.target {
+        Target::Free => return (page, placement, new_page),
+        Target::Qr => edit.qr.as_ref().map(|q| q.page_index),
+        Target::Field(i) => edit.fields.get(i).and_then(|f| f.page_index),
+    };
+    let n = doc.page_count;
+    if n == 0 {
+        return (page, placement, false);
+    }
+    let placement = placement.map(|p| Placement { page_index: p.page_index.min(n - 1), ..p });
+    if page < n {
+        return (page, placement, false);
+    }
+    let target = target_page.filter(|p| *p < n).unwrap_or(n - 1);
+    effects.push(Effect::RenderPage { doc: doc.id, page: target });
+    effects.push(Effect::BuildBlockPreview(doc.id));
+    (target, placement, false)
+}
+
 fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
     let State::Positioning { queue, page, placement, new_page, doc, edit } = state else { unreachable!("Positioning") };
     let n = doc.page_count;
@@ -1136,6 +1171,7 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                 }
                 Target::Qr => {}
             }
+            let (page, placement, new_page) = settle_on_target(&e, page, placement, new_page, &doc, &mut effects);
             stay(queue, page, placement, new_page, doc, Some(e), effects)
         }
         Event::PlaceholderSearched { doc: d, qr } if d == doc.id => match edit {
@@ -1144,8 +1180,9 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
             Some(mut e) => {
                 e.qr_search = Some(qr);
                 let follow = e.follow_settings(ctx);
-                let effects =
+                let mut effects =
                     if follow.auto_place && placement.is_some() { vec![Effect::AutoPlace(doc.id)] } else { Vec::new() };
+                let (page, placement, new_page) = settle_on_target(&e, page, placement, new_page, &doc, &mut effects);
                 stay(queue, page, placement, new_page, doc, Some(e), effects)
             }
             None => stay(queue, page, placement, new_page, doc, None, Vec::new()),

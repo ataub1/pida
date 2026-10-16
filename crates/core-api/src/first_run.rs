@@ -2,7 +2,7 @@
 //!
 //! - **Wann:** nur im Arbeitsbereich mit Oberfläche und nur, wenn beim Start die Einstellungsdatei fehlt
 //!   (`LoadOutcome::Missing`, ohne `-c`): dann setzt der Kern `general.first_run_completed = false` bis
-//!   „Fertig“ bzw. „Später einrichten“ (`FinishFirstRun`). Bestandsnutzer (Datei ohne Schlüssel → `true`)
+//!   „Fertig“ (`FinishFirstRun`) bzw. „Später einrichten“ (`PostponeFirstRun`). Bestandsnutzer (Datei ohne Schlüssel → `true`)
 //!   sehen sie nie; legt zuerst die CLI die Datei an, gilt sie als erledigt. Wird die App vor „Fertig“
 //!   beendet, erscheint sie beim nächsten Start erneut (Datei fehlt noch bzw. trägt `false`).
 //! - **Schritt 1** nur mit Übernahmeangebot (`~/.pdf-over/PDF-Over.config`): `MigrationOfferView::items`
@@ -29,8 +29,10 @@ use pida_workflow::Event;
 use crate::runtime::CoreTask;
 use crate::view::{FirstRunView, MigrationItemView};
 
-/// Meldungs-ID: Ersteinrichtung abgeschlossen.
+/// Meldungs-ID: Ersteinrichtung abgeschlossen („Fertig“).
 pub(crate) const MSG_FIRSTRUN_DONE: &str = "ng-firstrun-done";
+/// Meldungs-ID: Ersteinrichtung auf später verschoben („Später einrichten“; ADR 0004 Nachtrag 12).
+pub(crate) const MSG_FIRSTRUN_LATER: &str = "ng-firstrun-later";
 /// Meldungs-ID: keine PDF-Over-Einstellungen gefunden (`OfferMigration`).
 pub(crate) const MSG_MIGRATION_NOT_FOUND: &str = "ng-migration-not-found";
 
@@ -147,9 +149,11 @@ impl CoreTask {
         self.apply_changes_now(&changes);
     }
 
-    /// `FinishFirstRun` („Fertig“ bzw. „Später einrichten“): abgeschlossen und gespeichert. Ein noch offenes
-    /// Übernahmeangebot gilt als „später“ (nichts übernommen; erneut über Einstellungen › Erweitert).
-    pub(crate) fn finish_first_run(&mut self) {
+    /// `FinishFirstRun` („Fertig“) bzw. `PostponeFirstRun` („Später einrichten“, `later`): abgeschlossen und
+    /// gespeichert. Ein noch offenes Übernahmeangebot gilt als „später“ (nichts übernommen; erneut über
+    /// Einstellungen › Erweitert). Hinweis „Einrichtung abgeschlossen“ nur nach „Fertig“; „Später einrichten“
+    /// sagt, wo es weitergeht (`ng-firstrun-later`).
+    pub(crate) fn finish_first_run(&mut self, later: bool) {
         if !self.first_run_active() {
             tracing::debug!("finish_first_run ohne Ersteinrichtung verworfen");
             return;
@@ -165,7 +169,7 @@ impl CoreTask {
         }
         self.refresh_ctx_pub();
         self.apply(Event::SettingsChanged);
-        self.notify_code(MSG_FIRSTRUN_DONE);
+        self.notify_code(if later { MSG_FIRSTRUN_LATER } else { MSG_FIRSTRUN_DONE });
     }
 
     /// `OfferMigration` (Einstellungen › Erweitert): Altkonfiguration erneut suchen und anbieten.

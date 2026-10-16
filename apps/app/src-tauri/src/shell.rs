@@ -215,14 +215,16 @@ impl Shell {
         }
     }
 
-    /// Dokumente aus „Öffnen mit“, Drop auf das Dock-Icon, zweiter Instanz. Ohne Kern werden sie
-    /// (ohne Duplikate, begrenzt auf [`MAX_PENDING_DOCUMENTS`]) für den nächsten Start vorgemerkt.
+    /// Dokumente aus „Öffnen mit“, Drop auf das Dock-Icon, zweiter Instanz bzw. (Mobile) „Teilen“/„Öffnen in“ –
+    /// als `FilesReceived` (wie `OpenFiles` ohne `mode`; auf iOS mit dem Hinweis zum Teilen, ADR 0004 Nachtrag 12).
+    /// Ohne Kern werden sie (ohne Duplikate, begrenzt auf [`MAX_PENDING_DOCUMENTS`]) für den nächsten Start
+    /// vorgemerkt.
     pub fn open_files(&self, paths: Vec<PathBuf>) {
         if paths.is_empty() {
             return;
         }
         if let Some(core) = self.core() {
-            let _ = catch_unwind(AssertUnwindSafe(|| core.dispatch(UiEvent::OpenFiles { paths, mode: None })));
+            let _ = catch_unwind(AssertUnwindSafe(|| core.dispatch(UiEvent::FilesReceived { paths })));
         } else {
             let mut pending = lock(&self.pending);
             for path in paths {
@@ -396,6 +398,7 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         first_run: None,
         actions: pida_core_api::ActionsView::default(),
         parked: None,
+        share_hint: None,
     }
 }
 

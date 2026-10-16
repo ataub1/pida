@@ -874,6 +874,99 @@ async fn more_pdfs_join_the_open_document_as_a_batch_and_replace_swaps_an_entry(
     assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung ohne „Alle signieren“ (F-54)");
 }
 
+/// Dieselbe Datei erneut empfangen (Mobile-Check 16.10.2026: auf Mobilgeräten legt jedes „Teilen“/„Öffnen in“ eine
+/// neue Kopie an, es entstanden zwei Stapeleinträge): gleicher Name und gleicher Inhalt bzw. gleicher Pfad kommen
+/// nicht noch einmal dazu, stattdessen der Hinweis `ng-open-duplicate`. Eine inhaltsgleiche Kopie mit anderem
+/// Namen und eine andere Datei gleichen Namens sind eigene Dokumente. Bei geparkter Arbeit erscheint sie wieder
+/// (nur schon offene Dateien, Nachtrag 10 Punkt 4); „Offene schließen und neu beginnen“ darf dieselbe Datei neu
+/// öffnen.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_same_file_received_again_is_not_added_twice() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf"]);
+    let again = fx.dir("inbox/2").join("a.pdf");
+    std::fs::copy(&files[0], &again).unwrap();
+    let renamed = fx.dir("in").join("a-kopie.pdf");
+    std::fs::copy(&files[0], &renamed).unwrap();
+    let other = fx.dir("inbox/3").join("a.pdf");
+    std::fs::write(&other, [std::fs::read(&files[0]).unwrap().as_slice(), b"\n%anders\n"].concat()).unwrap();
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(vec![files[0].clone()], &out), fake(atrust.backends())).unwrap();
+    let editing = |v: &ViewState| {
+        v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf" && d.phase == pida_core_api::DocumentPhase::Editing)
+    };
+    wait_for(&core, "Arbeitsbereich a", editing).await;
+    let duplicate = |v: &ViewState| v.notices.iter().filter(|n| n.code == "ng-open-duplicate").count();
+    // dieselbe Datei als neue Kopie (Mobile) und unter demselben Pfad: nichts kommt dazu
+    core.dispatch(UiEvent::OpenFiles { paths: vec![again.clone()], mode: None });
+    let v = wait_for(&core, "Hinweis", |v| duplicate(v) == 1).await;
+    let n = v.notices.iter().find(|n| n.code == "ng-open-duplicate").unwrap();
+    assert_eq!(n.params.get("name").map(String::as_str), Some("a.pdf"));
+    core.dispatch(UiEvent::DismissNotice { id: n.id });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![files[0].clone()], mode: Some(pida_core_api::OpenFilesMode::Add) });
+    let v = wait_for(&core, "Hinweis (Pfad)", |v| duplicate(v) == 1).await;
+    assert!(editing(&v) && v.batch.is_none() && !v.actions.show_batch, "kein zweiter Eintrag");
+    let n = v.notices.iter().find(|n| n.code == "ng-open-duplicate").unwrap();
+    core.dispatch(UiEvent::DismissNotice { id: n.id });
+    // inhaltsgleiche Kopie mit anderem Namen und eine andere „a.pdf“: beide neu – doppelt in der Auswahl einmal
+    let add = Some(pida_core_api::OpenFilesMode::Add);
+    core.dispatch(UiEvent::OpenFiles {
+        paths: vec![renamed.clone(), other.clone(), again.clone(), renamed],
+        mode: add,
+    });
+    let v = overview_ready(&core, 3).await;
+    let mut names: Vec<_> = batch(&v).items.iter().map(|i| i.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["a-kopie.pdf", "a.pdf", "a.pdf"]);
+    assert_eq!(duplicate(&v), 2, "„a.pdf“ (Kopie der offenen) und „a-kopie.pdf“ doppelt in der Auswahl");
+    for n in v.notices.iter().filter(|n| n.code == "ng-open-duplicate") {
+        core.dispatch(UiEvent::DismissNotice { id: n.id });
+    }
+    // geparkt („Zur Startseite“): nur schon offene Dateien → die Arbeit erscheint wieder, unverändert (Nachtrag 10
+    // Punkt 4), mit dem Hinweis
+    core.dispatch(UiEvent::GoHome);
+    wait_for(&core, "geparkt", |v| v.parked.is_some() && v.batch.is_none()).await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![again.clone()], mode: None });
+    let v = wait_for(&core, "fortgesetzt", |v| v.parked.is_none() && v.batch.is_some() && duplicate(v) == 1).await;
+    assert_eq!(batch(&v).items.len(), 3, "kein weiterer Eintrag");
+    // geparkt und „Offene schließen und neu beginnen“: dieselbe Datei öffnet neu
+    core.dispatch(UiEvent::GoHome);
+    wait_for(&core, "wieder geparkt", |v| v.parked.is_some()).await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![again], mode: Some(pida_core_api::OpenFilesMode::Replace) });
+    let v = wait_for(&core, "neu begonnen", |v| editing(v) && v.batch.is_none()).await;
+    assert!(!v.actions.show_batch, "nur das neu geöffnete Dokument");
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
+/// Ablauf des Stapels je Signiermittel (ADR 0004 Nachtrag 12): der Kern liefert ihn aus den Fähigkeiten –
+/// Keystore „einmal entsperren“, ID Austria „einmal anmelden, je Dokument bestätigen“; ohne Fähigkeiten keiner.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn batch_flow_follows_the_capabilities_of_each_signer() {
+    use pida_core_api::BatchFlowView;
+    let fx = Fixture::new();
+    let files = inputs(&fx, &["a.pdf", "b.pdf"]);
+    let core = start(&fx, keystore_overlay(files, &fx.dir("out")), fake(None)).unwrap();
+    let v = overview_ready(&core, 2).await;
+    let flow = |id: BackendId| v.signers.options.iter().find(|o| o.backend == id).and_then(|o| o.batch_flow);
+    assert_eq!(flow(BackendId::Keystore), Some(BatchFlowView::UnlockOnce));
+    assert_eq!(flow(BackendId::AtrustNative), Some(BatchFlowView::LoginThenConfirmEach));
+    // nicht eingerichtet: keine Fähigkeiten, kein Ablauf
+    let fx = Fixture::new();
+    let files = inputs(&fx, &["a.pdf", "b.pdf"]);
+    let core = start(&fx, overlay(files, &fx.dir("out")), fake(None)).unwrap();
+    let v = overview_ready(&core, 2).await;
+    let ks = v.signers.options.iter().find(|o| o.backend == BackendId::Keystore).expect("Keystore im Menü");
+    assert!(!ks.available && ks.batch_flow.is_none());
+    // aus den Fähigkeiten (Chipkarte: je Dokument eine Bestätigung ohne gemeinsame Anmeldung)
+    let mut caps = atrust_caps();
+    assert_eq!(BatchFlowView::from_capabilities(&caps), BatchFlowView::LoginThenConfirmEach);
+    caps.login_once_per_batch = false;
+    assert_eq!(BatchFlowView::from_capabilities(&caps), BatchFlowView::ConfirmEach);
+    caps.max_batch = u16::MAX;
+    assert_eq!(BatchFlowView::from_capabilities(&caps), BatchFlowView::UnlockOnce);
+}
+
 /// „Anderes PDF öffnen“ in einem Einzeldokument: das offene Dokument wird geschlossen (nie signiert), das gewählte
 /// öffnet im Arbeitsbereich – ohne Stapel und ohne Sitzung.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

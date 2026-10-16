@@ -7,9 +7,10 @@
  * Statusfarben wie im Prototyp: grau = wartet, blau = läuft, grün = fertig, rot = Fehler; „Wird signiert“
  * bewusst nicht im roten Markenakzent.
  */
-import type { BatchEstimateView, BatchItemStatusView, BatchItemView, BatchOutputView, BatchSummaryView, SigningStage } from '../../core/types';
+import type { BatchEstimateView, BatchFlowView, BatchItemStatusView, BatchItemView, BatchOutputView, BatchSummaryView, SigningStage } from '../../core/types';
 import type { Translator } from '../../i18n/catalog';
 import type { Tone } from '../../ui/controls';
+import { confirmsEach } from './flow';
 
 type State = BatchItemStatusView['state'];
 
@@ -67,7 +68,9 @@ export function statusTone(status: BatchItemStatusView): Tone {
   return TONE[status.state];
 }
 
-export function stageLabel(t: Translator, stage: SigningStage): string {
+/** Phase eines laufenden Eintrags; ohne Bestätigung je Dokument (Keystore) „wird signiert“ statt „Bestätigung läuft“. */
+export function stageLabel(t: Translator, stage: SigningStage, flow: BatchFlowView | null = null): string {
+  if (stage === 'confirming' && !confirmsEach(flow)) return t.t('ng-ui-batch-stage-signing');
   return t.t(STAGE[stage]);
 }
 
@@ -93,8 +96,8 @@ export function positionDetail(t: Translator, item: BatchItemView): string {
   }
 }
 
-/** Zweite Zeile unter dem Status. */
-export function statusDetail(t: Translator, item: BatchItemView): string {
+/** Zweite Zeile unter dem Status (`flow`: Ablauf des laufenden Stapels, Kern `SignerView::batch_flow`). */
+export function statusDetail(t: Translator, item: BatchItemView, flow: BatchFlowView | null = null): string {
   const s = item.status;
   switch (s.state) {
     case 'analyzing':
@@ -110,7 +113,7 @@ export function statusDetail(t: Translator, item: BatchItemView): string {
     case 'needs_review':
       return t.t('ng-ui-batch-detail-review');
     case 'active':
-      return stageLabel(t, s.stage);
+      return stageLabel(t, s.stage, flow);
     case 'signed':
       return t.t('ng-ui-batch-detail-signed', { file: baseName(s.path) });
     case 'failed':

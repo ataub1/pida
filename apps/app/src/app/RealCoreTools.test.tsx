@@ -178,7 +178,7 @@ describe('Ersteinrichtung: Zustände des echten Kerns', () => {
     expect(await screen.findByText('Einrichtung abgeschlossen. Sie können alles jederzeit in den Einstellungen ändern.')).toBeInTheDocument();
   });
 
-  it('frisch ohne PDF-Over: direkt das Standard-Signiermittel („Jedes Mal fragen“), „Später einrichten“ = finish_first_run', async () => {
+  it('frisch ohne PDF-Over: direkt das Standard-Signiermittel („Jedes Mal fragen“), „Später einrichten“ = postpone_first_run', async () => {
     const { mock, user } = await renderState('first_run_fresh');
     const dialog = await screen.findByRole('dialog', { name: 'Willkommen bei PIDA' });
     expect(dialog).toHaveTextContent('Schritt 1 von 2');
@@ -186,7 +186,7 @@ describe('Ersteinrichtung: Zustände des echten Kerns', () => {
     expect(within(dialog).getByRole('radio', { name: /^Jedes Mal fragen/ })).toBeChecked();
     await expectNoAxeViolations();
     await user.click(within(dialog).getByRole('button', { name: 'Später einrichten' }));
-    await waitFor(() => expect(lastEvent(mock)).toEqual({ type: 'finish_first_run' }));
+    await waitFor(() => expect(lastEvent(mock)).toEqual({ type: 'postpone_first_run' }));
     expect(mock.dispatched.some((e) => e.type === 'decline_migration')).toBe(false);
   });
 });

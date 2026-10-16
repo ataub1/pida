@@ -10,10 +10,10 @@
  *
  * Schließen (×, Escape, Klick daneben) sendet zuerst wartende Texteingaben und dann `close_settings` – es gibt
  * nichts zu verwerfen. Schreibgeschützte Einstellungen (`read_only`, `-c`) zeigen ein Banner; Änderungen
- * gelten dann bis zum Programmende (Kern). Mobile: ohne Proxy, Ordner, Update-Prüfung und Protokolle;
+ * gelten dann bis zum Beenden von PIDA (Kern). Mobile: ohne Proxy, Ordner, Update-Prüfung und Protokolle;
  * Keystore nur über den PKCS#12-Import.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Button as AriaButton, Input, SearchField } from 'react-aria-components';
 import type { SettingsSectionId } from '../../app/context';
 import { useApp } from '../../app/context';
@@ -116,12 +116,33 @@ function SettingRow({ id, goto }: { id: RowId; goto: (section: SectionId, focus?
 
 const PREVIEW_ROW = ROWS.find((r) => r.id === 'signature.preview') as RowDef;
 
+/**
+ * Den aktiven Bereich in der Bereichsleiste ganz ins Bild rollen (nur die Leiste selbst, nicht den Dialog): Schmal
+ * und auf Mobilgeräten ist sie waagrecht und rollt; bei großer Schrift lag der aktive Bereich sonst außerhalb
+ * (Mobile-Check 16.10.2026: „Signiermittel“ aktiv, sichtbar „Signaturbild“ und „Dokument“). Senkrecht (breit)
+ * meist ohne Wirkung.
+ */
+function revealCurrentSection(nav: HTMLElement) {
+  const item = nav.querySelector<HTMLElement>('[aria-current="true"]');
+  if (!item) return;
+  const n = nav.getBoundingClientRect();
+  const r = item.getBoundingClientRect();
+  // etwas Abstand zum Rand, damit der Nachbar als „weiter“ erkennbar bleibt
+  const pad = 12;
+  const dx = r.left < n.left ? r.left - n.left - pad : r.right > n.right ? r.right - n.right + pad : 0;
+  const dy = r.top < n.top ? r.top - n.top - pad : r.bottom > n.bottom ? r.bottom - n.bottom + pad : 0;
+  if (dx) nav.scrollLeft = Math.max(0, nav.scrollLeft + dx);
+  if (dy) nav.scrollTop = Math.max(0, nav.scrollTop + dy);
+}
+
 function Panel({ initial }: { initial: SectionId }) {
   const { t, dispatch } = useApp();
   const s = useSettings();
   const [current, setCurrent] = useState<SectionId>(initial);
   const [query, setQuery] = useState('');
   const content = useRef<HTMLDivElement>(null);
+  const nav = useRef<HTMLElement>(null);
+  const searching = query.trim() !== '';
 
   const close = () => {
     s.flush();
@@ -139,6 +160,20 @@ function Panel({ initial }: { initial: SectionId }) {
     window.addEventListener(EMBLEM_DROP_EVENT, onDrop);
     return () => window.removeEventListener(EMBLEM_DROP_EVENT, onDrop);
   }, []);
+
+  // Aktiven Bereich ins Bild: beim Öffnen (z. B. direkt in „Signiermittel“), nach jedem Wechsel, nach der Suche und
+  // wenn die Schrift zur Laufzeit wächst (die Knöpfe werden breiter, die Leiste nicht)
+  useLayoutEffect(() => {
+    const el = nav.current;
+    if (!el) return undefined;
+    revealCurrentSection(el);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => revealCurrentSection(el));
+    ro.observe(el);
+    const item = el.querySelector('[aria-current="true"]');
+    if (item) ro.observe(item);
+    return () => ro.disconnect();
+  }, [current, searching]);
 
   const goto = (section: SectionId, focus?: string) => {
     setQuery('');
@@ -174,7 +209,7 @@ function Panel({ initial }: { initial: SectionId }) {
       </div>
       <div className={`settings-layout${q ? ' is-searching' : ''}`}>
         {q ? null : (
-          <nav className="settings-nav" aria-label={t.t('ng-ui-set-sections')}>
+          <nav className="settings-nav" aria-label={t.t('ng-ui-set-sections')} ref={nav}>
             {SECTIONS.map((sec) => (
               <AriaButton
                 key={sec.id}

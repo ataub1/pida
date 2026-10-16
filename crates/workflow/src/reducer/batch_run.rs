@@ -135,16 +135,14 @@ fn notify(code: &str, params: &[(&str, String)]) -> Effect {
     Effect::NotifyWith(code.to_owned(), params.iter().map(|(k, v)| ((*k).to_owned(), v.clone())).collect())
 }
 
-/// Einträge für alle offenen Dokumente ohne Eintrag anlegen (mit Voranalyse) – außer `except`.
-fn ensure_items(queue: &mut Queue, except: Option<DocId>, effects: &mut Vec<Effect>) {
+/// Einträge für alle offenen Dokumente ohne Eintrag anlegen (mit Voranalyse).
+fn ensure_items(queue: &mut Queue, effects: &mut Vec<Effect>) {
     let ids: Vec<DocId> = queue.current.iter().chain(queue.pending.iter()).map(|d| d.id).collect();
     let batch = queue.batch.get_or_insert_with(Batch::default);
     for id in ids {
         if batch.item(id).is_none() {
             batch.items.push(BatchItem::analyzing(id));
-            if Some(id) != except {
-                effects.push(Effect::Preanalyze(id));
-            }
+            effects.push(Effect::Preanalyze(id));
         }
     }
 }
@@ -152,7 +150,7 @@ fn ensure_items(queue: &mut Queue, except: Option<DocId>, effects: &mut Vec<Effe
 /// Neue Stapelübersicht aus allen offenen Dokumenten (Voranalyse je Dokument).
 pub(super) fn new_overview(mut queue: Queue, mut effects: Vec<Effect>) -> Transition {
     queue.park_current();
-    ensure_items(&mut queue, None, &mut effects);
+    ensure_items(&mut queue, &mut effects);
     if let Some(b) = &mut queue.batch {
         b.open = None;
     }
@@ -175,10 +173,10 @@ enum Back {
 /// Zurück zur Übersicht: Dokument freigeben, Eintrag aktualisieren, kein aktuelles Dokument.
 fn back(mut queue: Queue, doc: DocId, how: Back, mut effects: Vec<Effect>) -> Transition {
     effects.push(Effect::Discard(doc));
-    // nach „Signatur fortsetzen“ eines unterbrochenen Stapels gibt es noch keine Einträge
-    let created = queue.batch.as_ref().and_then(|b| b.item(doc)).is_none();
-    let except = (created && matches!(how, Back::Signed(_))).then_some(doc);
-    ensure_items(&mut queue, except, &mut effects);
+    // nach „Signatur fortsetzen“ eines unterbrochenen Stapels gibt es noch keine Einträge; auch der eben
+    // signierte bekommt seine Voranalyse – nur für Miniatur, Seitenzahl und Größe der Zeile (Mobile-Check
+    // 16.10.2026: die fortgesetzte Zeile blieb ohne sie), sein Status bleibt „Signiert“
+    ensure_items(&mut queue, &mut effects);
     let batch = queue.batch.as_mut().expect("eben angelegt");
     batch.open = None;
     if let Some(item) = batch.item_mut(doc) {
@@ -241,6 +239,7 @@ pub(super) fn intercept(state: State, event: Event, _ctx: &Context) -> Result<Tr
             {
                 // einzeln signiert, weitere Dokumente warten: Übersicht mit dem signierten Eintrag
                 let batch = queue.batch.get_or_insert_with(Batch::default);
+                let mut effects = vec![Effect::Discard(doc.id)];
                 if batch.item(doc.id).is_none() {
                     batch.items.push(BatchItem {
                         doc: doc.id,
@@ -250,9 +249,11 @@ pub(super) fn intercept(state: State, event: Event, _ctx: &Context) -> Result<Tr
                         reviewed: true,
                         auto_plan: false,
                     });
+                    // Miniatur, Seitenzahl und Größe der Zeile (der Status bleibt „Signiert“)
+                    effects.push(Effect::Preanalyze(doc.id));
                 }
                 queue.complete(doc.id, DocResult::Signed { output });
-                Ok(new_overview(queue, vec![Effect::Discard(doc.id)]))
+                Ok(new_overview(queue, effects))
             }
             s @ (State::Analyzing { .. } | State::AnalysisWarning { .. }) if opened => {
                 let (queue, doc) = queue_and_doc(s);
@@ -448,7 +449,7 @@ pub(super) fn files_added(state: State, docs: Vec<InputDocument>, ctx: &Context)
         State::BatchOverview { mut queue } => {
             let added = queue.append(docs);
             let mut effects = Vec::new();
-            ensure_items(&mut queue, None, &mut effects);
+            ensure_items(&mut queue, &mut effects);
             if added.is_empty() {
                 effects.clear();
             }
@@ -459,7 +460,7 @@ pub(super) fn files_added(state: State, docs: Vec<InputDocument>, ctx: &Context)
             let q = s.queue_mut().expect("Warteschlange");
             let added = q.append(docs).len();
             let mut effects = if held { vec![Effect::CancelSession] } else { Vec::new() };
-            ensure_items(q, None, &mut effects);
+            ensure_items(q, &mut effects);
             if added > 0 {
                 effects.push(notify(MSG_BATCH_ADDED, &[("count", added.to_string())]));
             }

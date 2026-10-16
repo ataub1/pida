@@ -44,6 +44,7 @@ import { recentArea } from './recent';
 import { settingsArea } from './settings';
 import {
   A4,
+  batchFlowFor,
   capabilitiesFor,
   fileNameOf,
   folderOf,
@@ -172,7 +173,7 @@ function signerOptions(s: FlowState, ctx: MockCtx): SignerView[] {
   const isMobile = ctx.platform().mobile;
   const ida = settings.id_austria;
   const ks = settings.keystore;
-  const out: SignerView[] = [
+  const out: Omit<SignerView, 'batch_flow'>[] = [
     {
       backend: 'atrust_native',
       available: true,
@@ -197,7 +198,8 @@ function signerOptions(s: FlowState, ctx: MockCtx): SignerView[] {
       unavailable_reason: ok ? null : isMobile ? 'ng-signer-keystore-import' : 'ng-signer-keystore-missing',
     });
   }
-  return out;
+  // Ablauf des Stapels aus den Fähigkeiten wie der Kern (Nachtrag 12)
+  return out.map((o) => ({ ...o, batch_flow: batchFlowFor(o.capabilities) }));
 }
 
 function available(s: FlowState, ctx: MockCtx, id: BackendId): boolean {
@@ -1319,6 +1321,9 @@ export class MockCore implements Bridge {
   private readonly verifyState: VerifyState;
   private notices: NoticeView[] = [];
   private noticeId = 0;
+  /** Hinweis zum Teilen (iOS, Nachtrag 12): über „Teilen“ empfangenes Dokument bzw. ausgeblendet – wie der Kern */
+  private shareHint: DocId | null = null;
+  private shareHintDismissed = false;
   private readonly ctx: MockCtx;
 
   constructor(options: MockOptions = {}) {
@@ -1405,7 +1410,16 @@ export class MockCore implements Bridge {
     // wie K4 (Merge E4): bei offenem Prüfmodus ist das Dokument darunter verdeckt – kein Signieren (F-54)
     const signing = ['sign_with', 'start_batch', 'confirm_position', 'choose_invisible', 'choose_backend'].includes(event.type);
     if (this.verifyState.view && signing) return;
-    for (const a of this.areas) a.area.handle(event, a.state, this.ctx);
+    // von außen übergebene Dateien (Shell, Nachtrag 12): wie `open_files` ohne `mode`; auf iOS danach der Hinweis
+    // zum Teilen für das empfangene Dokument, sofern nicht ausgeblendet (wie der Kern)
+    const routed: UiEvent = event.type === 'files_received' ? { type: 'open_files', paths: event.paths } : event;
+    const firstNew = this.flow.nextDocId;
+    for (const a of this.areas) a.area.handle(routed, a.state, this.ctx);
+    if (event.type === 'files_received' && this.platformView().os === 'ios' && !this.shareHintDismissed && this.flow.nextDocId > firstNew) this.shareHint = firstNew;
+    if (event.type === 'dismiss_share_hint') {
+      this.shareHint = null;
+      this.shareHintDismissed = true;
+    }
     const session = this.flow.signing ?? this.flow.batch?.session() ?? null;
     if (event.type === 'open_signature_data' && session) {
       const url = session.signatureDataUrl(event.request);
@@ -1548,6 +1562,9 @@ export class MockCore implements Bridge {
     view.actions = { ...view.actions, verify: verifyAllowed(view) };
     // Prüfmodus offen: das Dokument darunter ist verdeckt (wie K4, Merge E4)
     if (view.verify) view.actions = { ...view.actions, sign: false, edit_placement: false, start_batch: false, show_batch: false };
+    // Hinweis zum Teilen (Nachtrag 12): nur, solange das empfangene Dokument allein offen ist (wie der Kern)
+    const alone = this.shareHint !== null && view.document?.doc.id === this.shareHint && !view.batch && this.flow.queue.length === 1;
+    view.share_hint = alone && !view.verify && this.shareHint !== null ? { doc: this.shareHint } : null;
     // Einstellungen offen: Einstellungen nicht erneut erreichbar (wie `main_bar.settings_enabled` im Kern)
     if (view.settings) {
       view.main_bar = { ...view.main_bar, settings_enabled: false };

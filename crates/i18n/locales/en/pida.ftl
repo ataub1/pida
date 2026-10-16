@@ -26,7 +26,7 @@ ng-config-error-no-home = The configuration folder cannot be determined.
 ng-config-error-secret = Error accessing the keychain: { $detail }
 ng-config-file-missing = The configuration file “{ $path }” was not found.
 ng-config-reset-done = The previous settings were moved to “{ $path }”.
-ng-secrets-not-persistent = No keychain available: passwords are only kept until the program exits.
+ng-secrets-not-persistent = No keychain available: passwords are only kept until PIDA exits.
 
 ## Configuration: reading PDF-Over.config (`pida_config::LegacyWarning::code`)
 
@@ -519,7 +519,7 @@ ng-ui-done-title = Done ({ $count })
 ng-ui-done-signed = signed: { $file }
 ng-ui-done-cancelled = cancelled
 ng-ui-done-failed = failed: { $message }
-ng-ui-settings-read-only = These settings are not saved (configuration given with -c or unreadable settings file). Changes apply until the program ends.
+ng-ui-settings-read-only = These settings are not saved (configuration given with -c or unreadable settings file). Changes apply until PIDA exits.
 ng-cli-fido2-pin = Security key PIN:{ " " }
 ng-certcache-mismatch = The certificate has changed (for example renewed, or a different account). The signature was discarded. "Retry" reads the certificate again, rebuilds the signature block with the new details and asks for confirmation again.
 ng-placeholder-profile-unknown = The signature placeholder names the unknown profile "{ $profile }"; the configured profile is used for signing.
@@ -653,6 +653,8 @@ ng-migration-item-position = Automatic positioning
 ng-migration-item-language = Language
 ng-migration-not-found = No PDF-Over settings were found on this device.
 ng-firstrun-done = Setup complete. You can change everything in the settings at any time.
+ng-firstrun-later = You can set up the signing method and signature block in the settings at any time.
+ng-open-duplicate = “{ $name }” is already open.
 ng-settings-field-unknown = Unknown setting.
 ng-settings-invalid-value = This value is not valid for the setting.
 ng-settings-invalid-port = The port must be between 1 and 65535.

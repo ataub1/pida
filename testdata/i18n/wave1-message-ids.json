@@ -191,8 +191,8 @@
   },
   {
     "id": "ng-secrets-not-persistent",
-    "de": "Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Programmende gespeichert.",
-    "en": "No keychain available: passwords are only kept until the program exits."
+    "de": "Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Beenden von PIDA gespeichert.",
+    "en": "No keychain available: passwords are only kept until PIDA exits."
   },
   {
     "id": "ng-config-legacy-invalid-bku",

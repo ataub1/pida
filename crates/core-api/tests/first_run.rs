@@ -251,14 +251,17 @@ async fn decline_later_and_offer_again() {
     assert_eq!(saved.output.folder.as_deref(), Some(out.as_path()), "PDF-Over-Wert");
     drop(core);
 
-    // „Später einrichten“ mit offenem Angebot
+    // „Später einrichten“ mit offenem Angebot (`PostponeFirstRun`): wie „Fertig“ abgeschlossen, aber ohne
+    // „Einrichtung abgeschlossen“ – der Hinweis sagt, wo es weitergeht (Mobile-Check 16.10.2026)
     let fx = Fixture::new();
     let (legacy, out) = legacy_home(&fx, None);
     let core = start(&fx, Some(&legacy), |_| {});
     wait_for(&core, "Schritt 1", |v| v.first_run.as_ref().is_some_and(|f| f.migration.is_some())).await;
-    core.dispatch(UiEvent::FinishFirstRun);
+    core.dispatch(UiEvent::PostponeFirstRun);
     let v = wait_for(&core, "später", |v| v.first_run.is_none()).await;
     assert!(v.migration.is_none(), "nichts übernommen, kein separates Fenster");
+    assert!(v.notices.iter().any(|n| n.code == "ng-firstrun-later"), "{:?}", v.notices);
+    assert!(!v.notices.iter().any(|n| n.code == "ng-firstrun-done"), "nicht „Einrichtung abgeschlossen“");
     let saved = file_settings(&fx).unwrap();
     assert!(saved.general.first_run_completed);
     assert_eq!((saved.output.folder.as_deref(), saved.backend.default), (Some(Path::new(".")), None));

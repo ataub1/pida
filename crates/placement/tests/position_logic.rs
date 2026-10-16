@@ -339,6 +339,62 @@ fn auto_no_space_adds_new_page() {
     assert!(!resolve(&small_auto(), &ctx(&pages), 49.0, &mut s).unwrap().new_page);
 }
 
+/// Arbeitsbereich (ADR 0004 Nachtrag 12): Widgets vorhandener Felder zählen wie Inhalt. Seitenfüllendes leeres
+/// Signaturfeld auf der letzten Seite (`manySignFields.pdf`, `Signature_7`) → neue Seite statt „automatisch auf
+/// freier Fläche“ mitten im Feld; ein Feld weiter oben schiebt den Block nur darunter; Widgets anderer Seiten,
+/// unterhalb der Fußzeile bzw. ohne Rect ändern nichts; ohne Widgets genau die PDF-AS-Regel.
+#[test]
+fn widget_aware_scan_keeps_automatic_placement_out_of_fields() {
+    let field = |page: Option<usize>, rect: Rect| SigField {
+        qualified_name: "Signature_7".into(),
+        partial_name: Some("Signature_7".into()),
+        field_id: (9, 0),
+        depth: 0,
+        widgets: vec![SigWidget { id: (9, 0), page_index: page, rect, annot_flags: 4 }],
+        signed: false,
+        value_id: None,
+        has_lock: false,
+        has_seed_value: false,
+        field_flags: 0,
+    };
+    let pages = [a4(0), a4(1)];
+    let aware = |fields: &[SigField], lowest: f32| {
+        let mut inner = FakeScanner { lowest, ..Default::default() };
+        let mut s = WidgetAwareScanner { inner: &mut inner, pages: &pages, fields };
+        let w = resolve_width(&small_auto(), &ctx(&pages)).unwrap();
+        resolve_position(&small_auto(), &ctx(&pages), w, 49.0, &mut s).unwrap()
+    };
+    // ohne Widgets bzw. mit Widgets anderswo: unverändert (PDF-AS-Regel)
+    let plain = {
+        let mut s = FakeScanner { lowest: 300.0, ..Default::default() };
+        resolve(&small_auto(), &ctx(&pages), 49.0, &mut s).unwrap()
+    };
+    assert_eq!(aware(&[], 300.0), plain);
+    let elsewhere = [
+        field(Some(0), Rect::new(0.0, 0.0, 595.0, 842.0)),
+        field(Some(1), Rect::new(100.0, 10.0, 300.0, 70.0)), // ganz in der Fußzeile (f = 80)
+        field(Some(1), Rect::new(0.0, 0.0, 0.0, 0.0)),
+        field(None, Rect::new(0.0, 0.0, 595.0, 842.0)),
+    ];
+    assert_eq!(aware(&elsewhere, 300.0), plain);
+    // seitenfüllendes Feld auf der letzten Seite: kein Platz → neue Seite
+    let full = [field(Some(1), Rect::new(0.0, 0.0, 595.0, 842.0))];
+    let r = aware(&full, 300.0);
+    assert_eq!((r.page_index, r.new_page, r.y), (2, true, 822.0));
+    assert!(!widget_overlaps(&r, &pages[1], &full), "die Automatik überdeckt kein Feld");
+    // Feld unter dem Text: Block darunter (Unterkante 500 → 342 von oben), ohne Überdeckung
+    let below = [field(Some(1), Rect::new(100.0, 500.0, 300.0, 540.0))];
+    let r = aware(&below, 300.0);
+    assert_eq!((r.page_index, r.new_page, r.y), (1, false, 842.0 - 342.0 - 20.0));
+    assert!(!widget_overlaps(&r, &pages[1], &below));
+    // Feld über dem tiefsten Inhalt: der Inhalt entscheidet
+    let above = [field(Some(1), Rect::new(100.0, 700.0, 300.0, 740.0))];
+    assert_eq!(aware(&above, 300.0), plain);
+    // Feld, das in die Fußzeile reicht: zählt bis zur Fußzeile → kein Platz mehr
+    let into_footer = [field(Some(1), Rect::new(100.0, 40.0, 300.0, 200.0))];
+    assert!(aware(&into_footer, 300.0).new_page);
+}
+
 #[test]
 fn signed_documents_get_no_new_page() {
     let pages = [a4(0)];

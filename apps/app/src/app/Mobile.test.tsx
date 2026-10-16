@@ -179,3 +179,71 @@ describe('Konto-Chip und Signiermittel auf Mobilgeräten', () => {
     await expectNoAxeViolations();
   });
 });
+
+describe('Hinweis zum Teilen auf iOS (ADR 0004 Nachtrag 12)', () => {
+  const TEXT = 'Mehrere PDFs geteilt? iOS übergibt beim Teilen nur das erste. Für einen Stapel wählen Sie die übrigen über „Weitere PDFs hinzufügen …“ – dort ist Mehrfachauswahl möglich.';
+
+  it('schmal über „Signieren“, auch im eingeklappten Sheet: „Weitere PDFs hinzufügen …“ (Mehrfachauswahl) und „Hinweis ausblenden“; axe', async () => {
+    restore = emulateMedia({ narrow: true, coarse: true });
+    const doc = documentView();
+    const { mock, user } = renderApp({ view: onMobile(workspaceView(doc, { share_hint: { doc: doc.doc.id } }), IOS), platform: 'ios' });
+    const hint = await screen.findByTestId('share-hint');
+    expect(hint).toHaveAttribute('role', 'note');
+    expect(hint).toHaveTextContent(TEXT);
+    // nicht im (eingeklappten) Inhalt des Sheets, sondern daneben – sichtbar ohne Aufklappen
+    expect(hint.closest('.inspector-scroll')).toBeNull();
+    expect(hint.closest('.inspector')).not.toBeNull();
+    await expectNoAxeViolations();
+    await user.click(within(hint).getByRole('button', { name: 'Weitere PDFs hinzufügen …' }));
+    await waitFor(() => expect(lastEvent(mock)).toMatchObject({ type: 'open_files', mode: 'add' }));
+    expect(mock.nativeCalls).toContain('pickMobileFiles:pdf:multiple');
+    await user.click(within(hint).getByRole('button', { name: 'Hinweis ausblenden' }));
+    expect(lastEvent(mock)).toEqual({ type: 'dismiss_share_hint' });
+  });
+
+  it('ohne `share_hint` kein Hinweis (Dateiauswahl, Android, Desktop)', async () => {
+    renderApp({ view: onMobile(workspaceView(), IOS), platform: 'ios' });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.queryByTestId('share-hint')).not.toBeInTheDocument();
+  });
+
+  it('Mock-Kern wie der Kern: nur nach dem Empfang über „Teilen“, weg mit weiteren PDFs bzw. nach „Ausblenden“ (bis zum Beenden)', async () => {
+    const { mock, user } = renderApp({ platform: 'ios' });
+    await screen.findByRole('heading', { level: 1 });
+    // Dateiauswahl: kein Hinweis
+    await act(() => mock.dispatch({ type: 'open_files', paths: ['/x/Library/Caches/import/Vertrag.pdf'] }));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.queryByTestId('share-hint')).not.toBeInTheDocument();
+    await act(() => mock.dispatch({ type: 'cancel' }));
+    await waitFor(() => expect(screen.queryByRole('application', { name: 'Signaturblock' })).not.toBeInTheDocument());
+    // über „Teilen“ empfangen (Shell): Hinweis
+    await act(() => mock.dispatch({ type: 'files_received', paths: ['/x/Library/Caches/inbox/Angebot.pdf'] }));
+    const hint = await screen.findByTestId('share-hint');
+    expect(hint).toHaveTextContent(TEXT);
+    await user.click(within(hint).getByRole('button', { name: 'Hinweis ausblenden' }));
+    await waitFor(() => expect(screen.queryByTestId('share-hint')).not.toBeInTheDocument());
+    // erneut empfangen: ausgeblendet bleibt ausgeblendet
+    await act(() => mock.dispatch({ type: 'cancel' }));
+    await act(() => mock.dispatch({ type: 'files_received', paths: ['/x/Library/Caches/inbox/Auftrag.pdf'] }));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.queryByTestId('share-hint')).not.toBeInTheDocument();
+  });
+
+  it('Mock-Kern: mit weiteren PDFs ist der Hinweis erledigt; Android und Desktop zeigen ihn nie', async () => {
+    const { mock, unmount } = renderApp({ platform: 'ios' });
+    await screen.findByRole('heading', { level: 1 });
+    await act(() => mock.dispatch({ type: 'files_received', paths: ['/x/Library/Caches/inbox/Vertrag.pdf'] }));
+    await screen.findByTestId('share-hint');
+    await act(() => mock.dispatch({ type: 'open_files', paths: ['/x/Library/Caches/import/Angebot.pdf'], mode: 'add' }));
+    await waitFor(() => expect(screen.queryByTestId('share-hint')).not.toBeInTheDocument());
+    unmount();
+    for (const platform of ['android', 'desktop'] as const) {
+      const r = renderApp({ platform });
+      await screen.findByRole('heading', { level: 1 });
+      await act(() => r.mock.dispatch({ type: 'files_received', paths: ['/x/inbox/Vertrag.pdf'] }));
+      await screen.findByRole('application', { name: 'Signaturblock' });
+      expect(screen.queryByTestId('share-hint')).not.toBeInTheDocument();
+      r.unmount();
+    }
+  });
+});

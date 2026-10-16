@@ -1,8 +1,8 @@
 /**
  * Ersteinrichtung (Paket UI-B, ADR 0004 §3.12, Abnahme E4 Punkte 5 und 6 [M]): bei fehlender Einstellungsdatei
  * mit Altkonfiguration die Liste der Übernahmen (Schritt 1), ohne Altkonfiguration direkt Schritt 2;
- * Standard-Signiermittel und Signaturbild wirken sofort (`update_first_run`), „Los geht’s“ bzw. „Später
- * einrichten“ (`finish_first_run`); Bestandsnutzer sehen sie nie; erneut über Einstellungen › Erweitert
+ * Standard-Signiermittel und Signaturbild wirken sofort (`update_first_run`), „Los geht’s“ (`finish_first_run`)
+ * bzw. „Später einrichten“ (`postpone_first_run`); Bestandsnutzer sehen sie nie; erneut über Einstellungen › Erweitert
  * (`offer_migration`). Das PIDA-Siegel bleibt, nur eine echte eigene Bildmarke der Altkonfiguration wird
  * übernommen (Entscheidung des Auftraggebers, ADR 0005). Proben des Kerns, Mobile, axe je Schritt.
  */
@@ -108,19 +108,22 @@ describe('Ersteinrichtung', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('„Später einrichten“ (bzw. Esc) lehnt ein offenes Angebot ab und beendet die Einrichtung; kein zweiter Dialog', async () => {
+  it('„Später einrichten“ (bzw. Esc) lehnt ein offenes Angebot ab und beendet die Einrichtung ohne „Einrichtung abgeschlossen“; kein zweiter Dialog', async () => {
     const { mock, user } = renderApp({ firstRun: true, migrationOffer: LEGACY });
     const dialog = await welcome();
     await user.click(within(dialog).getByRole('button', { name: 'Später einrichten' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(mock.dispatched.slice(-2)).toEqual([{ type: 'decline_migration' }, { type: 'finish_first_run' }]);
+    expect(mock.dispatched.slice(-2)).toEqual([{ type: 'decline_migration' }, { type: 'postpone_first_run' }]);
     expect((await mock.view()).migration).toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' })).toBeInTheDocument();
+    // Mobile-Check 16.10.2026: nach „Später einrichten“ nicht „Einrichtung abgeschlossen“, sondern wo es weitergeht
+    expect(await screen.findByText('Signiermittel und Signaturbild können Sie jederzeit in den Einstellungen einrichten.')).toBeInTheDocument();
+    expect(screen.queryByText(/Einrichtung abgeschlossen/)).not.toBeInTheDocument();
 
     const second = renderApp({ firstRun: true });
     await screen.findByRole('dialog', { name: 'Willkommen bei PIDA' });
     await second.user.keyboard('{Escape}');
-    await waitFor(() => expect(lastEvent(second.mock)).toEqual({ type: 'finish_first_run' }));
+    await waitFor(() => expect(lastEvent(second.mock)).toEqual({ type: 'postpone_first_run' }));
   });
 
   it('Bestandsnutzer sehen sie nie', async () => {

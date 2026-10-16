@@ -604,6 +604,9 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         ActionsView,
         // Nachtrag 10
         ParkedWorkView,
+        // Nachtrag 12
+        BatchFlowView,
+        ShareHintView,
     );
     (out, names)
 }

@@ -1,7 +1,7 @@
 /** Bausteine für Test-Zustände (serde-Format wie `pida-core-api`). */
 import { defaultErrorContext, defaultSettings, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../core/defaults';
 import { mockKeystoreFormat } from '../core/mock/settings';
-import { capabilitiesFor } from '../core/mock/shared';
+import { batchFlowFor, capabilitiesFor } from '../core/mock/shared';
 import type {
   ActionsView,
   BackendOptionView,
@@ -178,11 +178,14 @@ export function signersView(extra: Partial<SignersView> = {}, mobile = false): S
         capabilities: capabilitiesFor('atrust_native', mobile),
         notes: mobile ? ['ng-fido2-unavailable-mobile'] : [],
         unavailable_reason: null,
+        batch_flow: 'login_then_confirm_each',
       },
-      ...(mobile ? [] : [{ backend: 'local_bku' as const, available: true, account: null, capabilities: capabilitiesFor('local_bku'), notes: [], unavailable_reason: null }]),
+      ...(mobile
+        ? []
+        : [{ backend: 'local_bku' as const, available: true, account: null, capabilities: capabilitiesFor('local_bku'), notes: [], unavailable_reason: null, batch_flow: batchFlowFor(capabilitiesFor('local_bku')) }]),
       mobile
-        ? { backend: 'keystore' as const, available: false, account: null, capabilities: null, notes: [], unavailable_reason: 'ng-signer-keystore-import' }
-        : { backend: 'keystore' as const, available: true, account: 'max.p12 · max', capabilities: capabilitiesFor('keystore'), notes: [], unavailable_reason: null },
+        ? { backend: 'keystore' as const, available: false, account: null, capabilities: null, notes: [], unavailable_reason: 'ng-signer-keystore-import', batch_flow: null }
+        : { backend: 'keystore' as const, available: true, account: 'max.p12 · max', capabilities: capabilitiesFor('keystore'), notes: [], unavailable_reason: null, batch_flow: 'unlock_once' as const },
     ],
     selected: 'atrust_native',
     default: 'atrust_native',

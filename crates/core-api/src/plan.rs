@@ -21,7 +21,8 @@ use pida_pades::{BlockPlacement, DocReport, FieldTarget, PdfaId, Reserve, SignPl
 use pida_pdf_cos::{PageInfo, Rect, Rotation};
 use pida_placement::{
     BlockGeometry, CompatMode, FreeSpaceScanner, Placement, PositionContext, RasterScanner, ResolvedPosition, TablePos,
-    WidthDecision, appearance_rotation, default_start_placement, resolve_position, resolve_width, widget_rect,
+    WidgetAwareScanner, WidthDecision, appearance_rotation, default_start_placement, resolve_position, resolve_width,
+    widget_rect,
 };
 use pida_render::{ForcedColorOptions, Renderer};
 use pida_sigblock::{
@@ -340,6 +341,11 @@ pub struct PlanInput<'a> {
     pub cms_profile: CmsProfile,
     /// Renderer für die Freiraumsuche
     pub renderer: Option<&'a dyn Renderer>,
+    /// Arbeitsbereich: die automatische Platzierung zählt die Widgets vorhandener Felder als belegt
+    /// ([`pida_placement::WidgetAwareScanner`], ADR 0004 Nachtrag 12) – wie die Überdeckungsprüfung, damit
+    /// „automatisch auf freier Fläche platziert“ nie in einem Feld landet. `false` = PDF-AS-Regel (CLI,
+    /// klassischer Ablauf).
+    pub avoid_widgets: bool,
     /// Profile
     pub store: &'a ProfileStore,
     /// Fonts
@@ -434,12 +440,20 @@ pub fn build_plan(inp: PlanInput<'_>) -> Result<BuiltPlan, PlanError> {
         };
         let width: WidthDecision = resolve_width(&request, &ctx)?;
         let measured = spec.build(width.width, 0, inp.store, inp.fonts)?;
-        let resolved: ResolvedPosition = match inp.renderer {
+        let mut raster;
+        let mut empty = EmptyPages;
+        let scanner: &mut dyn FreeSpaceScanner = match inp.renderer {
             Some(renderer) => {
-                let mut scanner = RasterScanner { renderer, options: ForcedColorOptions::default() };
-                resolve_position(&request, &ctx, width, measured.height, &mut scanner)?
+                raster = RasterScanner { renderer, options: ForcedColorOptions::default() };
+                &mut raster
             }
-            None => resolve_position(&request, &ctx, width, measured.height, &mut EmptyPages)?,
+            None => &mut empty,
+        };
+        let resolved: ResolvedPosition = if inp.avoid_widgets {
+            let mut aware = WidgetAwareScanner { inner: scanner, pages: inp.pages, fields: &inp.report.fields };
+            resolve_position(&request, &ctx, width, measured.height, &mut aware)?
+        } else {
+            resolve_position(&request, &ctx, width, measured.height, scanner)?
         };
         notices.extend(resolved.notices.iter().map(|n| n.code().to_owned()));
         let page = if resolved.new_page {

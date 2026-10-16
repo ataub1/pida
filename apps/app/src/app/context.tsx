@@ -42,7 +42,7 @@ export interface AppContextValue {
   dispatch: (event: UiEvent) => Promise<boolean>;
   /** Übersetzer der UI-Sprache (`ViewState::language`) */
   t: Translator;
-  /** Text für Screenreader (Live-Region, höflich) */
+  /** Text für Screenreader (Live-Region, höflich); `''` leert sie (veraltete Ansage) */
   announce: (text: string) => void;
   /** Hinweis anzeigen */
   toast: (text: string, kind?: Toast['kind'], detail?: string) => void;

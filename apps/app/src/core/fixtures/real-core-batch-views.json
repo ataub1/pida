@@ -135,6 +135,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -142,6 +143,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -302,6 +304,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -309,6 +312,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -548,6 +552,7 @@
     ],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -555,6 +560,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -766,6 +772,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -773,6 +780,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -989,6 +997,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -996,6 +1005,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1162,6 +1172,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1169,6 +1180,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1257,6 +1269,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1264,6 +1277,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1448,6 +1462,7 @@
     ],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1455,6 +1470,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1739,6 +1755,7 @@
     ],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1746,6 +1763,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,

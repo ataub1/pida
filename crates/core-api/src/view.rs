@@ -532,6 +532,14 @@ pub struct ViewState {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub parked: Option<ParkedWorkView>,
+    /// iOS: Hinweis nach dem Empfang über „Teilen“ bzw. „Öffnen in“ (ADR 0004 Nachtrag 12) – die Dateien-App
+    /// übergibt von mehreren geteilten PDFs nur das erste; weitere für einen Stapel wählt man über „Weitere PDFs
+    /// hinzufügen …“ (Mehrfachauswahl). Nur, solange das empfangene Dokument allein im Arbeitsbereich offen ist,
+    /// und nicht mehr nach `dismiss_share_hint` (bis zum Beenden der App). Additiv, in TypeScript optional; sonst
+    /// `None` (Desktop, Android, Dateiauswahl).
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub share_hint: Option<ShareHintView>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -936,6 +944,20 @@ pub enum UiEvent {
     /// „Schließen“ (Karte „In Bearbeitung“): geparkte Arbeit verwerfen (Dokumente „abgebrochen“; signierte Dateien
     /// bleiben). Startet **nichts**.
     DiscardParked,
+    /// Ersteinrichtung „Später einrichten“ (auch Esc; §3.12, ADR 0004 Nachtrag 12): wie [`UiEvent::FinishFirstRun`]
+    /// abgeschlossen und gespeichert, aber mit dem Hinweis `ng-firstrun-later` („jederzeit in den Einstellungen
+    /// einrichten“) statt „Einrichtung abgeschlossen“. `FinishFirstRun` bleibt für „Fertig“.
+    PostponeFirstRun,
+    /// Shell: von außen übergebene Dokumente – Mobile „Teilen“ bzw. „Öffnen in“, Desktop „Öffnen mit“ und zweite
+    /// Instanz (ADR 0004 Nachtrag 12). Wirkt wie [`UiEvent::OpenFiles`] ohne `mode`; auf iOS zeigt der Kern danach
+    /// [`ViewState::share_hint`]. Die Oberfläche sendet es nicht (Dateiauswahl und Ablegen bleiben `OpenFiles`).
+    FilesReceived {
+        /// Pfade (Kopien in der Sandbox)
+        paths: Vec<PathBuf>,
+    },
+    /// Hinweis zum Teilen ausblenden ([`ViewState::share_hint`], Nachtrag 12): bis zum Beenden der App nicht
+    /// mehr. Startet **nichts**.
+    DismissShareHint,
 }
 
 impl std::fmt::Debug for UiEvent {
@@ -967,6 +989,9 @@ impl std::fmt::Debug for UiEvent {
                 .field("paths", &format_args!("<{} Pfade>", paths.len()))
                 .field("mode", mode)
                 .finish(),
+            UiEvent::FilesReceived { paths } => {
+                f.debug_struct("FilesReceived").field("paths", &format_args!("<{} Pfade>", paths.len())).finish()
+            }
             UiEvent::OpenVerify { .. } => f.debug_struct("OpenVerify").field("path", &"<Pfad>").finish(),
             UiEvent::StartBatch { backend, docs, output_dir, on_existing } => f
                 .debug_struct("StartBatch")
@@ -1418,9 +1443,48 @@ pub struct SignerView {
     /// Grund, falls nicht verfügbar (i18n-ID): `ng-signer-localbku-not-running`,
     /// `ng-signer-keystore-missing`, `ng-signer-keystore-import` (Mobile), `ng-signer-policy`
     pub unavailable_reason: Option<String>,
+    /// Ablauf eines Stapellaufs mit diesem Signiermittel (aus den Fähigkeiten; `None` ohne Fähigkeiten, z. B.
+    /// Keystore nicht eingerichtet): Wortlaut von Startfläche, Stapelübersicht, Startdialog und Stapelkarte (ADR 0004
+    /// Nachtrag 12). Additiv, in TypeScript optional; der Kern liefert es immer.
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub batch_flow: Option<BatchFlowView>,
 }
 
-redacted_debug!(SignerView { backend, available, capabilities, notes, unavailable_reason } redact { account });
+redacted_debug!(SignerView { backend, available, capabilities, notes, unavailable_reason, batch_flow } redact { account });
+
+/// Ablauf eines Stapellaufs mit einem Signiermittel (ADR 0004 §3.8, Nachtrag 12). Der Kern leitet ihn aus den
+/// Fähigkeiten des Backends ab ([`BatchFlowView::from_capabilities`]); die Oberfläche wählt danach ihre Texte
+/// („einmal anmelden, dann jedes Dokument einzeln bestätigen“ nur bei ID Austria, „Bestätigung k von n“ nur mit
+/// einer Bestätigung je Dokument).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BatchFlowView {
+    /// einmal anmelden, dann jedes Dokument einzeln bestätigen (ID Austria: eine Anmeldung je Stapel, eine
+    /// Freigabe je Dokument)
+    LoginThenConfirmEach,
+    /// jedes Dokument einzeln bestätigen, ohne gemeinsame Anmeldung (Chipkarte: PIN in der Chipkarten-Software
+    /// je Dokument)
+    ConfirmEach,
+    /// einmal entsperren, danach alle Dokumente ohne weitere Rückfrage (Keystore: eine Freigabe für den ganzen
+    /// Stapel)
+    UnlockOnce,
+}
+
+impl BatchFlowView {
+    /// Aus den Fähigkeiten: mehr als ein Dokument je Freigabe (`max_batch > 1`) = einmal entsperren; sonst je
+    /// Dokument eine Bestätigung, mit bzw. ohne gemeinsame Anmeldung (`login_once_per_batch`).
+    pub fn from_capabilities(c: &Capabilities) -> BatchFlowView {
+        if c.max_batch > 1 {
+            BatchFlowView::UnlockOnce
+        } else if c.login_once_per_batch {
+            BatchFlowView::LoginThenConfirmEach
+        } else {
+            BatchFlowView::ConfirmEach
+        }
+    }
+}
 
 // --- §3.6 Signierkarte --------------------------------------------------------------------------
 
@@ -2136,6 +2200,17 @@ pub struct ParkedWorkView {
 }
 redacted_debug!(ParkedWorkView { documents, placed_by_hand, unsaved } redact { doc_name });
 
+// --- Nachtrag 12: Hinweis zum Teilen (iOS) ---------------------------------------------------------
+
+/// Hinweis zum Teilen auf iOS (ADR 0004 Nachtrag 12, [`ViewState::share_hint`]): ein kurzer, nicht blockierender
+/// Hinweis im Arbeitsbereich mit „Weitere PDFs hinzufügen …“ und „Ausblenden“ (`dismiss_share_hint`).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ShareHintView {
+    /// das über „Teilen“ empfangene Dokument (das offene im Arbeitsbereich)
+    pub doc: DocId,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2175,6 +2250,7 @@ mod tests {
             capabilities: None,
             notes: Vec::new(),
             unavailable_reason: None,
+            batch_flow: Some(BatchFlowView::LoginThenConfirmEach),
         };
         assert_redacted(format!("{signer:?}"));
         let item = BatchItemView {

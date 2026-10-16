@@ -1,7 +1,8 @@
 //! Dateien aus Startargumenten, „Öffnen mit“/„Senden an“ (zweite Instanz) und Datei-URLs.
 //!
 //! Die Shell übernimmt nur **vorhandene Dateien** (F-12) und reicht sie als
-//! [`pida_core_api::UiEvent::OpenFiles`] an den Kern; die Prüfung auf PDF macht der Kern.
+//! [`pida_core_api::UiEvent::FilesReceived`] an den Kern (wie `OpenFiles` ohne `mode`); die Prüfung auf PDF macht
+//! der Kern.
 //! Die vollständige PDF-Over-Argumentsemantik (`-c`, `-b`, `-o` …) wertet die CLI aus; die GUI
 //! übernimmt hier nur Dokumente (`-i <datei>` und freie Tokens wie bei PDF-Over: „unbekanntes Token =
 //! Datei“, docs/analyse/01 §5.1).

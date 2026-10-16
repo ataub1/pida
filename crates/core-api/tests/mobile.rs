@@ -426,9 +426,10 @@ impl ShellHooks for RecordingHooks {
         self.shared.lock().unwrap().push(path.to_path_buf());
         Ok(())
     }
-    fn export_path(&self, path: &Path, file_name: &str) -> Result<bool, String> {
+    fn export_path(&self, path: &Path, file_name: &str) -> Result<Option<String>, String> {
         self.exported.lock().unwrap().push((path.to_path_buf(), file_name.to_owned()));
-        Ok(true)
+        // wie die Dateiauswahl, wenn es den Namen am Ziel schon gibt
+        Ok(Some(file_name.replace(".pdf", " (3).pdf")))
     }
 }
 
@@ -465,7 +466,9 @@ async fn output_goes_to_app_documents_and_can_be_shared_and_exported() {
     assert_eq!(out, docs.join("a_signed.pdf"), "Ordner wird angelegt, kein Speichern-Dialog");
     core.dispatch(UiEvent::ShareResult);
     core.dispatch(UiEvent::ExportResult);
-    wait_for(&core, "exportiert", |v| v.notices.iter().any(|n| n.code == "ng-export-done")).await;
+    let v = wait_for(&core, "exportiert", |v| v.notices.iter().any(|n| n.code == "ng-export-done")).await;
+    let done = v.notices.iter().find(|n| n.code == "ng-export-done").unwrap();
+    assert_eq!(done.params.get("name").map(String::as_str), Some("a_signed (3).pdf"), "tatsächlicher Name");
     assert_eq!(*hooks.shared.lock().unwrap(), vec![out.clone()]);
     assert_eq!(*hooks.exported.lock().unwrap(), vec![(out, "a_signed.pdf".to_owned())]);
 }
@@ -840,6 +843,14 @@ async fn batch_on_mobile_resumes_only_the_interrupted_document() {
     assert_eq!(status("c.pdf"), pida_core_api::BatchItemStatusView::Ready, "neue Voranalyse");
     assert!(v.notices.iter().any(|n| n.code == "ng-batch-item-signed"));
     assert!(docs.join("b_signed.pdf").is_file());
+    // die fortgesetzte Zeile bekommt ihre Voranalyse – Seitenzahl und Größe wie die übrigen, Status bleibt
+    // „Signiert“ (Mobile-Check 16.10.2026: Zeile ohne Miniatur und Seiten/Größe)
+    let v = wait_for(&core, "Zeile b vollständig", |v| {
+        v.batch.as_ref().is_some_and(|b| b.items.iter().any(|i| i.name == "b.pdf" && i.page_count.is_some()))
+    })
+    .await;
+    let b = v.batch.as_ref().unwrap().items.iter().find(|i| i.name == "b.pdf").unwrap();
+    assert!(b.size_bytes.is_some() && matches!(b.status, pida_core_api::BatchItemStatusView::Signed { .. }));
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     assert!(matches!(core.view().step, StepView::Batch), "der Lauf wird nicht automatisch fortgesetzt");
     assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "keine weitere Sitzung");
@@ -916,4 +927,76 @@ async fn batch_resume_keeps_the_rule_for_existing_files() {
     verify_fake_output(&docs.join("b_signed (2).pdf"), &original_b);
     assert_eq!(std::fs::read(docs.join("b_signed.pdf")).unwrap(), b"vorher signiert", "vorhandene Datei unverändert");
     assert!(!resume_dir(&fx).exists(), "nach Erfolg kein persistierter Zustand");
+}
+
+/// iOS: Teilt man mehrere PDFs aus der Dateien-App, kommt nur das erste an (keine Share-Extension; Entscheidung des
+/// Auftraggebers „Hinweis reicht“, ADR 0004 Nachtrag 12). Nach dem Empfang über „Teilen“ bzw. „Öffnen in“
+/// (`FilesReceived` der Shell) zeigt der Arbeitsbereich `share_hint` für das empfangene Dokument – nicht nach der
+/// Dateiauswahl (`OpenFiles`), nicht auf Android und am Desktop, nicht mehr, sobald weitere PDFs dazukommen
+/// („Weitere PDFs hinzufügen …“), und nach „Hinweis ausblenden“ bis zum Beenden nicht mehr. Startet nichts (A1).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn ios_shows_the_share_hint_only_after_receiving_a_document() {
+    let fx = Fixture::new();
+    let docs = fx.tmp.path().join("Documents");
+    let inbox = fx.dir("inbox");
+    let a = copy_pdf(PDF, &inbox, "a.pdf");
+    let b = copy_pdf("pdf/generated/simple-xref-stream.pdf", &inbox, "b.pdf");
+    let fake = FakeAtrust::new();
+    let core_on = |platform| {
+        let options = CoreOptions {
+            workspace_ui: Some(true),
+            batch_overview: Some(true),
+            ..mobile_options(&FakeEngine::new(), &docs, Some(vec![fake.backend()]))
+        };
+        start(&fx, platform, options)
+    };
+    let editing = |name: &'static str| {
+        move |v: &ViewState| {
+            v.document.as_ref().is_some_and(|d| d.doc.name == name && d.phase == pida_core_api::DocumentPhase::Editing)
+        }
+    };
+    let opened = |v: &ViewState| matches!(v.step, StepView::Open { .. });
+
+    // iOS, empfangen: Hinweis für dieses Dokument
+    let core = core_on(Platform::Ios);
+    wait_for(&core, "Start", opened).await;
+    core.dispatch(UiEvent::FilesReceived { paths: vec![a.clone()] });
+    let v = wait_for(&core, "a empfangen", editing("a.pdf")).await;
+    let id = v.document.as_ref().unwrap().doc.id;
+    assert_eq!(v.share_hint, Some(pida_core_api::ShareHintView { doc: id }));
+    // weitere PDFs dazu („Weitere PDFs hinzufügen …“): erledigt, kein Hinweis mehr
+    core.dispatch(UiEvent::OpenFiles { paths: vec![b.clone()], mode: Some(pida_core_api::OpenFilesMode::Add) });
+    let v = wait_for(&core, "Stapel", |v| v.batch.is_some()).await;
+    assert_eq!(v.share_hint, None);
+    drop(core);
+
+    // iOS, Dateiauswahl: kein Hinweis; danach empfangen: Hinweis, „Ausblenden“ gilt bis zum Beenden
+    let core = core_on(Platform::Ios);
+    wait_for(&core, "Start", opened).await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
+    let v = wait_for(&core, "a gewählt", editing("a.pdf")).await;
+    assert_eq!(v.share_hint, None, "nicht nach der Dateiauswahl");
+    core.dispatch(UiEvent::Cancel);
+    wait_for(&core, "zurück am Start", |v| opened(v) && v.document.is_none()).await;
+    core.dispatch(UiEvent::FilesReceived { paths: vec![b.clone()] });
+    let v = wait_for(&core, "b empfangen", |v| editing("b.pdf")(v) && v.share_hint.is_some()).await;
+    assert_eq!(v.share_hint.map(|h| h.doc), Some(v.document.as_ref().unwrap().doc.id));
+    core.dispatch(UiEvent::DismissShareHint);
+    wait_for(&core, "ausgeblendet", |v| editing("b.pdf")(v) && v.share_hint.is_none()).await;
+    core.dispatch(UiEvent::Cancel);
+    wait_for(&core, "wieder am Start", |v| opened(v) && v.document.is_none()).await;
+    core.dispatch(UiEvent::FilesReceived { paths: vec![a.clone()] });
+    let v = wait_for(&core, "a erneut empfangen", editing("a.pdf")).await;
+    assert_eq!(v.share_hint, None, "ausgeblendet bis zum Beenden");
+    drop(core);
+
+    // Android (mehrere über `SEND_MULTIPLE`) und Desktop („Öffnen mit“): kein Hinweis
+    for platform in [Platform::Android, Platform::MacOs] {
+        let core = core_on(platform);
+        wait_for(&core, "Start", opened).await;
+        core.dispatch(UiEvent::FilesReceived { paths: vec![a.clone()] });
+        let v = wait_for(&core, "empfangen", editing("a.pdf")).await;
+        assert_eq!(v.share_hint, None, "{platform:?}");
+    }
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung (A1)");
 }

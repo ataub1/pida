@@ -560,6 +560,40 @@ fn analysis_warning_from_the_overview() {
 }
 
 #[test]
+fn signed_single_document_joins_the_overview_with_its_preanalysis() {
+    // einzeln signiert, weitere warten (noch kein Stapel): „Zum Stapel“ legt den signierten Eintrag an – mit
+    // Voranalyse für Miniatur, Seitenzahl und Größe der Zeile; der Status bleibt „Signiert“
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1)]), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let s = step(s, Event::FilesAdded(vec![doc(2)]), &ctx()).state;
+    let t = step(s, Event::SignRequested { backend: BackendId::Keystore, options: options(false, true) }, &ctx());
+    let (s, _) = run(
+        t.state,
+        [
+            Event::PhaseCompleted(SigningPhase::OpeningSession),
+            Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+            Event::PhaseCompleted(SigningPhase::Preparing),
+            Event::PhaseCompleted(SigningPhase::Signing),
+            Event::PhaseCompleted(SigningPhase::Finishing),
+            Event::OutputDecided(pida_workflow::OutputDecision::Save {
+                path: "/in/doc1_signed.pdf".into(),
+                exists: false,
+            }),
+            Event::Saved(info("/in/doc1_signed.pdf")),
+        ],
+        &ctx(),
+    );
+    assert!(matches!(s, State::Output { saved: Some(_), .. }), "{s:?}");
+    let t = step(s, Event::ShowBatch, &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{:?}", t.state);
+    assert!(matches!(status(&t.state, 1), BatchItemStatus::Signed { .. }));
+    assert!(t.effects.contains(&Effect::Preanalyze(DocId(1))) && t.effects.contains(&Effect::Preanalyze(DocId(2))));
+    let t = step(t.state, Event::Preanalyzed { doc: DocId(1), result: Ok(summary(3)) }, &ctx());
+    assert!(matches!(status(&t.state, 1), BatchItemStatus::Signed { .. }), "bleibt signiert");
+    assert_eq!(batch_of(&t.state).item(DocId(1)).unwrap().summary.as_ref().map(|s| s.page_count), Some(3));
+}
+
+#[test]
 fn show_batch_from_a_single_document_with_waiting_documents() {
     // ein Dokument im Arbeitsbereich, weitere kommen dazu → Hinweis, „Zur Stapelübersicht“
     let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1)]), &ctx()).state;
@@ -609,8 +643,15 @@ fn resumed_document_of_an_interrupted_batch_returns_to_the_overview() {
     assert!(matches!(t.state, State::BatchOverview { .. }), "{:?}", t.state);
     assert!(matches!(status(&t.state, 5), BatchItemStatus::Signed { .. }));
     assert_eq!(status(&t.state, 6), BatchItemStatus::Analyzing, "die übrigen: neue Voranalyse");
-    assert_eq!(t.effects.iter().filter(|e| matches!(e, Effect::Preanalyze(_))).count(), 1);
+    // auch der fortgesetzte bekommt seine Voranalyse – nur für Miniatur, Seitenzahl und Größe der Zeile
+    // (Mobile-Check 16.10.2026: die Zeile blieb ohne sie); sein Status bleibt „Signiert“
+    assert!(t.effects.contains(&Effect::Preanalyze(DocId(5))) && t.effects.contains(&Effect::Preanalyze(DocId(6))));
+    assert_eq!(t.effects.iter().filter(|e| matches!(e, Effect::Preanalyze(_))).count(), 2);
     assert_eq!(opens(&t.effects), 0, "der Lauf wird nicht automatisch fortgesetzt");
+    let t = step(t.state, Event::Preanalyzed { doc: DocId(5), result: Ok(summary(2)) }, &ctx());
+    assert!(matches!(status(&t.state, 5), BatchItemStatus::Signed { .. }), "bleibt signiert");
+    assert_eq!(batch_of(&t.state).item(DocId(5)).unwrap().summary.as_ref().map(|s| s.page_count), Some(2));
+    assert_eq!(opens(&t.effects), 0);
 }
 
 // ------------------------------------------------------------------------------------------------

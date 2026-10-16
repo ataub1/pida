@@ -1056,7 +1056,9 @@ async fn classic_mode_ignores_workspace_and_later_stage_events() {
             block_language: None,
         },
         UiEvent::FinishFirstRun,
+        UiEvent::PostponeFirstRun,
         UiEvent::OfferMigration,
+        UiEvent::DismissShareHint,
     ];
     for e in events {
         core.dispatch(e);

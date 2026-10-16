@@ -55,10 +55,10 @@ pub use placeholder::{
 };
 pub use position::{
     BlockGeometry, Coord, FreeSpaceScanner, PageSelector, Placement, PlacementNotice, PositionContext, RasterScanner,
-    ResolvedPosition, SCAN_TOLERANCE, SignaturePosition, TablePos, WidthDecision, appearance_rotation, auto_place,
-    default_start_placement, default_start_position, detect_background, lowest_content_row,
-    lowest_content_row_with_tolerance, matrix_unit_rect, new_page_geometry, resolve_position, resolve_width,
-    user_rect_to_visible, visible_block_rect, widget_overlaps, widget_rect, widget_rect_with,
+    ResolvedPosition, SCAN_TOLERANCE, SignaturePosition, TablePos, WidgetAwareScanner, WidthDecision,
+    appearance_rotation, auto_place, default_start_placement, default_start_position, detect_background,
+    lowest_content_row, lowest_content_row_with_tolerance, matrix_unit_rect, new_page_geometry, resolve_position,
+    resolve_width, user_rect_to_visible, visible_block_rect, widget_overlaps, widget_rect, widget_rect_with,
 };
 
 /// Tastatur-Schrittweiten (Plan §6.7): Pfeile 15 pt (Original), Shift 1 pt, Strg/⌘ 50 pt.

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultErrorContext } from '../../core/defaults';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { renderApp } from '../../test/render';
-import { editActions, IOS, onMobile, QUEUE, viewOf } from '../../test/views';
+import { editActions, IOS, onMobile, QUEUE, signersView, viewOf } from '../../test/views';
 
 const START = () => viewOf({ step: 'open', queue: [] }, { actions: editActions({ sign: false, edit_placement: false }) });
 
@@ -25,6 +25,21 @@ describe('Start', () => {
     await waitFor(() => expect(mock.dispatched[0]).toEqual({ type: 'open_files', paths: ['/Users/demo/a.pdf'] }));
     expect(mock.nativeCalls).toEqual(['pickFiles:multiple']);
     await expectNoAxeViolations();
+  });
+
+  it('Hinweis zu mehreren Dateien je Standard-Signiermittel (Kern: `batch_flow`; Mobile-Check 16.10.2026)', async () => {
+    const cases = [
+      ['atrust_native', 'Mehrere Dateien werden als Stapel signiert – eine Anmeldung, jedes Dokument bestätigen Sie einzeln.'],
+      ['keystore', 'Mehrere Dateien werden als Stapel signiert – der Keystore wird dafür einmal entsperrt.'],
+      ['local_bku', 'Mehrere Dateien werden als Stapel signiert – jedes Dokument bestätigen Sie einzeln.'],
+      [null, 'Mehrere Dateien werden als Stapel signiert.'],
+    ] as const;
+    for (const [backend, text] of cases) {
+      const { unmount } = renderApp({ view: { ...START(), signers: signersView({ selected: backend, default: backend }) } });
+      const zone = await screen.findByRole('region', { name: 'Ablagefläche für PDF-Dokumente' });
+      expect(zone.querySelector('.drop-hint')?.textContent).toBe(text);
+      unmount();
+    }
   });
 
   it('Ziehen über dem Fenster hebt die Ablagefläche hervor, Ablegen öffnet (Pfade aus der Shell)', async () => {

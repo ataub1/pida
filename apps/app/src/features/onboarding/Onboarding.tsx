@@ -9,8 +9,9 @@
  * 3. **Signaturbild** (Profil, Blocksprache) mit der Blockvorschau des Kerns (`first_run.preview_revision`)
  *    → `update_first_run`. Die Bildmarke bleibt das PIDA-Siegel, sofern PDF-Over keine eigene gesetzt hatte.
  *
- * „Los geht’s“ bzw. „Später einrichten“ (auch Esc) → `finish_first_run`; ein noch offenes Migrationsangebot
- * wird dabei abgelehnt (erneut über Einstellungen › Erweitert). Ohne Ersteinrichtung erscheint ein
+ * „Los geht’s“ → `finish_first_run` (Hinweis „Einrichtung abgeschlossen“), „Später einrichten“ (auch Esc) →
+ * `postpone_first_run` (Hinweis, wo es weitergeht; ADR 0004 Nachtrag 12); ein noch offenes Migrationsangebot wird
+ * bei „Später“ abgelehnt (erneut über Einstellungen › Erweitert). Ohne Ersteinrichtung erscheint ein
  * Migrationsangebot (`ViewState::migration`, z. B. nach „Suchen …“ in den Einstellungen) als eigener Dialog.
  */
 import { useEffect, useRef, useState } from 'react';
@@ -91,11 +92,13 @@ function FirstRunDialog({ firstRun }: { firstRun: FirstRunView }) {
     titleRef.current?.querySelector<HTMLElement>('.step-title')?.focus();
   }, [step]);
 
-  const finish = async (declineOffer: boolean) => {
+  // „Fertig“ = `finish_first_run` („Einrichtung abgeschlossen“), „Später einrichten“ = `postpone_first_run` (der
+  // Kern sagt, wo es weitergeht; Nachtrag 12)
+  const finish = async (later: boolean) => {
     if (busy) return;
     setBusy(true);
-    if (declineOffer && firstRun.migration) await dispatch({ type: 'decline_migration' });
-    const ok = await dispatch({ type: 'finish_first_run' });
+    if (later && firstRun.migration) await dispatch({ type: 'decline_migration' });
+    const ok = await dispatch({ type: later ? 'postpone_first_run' : 'finish_first_run' });
     if (!ok) setBusy(false);
   };
   const later = () => void finish(true);

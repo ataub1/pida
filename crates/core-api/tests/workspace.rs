@@ -352,8 +352,14 @@ async fn keystore_core_path_without_screen_change() {
     assert!(v.document.is_none());
 }
 
-/// Ergebnis der PDF-AS-Automatik (`plan::build_plan` mit `PositionChoice::Auto`) für das Dokument.
+/// Ergebnis der Automatik des Arbeitsbereichs (`plan::build_plan` mit `PositionChoice::Auto`, Widgets belegt) für
+/// das Dokument.
 fn expected_auto_position(path: &std::path::Path) -> pida_placement::ResolvedPosition {
+    auto_position_with(path, true)
+}
+
+/// `plan::build_plan` mit `PositionChoice::Auto`; `avoid_widgets = false` = reine PDF-AS-Regel (CLI, klassisch).
+fn auto_position_with(path: &std::path::Path, avoid_widgets: bool) -> pida_placement::ResolvedPosition {
     use pida_core_api::plan;
     let src = pida_pdf_cos::SourcePdf::open_file(path, &pida_pdf_cos::Limits::default()).unwrap();
     let report = pida_pades::analyze(&src).unwrap();
@@ -384,6 +390,7 @@ fn expected_auto_position(path: &std::path::Path) -> pida_placement::ResolvedPos
         reserve: pida_pades::Reserve::ModelB,
         cms_profile: Default::default(),
         renderer: Some(renderer.as_ref()),
+        avoid_widgets,
         store: &store,
         fonts: &fonts,
     })
@@ -832,6 +839,49 @@ async fn empty_fields_are_offered_and_used_only_on_request() {
     );
 }
 
+/// Die Automatik des Arbeitsbereichs überdeckt keine vorhandenen Felder (Mobile-Check 16.10.2026, ADR 0004
+/// Nachtrag 12): `manySignFields-xref-stream.pdf` hat auf der letzten Seite ein seitenfüllendes leeres
+/// Signaturfeld (`Signature_7`). Vorher meldete die Sprechblase „automatisch auf freier Fläche platziert“ mitten im
+/// Feld, zugleich warnte das Sheet „überdeckt ein Feld“, und „Freie Fläche suchen“ landete wieder dort. Jetzt: neue
+/// Seite ohne Überdeckung, „Freie Fläche suchen“ ebenso, und signiert wird genau so (Vorschau = Ergebnis). Die reine
+/// PDF-AS-Regel (CLI, klassischer Ablauf) bleibt unverändert im Feld. PDFium nötig.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn automatic_placement_stays_out_of_existing_fields() {
+    let fx = Fixture::new();
+    let a = copy_pdf("pdf/generated/manySignFields-xref-stream.pdf", &fx.dir("in"), "fields.pdf");
+    let engine = FakeEngine::new();
+    let Some(core) = start(&fx, keystore_overlay(vec![a.clone()], &fx.dir("out")), None, Some(engine.clone()), true)
+    else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    let pdfas = auto_position_with(&a, false);
+    assert!(!pdfas.new_page, "PDF-AS-Regel: im seitenfüllenden Feld der letzten Seite");
+    let placed = |v: &ViewState| {
+        v.document.as_ref().is_some_and(|d| {
+            editing(v) && d.new_page && d.placement.page_index == d.doc.page_count && d.check.for_revision == d.revision
+        })
+    };
+    let v = wait_for(&core, "automatisch auf neuer Seite", placed).await;
+    let d = v.document.unwrap();
+    assert_eq!((d.origin, d.target), (PlacementOrigin::Auto, PlacementTarget::Free));
+    assert!(d.detection.as_ref().is_some_and(|x| x.auto_placed), "Sprechblase „automatisch platziert“");
+    assert!(!d.check.overlaps_widget, "kein Feld überdeckt");
+    assert_eq!(d.check.overlaps_content, Some(false), "die neue Seite ist leer");
+    assert!(expected_auto_position(&a).new_page);
+    // „Freie Fläche suchen“: dasselbe Ergebnis
+    core.dispatch(UiEvent::AutoPlace);
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let v = wait_for(&core, "wieder auf neuer Seite", placed).await;
+    assert!(!v.document.unwrap().check.overlaps_widget);
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    wait_for(&core, "gespeichert", saved).await;
+    match engine.last_plan().visibility {
+        pida_pades::Visibility::Visible(p) => assert!(p.new_page, "signiert wie gezeigt: neue Seite"),
+        other => panic!("sichtbar erwartet: {other:?}"),
+    }
+}
+
 /// QR-Platzhalter mit eingeschalteter Platzhaltersuche: automatisch Ziel QR (PDFium nötig).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn qr_placeholder_is_used_automatically_with_search() {
@@ -991,9 +1041,17 @@ async fn layout_and_overlap_check_read_only_the_grid() {
     assert!(!l.guides.is_empty() && l.free.len() <= 16);
     assert!(l.guides.iter().any(|g| g.kind == pida_core_api::GuideKind::ContentBottom));
     assert!(d.announce.contains_key("bottom"), "Live-Region mit Unterkante");
-    // warten, bis die automatische Platzierung (PDF-AS-Scan) durch ist, dann zählen
-    tokio::time::sleep(Duration::from_millis(500)).await;
-    let before = counts.forced.load(Ordering::SeqCst);
+    // warten, bis die automatische Platzierung (PDF-AS-Scan) durch ist, dann zählen – unter Last (volle
+    // Testsuite) dauert sie länger als eine feste Wartezeit: bis der Zähler 400 ms lang ruht
+    let mut before = counts.forced.load(Ordering::SeqCst);
+    for _ in 0..50 {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let now = counts.forced.load(Ordering::SeqCst);
+        if now == before && now > 0 {
+            break;
+        }
+        before = now;
+    }
     // auf den Inhalt ziehen → Überdeckung; in eine freie Fläche → keine
     core.dispatch(UiEvent::MoveBlock { page, x: content.left, y: content.top });
     let v = wait_for(&core, "Überdeckung", |v| {

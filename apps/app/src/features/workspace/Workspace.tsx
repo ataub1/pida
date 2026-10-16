@@ -15,7 +15,7 @@
  *   „Auf neuer Seite“ bleiben bedienbar. Was gesperrt ist, entscheidet der Kern.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Toolbar } from 'react-aria-components';
+import { setInteractionModality, Toolbar, type PressEvent } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import type { DocumentView, GuideKind } from '../../core/types';
 import { Button, IconButton } from '../../ui/controls';
@@ -165,29 +165,52 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     if (idx !== current) setCurrent(idx);
   };
 
-  const scrollToPage = (i: number) => {
+  const scrollToPage = (i: number, pointerType: PressEvent['pointerType']) => {
     const el = scrollRef.current;
     const top = layout.tops[i];
     if (el && top !== undefined) el.scrollTo?.({ top: top - 12, behavior: 'smooth' });
     setCurrent(i);
-    // Schmal liegen die Miniaturen über der Seite – nach der Auswahl schließen, Fokus auf den Umschalter
+    // Schmal liegen die Miniaturen über der Seite – nach der Auswahl schließen, Fokus auf den Umschalter (die
+    // gewählte Miniatur verschwindet mit der Leiste). Nur nach Tastatur mit sichtbarem Fokus; nach Finger, Maus bzw.
+    // Bildschirmleser ohne Fokusrahmen und ohne Tooltip – der verdeckte sonst die Wortmarke (Mobile-Check
+    // 16.10.2026, R10). Dafür die Modalität „Zeiger“ (React Aria: `data-focus-visible`, Tooltip beim Fokus; ein
+    // Tippen ohne Kontaktfläche gilt dort als „virtuell“) und `focusVisible: false` (`:focus-visible` des Browsers
+    // bei Fokus per Skript). Bildschirmleser zeichnen ihren eigenen Rahmen.
     if (narrow) {
       setPagesOpen(false);
-      toolbarRef.current?.querySelector<HTMLElement>('button')?.focus();
+      const toggle = toolbarRef.current?.querySelector<HTMLElement>('button');
+      if (pointerType === 'keyboard') toggle?.focus();
+      else {
+        setInteractionModality('pointer');
+        toggle?.focus({ focusVisible: false });
+      }
     }
   };
 
   // Live-Region nach jeder Änderung der Platzierung (nicht beim Öffnen)
   const text = announceText(t, doc, lastSnap.current);
   const firstText = useRef(true);
+  const announced = useRef(false);
   useEffect(() => {
     if (firstText.current) {
       firstText.current = false;
       return undefined;
     }
-    const timer = setTimeout(() => announce(text), 250);
+    const timer = setTimeout(() => {
+      announced.current = true;
+      announce(text);
+    }, 250);
     return () => clearTimeout(timer);
   }, [doc.revision, text, announce]);
+  // Dokument geschlossen bzw. gewechselt (eigene Ansicht je Dokument): die Lage dieses Dokuments verlässt die
+  // Live-Region – sonst stand dort nach dem Öffnen eines anderen Stapeldokuments noch die vorige (Mobile-Check
+  // 16.10.2026)
+  useEffect(
+    () => () => {
+      if (announced.current) announce('');
+    },
+    [announce],
+  );
 
   // Sticker beim Seitenwechsel im Blick halten
   const page = doc.placement.page_index;

@@ -66,6 +66,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": "atrust_native",
       "options": [
@@ -73,6 +74,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -99,6 +101,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -107,6 +110,7 @@
           "account": "test-rsa2048.p12",
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -179,6 +183,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -186,6 +191,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -212,6 +218,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -220,6 +227,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -301,6 +309,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": "atrust_native",
       "options": [
@@ -308,6 +317,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -334,6 +344,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -342,6 +353,7 @@
           "account": "test-rsa2048.p12",
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -488,6 +500,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -495,6 +508,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -521,6 +535,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -529,6 +544,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -595,6 +611,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -602,6 +619,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -628,6 +646,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -636,6 +655,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -758,6 +778,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -765,6 +786,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -791,6 +813,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -799,6 +822,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -875,6 +899,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -882,6 +907,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -908,6 +934,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -916,6 +943,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -1030,6 +1058,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1037,6 +1066,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1063,6 +1093,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -1071,6 +1102,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -1195,6 +1227,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1202,6 +1235,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1228,6 +1262,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -1236,6 +1271,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -1322,6 +1358,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1329,6 +1366,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1355,6 +1393,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -1363,6 +1402,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -1486,6 +1526,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1493,6 +1534,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1519,6 +1561,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -1527,6 +1570,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -1649,6 +1693,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1656,6 +1701,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1682,6 +1728,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -1690,6 +1737,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -1815,6 +1863,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1822,6 +1871,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -1848,6 +1898,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -1856,6 +1907,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -1979,6 +2031,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -1986,6 +2039,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -2012,6 +2066,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -2020,6 +2075,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
@@ -2143,6 +2199,7 @@
     "recent": [],
     "resume": null,
     "settings": null,
+    "share_hint": null,
     "signers": {
       "default": null,
       "options": [
@@ -2150,6 +2207,7 @@
           "account": null,
           "available": true,
           "backend": "atrust_native",
+          "batch_flow": "login_then_confirm_each",
           "capabilities": {
             "certificate": "OnlyForVisibleBlock",
             "cms_reserve": 16384,
@@ -2176,6 +2234,7 @@
           "account": null,
           "available": false,
           "backend": "local_bku",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-localbku-not-running"
@@ -2184,6 +2243,7 @@
           "account": null,
           "available": false,
           "backend": "keystore",
+          "batch_flow": null,
           "capabilities": null,
           "notes": [],
           "unavailable_reason": "ng-signer-keystore-missing"
