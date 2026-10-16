@@ -195,7 +195,8 @@ pub(crate) struct SignatureDetails {
     pub status: PriorStatus,
     /// Fehlercode bei ungültiger bzw. nicht prüfbarer Signatur
     pub code: Option<String>,
-    /// Bericht von `verify_detached` (nur bei bestandener Prüfung)
+    /// Bericht von `verify_detached` (nur bei bestandener kryptografischer Prüfung; mit Status `Invalid`, wenn
+    /// der signierte Bereich Teile der Datei offen lässt)
     pub report: Option<CmsReport>,
     /// ungeprüfte Struktur (`parse_cms`), wenn die Prüfung scheiterte bzw. nicht stattfand
     pub info: Option<CmsInfo>,
@@ -210,6 +211,40 @@ impl std::fmt::Debug for SignatureDetails {
             .field("parsed", &self.info.is_some())
             .finish()
     }
+}
+
+/// `/ByteRange [0 a b c]` mit genau zwei Abschnitten, Beginn bei 0, ohne Überlappung, innerhalb der Datei.
+/// Ein Bereich, der nicht bei 0 beginnt, ließe den Anfang der Datei ungeschützt.
+pub(crate) fn byte_range_well_formed(info: &SigDictInfo, len: u64) -> bool {
+    let Some(br) = info.byte_range() else { return false };
+    let [a, b, c, d] = br.0;
+    a == 0 && b.checked_add(a).is_some_and(|e| e <= c) && c.checked_add(d).is_some_and(|e| e <= len)
+}
+
+/// Die Lücke zwischen den beiden Abschnitten der `/ByteRange` ist **genau** der Hex-String `/Contents`
+/// dieses Signaturdictionarys (`<…>` mit denselben Bytes, ohne weitere Zeichen). Sonst lägen ungeschützte
+/// Bytes mitten im signierten Bereich – dort ließen sich z. B. weitere Schlüssel des Signaturdictionarys
+/// oder Objekte unterbringen (Signature Wrapping); pyHanko verlangt dasselbe („contiguous“).
+pub(crate) fn gap_is_contents(data: &[u8], info: &SigDictInfo) -> bool {
+    let Some(br) = info.byte_range() else { return false };
+    let [_, first_len, second_start, _] = br.0;
+    let (Ok(start), Ok(end)) = (usize::try_from(first_len), usize::try_from(second_start)) else { return false };
+    data.get(start..end).is_some_and(|gap| gap_is_hex_string(gap, &info.contents))
+}
+
+/// Ist `gap` (die Bytes zwischen den beiden Abschnitten einer `/ByteRange`) genau der Hex-String `<…>` mit den
+/// Bytes `contents` (Wert von `/Contents` samt Padding), ohne weitere Zeichen? Für Prüfwerkzeuge außerhalb
+/// der Engine (CLI `pida verify`), damit sie dieselbe Regel anwenden wie Prüfmodus und Inspektor.
+pub fn gap_is_hex_string(gap: &[u8], contents: &[u8]) -> bool {
+    let [b'<', hex @ .., b'>'] = gap else { return false };
+    let nibble = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
+    let (pairs, rest) = hex.as_chunks::<2>();
+    rest.is_empty()
+        && pairs.len() == contents.len()
+        && pairs
+            .iter()
+            .zip(contents)
+            .all(|([h, l], byte)| matches!((nibble(*h), nibble(*l)), (Some(h), Some(l)) if (h << 4 | l) == *byte))
 }
 
 /// Prüft eine Signatur über `data` (ganze Datei) wie [`signature_check`] und behält den Bericht
@@ -237,6 +272,16 @@ pub(crate) fn signature_details(data: &[u8], info: &SigDictInfo) -> SignatureDet
         policy: AlgorithmPolicy::PriorSignature,
     };
     match verify_detached(&info.contents, &mut reader, &expect) {
+        // kryptografisch passend, aber der signierte Bereich lässt Teile der Datei offen (Anfang, Ende bzw.
+        // Bytes in der Lücke neben /Contents – Signature Wrapping): verändert, wie im Prüfmodus (ADR 0004 §3.9)
+        Ok(report) if !(byte_range_well_formed(info, data.len() as u64) && gap_is_contents(data, info)) => {
+            SignatureDetails {
+                status: PriorStatus::Invalid,
+                code: Some(crate::verify::CODE_SIGNATURE_BYTERANGE.into()),
+                report: Some(report),
+                info: None,
+            }
+        }
         Ok(report) => SignatureDetails { status: PriorStatus::Valid, code: None, report: Some(report), info: None },
         Err(e @ CmsError::UnsupportedAlgorithm(_)) => fail(PriorStatus::NotVerifiable, e.code()),
         Err(e) => fail(PriorStatus::Invalid, e.code()),
@@ -274,5 +319,46 @@ mod tests {
         assert_eq!(signature_status(b"", &info).0, PriorStatus::NotVerifiable);
         let bad = SigDictInfo { sub_filter: Some("ETSI.CAdES.detached".into()), ..info };
         assert_eq!(signature_status(b"short", &bad).0, PriorStatus::Invalid);
+    }
+
+    #[test]
+    fn byte_range_must_start_at_zero_and_stay_inside() {
+        let info = |br: Vec<i64>| SigDictInfo {
+            id: None,
+            kind: Some(b"Sig".to_vec()),
+            sub_filter: Some("ETSI.CAdES.detached".into()),
+            byte_range_raw: Some(br),
+            contents: Vec::new(),
+            location: None,
+        };
+        assert!(byte_range_well_formed(&info(vec![0, 10, 20, 5]), 25));
+        assert!(!byte_range_well_formed(&info(vec![1, 10, 20, 5]), 25), "Anfang ungeschützt");
+        assert!(!byte_range_well_formed(&info(vec![0, 21, 20, 5]), 25), "überlappend");
+        assert!(!byte_range_well_formed(&info(vec![0, 10, 20, 6]), 25), "über das Dateiende");
+        assert!(!byte_range_well_formed(&info(vec![0, 10, 20, 5, 30, 1]), 31), "drei Abschnitte");
+        assert!(!byte_range_well_formed(&info(vec![0, i64::MAX, i64::MAX, 1]), 25));
+    }
+
+    #[test]
+    fn gap_must_be_exactly_the_contents_string() {
+        let info = |br: Vec<i64>, contents: &[u8]| SigDictInfo {
+            id: None,
+            kind: Some(b"Sig".to_vec()),
+            sub_filter: Some("ETSI.CAdES.detached".into()),
+            byte_range_raw: Some(br),
+            contents: contents.to_vec(),
+            location: None,
+        };
+        let data = b"AAAA<30a0FF00>BBBB";
+        let contents = [0x30, 0xA0, 0xFF, 0x00];
+        assert!(gap_is_contents(data, &info(vec![0, 4, 14, 4], &contents)));
+        // andere Bytes, kürzerer String mit Fremdinhalt dahinter, Lücke ohne Klammern
+        assert!(!gap_is_contents(data, &info(vec![0, 4, 14, 4], &[0x30, 0xA0, 0xFF, 0x01])));
+        assert!(!gap_is_contents(b"AAAA<30a0>/X 1BBBB", &info(vec![0, 4, 14, 4], &[0x30, 0xA0])));
+        assert!(!gap_is_contents(data, &info(vec![0, 5, 13, 5], &contents[..3])));
+        // Leerraum im Hex-String (Länge passt nicht) bzw. Lücke außerhalb der Datei
+        assert!(!gap_is_contents(b"AAAA<30 a0 FF>BBBB", &info(vec![0, 4, 14, 4], &contents[..3])));
+        assert!(!gap_is_contents(data, &info(vec![0, 4, 40, 4], &contents)));
+        assert!(!gap_is_contents(data, &info(vec![0, 14, 4, 4], &contents)));
     }
 }

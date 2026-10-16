@@ -2190,10 +2190,29 @@ impl CoreTask {
 
     pub(crate) fn on_ui(&mut self, event: UiEvent) {
         tracing::debug!(event = ui_event_kind(&event), "UI");
+        // Prüfmodus offen (ADR 0004 §3.9, Merge E4): das Dokument darunter ist verdeckt – „Signieren“ bzw.
+        // „Alle signieren“ wirken erst nach dem Verlassen (F-54: keine Sitzung für ein Dokument, das die
+        // Nutzerin gerade nicht sieht; die Freigaben `sign`/`start_batch` sind dann aus)
+        if self.verify_open()
+            && matches!(
+                event,
+                UiEvent::SignWith { .. }
+                    | UiEvent::StartBatch { .. }
+                    | UiEvent::ConfirmPosition
+                    | UiEvent::ChooseInvisible
+                    | UiEvent::ChooseBackend { .. }
+            )
+        {
+            tracing::debug!(event = ui_event_kind(&event), "Prüfmodus offen – ignoriert");
+            return;
+        }
         match event {
             UiEvent::OpenFiles { paths } => {
                 let docs = self.input_documents(&paths);
                 if !docs.is_empty() {
+                    // Öffnen zeigt die Datei im Arbeitsbereich: ein offener Prüfmodus schließt (sonst läge sie
+                    // verdeckt darunter)
+                    self.release_verify();
                     self.apply(Event::FilesAdded(docs));
                 }
             }
@@ -2962,6 +2981,14 @@ impl CoreTask {
             // „Zur Stapelübersicht“ aus einem Einzeldokument mit weiteren Dokumenten
             actions.start_batch = crate::actions::batch_start_allowed(&self.state);
             actions.show_batch = crate::actions::batch_show_allowed(&self.state);
+        }
+        if self.verify_open() {
+            // Prüfmodus über dem Arbeitsbereich bzw. der Stapelübersicht (Merge E4): das Dokument darunter ist
+            // verdeckt – nichts daran signieren oder bearbeiten, bis der Prüfmodus verlassen ist
+            actions.sign = false;
+            actions.edit_placement = false;
+            actions.start_batch = false;
+            actions.show_batch = false;
         }
         let done = self
             .state

@@ -109,7 +109,7 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
                 continue;
             }
         };
-        let mut data = std::io::Read::chain(&bytes[first], &bytes[second]);
+        let mut data = std::io::Read::chain(&bytes[first.clone()], &bytes[second.clone()]);
         let expect = Expect {
             signer: ExpectedSigner::Any,
             require_signing_certificate: false,
@@ -117,6 +117,11 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
             policy: AlgorithmPolicy::PriorSignature,
         };
         match pida_cades::verify_detached(cms, &mut data, &expect) {
+            // der signierte Bereich lässt Teile der Datei offen (Anfang bzw. Bytes neben /Contents in der Lücke):
+            // wie Prüfmodus und Inspektor nicht intakt (`pades::gap_is_hex_string`, ADR 0004 §3.9)
+            Ok(_) if first.start != 0 || !pida_pades::gap_is_hex_string(&bytes[first.end..second.start], &contents) => {
+                check.error = Some("ng-verify-byte-range".into());
+            }
             Ok(report) => {
                 check.valid = true;
                 check.signer = report.signer.subject_cn();
@@ -204,6 +209,29 @@ mod tests {
         std::fs::write(&t, &bytes).unwrap();
         let checks = verify_file(&t).expect("Struktur bleibt lesbar");
         assert!(checks.iter().any(|c| !c.valid && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
+    }
+
+    /// Signature Wrapping (Merge E4): Bytes neben `/Contents` in der Lücke der `/ByteRange` – kryptografisch
+    /// passt die Signatur, `pida verify` sagt aber wie Prüfmodus und Inspektor nicht „gültig“.
+    #[test]
+    fn verify_rejects_bytes_hidden_in_the_gap() {
+        let p = Path::new(TESTDATA).join("verify/pdfas-signed.pdf");
+        let mut bytes = std::fs::read(&p).unwrap();
+        assert!(verify_file(&p).unwrap().iter().all(|c| c.valid));
+        let at = bytes.windows(10).position(|w| w == b"/ByteRange").unwrap();
+        let open = at + bytes[at..].iter().position(|b| *b == b'[').unwrap() + 1;
+        let close = open + bytes[open..].iter().position(|b| *b == b']').unwrap();
+        let nums: Vec<usize> =
+            std::str::from_utf8(&bytes[open..close]).unwrap().split_whitespace().map(|n| n.parse().unwrap()).collect();
+        let gap_end = nums[2];
+        let inject = b">/X 1";
+        assert!(bytes[gap_end - inject.len()..gap_end - 1].iter().all(|b| *b == b'0'), "Padding am Ende der Lücke");
+        bytes[gap_end - inject.len()..gap_end].copy_from_slice(inject);
+        let tmp = tempfile::tempdir().unwrap();
+        let t = tmp.path().join("t.pdf");
+        std::fs::write(&t, &bytes).unwrap();
+        let checks = verify_file(&t).unwrap();
+        assert!(checks.iter().all(|c| !c.valid && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
     }
 
     #[test]

@@ -379,6 +379,11 @@ impl CoreTask {
         }
     }
 
+    /// Prüfmodus offen (auch während des Ladens)?
+    pub(crate) fn verify_open(&self) -> bool {
+        self.verify.current.is_some()
+    }
+
     /// `ViewState::verify`.
     pub(crate) fn verify_view(&self) -> Option<VerifyView> {
         self.verify.current.as_ref().map(|o| o.view.clone())

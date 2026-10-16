@@ -340,6 +340,24 @@ fn bytes_hidden_in_the_byte_range_gap_are_broken() {
     let [s] = r.signatures.as_slice() else { panic!("{r:?}") };
     assert_eq!(s.integrity, Integrity::Broken { code: pida_pades::CODE_SIGNATURE_BYTERANGE.into() });
     assert_eq!(cn(s).as_deref(), Some(CN_RSA), "Unterzeichner trotzdem genannt");
+    // dieselbe Regel für Vorsignaturen (Merge E4): Inspektor im Arbeitsbereich (`analyze`) und I4 sagen nicht
+    // „intakt“, wo der Prüfmodus „verändert“ sagt – vor dem Gegenzeichnen folgt die Analysewarnung
+    let prior = |pdf: &[u8]| {
+        let report = pida_pades::analyze(&open_bytes(pdf)).unwrap();
+        let [e] = report.signatures.as_slice() else { panic!("{:?}", report.signatures.len()) };
+        let warned = report.findings.iter().any(|f| f.code == pida_pades::codes::PRIOR_SIGNATURE_INVALID);
+        (e.status.clone(), e.status_code.clone(), e.signer_cn.clone(), warned)
+    };
+    assert_eq!(prior(&original), (pida_pades::PriorStatus::Valid, None, Some(CN_RSA.into()), false));
+    assert_eq!(
+        prior(&pdf),
+        (
+            pida_pades::PriorStatus::Invalid,
+            Some(pida_pades::CODE_SIGNATURE_BYTERANGE.into()),
+            Some(CN_RSA.into()),
+            true
+        )
+    );
 }
 
 /// Gegenprobe mit echter PDF-AS-Ausgabe: Alle von der offiziellen PDF-AS-4.4.2-CLI signierten Golden-Fälle

@@ -99,6 +99,7 @@ pub use signed::{
     CheckContext, CheckReport, Invariant, InvariantViolation, OutputInfo, OutputTarget, PriorStatus, SignedPdf,
     WARNING_I5_WITHOUT_PDFIUM,
 };
+pub use sigs::gap_is_hex_string;
 
 pub use verify::{
     CODE_SIGNATURE_BYTERANGE, CODE_SIGNATURE_DICTIONARY, Integrity, SignatureVerification, VerifyReport,

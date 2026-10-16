@@ -607,3 +607,55 @@ async fn verify_and_first_run_events_never_open_a_session() {
     assert!(editing(&core.view()), "{:?}", core.view().step);
     assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "Ersteinrichtung startet nie eine Sitzung");
 }
+
+/// Merge E4: Liegt der Prüfmodus über dem Arbeitsbereich bzw. der Stapelübersicht, ist das Dokument darunter
+/// verdeckt – „Signieren“/„Alle signieren“ sind gesperrt (`actions`) und wirken auch als Ereignis nicht (F-54:
+/// keine Sitzung für ein Dokument, das die Nutzerin gerade nicht sieht). Nach dem Verlassen gilt wieder alles.
+/// „Öffnen“ (Dialog, Ablegen) zeigt die Datei im Arbeitsbereich und schließt dafür den Prüfmodus.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn verify_mode_over_the_workspace_blocks_signing_the_hidden_document() {
+    let fx = Fixture::new();
+    let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "Antrag.pdf");
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn SignatureBackend>> = vec![fake.backend()];
+    let core = start(&fx, Overlay { input_files: vec![a], output: Some(fx.dir("out")), ..Overlay::default() }, |o| {
+        o.backends = Some(backends);
+    });
+    let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    assert!(v.actions.sign && v.actions.edit_placement && v.actions.verify);
+    open(&core, &verify_file("pdfas-signed.pdf")).await;
+    let v = core.view();
+    assert!(editing(&v), "Zustand bleibt");
+    assert!(!v.actions.sign && !v.actions.edit_placement && !v.actions.start_batch && !v.actions.show_batch);
+    assert!(v.actions.open_files && v.actions.verify, "„Dieses Dokument signieren“, „Anderes Dokument prüfen“");
+    for e in [
+        UiEvent::SignWith { backend: BackendId::AtrustNative },
+        UiEvent::ConfirmPosition,
+        UiEvent::ChooseInvisible,
+        UiEvent::StartBatch {
+            backend: BackendId::AtrustNative,
+            docs: Vec::new(),
+            output_dir: None,
+            on_existing: pida_workflow::ExistingPolicy::KeepBoth,
+        },
+    ] {
+        core.dispatch(e);
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let v = core.view();
+    assert!(editing(&v) && v.verify.is_some(), "{:?}", v.step);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung unter dem Prüfmodus");
+    core.dispatch(UiEvent::CloseVerify);
+    let v = wait_for(&core, "geschlossen", |v| v.verify.is_none()).await;
+    assert!(v.actions.sign && v.actions.edit_placement);
+
+    // „Öffnen“ bei offenem Prüfmodus: die Datei erscheint (Warteschlange), der Prüfmodus schließt
+    open(&core, &verify_file("two-signatures.pdf")).await;
+    let docs = core.open_document_count();
+    let b = copy_pdf(TEXT_PDF, &fx.dir("in"), "Beilage.pdf");
+    core.dispatch(UiEvent::OpenFiles { paths: vec![b] });
+    let v = wait_for(&core, "Prüfmodus geschlossen", |v| v.verify.is_none()).await;
+    assert!(editing(&v));
+    assert!(core.open_document_count() < docs + 1, "Prüfdokument freigegeben");
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0);
+}

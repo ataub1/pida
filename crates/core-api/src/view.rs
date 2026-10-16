@@ -1928,7 +1928,8 @@ redacted_debug!(FirstRunView { default_backend, profile, block_language, preview
 // --- §3.13 Freigaben ----------------------------------------------------------------------------
 
 /// Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (§3.13), berechnet aus dem Zustand
-/// (`actions::actions_for`).
+/// (`actions::actions_for`). Bei offenem Prüfmodus (`ViewState::verify`) sind `sign`, `edit_placement`,
+/// `start_batch` und `show_batch` aus: das Dokument darunter ist verdeckt (Nachtrag 6).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct ActionsView {
