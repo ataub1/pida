@@ -6,14 +6,16 @@
  * verlässt ihn), „Prüfen“ (Freigabe `actions.verify`), „Befehle ⌘K“, DE/EN (`set_ui_language`),
  * Farbschema (lokal je Gerät) und Einstellungen (`actions.settings`).
  */
+import { useState } from 'react';
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
 import { isMobile } from '../core/types';
 import { PALETTE_AVAILABLE } from '../features/palette';
 import { VERIFY_AVAILABLE } from '../features/verify';
 import { AddPdfMenu } from '../features/workspace';
-import { formatSize } from '../features/workspace/placement';
-import { IconButton, Keys, Segmented, useModKey } from '../ui/controls';
-import { IconArrowLeft, IconCheck, IconFileText, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconShieldCheck, IconSun } from '../ui/Icons';
+import { formatSize, placedByHand } from '../features/workspace/placement';
+import { Button, IconButton, Keys, Segmented, useModKey } from '../ui/controls';
+import { ConfirmDialog } from '../ui/Dialog';
+import { IconArrowLeft, IconCheck, IconFileText, IconHome, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconShieldCheck, IconSun } from '../ui/Icons';
 import { Wordmark } from '../ui/Logo';
 import { batchNav, goHome } from './commands';
 import { useApp } from './context';
@@ -29,6 +31,12 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
   // Prototyp; die Wortmarke führt wie dort zur Startansicht (Prüfmodus schließen, dann `navigate{Open}`)
   const verify = VERIFY_AVAILABLE && view.verify !== null;
   const home = () => void goHome(view, dispatch);
+  // Haus-Symbol (Wunsch des Auftraggebers): sichtbar, sobald man nicht auf der Startansicht ist. Wer dabei
+  // Arbeit verwerfen würde (Stapel mit mehreren Dokumenten, von Hand platzierter Block), bestätigt kurz.
+  const [askHome, setAskHome] = useState(false);
+  const awayFromStart = verify || !!view.document || !!view.batch;
+  const losesWork = !verify && ((view.batch?.items.length ?? 0) > 1 || (view.document ? placedByHand(view.document) : false));
+  const pressHome = () => (losesWork ? setAskHome(true) : home());
   const pages = doc ? doc.doc.page_count : 0;
   const batch = view.batch;
   // aus dem Stapel geöffnet (`return_to_batch`) bzw. weitere Dokumente in der Warteschlange (`show_batch`)
@@ -36,9 +44,39 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
 
   return (
     <header className="app-header">
-      <AriaButton className="brand" aria-label={t.t('ng-ui-shell-home')} onPress={home}>
+      <AriaButton className="brand" aria-label={t.t('ng-ui-shell-home')} onPress={pressHome}>
         <Wordmark />
       </AriaButton>
+      {awayFromStart && view.actions.home ? (
+        <IconButton label={t.t('ng-ui-shell-cmd-home')} className="header-home" onPress={pressHome}>
+          <IconHome size={18} />
+        </IconButton>
+      ) : null}
+      {askHome ? (
+        <ConfirmDialog
+          title={t.t('ng-ui-shell-home-confirm-title')}
+          tone="warning"
+          onCancel={() => setAskHome(false)}
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                onPress={() => {
+                  setAskHome(false);
+                  home();
+                }}
+              >
+                {t.t('ng-ui-shell-home-confirm')}
+              </Button>
+              <Button variant="primary" onPress={() => setAskHome(false)} autoFocus>
+                {t.t('common-Cancel')}
+              </Button>
+            </>
+          }
+        >
+          <p>{t.t('ng-ui-shell-home-confirm-text')}</p>
+        </ConfirmDialog>
+      ) : null}
       {verify ? (
         <div className="header-context">
           <span className="header-doc">
