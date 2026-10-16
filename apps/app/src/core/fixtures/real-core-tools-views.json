@@ -1,0 +1,2278 @@
+{
+  "first_run_done": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [
+      {
+        "code": "ng-migrate-done",
+        "id": 1,
+        "params": {
+          "imported": "13",
+          "skipped": "0"
+        }
+      },
+      {
+        "code": "ng-firstrun-done",
+        "id": 2,
+        "params": {}
+      }
+    ],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": "atrust_native",
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": "test-rsa2048.p12",
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": null
+  },
+  "first_run_fresh": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": {
+      "block_language": null,
+      "default_backend": null,
+      "migration": null,
+      "preview_revision": 1,
+      "profile": "SIGNATURBLOCK_SMALL"
+    },
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": null
+  },
+  "first_run_imported": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": {
+      "block_language": "de",
+      "default_backend": "id_austria",
+      "migration": null,
+      "preview_revision": 2,
+      "profile": "SIGNATURBLOCK_SMALL"
+    },
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [
+      {
+        "code": "ng-migrate-done",
+        "id": 1,
+        "params": {
+          "imported": "13",
+          "skipped": "0"
+        }
+      }
+    ],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": "atrust_native",
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": "test-rsa2048.p12",
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": "atrust_native"
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": null
+  },
+  "first_run_migration": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": {
+      "block_language": null,
+      "default_backend": null,
+      "migration": {
+        "items": [
+          {
+            "code": "ng-migration-item-block",
+            "detail": null
+          },
+          {
+            "code": "ng-migration-item-emblem",
+            "detail": "firmenlogo.png"
+          },
+          {
+            "code": "ng-migration-item-username",
+            "detail": "+43 664 ···567"
+          },
+          {
+            "code": "ng-migration-item-output",
+            "detail": "/Users/test/home/Dokumente/Signiert"
+          },
+          {
+            "code": "ng-migration-item-keystore",
+            "detail": "test-rsa2048.p12"
+          },
+          {
+            "code": "ng-migration-item-proxy",
+            "detail": "proxy.example.test:3128"
+          },
+          {
+            "code": "ng-migration-item-placeholder",
+            "detail": null
+          },
+          {
+            "code": "ng-migration-item-language",
+            "detail": "Deutsch"
+          }
+        ],
+        "legacy_file": "/Users/test/home/.pdf-over/PDF-Over.config",
+        "plaintext_secrets": false
+      },
+      "preview_revision": 1,
+      "profile": "SIGNATURBLOCK_SMALL"
+    },
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": {
+      "items": [
+        {
+          "code": "ng-migration-item-block",
+          "detail": null
+        },
+        {
+          "code": "ng-migration-item-emblem",
+          "detail": "firmenlogo.png"
+        },
+        {
+          "code": "ng-migration-item-username",
+          "detail": "+43 664 ···567"
+        },
+        {
+          "code": "ng-migration-item-output",
+          "detail": "/Users/test/home/Dokumente/Signiert"
+        },
+        {
+          "code": "ng-migration-item-keystore",
+          "detail": "test-rsa2048.p12"
+        },
+        {
+          "code": "ng-migration-item-proxy",
+          "detail": "proxy.example.test:3128"
+        },
+        {
+          "code": "ng-migration-item-placeholder",
+          "detail": null
+        },
+        {
+          "code": "ng-migration-item-language",
+          "detail": "Deutsch"
+        }
+      ],
+      "legacy_file": "/Users/test/home/.pdf-over/PDF-Over.config",
+      "plaintext_secrets": false
+    },
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": null
+  },
+  "verify_all_intact": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 2,
+        "name": "pdfas-signed.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "pdfas-signed.pdf",
+      "revisions": 2,
+      "signatures": [
+        {
+          "algorithm": "RSA 2048",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 655.0,
+              "left": 191.0,
+              "right": 421.0,
+              "top": 704.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PDF-Over NG Test RSA (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012097",
+          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "all_intact"
+    }
+  },
+  "verify_failed": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": null,
+      "file_name": "Rechnung.pdf",
+      "revisions": 0,
+      "signatures": [],
+      "status": {
+        "code": "ng-verify-open-failed",
+        "state": "failed"
+      },
+      "summary": "no_signatures"
+    }
+  },
+  "verify_invisible": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 8,
+        "name": "invisible.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "invisible.pdf",
+      "revisions": 2,
+      "signatures": [
+        {
+          "algorithm": "ECDSA P-256",
+          "appearance": null,
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PDF-Over NG Test ECDSA P-256 (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012098",
+          "signer": "PDF-Over NG Test ECDSA P-256 (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "all_intact"
+    }
+  },
+  "verify_modified_after_last_signature": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 7,
+        "name": "modified-after-signing.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "modified-after-signing.pdf",
+      "revisions": 3,
+      "signatures": [
+        {
+          "algorithm": "RSA 2048",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 655.0,
+              "left": 191.0,
+              "right": 421.0,
+              "top": 704.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "revision",
+            "later_revisions": 1,
+            "later_signatures": 0
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PDF-Over NG Test RSA (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012097",
+          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "modified_after_last_signature"
+    }
+  },
+  "verify_no_signatures": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 1,
+        "name": "unsigned.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": false
+      },
+      "file_name": "unsigned.pdf",
+      "revisions": 1,
+      "signatures": [],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "no_signatures"
+    }
+  },
+  "verify_qualified": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 9,
+        "name": "qes.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "qes.pdf",
+      "revisions": 2,
+      "signatures": [
+        {
+          "algorithm": "ECDSA P-256",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 655.0,
+              "left": 191.0,
+              "right": 421.0,
+              "top": 704.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-16T08:30:38Z",
+          "cert_valid_to": "2036-10-13T08:30:38Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PIDA Test QES P-256 (NUR TEST)",
+          "organization": "PIDA Test (NUR TEST)",
+          "qualification": {
+            "kind": "qualified",
+            "qscd": true
+          },
+          "serial": "43135012112",
+          "signer": "PIDA Test QES P-256 (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "all_intact"
+    }
+  },
+  "verify_rotated": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 10,
+        "name": "rotated-90.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            792.0,
+            612.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "rotated-90.pdf",
+      "revisions": 2,
+      "signatures": [
+        {
+          "algorithm": "RSA 2048",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 451.0,
+              "left": 100.0,
+              "right": 330.0,
+              "top": 500.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PDF-Over NG Test RSA (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012097",
+          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "all_intact"
+    }
+  },
+  "verify_sha1_warning": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 5,
+        "name": "cades-sha1.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "cades-sha1.pdf",
+      "revisions": 2,
+      "signatures": [
+        {
+          "algorithm": "RSA 2048",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 655.0,
+              "left": 191.0,
+              "right": 421.0,
+              "top": 704.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-1",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PDF-Over NG Test RSA (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012097",
+          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": [
+            "ng-verify-warning-sha1",
+            "ng-verify-warning-signing-certificate-v1"
+          ]
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "all_intact"
+    }
+  },
+  "verify_some_broken": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 3,
+        "name": "tampered.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "tampered.pdf",
+      "revisions": 2,
+      "signatures": [
+        {
+          "algorithm": "RSA 2048",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 655.0,
+              "left": 191.0,
+              "right": 421.0,
+              "top": 704.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "code": "cms-digest-mismatch",
+            "kind": "broken"
+          },
+          "issuer": "PDF-Over NG Test RSA (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012097",
+          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "some_broken"
+    }
+  },
+  "verify_some_not_verifiable": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 4,
+        "name": "pkcs7-sha1.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "pkcs7-sha1.pdf",
+      "revisions": 2,
+      "signatures": [
+        {
+          "algorithm": "RSA 2048",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 655.0,
+              "left": 191.0,
+              "right": 421.0,
+              "top": 704.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-1",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pkcs7_sha1",
+          "index": 1,
+          "integrity": {
+            "code": "pdf-signature-subfilter",
+            "kind": "not_verifiable"
+          },
+          "issuer": "PDF-Over NG Test RSA (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012097",
+          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "some_not_verifiable"
+    }
+  },
+  "verify_two_signatures": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": {
+      "doc": {
+        "id": 6,
+        "name": "two-signatures.pdf",
+        "page_count": 1,
+        "page_sizes": [
+          [
+            612.0,
+            792.0
+          ]
+        ],
+        "signed": true
+      },
+      "file_name": "two-signatures.pdf",
+      "revisions": 3,
+      "signatures": [
+        {
+          "algorithm": "RSA 2048",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 655.0,
+              "left": 191.0,
+              "right": 421.0,
+              "top": 704.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "revision",
+            "later_revisions": 1,
+            "later_signatures": 1
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur1",
+          "format": "pades",
+          "index": 1,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PDF-Over NG Test RSA (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012097",
+          "signer": "PDF-Over NG Test RSA (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        },
+        {
+          "algorithm": "ECDSA P-256",
+          "appearance": {
+            "page": 0,
+            "rect": {
+              "bottom": 251.0,
+              "left": 300.0,
+              "right": 530.0,
+              "top": 300.0
+            }
+          },
+          "cert_valid_at_signing": true,
+          "cert_valid_from": "2026-10-14T14:31:03Z",
+          "cert_valid_to": "2036-10-11T14:31:03Z",
+          "coverage": {
+            "kind": "whole_document"
+          },
+          "digest": "SHA-256",
+          "field_name": "PDF-AS Signatur2",
+          "format": "pades",
+          "index": 2,
+          "integrity": {
+            "kind": "intact"
+          },
+          "issuer": "PDF-Over NG Test ECDSA P-256 (NUR TEST)",
+          "organization": "PDF-Over NG Test (NUR TEST)",
+          "qualification": {
+            "kind": "not_qualified"
+          },
+          "serial": "43135012098",
+          "signer": "PDF-Over NG Test ECDSA P-256 (NUR TEST)",
+          "signing_time": "2026-10-15T10:42:17+02:00",
+          "trust": "not_checked",
+          "warnings": []
+        }
+      ],
+      "status": {
+        "state": "ready"
+      },
+      "summary": "all_intact"
+    }
+  }
+}

@@ -40,6 +40,13 @@ pub fn test_key() -> Arc<LoadedKey> {
     Arc::new(LoadedKey::open_pkcs12(&bytes, "test", None).unwrap())
 }
 
+/// QES-Testschlüssel (P-256, qcStatements QcCompliance + QcSSCD; `testdata/verify/keys`, NUR TEST) – für
+/// ID-Austria-artige Fake-Backends, deren Zertifikate wie die echten „qualifiziert laut Zertifikat“ sind.
+pub fn qes_test_key() -> Arc<LoadedKey> {
+    let bytes = std::fs::read(testdata("verify/keys/test-qes-ecp256.p12")).unwrap();
+    Arc::new(LoadedKey::open_pkcs12(&bytes, "test", None).unwrap())
+}
+
 // ------------------------------------------------------------------------------------------------
 // Fake-Backend (Szenario-A-artig: Masken über den Broker, Modell B)
 // ------------------------------------------------------------------------------------------------

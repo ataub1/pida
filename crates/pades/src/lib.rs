@@ -1,5 +1,8 @@
 //! `pida-pades` – PAdES-Signatur-Engine (Plan §3.6, §6; docs/analyse/03).
 //!
+//! Prüfmodus (ADR 0004 §3.9): [`verify_document`] prüft alle Signaturen eines Dokuments und liefert je
+//! Signatur Integrität, Abdeckung, Zertifikat, Verfahren, Hinweise und das Widget.
+//!
 //! Ablauf: [`analyze`] → Annahmeklasse K1–K5 → [`SignPlan`] (Profil, Position, Feld; bequem über
 //! [`plan_signature`]) → ggf. Zertifikat vom Backend → [`prepare`] → Backend `sign` →
 //! [`Prepared::finish_cms`] (Modell B) bzw. [`Prepared::finish_raw`] (Modell A) →
@@ -81,6 +84,7 @@ mod prepared;
 mod signed;
 mod sigs;
 mod util;
+mod verify;
 
 pub use analyze::{
     AcceptanceClass, DocMdp, DocReport, ExistingSignature, Finding, PdfaId, XfaKind, analyze, codes, reject_open_error,
@@ -94,6 +98,11 @@ pub use prepared::{Prepared, PreparedHandle, prepare};
 pub use signed::{
     CheckContext, CheckReport, Invariant, InvariantViolation, OutputInfo, OutputTarget, PriorStatus, SignedPdf,
     WARNING_I5_WITHOUT_PDFIUM,
+};
+
+pub use verify::{
+    CODE_SIGNATURE_BYTERANGE, CODE_SIGNATURE_DICTIONARY, Integrity, SignatureVerification, VerifyReport,
+    verify_document,
 };
 
 pub use pida_pdf_incremental::{ByteRange, ExcludedRange};

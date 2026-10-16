@@ -150,7 +150,8 @@ struct Scripted {
 impl Scripted {
     fn new(failures: Vec<BackendError>) -> Arc<Scripted> {
         Arc::new(Scripted {
-            key: test_key(),
+            // wie ein echtes ID-Austria-Zertifikat qualifiziert laut Zertifikat (qcStatements, K4)
+            key: qes_test_key(),
             opened: AtomicUsize::new(0),
             cancelled: AtomicUsize::new(0),
             certificates: AtomicUsize::new(0),
@@ -1041,6 +1042,7 @@ async fn real_core_views_for_the_ui() {
 
     // 1. Keystore, echte Engine: Arbeitsbereich → Signieren → gespeichert (Abnahme E1 Punkt 1, 7)
     let fx = Fixture::new();
+    fx.write_settings("[general]\n"); // Bestandsnutzer: ohne Ersteinrichtung (K4)
     add_roots(&fx);
     let out = fx.dir("Dokumente");
     let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "Vertrag.pdf");
@@ -1061,6 +1063,7 @@ async fn real_core_views_for_the_ui() {
 
     // 2. ID-Austria-artig (Skript): Anmeldung → Netzfehler → „Erneut versuchen“ → TAN → gespeichert (Punkt 6)
     let fx = Fixture::new();
+    fx.write_settings("[general]\n"); // Bestandsnutzer: ohne Ersteinrichtung (K4)
     add_roots(&fx);
     let out = fx.dir("Dokumente");
     let a = copy_pdf(PDF, &fx.dir("in"), "Antrag.pdf");
@@ -1087,6 +1090,7 @@ async fn real_core_views_for_the_ui() {
 
     // 3. Abbrechen in der Anmeldung → Arbeitsbereich mit Hinweis „es wurde nichts signiert“
     let fx = Fixture::new();
+    fx.write_settings("[general]\n"); // Bestandsnutzer: ohne Ersteinrichtung (K4)
     add_roots(&fx);
     let a = copy_pdf(PDF, &fx.dir("in"), "Antrag.pdf");
     let (_backend, backends) = scripted(vec![]);

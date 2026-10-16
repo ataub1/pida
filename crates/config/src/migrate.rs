@@ -315,11 +315,47 @@ fn supported_image(path: &Path) -> bool {
     head.starts_with(b"\x89PNG\r\n\x1a\n") || head.starts_with(&[0xFF, 0xD8, 0xFF]) || head.starts_with(b"GIF8")
 }
 
+/// Dateinamen der Standard-Bildmarken der PDF-AS-Konfiguration (`cfg/images/`).
+const PDFAS_DEFAULT_LOGOS: [&str; 3] = ["signatur-logo_de.png", "signatur-logo_en.png", "amtsignatur-logo_demo.png"];
+
+/// SHA-256 der Standard-Bildmarken von PDF-AS 4.4.x (`signatur-logo_de.png`, `signatur-logo_en.png`,
+/// `amtsignatur-logo_demo.png`; gleich `crates/sigblock/assets/images/`).
+const PDFAS_DEFAULT_LOGO_SHA256: [&str; 3] = [
+    "5fdbd80964fde3d03a3ce4ecb45e1d555f99032bb5a234ce8ac272b4f6e190cd",
+    "770ca9482568d22295f50ef56363a923e1e7d6a0b1d577fc09f7f5117ec5e92b",
+    "8a022b17a7854ce76c4877f173df8ad79b2c2b95730c2c4153e3b3c045b55a71",
+];
+
+/// Ist `path` die Standard-Bildmarke von PDF-AS statt einer eigenen? Zählt nicht als eigene Bildmarke
+/// (Entscheidung des Auftraggebers zu ADR 0005: das PIDA-Siegel wird nie still ersetzt): ein Pfad
+/// `…/cfg/images/<Standardname>` (Name ohne Groß-/Kleinschreibung) bzw. – mit `check_content` – eine Datei
+/// mit dem Inhalt einer Standard-Bildmarke, gleich unter welchem Namen.
+pub fn is_pdfas_default_logo(path: &Path, check_content: bool) -> bool {
+    let name = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    let dir = |p: Option<&Path>| p.and_then(Path::file_name).map(|n| n.to_string_lossy().to_ascii_lowercase());
+    let in_cfg_images = dir(path.parent()).as_deref() == Some("images")
+        && dir(path.parent().and_then(Path::parent)).as_deref() == Some("cfg");
+    if in_cfg_images && PDFAS_DEFAULT_LOGOS.contains(&name.as_str()) {
+        return true;
+    }
+    check_content
+        && std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() < 1024 * 1024)
+        && sha256_hex(path).is_some_and(|h| PDFAS_DEFAULT_LOGO_SHA256.contains(&h.as_str()))
+}
+
 /// `EMBLEM`: Datei muss existieren und ein unterstütztes Bild sein; fehlt das Original, wird die von
 /// PDF-Over zwischengespeicherte `.emblem.png` übernommen, wenn `.emblem.properties` (`IMG`) auf
-/// genau diesen Pfad verweist.
+/// genau diesen Pfad verweist. Übernommen wird nur eine **eigene** Bildmarke: die Standard-Bildmarke
+/// von PDF-AS ([`is_pdfas_default_logo`]) bleibt aus, dann gilt das PIDA-Siegel (ADR 0005).
 fn migrate_emblem(v: &LegacyValues, ctx: &MigrationContext, r: &mut Reporter) -> Option<PathBuf> {
     let emblem = v.emblem.as_ref()?;
+    let default_logo = |r: &mut Reporter| {
+        r.skip(LegacyKey::Emblem, path_msg("ng-migrate-emblem-default", LegacyKey::Emblem, emblem));
+        None
+    };
+    if is_pdfas_default_logo(emblem, ctx.check_paths) {
+        return default_logo(r);
+    }
     if !ctx.check_paths {
         return Some(emblem.clone());
     }
@@ -337,6 +373,9 @@ fn migrate_emblem(v: &LegacyValues, ctx: &MigrationContext, r: &mut Reporter) ->
         .and_then(|b| pida_java_properties::Properties::load_auto(&b).ok())
         .is_some_and(|(p, _)| p.get("IMG").map(Path::new) == Some(emblem.as_path()));
     if refers_to_emblem && cached.is_file() && supported_image(&cached) {
+        if is_pdfas_default_logo(&cached, true) {
+            return default_logo(r);
+        }
         r.warn(path_msg("ng-migrate-emblem-from-cache", LegacyKey::Emblem, emblem));
         return Some(cached);
     }

@@ -206,6 +206,30 @@ impl Certificate {
         self.subject_rdns().into_iter().find(|a| a.oid == "2.5.4.3").map(|a| a.value)
     }
 
+    /// Erster Wert eines Subject-Attributs (OID in Punktnotation, z. B. `2.5.4.10` = O).
+    pub fn subject_attr(&self, oid: &str) -> Option<String> {
+        self.subject_rdns().into_iter().find(|a| a.oid == oid).map(|a| a.value)
+    }
+
+    /// Erster Wert eines Issuer-Attributs (OID in Punktnotation, z. B. `2.5.4.3` = CN).
+    pub fn issuer_attr(&self, oid: &str) -> Option<String> {
+        self.issuer_rdns().into_iter().find(|a| a.oid == oid).map(|a| a.value)
+    }
+
+    /// Zertifizierungsstelle laut basicConstraints (`cA = TRUE`); ohne Erweiterung `false`.
+    pub fn is_ca(&self) -> bool {
+        let Some(exts) = self.parsed.tbs_certificate.extensions.as_ref() else { return false };
+        let Some(ext) = exts.iter().find(|e| e.extn_id.to_string() == "2.5.29.19") else { return false };
+        // BasicConstraints ::= SEQUENCE { cA BOOLEAN DEFAULT FALSE, pathLenConstraint INTEGER OPTIONAL }
+        use crate::der_util::{read_tlv, tag};
+        let Ok(seq) = read_tlv(ext.extn_value.as_bytes()) else { return false };
+        if seq.tag != tag::SEQUENCE {
+            return false;
+        }
+        let mut r = seq.reader();
+        matches!(r.read(), Ok(t) if t.tag == tag::BOOLEAN && t.content.first().is_some_and(|b| *b != 0))
+    }
+
     /// Beginn der Gültigkeit.
     pub fn not_before(&self) -> OffsetDateTime {
         x509_time(&self.parsed.tbs_certificate.validity.not_before)

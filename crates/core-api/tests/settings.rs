@@ -195,6 +195,8 @@ async fn partial_apply_field_errors_revisions_and_restart() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn exactly_one_preview_per_signature_change_in_the_same_projection() {
     let fx = Fixture::new();
+    // Bestandsnutzer: ohne Ersteinrichtung (deren Vorschau beim Start zählte sonst mit, ADR 0004 §3.12)
+    fx.write_settings("[general]\n");
     let core = start(&fx, Overlay::default(), false, |_| {}).unwrap();
     wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. })).await;
     let v = open_settings(&core).await;
@@ -669,8 +671,11 @@ async fn recent_documents_are_recorded_minimal_and_switch_off_deletes() {
     core.dispatch(UiEvent::VerifyRecent { id: missing });
     let v = wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-recent-missing")).await;
     assert!(v.recent.unwrap().iter().any(|r| r.id == missing && !r.exists));
-    // vorhandene Datei: kein Hinweis (Prüfmodus folgt mit K4)
+    // vorhandene Datei: Prüfmodus (K4, ADR 0004 §3.9)
     core.dispatch(UiEvent::VerifyRecent { id: recent[0].id });
+    let v = wait_for(&core, "Prüfmodus", |v| v.verify.is_some()).await;
+    assert_eq!(v.verify.unwrap().file_name, "Vertrag_signed.pdf");
+    core.dispatch(UiEvent::CloseVerify);
     // entfernen, leeren
     core.dispatch(UiEvent::RemoveRecent { id: missing });
     let v = wait_for(&core, "entfernt", |v| v.recent.as_ref().is_some_and(|r| r.len() == 9)).await;

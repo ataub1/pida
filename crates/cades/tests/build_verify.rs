@@ -562,3 +562,26 @@ fn cms_error_codes_are_stable_and_distinct() {
     assert_eq!(codes.len(), errs.len());
     assert!(codes.iter().all(|c| c.starts_with("cms-")));
 }
+
+/// ADR 0004 §3.9: `parse_cms` liefert Signerzertifikat und `signing-time` ohne Prüfung – auch für ein CMS,
+/// dessen Prüfung scheitert (verändertes Dokument), damit der Prüfmodus Unterzeichner und Zeitpunkt nennt.
+#[test]
+fn parse_cms_names_signer_and_time_without_verification() {
+    let content = content();
+    let s = ecp256();
+    let cms = sign_detached(&s, &DigestAlg::Sha256.digest(&content), CmsProfile::PdfasCompat, golden_time()).unwrap();
+    let mut changed = content.clone();
+    changed[0] ^= 1;
+    assert!(matches!(verify(&cms, &changed, &Expect::default()), Err(CmsError::DigestMismatch)));
+    let info = parse_cms(&cms).unwrap();
+    assert_eq!(info.signer.as_ref(), Some(&s.chain().signer));
+    assert_eq!(info.signing_time, Some(golden_time().0));
+    assert!(!s.chain().signer.is_ca(), "Testzertifikat mit basicConstraints CA:FALSE");
+    assert_eq!(s.chain().signer.subject_attr("2.5.4.10").as_deref(), Some("PDF-Over NG Test (NUR TEST)"));
+    // PAdES-B-B ohne signing-time
+    let bb = sign_detached(&s, &DigestAlg::Sha256.digest(&content), CmsProfile::PadesBB, golden_time()).unwrap();
+    assert_eq!(parse_cms(&bb).unwrap().signing_time, None);
+    // OpenSSL-CMS ohne Zertifikate: kein Signer
+    let nocerts = read("cades/openssl-rsa2048-sha256-nocerts.cms.der");
+    assert!(parse_cms(&nocerts).unwrap().signer.is_none());
+}

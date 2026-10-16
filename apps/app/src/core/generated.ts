@@ -802,7 +802,7 @@ legacy_file: string,
 plaintext_secrets: boolean, 
 /**
  * Was übernommen würde (Ersteinrichtung Schritt 1, ADR 0004 §3.12): i18n-IDs `ng-migration-item-*`
- * mit Detail; ab K4 per Probelauf von `pida_config::migrate` (bis dahin leer)
+ * mit Detail; per Probelauf von `pida_config::migrate` (ohne zu schreiben)
  */
 items: Array<MigrationItemView>, };
 
@@ -1302,7 +1302,7 @@ signers: SignersView,
  */
 batch: BatchView | null, 
 /**
- * Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9); ab K4
+ * Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9; nur im Arbeitsbereich)
  */
 verify: VerifyView | null, 
 /**
@@ -1311,7 +1311,7 @@ verify: VerifyView | null,
  */
 recent: Array<RecentItemView> | null, 
 /**
- * Ersteinrichtung, nur beim ersten Start (ADR 0004 §3.12); ab K4
+ * Ersteinrichtung, nur beim ersten Start (fehlende Einstellungsdatei, Arbeitsbereich; ADR 0004 §3.12)
  */
 first_run: FirstRunView | null, 
 /**
@@ -2096,7 +2096,8 @@ signing_time: string,
  */
 backend: BackendId, 
 /**
- * bis K4 aus den Fähigkeiten des Backends, ab K4 aus den qcStatements des Signerzertifikats
+ * laut qcStatements des Signerzertifikats (QcCompliance und QcSSCD → `Qes`, sonst `AdES`; nicht gegen die
+ * Vertrauensliste geprüft)
  */
 qualification: Qualification, 
 /**

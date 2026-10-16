@@ -1,0 +1,6 @@
+NUR FÜR TESTS – KEINE ECHTEN SCHLÜSSEL
+=====================================
+test-qes-ecp256.* wurde von testdata/verify/make-keys.sh mit openssl erzeugt.
+Selbstsigniert, Passwort "test", Subject enthält "(NUR TEST)". Die Erweiterung qcStatements
+(QcCompliance, QcSSCD, QcType esign) ist eine bloße Behauptung im Zertifikat für den Prüfmodus
+(„qualifiziert laut Zertifikat“). Niemals für echte Signaturen, Zugänge oder Produktivsysteme verwenden.

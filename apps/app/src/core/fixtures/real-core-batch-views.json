@@ -684,7 +684,7 @@
       "show_batch": false,
       "sign": false,
       "start_batch": true,
-      "verify": false
+      "verify": true
     },
     "batch": {
       "estimate": null,
@@ -846,7 +846,7 @@
       "show_batch": false,
       "sign": false,
       "start_batch": true,
-      "verify": false
+      "verify": true
     },
     "batch": {
       "estimate": {
@@ -1257,7 +1257,7 @@
       "show_batch": false,
       "sign": false,
       "start_batch": false,
-      "verify": false
+      "verify": true
     },
     "batch": {
       "estimate": null,

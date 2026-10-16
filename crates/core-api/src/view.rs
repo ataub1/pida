@@ -43,7 +43,7 @@ pub struct MigrationOfferView {
     #[serde(default)]
     pub plaintext_secrets: bool,
     /// Was übernommen würde (Ersteinrichtung Schritt 1, ADR 0004 §3.12): i18n-IDs `ng-migration-item-*`
-    /// mit Detail; ab K4 per Probelauf von `pida_config::migrate` (bis dahin leer)
+    /// mit Detail; per Probelauf von `pida_config::migrate` (ohne zu schreiben)
     #[serde(default)]
     pub items: Vec<MigrationItemView>,
 }
@@ -473,14 +473,14 @@ pub struct ViewState {
     /// Stapel (nur mit `batch_overview`, ADR 0004 §3.8); ab K2, bis dahin `None`
     #[serde(default)]
     pub batch: Option<BatchView>,
-    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9); ab K4
+    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9; nur im Arbeitsbereich)
     #[serde(default)]
     pub verify: Option<VerifyView>,
     /// „Zuletzt signiert“ (neueste zuerst, höchstens zehn); `None` = Funktion abgeschaltet (Einstellung,
     /// Richtlinie) bzw. ohne Oberfläche (ADR 0004 §3.10)
     #[serde(default)]
     pub recent: Option<Vec<RecentItemView>>,
-    /// Ersteinrichtung, nur beim ersten Start (ADR 0004 §3.12); ab K4
+    /// Ersteinrichtung, nur beim ersten Start (fehlende Einstellungsdatei, Arbeitsbereich; ADR 0004 §3.12)
     #[serde(default)]
     pub first_run: Option<FirstRunView>,
     /// Freigaben für Knöpfe, Befehlspalette und Tastenkürzel (ADR 0004 §3.13), aus dem Zustand berechnet
@@ -1445,7 +1445,8 @@ pub struct SignedSummaryView {
     pub signing_time: String,
     /// Signiermittel
     pub backend: BackendId,
-    /// bis K4 aus den Fähigkeiten des Backends, ab K4 aus den qcStatements des Signerzertifikats
+    /// laut qcStatements des Signerzertifikats (QcCompliance und QcSSCD → `Qes`, sonst `AdES`; nicht gegen die
+    /// Vertrauensliste geprüft)
     pub qualification: Qualification,
     /// Selbstprüfung I1–I6 bestanden (ohne Bestehen wird nie gespeichert – dient der Anzeige)
     pub self_check: bool,
