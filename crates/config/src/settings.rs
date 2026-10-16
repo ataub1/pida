@@ -182,7 +182,7 @@ pub struct GeneralSettings {
     /// Zuletzt geöffneter Ordner.
     pub last_source_directory: Option<PathBuf>,
     /// „Zuletzt signiert“ merken (Einstellungen › Datenschutz; ADR 0004 §3.10, Standard **ein** nach §8 F6).
-    /// Fehlt der Schlüssel, gilt `true` (Struct-Standard). Wirksam ab K3 (`RecentStore`); die Richtlinie
+    /// Fehlt der Schlüssel, gilt `true` (Struct-Standard). Liste in [`crate::RecentStore`]; die Richtlinie
     /// [`crate::Policy::recent_documents`] kann die Funktion abschalten.
     pub recent_documents: bool,
     /// Ersteinrichtung abgeschlossen (ADR 0004 §3.12). Fehlt der Schlüssel (Bestandsnutzer), gilt `true`;

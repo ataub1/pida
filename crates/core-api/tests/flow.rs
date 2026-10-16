@@ -984,10 +984,11 @@ async fn certificate_cache_without_opt_in_stores_nothing() {
 }
 
 /// ADR 0004: Im **klassischen** Ablauf (ohne `workspace_ui`) bleiben die Ereignisse der neuen Oberfläche
-/// ohne Wirkung, ebenso die Ereignisse späterer Etappen (Stapel K2, Zuletzt signiert/sofort wirksam K3,
-/// Prüfmodus/Ersteinrichtung K4) – der Kern bleibt im Zustand, öffnet **keine** Sitzung (A1, auch nicht mit
-/// `sign_with`) und liefert die neuen Felder mit Standardwerten; die Freigaben (`actions`) folgen dem
-/// Zustand. Nur `set_ui_language` (Kopfzeile, K1) wirkt in beiden Modi.
+/// ohne Wirkung, ebenso die Ereignisse späterer Etappen (Stapel K2, Prüfmodus/Ersteinrichtung K4) – der Kern
+/// bleibt im Zustand, öffnet **keine** Sitzung (A1, auch nicht mit `sign_with`) und liefert die neuen Felder
+/// mit Standardwerten; die Freigaben (`actions`) folgen dem Zustand. In beiden Modi wirken `set_ui_language`
+/// (Kopfzeile, K1) und – K3 – „Zuletzt signiert“ (leere Liste) sowie `apply_settings`, Letzteres nur mit
+/// geöffneter Einstellungsansicht (hier nicht: ohne Wirkung).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn classic_mode_ignores_workspace_and_later_stage_events() {
     use pida_core_api::{PlacementTarget, SignersView};
@@ -1001,7 +1002,7 @@ async fn classic_mode_ignores_workspace_and_later_stage_events() {
     assert!(v.actions.open_files && v.actions.home && v.actions.settings);
     assert!(!v.actions.sign && !v.actions.edit_placement && !v.actions.verify && !v.actions.start_batch);
     assert_eq!((v.document.as_ref(), v.batch.as_ref(), v.verify.as_ref()), (None, None, None));
-    assert_eq!((v.recent.as_ref(), v.first_run.as_ref()), (None, None));
+    assert_eq!((v.recent.as_ref().map(Vec::len), v.first_run.as_ref()), (Some(0), None), "K3: Liste in beiden Modi");
     assert_eq!(v.signers, SignersView::default());
     let language = v.language;
 
@@ -1060,9 +1061,13 @@ async fn classic_mode_ignores_workspace_and_later_stage_events() {
     assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "keine Sitzung ohne umgesetztes Ereignis (A1)");
     assert_eq!(after.language, language);
     assert!(after.settings.is_none() && after.document.is_none() && after.batch.is_none());
-    assert!(after.verify.is_none() && after.recent.is_none() && after.first_run.is_none());
+    assert!(after.verify.is_none() && after.first_run.is_none());
+    assert_eq!(after.recent, Some(Vec::new()));
     let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap_or_default();
-    assert!(!saved.contains("AMTSSIGNATURBLOCK"), "apply_settings/update_first_run speichern noch nichts");
+    assert!(
+        !saved.contains("AMTSSIGNATURBLOCK"),
+        "apply_settings ohne geöffnete Ansicht und update_first_run (K4) speichern nichts"
+    );
     // Oberflächensprache aus der Kopfzeile: sofort wirksam und gespeichert
     let other = if language == pida_i18n::Lang::En { pida_i18n::Lang::De } else { pida_i18n::Lang::En };
     core.dispatch(UiEvent::SetUiLanguage { language: Some(other) });

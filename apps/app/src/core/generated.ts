@@ -1219,14 +1219,23 @@ read_only: boolean,
  */
 preview_revision: number, 
 /**
- * Revision des zuletzt übernommenen [`UiEvent::ApplySettings`] (ADR 0004 §3.11; ab K3, bis dahin 0)
+ * Revision des zuletzt übernommenen [`UiEvent::ApplySettings`] (ADR 0004 §3.11). Ändert eine Übernahme das
+ * Signaturbild, steigt sie erst zusammen mit der neuen Vorschau (`preview_revision`) in derselben
+ * Projektion
  */
 applied_revision: number, 
 /**
  * Vom Kern berechnete Beispiele (ADR 0004 §3.11): Schlüssel `output.postfix` → Ausgabename für die
- * Beispieldatei `Vertrag.pdf` (F-81); ab K3, bis dahin leer
+ * Beispieldatei `Vertrag.pdf` (F-81)
  */
-examples: { [key in string]: string }, };
+examples: { [key in string]: string }, 
+/**
+ * Per Richtlinie festgelegte Einstellungen: TOML-Punktpfad (bzw. ganzer Abschnitt wie `proxy`) → i18n-ID
+ * des Grunds (`ng-recent-policy`, `ng-settings-policy`). Die UI zeigt diese Zeilen gesperrt mit Hinweis;
+ * `ApplySettings` lehnt sie mit dem Grund als Problem ab. Nachtrag K3 (ADR 0004 §9, Vorschlag aus B3
+ * `contract-draft.ts`): additiv, in TypeScript optional; der Kern liefert es immer (`Some`, ggf. leer).
+ */
+locked?: { [key in string]: string } | null, };
 
 /**
  * Gesamtzustand für die UI.
@@ -1297,7 +1306,8 @@ batch: BatchView | null,
  */
 verify: VerifyView | null, 
 /**
- * „Zuletzt signiert“; `None` = Funktion abgeschaltet bzw. (bis K3) noch nicht umgesetzt (ADR 0004 §3.10)
+ * „Zuletzt signiert“ (neueste zuerst, höchstens zehn); `None` = Funktion abgeschaltet (Einstellung,
+ * Richtlinie) bzw. ohne Oberfläche (ADR 0004 §3.10)
  */
 recent: Array<RecentItemView> | null, 
 /**
@@ -1756,6 +1766,45 @@ overlaps_widget: boolean,
 clamped: boolean, };
 
 /**
+ * PDF/A-Kennung eines Dokuments (XMP `pdfaid:part`, `pdfaid:conformance`).
+ */
+export type PdfaIdView = { 
+/**
+ * Teil (1, 2, 3, 4)
+ */
+part: number, 
+/**
+ * Konformitätsstufe (A, B, U …), falls angegeben
+ */
+conformance: string | null, };
+
+/**
+ * Wirksame PDF/A-Entscheidung beim Signieren (Einstellungen › Dokument „PDF/A-kompatibel signieren“).
+ */
+export type PdfaDecision = "none" | "detected" | "forced";
+
+/**
+ * Erkanntes und automatisch Entschiedenes zum Dokument (Nachtrag K3, Einstellungen › Dokument).
+ */
+export type DocumentDetectionView = { 
+/**
+ * PDF/A-Kennung des Dokuments (`None` = keine)
+ */
+pdfa: PdfaIdView | null, 
+/**
+ * wirksame PDF/A-Entscheidung
+ */
+pdfa_decision: PdfaDecision, 
+/**
+ * Lage stammt aus der Automatik (Startlage nach der Analyse bzw. Nachführung nach geänderten
+ * Einstellungen). Zusammen mit [`DocumentView::target`]: frei = „automatisch platziert“, `qr` =
+ * „QR-Platzhalter gefunden – Signatur dort platziert“, `field` = „Signaturfeld gefunden – Signatur im
+ * Feld platziert“ (Platzhaltersuche „Leere Signaturfelder“). `false`, sobald die Nutzerin selbst platziert
+ * (Ziehen, Tastatur, Seite, „Ins Feld setzen“, „Frei platzieren“/„Freie Fläche suchen“).
+ */
+auto_placed: boolean, };
+
+/**
  * Aktuelles Dokument im Arbeitsbereich (§3.3) – einzige Inhaltsquelle der neuen Oberfläche;
  * `StepView::Position` bleibt Phasenmarker.
  */
@@ -1834,7 +1883,14 @@ check: PlacementCheckView,
  * Live-Region: `page`, `pages`, `left`, `top` (wie `StepView::Position`) und `bottom` (mm der
  * Unterkante von unten)
  */
-announce: { [key in string]: string }, };
+announce: { [key in string]: string }, 
+/**
+ * Was der Kern erkannt bzw. automatisch entschieden hat (Einstellungen › Dokument: PDF/A,
+ * Platzhaltersuche) – für die dezenten Hinweise im Arbeitsbereich. Nachtrag K3 (ADR 0004 §9, Vorschlag):
+ * additiv; in TypeScript optional (`detection?: … | null`), damit bestehende UI-Literale gültig bleiben.
+ * Der Kern liefert es im Arbeitsbereich immer (`Some`).
+ */
+detection?: DocumentDetectionView | null, };
 
 /**
  * Signiermittel für Konto-Chip, Menü und Stapel (§3.4).

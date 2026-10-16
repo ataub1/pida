@@ -16,7 +16,7 @@ use std::path::PathBuf;
 
 use pida_backend_api::{BackendId, Capabilities};
 use pida_pades::{AcceptanceClass, OutputInfo};
-use pida_placement::QrPlaceholder;
+use pida_placement::{EmptyFieldCandidate, QrPlaceholder};
 
 use crate::queue::DocId;
 use crate::state::{BatchOutput, DocFacts, ExistingPolicy, PositionChoice, RetryTarget, SignFlow, WorkflowError};
@@ -45,6 +45,14 @@ pub struct DocSummary {
     /// neues sichtbares Signaturfeld erlaubt (`false` bei DocMDP-Zertifizierung)
     #[serde(default = "yes")]
     pub new_visible_field_allowed: bool,
+    /// erstes leeres, nicht gesperrtes Signaturfeld (Plan `Field` mit Platzhaltersuche „Leere
+    /// Signaturfelder“; Einstellungen › Dokument, K3)
+    #[serde(default)]
+    pub first_field: Option<EmptyFieldCandidate>,
+    /// die Voranalyse hat nach dem QR-Platzhalter gesucht (sonst nach dem Einschalten der Suche erneut
+    /// voranalysieren; K3)
+    #[serde(default)]
+    pub qr_searched: bool,
 }
 
 fn yes() -> bool {
@@ -126,12 +134,23 @@ pub struct BatchItem {
     /// Analysewarnungen bestätigt (einzeln geöffnet und „Fortfahren“ bzw. im Arbeitsbereich platziert)
     #[serde(default)]
     pub reviewed: bool,
+    /// Plan (bzw. kein Plan) aus der Automatik: folgt den Einstellungen › Dokument (Platzhaltersuche, Profil
+    /// „unsichtbar“); `false` = Plan der Nutzerin (im Arbeitsbereich platziert), der bleibt (K3)
+    #[serde(default = "yes")]
+    pub auto_plan: bool,
 }
 
 impl BatchItem {
     /// Neuer Eintrag, Voranalyse ausstehend.
     pub fn analyzing(doc: DocId) -> BatchItem {
-        BatchItem { doc, summary: None, plan: None, status: BatchItemStatus::Analyzing, reviewed: false }
+        BatchItem {
+            doc,
+            summary: None,
+            plan: None,
+            status: BatchItemStatus::Analyzing,
+            reviewed: false,
+            auto_plan: true,
+        }
     }
 
     /// Status nach der Voranalyse bzw. nach „Zurück zum Stapel“: mit Plan `Positioned`, sonst `Ready`

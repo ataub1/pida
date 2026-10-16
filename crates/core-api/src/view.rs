@@ -409,13 +409,22 @@ pub struct SettingsView {
     /// der Kern baut die Vorschau beim Öffnen auch ohne Dokument (A4, Beispielzertifikat) wie PDF-Over
     #[serde(default)]
     pub preview_revision: u64,
-    /// Revision des zuletzt übernommenen [`UiEvent::ApplySettings`] (ADR 0004 §3.11; ab K3, bis dahin 0)
+    /// Revision des zuletzt übernommenen [`UiEvent::ApplySettings`] (ADR 0004 §3.11). Ändert eine Übernahme das
+    /// Signaturbild, steigt sie erst zusammen mit der neuen Vorschau (`preview_revision`) in derselben
+    /// Projektion
     #[serde(default)]
     pub applied_revision: u64,
     /// Vom Kern berechnete Beispiele (ADR 0004 §3.11): Schlüssel `output.postfix` → Ausgabename für die
-    /// Beispieldatei `Vertrag.pdf` (F-81); ab K3, bis dahin leer
+    /// Beispieldatei `Vertrag.pdf` (F-81)
     #[serde(default)]
     pub examples: BTreeMap<String, String>,
+    /// Per Richtlinie festgelegte Einstellungen: TOML-Punktpfad (bzw. ganzer Abschnitt wie `proxy`) → i18n-ID
+    /// des Grunds (`ng-recent-policy`, `ng-settings-policy`). Die UI zeigt diese Zeilen gesperrt mit Hinweis;
+    /// `ApplySettings` lehnt sie mit dem Grund als Problem ab. Nachtrag K3 (ADR 0004 §9, Vorschlag aus B3
+    /// `contract-draft.ts`): additiv, in TypeScript optional; der Kern liefert es immer (`Some`, ggf. leer).
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub locked: Option<BTreeMap<String, String>>,
 }
 
 /// Gesamtzustand für die UI.
@@ -467,7 +476,8 @@ pub struct ViewState {
     /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (ADR 0004 §3.9); ab K4
     #[serde(default)]
     pub verify: Option<VerifyView>,
-    /// „Zuletzt signiert“; `None` = Funktion abgeschaltet bzw. (bis K3) noch nicht umgesetzt (ADR 0004 §3.10)
+    /// „Zuletzt signiert“ (neueste zuerst, höchstens zehn); `None` = Funktion abgeschaltet (Einstellung,
+    /// Richtlinie) bzw. ohne Oberfläche (ADR 0004 §3.10)
     #[serde(default)]
     pub recent: Option<Vec<RecentItemView>>,
     /// Ersteinrichtung, nur beim ersten Start (ADR 0004 §3.12); ab K4
@@ -783,8 +793,10 @@ pub enum UiEvent {
     /// „Zuletzt signiert“ leeren (§3.10)
     ClearRecent,
     /// Einstellungen sofort übernehmen (§3.11): **nur die geänderten Felder** als TOML-Punktpfad →
-    /// serde-JSON des Felds; Felder mit Problem behalten ihren Wert (`SettingsView::problems`), alle
-    /// anderen werden übernommen und gespeichert. Nur bei geöffneter Einstellungsansicht.
+    /// serde-JSON des Felds; Felder mit Problem (ungültig, unbekannt `ng-settings-field-unknown`, per
+    /// Richtlinie festgelegt, auf Mobilgeräten nicht verfügbar) behalten ihren Wert (`SettingsView::problems`),
+    /// alle anderen werden übernommen und gespeichert (schreibgeschützt: nur im Speicher). Nur bei geöffneter
+    /// Einstellungsansicht; eine `revision` ≤ der zuletzt übernommenen ist veraltet und ohne Wirkung.
     ApplySettings {
         /// geänderte Felder (Pfad → Wert)
         #[cfg_attr(feature = "ts", ts(type = "Record<string, unknown>"))]
@@ -1165,12 +1177,60 @@ pub struct DocumentView {
     /// Live-Region: `page`, `pages`, `left`, `top` (wie `StepView::Position`) und `bottom` (mm der
     /// Unterkante von unten)
     pub announce: BTreeMap<String, String>,
+    /// Was der Kern erkannt bzw. automatisch entschieden hat (Einstellungen › Dokument: PDF/A,
+    /// Platzhaltersuche) – für die dezenten Hinweise im Arbeitsbereich. Nachtrag K3 (ADR 0004 §9, Vorschlag):
+    /// additiv; in TypeScript optional (`detection?: … | null`), damit bestehende UI-Literale gültig bleiben.
+    /// Der Kern liefert es im Arbeitsbereich immer (`Some`).
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub detection: Option<DocumentDetectionView>,
 }
 
 redacted_debug!(DocumentView {
     size_bytes, phase, revision, block, placement, origin, target, invisible, new_page, sticker, fields, qr,
-    constraints, layout, check, announce,
+    constraints, layout, check, announce, detection,
 } redact { doc, existing });
+
+/// PDF/A-Kennung eines Dokuments (XMP `pdfaid:part`, `pdfaid:conformance`).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PdfaIdView {
+    /// Teil (1, 2, 3, 4)
+    pub part: u8,
+    /// Konformitätsstufe (A, B, U …), falls angegeben
+    pub conformance: Option<String>,
+}
+
+/// Wirksame PDF/A-Entscheidung beim Signieren (Einstellungen › Dokument „PDF/A-kompatibel signieren“).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PdfaDecision {
+    /// keine PDF/A-Kennung und nicht erzwungen (bzw. das Profil hat keine PDF/A-Variante)
+    #[default]
+    None,
+    /// PDF/A-Kennung erkannt – wird PDF/A-konform signiert („PDF/A-Dokument erkannt“)
+    Detected,
+    /// ohne Kennung erzwungen (`signature.pdfa_force`, Profil mit PDF/A-Variante): „PDF/A-kompatible
+    /// Signatur (erzwungen)“
+    Forced,
+}
+
+/// Erkanntes und automatisch Entschiedenes zum Dokument (Nachtrag K3, Einstellungen › Dokument).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct DocumentDetectionView {
+    /// PDF/A-Kennung des Dokuments (`None` = keine)
+    pub pdfa: Option<PdfaIdView>,
+    /// wirksame PDF/A-Entscheidung
+    pub pdfa_decision: PdfaDecision,
+    /// Lage stammt aus der Automatik (Startlage nach der Analyse bzw. Nachführung nach geänderten
+    /// Einstellungen). Zusammen mit [`DocumentView::target`]: frei = „automatisch platziert“, `qr` =
+    /// „QR-Platzhalter gefunden – Signatur dort platziert“, `field` = „Signaturfeld gefunden – Signatur im
+    /// Feld platziert“ (Platzhaltersuche „Leere Signaturfelder“). `false`, sobald die Nutzerin selbst platziert
+    /// (Ziehen, Tastatur, Seite, „Ins Feld setzen“, „Frei platzieren“/„Freie Fläche suchen“).
+    pub auto_placed: bool,
+}
 
 // --- §3.4 Signiermittel und Konto-Chip ----------------------------------------------------------
 

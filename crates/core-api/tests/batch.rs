@@ -1071,7 +1071,7 @@ fn fixture_state(v: &ViewState, roots: &[(String, &str)]) -> serde_json::Value {
             serde_json::Value::Array(items) => items.iter_mut().for_each(|i| walk(i, roots)),
             serde_json::Value::Object(map) => {
                 for (key, item) in map.iter_mut() {
-                    if matches!(key.as_str(), "signing_time" | "occurred_at") && item.is_string() {
+                    if matches!(key.as_str(), "signing_time" | "occurred_at" | "signed_at") && item.is_string() {
                         *item = serde_json::Value::String("2026-10-15T10:42:17+02:00".into());
                     } else {
                         walk(item, roots);

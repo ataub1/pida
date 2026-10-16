@@ -9,7 +9,7 @@ use std::sync::Arc;
 use pida_backend_api::BackendId;
 use pida_config::{
     ConfigError, ConfigSource, Effective, LoadOutcome, MemorySecretStore, Overlay, Paths, PlaceholderKind, Policy,
-    ProxyMode, SecretStore, Settings, SignatureProfile, load_config_source_with_secrets, resolve_config_file,
+    SecretStore, Settings, SignatureProfile, load_config_source_with_secrets, resolve_config_file,
 };
 use pida_i18n::Lang;
 use pida_workflow::Context;
@@ -178,44 +178,18 @@ impl ConfigState {
 }
 
 /// Validierung der Einstellungsansicht: Feld (TOML-Pfad) → i18n-ID. `blocking` = Speichern
-/// abgelehnt; sonst nur Hinweis (wie „Ignorieren“ in PDF-Over, F-102).
+/// abgelehnt; sonst nur Hinweis (wie „Ignorieren“ in PDF-Over, F-102). Regeln:
+/// [`crate::settings_apply::validate`].
 pub(crate) fn validate(settings: &Settings) -> (BTreeMap<String, String>, bool) {
-    let mut problems = BTreeMap::new();
-    let mut blocking = false;
-    let postfix = &settings.output.postfix;
-    if postfix.contains(['/', '\\']) || postfix.contains('\0') {
-        problems.insert("output.postfix".into(), "ng-settings-invalid-postfix".into());
-        blocking = true;
-    }
-    if settings.proxy.mode == ProxyMode::Manual && settings.proxy.host.as_deref().is_none_or(|h| h.trim().is_empty()) {
-        problems.insert("proxy.host".into(), "ng-settings-proxy-host-missing".into());
-        blocking = true;
-    }
-    if let Some(e) = &settings.signature.emblem
-        && !e.is_file()
-    {
-        problems.insert("signature.emblem".into(), "exception-PathNotExist".into());
-    }
-    if settings.keystore.enabled && settings.keystore.file.as_deref().is_none_or(|f| !f.is_file()) {
-        problems.insert("keystore.file".into(), "error-KeyStoreFileNotExist".into());
-    }
-    let size = settings.signature.logo_only_size_mm;
-    if !(size.is_finite() && size > 0.0 && size <= pida_sigblock::profile::MAX_LOGO_SIZE_MM) {
-        problems.insert("signature.logo_only_size_mm".into(), "ng-settings-invalid-logo-size".into());
-    }
-    if let Some(dir) = &settings.output.folder
-        && dir.is_absolute()
-        && !dir.exists()
-        && dir.parent().is_some_and(|p| !p.exists())
-    {
-        problems.insert("output.folder".into(), "exception-PathNotExist".into());
-    }
-    (problems, blocking)
+    let list = crate::settings_apply::validate(settings);
+    let blocking = list.iter().any(|(_, _, b)| *b);
+    (list.into_iter().map(|(p, c, _)| (p, c.to_owned())).collect(), blocking)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pida_config::ProxyMode;
 
     fn state(dir: &Path, overlay: Overlay) -> (ConfigState, Option<StartupProblem>) {
         ConfigState::load(Paths::under(dir), overlay, None, Arc::new(MemorySecretStore::default()), None, true).unwrap()

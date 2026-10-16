@@ -640,3 +640,7 @@ ng-migration-item-placeholder = Placeholder search
 ng-migration-item-language = Language
 ng-firstrun-done = Setup complete. You can change everything in the settings at any time.
 ng-settings-field-unknown = Unknown setting.
+ng-settings-invalid-value = This value is not valid for the setting.
+ng-settings-invalid-port = The port must be between 1 and 65535.
+ng-settings-policy = This setting is set by your organisation.
+ng-settings-unavailable-mobile = This setting is not available on mobile devices.

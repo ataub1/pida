@@ -27,10 +27,11 @@ use pida_workflow::{
 
 use crate::docs::DocData;
 use crate::view::{
-    BlockView, CertificateSource, ConfirmMethod, DocConstraintsView, DocRefView, DocumentPhase, DocumentView,
-    ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldTargetView, GuideAxis, GuideKind, GuideView,
-    InteractionView, PageLayoutView, PlacementCheckView, PlacementTarget, PriorStatusView, QrTargetView, RectPt,
-    SignedSummaryView, SignerView, SignersView, SigningProgressView, SigningStage,
+    BlockView, CertificateSource, ConfirmMethod, DocConstraintsView, DocRefView, DocumentDetectionView, DocumentPhase,
+    DocumentView, ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldTargetView, GuideAxis, GuideKind,
+    GuideView, InteractionView, PageLayoutView, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget,
+    PriorStatusView, QrTargetView, RectPt, SignedSummaryView, SignerView, SignersView, SigningProgressView,
+    SigningStage,
 };
 
 /// Höchstzahl gecachter Belegungsraster je Dokument (LRU).
@@ -592,7 +593,36 @@ impl crate::runtime::CoreTask {
             layout,
             check,
             announce,
+            detection: Some(self.detection(data.as_deref(), edit)),
         })
+    }
+
+    /// Erkanntes und automatisch Entschiedenes (Einstellungen › Dokument; Nachtrag K3): PDF/A-Kennung und
+    /// wirksame PDF/A-Entscheidung wie beim Signieren (`plan::pdfa_mode`: erkannte Kennung gilt immer,
+    /// `signature.pdfa_force` nur mit einem Profil, das eine PDF/A-Variante hat), Lage aus der Automatik.
+    fn detection(&self, data: Option<&DocData>, edit: &WorkspaceEdit) -> DocumentDetectionView {
+        let pdfa = data
+            .and_then(|d| d.report.pdfa.as_ref())
+            .map(|p| PdfaIdView { part: p.part, conformance: p.conformance.clone() });
+        let pdfa_decision = if pdfa.is_some() {
+            PdfaDecision::Detected
+        } else if self.pdfa_forced() {
+            PdfaDecision::Forced
+        } else {
+            PdfaDecision::None
+        };
+        DocumentDetectionView { pdfa, pdfa_decision, auto_placed: edit.automatic }
+    }
+
+    /// Erzwingt `signature.pdfa_force` mit dem wirksamen Profil eine PDF/A-Signatur (Profil mit
+    /// `SIG_PDFA1B_VALID`/`SIG_PDFA_VALID`, z. B. `SIGNATURBLOCK_SMALL_DE_PDFA`)?
+    fn pdfa_forced(&self) -> bool {
+        let eff = self.cfg.effective();
+        if !eff.settings.signature.pdfa_force {
+            return false;
+        }
+        let id = eff.pdfas_profile_id(pida_i18n::Lang::system(), false);
+        self.shared.profiles.as_deref().and_then(|store| store.get(&id)).is_some_and(|p| p.is_pdfa())
     }
 
     /// Live-Prüfung (§3.3): liest nur das Belegungsraster und die Felder der Analyse.

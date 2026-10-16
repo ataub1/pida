@@ -40,13 +40,14 @@ use crate::state::{
 // Hilfen für den Arbeitsbereich (Einzeldokument aus dem Stapel)
 // ------------------------------------------------------------------------------------------------
 
-/// Plan des aus der Übersicht geöffneten Dokuments `doc` (`Some(None)` = geöffnet, ohne Plan).
-pub(super) fn opened_plan(queue: &Queue, doc: DocId) -> Option<Option<PositionChoice>> {
+/// Plan des aus der Übersicht geöffneten Dokuments `doc` (`Some((None, _))` = geöffnet, ohne Plan) und ob er
+/// aus der Automatik stammt (dann folgt das Dokument wie jedes andere den aktuellen Einstellungen).
+pub(super) fn opened_plan(queue: &Queue, doc: DocId) -> Option<(Option<PositionChoice>, bool)> {
     let b = queue.batch.as_ref()?;
     if b.open != Some(doc) {
         return None;
     }
-    Some(b.item(doc).and_then(|i| i.plan.clone()))
+    Some(b.item(doc).map_or((None, true), |i| (i.plan.clone(), i.auto_plan)))
 }
 
 /// Analysewarnungen dieses Stapeleintrags bereits bestätigt?
@@ -54,13 +55,15 @@ pub(super) fn reviewed(queue: &Queue, doc: DocId) -> bool {
     queue.batch.as_ref().and_then(|b| b.item(doc)).is_some_and(|i| i.reviewed)
 }
 
-/// Plan auf den Bearbeitungszustand übertragen; liefert die gemerkte freie Lage (manueller Plan).
+/// Plan der Nutzerin auf den Bearbeitungszustand übertragen (folgt danach nicht mehr den Einstellungen);
+/// liefert die gemerkte freie Lage (manueller Plan).
 pub(super) fn apply_plan(
     edit: &mut WorkspaceEdit,
     plan: Option<&PositionChoice>,
     doc: &DocFacts,
 ) -> Option<ParkedPlacement> {
     let n = doc.page_count;
+    edit.automatic = false;
     match plan {
         Some(PositionChoice::Invisible) => edit.invisible = true,
         Some(PositionChoice::Manual(p)) => {
@@ -83,7 +86,11 @@ pub(super) fn apply_plan(
             edit.target = Target::Qr;
             edit.origin = PlacementOrigin::Qr;
         }
-        Some(PositionChoice::Auto) | None => {}
+        Some(PositionChoice::Auto) | None => {
+            // „Freie Fläche suchen“ der Nutzerin: frei, automatische Lage, ohne Platzhalter
+            edit.target = Target::Free;
+            edit.origin = PlacementOrigin::Auto;
+        }
     }
     None
 }
@@ -91,7 +98,8 @@ pub(super) fn apply_plan(
 /// Plan aus dem Bearbeitungszustand („Zurück zum Stapel“): unsichtbar, QR, Feld, frei verschoben; eine
 /// automatische freie Lage ergibt keinen Plan (beim Signieren gilt dann die PDF-AS-Regel) – außer die
 /// Nutzerin hat einen vorhandenen QR-Platzhalter abgewählt („Frei platzieren“): dann gilt die gezeigte Lage,
-/// sonst signierte der Lauf doch in den Platzhalter (Vorschau = Ergebnis).
+/// sonst signierte der Lauf doch in den Platzhalter (Vorschau = Ergebnis). Ob der Plan aus der Automatik
+/// stammt (und damit weiter den Einstellungen folgt), sagt [`WorkspaceEdit::automatic`].
 fn plan_of(
     edit: &WorkspaceEdit,
     placement: Option<Placement>,
@@ -104,7 +112,7 @@ fn plan_of(
     match edit.target {
         Target::Qr => edit.qr.clone().map(PositionChoice::Placeholder),
         Target::Field(i) => edit.fields.get(i).cloned().map(PositionChoice::Field),
-        Target::Free if edit.origin == PlacementOrigin::Auto && edit.qr.is_none() => None,
+        Target::Free if edit.automatic || (edit.origin == PlacementOrigin::Auto && edit.qr.is_none()) => None,
         Target::Free => match workspace_position(edit, placement, new_page, doc) {
             Some(PositionChoice::Auto) | None => None,
             plan => plan,
@@ -145,8 +153,9 @@ pub(super) fn new_overview(mut queue: Queue, mut effects: Vec<Effect>) -> Transi
 enum Back {
     /// Status und Plan unverändert (Abbrechen, „Start“)
     Keep,
-    /// neuer Plan (`BackToBatch`, `ShowBatch`); Warnungen gelten als bestätigt
-    Plan(Option<PositionChoice>),
+    /// neuer Plan (`BackToBatch`, `ShowBatch`) und ob er aus der Automatik stammt; Warnungen gelten als
+    /// bestätigt
+    Plan(Option<PositionChoice>, bool),
     /// beim Öffnen abgelehnt
     Rejected(String),
     /// einzeln signiert und gespeichert
@@ -165,8 +174,9 @@ fn back(mut queue: Queue, doc: DocId, how: Back, mut effects: Vec<Effect>) -> Tr
     if let Some(item) = batch.item_mut(doc) {
         match &how {
             Back::Keep => {}
-            Back::Plan(plan) => {
+            Back::Plan(plan, automatic) => {
                 item.plan = plan.clone();
+                item.auto_plan = *automatic;
                 item.reviewed = true;
                 item.settle();
             }
@@ -199,7 +209,7 @@ pub(super) fn intercept(state: State, event: Event, _ctx: &Context) -> Result<Tr
                 if opened || (show && !queue.pending.is_empty()) =>
             {
                 let plan = plan_of(&edit, placement, new_page, &doc);
-                Ok(back(queue, doc.id, Back::Plan(plan), Vec::new()))
+                Ok(back(queue, doc.id, Back::Plan(plan, edit.automatic), Vec::new()))
             }
             State::Output { mut queue, saved: Some(output), doc, .. }
                 if show && !opened && !queue.pending.is_empty() =>
@@ -213,6 +223,7 @@ pub(super) fn intercept(state: State, event: Event, _ctx: &Context) -> Result<Tr
                         plan: None,
                         status: BatchItemStatus::Signed { output: output.clone() },
                         reviewed: true,
+                        auto_plan: false,
                     });
                 }
                 queue.complete(doc.id, DocResult::Signed { output });
@@ -284,17 +295,34 @@ fn queue_and_doc(state: State) -> (Queue, DocId) {
 // Globale Ereignisse mit Stapel
 // ------------------------------------------------------------------------------------------------
 
-/// Automatischer Plan nach der Voranalyse und den **aktuellen** Einstellungen: der QR-Platzhalter (nur mit
-/// Platzhaltersuche, `kind = marker`, nicht mit unsichtbarem Profil), sonst keiner (PDF-AS-Regel).
+/// Automatischer Plan nach der Voranalyse und den **aktuellen** Einstellungen › Dokument (nie mit
+/// unsichtbarem Profil): mit Platzhaltersuche „QR-Code-Platzhalter“ der QR-Platzhalter, mit „Leere
+/// Signaturfelder“ das erste leere Signaturfeld, sonst keiner (PDF-AS-Regel).
 fn automatic_plan(summary: Option<&DocSummary>, ctx: &Context) -> Option<PositionChoice> {
-    let qr_allowed = ctx.placeholder_search && !ctx.placeholder_fields && !ctx.invisible;
-    summary.and_then(|s| s.placeholder.clone()).filter(|_| qr_allowed).map(PositionChoice::Placeholder)
+    if !ctx.placeholder_search || ctx.invisible {
+        return None;
+    }
+    let s = summary?;
+    if ctx.placeholder_fields {
+        s.first_field.clone().map(PositionChoice::Field)
+    } else {
+        s.placeholder.clone().map(PositionChoice::Placeholder)
+    }
 }
 
-/// Folgt der Plan den Einstellungen? Ohne Plan bzw. mit QR-Platzhalter (den nur die Platzhaltersuche
-/// liefert) ja; verschoben, Feld oder unsichtbar hat die Nutzerin gewählt – das bleibt.
-fn follows_settings(plan: Option<&PositionChoice>) -> bool {
-    matches!(plan, None | Some(PositionChoice::Placeholder(_) | PositionChoice::Auto))
+/// Muss die Voranalyse für die aktuellen Einstellungen (Platzhaltersuche „QR-Code-Platzhalter“) erneut
+/// laufen, weil sie damals nicht nach dem QR-Platzhalter gesucht hat?
+fn needs_qr_search(summary: Option<&DocSummary>, ctx: &Context) -> bool {
+    ctx.placeholder_search
+        && !ctx.placeholder_fields
+        && !ctx.invisible
+        && summary.is_some_and(|s| !s.qr_searched && s.placeholder.is_none())
+}
+
+/// Folgt der Plan des Eintrags den Einstellungen? Ein Plan aus der Automatik ja; einen im Arbeitsbereich
+/// platzierten (verschoben, Feld, QR von Hand, unsichtbar) hat die Nutzerin gewählt – der bleibt.
+fn follows_settings(item: &BatchItem) -> bool {
+    item.auto_plan
 }
 
 /// Ergebnis der Voranalyse in den Eintrag übernehmen (jeder Zustand mit Stapel).
@@ -304,14 +332,20 @@ pub(super) fn preanalyzed(
     result: Result<DocSummary, WorkflowError>,
     ctx: &Context,
 ) -> Transition {
+    let mut effects = Vec::new();
     let item = state.queue_mut().and_then(|q| q.batch.as_mut()).and_then(|b| b.item_mut(doc));
     if let Some(item) = item {
         let waiting = item.status == BatchItemStatus::Analyzing;
         match result {
+            Ok(summary) if waiting && follows_settings(item) && needs_qr_search(Some(&summary), ctx) => {
+                // die Einstellungen wurden während der Voranalyse auf „QR-Code-Platzhalter“ umgestellt: noch
+                // einmal mit Suche (der Eintrag bleibt „Voranalyse läuft“)
+                effects.push(Effect::Preanalyze(doc));
+            }
             Ok(summary) => {
                 item.summary = Some(summary);
                 if waiting {
-                    if follows_settings(item.plan.as_ref()) {
+                    if follows_settings(item) {
                         item.plan = automatic_plan(item.summary.as_ref(), ctx);
                     }
                     item.settle();
@@ -321,25 +355,34 @@ pub(super) fn preanalyzed(
             Err(_) => {}
         }
     }
-    Transition::stay(state)
+    Transition::with(state, effects)
 }
 
 /// Einstellungen geändert (Platzhaltersuche, Profil „unsichtbar“; ADR 0004 §3.11 „sofort wirksam“):
-/// automatische Pläne der wartenden Einträge folgen den neuen Einstellungen (QR-Platzhalter an bzw. aus),
-/// Pläne der Nutzerin bleiben. Im Lauf entscheidet die Analyse des Laufs.
-pub(super) fn settings_changed(state: &mut State, ctx: &Context) {
+/// automatische Pläne der wartenden Einträge folgen den neuen Einstellungen (QR-Platzhalter bzw. erstes
+/// leeres Signaturfeld an bzw. aus), Pläne der Nutzerin bleiben. Wurde ein Eintrag ohne QR-Suche
+/// voranalysiert, läuft seine Voranalyse erneut (`Preanalyze`). Im Lauf entscheidet die Analyse des Laufs.
+pub(super) fn settings_changed(state: &mut State, ctx: &Context) -> Vec<Effect> {
+    let mut effects = Vec::new();
     if matches!(state, State::BatchSigning { .. }) {
-        return;
+        return effects;
     }
-    let Some(batch) = state.queue_mut().and_then(|q| q.batch.as_mut()) else { return };
+    let Some(batch) = state.queue_mut().and_then(|q| q.batch.as_mut()) else { return effects };
     for item in &mut batch.items {
-        if matches!(item.status, BatchItemStatus::Ready | BatchItemStatus::Positioned)
-            && follows_settings(item.plan.as_ref())
-        {
-            item.plan = automatic_plan(item.summary.as_ref(), ctx);
-            item.settle();
+        if !matches!(item.status, BatchItemStatus::Ready | BatchItemStatus::Positioned) || !follows_settings(item) {
+            continue;
         }
+        if needs_qr_search(item.summary.as_ref(), ctx) {
+            item.summary = None;
+            item.plan = None;
+            item.status = BatchItemStatus::Analyzing;
+            effects.push(Effect::Preanalyze(item.doc));
+            continue;
+        }
+        item.plan = automatic_plan(item.summary.as_ref(), ctx);
+        item.settle();
     }
+    effects
 }
 
 /// Dateien hinzugefügt (Stapelmodus): ab zwei Dokumenten die Übersicht; mit Stapel neue Einträge (nie in
@@ -776,6 +819,7 @@ impl Lauf<'_> {
         mut self,
         class: AcceptanceClass,
         placeholder: Option<PlaceholderFound>,
+        fields: Vec<pida_placement::EmptyFieldCandidate>,
         facts: DocFacts,
         warnings: Vec<String>,
     ) -> Transition {
@@ -791,17 +835,21 @@ impl Lauf<'_> {
             return self.next();
         }
         let ctx = self.ctx;
-        let automatic = match placeholder {
+        // automatisch nach den aktuellen Einstellungen › Dokument: QR-Platzhalter bzw. erstes leeres
+        // Signaturfeld (nur mit Platzhaltersuche), sonst PDF-AS-Regel
+        let first_field = fields.into_iter().next();
+        let automatic = match (placeholder, first_field) {
             _ if ctx.invisible => PositionChoice::Invisible,
-            Some(PlaceholderFound::Qr(qr)) if ctx.placeholder_search && !ctx.placeholder_fields => {
+            (_, Some(f)) if ctx.placeholder_search && ctx.placeholder_fields => PositionChoice::Field(f),
+            (Some(PlaceholderFound::Qr(qr)), _) if ctx.placeholder_search && !ctx.placeholder_fields => {
                 PositionChoice::Placeholder(qr)
             }
             _ => PositionChoice::Auto,
         };
         // ein unsichtbares Profil erzwingt „unsichtbar“ – auch gegen einen Plan aus der Übersicht bzw. dem
         // Arbeitsbereich, der vor dem Wechsel des Profils entstand (wie `settings_changed` im Arbeitsbereich);
-        // ein automatischer Plan (QR-Platzhalter der Voranalyse) folgt den aktuellen Einstellungen
-        let plan = item.and_then(|i| i.plan).filter(|p| !follows_settings(Some(p)));
+        // ein automatischer Plan (Platzhalter der Voranalyse) folgt den aktuellen Einstellungen
+        let plan = item.filter(|i| !follows_settings(i)).and_then(|i| i.plan);
         let position = if ctx.invisible { PositionChoice::Invisible } else { plan.unwrap_or(automatic) };
         let new_visible =
             matches!(position, PositionChoice::Manual(_) | PositionChoice::Auto | PositionChoice::Placeholder(_));
@@ -962,14 +1010,14 @@ pub(super) fn signing(state: State, event: Event, ctx: &Context) -> Transition {
             page_count,
             start,
             warnings,
+            fields,
             new_visible_field_allowed,
-            ..
         } if Some(doc) == current && l.run.phase == BatchPhase::Loading => {
             if l.run.skipping {
                 return l.skip_done(None);
             }
             let facts = DocFacts { id: doc, page_count, signed, class, start, new_visible_field_allowed };
-            l.analyzed(class, placeholder, facts, warnings)
+            l.analyzed(class, placeholder, fields, facts, warnings)
         }
         Event::AnalysisFailed { doc, error } if Some(doc) == current && l.run.phase == BatchPhase::Loading => {
             if l.run.skipping {

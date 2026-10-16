@@ -122,7 +122,7 @@
       "os": "linux"
     },
     "privacy_text": null,
-    "recent": null,
+    "recent": [],
     "resume": null,
     "settings": null,
     "signers": {
@@ -356,7 +356,15 @@
       "os": "linux"
     },
     "privacy_text": null,
-    "recent": null,
+    "recent": [
+      {
+        "exists": true,
+        "file_name": "Vertrag_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 1,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      }
+    ],
     "resume": null,
     "settings": null,
     "signers": {
@@ -570,7 +578,7 @@
       "os": "linux"
     },
     "privacy_text": null,
-    "recent": null,
+    "recent": [],
     "resume": null,
     "settings": null,
     "signers": {
@@ -789,7 +797,7 @@
       "os": "linux"
     },
     "privacy_text": null,
-    "recent": null,
+    "recent": [],
     "resume": null,
     "settings": null,
     "signers": {
@@ -958,7 +966,7 @@
       "os": "linux"
     },
     "privacy_text": null,
-    "recent": null,
+    "recent": [],
     "resume": null,
     "settings": null,
     "signers": {
@@ -1136,7 +1144,15 @@
       "os": "linux"
     },
     "privacy_text": null,
-    "recent": null,
+    "recent": [
+      {
+        "exists": true,
+        "file_name": "Vertrag_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 1,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      }
+    ],
     "resume": null,
     "settings": null,
     "signers": {
@@ -1407,7 +1423,22 @@
       "os": "linux"
     },
     "privacy_text": null,
-    "recent": null,
+    "recent": [
+      {
+        "exists": true,
+        "file_name": "Beilage_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 2,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      },
+      {
+        "exists": true,
+        "file_name": "Vertrag_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 1,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      }
+    ],
     "resume": null,
     "settings": null,
     "signers": {

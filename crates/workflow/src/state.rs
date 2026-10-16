@@ -151,10 +151,12 @@ pub struct WorkspaceEdit {
     pub origin: PlacementOrigin,
     /// unsichtbar signieren (nur dieses Dokument; beim unsichtbaren Profil immer)
     pub invisible: bool,
-    /// leere, nicht gesperrte Signaturfelder (aus [`Event::Analyzed::fields`]) – nur angeboten, nie
-    /// automatisch benutzt (§8 F2)
+    /// leere, nicht gesperrte Signaturfelder (aus [`Event::Analyzed::fields`]) – immer angeboten; automatisch
+    /// benutzt nur das erste und nur mit Platzhaltersuche „Leere Signaturfelder“ (`placeholder.search`,
+    /// `kind = fields`; Einstellungen › Dokument, sonst §8 F2)
     pub fields: Vec<EmptyFieldCandidate>,
-    /// QR-Platzhalter (nur mit Platzhaltersuche, `kind = marker`)
+    /// angebotener bzw. benutzter QR-Platzhalter (nur mit Platzhaltersuche, `kind = marker`; ein von der
+    /// Nutzerin gewähltes QR-Ziel bleibt auch nach dem Ausschalten der Suche)
     pub qr: Option<QrPlaceholder>,
     /// aus der Stapelübersicht geöffnet (ADR 0004 §3.8, ab K2)
     #[serde(default)]
@@ -162,20 +164,87 @@ pub struct WorkspaceEdit {
     /// Lage beim „Signieren“ (gesetzt beim Verlassen von `Positioning`)
     #[serde(default)]
     pub parked: Option<ParkedPlacement>,
+    /// Ergebnis der QR-Platzhaltersuche dieses Dokuments (`None` = noch nicht gesucht bzw. unbekannt;
+    /// `Some(None)` = gesucht, keiner gefunden). Bleibt beim Ausschalten der Suche erhalten, damit ein
+    /// erneutes Einschalten ohne neue Bildsuche wirkt (Einstellungen › Dokument, K3)
+    #[serde(default)]
+    pub qr_search: Option<Option<QrPlaceholder>>,
+    /// Lage und Ziel stammen aus der Automatik (Startlage nach der Analyse bzw. Nachführung nach geänderten
+    /// Einstellungen) und folgen den Einstellungen › Dokument; `false` nach jeder Platzierung durch die
+    /// Nutzerin (Ziehen, Tastatur, Seite, neue Seite, „Ins Feld setzen“, „Frei platzieren“/„Freie Fläche
+    /// suchen“). Gilt in der Projektion als `DocumentDetectionView::auto_placed`.
+    #[serde(default)]
+    pub automatic: bool,
 }
 
 impl WorkspaceEdit {
-    /// Start nach der Analyse: frei mit automatischer Platzierung bzw. im QR-Platzhalter.
+    /// Start nach der Analyse: frei mit automatischer Platzierung bzw. im QR-Platzhalter (Lage aus der
+    /// Automatik).
     pub fn new(fields: Vec<EmptyFieldCandidate>, qr: Option<QrPlaceholder>, invisible: bool) -> WorkspaceEdit {
         let (target, origin) =
             if qr.is_some() { (Target::Qr, PlacementOrigin::Qr) } else { (Target::Free, PlacementOrigin::Auto) };
-        WorkspaceEdit { target, origin, invisible, fields, qr, return_to_batch: false, parked: None }
+        let qr_search = qr.clone().map(Some);
+        WorkspaceEdit {
+            target,
+            origin,
+            invisible,
+            fields,
+            qr,
+            return_to_batch: false,
+            parked: None,
+            qr_search,
+            automatic: true,
+        }
+    }
+
+    /// Wie [`WorkspaceEdit::new`], dazu das automatische Ziel nach den Einstellungen › Dokument: mit
+    /// Platzhaltersuche „Leere Signaturfelder“ das erste leere Signaturfeld, mit „QR-Code-Platzhalter“ der
+    /// gefundene QR-Platzhalter, sonst frei (PDF-AS-Regel); nie mit unsichtbarem Profil.
+    pub fn after_analysis(
+        fields: Vec<EmptyFieldCandidate>,
+        qr: Option<QrPlaceholder>,
+        invisible: bool,
+        ctx: &Context,
+    ) -> WorkspaceEdit {
+        let mut edit = WorkspaceEdit::new(fields, None, invisible);
+        edit.qr_search = qr.map(Some);
+        edit.follow_settings(ctx);
+        edit
+    }
+
+    /// Einstellungen › Dokument (Platzhaltersuche, ADR 0004 §3.11 „sofort wirksam“) auf den
+    /// Bearbeitungszustand anwenden: angebotener QR-Platzhalter und – nur solange die Lage aus der Automatik
+    /// stammt ([`WorkspaceEdit::automatic`]) – das automatische Ziel. Von Hand gesetzte Lagen und Ziele
+    /// bleiben. Liefert, was danach zu tun ist.
+    pub fn follow_settings(&mut self, ctx: &Context) -> Follow {
+        let want_qr = ctx.placeholder_search && !ctx.placeholder_fields && !ctx.invisible;
+        let want_field = ctx.placeholder_search && ctx.placeholder_fields && !ctx.invisible;
+        let found = self.qr_search.clone().flatten();
+        // ein von Hand gewähltes QR-Ziel bleibt angeboten, auch wenn die Suche aus ist
+        let user_qr = (self.target == Target::Qr && !self.automatic).then(|| self.qr.clone()).flatten();
+        self.qr = if want_qr { found.or(user_qr) } else { user_qr };
+        let search_qr = want_qr && self.qr_search.is_none();
+        if !self.automatic {
+            return Follow { auto_place: false, search_qr };
+        }
+        let (target, origin) = if want_field && !self.fields.is_empty() {
+            (Target::Field(0), PlacementOrigin::Field)
+        } else if want_qr && self.qr.is_some() {
+            (Target::Qr, PlacementOrigin::Qr)
+        } else {
+            (Target::Free, PlacementOrigin::Auto)
+        };
+        let auto_place = target == Target::Free && !self.auto_free() && !self.invisible;
+        self.target = target;
+        self.origin = origin;
+        Follow { auto_place, search_qr }
     }
 
     /// Bearbeitungszustand zu einer festen Position (Rückfall ohne Analyseergebnis, z. B. nach „Signatur
-    /// fortsetzen“).
+    /// fortsetzen“). Nur eine automatische Position gilt als Lage aus der Automatik.
     pub fn from_position(position: &PositionChoice, invisible: bool) -> WorkspaceEdit {
         let mut edit = WorkspaceEdit::new(Vec::new(), None, invisible);
+        edit.automatic = matches!(position, PositionChoice::Auto);
         match position {
             PositionChoice::Invisible => edit.invisible = true,
             PositionChoice::Manual(_) => edit.origin = PlacementOrigin::User,
@@ -198,6 +267,15 @@ impl WorkspaceEdit {
     pub fn auto_free(&self) -> bool {
         self.target == Target::Free && self.origin == PlacementOrigin::Auto
     }
+}
+
+/// Folge von [`WorkspaceEdit::follow_settings`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Follow {
+    /// neu automatisch platzieren (das Ziel wurde frei: `Effect::AutoPlace`)
+    pub auto_place: bool,
+    /// QR-Platzhalter dieses Dokuments noch nicht gesucht (`Effect::SearchPlaceholder`)
+    pub search_qr: bool,
 }
 
 /// Umgang mit bereits vorhandenen Zieldateien im Stapellauf (ADR 0004 §3.8, §3.0 Regel 9). Standard im
@@ -1171,6 +1249,15 @@ pub enum Event {
         /// Ziel existierte
         exists: bool,
     },
+    // --- ADR 0004 §3.11 (K3): Einstellungen › Dokument
+    /// Ergebnis von [`Effect::SearchPlaceholder`]: QR-Platzhalter des Dokuments (`None` = keiner gefunden
+    /// bzw. ohne Renderer nicht suchbar)
+    PlaceholderSearched {
+        /// Dokument
+        doc: DocId,
+        /// gefundener QR-Platzhalter
+        qr: Option<QrPlaceholder>,
+    },
 }
 
 /// Effekt, den `pida-core-api` ausführt.
@@ -1267,6 +1354,10 @@ pub enum Effect {
     },
     /// Hinweis mit Parametern (Fluent-Variablen)
     NotifyWith(String, BTreeMap<String, String>),
+    // --- ADR 0004 §3.11 (K3): Einstellungen › Dokument
+    /// QR-Platzhalter des Dokuments suchen (Platzhaltersuche nachträglich eingeschaltet bzw. auf
+    /// „QR-Code-Platzhalter“ umgestellt) → [`Event::PlaceholderSearched`]
+    SearchPlaceholder(DocId),
 }
 
 /// Ergebnis eines Reducer-Schritts.

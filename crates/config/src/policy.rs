@@ -42,8 +42,8 @@ pub struct Policy {
     /// Datenschutz und in den „Details“ des Kurzhinweises (ADR 0003). Eine Zustimmung erzwingt er nicht.
     pub privacy_notice_text: Option<String>,
     /// „Zuletzt signiert“ erzwingen bzw. verbieten (ADR 0004 §3.10, wie `update_check`): `Some(false)`
-    /// schaltet die Liste ab (dann wird auch keine Datei geschrieben), der Schalter erscheint gesperrt.
-    /// Wirksam ab K3.
+    /// schaltet die Liste ab (eine vorhandene Datei wird gelöscht, es wird keine geschrieben), der Schalter
+    /// erscheint gesperrt (`SettingsView::locked`).
     pub recent_documents: Option<bool>,
 }
 

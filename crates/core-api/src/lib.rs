@@ -129,8 +129,10 @@ pub mod engine;
 pub mod logging;
 pub mod messages;
 pub mod plan;
+mod recent;
 mod resume;
 mod runtime;
+mod settings_apply;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 pub mod tools;
@@ -159,6 +161,8 @@ pub use view::{
     SignatureCoverage, SignatureFormat, SignatureIntegrity, SignedSummaryView, SignerView, SignersView,
     SigningProgressView, SigningStage, TrustCheck, VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView,
 };
+// Nachtrag K3 (Einstellungen › Dokument)
+pub use view::{DocumentDetectionView, PdfaDecision, PdfaIdView};
 
 use pida_backend_api::{Platform, SignatureBackend};
 use pida_config::{Overlay, Paths, Policy, SecretStore};

@@ -51,7 +51,13 @@ pub(crate) enum Msg {
     /// Ergebnis von „Automatisch platzieren“ für ein Dokument (verworfen, wenn inzwischen ein anderes
     /// Dokument positioniert wird)
     AutoPlaced(DocId, Placement),
-    BlockBuilt(BlockInfo),
+    /// Blockvorschau gebaut (mit der Generation des Auftrags; ältere Ergebnisse werden verworfen)
+    BlockBuilt(BlockInfo, u64),
+    /// Blockvorschau nicht gebaut (Generation, i18n-ID)
+    BlockFailed {
+        generation: u64,
+        code: String,
+    },
     Notices(Vec<(String, BTreeMap<String, String>)>),
     Refresh,
     BackendEvent(BackendEvent),
@@ -419,6 +425,32 @@ pub(crate) struct CoreTask {
     preanalysis: crate::batch::Preanalysis,
     /// gecachte Abfragen der Projektion (Zieldateien, Ordner, gemerkte Passwörter, Zertifikats-Cache)
     pub(crate) probe: crate::batch::ProbeCache,
+    /// Einstellungen „sofort wirksam“ (ADR 0004 §3.11)
+    apply_state: ApplyState,
+    /// Blockvorschau: Generation des letzten Auftrags bzw. des zuletzt übernommenen Ergebnisses
+    block_requested: u64,
+    block_done: u64,
+    /// während `SettingsChanged` aus `ApplySettings`: ändert sich das Signaturbild? (`Some(false)` = keine
+    /// Vorschau neu bauen)
+    block_change: Option<bool>,
+    /// „Zuletzt signiert“ (ADR 0004 §3.10)
+    pub(crate) recent: crate::recent::RecentState,
+}
+
+/// Zustand der sofort wirksamen Einstellungen (ADR 0004 §3.11).
+#[derive(Debug, Default)]
+struct ApplyState {
+    /// Revision des zuletzt übernommenen `ApplySettings`
+    applied: u64,
+    /// in `SettingsView::applied_revision` veröffentlichte Revision (wartet auf eine neue Vorschau, wenn
+    /// sich das Signaturbild geändert hat – dann steigen beide in derselben Projektion)
+    published: u64,
+    /// Generation der Blockvorschau, auf die `published` wartet
+    awaiting_block: Option<u64>,
+    /// abgelehnte Felder → i18n-ID (bleiben, bis das Feld erneut gesendet bzw. die Ansicht geschlossen wird)
+    rejected: BTreeMap<String, String>,
+    /// klassisches `SaveSettings` abgelehnt: die Ansicht zeigt die Arbeitskopie statt der Kerneinstellungen
+    draft: bool,
 }
 
 impl CoreTask {
@@ -435,6 +467,7 @@ impl CoreTask {
         workspace_ui: bool,
         batch_overview: bool,
     ) -> CoreTask {
+        let paths = cfg.paths.clone();
         let overlay = &cfg.overlay;
         // Startargument-Automatik der GUI (D-06): `-b` und (`-a` oder `-v`), nicht `signature.auto_position`
         let cli_auto = overlay.backend.is_some() && (overlay.auto_position || overlay.invisible == Some(true));
@@ -474,6 +507,11 @@ impl CoreTask {
             batch_overview,
             preanalysis: crate::batch::Preanalysis::default(),
             probe: crate::batch::ProbeCache::default(),
+            apply_state: ApplyState::default(),
+            block_requested: 0,
+            block_done: 0,
+            block_change: None,
+            recent: crate::recent::RecentState::new(&paths),
         }
     }
 
@@ -780,6 +818,7 @@ impl CoreTask {
                 m = rx.recv() => m,
                 _ = tick.tick() => {
                     self.guarded(|t| t.refresh_backend_options());
+                    self.guarded(|t| t.refresh_recent_exists(false));
                     // Konto-Chip aktuell halten (lokale BKU erscheint bzw. verschwindet), nicht im Signieren
                     if !matches!(self.state, State::Signing { .. } | State::BatchSigning { .. } | State::Resuming { .. }) {
                         self.guarded(|t| t.refresh_signers());
@@ -800,12 +839,13 @@ impl CoreTask {
     }
 
     /// Nach jeder Nachricht (Arbeitsbereich): Revision der Platzierung, Belegungsraster anfordern; Stapel:
-    /// nächste Voranalyse, Miniaturen entfernter Einträge verwerfen.
+    /// nächste Voranalyse, Miniaturen entfernter Einträge verwerfen; „Zuletzt signiert“: Dateien noch da?
     fn after_message(&mut self) {
         self.track_revision();
         self.request_layout();
         self.pump_preanalysis();
         self.prune_thumbnails();
+        self.refresh_recent_exists(false);
     }
 
     /// Nächste Voranalyse beginnen (eine zur Zeit; verworfene Einträge entfallen).
@@ -917,7 +957,11 @@ impl CoreTask {
                     self.apply(event);
                 }
             }
-            Msg::BlockBuilt(info) => self.on_block(info),
+            Msg::BlockBuilt(info, generation) => self.on_block(info, generation),
+            Msg::BlockFailed { generation, code } => {
+                self.notify(&code, BTreeMap::new());
+                self.block_settled(generation);
+            }
             Msg::Notices(list) => {
                 for (code, params) in list {
                     self.notify(&code, params);
@@ -964,6 +1008,24 @@ impl CoreTask {
         }
         self.shared.docs.insert(loaded.data.clone());
         self.apply(event);
+        self.after_analysis_qr(id, &loaded);
+    }
+
+    /// Arbeitsbereich nach der Analyse (Einstellungen › Dokument, K3): hat die Analyse nach dem QR-Platzhalter
+    /// gesucht und keinen gefunden, erfährt es der Reducer (ein späteres Umschalten braucht dann keine neue
+    /// Suche); wurde die Suche erst während der Analyse eingeschaltet, wird sie nachgeholt.
+    fn after_analysis_qr(&mut self, id: DocId, loaded: &Loaded) {
+        let unknown = matches!(&self.state, State::Positioning { doc, edit: Some(e), .. }
+            if doc.id == id && e.qr_search.is_none());
+        if !unknown {
+            return;
+        }
+        let want_qr = self.ctx.placeholder_search && !self.ctx.placeholder_fields && !self.ctx.invisible;
+        if loaded.qr_searched {
+            self.apply(Event::PlaceholderSearched { doc: id, qr: None });
+        } else if want_qr {
+            self.effect_search_placeholder(id);
+        }
     }
 
     /// In der Backend-Auswahl die Verfügbarkeit neu ermitteln (ohne automatische Wahl).
@@ -981,6 +1043,8 @@ impl CoreTask {
 
     /// Start: Einstellungen unlesbar → Rückfrage (F-05), sonst Dokumente aus dem Overlay.
     fn start(&mut self) {
+        // „Zuletzt signiert“ laden bzw. – abgeschaltet – sofort löschen (ADR 0004 §3.10)
+        self.sync_recent();
         if let Some(StartupProblem::Unreadable(e)) = self.startup.take() {
             if self.headless {
                 // ohne Oberfläche gibt es keine Rückfrage (Werksreset): Grund als Hinweis, dann Ende (Exit 1)
@@ -1037,6 +1101,11 @@ impl CoreTask {
         }
     }
 
+    /// Hinweis ohne Parameter.
+    pub(crate) fn notify_code(&mut self, code: &str) {
+        self.notify(code, BTreeMap::new());
+    }
+
     fn notify(&mut self, code: &str, params: BTreeMap<String, String>) {
         // gleiche Meldung nicht doppelt stapeln
         if self.notices.iter().any(|n| n.code == code && n.params == params) {
@@ -1050,6 +1119,10 @@ impl CoreTask {
     pub(crate) fn apply(&mut self, event: Event) {
         self.queue.push_back(event);
         while let Some(event) = self.queue.pop_front() {
+            // „Zuletzt signiert“ (ADR 0004 §3.10): jede gespeicherte Datei (Einzeldokument und Stapel)
+            if let Event::Saved(info) = &event {
+                self.record_recent(&info.path);
+            }
             // Kopie statt `mem::replace`: bricht der Reducer ab, bleibt der bisherige Zustand erhalten
             let t = reduce(self.state.clone(), event, &self.ctx);
             let was_error = matches!(self.state, State::Error { .. });
@@ -1137,6 +1210,9 @@ impl CoreTask {
         match effect {
             Effect::Analyze(id) => self.effect_analyze(id),
             Effect::RenderPage { doc, page } => self.effect_render(doc, page),
+            // `ApplySettings` ohne Änderung am Signaturbild: keine neue Vorschau (genau ein Neubau je Änderung
+            // am Signaturbild, ADR 0004 E3)
+            Effect::BuildBlockPreview(_) if self.block_change == Some(false) => {}
             Effect::BuildBlockPreview(doc) => self.effect_block(Some(doc)),
             Effect::ProbeBackends => {
                 let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
@@ -1194,6 +1270,8 @@ impl CoreTask {
                 self.effect_decide_batch_output(doc, &output, on_existing);
             }
             Effect::NotifyWith(code, params) => self.notify(&code, params),
+            // Einstellungen › Dokument (K3): QR-Platzhalter nachträglich suchen
+            Effect::SearchPlaceholder(doc) => self.effect_search_placeholder(doc),
             Effect::Exit(code) => {
                 self.cancel_session();
                 // erst den Endzustand veröffentlichen (Ergebnisse), dann das Ende melden
@@ -1250,6 +1328,28 @@ impl CoreTask {
         });
     }
 
+    /// QR-Platzhalter eines geladenen Dokuments suchen (Einstellungen › Dokument nachträglich auf
+    /// „QR-Code-Platzhalter“; ohne Renderer: keiner) → `Event::PlaceholderSearched`.
+    fn effect_search_placeholder(&mut self, doc: DocId) {
+        let Some(data) = self.shared.docs.get(doc) else { return };
+        let render = self.shared.render.clone();
+        let shared = self.shared.clone();
+        tokio::task::spawn_blocking(move || {
+            let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                crate::docs::find_placeholder(&data, false, render.as_deref())
+            }));
+            let qr = match found {
+                Ok(Some(pida_workflow::PlaceholderFound::Qr(qr))) => Some(qr),
+                Ok(_) => None,
+                Err(_) => {
+                    tracing::error!("Platzhaltersuche abgebrochen (Programmfehler)");
+                    None
+                }
+            };
+            shared.send(Msg::Event { epoch: None, event: Event::PlaceholderSearched { doc, qr } });
+        });
+    }
+
     fn effect_render(&mut self, doc: DocId, page: usize) {
         let Some(render) = self.shared.render.clone() else { return };
         let shared = self.shared.clone();
@@ -1269,21 +1369,48 @@ impl CoreTask {
             State::Positioning { page, doc: facts, .. } => (*page).min(facts.page_count.saturating_sub(1)),
             _ => data.as_ref().map(|d| d.pages.len().saturating_sub(1)).unwrap_or(0),
         };
+        self.block_requested += 1;
+        let generation = self.block_requested;
         tokio::task::spawn_blocking(move || match shared.build_block(&snap, data.as_deref(), page) {
-            Ok(info) => shared.send(Msg::BlockBuilt(info)),
+            Ok(info) => shared.send(Msg::BlockBuilt(info, generation)),
             Err(code) => {
                 tracing::warn!(code = %code, "Blockvorschau nicht erstellt");
-                shared.send(Msg::Notices(vec![(code, BTreeMap::new())]));
+                shared.send(Msg::BlockFailed { generation, code });
             }
         });
     }
 
-    fn on_block(&mut self, mut info: BlockInfo) {
+    /// Vorschau der Einstellungsansicht neu bauen (Signaturbild geändert, kein Dokument im Arbeitsbereich):
+    /// mit dem positionierten Dokument, sonst mit dem A4-Beispiel.
+    fn preview_doc(&self) -> Option<DocId> {
+        match &self.state {
+            State::Positioning { doc, .. } => Some(doc.id),
+            _ => None,
+        }
+    }
+
+    /// Blockvorschau der Generation `generation` angekommen bzw. fehlgeschlagen: eine auf sie wartende
+    /// Übernahme (`ApplySettings`) wird zusammen mit der neuen Vorschau veröffentlicht.
+    fn block_settled(&mut self, generation: u64) {
+        if self.apply_state.awaiting_block.is_some_and(|g| generation >= g) {
+            self.apply_state.awaiting_block = None;
+            self.apply_state.published = self.apply_state.applied;
+        }
+    }
+
+    fn on_block(&mut self, mut info: BlockInfo, generation: u64) {
+        // ein älterer Auftrag, der nach einem neueren fertig wird, überschreibt dessen Vorschau nicht
+        if generation < self.block_done {
+            tracing::debug!(generation, "veraltete Blockvorschau verworfen");
+            return;
+        }
+        self.block_done = generation;
         {
             let mut block = lock(&self.shared.block);
             info.revision = block.revision + 1;
             *block = info.clone();
         }
+        self.block_settled(generation);
         // Blockgröße geändert (Profil, Hinweis, Logo): Position anpassen und klemmen (F-43); im Arbeitsbereich
         // behalten Herkunft und Ziel ihren Wert, automatisch platzierte Blöcke werden neu gesetzt (§3.3)
         if let State::Positioning { placement: Some(p), doc, edit, .. } = &self.state
@@ -1947,6 +2074,7 @@ impl CoreTask {
         self.refresh_ctx();
         self.registry.configure(&self.cfg);
         self.refresh_signers();
+        self.sync_recent();
         if restart {
             let docs = self.input_documents(&self.cfg.overlay.input_files.clone());
             self.queue.push_back(Event::Started { documents: docs });
@@ -2099,6 +2227,7 @@ impl CoreTask {
             UiEvent::OpenSettings => {
                 if self.state.settings_enabled() || matches!(self.state, State::Error { .. }) {
                     self.settings_view = Some(self.settings_view_for(self.cfg.settings.clone(), BTreeMap::new()));
+                    self.reset_apply_view();
                     // Vorschau im Einstellungsdialog auch ohne positioniertes Dokument (PDF-Over zeigt sie immer)
                     if lock(&self.shared.block).pdf.is_none() {
                         let doc = self.current_doc().map(|d| d.id);
@@ -2115,9 +2244,14 @@ impl CoreTask {
                     tracing::debug!("Einstellungen ohne geöffnete Ansicht verworfen");
                 }
             }
-            UiEvent::CloseSettings => self.settings_view = None,
+            // sofort wirksam (ADR 0004 §3.11): Schließen verwirft nichts mehr
+            UiEvent::CloseSettings => {
+                self.settings_view = None;
+                self.reset_apply_view();
+            }
             UiEvent::ResetSettings => {
                 self.settings_view = None;
+                self.reset_apply_view();
                 if matches!(&self.state, State::Error { error: WorkflowError::Config(_), .. }) {
                     self.apply(Event::Retry);
                 } else {
@@ -2190,9 +2324,15 @@ impl CoreTask {
             }
             // Oberflächensprache (Kopfzeile, Palette): in beiden Modi; schreibgeschützt nur im Speicher
             UiEvent::SetUiLanguage { language } => self.set_ui_language(language),
-            // ADR 0004: Prüfmodus/Ersteinrichtung (K4), Zuletzt signiert/sofort wirksam (K3) – bis dahin ohne
-            // Wirkung; im klassischen Ablauf auch die Ereignisse des Arbeitsbereichs, ohne Stapelübersicht die
-            // des Stapels. Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
+            // ADR 0004 §3.11 (K3): sofort wirksame Einstellungen (in beiden Modi, nur mit offener Ansicht)
+            UiEvent::ApplySettings { changes, revision } => self.apply_settings(&changes, revision),
+            // ADR 0004 §3.10 (K3): „Zuletzt signiert“
+            UiEvent::RemoveRecent { id } => self.remove_recent(id),
+            UiEvent::ClearRecent => self.clear_recent(),
+            UiEvent::VerifyRecent { id } => self.verify_recent(id),
+            // ADR 0004: Prüfmodus/Ersteinrichtung (K4) – bis dahin ohne Wirkung; im klassischen Ablauf auch die
+            // Ereignisse des Arbeitsbereichs, ohne Stapelübersicht die des Stapels. Insbesondere öffnet keines
+            // dieser Ereignisse eine Sitzung (A1).
             e @ (UiEvent::SetInvisible { .. }
             | UiEvent::UseTarget { .. }
             | UiEvent::InspectPages { .. }
@@ -2206,12 +2346,8 @@ impl CoreTask {
             | UiEvent::SkipBatchDocument
             | UiEvent::AbortBatch
             | UiEvent::OpenVerify { .. }
-            | UiEvent::VerifyRecent { .. }
             | UiEvent::CloseVerify
             | UiEvent::SignVerified
-            | UiEvent::RemoveRecent { .. }
-            | UiEvent::ClearRecent
-            | UiEvent::ApplySettings { .. }
             | UiEvent::UpdateFirstRun { .. }
             | UiEvent::FinishFirstRun
             | UiEvent::OfferMigration) => {
@@ -2355,6 +2491,7 @@ impl CoreTask {
             preview_revision: 0,
             applied_revision: 0,
             examples: BTreeMap::new(),
+            locked: None,
         }
     }
 
@@ -2362,7 +2499,9 @@ impl CoreTask {
         settings.sanitize();
         let (problems, blocking) = validate(&settings);
         if blocking {
+            // klassisch: die Ansicht zeigt die abgelehnte Arbeitskopie mit den Problemen
             self.settings_view = Some(self.settings_view_for(settings, problems));
+            self.apply_state.draft = true;
             return;
         }
         self.cfg.settings = settings;
@@ -2370,9 +2509,11 @@ impl CoreTask {
             tracing::warn!(id = e.message_id(), "Einstellungen nicht gespeichert");
             self.notify("error-FailedToSaveSettings", BTreeMap::new());
             self.settings_view = Some(self.settings_view_for(self.cfg.settings.clone(), problems));
+            self.apply_state.draft = true;
             return;
         }
         self.settings_view = None;
+        self.apply_state.draft = false;
         for (field, code) in problems {
             let mut p = BTreeMap::new();
             p.insert("field".into(), field);
@@ -2381,7 +2522,76 @@ impl CoreTask {
         self.refresh_ctx();
         self.registry.configure(&self.cfg);
         self.refresh_signers();
+        self.sync_recent();
         self.apply(Event::SettingsChanged);
+    }
+
+    /// Ansicht geöffnet bzw. geschlossen: Feldfehler und Arbeitskopie verwerfen; die zuletzt übernommene
+    /// Revision gilt sofort als veröffentlicht (eine neu eingehängte Ansicht zählt ab ihr weiter und sendet
+    /// nie eine schon vergebene Revision).
+    fn reset_apply_view(&mut self) {
+        self.apply_state.rejected.clear();
+        self.apply_state.draft = false;
+        self.apply_state.awaiting_block = None;
+        self.apply_state.published = self.apply_state.applied;
+    }
+
+    /// Einstellungen sofort übernehmen (`ApplySettings`, ADR 0004 §3.11): nur die geänderten Felder, auf die
+    /// **aktuellen** Einstellungen; Felder mit Problem behalten ihren Wert (`problems`), alle anderen werden
+    /// übernommen und gespeichert (schreibgeschützt `-c`: nur im Speicher bis Programmende). Danach wirkt die
+    /// Änderung sofort: Kontext, Signiermittel, „Zuletzt signiert“, Arbeitsbereich (`SettingsChanged`) und –
+    /// nur bei geändertem Signaturbild – **genau ein** Neubau der Vorschau; `applied_revision` steigt dann
+    /// erst mit der neuen Vorschau (`preview_revision`) in derselben Projektion.
+    fn apply_settings(&mut self, changes: &BTreeMap<String, serde_json::Value>, revision: u64) {
+        if self.settings_view.is_none() {
+            tracing::debug!("apply_settings ohne geöffnete Einstellungsansicht verworfen");
+            return;
+        }
+        if revision <= self.apply_state.applied {
+            tracing::debug!(revision, applied = self.apply_state.applied, "veraltetes apply_settings verworfen");
+            return;
+        }
+        let locked = crate::settings_apply::locked_paths(self.cfg.policy.as_ref());
+        let mobile = !self.mobile.platform.is_desktop();
+        let before = self.cfg.settings.clone();
+        let applied = crate::settings_apply::apply_changes(&before, changes, &locked, self.cfg.policy.as_ref(), mobile);
+        for path in changes.keys() {
+            self.apply_state.rejected.remove(path);
+        }
+        if !applied.rejected.is_empty() {
+            tracing::debug!(fields = applied.rejected.len(), "Einstellungen teilweise abgelehnt");
+        }
+        self.apply_state.rejected.extend(applied.rejected);
+        self.apply_state.draft = false;
+        self.apply_state.applied = revision;
+        if applied.settings != before {
+            self.cfg.settings = applied.settings;
+            if let Err(e) = self.cfg.save() {
+                tracing::warn!(id = e.message_id(), "Einstellungen nicht gespeichert");
+                self.notify("error-FailedToSaveSettings", BTreeMap::new());
+            }
+            let block = crate::settings_apply::block_affected(&before, &self.cfg.settings);
+            self.refresh_ctx();
+            if crate::settings_apply::backends_affected(&before, &self.cfg.settings) {
+                self.registry.configure(&self.cfg);
+            }
+            self.refresh_signers();
+            self.sync_recent();
+            let requested = self.block_requested;
+            self.block_change = Some(block);
+            self.apply(Event::SettingsChanged);
+            self.block_change = None;
+            if block {
+                if self.block_requested == requested {
+                    let doc = self.preview_doc();
+                    self.effect_block(doc);
+                }
+                self.apply_state.awaiting_block = Some(self.block_requested);
+            }
+        }
+        if self.apply_state.awaiting_block.is_none() {
+            self.apply_state.published = self.apply_state.applied;
+        }
     }
 
     fn accept_migration(&mut self, store_secrets: bool) {
@@ -2405,6 +2615,7 @@ impl CoreTask {
                 self.refresh_ctx();
                 self.registry.configure(&self.cfg);
                 self.refresh_signers();
+                self.sync_recent();
                 self.apply(Event::SettingsChanged);
             }
             Err(e) => {
@@ -2602,10 +2813,7 @@ impl CoreTask {
         ViewState {
             step,
             main_bar,
-            settings: self.settings_view.clone().map(|mut v| {
-                v.preview_revision = lock(&self.shared.block).revision;
-                v
-            }),
+            settings: self.settings_view.clone().map(|v| self.live_settings_view(v)),
             language: self.cfg.language(),
             notices: self.notices.clone(),
             migration: self
@@ -2631,10 +2839,29 @@ impl CoreTask {
             signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
             batch: self.batch_view(),
             verify: None,
-            recent: None,
+            recent: self.recent_view(),
             first_run: None,
             actions,
         }
+    }
+
+    /// Einstellungsansicht zum Projizieren (ADR 0004 §3.11): die **aktuellen** Einstellungen des Kerns (auch
+    /// nach Kernänderungen wie `last_source_directory`), Probleme = Hinweise der Prüfung und abgelehnte
+    /// Felder, veröffentlichte `applied_revision`, Beispiele, Richtliniensperren. Nach einem abgelehnten
+    /// klassischen `SaveSettings` die Arbeitskopie mit ihren Problemen.
+    fn live_settings_view(&self, mut v: SettingsView) -> SettingsView {
+        v.preview_revision = lock(&self.shared.block).revision;
+        if !self.apply_state.draft {
+            v.settings = self.cfg.settings.clone();
+            let (mut problems, _) = validate(&v.settings);
+            problems.extend(self.apply_state.rejected.clone());
+            v.problems = problems;
+        }
+        v.read_only = self.cfg.read_only();
+        v.applied_revision = self.apply_state.published;
+        v.examples = crate::settings_apply::examples(&v.settings);
+        v.locked = Some(crate::settings_apply::locked_paths(self.cfg.policy.as_ref()));
+        v
     }
 
     /// Verlässt das Dokument mit diesem Signiermittel das Gerät (Capability der letzten Prüfung)? Steuert
