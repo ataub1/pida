@@ -11,9 +11,10 @@
 //! | Stapeleintrag wird geladen | `WentHome` | zurück zur Übersicht (Eintrag unverändert), geparkt |
 //! | Signieren, Stapellauf, Fehlerschritt, Start, Ende, Startansicht | `WentHome` | ohne Wirkung |
 //! | sonst (Laden, „Signatur fortsetzen“, Signiermittel-Auswahl, „Fertig“ gespeichert ohne wartende) | `WentHome` | wie `Navigate(Open)` (wie bisher) |
-//! | geparkt | `ParkedResumed` („Weiter bearbeiten“) | Zustand wie vor dem Parken |
+//! | geparkt, Stapel ([`State::resumes_to_overview`]: Übersicht, aus ihr geöffnetes Dokument, Dokument mit wartenden) | `ParkedResumed` („Weiter bearbeiten“) | Stapelübersicht wie „Zur Stapelübersicht“ – Platzierung des offenen Dokuments als dessen Plan, Analysewarnung als Eintrag (Nachtrag 13) |
+//! | geparkt, sonst (Einzeldokument, „Fertig“ ohne Speichern) | `ParkedResumed` | Zustand wie vor dem Parken |
 //! | geparkt | `ParkedDiscarded` („Schließen“) | verworfen wie „Öffnen“ → `Idle` (Dokumente „abgebrochen“, signierte Ergebnisse bleiben) |
-//! | geparkt | `MoreFilesAdded` („Zum Stapel hinzufügen“) | fortsetzen und hinzufügen: Arbeitsbereich wie „Weitere PDFs hinzufügen“ (alle zusammen zum Stapel, die Platzierung bleibt Plan), Übersicht mit neuen Einträgen, Analysewarnung → Übersicht |
+//! | geparkt | `MoreFilesAdded` („Zum Stapel hinzufügen“) | fortsetzen wie `ParkedResumed` (ein Stapel ist danach die Übersicht), dann hinzufügen: Arbeitsbereich wie „Weitere PDFs hinzufügen“ (alle zusammen zum Stapel, die Platzierung bleibt Plan), Übersicht mit neuen Einträgen, Analysewarnung → Übersicht; nur Duplikate → wie `ParkedResumed` |
 //! | geparkt | `FilesAdded` („Öffnen mit“, zweite Instanz; ohne Rückfrage) | wie `MoreFilesAdded`, dazu Hinweis [`MSG_PARKED_FILES_ADDED`] |
 //! | geparkt | `DocumentReplaced` („Offene schließen und neu beginnen“) | verwerfen, dann wie in der Dokumentauswahl |
 //! | geparkt | Ergebnisse von Effekten, geänderte Einstellungen, Voranalyse, Lebenszyklus | wirken auf die geparkte Arbeit, sofern sie danach geparkt bleiben kann (sonst ohne Wirkung) |
@@ -100,8 +101,7 @@ fn passes_through(event: &Event) -> bool {
 /// Reducer für geparkte Arbeit ([`State::parked`]).
 pub(super) fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
     match event {
-        // „Weiter bearbeiten“: unverändert zurück (Platzierung, Plan, Stapel); startet nichts
-        Event::ParkedResumed => Transition::stay(set_parked(state, false)),
+        Event::ParkedResumed => resume(state, ctx),
         Event::ParkedDiscarded => discard(state),
         Event::Quit => active(state, Event::Quit, ctx),
         Event::MoreFilesAdded(docs) => join(state, docs, false, ctx),
@@ -125,6 +125,15 @@ pub(super) fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
     }
 }
 
+/// „Weiter bearbeiten“ (ADR 0004 Nachtrag 13): ein Stapel ([`State::resumes_to_overview`]) kommt in die
+/// Stapelübersicht – wie „Zur Stapelübersicht“ bzw. „Zurück zum Stapel“, die Platzierung des gerade bearbeiteten
+/// Dokuments wird dessen Plan (nichts geht verloren) –, sonst unverändert zurück (Platzierung, Sperre, „Fertig“ ohne
+/// Speichern). Startet nichts (A1).
+fn resume(state: State, ctx: &Context) -> Transition {
+    let state = set_parked(state, false);
+    if state.resumes_to_overview(ctx) { batch_run::to_overview(state) } else { Transition::stay(state) }
+}
+
 /// Geparkte Arbeit verwerfen wie „Öffnen“: Dokumente freigeben und als „abgebrochen“ verbuchen, Stapel entfällt;
 /// bereits signierte Ergebnisse bleiben in der Ergebnisliste.
 fn discard(state: State) -> Transition {
@@ -136,14 +145,19 @@ fn discard(state: State) -> Transition {
 }
 
 /// Neue Dateien zur geparkten Arbeit („Zum Stapel hinzufügen“ bzw. – `open_with` – „Öffnen mit“ und zweite
-/// Instanz, ohne Rückfrage mit Hinweis): fortsetzen, dann hinzufügen. Mit Stapelübersicht werden die geparkten und
-/// die neuen Dokumente zum Stapel (ein geparktes Dokument behält seine Platzierung als Plan), sonst kommen die
-/// neuen an die Warteschlange.
+/// Instanz, ohne Rückfrage mit Hinweis): fortsetzen wie „Weiter bearbeiten“ (ein Stapel ist danach die Übersicht,
+/// auch wenn nur Duplikate kommen), dann hinzufügen. Mit Stapelübersicht werden die geparkten und die neuen
+/// Dokumente zum Stapel (ein geparktes Dokument behält seine Platzierung als Plan), sonst kommen die neuen an die
+/// Warteschlange.
 fn join(state: State, docs: Vec<InputDocument>, open_with: bool, ctx: &Context) -> Transition {
-    let state = set_parked(state, false);
-    let before = state.queue().map_or(0, Queue::len);
-    let mut t =
-        if ctx.batch() { batch_run::join_parked(state, docs, ctx) } else { super::files_added(state, docs, ctx) };
+    let resumed = resume(state, ctx);
+    let before = resumed.state.queue().map_or(0, Queue::len);
+    let mut t = if ctx.batch() {
+        batch_run::join_parked(resumed.state, docs, ctx)
+    } else {
+        super::files_added(resumed.state, docs, ctx)
+    };
+    t.effects.splice(0..0, resumed.effects);
     let added = t.state.queue().map_or(0, Queue::len).saturating_sub(before);
     let noticed = t.effects.iter().any(|e| matches!(e, Effect::NotifyWith(code, _) if code == MSG_BATCH_ADDED));
     if open_with && added > 0 && !noticed {

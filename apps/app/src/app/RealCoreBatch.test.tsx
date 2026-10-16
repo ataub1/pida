@@ -51,7 +51,7 @@ function refValue(dialog: HTMLElement): string {
 
 describe('Stapel: Zustände des echten Kerns', () => {
   it('jeder Zustand gehört zur Stapelübersicht (die Karte liegt über der Liste); geparkt zur Startansicht', () => {
-    for (const [name, v] of Object.entries(states)) expect([name, mainView(v)]).toEqual([name, name === 'batch_parked' ? 'start' : 'batch']);
+    for (const [name, v] of Object.entries(states)) expect([name, mainView(v)]).toEqual([name, name.endsWith('_parked') ? 'start' : 'batch']);
   });
 
   it('Zur Startseite (Nachtrag 10): der Stapel ist „In Bearbeitung“, „Schließen“ fragt bei mehreren Dokumenten nach', async () => {
@@ -66,6 +66,18 @@ describe('Stapel: Zustände des echten Kerns', () => {
     await user.click(within(card).getByRole('button', { name: 'Weiter bearbeiten' }));
     expect(mock.dispatched).toEqual([{ type: 'resume_parked' }]);
     expect(sessionEvents(mock.dispatched)).toEqual([]);
+  });
+
+  it('geöffneter Eintrag geparkt (Nachtrag 13): die Karte nennt den Stapel; nach „Weiter bearbeiten“ die Übersicht ohne geöffnetes Dokument', async () => {
+    const { mock, user } = renderApp({ view: state('batch_entry_parked') });
+    await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
+    const card = screen.getByRole('region', { name: 'In Bearbeitung' });
+    expect(within(card).getByRole('heading', { level: 2, name: 'Stapel · 2 Dokumente' })).toBeInTheDocument();
+    expect(card).not.toHaveTextContent('Auftrag.pdf');
+    await user.click(within(card).getByRole('button', { name: 'Weiter bearbeiten' }));
+    expect(mock.dispatched).toEqual([{ type: 'resume_parked' }]);
+    const resumed = state('batch_entry_resumed');
+    expect([mainView(resumed), resumed.document, resumed.batch?.open_item, resumed.parked]).toEqual(['batch', null, null, null]);
   });
 
   it('kein Zustand stößt von sich aus eine Sitzung an (F-54)', async () => {

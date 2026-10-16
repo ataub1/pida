@@ -693,4 +693,21 @@ describe('„Zur Startseite“ parkt offene Arbeit (Nachtrag 10, Mock wie der Ke
     v = await c.view();
     expect([v.step.step, v.parked]).toEqual(['signing', null]);
   });
+
+  it('Stapel (Nachtrag 13): ein geöffneter Eintrag kehrt mit „Weiter bearbeiten“ als Plan in die Übersicht zurück', async () => {
+    const c = core({ scenario: 'batch', settings: idAustria() });
+    let v = await until(c, ready);
+    const doc = v.batch!.items[0]!.doc;
+    await c.dispatch({ type: 'open_batch_item', doc });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'nudge_block', dx: 0, dy: 1, fine: false, coarse: false });
+    await c.dispatch({ type: 'go_home' });
+    v = await until(c, parkedStart);
+    expect(v.parked).toMatchObject({ doc_name: null, documents: 4 });
+    await c.dispatch({ type: 'resume_parked' });
+    v = await c.view();
+    expect([v.step.step, v.document, v.batch?.open_item, v.parked]).toEqual(['batch', null, null, null]);
+    expect(v.batch?.items[0]).toMatchObject({ doc, status: { state: 'positioned' }, position: { kind: 'manual' } });
+  });
+
 });

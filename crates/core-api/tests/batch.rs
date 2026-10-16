@@ -1037,6 +1037,83 @@ async fn parked_batch_keeps_preanalysing_and_signs_only_after_resume() {
     assert_eq!((s.total, s.signed), (3, 3));
 }
 
+/// Meldung des Auftraggebers (ADR 0004 Nachtrag 13): ein aus der Übersicht geöffnetes Dokument parken – „Weiter
+/// bearbeiten“ führt zur Stapelübersicht, nicht ins Dokument; die Platzierung ist Plan des Eintrags („Positioniert“).
+/// Die Karte nennt den Stapel. Ebenso ein Einzeldokument mit wartenden Dokumenten. Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn resume_of_a_parked_batch_document_shows_the_overview_with_its_plan() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf", "b.pdf", "c.pdf", "d.pdf"]);
+    let atrust = Atrust::new(Vec::new());
+    // mit PDFium (Sticker, Verschieben), sonst „Unsichtbar signieren“ als eigener Plan
+    let o = Opts { backends: atrust.backends(), engine: Some(FakeEngine::new()), pdfium: pdfium_dir().is_some() };
+    let core = start(&fx, overlay(files[..3].to_vec(), &out), o).unwrap();
+    let v = overview_ready(&core, 3).await;
+    let b = doc_of(&v, "b.pdf");
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    wait_for(&core, "Arbeitsbereich b", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.id == b && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    // eigener Plan (ohne PDFium: „Unsichtbar signieren“)
+    let expected = if pdfium_dir().is_some() {
+        let v = wait_for(&core, "Sticker", |v| v.document.as_ref().is_some_and(|d| d.sticker.is_some())).await;
+        let d = v.document.unwrap();
+        core.dispatch(UiEvent::MoveBlock { page: 0, x: 60.0, y: 400.0 });
+        wait_for(&core, "verschoben", |v| {
+            v.document.as_ref().is_some_and(|x| x.revision > d.revision && x.placement.x == 60.0)
+        })
+        .await;
+        PositionSummaryView::Manual { page: 0 }
+    } else {
+        core.dispatch(UiEvent::SetInvisible { invisible: true });
+        wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+        PositionSummaryView::Invisible
+    };
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    let p = parked(&v).unwrap();
+    assert_eq!((p.doc_name.as_deref(), p.documents, p.placed_by_hand), (None, 3, pdfium_dir().is_some()));
+    // „Weiter bearbeiten“: die Übersicht mit allen Einträgen, b mit seinem Plan
+    core.dispatch(UiEvent::ResumeParked);
+    let v = wait_for(&core, "Übersicht", |v| matches!(v.step, StepView::Batch)).await;
+    assert!(v.parked.is_none() && v.document.is_none() && batch(&v).open_item.is_none());
+    assert_eq!(batch(&v).items.len(), 3);
+    let item = batch(&v).items.iter().find(|i| i.doc == b).unwrap();
+    assert_eq!((item.status.clone(), item.position.clone()), (BatchItemStatusView::Positioned, expected.clone()));
+    // erneut öffnen: der Plan gilt wieder
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    let v = wait_for(&core, "b mit Plan", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.id == b && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    if expected == PositionSummaryView::Invisible {
+        assert!(v.document.unwrap().invisible, "Plan des Eintrags");
+    }
+
+    // Einzeldokument mit einem wartenden: „Stapel · 2 Dokumente“, „Weiter bearbeiten“ → Übersicht
+    let core = start(&fx, overlay(vec![files[3].clone()], &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich d", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.name == "d.pdf" && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![files[0].clone()], mode: None });
+    wait_for(&core, "wartet", |v| v.actions.show_batch).await;
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    let p = parked(&v).unwrap();
+    assert_eq!((p.doc_name.as_deref(), p.documents), (None, 2));
+    core.dispatch(UiEvent::ResumeParked);
+    let v = overview_ready(&core, 2).await;
+    let d = batch(&v).items.iter().find(|i| i.name == "d.pdf").unwrap();
+    assert_eq!(d.position, PositionSummaryView::Invisible, "Plan des geparkten Dokuments");
+    assert!(v.parked.is_none());
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
 // ------------------------------------------------------------------------------------------------
 // Punkt 7: vorhandene Zieldateien, Ordnerwahl
 // ------------------------------------------------------------------------------------------------
@@ -1404,6 +1481,21 @@ async fn real_core_batch_views_for_the_ui() {
     let v = summary(&core).await;
     assert!(!batch(&v).auto_position_once, "nach dem Lauf wieder laut Einstellung");
     states.push(("batch_summary", v));
+    drop(core);
+
+    // Meldung des Auftraggebers (Nachtrag 13): ein aus der Übersicht geöffneter Eintrag, geparkt – die Karte nennt
+    // den Stapel, „Weiter bearbeiten“ führt zur Übersicht
+    let core = start(&fx, overlay(inputs(&fx, &["Angebot.pdf", "Auftrag.pdf"]), &out), fake(None)).unwrap();
+    let v = overview_ready(&core, 2).await;
+    let doc = doc_of(&v, "Auftrag.pdf");
+    core.dispatch(UiEvent::OpenBatchItem { doc });
+    wait_for(&core, "Eintrag geöffnet", |v| v.document.as_ref().is_some_and(|d| d.doc.id == doc)).await;
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    assert_eq!(v.parked.as_ref().map(|p| (p.doc_name.clone(), p.documents)), Some((None, 2)));
+    states.push(("batch_entry_parked", v));
+    core.dispatch(UiEvent::ResumeParked);
+    states.push(("batch_entry_resumed", overview_ready(&core, 2).await));
     drop(core);
 
     let fixture: serde_json::Map<String, serde_json::Value> =

@@ -931,7 +931,9 @@ pub enum UiEvent {
     /// und parkt das offene Dokument (mit Platzierung) bzw. den Stapel, statt sie zu verwerfen (`ViewState::parked`).
     /// Beim Signieren und im Stapellauf ohne Wirkung (`actions.home`). Startet **nichts** (A1).
     GoHome,
-    /// „Weiter bearbeiten“ (Karte „In Bearbeitung“): geparkte Arbeit unverändert fortsetzen. Startet **nichts**.
+    /// „Weiter bearbeiten“ (Karte „In Bearbeitung“): geparkte Arbeit fortsetzen – ein Stapel in der Stapelübersicht
+    /// (wie `back_to_batch`/`show_batch`, die Platzierung des offenen Dokuments wird dessen Plan; Nachtrag 13), sonst
+    /// unverändert. Startet **nichts**.
     ResumeParked,
     /// „Schließen“ (Karte „In Bearbeitung“): geparkte Arbeit verwerfen (Dokumente „abgebrochen“; signierte Dateien
     /// bleiben). Startet **nichts**.
@@ -2123,7 +2125,8 @@ pub struct ActionsView {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ParkedWorkView {
-    /// Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“)
+    /// Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“): „Weiter bearbeiten“ führt dann zur
+    /// Stapelübersicht (Nachtrag 13; „Fertig“ ohne Speichern eines Stapeleintrags nennt das Dokument)
     pub doc_name: Option<String>,
     /// offene Dokumente (Einträge des Stapels bzw. das Dokument samt wartenden)
     pub documents: u32,

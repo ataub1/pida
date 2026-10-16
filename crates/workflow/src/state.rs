@@ -1111,6 +1111,23 @@ impl State {
         self.queue().is_some_and(|q| q.parked)
     }
 
+    /// Ist diese (ruhende) Arbeit ein Stapel, d. h. führt „Weiter bearbeiten“ geparkter Arbeit zur Stapelübersicht
+    /// (ADR 0004 Nachtrag 13)? Nur mit Stapelübersicht ([`Context::batch`]): die Übersicht selbst sowie ein aus ihr
+    /// geöffnetes Dokument bzw. ein Dokument mit wartenden Dokumenten im Arbeitsbereich oder mit Analysewarnung.
+    /// Nicht „Fertig“ ohne Speichern: dort ginge die Signatur verloren, erst das Speichern führt weiter.
+    pub fn resumes_to_overview(&self, ctx: &Context) -> bool {
+        if !ctx.batch() {
+            return false;
+        }
+        match self {
+            State::BatchOverview { .. } => true,
+            State::Positioning { queue, edit: Some(_), .. } | State::AnalysisWarning { queue, .. } => {
+                !queue.pending.is_empty() || self.opened_from_batch()
+            }
+            _ => false,
+        }
+    }
+
     /// Stapel, aus dem dieses Einzeldokument geöffnet wurde (`Queue::batch` mit `open` = aktuelles
     /// Dokument) bzw. – nach „Signatur fortsetzen“ eines unterbrochenen Stapels – ein Bearbeitungszustand
     /// mit `return_to_batch`.
@@ -1375,8 +1392,9 @@ pub enum Event {
     /// gespeichertem Ergebnis und wartenden Dokumenten wird der Stapel wie bei „Zum Stapel“ geparkt. Beim
     /// Signieren, im Stapellauf und im Fehlerschritt ohne Wirkung; sonst wie `Navigate(Open)`. Startet nichts (A1).
     WentHome,
-    /// „Weiter bearbeiten“ (`UiEvent::ResumeParked`): geparkte Arbeit unverändert fortsetzen (Platzierung,
-    /// Stapel). Startet nichts (A1).
+    /// „Weiter bearbeiten“ (`UiEvent::ResumeParked`): geparkte Arbeit fortsetzen – ein Stapel
+    /// ([`State::resumes_to_overview`]) in der Stapelübersicht wie „Zur Stapelübersicht“ (die Platzierung des offenen
+    /// Dokuments wird dessen Plan, Nachtrag 13), sonst unverändert (Platzierung, „Fertig“). Startet nichts (A1).
     ParkedResumed,
     /// „Schließen“ der Karte „In Bearbeitung“ (`UiEvent::DiscardParked`): geparkte Arbeit verwerfen wie „Öffnen“
     /// (Dokumente „abgebrochen“, bereits signierte Ergebnisse bleiben). Startet nichts (A1).

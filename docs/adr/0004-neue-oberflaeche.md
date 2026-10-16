@@ -2596,7 +2596,8 @@ pub enum UiEvent { /* … */ GoHome, ResumeParked, DiscardParked }   // "go_home
    `Saved`/`SaveFailed`/`BatchOutputDecided` (Schreiben nach „Stapel abbrechen“), Lebenszyklus – aber nur, wenn die
    Arbeit danach geparkt bleiben kann, sonst ohne Wirkung. `Quit` beendet wie bisher. Der Prüfmodus ist bei geparkter
    Arbeit wie in der Dokumentauswahl erlaubt; das Angebot „Signatur fortsetzen“ erscheint erst nach dem Verwerfen.
-3. **Fortsetzen** (`resume_parked` → `ParkedResumed`): Zustand unverändert wie vor dem Parken (Platzierung, Plan,
+3. **Fortsetzen** (`resume_parked` → `ParkedResumed`; seit Nachtrag 13 führt ein Stapel in die Stapelübersicht):
+   Zustand unverändert wie vor dem Parken (Platzierung, Plan,
    Sperre, Stapel samt Voranalyse und „Für diesen Stapel automatisch positionieren“). **Verwerfen** (`discard_parked` →
    `ParkedDiscarded`): wie „Öffnen“ (`discard_all`: Dokumente freigeben, in der Ergebnisliste „abgebrochen“, Stapel
    entfällt; bereits signierte Ergebnisse bleiben).
@@ -2639,3 +2640,50 @@ nicht verloren gehen; core-api projiziert ihn als Dokumentauswahl. Zusätzlich z
 Analysewarnung und „Fertig“ ohne Speichern (`ParkedWorkView::unsaved`, damit „Schließen“ die nicht gespeicherte
 Signatur nicht ohne Rückfrage verwirft). Ob „Schließen“ nachfragt, entscheidet die Oberfläche an den Angaben des Kerns
 (wie Nachtrag 9). Das Parken übersteht keinen Neustart der App (nicht persistiert).
+
+### Nachtrag 13 (16.10.2026): „Weiter bearbeiten“ eines Stapels führt zur Stapelübersicht
+
+Meldung des Auftraggebers (macOS): „Wenn man am Homescreen einen Stapel hat und auf ‚Weiter bearbeiten‘ klickt,
+sollte man nicht zu einem bestimmten Dokument kommen, sondern zur Gesamtübersicht des Stapels.“ (Protokoll:
+`open_batch_item` → Arbeitsbereich, `go_home`, `resume_parked` → wieder das Einzeldokument.) Der Vertrag bleibt
+unverändert; präzisiert werden die Bedeutung von `resume_parked` und `ParkedWorkView::doc_name`.
+
+1. **Was ein Stapel ist** (`State::resumes_to_overview`, nur mit Stapelübersicht `Context::batch`): die
+   Stapelübersicht selbst, ein aus ihr geöffnetes Dokument (Arbeitsbereich, Analysewarnung; auch nach „Signatur
+   fortsetzen“ mit `return_to_batch`) und ein Dokument mit wartenden Dokumenten (Arbeitsbereich, Analysewarnung) –
+   also auch ein mit „+ PDF“ bzw. „Zum Stapel hinzufügen“ der Startansicht entstandener Stapel. Ohne Stapelübersicht
+   gibt es keinen Stapel; „Weiter bearbeiten“ setzt dann wie bisher unverändert fort.
+2. **Fortsetzen** (`ParkedResumed`, `reducer/parked.rs::resume`, `batch_run::to_overview`): ein Stapel kommt in die
+   Stapelübersicht. Der Arbeitsbereich wirkt genau wie „Zurück zum Stapel“ (aus der Übersicht geöffnet) bzw. „Zum
+   Stapel“ (mit wartenden): die Platzierung wird Plan des Eintrags (von Hand → „Positioniert“ mit Seite, „Unsichtbar
+   signieren“ der Nutzerin bleibt Plan, eine automatische Lage folgt weiter den Einstellungen); nur das offene Dokument
+   wird freigegeben (`Effect::Discard`), nichts startet. Die Analysewarnung eines geöffneten Eintrags kehrt zurück
+   (Eintrag unverändert, z. B. „Bitte prüfen“), mit wartenden Dokumenten wird sie Eintrag der Übersicht (Voranalyse).
+   Die Übersicht bleibt, wie sie ist. Was während des Parkens ankam (automatische Lage, Einstellungen, Voranalyse),
+   gilt. Ein Einzeldokument ohne wartende kehrt unverändert ins Dokument zurück.
+3. **„Fertig“ ohne Speichern** eines Stapeleintrags bzw. Dokuments mit wartenden: zurück zu „Fertig“ – die Signatur
+   ist erst gespeichert sicher; das Speichern führt wie bisher in die Übersicht. Die Karte nennt dann das Dokument
+   („Signiert, aber noch nicht gespeichert.“).
+4. **Neue Dateien bei geparkter Arbeit** (`MoreFilesAdded`, `FilesAdded`): erst fortsetzen wie 2., dann hinzufügen –
+   ein geparkter Eintrag führt damit in die Übersicht, auch wenn nur Duplikate kommen. Ein geparktes Einzeldokument
+   wird mit „Zum Stapel hinzufügen“ zum Stapel; parkt man danach einen geöffneten Eintrag, gilt 2.
+5. **Karte** (`core-api/src/parked.rs::describe`): `ParkedWorkView::doc_name = None` genau dann, wenn „Weiter
+   bearbeiten“ zur Übersicht führt („Stapel · n Dokumente“; `documents` = Einträge bzw. Dokument samt wartenden;
+   Hinweis „Pläne und Status der Dokumente bleiben erhalten.“), sonst der Dokumentname. Die Oberfläche bleibt
+   unverändert: nach dem Fortsetzen steht der Fokus wie bei jedem Ansichtswechsel auf der Überschrift der Übersicht
+   („n Dokumente“, Fenstertitel „PIDA – Stapel“). Der Mock folgt dem Kern (`resumeParked`, `resumesToOverview`,
+   `showBatch`, `backToBatch`).
+6. **Tests:** `crates/workflow/tests/parked.rs` (`resume_of_an_opened_entry_shows_the_overview_with_its_placement`,
+   `resume_with_waiting_or_added_documents_shows_the_overview`, `resume_of_a_batch_analysis_warning_shows_the_overview`,
+   `unsaved_entry_resumes_to_done_and_saving_returns_to_the_overview`,
+   `join_of_a_parked_entry_shows_the_overview_and_stays_a_batch`, `resumes_to_overview_only_for_batches`),
+   Property-Test `props.rs` (Fortsetzen eines Stapels → Übersicht, nur `Discard`/`Preanalyze`, kein Dokument verloren;
+   sonst unverändert), echter Kern `crates/core-api/tests/batch.rs`
+   (`resume_of_a_parked_batch_document_shows_the_overview_with_its_plan`), Proben `batch_entry_parked` und
+   `batch_entry_resumed` (`real-core-batch-views.json`, `RealCoreBatch.test.tsx`), Oberfläche mit dem Mock
+   `features/start/parked.test.tsx` (geöffneter Eintrag, Dokument mit wartendem, Stapel aus „Zum Stapel hinzufügen“;
+   Fokus, axe) und `core/mock/mock.test.ts`.
+
+**Angenommene Abweichungen:** Aus „immer zur Stapelübersicht“ ist „Fertig“ ohne Speichern ausgenommen (3.), damit
+keine Signatur verloren geht. Umgestellt wird beim Fortsetzen, nicht schon beim Parken: der geparkte Zustand bleibt wie
+in Nachtrag 10, damit Ergebnisse laufender Effekte (automatische Platzierung, Blockgröße) das Dokument noch erreichen.

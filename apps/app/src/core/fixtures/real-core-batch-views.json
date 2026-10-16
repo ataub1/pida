@@ -636,6 +636,311 @@
     },
     "verify": null
   },
+  "batch_entry_parked": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false,
+      "verify": true
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [
+      {
+        "code": "error-PositioningNotPossible",
+        "id": 1,
+        "params": {}
+      }
+    ],
+    "parked": {
+      "doc_name": null,
+      "documents": 2,
+      "placed_by_hand": false,
+      "unsaved": false
+    },
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [
+      {
+        "exists": true,
+        "file_name": "Beilage_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 2,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      },
+      {
+        "exists": true,
+        "file_name": "Vertrag_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 1,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      }
+    ],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    },
+    "verify": null
+  },
+  "batch_entry_resumed": {
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": true,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": true,
+      "verify": true
+    },
+    "batch": {
+      "auto_position_once": false,
+      "auto_position_setting": false,
+      "estimate": null,
+      "items": [
+        {
+          "doc": 1,
+          "name": "Angebot.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Angebot_signed.pdf",
+          "thumbnail": false
+        },
+        {
+          "doc": 2,
+          "name": "Auftrag.pdf",
+          "page_count": 1,
+          "position": {
+            "kind": "auto"
+          },
+          "size_bytes": 6233,
+          "status": {
+            "state": "ready"
+          },
+          "target_exists": false,
+          "target_name": "Auftrag_signed.pdf",
+          "thumbnail": false
+        }
+      ],
+      "manual_plans": 0,
+      "open_item": null,
+      "output": {
+        "folder_display": "/Users/test/Dokumente",
+        "mode": "folder",
+        "needs_folder": false
+      },
+      "running": false,
+      "summary": null
+    },
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": true,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [
+      {
+        "code": "error-PositioningNotPossible",
+        "id": 1,
+        "params": {}
+      }
+    ],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [
+      {
+        "exists": true,
+        "file_name": "Beilage_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 2,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      },
+      {
+        "exists": true,
+        "file_name": "Vertrag_signed.pdf",
+        "folder_display": "/Users/test/Dokumente",
+        "id": 1,
+        "signed_at": "2026-10-15T10:42:17+02:00"
+      }
+    ],
+    "resume": null,
+    "settings": null,
+    "signers": {
+      "default": null,
+      "options": [
+        {
+          "account": null,
+          "available": true,
+          "backend": "atrust_native",
+          "capabilities": {
+            "certificate": "OnlyForVisibleBlock",
+            "cms_reserve": 16384,
+            "document_leaves_device": true,
+            "factors": {
+              "app": true,
+              "card": false,
+              "fido2": false,
+              "qr": true,
+              "sms": true
+            },
+            "input": "Document",
+            "interaction": "NativeForms",
+            "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "local_bku",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-localbku-not-running"
+        },
+        {
+          "account": null,
+          "available": false,
+          "backend": "keystore",
+          "capabilities": null,
+          "notes": [],
+          "unavailable_reason": "ng-signer-keystore-missing"
+        }
+      ],
+      "selected": null
+    },
+    "step": {
+      "step": "batch"
+    },
+    "verify": null
+  },
   "batch_login": {
     "actions": {
       "edit_placement": false,
