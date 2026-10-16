@@ -18,7 +18,7 @@
  * Hinweis auf eine mögliche neue Anmeldung), „Überspringen“ (nur mit Dokument) und „Stapel abbrechen“. Esc/×
  * fragen im Stapel erst nach, bevor der Stapel abgebrochen wird.
  */
-import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import type {
@@ -417,7 +417,7 @@ function ReferenceValue({ value, size = 'lg', onShowData }: { value: string; siz
   return (
     <div className={`refvalue refvalue-${size}`}>
       <span className="refvalue-label">{t.t('ng-ui-sc-ref')}</span>
-      <span className="refvalue-chars" aria-hidden="true">
+      <span className="refvalue-chars" aria-hidden="true" style={{ '--n': chars.length } as CSSProperties}>
         {chars.map((c, i) => (
           <span key={i} className="refvalue-char">
             {c}

@@ -25,7 +25,7 @@ import type {
 import type { MockSigningFlow } from './shared';
 
 /** Vergleichswert der Demo (wie im Prototyp). */
-export const REFERENCE_VALUE = 'Xk7Pq';
+export const REFERENCE_VALUE = 'tpJXmaU/Aj';
 /** Link „Signaturdaten anzeigen“ der Demo (öffnet nichts). */
 export const SIGNATURE_DATA_URL = 'https://www.a-trust.at/mobile/ShowSigobj.aspx?demo';
 
