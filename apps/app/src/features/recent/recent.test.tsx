@@ -1,7 +1,7 @@
 /**
  * „Zuletzt signiert“ auf der Startansicht (Paket UI-B, ADR 0004 §3.10, Abnahme E3 Punkt 5 [M]): Karte nur
  * mit `ViewState::recent`, höchstens zehn Einträge, je Eintrag nur Name und Zeitpunkt (kein Signiermittel),
- * Eintrag → `verify_recent` (bis E4 ein Hinweis), fehlende Datei → Hinweis des Kerns, Entfernen ist eine
+ * Eintrag → `verify_recent` (öffnet den Prüfmodus), fehlende Datei → Hinweis des Kerns, Entfernen ist eine
  * ausdrückliche Aktion, leere Liste, axe.
  */
 import { screen, waitFor, within } from '@testing-library/react';
@@ -34,12 +34,16 @@ describe('Zuletzt signiert', () => {
     await expectNoAxeViolations();
   });
 
-  it('Eintrag öffnet den Prüfmodus (bis E4: Hinweis); fehlende Datei: Hinweis des Kerns, Eintrag bleibt', async () => {
+  it('Eintrag öffnet den Prüfmodus (E4); fehlende Datei: Hinweis des Kerns, Eintrag bleibt', async () => {
     const { mock, user } = renderApp({ examples: true });
-    const card = await screen.findByTestId('recent-panel');
+    let card = await screen.findByTestId('recent-panel');
     await user.click(within(card).getByRole('button', { name: '„Mietvertrag_signiert.pdf“ im Prüfmodus öffnen' }));
     expect(lastEvent(mock)).toEqual({ type: 'verify_recent', id: 2 });
-    expect(await screen.findByText('Der Prüfmodus folgt mit einer der nächsten Versionen.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Mietvertrag_signiert.pdf' })).toBeInTheDocument();
+    expect(await screen.findByTestId('vf-summary')).toHaveTextContent('Alle 2 Signaturen sind unverändert und kryptografisch intakt');
+    await user.click(screen.getByRole('button', { name: 'Prüfmodus verlassen' }));
+    expect(lastEvent(mock)).toEqual({ type: 'close_verify' });
+    card = await screen.findByTestId('recent-panel');
     const missing = within(card).getByRole('button', { name: '„Angebot_2026-117_signed.pdf“ im Prüfmodus öffnen' });
     expect(missing).toHaveAccessibleDescription(/Datei nicht mehr vorhanden/);
     await user.click(missing);

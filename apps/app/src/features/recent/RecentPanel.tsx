@@ -1,8 +1,8 @@
 /**
  * „Zuletzt signiert“ auf der Startansicht (ADR 0004 §2.1, §3.10; Gestalt aus dem Prototyp): höchstens zehn
  * Einträge aus `ViewState::recent` (neueste zuerst, vom Kern), je Eintrag Name und Zeitpunkt – kein
- * Signiermittel, kein Unterzeichner (Datenschutz). Ein Eintrag öffnet den Prüfmodus (`verify_recent`; bis
- * zum Prüfmodus in E4 nur ein Hinweis); fehlt die Datei, meldet das der Kern (`ng-recent-missing`), der
+ * Signiermittel, kein Unterzeichner (Datenschutz). Ein Eintrag öffnet den Prüfmodus (`verify_recent`, der
+ * Kern liefert danach `ViewState::verify`); fehlt die Datei, meldet das der Kern (`ng-recent-missing`), der
  * Eintrag bleibt – Entfernen ist eine ausdrückliche Aktion (`remove_recent`). `recent = null` (abgeschaltet
  * bzw. per Richtlinie aus) blendet die Karte aus.
  */
@@ -11,7 +11,6 @@ import { useApp } from '../../app/context';
 import type { RecentItemView } from '../../core/types';
 import { IconButton } from '../../ui/controls';
 import { IconChevronRight, IconClose, IconFileText } from '../../ui/Icons';
-import { VERIFY_AVAILABLE } from '../verify';
 import './recent.css';
 
 /** Props der Liste „Zuletzt signiert“ (in E0 festgelegt). */
@@ -30,13 +29,10 @@ function formatTime(iso: string, lang: string): string {
 }
 
 export function RecentPanel({ items }: RecentPanelProps) {
-  const { t, dispatch, toast } = useApp();
+  const { t, dispatch } = useApp();
   if (items === null) return null;
-  const open = async (item: RecentItemView) => {
-    const ok = await dispatch({ type: 'verify_recent', id: item.id });
-    // bis E4 (Prüfmodus) ein Hinweis; eine fehlende Datei meldet der Kern selbst
-    if (ok && !VERIFY_AVAILABLE && item.exists) toast(t.t('ng-ui-recent-verify-later'));
-  };
+  // Prüfmodus öffnen; eine fehlende Datei meldet der Kern selbst (`ng-recent-missing`)
+  const open = (item: RecentItemView) => void dispatch({ type: 'verify_recent', id: item.id });
   return (
     <section className="side-card recent-card" aria-labelledby="recent-title" data-testid="recent-panel">
       <h2 className="side-title" id="recent-title">
@@ -54,7 +50,7 @@ export function RecentPanel({ items }: RecentPanelProps) {
                   className="recent-item"
                   aria-label={t.t('ng-ui-recent-open', { name: item.file_name })}
                   aria-describedby={metaId}
-                  onPress={() => void open(item)}
+                  onPress={() => open(item)}
                 >
                   <span className="recent-icon" aria-hidden="true">
                     <IconFileText size={18} />

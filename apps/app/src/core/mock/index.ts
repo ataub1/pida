@@ -57,7 +57,7 @@ import {
   type MockSignal,
 } from './shared';
 import { SigningSession } from './signing';
-import { verifyArea } from './verify';
+import { verifyAllowed, verifyArea, verifyPageTile, type VerifyState } from './verify';
 import {
   autoPlace,
   blockPreviewSvg,
@@ -1070,6 +1070,7 @@ export class MockCore implements Bridge {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private readonly flow: FlowState;
   private readonly areas: Area[];
+  private readonly verifyState: VerifyState;
   private notices: NoticeView[] = [];
   private noticeId = 0;
   private readonly ctx: MockCtx;
@@ -1077,10 +1078,11 @@ export class MockCore implements Bridge {
   constructor(options: MockOptions = {}) {
     this.opts = { ...options };
     this.flow = flowArea.init(this.opts);
+    this.verifyState = verifyArea.init(this.opts);
     this.areas = [
       { area: flowArea as MockArea<unknown>, state: this.flow },
       { area: settingsArea as MockArea<unknown>, state: settingsArea.init(this.opts) },
-      { area: verifyArea as MockArea<unknown>, state: verifyArea.init(this.opts) },
+      { area: verifyArea as MockArea<unknown>, state: this.verifyState },
       { area: recentArea as MockArea<unknown>, state: recentArea.init(this.opts) },
       { area: firstRunArea as MockArea<unknown>, state: firstRunArea.init(this.opts) },
     ];
@@ -1127,6 +1129,9 @@ export class MockCore implements Bridge {
   }
 
   pageTileUrl(doc: DocId, page: number, scale: number): string {
+    // Prüfdokumente (eigene `DocId`, nicht in der Warteschlange; ADR 0004 §3.9)
+    const verifyTile = verifyPageTile(this.verifyState, doc, page, scale);
+    if (verifyTile) return verifyTile;
     const d = this.doc(doc);
     const p = d?.spec.pages[page] ?? null;
     const last = d?.spec.pages[d.spec.pages.length - 1];
@@ -1290,6 +1295,8 @@ export class MockCore implements Bridge {
       ...workspaceDefaults(),
     };
     const view = this.areas.reduce<ViewState>((v, a) => ({ ...v, ...a.area.project(a.state, this.ctx) }), base);
+    // Freigabe des Prüfmodus wie K4 (Leerlauf, Positionieren, Fertig, Stapelübersicht; ADR 0004 §3.9)
+    view.actions = { ...view.actions, verify: verifyAllowed(view) };
     // Einstellungen offen: Einstellungen nicht erneut erreichbar (wie `main_bar.settings_enabled` im Kern)
     if (view.settings) {
       view.main_bar = { ...view.main_bar, settings_enabled: false };

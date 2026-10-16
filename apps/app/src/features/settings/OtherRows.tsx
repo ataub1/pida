@@ -6,7 +6,8 @@
  * - Datenschutz (ADR 0003): Datenschutztext (bzw. Text der Organisation), lokales Signieren, A-Trust-Link,
  *   Zertifikats-Cache, „Zuletzt signiert merken“ (`general.recent_documents`; Abschalten löscht die Liste im
  *   Kern sofort) und „Liste leeren“ (`clear_recent`). Kein Dialog, kein Zustimmungszwang.
- * - Erweitert: Proxy, Update-Prüfung (Desktop), Signaturformat, Zurücksetzen (mit Rückfrage – das ist
+ * - Erweitert: Proxy, Update-Prüfung (Desktop), Signaturformat, „PDF-Over-Einstellungen übernehmen“
+ *   (`offer_migration`, das Angebot erscheint direkt im Bereich; Desktop), Zurücksetzen (mit Rückfrage – das ist
  *   unumkehrbar). „Ausführliche Protokolle“ entfällt (kein Settings-Feld, `--log-level`).
  * - Über: Version, Lizenztext, Drittlizenzen, Protokollordner (Desktop).
  */
@@ -18,6 +19,7 @@ import { AccessButton, Button, SwitchField } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
 import { IconMonitor, IconMoon, IconSun, IconTrash } from '../../ui/Icons';
 import { Markup } from '../../ui/Markup';
+import { MigrationOfferPane } from '../onboarding';
 import { ChoiceCards, ChoiceSegments, SettingTextField } from './controls';
 import { PrivacyInfo } from './privacy';
 import { useSettings, useTextSetting } from './state';
@@ -204,6 +206,48 @@ export function CmsRow() {
         { value: 'pades_bb', label: t.t('ng-ui-cms-pades') },
       ]}
     />
+  );
+}
+
+/**
+ * Altkonfiguration erneut suchen und anbieten (`offer_migration`, auch nach „Nicht übernehmen“; ADR 0004
+ * §3.12). Das Angebot (`ViewState::migration`) erscheint hier im Bereich statt als eigener Dialog.
+ */
+export function MigrationRow() {
+  const { t, view, dispatch } = useApp();
+  const offer = view.migration;
+  const [searched, setSearched] = useState(false);
+  useEffect(() => {
+    if (offer) setSearched(false);
+  }, [offer]);
+  return (
+    <div className="stack-2">
+      <span className="field-label">{t.t('ng-ui-set-migration')}</span>
+      <p className="field-hint">{t.t('ng-ui-set-migration-hint')}</p>
+      {offer ? (
+        <div className="settings-migration-offer">
+          <MigrationOfferPane offer={offer} level={4} titleId="set-migration-offer" />
+        </div>
+      ) : (
+        <>
+          <div className="button-row">
+            <Button
+              size="sm"
+              onPress={() =>
+                void dispatch({ type: 'offer_migration' }).then((ok) => {
+                  if (ok) setSearched(true);
+                })
+              }
+            >
+              {t.t('ng-ui-set-migration-search')}
+            </Button>
+          </div>
+          <p className="field-hint" role="status">
+            {searched ? t.t('ng-ui-set-migration-none') : ''}
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 

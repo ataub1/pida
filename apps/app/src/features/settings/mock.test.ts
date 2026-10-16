@@ -1,15 +1,18 @@
 /**
- * Mock-Kern der Pakets UI-B (`core/mock/{settings,recent,firstrun}.ts`) wie K3 (ADR 0004 §3.10, §3.11):
+ * Mock-Kern der Pakets UI-B (`core/mock/{settings,recent,verify,firstrun}.ts`) wie K3/K4 (ADR 0004 §3.9–§3.12):
  * `apply_settings` mit Teilübernahme, bleibende Feldprobleme, unbekannte Pfade, Revision, nur bei geöffnetem
- * Overlay, Richtlinie; „Zuletzt signiert“ (höchstens zehn, Abschalten löscht sofort, fehlende Datei); die
- * Übernahmeliste der Ersteinrichtung erfindet keine Bildmarke.
+ * Overlay, Richtlinie; „Zuletzt signiert“ (höchstens zehn, Abschalten löscht sofort, fehlende Datei, öffnet den
+ * Prüfmodus); Prüfmodus (Laden, Freigabe, Kacheln, „Dieses Dokument signieren“); Ersteinrichtung (erfindet keine
+ * Bildmarke, `update_first_run`, Migration, Neuinstallation „neben dem Original“, `finish_first_run`).
  */
 import { describe, expect, it } from 'vitest';
 import { MockCore } from '../../core/mock';
+import type { FirstRunMockOptions } from '../../core/mock/firstrun';
 import type { SettingsMockOptions } from '../../core/mock/settings';
+import { VERIFY_DOC_ID, verifyAllowed } from '../../core/mock/verify';
 import type { SettingsView, ViewState } from '../../core/types';
 
-async function core(options: SettingsMockOptions = {}): Promise<MockCore> {
+async function core(options: SettingsMockOptions & FirstRunMockOptions = {}): Promise<MockCore> {
   const c = new MockCore({ delayMs: 0, autoCompleteApp: false, ...options });
   for (let i = 0; i < 20; i += 1) {
     if ((await c.view()).step.step !== 'starting') break;
@@ -110,5 +113,95 @@ describe('Ersteinrichtung (Beispiel)', () => {
     expect(codes.length).toBeGreaterThan(0);
     expect(codes).not.toContain('ng-migration-item-emblem');
     expect(JSON.stringify(v.first_run)).not.toMatch(/logo/i);
+  });
+});
+
+describe('Prüfmodus (Mock wie K4)', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  it('open_verify: zuerst „wird geprüft“, dann das Ergebnis mit eigener DocId und Kacheln; close_verify', async () => {
+    const c = await core();
+    expect((await c.view()).actions.verify).toBe(true);
+    await c.dispatch({ type: 'open_verify', path: '/Users/demo/Vertrag_manipuliert.pdf' });
+    expect((await c.view()).verify?.status).toEqual({ state: 'loading' });
+    await tick();
+    const v = (await c.view()).verify;
+    expect(v?.status).toEqual({ state: 'ready' });
+    expect(v?.summary).toBe('some_broken');
+    expect(v?.doc?.id).toBe(VERIFY_DOC_ID);
+    expect(c.pageTileUrl(VERIFY_DOC_ID, 1, 1)).toMatch(/^data:image\/svg\+xml/);
+    // der Workflow-Zustand bleibt (Prüfmodus liegt darüber)
+    expect((await c.view()).step.step).toBe('open');
+    await c.dispatch({ type: 'close_verify' });
+    expect((await c.view()).verify).toBeNull();
+  });
+
+  it('verify_recent öffnet den Prüfmodus; sign_verified öffnet die Datei im Arbeitsbereich', async () => {
+    const c = await core({ examples: true });
+    await c.dispatch({ type: 'verify_recent', id: 3 });
+    await tick();
+    expect((await c.view()).verify?.file_name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
+    await c.dispatch({ type: 'sign_verified' });
+    expect((await c.view()).verify).toBeNull();
+    for (let i = 0; i < 10 && (await c.view()).document === null; i += 1) await tick();
+    expect((await c.view()).document?.doc.name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
+  });
+
+  it('Freigabe wie K4: Leerlauf, Positionieren, Fertig, Stapelübersicht – nicht beim Signieren', () => {
+    expect(verifyAllowed({ step: { step: 'open', queue: [] } })).toBe(true);
+    expect(verifyAllowed({ step: { step: 'batch' } })).toBe(true);
+    expect(verifyAllowed({ step: { step: 'starting' } })).toBe(false);
+    expect(verifyAllowed({ step: { step: 'finished', exit_code: 0 } })).toBe(false);
+  });
+});
+
+describe('Ersteinrichtung (Mock wie K4)', () => {
+  const LEGACY = '/Users/demo/.pdf-over/PDF-Over.config';
+
+  it('Neuinstallation ohne Altkonfiguration: „neben dem Original“, first_run_completed erst mit finish_first_run', async () => {
+    const c = await core({ firstRun: true });
+    let v = await c.view();
+    expect(v.first_run).toMatchObject({ migration: null, default_backend: null, profile: 'SIGNATURBLOCK_SMALL', block_language: null });
+    await c.dispatch({ type: 'open_settings' });
+    expect((await settingsOf(c)).settings.output.folder).toBe('.');
+    expect((await settingsOf(c)).settings.general.first_run_completed).toBe(false);
+    await c.dispatch({ type: 'close_settings' });
+    const rev = v.first_run?.preview_revision ?? 0;
+    await c.dispatch({ type: 'update_first_run', default_backend: 'id_austria', profile: 'AMTSSIGNATURBLOCK', block_language: 'en' });
+    v = await c.view();
+    expect(v.first_run).toMatchObject({ default_backend: 'id_austria', profile: 'AMTSSIGNATURBLOCK', block_language: 'en' });
+    expect(v.first_run?.preview_revision).toBeGreaterThan(rev);
+    await c.dispatch({ type: 'finish_first_run' });
+    v = await c.view();
+    expect(v.first_run).toBeNull();
+    expect(v.notices.map((n) => n.code)).toContain('ng-firstrun-done');
+    await c.dispatch({ type: 'open_settings' });
+    expect((await settingsOf(c)).settings.general.first_run_completed).toBe(true);
+  });
+
+  it('Migration: Werte der Altkonfiguration, Bildmarke nur bei eigener; offer_migration bietet erneut an', async () => {
+    const c = await core({ firstRun: true, migrationOffer: LEGACY });
+    await c.dispatch({ type: 'accept_migration', store_secrets: false });
+    let v = await c.view();
+    expect(v.first_run?.migration).toBeNull();
+    expect(v.migration).toBeNull();
+    await c.dispatch({ type: 'open_settings' });
+    const s = (await settingsOf(c)).settings;
+    expect(s.signature.emblem).toBeNull();
+    expect(s.output.folder).toBe('/Users/demo/Dokumente/Signiert');
+    await c.dispatch({ type: 'close_settings' });
+    await c.dispatch({ type: 'offer_migration' });
+    v = await c.view();
+    expect(v.migration?.legacy_file).toBe(LEGACY);
+
+    const own = await core({ firstRun: true, migrationOffer: LEGACY, legacyEmblem: '/Users/demo/.pdf-over/eigenes-logo.png' });
+    expect((await own.view()).first_run?.migration?.items.map((i) => i.code)).toContain('ng-migration-item-emblem');
+    await own.dispatch({ type: 'accept_migration', store_secrets: false });
+    await own.dispatch({ type: 'open_settings' });
+    expect((await settingsOf(own)).settings.signature.emblem).toBe('/Users/demo/.pdf-over/eigenes-logo.png');
+
+    const none = await core();
+    await none.dispatch({ type: 'offer_migration' });
+    expect((await none.view()).migration).toBeNull();
   });
 });
