@@ -1349,6 +1349,16 @@ pub enum Event {
         /// von Hand platzierte Einträge ebenfalls automatisch platzieren
         replace_manual: bool,
     },
+    // --- ADR 0004 Nachtrag 9: „PDF hinzufügen“ (Kopfzeile „+ PDF“, Miniaturleiste)
+    /// „Weitere PDFs hinzufügen“ (`UiEvent::OpenFiles { mode: add }`): die Dateien kommen zum offenen Dokument;
+    /// mit der Stapelübersicht werden im Arbeitsbereich alle zusammen zum Stapel – die Platzierung des offenen
+    /// Dokuments bleibt dessen Plan (wie [`Event::ShowBatch`]). Sonst wie [`Event::FilesAdded`]. Startet nichts
+    /// (A1).
+    MoreFilesAdded(Vec<InputDocument>),
+    /// „Anderes PDF öffnen“ (`UiEvent::OpenFiles { mode: replace }`): das offene Dokument (Analysewarnung,
+    /// Arbeitsbereich) wird geschlossen – verworfen, nie signiert –, danach öffnen die Dateien wie in der
+    /// Dokumentauswahl; wartende Dokumente bleiben. Sonst wie [`Event::FilesAdded`]. Startet nichts (A1).
+    DocumentReplaced(Vec<InputDocument>),
 }
 
 /// Effekt, den `pida-core-api` ausführt.

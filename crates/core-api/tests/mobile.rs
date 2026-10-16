@@ -181,7 +181,7 @@ async fn returning_from_the_id_austria_app_restarts_the_long_poll() {
     let backends: Vec<Arc<dyn SignatureBackend>> = vec![Arc::new(AppConfirmBackend(app.clone()))];
     let core = start(&fx, Platform::Ios, mobile_options(&engine, &docs, Some(backends)));
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     wait_form(&core, "Warten auf die App", |f| matches!(f, NativeForm::WaitForApp { .. })).await;
     // Vordergrund ohne Hintergrund (z. B. erstes onResume): nichts
     core.dispatch(UiEvent::Foregrounded);
@@ -232,7 +232,7 @@ async fn app_kill_offers_resume_and_restores_the_prepared_document() {
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
     assert!(core.view().platform.mobile);
     assert_eq!(core.view().platform.os, PlatformOs::Android);
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), b.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), b.clone()], mode: None });
     choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
@@ -288,7 +288,7 @@ async fn resume_can_be_discarded_and_expires() {
     };
     // gesichert, verworfen
     let core = run_until_tan(&fx);
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
@@ -301,7 +301,7 @@ async fn resume_can_be_discarded_and_expires() {
     drop(core);
     // gesichert, zu alt
     let core = run_until_tan(&fx);
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
@@ -330,7 +330,7 @@ async fn cancel_deletes_only_the_state_of_the_running_signature() {
         start(&fx, Platform::Ios, mobile_options(&FakeEngine::new(), &docs, Some(vec![FakeAtrust::new().backend()])))
     };
     let core = new_core();
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
@@ -338,7 +338,7 @@ async fn cancel_deletes_only_the_state_of_the_running_signature() {
     // anderes Dokument, Abbruch in der Anmeldung (vor prepare): Angebot bleibt
     let core = new_core();
     wait_for(&core, "Angebot", |v| v.resume.is_some()).await;
-    core.dispatch(UiEvent::OpenFiles { paths: vec![b.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![b.clone()], mode: None });
     choose_id_austria(&core).await;
     wait_form(&core, "Login", |f| matches!(f, NativeForm::Login { .. })).await;
     core.dispatch(UiEvent::Cancel);
@@ -367,7 +367,7 @@ async fn desktop_does_not_persist_the_prepared_state() {
     };
     let core = start(&fx, Platform::Linux, options);
     assert!(!core.view().platform.mobile);
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
     choose_id_austria(&core).await;
     login(&core).await;
     wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
@@ -388,7 +388,7 @@ async fn mobile_backend_list_has_no_local_bku_and_marks_fido2() {
         let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
         let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
         let core = start(&fx, platform, options);
-        core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+        core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
         let v =
             wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()))
                 .await;
@@ -450,7 +450,7 @@ async fn output_goes_to_app_documents_and_can_be_shared_and_exported() {
     let hooks = Arc::new(RecordingHooks::default());
     let options = CoreOptions { shell: Some(hooks.clone()), ..mobile_options(&FakeEngine::new(), &docs, None) };
     let core = start(&fx, Platform::Ios, options);
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
     let v = wait_for(&core, "Passwort", |v| {
         matches!(&v.step, StepView::Signing { interaction: InteractionView::Secret { .. }, .. })
     })
@@ -551,7 +551,7 @@ async fn pkcs12_import_copies_into_the_sandbox_and_configures_the_keystore() {
     // die Quelldatei bleibt (gehört der Shell); signieren ohne Passwortabfrage
     assert!(p12.is_file());
     let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
     let v = wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if options.len() == 2))
         .await;
     let StepView::Backend { options, .. } = v.step else { unreachable!() };
@@ -576,7 +576,7 @@ async fn pkcs12_import_is_refused_while_signing_and_redacts_the_password() {
         Platform::Ios,
         mobile_options(&FakeEngine::new(), &fx.dir("docs"), Some(vec![FakeAtrust::new().backend()])),
     );
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
     choose_id_austria(&core).await;
     wait_form(&core, "Login", |f| matches!(f, NativeForm::Login { .. })).await;
     core.dispatch(UiEvent::ImportKeystore { path: p12, password: None, remember: false });
@@ -596,7 +596,7 @@ async fn pkcs12_import_from_the_backend_selection_offers_the_keystore() {
     std::fs::copy(testdata(P12), &p12).unwrap();
     let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
     let core = start(&fx, Platform::Android, options);
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
     // nur ID Austria, ohne „Signieren“ kein Autostart: die Auswahl erscheint (kein Zustimmungsdialog)
     wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options } if !options.is_empty())).await;
     core.dispatch(UiEvent::ImportKeystore { path: p12, password: Some("test".into()), remember: false });
@@ -661,7 +661,7 @@ async fn imported_keystore_follows_a_moved_sandbox() {
         };
         let core = start(&fx, platform, options);
         let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
-        core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+        core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
         if platform == Platform::Linux {
             // Desktop: kein Umzug – der Keystore ist nicht verfügbar, die Auswahl erscheint
             let v = wait_for(
@@ -701,7 +701,7 @@ async fn missing_keystore_does_not_start_id_austria_automatically() {
     let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
     let core = start(&fx, Platform::Ios, options);
     let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
     let v = wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()))
         .await;
     let StepView::Backend { options } = v.step else { unreachable!() };
@@ -756,7 +756,7 @@ async fn batch_on_mobile_resumes_only_the_interrupted_document() {
     let fake = FakeAtrust::new();
     let core = start(&fx, Platform::Ios, batch_options(&engine, &fake));
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
-    core.dispatch(UiEvent::OpenFiles { paths: files.clone() });
+    core.dispatch(UiEvent::OpenFiles { paths: files.clone(), mode: None });
     let v = wait_for(&core, "Übersicht", |v| batch_ready(v, 3)).await;
     let b = v.batch.as_ref().unwrap();
     assert_eq!(b.output.mode, pida_core_api::OutputModeView::AppDocuments, "Mobile: App-Dokumente");

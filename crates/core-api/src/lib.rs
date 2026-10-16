@@ -114,6 +114,12 @@
 //!
 //! „Zuletzt signiert“ und „sofort wirksam“ (K3): siehe `recent.rs`, `settings_apply.rs`.
 //!
+//! „PDF hinzufügen“ (ADR 0004 Nachtrag 9, nur im Arbeitsbereich-Modus): `open_files { mode: add }` („Weitere
+//! PDFs hinzufügen“) nimmt die Dateien zum offenen Dokument – mit Stapelübersicht werden alle zusammen zum
+//! Stapel, die Platzierung des offenen Dokuments bleibt dessen Plan; `open_files { mode: replace }` („Anderes PDF
+//! öffnen“) schließt das offene Dokument und öffnet die Dateien wie in der Dokumentauswahl. Ohne `mode` wie
+//! bisher. Keines öffnet eine Sitzung (A1).
+//!
 //! Prüfmodus (K4, ADR 0004 §3.9, `verify.rs`): `open_verify`/`verify_recent` prüfen eine Datei mit
 //! `pades::verify_document` (eigene `DocId` für die Kacheln, nicht in der Warteschlange, der Zustand bleibt),
 //! `close_verify` gibt sie frei, `sign_verified` öffnet sie wie `open_files`. Ersteinrichtung (K4, §3.12,
@@ -172,6 +178,8 @@ pub use view::{
 };
 // Nachtrag K3 (Einstellungen › Dokument)
 pub use view::{DocumentDetectionView, PdfaDecision, PdfaIdView};
+// Nachtrag 9 („PDF hinzufügen“)
+pub use view::OpenFilesMode;
 
 use pida_backend_api::{Platform, SignatureBackend};
 use pida_config::{Overlay, Paths, Policy, SecretStore};

@@ -466,5 +466,20 @@
   {
     "type": "inspect_keystore",
     "password": null
+  },
+  {
+    "type": "open_files",
+    "paths": [
+      "/Users/demo/Angebot.pdf",
+      "/Users/demo/Auftrag.pdf"
+    ],
+    "mode": "add"
+  },
+  {
+    "type": "open_files",
+    "paths": [
+      "/Users/demo/Vertrag.pdf"
+    ],
+    "mode": "replace"
   }
 ]

@@ -6,8 +6,9 @@
  * Prüfmodus, Palette), „Signatur fortsetzen“, Hinweise und die Live-Region.
  *
  * Shell-Dienste: Dateiauswahl (Desktop-Dialog bzw. Mobile-Picker), Drag & Drop über die Fenster-Ereignisse
- * (Pfade), Tastenkürzel ⌘/Strg+O (Öffnen), ⌘/Strg+↵ (Signieren – eine ausdrückliche Aktion, A1), ⌘/Strg+,
- * (Einstellungen), ⌘/Strg+K und „?“ (sobald die Palette da ist), Zugriffstasten (Alt+Taste bzw. ⌃⌥+Taste),
+ * (Pfade; auf „+ PDF hinzufügen“ der Miniaturleiste wie „Weitere PDFs hinzufügen“), Tastenkürzel ⌘/Strg+O
+ * (Öffnen), ⌘/Strg+↵ (Signieren – eine ausdrückliche Aktion, A1), ⌘/Strg+B (Zum Stapel bzw. Zurück zum Stapel),
+ * ⌘/Strg+, (Einstellungen), ⌘/Strg+K und „?“ (sobald die Palette da ist), Zugriffstasten (Alt+Taste bzw. ⌃⌥+Taste),
  * Farbschema, Fokus beim Ansichtswechsel. Der Kern bleibt maßgeblich: Freigaben kommen aus
  * `ViewState::actions`.
  *
@@ -19,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { I18nProvider } from 'react-aria-components';
 import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar, workspaceDefaults } from '../core/defaults';
-import { isMobile, type UiEvent, type ViewState } from '../core/types';
+import { isMobile, type OpenFilesMode, type UiEvent, type ViewState } from '../core/types';
 import { BatchView } from '../features/batch';
 import { DoneView, OutputDialogs } from '../features/done';
 import { Onboarding } from '../features/onboarding';
@@ -32,7 +33,7 @@ import { ErrorCard, FinishedCard, LoadingCard, StartingCard, WarningCard, Worksp
 import { translator } from '../i18n/catalog';
 import { accessKeyFromEvent, trackAltKey, triggerAccessKey } from '../ui/AccessKeys';
 import { Toasts } from '../ui/Toasts';
-import { buildCommands, buildShortcuts } from './commands';
+import { batchNav, buildCommands, buildShortcuts } from './commands';
 import { AppContext, type AppContextValue, type SettingsSectionId, type ShellOverlay, type Toast } from './context';
 import { EMBLEM_DROP_EVENT } from './events';
 import { Header } from './Header';
@@ -200,32 +201,39 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   );
 
   // --- Dateien öffnen --------------------------------------------------------------------------
-  const browse = useCallback(async () => {
-    if (mobile) {
-      // Mobile: Dokument-Picker bzw. SAF über das Plugin; Kopien in der Sandbox (keine Pfade der Quelle)
-      try {
-        const paths = await bridge.pickMobileFiles({ kind: 'pdf', multiple: true });
-        if (paths.length > 0) void dispatch({ type: 'open_files', paths });
-      } catch (e) {
-        const code = e instanceof Error ? e.message : 'ng-ui-dialog-failed';
-        toast(t.code(code, {}, 'ng-ui-dialog-failed'), 'error');
+  // `mode` aus „+ PDF“ (ADR 0004 Nachtrag 9): „Anderes PDF öffnen“ wählt eine Datei, sonst Mehrfachauswahl;
+  // was daraus folgt (Stapel, Schließen), entscheidet der Kern
+  const browse = useCallback(
+    async (mode?: OpenFilesMode) => {
+      const multiple = mode !== 'replace';
+      const open = (paths: string[]) => void dispatch(mode ? { type: 'open_files', paths, mode } : { type: 'open_files', paths });
+      if (mobile) {
+        // Mobile: Dokument-Picker bzw. SAF über das Plugin; Kopien in der Sandbox (keine Pfade der Quelle)
+        try {
+          const paths = await bridge.pickMobileFiles({ kind: 'pdf', multiple });
+          if (paths.length > 0) open(paths);
+        } catch (e) {
+          const code = e instanceof Error ? e.message : 'ng-ui-dialog-failed';
+          toast(t.code(code, {}, 'ng-ui-dialog-failed'), 'error');
+        }
+        return;
       }
-      return;
-    }
-    try {
-      const paths = await bridge.pickFiles({
-        title: t.t('dataSourceSelection-browse'),
-        multiple: true,
-        filters: [
-          { name: t.t('common-PDFExtension_Description'), extensions: ['pdf'] },
-          { name: t.t('common-AllExtension_Description'), extensions: ['*'] },
-        ],
-      });
-      if (paths && paths.length > 0) void dispatch({ type: 'open_files', paths });
-    } catch {
-      toast(t.t('ng-ui-dialog-failed'), 'error');
-    }
-  }, [bridge, dispatch, t, toast, mobile]);
+      try {
+        const paths = await bridge.pickFiles({
+          title: t.t('dataSourceSelection-browse'),
+          multiple,
+          filters: [
+            { name: t.t('common-PDFExtension_Description'), extensions: ['pdf'] },
+            { name: t.t('common-AllExtension_Description'), extensions: ['*'] },
+          ],
+        });
+        if (paths && paths.length > 0) open(paths);
+      } catch {
+        toast(t.t('ng-ui-dialog-failed'), 'error');
+      }
+    },
+    [bridge, dispatch, t, toast, mobile],
+  );
 
   /** Prüfmodus: Datei wählen → `open_verify` (Freigabe `actions.verify`, ab K4). */
   const openVerify = useCallback(async () => {
@@ -271,17 +279,20 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         if (image && hit?.closest('[data-emblem-drop]')) window.dispatchEvent(new CustomEvent(EMBLEM_DROP_EVENT, { detail: image }));
         return;
       }
-      if (v.actions.open_files) void d({ type: 'open_files', paths: e.paths });
+      // auf „+ PDF hinzufügen“ der Miniaturleiste: wie „Weitere PDFs hinzufügen“ (Nachtrag 9)
+      const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(e.x, e.y) : null;
+      const add = !!hit?.closest('[data-add-drop]');
+      if (v.actions.open_files) void d(add ? { type: 'open_files', paths: e.paths, mode: 'add' } : { type: 'open_files', paths: e.paths });
       else tst(translator(v.language).t('ng-ui-drop-not-here'));
     });
   }, [bridge]);
 
   // --- Tastatur --------------------------------------------------------------------------------
-  const keyState = useRef({ current, browse, openSettings, requestSign, overlay });
-  keyState.current = { current, browse, openSettings, requestSign, overlay };
+  const keyState = useRef({ current, browse, openSettings, requestSign, overlay, dispatch });
+  keyState.current = { current, browse, openSettings, requestSign, overlay, dispatch };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { current: v, browse: b, openSettings: settings, requestSign: sign, overlay: o } = keyState.current;
+      const { current: v, browse: b, openSettings: settings, requestSign: sign, overlay: o, dispatch: d } = keyState.current;
       const mod = isMac ? e.metaKey : e.ctrlKey;
       const k = e.key.toLowerCase();
       const blocked = o !== null || v.settings !== null || document.querySelector('[data-modal-layer]') !== null;
@@ -308,6 +319,15 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         if (v.actions.open_files && !blocked) {
           e.preventDefault();
           void b();
+        }
+        return;
+      }
+      if (mod && !e.altKey && !e.shiftKey && k === 'b') {
+        // ⌘/Strg+B = „Zum Stapel“ bzw. „Zurück zum Stapel“ (Freigabe `actions.show_batch` bzw. aus dem Stapel geöffnet)
+        const nav = batchNav(v);
+        if (nav && !blocked) {
+          e.preventDefault();
+          void d({ type: nav === 'back' ? 'back_to_batch' : 'show_batch' });
         }
         return;
       }

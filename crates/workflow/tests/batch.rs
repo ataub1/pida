@@ -614,6 +614,164 @@ fn resumed_document_of_an_interrupted_batch_returns_to_the_overview() {
 }
 
 // ------------------------------------------------------------------------------------------------
+// „PDF hinzufügen“ (ADR 0004 Nachtrag 9): „Weitere PDFs hinzufügen“, „Anderes PDF öffnen“
+// ------------------------------------------------------------------------------------------------
+
+/// Arbeitsbereich mit Dokument `id` (eben analysiert, automatisch platziert).
+fn workspace_with(id: u64, c: &Context) -> State {
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(id)]), c).state;
+    let s = step(s, analyzed(id, 3, None, false), c).state;
+    assert!(matches!(s, State::Positioning { edit: Some(_), .. }), "{}", s.name());
+    s
+}
+
+fn notified(effects: &[Effect], code: &str) -> bool {
+    effects.iter().any(|e| matches!(e, Effect::NotifyWith(c, _) if c == code))
+}
+
+#[test]
+fn more_files_in_the_workspace_become_a_batch_with_the_placement_as_plan() {
+    let s = workspace_with(1, &ctx());
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(s, Event::PlacementChanged(p), &ctx()).state;
+    let t = step(s, Event::MoreFilesAdded(vec![doc(2), doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    let b = batch_of(&t.state);
+    assert_eq!(b.items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![1, 2, 3], "alle zusammen");
+    assert_eq!(b.item(DocId(1)).unwrap().plan, Some(PositionChoice::Manual(p)), "Platzierung bleibt Plan");
+    assert!(b.open.is_none());
+    assert!(t.effects.contains(&Effect::Discard(DocId(1))));
+    assert!(t.effects.contains(&Effect::Preanalyze(DocId(2))) && t.effects.contains(&Effect::Preanalyze(DocId(3))));
+    assert!(!notified(&t.effects, "ng-batch-added"), "kein Hinweis – die Übersicht zeigt sie");
+    assert_eq!(opens(&t.effects), 0, "startet nichts (A1)");
+    // automatisch platziert: kein eigener Plan, folgt den Einstellungen
+    let t = step(workspace_with(1, &ctx()), Event::MoreFilesAdded(vec![doc(2)]), &ctx());
+    let item = batch_of(&t.state).item(DocId(1)).cloned().unwrap();
+    assert!(item.plan.is_none() && item.auto_plan, "{item:?}");
+}
+
+#[test]
+fn more_files_that_are_already_open_change_nothing() {
+    let s = workspace_with(1, &ctx());
+    let same = pida_workflow::InputDocument::new(DocId(9), "/in/doc1.pdf");
+    let t = step(s.clone(), Event::MoreFilesAdded(vec![same]), &ctx());
+    assert_eq!(t.state, s);
+    assert!(t.effects.is_empty(), "{:?}", t.effects);
+}
+
+#[test]
+fn more_files_in_an_opened_item_return_to_the_overview_with_the_new_entries() {
+    let s = step(overview(&[1, 2]), Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    assert!(s.opened_from_batch());
+    let t = step(s, Event::MoreFilesAdded(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.len(), 3);
+    assert_eq!(status(&t.state, 3), BatchItemStatus::Analyzing);
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Ready);
+    assert!(t.effects.contains(&Effect::Preanalyze(DocId(3))));
+}
+
+#[test]
+fn more_files_outside_the_workspace_or_without_overview_behave_like_files_added() {
+    // Analysewarnung: an die Warteschlange mit Hinweis (wie `FilesAdded`)
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1)]), &ctx()).state;
+    let mut warning = analyzed(1, 3, None, false);
+    if let Event::Analyzed { warnings, .. } = &mut warning {
+        warnings.push("pdf-usage-rights".into());
+    }
+    let s = step(s, warning, &ctx()).state;
+    assert!(matches!(s, State::AnalysisWarning { .. }));
+    let a = step(s.clone(), Event::MoreFilesAdded(vec![doc(2)]), &ctx());
+    let b = step(s, Event::FilesAdded(vec![doc(2)]), &ctx());
+    assert_eq!((a.state, a.effects), (b.state, b.effects));
+    // Dokumentauswahl: wie `FilesAdded` (zwei → Übersicht)
+    let idle = || State::Idle { queue: Queue::default() };
+    let a = step(idle(), Event::MoreFilesAdded(vec![doc(1), doc(2)]), &ctx());
+    assert_eq!(a, step(idle(), Event::FilesAdded(vec![doc(1), doc(2)]), &ctx()));
+    // ohne Stapelübersicht: an die Warteschlange, der Arbeitsbereich bleibt
+    let single = Context { workspace: true, ..Context::default() };
+    let t = step(workspace_with(1, &single), Event::MoreFilesAdded(vec![doc(2)]), &single);
+    let State::Positioning { queue, .. } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.pending.iter().map(|d| d.id.0).collect::<Vec<_>>(), vec![2]);
+}
+
+#[test]
+fn replace_closes_the_document_and_opens_the_chosen_one() {
+    let s = workspace_with(1, &ctx());
+    let p = Placement { page_index: 0, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(s, Event::PlacementChanged(p), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(2)]), &ctx());
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(2)));
+    assert!(queue.pending.is_empty() && queue.batch.is_none());
+    assert_eq!(queue.done.len(), 1);
+    assert_eq!((queue.done[0].doc.id, &queue.done[0].result), (DocId(1), &pida_workflow::DocResult::Cancelled));
+    assert_eq!(t.effects.first(), Some(&Effect::Discard(DocId(1))));
+    assert!(t.effects.contains(&Effect::Analyze(DocId(2))));
+    assert_eq!(opens(&t.effects), 0, "startet nichts (A1)");
+    // dieselbe Datei erneut: frisch geöffnet (eigene Kennung, Platzierung neu)
+    let s = workspace_with(1, &ctx());
+    let same = pida_workflow::InputDocument::new(DocId(9), "/in/doc1.pdf");
+    let t = step(s, Event::DocumentReplaced(vec![same]), &ctx());
+    assert!(matches!(&t.state, State::Analyzing { queue } if queue.current_id() == Some(DocId(9))));
+}
+
+#[test]
+fn replace_with_waiting_documents_keeps_them() {
+    // mit Stapelübersicht: das neue und das wartende Dokument → Übersicht (ohne das geschlossene)
+    let s = workspace_with(1, &ctx());
+    let s = step(s, Event::FilesAdded(vec![doc(2)]), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![2, 3]);
+    assert!(t.effects.contains(&Effect::Discard(DocId(1))));
+    // ohne Stapelübersicht: das neue wird geöffnet, das wartende wartet weiter
+    let single = Context { workspace: true, ..Context::default() };
+    let s = step(workspace_with(1, &single), Event::FilesAdded(vec![doc(2)]), &single).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &single);
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(3)));
+    assert_eq!(queue.pending.iter().map(|d| d.id.0).collect::<Vec<_>>(), vec![2]);
+}
+
+#[test]
+fn replace_in_an_opened_item_replaces_the_entry() {
+    let s = step(overview(&[1, 2]), Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![2, 3]);
+    assert!(t.effects.contains(&Effect::Discard(DocId(1))) && t.effects.contains(&Effect::Preanalyze(DocId(3))));
+    assert!(t.state.queue().unwrap().find(DocId(1)).is_none(), "entfernt, nicht verbucht");
+    // einziger Eintrag: der Stapel entfällt, das neue Dokument öffnet im Arbeitsbereich
+    let s = step(overview(&[1, 2]), Event::BatchItemRemoved(DocId(2)), &ctx()).state;
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let t = step(s, Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(3)));
+    assert!(queue.batch.is_none());
+}
+
+#[test]
+fn replace_outside_the_workspace_behaves_like_files_added() {
+    // im Stapellauf: nie ein Dokument des Laufs schließen – an die Übersicht wie `FilesAdded`
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::Keystore, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(1, BatchPhase::Confirming);
+    let a = step(d.state.clone(), Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    let b = step(d.state.clone(), Event::FilesAdded(vec![doc(3)]), &ctx());
+    assert_eq!(a, b);
+    // Stapelübersicht und Dokumentauswahl: wie `FilesAdded`
+    let a = step(overview(&[1, 2]), Event::DocumentReplaced(vec![doc(3)]), &ctx());
+    assert_eq!(a, step(overview(&[1, 2]), Event::FilesAdded(vec![doc(3)]), &ctx()));
+    // ohne Dateien: unverändert
+    let s = workspace_with(1, &ctx());
+    let t = step(s.clone(), Event::DocumentReplaced(Vec::new()), &ctx());
+    assert_eq!((t.state, t.effects.len()), (s, 0));
+}
+
+// ------------------------------------------------------------------------------------------------
 // Lauf
 // ------------------------------------------------------------------------------------------------
 

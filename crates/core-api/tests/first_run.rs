@@ -372,7 +372,7 @@ async fn fresh_install_saves_the_signed_file_next_to_the_original() {
     wait_for(&core, "Ersteinrichtung", |v| started(v) && v.first_run.is_some()).await;
     core.dispatch(UiEvent::FinishFirstRun);
     wait_for(&core, "fertig", |v| v.first_run.is_none()).await;
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
     wait_for(&core, "Arbeitsbereich", |v| {
         v.document.as_ref().is_some_and(|d| d.phase == pida_core_api::DocumentPhase::Editing)
     })

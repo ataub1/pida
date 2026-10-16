@@ -134,7 +134,7 @@ async fn gui_model_b_with_forms_and_save_dialog() {
     let core = fx.start(Overlay::default(), false, CoreOptions { backends: Some(backends), ..options(&engine) });
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
     assert!(core.view().main_bar.settings_enabled);
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), input.join("fehlt.pdf")] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), input.join("fehlt.pdf")], mode: None });
     // nur ID Austria verfügbar, aber ohne „Signieren“ (automatische Position): kein Autostart (F-54,
     // ADR 0003) – die Auswahl erscheint, die Option trägt `document_leaves_device` (Kurzhinweis der UI)
     let v =
@@ -676,8 +676,8 @@ async fn open_files_ignores_missing_and_navigation_discards() {
     let engine = FakeEngine::new();
     let core = fx.start(Overlay::default(), false, options(&engine));
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
-    core.dispatch(UiEvent::OpenFiles { paths: vec![input.join("fehlt.pdf")] });
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), b.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![input.join("fehlt.pdf")], mode: None });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), b.clone()], mode: None });
     // ohne PDFium: keine Vorschau → automatische Position mit Hinweis → Auswahl
     let v = wait_for(&core, "Auswahl", |v| matches!(v.step, StepView::Backend { .. })).await;
     assert!(v.main_bar.steps[1].enabled, "Positionierung klickbar");
@@ -709,7 +709,7 @@ async fn discarded_document_is_not_kept_after_late_analysis() {
     // ein neu geöffnetes Dokument wird normal geladen
     engine.analyze_delay_ms.store(0, Ordering::SeqCst);
     let b = copy_pdf(PDF, &input, "b.pdf");
-    core.dispatch(UiEvent::OpenFiles { paths: vec![b] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![b], mode: None });
     wait_for(&core, "nächster Schritt", |v| matches!(v.step, StepView::Backend { .. } | StepView::Position { .. }))
         .await;
     assert_eq!(core.open_document_count(), 1);
@@ -848,7 +848,7 @@ async fn analysis_warning_asks_before_signing() {
     assert_eq!(v.done[0].result, DocResult::Cancelled);
     assert_eq!(core.open_document_count(), 0);
     // Fortfahren → weiter im Ablauf
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     wait_for(&core, "Warnung", |v| matches!(v.step, StepView::Warning { .. })).await;
     core.dispatch(UiEvent::AnswerWarning { proceed: true });
     wait_for(&core, "weiter", |v| matches!(v.step, StepView::Backend { .. } | StepView::Position { .. })).await;
@@ -1012,7 +1012,7 @@ async fn classic_mode_ignores_workspace_and_later_stage_events() {
     assert_eq!(v.signers, SignersView::default());
     let language = v.language;
 
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     // ohne PDFium (isolierter Kern) automatische Position → Signiermittel-Auswahl (klassischer Ablauf)
     let v = wait_for(&core, "Positionieren/Auswahl", |v| {
         matches!(&v.step, StepView::Position { .. })

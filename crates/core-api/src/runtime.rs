@@ -2221,13 +2221,19 @@ impl CoreTask {
             return;
         }
         match event {
-            UiEvent::OpenFiles { paths } => {
+            UiEvent::OpenFiles { paths, mode } => {
                 let docs = self.input_documents(&paths);
                 if !docs.is_empty() {
                     // Öffnen zeigt die Datei im Arbeitsbereich: ein offener Prüfmodus schließt (sonst läge sie
                     // verdeckt darunter)
                     self.release_verify();
-                    self.apply(Event::FilesAdded(docs));
+                    // „+ PDF“ (ADR 0004 Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ im Zustand bedeutet,
+                    // entscheidet der Reducer; im klassischen Ablauf ohne Bedeutung
+                    self.apply(match mode.filter(|_| self.ws.enabled) {
+                        None => Event::FilesAdded(docs),
+                        Some(crate::view::OpenFilesMode::Add) => Event::MoreFilesAdded(docs),
+                        Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
+                    });
                 }
             }
             UiEvent::AnswerWarning { proceed } => self.apply(Event::WarningAnswered(proceed)),

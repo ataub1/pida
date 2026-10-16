@@ -330,7 +330,7 @@ fn saved(v: &ViewState) -> bool {
 
 /// Dokument öffnen und im Arbeitsbereich „Signieren mit Keystore“ wählen.
 async fn sign_with_keystore(core: &Core, fx: &Fixture, name: &str) {
-    core.dispatch(UiEvent::OpenFiles { paths: vec![copy_pdf(PDF, &fx.dir("in"), name)] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![copy_pdf(PDF, &fx.dir("in"), name)], mode: None });
     wait_for(core, "Signieren möglich", |v| v.actions.sign).await;
     core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
 }

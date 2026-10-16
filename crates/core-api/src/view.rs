@@ -576,6 +576,21 @@ impl std::fmt::Debug for FormAnswerView {
     }
 }
 
+/// Wie `open_files` die gewählten Dateien zum offenen Dokument nimmt (Kopfzeile „+ PDF“, Miniaturleiste;
+/// ADR 0004 Nachtrag 9). Was daraus folgt, entscheidet der Kern nach dem Zustand.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpenFilesMode {
+    /// „Weitere PDFs hinzufügen“: das offene Dokument bleibt; im Arbeitsbereich werden alle zusammen zum Stapel
+    /// (Stapelübersicht, die Platzierung des offenen Dokuments bleibt dessen Plan). Sonst wie ohne `mode`.
+    Add,
+    /// „Anderes PDF öffnen“: das offene Dokument (Analysewarnung, Arbeitsbereich) wird geschlossen und nie
+    /// signiert, die Dateien öffnen wie in der Dokumentauswahl; wartende Dokumente bleiben. Sonst wie ohne
+    /// `mode`.
+    Replace,
+}
+
 /// UI-Ereignis.
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -585,6 +600,12 @@ pub enum UiEvent {
     OpenFiles {
         /// Pfade
         paths: Vec<PathBuf>,
+        /// Wie die Dateien zum offenen Dokument kommen (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9);
+        /// `None` = wie bisher (der Kern entscheidet nach dem Zustand: Auswahl öffnen, sonst an die
+        /// Warteschlange). Nur im Arbeitsbereich-Modus, sonst ohne Bedeutung. In TypeScript optional.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "ts", ts(optional = nullable))]
+        mode: Option<OpenFilesMode>,
     },
     /// Antwort auf die Warnung der Analyse ([`StepView::Warning`]): trotzdem signieren bzw. Dokument
     /// verwerfen
@@ -926,6 +947,11 @@ impl std::fmt::Debug for UiEvent {
                 .field("remember", remember)
                 .finish(),
             // ADR 0004: ohne Pfade und Einstellungswerte (Benutzername, Ordner; Regel 9)
+            UiEvent::OpenFiles { paths, mode } => f
+                .debug_struct("OpenFiles")
+                .field("paths", &format_args!("<{} Pfade>", paths.len()))
+                .field("mode", mode)
+                .finish(),
             UiEvent::OpenVerify { .. } => f.debug_struct("OpenVerify").field("path", &"<Pfad>").finish(),
             UiEvent::StartBatch { backend, docs, output_dir, on_existing } => f
                 .debug_struct("StartBatch")

@@ -205,6 +205,22 @@ fn back(mut queue: Queue, doc: DocId, how: Back, mut effects: Vec<Effect>) -> Tr
     Transition::with(State::BatchOverview { queue }, effects)
 }
 
+/// Einzeldokument im Arbeitsbereich → Übersicht mit der Platzierung als Plan des Dokuments („Zurück zum
+/// Stapel“, „Zum Stapel“, „Weitere PDFs hinzufügen“).
+fn back_with_plan(
+    queue: Queue,
+    placement: Option<Placement>,
+    new_page: bool,
+    doc: &DocFacts,
+    edit: &WorkspaceEdit,
+) -> Transition {
+    let plan = plan_of(edit, placement, new_page, doc);
+    // „Unsichtbar signieren“ von der Nutzerin ist ihr Plan: er folgt nicht mehr den Einstellungen
+    // (sonst ginge er beim erneuten Öffnen bzw. bei der nächsten Einstellungsänderung verloren)
+    let automatic = edit.automatic && !(edit.invisible && !edit.invisible_by_profile);
+    back(queue, doc.id, Back::Plan(plan, automatic), Vec::new())
+}
+
 /// Zustand und Ereignis, die [`intercept`] nicht behandelt (geboxt: beide sind groß).
 pub(super) type Unhandled = Box<(State, Event)>;
 
@@ -218,11 +234,7 @@ pub(super) fn intercept(state: State, event: Event, _ctx: &Context) -> Result<Tr
             State::Positioning { queue, placement, new_page, doc, edit: Some(edit), .. }
                 if opened || (show && !queue.pending.is_empty()) =>
             {
-                let plan = plan_of(&edit, placement, new_page, &doc);
-                // „Unsichtbar signieren“ von der Nutzerin ist ihr Plan: er folgt nicht mehr den Einstellungen
-                // (sonst ginge er beim erneuten Öffnen bzw. bei der nächsten Einstellungsänderung verloren)
-                let automatic = edit.automatic && !(edit.invisible && !edit.invisible_by_profile);
-                Ok(back(queue, doc.id, Back::Plan(plan, automatic), Vec::new()))
+                Ok(back_with_plan(queue, placement, new_page, &doc, &edit))
             }
             State::Output { mut queue, saved: Some(output), doc, .. }
                 if show && !opened && !queue.pending.is_empty() =>
@@ -463,6 +475,24 @@ pub(super) fn files_added(state: State, docs: Vec<InputDocument>, ctx: &Context)
             }
             t
         }
+    }
+}
+
+/// „Weitere PDFs hinzufügen“ (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9): im Arbeitsbereich kommen
+/// die Dateien zum offenen Dokument, und alle zusammen werden zum Stapel – die Platzierung des offenen Dokuments
+/// wird wie bei „Zum Stapel“ dessen Plan (aus der Übersicht geöffnet: wie „Zurück zum Stapel“ mit den neuen
+/// Einträgen). Nur Duplikate → unverändert. In allen anderen Zuständen wie [`files_added`] (z. B. Analysewarnung:
+/// an die Warteschlange mit Hinweis `ng-batch-added`). Startet nichts (A1).
+pub(super) fn more_files_added(state: State, docs: Vec<InputDocument>, ctx: &Context) -> Transition {
+    match state {
+        State::Positioning { mut queue, page, placement, new_page, doc, edit: Some(edit) } => {
+            if queue.append(docs).is_empty() {
+                let edit = Some(edit);
+                return Transition::stay(State::Positioning { queue, page, placement, new_page, doc, edit });
+            }
+            back_with_plan(queue, placement, new_page, &doc, &edit)
+        }
+        s => files_added(s, docs, ctx),
     }
 }
 

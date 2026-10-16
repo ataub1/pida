@@ -830,6 +830,74 @@ async fn single_document_from_the_overview_keeps_its_plan_and_counts_as_signed()
 }
 
 // ------------------------------------------------------------------------------------------------
+// „PDF hinzufügen“ (ADR 0004 Nachtrag 9): Kopfzeile „+ PDF“, Miniaturleiste
+// ------------------------------------------------------------------------------------------------
+
+/// „Weitere PDFs hinzufügen“ im Arbeitsbereich: alle zusammen werden zum Stapel, die Platzierung des offenen
+/// Dokuments bleibt dessen Plan; „Anderes PDF öffnen“ in einem aus der Übersicht geöffneten Eintrag ersetzt ihn.
+/// Nichts davon öffnet eine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn more_pdfs_join_the_open_document_as_a_batch_and_replace_swaps_an_entry() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf", "b.pdf", "c.pdf", "d.pdf"]);
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(vec![files[0].clone()], &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich a", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf" && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    // eigener Plan für a (ohne PDFium: „Unsichtbar signieren“), dann „Weitere PDFs hinzufügen“ mit b und c
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    let add = Some(pida_core_api::OpenFilesMode::Add);
+    core.dispatch(UiEvent::OpenFiles { paths: vec![files[1].clone(), files[2].clone()], mode: add });
+    let v = overview_ready(&core, 3).await;
+    let a = batch(&v).items.iter().find(|i| i.name == "a.pdf").unwrap();
+    assert_eq!(
+        (a.status.clone(), a.position.clone()),
+        (BatchItemStatusView::Positioned, PositionSummaryView::Invisible)
+    );
+    assert!(v.document.is_none() && !v.notices.iter().any(|n| n.code == "ng-batch-added"));
+    // b öffnen, „Anderes PDF öffnen“ mit d: b verschwindet aus dem Stapel, d kommt dazu
+    let b = doc_of(&v, "b.pdf");
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    wait_for(&core, "Arbeitsbereich b", |v| v.document.as_ref().is_some_and(|d| d.doc.id == b)).await;
+    core.dispatch(UiEvent::OpenFiles {
+        paths: vec![files[3].clone()],
+        mode: Some(pida_core_api::OpenFilesMode::Replace),
+    });
+    let v = overview_ready(&core, 3).await;
+    let mut names: Vec<_> = batch(&v).items.iter().map(|i| i.name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["a.pdf", "c.pdf", "d.pdf"]);
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung ohne „Alle signieren“ (F-54)");
+}
+
+/// „Anderes PDF öffnen“ in einem Einzeldokument: das offene Dokument wird geschlossen (nie signiert), das gewählte
+/// öffnet im Arbeitsbereich – ohne Stapel und ohne Sitzung.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn replace_opens_the_chosen_pdf_instead_of_the_open_one() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf", "b.pdf"]);
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(vec![files[0].clone()], &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich a", |v| v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf")).await;
+    core.dispatch(UiEvent::OpenFiles {
+        paths: vec![files[1].clone()],
+        mode: Some(pida_core_api::OpenFilesMode::Replace),
+    });
+    let v = wait_for(&core, "Arbeitsbereich b", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.name == "b.pdf" && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    assert!(v.batch.is_none() && !v.actions.show_batch, "kein Stapel, nichts wartet");
+    assert!(v.done.iter().any(|d| d.name == "a.pdf" && d.result == pida_workflow::DocResult::Cancelled));
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
+// ------------------------------------------------------------------------------------------------
 // Punkt 7: vorhandene Zieldateien, Ordnerwahl
 // ------------------------------------------------------------------------------------------------
 

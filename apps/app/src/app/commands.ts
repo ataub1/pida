@@ -9,12 +9,14 @@
  */
 import type { ComponentType } from 'react';
 import type { Translator } from '../i18n/catalog';
-import type { UiEvent, ViewState } from '../core/types';
+import type { OpenFilesMode, UiEvent, ViewState } from '../core/types';
 import {
+  IconFilePlus,
   IconFolder,
   IconGlobe,
   IconHome,
   IconKeyboard,
+  IconLayers,
   IconMonitor,
   IconMoon,
   IconSettings,
@@ -27,6 +29,8 @@ import type { Theme } from './theme';
 
 export type CommandId =
   | 'open'
+  | 'add'
+  | 'batch'
   | 'sign'
   | 'verify'
   | 'settings'
@@ -44,7 +48,7 @@ export type CommandGroup = 'actions' | 'view' | 'help';
 /** Tastenkürzel eines Befehls: `mod` = ⌘ (macOS) bzw. Strg. */
 export interface KeyCombo {
   mod: boolean;
-  key: 'O' | 'Enter' | ',' | 'K' | '?';
+  key: 'O' | 'B' | 'Enter' | ',' | 'K' | '?';
 }
 
 /** Statische Beschreibung eines Befehls. */
@@ -60,6 +64,9 @@ export interface CommandSpec {
 /** Alle Befehle in der Reihenfolge der Palette. */
 export const COMMANDS: readonly CommandSpec[] = [
   { id: 'open', group: 'actions', label: 'ng-ui-shell-cmd-open', keys: { mod: true, key: 'O' }, icon: IconFolder },
+  // „PDF hinzufügen“ und Stapel (ADR 0004 Nachtrag 9)
+  { id: 'add', group: 'actions', label: 'ng-ui-shell-cmd-add', icon: IconFilePlus },
+  { id: 'batch', group: 'actions', label: 'ng-ui-shell-cmd-batch', keys: { mod: true, key: 'B' }, icon: IconLayers },
   { id: 'sign', group: 'actions', label: 'ng-ui-shell-cmd-sign', keys: { mod: true, key: 'Enter' }, icon: IconSignature },
   { id: 'verify', group: 'actions', label: 'ng-ui-shell-cmd-verify', icon: IconShieldCheck },
   { id: 'settings', group: 'actions', label: 'ng-ui-shell-cmd-settings', keys: { mod: true, key: ',' }, icon: IconSettings },
@@ -79,6 +86,10 @@ export function isCommandEnabled(id: CommandId, view: ViewState): boolean {
   switch (id) {
     case 'open':
       return a.open_files;
+    case 'add':
+      return a.open_files && addAvailable(view);
+    case 'batch':
+      return batchNav(view) !== null;
     case 'sign':
       // im Stapel: „Alle signieren“ (ausdrückliche Aktion, A1)
       return a.sign || a.start_batch;
@@ -92,6 +103,30 @@ export function isCommandEnabled(id: CommandId, view: ViewState): boolean {
     default:
       return true;
   }
+}
+
+/**
+ * „PDF hinzufügen“ (Palette, ADR 0004 Nachtrag 9): zu einem Dokument im Arbeitsbereich (wie „Weitere PDFs
+ * hinzufügen“ in der Kopfzeile) bzw. in die Stapelübersicht; nicht im Prüfmodus und nicht im Lauf.
+ */
+function addAvailable(view: ViewState): boolean {
+  if (view.verify) return false;
+  const doc = view.document;
+  if (doc) return doc.phase === 'editing' || doc.phase === 'warning';
+  return view.step.step === 'batch' && !!view.batch && !view.batch.running;
+}
+
+/**
+ * „Zum Stapel“ bzw. „Zurück zum Stapel“ (Kopfzeile, Palette, ⌘/Strg+B): `back` für ein aus der Übersicht geöffnetes
+ * Dokument (`batch.open_item`, Arbeitsbereich bzw. Analysewarnung), `show` mit der Freigabe `actions.show_batch`
+ * (weitere Dokumente warten), sonst `null`. Was dabei mit der Platzierung geschieht, entscheidet der Kern.
+ */
+export function batchNav(view: ViewState): 'back' | 'show' | null {
+  if (view.verify) return null;
+  const doc = view.document;
+  const batch = view.batch;
+  if (doc && batch && batch.open_item === doc.doc.id && (doc.phase === 'editing' || doc.phase === 'warning')) return 'back';
+  return view.actions.show_batch ? 'show' : null;
 }
 
 /**
@@ -109,7 +144,7 @@ export interface CommandDeps {
   t: Translator;
   isMac: boolean;
   dispatch: (event: UiEvent) => Promise<boolean>;
-  browse: () => Promise<void>;
+  browse: (mode?: OpenFilesMode) => Promise<void>;
   requestSign: () => void;
   openSettings: (section?: SettingsSectionId) => void;
   setTheme: (theme: Theme) => void;
@@ -147,6 +182,13 @@ export function buildCommands(deps: CommandDeps): CommandEntry[] {
     switch (id) {
       case 'open':
         return () => void deps.browse();
+      case 'add':
+        return () => void deps.browse('add');
+      case 'batch':
+        return () => {
+          const nav = batchNav(deps.view);
+          if (nav) void deps.dispatch({ type: nav === 'back' ? 'back_to_batch' : 'show_batch' });
+        };
       case 'sign':
         return deps.requestSign;
       case 'verify':
@@ -171,11 +213,13 @@ export function buildCommands(deps: CommandDeps): CommandEntry[] {
         return () => deps.setOverlay('shortcuts');
     }
   };
+  // aus der Übersicht geöffnet: „Zurück zum Stapel“ statt „Zum Stapel“ (gleiches Kürzel)
+  const label = (c: CommandSpec) => (c.id === 'batch' && batchNav(view) === 'back' ? 'ng-ui-shell-cmd-batch-back' : c.label);
   return COMMANDS.map((c) => ({
     id: c.id,
     group: c.group,
-    label: t.t(c.label),
-    keywords: t.attr(c.label, 'keywords') ?? '',
+    label: t.t(label(c)),
+    keywords: t.attr(label(c), 'keywords') ?? '',
     keys: c.keys ? keyCaps(c.keys, isMac, t) : [],
     icon: c.icon,
     isDisabled: !isCommandEnabled(c.id, view),

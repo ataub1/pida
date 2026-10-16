@@ -365,6 +365,79 @@ function openFiles(s: FlowState, ctx: MockCtx, paths: string[]): void {
   if (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading') ctx.notify('ng-batch-added', { count: String(fresh.length) });
 }
 
+/**
+ * „Weitere PDFs hinzufügen“ (`open_files { mode: 'add' }`, ADR 0004 Nachtrag 9) wie der Kern
+ * (`Event::MoreFilesAdded`): im Arbeitsbereich werden das offene Dokument und die neuen zusammen zum Stapel, die
+ * Platzierung des offenen Dokuments bleibt dessen Plan (wie `show_batch`); aus der Übersicht geöffnet zurück mit
+ * den neuen Einträgen; nur Duplikate → nichts; sonst (Analysewarnung, Start, Übersicht …) wie `open_files`.
+ */
+function addFiles(s: FlowState, ctx: MockCtx, paths: string[]): void {
+  const d = current(s);
+  const edit = s.edit;
+  if (s.stage !== 'editing' || !d || !edit || !batchOn(s) || (s.batch && !fromBatch(s))) {
+    openFiles(s, ctx, paths);
+    return;
+  }
+  const fresh = paths.filter((p, i) => paths.indexOf(p) === i && !s.queue.some((q) => q.path === p) && !s.batch?.has(p));
+  if (fresh.length === 0) return;
+  const docs = fresh.map((p) => makeDoc(s, p));
+  if (s.batch) {
+    s.batch.back(d.id, planFromEdit(d, edit), followsSettings(edit));
+    s.batch.add(docs);
+  } else {
+    const [cur, ...rest] = s.queue;
+    const batch = new MockBatch(batchHost(s, ctx));
+    if (cur) batch.addEdited(cur, planFromEdit(cur, edit), followsSettings(edit));
+    batch.add([...rest, ...docs]);
+    s.batch = batch;
+  }
+  leaveSingle(s);
+}
+
+/**
+ * „Anderes PDF öffnen“ (`open_files { mode: 'replace' }`, ADR 0004 Nachtrag 9) wie der Kern
+ * (`Event::DocumentReplaced`): das offene Dokument der Analysewarnung bzw. des Arbeitsbereichs wird geschlossen
+ * (nie signiert, „abgebrochen“), die Dateien öffnen wie in der Dokumentauswahl; wartende Dokumente bleiben (mit
+ * ihnen ab zwei Dokumenten die Übersicht). Aus der Übersicht geöffnet ersetzt es den Eintrag. Sonst wie
+ * `open_files`.
+ */
+function replaceDocument(s: FlowState, ctx: MockCtx, paths: string[]): void {
+  const d = current(s);
+  const unique = paths.filter((p, i) => paths.indexOf(p) === i);
+  if (!d || unique.length === 0 || (s.stage !== 'editing' && s.stage !== 'warning')) {
+    openFiles(s, ctx, paths);
+    return;
+  }
+  const b = s.batch;
+  if (b && fromBatch(s)) {
+    b.back(d.id, undefined);
+    b.remove(d.id);
+    leaveSingle(s);
+    if (b.size > 0) {
+      b.add(unique.filter((p) => !b.has(p)).map((p) => makeDoc(s, p)));
+      return;
+    }
+    s.batch = null;
+  } else {
+    finishDoc(s, { kind: 'cancelled' });
+    s.queue.shift();
+  }
+  s.edit = null;
+  s.error = null;
+  s.output = EMPTY_OUTPUT;
+  s.summary = null;
+  s.explicit = false;
+  const waiting = s.queue;
+  const fresh = unique.filter((p) => !waiting.some((q) => q.path === p)).map((p) => makeDoc(s, p));
+  if (batchOn(s) && waiting.length + fresh.length >= 2) {
+    enterBatch(s, ctx, [...waiting, ...fresh]);
+    return;
+  }
+  const [first, ...more] = fresh;
+  s.queue = first ? [first, ...waiting, ...more] : waiting;
+  analyze(s, ctx);
+}
+
 /** Plan aus dem Bearbeitungszustand (`BackToBatch`/`ShowBatch`; `origin == Auto` → automatisch). */
 function planFromEdit(d: MockDoc, e: EditState): BatchPlan | null {
   if (e.invisible && !e.invisibleProfile) return { kind: 'invisible' };
@@ -832,7 +905,10 @@ const flowArea: MockArea<FlowState> = {
     }
     switch (e.type) {
       case 'open_files':
-        openFiles(s, ctx, e.paths);
+        // „+ PDF“ (Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ bedeutet, entscheidet der Kern – der Mock folgt
+        if (e.mode === 'add') addFiles(s, ctx, e.paths);
+        else if (e.mode === 'replace') replaceDocument(s, ctx, e.paths);
+        else openFiles(s, ctx, e.paths);
         return true;
       case 'show_batch':
         if ((s.stage === 'editing' || s.stage === 'warning') && !b && batchOn(s) && d && s.queue.length > 1) {

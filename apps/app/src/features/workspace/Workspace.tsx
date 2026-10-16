@@ -23,7 +23,7 @@ import { useNarrow } from '../../ui/hooks';
 import { IconEyeOff, IconFitWidth, IconQr, IconSidebar, IconSignature, IconZoomIn, IconZoomOut } from '../../ui/Icons';
 import { Inspector } from './Inspector';
 import { Pages } from './Pages';
-import { announceText, displayPages, layoutPages, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
+import { announceText, displayPages, isAutoPlaced, layoutPages, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
 import { Thumbnails } from './Thumbnails';
 import './workspace.css';
 
@@ -47,7 +47,7 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   const [pagesOpen, setPagesOpen] = useState(!narrow);
   // Sprechblase „automatisch … platziert“ nur, solange die Lage aus der Automatik stammt (frei, QR-Platzhalter
   // bzw. Signaturfeld der Platzhaltersuche; ohne `detection` wie bisher nach `origin`)
-  const autoPlaced = doc.detection ? doc.detection.auto_placed : doc.origin === 'auto';
+  const autoPlaced = isAutoPlaced(doc);
   const [coach, setCoach] = useState(autoPlaced && doc.phase === 'editing');
   const [chip, setChip] = useState<{ open: boolean; sign: boolean }>({ open: false, sign: false });
   const [viewport, setViewport] = useState({ top: 0, height: 0 });

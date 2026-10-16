@@ -498,7 +498,8 @@ const formAnswer = tagged('kind', {
 });
 
 const uiEvent = tagged('type', {
-  open_files: { paths: arr(str) },
+  // Nachtrag 9: „+ PDF“ – in TS optional, ohne `mode` wie bisher
+  open_files: { paths: arr(str), mode: omittable(lit('add', 'replace')) },
   answer_warning: { proceed: bool },
   placeholder_answer: { answer: lit('Yes', 'No', 'Cancel'), field_index: nullable(int) },
   move_block: { page: int, x: num, y: num },

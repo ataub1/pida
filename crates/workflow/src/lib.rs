@@ -71,6 +71,7 @@
 //! | gespeichert mit wartenden Dokumenten | kein F-88: „Fertig“ mit „Nächstes Dokument“ (außer `cli_auto`) |
 //! | Hauptleiste Positionieren/Signieren | ohne Wirkung |
 //! | Einstellung „Automatische Positionierung“ (`auto_position`, Nachtrag 8) | nach der Analyse und bei geänderten Einstellungen [`WorkspaceEdit::follow_auto_position`]: automatisch platziert und gesperrt ([`PlacementLock::Locked`]) – [`Event::PlacementChanged`], [`Event::PageChanged`] und [`Event::TargetChosen`] bleiben ohne Wirkung, „Unsichtbar“, „Auf neuer Seite“ und „Signieren mit“ wirken; [`Event::PlacementUnlocked`] („Diesmal selbst platzieren“) hebt die Sperre für dieses Dokument auf; nie aus der Stapelübersicht geöffnet; signiert nie selbst (A1) |
+//! | [`Event::DocumentReplaced`] („Anderes PDF öffnen“, Nachtrag 9) | in `AnalysisWarning`/`Positioning`: Dokument verwerfen ([`Effect::Discard`], Ergebnis „abgebrochen“ bzw. aus dem Stapel entfernt), dann wie [`Event::FilesAdded`] in der Dokumentauswahl (wartende Dokumente bleiben; aus der Stapelübersicht geöffnet: zurück zur Übersicht mit den neuen Einträgen); sonst wie `FilesAdded`; startet nichts (A1) |
 //!
 //! Invariante **A1** (Property-Test `workspace_session_only_after_explicit_action`): `Effect::OpenSession`
 //! entsteht nur in den Paaren (`SignRequested`, `Positioning`/`ChoosingBackend`), (`BackendChosen`,
@@ -84,6 +85,7 @@
 //! |---|---|
 //! | ≥ 2 Dokumente (Auswahl, Start, nach dem Speichern) | [`State::BatchOverview`], [`Effect::Preanalyze`] je Dokument → [`Event::Preanalyzed`] (`Ready`, QR → `Positioned`, `Rejected`, `NeedsReview`) |
 //! | [`Event::BatchItemOpened`] / [`Event::BackToBatch`] / [`Event::ShowBatch`] | Einzeldokument im Arbeitsbereich mit dem Plan des Eintrags; zurück mit der Platzierung als Plan; einzeln signiert → zurück, `Signed` |
+//! | [`Event::MoreFilesAdded`] („Weitere PDFs hinzufügen“, Nachtrag 9) | im Arbeitsbereich (`Positioning`): Dateien anfügen, dann wie `ShowBatch` – alle zusammen in der Übersicht, die Platzierung des offenen Dokuments als dessen Plan; nichts Neues (Duplikat) → unverändert; sonst wie [`Event::FilesAdded`] |
 //! | [`Event::BatchStarted`] | [`State::BatchSigning`] mit **einer** Sitzung (`Effect::OpenSession` nur hier und nach „Erneut versuchen“ einer Sitzungspause) |
 //! | je Dokument | (Ziel prüfen) → laden → (Zertifikat einmal je Sitzung) → vorbereiten → `SignDocument` → abschließen → [`Effect::DecideBatchOutput`] → schreiben |
 //! | [`Event::BatchSkip`] / [`Event::BatchAbort`] | [`Effect::SkipCurrentJob`] (Sitzung bleibt) bzw. `CancelSession` (F-72) |

@@ -2491,3 +2491,62 @@ pub enum UiEvent {
 **Angenommene Abweichungen:** Die Stapel-Option liegt im Stapel (`Batch`), nicht in `StartBatch`, damit die Übersicht
 schon vor dem Start „Bereit“ zeigt; die Sperre gilt mit der Einstellung auch für ein beim Einschalten noch automatisch
 platziertes, schon geöffnetes Dokument („sofort wirksam“).
+
+### Nachtrag 9 (16.10.2026): „PDF hinzufügen“ – Kopfzeile „+ PDF“, Miniaturleiste, Stapel per Palette und ⌘B
+
+Wunsch des Auftraggebers: „Dokument öffnen bzw. hinzufügen“ als sichtbare Option, nicht nur per Kommando/Kürzel. Die
+vorhandenen Ereignisse genügten nicht: `open_files` im Arbeitsbereich hängt Dateien nur an die Warteschlange (Hinweis
+`ng-batch-added`), und „Start“ + `open_files` verwürfe auch die wartenden Dokumente; die Bedeutung „zusammen zum Stapel“
+bzw. „dieses Dokument ersetzen“ hätte die Oberfläche aus mehreren Ereignissen zusammensetzen müssen (§6.4). Vertrag,
+additiv nach §3.0 Regel 2 (in TypeScript optional, bestehende Literale bleiben gültig):
+
+```rust
+pub enum OpenFilesMode { Add, Replace }            // serde: "add" | "replace"
+pub enum UiEvent {
+    OpenFiles {
+        paths: Vec<PathBuf>,
+        /// None = wie bisher; nur im Arbeitsbereich-Modus, sonst ohne Bedeutung
+        #[serde(default, skip_serializing_if = "Option::is_none")] mode: Option<OpenFilesMode>,
+    },
+    // …
+}
+// pida_workflow (intern, am Ende von `Event`)
+Event::MoreFilesAdded(Vec<InputDocument>)          // mode: add
+Event::DocumentReplaced(Vec<InputDocument>)        // mode: replace
+```
+
+1. **„Weitere PDFs hinzufügen“** (`mode: add`, Reducer `batch_run::more_files_added`): im Arbeitsbereich (`Positioning`)
+   kommen die Dateien zum offenen Dokument, und alle zusammen werden zum Stapel – die Platzierung des offenen Dokuments
+   wird wie bei „Zum Stapel“ dessen Plan (automatisch platziert: kein Plan, folgt den Einstellungen); aus der Übersicht
+   geöffnet wie „Zurück zum Stapel“ mit den neuen Einträgen; ohne Hinweis `ng-batch-added` (die Übersicht zeigt sie);
+   nur Duplikate → unverändert. In allen anderen Zuständen bzw. ohne Stapelübersicht wie `FilesAdded` (Analysewarnung:
+   an die Warteschlange mit Hinweis).
+2. **„Anderes PDF öffnen“** (`mode: replace`, Reducer `document_replaced`): in `AnalysisWarning`/`Positioning` wird das
+   offene Dokument geschlossen (`Discard`, nie signiert; in der Ergebnisliste „abgebrochen“ wie nach „Start“, ein
+   Stapeleintrag wird entfernt wie mit „Entfernen“), danach öffnen die Dateien wie in der Dokumentauswahl (ein Dokument
+   → Arbeitsbereich, mit Stapelübersicht ab zwei offenen Dokumenten die Übersicht). Wartende Dokumente bleiben; aus der
+   Übersicht geöffnet und mit weiteren Einträgen zurück zur Übersicht mit den neuen Einträgen. Sonst wie `FilesAdded`
+   (im Signieren bzw. Stapellauf wird nie ein Dokument geschlossen).
+3. **A1/F-54:** keines der beiden öffnet eine Sitzung; der Property-Test `workspace_session_only_after_explicit_action`
+   erzeugt beide Ereignisse (auch dieselbe Datei erneut) und prüft zusätzlich, dass sie beim Signieren bzw. im Lauf nichts
+   verwerfen. Tabellentests in `crates/workflow/tests/batch.rs` („PDF hinzufügen“), echter Kern in
+   `crates/core-api/tests/batch.rs` (`more_pdfs_join_the_open_document_as_a_batch_and_replace_swaps_an_entry`,
+   `replace_opens_the_chosen_pdf_instead_of_the_open_one`). `Debug` von `OpenFiles` nennt nur die Zahl der Pfade (Regel 9).
+4. **Oberfläche (UI-A):** Kopfzeile neben dem Dokumentnamen „+ PDF“ (Symbol, Beschriftung „PDF“, Tooltip „PDF hinzufügen
+   oder öffnen“) mit Menü im Stil des Konto-Chips – „Weitere PDFs hinzufügen …“ (Mehrfachauswahl) und „Anderes PDF
+   öffnen …“ (eine Datei); nur beim Bearbeiten (Phasen `editing`/`warning`) mit `actions.open_files`. Hat die Nutzerin die
+   Signatur selbst platziert (`document.detection.auto_placed == false`, die Entscheidung des Kerns), fragt „Anderes PDF
+   öffnen“ vorher nach (`alertdialog`, Standardknopf „Abbrechen“, Escape bricht ab); sonst ohne Rückfrage. Miniaturleiste
+   unten: „+ PDF hinzufügen“ (Klick wie „Weitere PDFs hinzufügen“; abgelegte Dateien über den Drop-Weg der Shell auf
+   `[data-add-drop]` mit `mode: add`, anderswo wie bisher). Befehlspalette: „PDF hinzufügen …“ sowie „Zum Stapel“ bzw.
+   „Zurück zum Stapel“ (Freigabe `actions.show_batch` bzw. aus der Übersicht geöffnet, `batchNav`), Tastenkürzel
+   ⌘B/Strg+B samt Kürzelübersicht. Schmal/Mobile: derselbe Knopf in der Kopfzeile (unter 760 px nur als Dokument-Symbol mit Plus, 36 px,
+   damit der Dokumentname Platz behält) öffnet die System-Dateiauswahl (`pickMobileFiles`, mehrere bzw. eine Datei). Texte `ng-ui-shell-add*`, `ng-ui-shell-replace*`,
+   `ng-ui-shell-cmd-{add,batch,batch-back}`, `ng-ui-ws-thumbs-add*` (`ui-workspace.ftl`); keine neuen Meldungs-IDs.
+5. **Mock folgt dem Kern** (`core/mock/index.ts`: `addFiles`, `replaceDocument`); Fixture `ui-events.json` mit beiden
+   Modi, `contract.test.ts` prüft `mode` als weglassbar.
+
+**Angenommene Abweichungen:** Die Rückfrage „Anderes PDF öffnen?“ entscheidet die Oberfläche an `detection.auto_placed`
+(kein eigenes Vertragsfeld); „Unsichtbar signieren“ allein gilt dabei nicht als eigene Platzierung. Der Knopf „Zurück
+zum Stapel“ trägt kein `aria-keyshortcuts` (React Aria gibt das Attribut an `Button` nicht weiter); das Kürzel nennen
+Palette und Kürzelübersicht.

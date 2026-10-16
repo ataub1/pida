@@ -156,7 +156,7 @@ async fn partial_apply_field_errors_revisions_and_restart() {
     assert_eq!(s.problems["proxy.port"], "ng-settings-invalid-port");
 
     // Kernänderung zwischen zwei Übernahmen: letzter Ordner nach „Öffnen“
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()] });
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
     wait_for(&core, "Dokument offen", |v| v.document.is_some()).await;
     let v = apply(&core, 3, &[("output.postfix", json!("_signiert")), ("proxy.port", json!(3128))]).await;
     let s = settings(&v);

@@ -296,7 +296,7 @@ proptest! {
     /// genannten Dokumente.
     #[test]
     fn workspace_session_only_after_explicit_action(
-        events in prop::collection::vec(0u8..71, 0..110),
+        events in prop::collection::vec(0u8..75, 0..110),
         auto_position in any::<bool>(),
         invisible in any::<bool>(),
         placeholder_search in any::<bool>(),
@@ -440,6 +440,14 @@ proptest! {
                 68 => Event::BatchAutoPositionSet { enabled: true, replace_manual: false },
                 69 => Event::BatchAutoPositionSet { enabled: true, replace_manual: true },
                 70 => Event::BatchAutoPositionSet { enabled: false, replace_manual: false },
+                // „PDF hinzufügen“ (Nachtrag 9): „Weitere PDFs hinzufügen“, „Anderes PDF öffnen“ (auch dieselbe Datei)
+                71 => { next_id += 1; Event::MoreFilesAdded(vec![doc(next_id)]) }
+                72 => { next_id += 2; Event::MoreFilesAdded(vec![doc(next_id - 1), doc(next_id)]) }
+                73 => { next_id += 1; Event::DocumentReplaced(vec![doc(next_id)]) }
+                74 => {
+                    next_id += 1;
+                    Event::DocumentReplaced(vec![pida_workflow::InputDocument::new(DocId(next_id), format!("/in/doc{current}.pdf"))])
+                }
                 _ => Event::BackendFailed(BackendError::Network("x".into())),
             };
             let before = state.clone();
@@ -476,6 +484,13 @@ proptest! {
                 && e.placement_locked()
             {
                 prop_assert!(ctx.auto_position && !e.return_to_batch, "{event:?} in {} sperrt", before.name());
+            }
+            // „PDF hinzufügen“ startet nie etwas und schließt nie ein Dokument eines Laufs bzw. beim Signieren
+            if matches!(event, Event::MoreFilesAdded(_) | Event::DocumentReplaced(_)) {
+                prop_assert!(!t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_) | Effect::SignDocument)), "{:?}", t.effects);
+                if matches!(before, State::Signing { .. } | State::BatchSigning { .. } | State::Resuming { .. }) {
+                    prop_assert!(!t.effects.iter().any(|e| matches!(e, Effect::Discard(_))), "{event:?} in {}: {:?}", before.name(), t.effects);
+                }
             }
             // „Für diesen Stapel automatisch positionieren“ startet nie etwas und gilt nie über einen Lauf hinaus
             if matches!(event, Event::BatchAutoPositionSet { .. }) {

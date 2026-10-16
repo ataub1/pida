@@ -1,13 +1,17 @@
 /**
  * Seitenminiaturen (Gestalt aus dem Prototyp). Kacheln des Kerns mit kleinem Maßstab, geladen nur in der
  * Nähe der sichtbaren Miniaturen; Klick springt zur Seite, die Seite mit dem Signaturblock ist markiert.
+ *
+ * Unten in der Leiste ein dezentes „+ PDF hinzufügen“ (ADR 0004 Nachtrag 9): Klick wie „Weitere PDFs
+ * hinzufügen“ in der Kopfzeile (`open_files { mode: 'add' }`); abgelegte Dateien laufen über den Drop-Weg der
+ * Shell (`data-add-drop`, `App.tsx`) mit derselben Wirkung.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Button } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
-import type { DocumentView } from '../../core/types';
-import { IconSignature } from '../../ui/Icons';
+import { isMobile, type DocumentView } from '../../core/types';
+import { IconPlus, IconSignature } from '../../ui/Icons';
 import { rectToBox } from './placement';
 
 const THUMB_W = 104;
@@ -37,7 +41,8 @@ function useNearThumbs(root: HTMLElement | null, count: number): Set<number> {
 }
 
 export function Thumbnails({ doc, sizes, current, onSelect }: { doc: DocumentView; sizes: [number, number][]; current: number; onSelect: (i: number) => void }) {
-  const { t, bridge } = useApp();
+  const { t, bridge, view, browse } = useApp();
+  const addable = doc.phase === 'editing' || doc.phase === 'warning';
   const ref = useRef<HTMLElement>(null);
   const [root, setRoot] = useState<HTMLElement | null>(null);
   useEffect(() => setRoot(ref.current), []);
@@ -72,6 +77,19 @@ export function Thumbnails({ doc, sizes, current, onSelect }: { doc: DocumentVie
           );
         })}
       </ol>
+      {addable ? (
+        <div className="thumbs-add" data-add-drop="">
+          <Button className="thumbs-add-btn" onPress={() => void browse('add')} isDisabled={!view.actions.open_files} data-testid="thumbs-add">
+            <IconPlus size={16} />
+            <span>{t.t('ng-ui-ws-thumbs-add')}</span>
+          </Button>
+          {isMobile(view) ? null : (
+            <span className="thumbs-add-hint" aria-hidden="true">
+              {t.t('ng-ui-ws-thumbs-add-hint')}
+            </span>
+          )}
+        </div>
+      ) : null}
     </nav>
   );
 }

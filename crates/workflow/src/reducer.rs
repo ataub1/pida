@@ -51,6 +51,9 @@ pub fn reduce(state: State, event: Event, ctx: &Context) -> Transition {
     match event {
         Event::Quit => return quit(state),
         Event::FilesAdded(docs) => return files_added(state, docs, ctx),
+        // „+ PDF“ im Arbeitsbereich (ADR 0004 Nachtrag 9)
+        Event::MoreFilesAdded(docs) => return more_files_added(state, docs, ctx),
+        Event::DocumentReplaced(docs) => return document_replaced(state, docs, ctx),
         Event::SettingsChanged => return settings_changed(state, ctx),
         // Mobile-Lebenszyklus: ein App-Wechsel (etwa in die App „ID Austria“) ist **kein Abbruch** – weder
         // die Sitzung noch der persistierte Zustand werden angetastet (Plan §3.5)
@@ -616,6 +619,55 @@ fn files_added_single(state: State, docs: Vec<crate::queue::InputDocument>, ctx:
             Transition::with(s, effects)
         }
     }
+}
+
+/// „Weitere PDFs hinzufügen“ (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9): mit der
+/// Stapelübersicht werden das offene Dokument und die neuen Dateien zusammen zum Stapel (Modul `batch_run`),
+/// sonst wie [`files_added`].
+fn more_files_added(state: State, docs: Vec<crate::queue::InputDocument>, ctx: &Context) -> Transition {
+    if ctx.batch() {
+        return batch_run::more_files_added(state, docs, ctx);
+    }
+    files_added(state, docs, ctx)
+}
+
+/// „Anderes PDF öffnen“ (ADR 0004 Nachtrag 9): das offene Dokument der Analysewarnung bzw. des
+/// Arbeitsbereichs wird geschlossen – verworfen ([`Effect::Discard`]), nie signiert; in der Ergebnisliste
+/// „abgebrochen“ wie nach „Start“, ein Stapeleintrag wird entfernt –, danach öffnen die Dateien wie in der
+/// Dokumentauswahl ([`files_added`] in `Idle`: ein Dokument → Arbeitsbereich, mit Stapelübersicht ab zwei
+/// offenen Dokumenten die Übersicht). Wartende Dokumente bleiben. Aus der Stapelübersicht geöffnet und mit
+/// weiteren Einträgen: zurück zur Übersicht mit den neuen Einträgen. In allen anderen Zuständen (und ohne
+/// Dateien) wie [`files_added`]. Startet nichts (A1).
+fn document_replaced(state: State, docs: Vec<crate::queue::InputDocument>, ctx: &Context) -> Transition {
+    if docs.is_empty() {
+        return files_added(state, docs, ctx);
+    }
+    let (mut queue, id) = match state {
+        State::AnalysisWarning { queue, doc, .. } | State::Positioning { queue, doc, .. } => (queue, doc.id),
+        s => return files_added(s, docs, ctx),
+    };
+    let mut effects = vec![Effect::Discard(id)];
+    // Stapeleintrag: entfernen wie „Entfernen“ in der Übersicht; sonst wie „Start“ als abgebrochen verbuchen
+    if let Some(batch) = queue.batch.as_mut().filter(|b| b.item(id).is_some()) {
+        batch.items.retain(|i| i.doc != id);
+        queue.remove(id);
+    } else {
+        queue.complete(id, DocResult::Cancelled);
+    }
+    if let Some(batch) = queue.batch.as_mut() {
+        batch.open = None;
+    }
+    if queue.batch.as_ref().is_some_and(|b| b.items.is_empty()) {
+        queue.batch = None;
+    }
+    if ctx.batch() && queue.batch.is_some() {
+        // aus der Übersicht geöffnet, weitere Einträge: die Dateien kommen in den Stapel, zurück zur Übersicht
+        queue.append(docs);
+        return batch_run::new_overview(queue, effects);
+    }
+    let t = files_added(State::Idle { queue }, docs, ctx);
+    effects.extend(t.effects);
+    Transition::with(t.state, effects)
 }
 
 /// Einstellungen geändert: Blockvorschau neu (Positionierung), Backends neu prüfen (Auswahl). Im

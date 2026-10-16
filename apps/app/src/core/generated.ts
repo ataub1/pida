@@ -1405,13 +1405,25 @@ remember: boolean, } | { "kind": "tan",
 tan: string, } | { "kind": "switch_to_sms" } | { "kind": "switch_to_fido2" } | { "kind": "start_fido2" } | { "kind": "continue" };
 
 /**
+ * Wie `open_files` die gewählten Dateien zum offenen Dokument nimmt (Kopfzeile „+ PDF“, Miniaturleiste;
+ * ADR 0004 Nachtrag 9). Was daraus folgt, entscheidet der Kern nach dem Zustand.
+ */
+export type OpenFilesMode = "add" | "replace";
+
+/**
  * UI-Ereignis.
  */
 export type UiEvent = { "type": "open_files", 
 /**
  * Pfade
  */
-paths: Array<string>, } | { "type": "answer_warning", 
+paths: Array<string>, 
+/**
+ * Wie die Dateien zum offenen Dokument kommen (Kopfzeile „+ PDF“, Miniaturleiste; ADR 0004 Nachtrag 9);
+ * `None` = wie bisher (der Kern entscheidet nach dem Zustand: Auswahl öffnen, sonst an die
+ * Warteschlange). Nur im Arbeitsbereich-Modus, sonst ohne Bedeutung. In TypeScript optional.
+ */
+mode?: OpenFilesMode | null, } | { "type": "answer_warning", 
 /**
  * `true` = fortfahren
  */

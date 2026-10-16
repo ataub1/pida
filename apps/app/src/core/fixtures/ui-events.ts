@@ -136,4 +136,7 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'update_first_run', default_backend: null, profile: 'AMTSSIGNATURBLOCK', block_language: null },
   { type: 'submit_secret', request: 3, secret: 'geheim-123', password_storage: 'none' },
   { type: 'inspect_keystore', password: null },
+  // Nachtrag 9: „+ PDF“ – „Weitere PDFs hinzufügen“, „Anderes PDF öffnen“
+  { type: 'open_files', paths: ['/Users/demo/Angebot.pdf', '/Users/demo/Auftrag.pdf'], mode: 'add' },
+  { type: 'open_files', paths: ['/Users/demo/Vertrag.pdf'], mode: 'replace' },
 ];

@@ -1,19 +1,21 @@
 /**
  * Kopfzeile (Gestalt aus dem Prototyp, ADR 0004 §3 „Informationsarchitektur“): Wortmarke (→ Start, ohne
  * „Prototyp“-Plakette), Dokumentkontext (Name, Seiten, Größe; aus dem Stapel geöffnet mit „Zurück zum
- * Stapel“) bzw. Stapelkontext („Stapel · 4 Dokumente“) bzw. im Prüfmodus „Prüfmodus“ (ohne den Knopf
- * „Prüfen“; die Wortmarke verlässt ihn), „Prüfen“ (Freigabe `actions.verify`), „Befehle ⌘K“, DE/EN (`set_ui_language`),
+ * Stapel“; daneben „+ PDF“ mit „Weitere PDFs hinzufügen“ und „Anderes PDF öffnen“, Nachtrag 9) bzw.
+ * Stapelkontext („Stapel · 4 Dokumente“) bzw. im Prüfmodus „Prüfmodus“ (ohne den Knopf „Prüfen“; die Wortmarke
+ * verlässt ihn), „Prüfen“ (Freigabe `actions.verify`), „Befehle ⌘K“, DE/EN (`set_ui_language`),
  * Farbschema (lokal je Gerät) und Einstellungen (`actions.settings`).
  */
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
 import { isMobile } from '../core/types';
 import { PALETTE_AVAILABLE } from '../features/palette';
 import { VERIFY_AVAILABLE } from '../features/verify';
+import { AddPdfMenu } from '../features/workspace';
 import { formatSize } from '../features/workspace/placement';
 import { IconButton, Keys, Segmented, useModKey } from '../ui/controls';
 import { IconArrowLeft, IconCheck, IconFileText, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconShieldCheck, IconSun } from '../ui/Icons';
 import { Wordmark } from '../ui/Logo';
-import { goHome } from './commands';
+import { batchNav, goHome } from './commands';
 import { useApp } from './context';
 import type { Theme } from './theme';
 
@@ -30,8 +32,7 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
   const pages = doc ? doc.doc.page_count : 0;
   const batch = view.batch;
   // aus dem Stapel geöffnet (`return_to_batch`) bzw. weitere Dokumente in der Warteschlange (`show_batch`)
-  const backToBatch = !!doc && !!batch && batch.open_item === doc.doc.id && (doc.phase === 'editing' || doc.phase === 'warning');
-  const showBatch = !!doc && !backToBatch && view.actions.show_batch;
+  const nav = doc ? batchNav(view) : null;
 
   return (
     <header className="app-header">
@@ -47,8 +48,8 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
         </div>
       ) : doc && doc.phase !== 'done' ? (
         <div className="header-context">
-          {backToBatch || showBatch ? (
-            <IconButton label={t.t(backToBatch ? 'ng-ui-batch-back' : 'ng-ui-batch-show')} onPress={() => void dispatch({ type: backToBatch ? 'back_to_batch' : 'show_batch' })}>
+          {nav ? (
+            <IconButton label={t.t(nav === 'back' ? 'ng-ui-batch-back' : 'ng-ui-batch-show')} onPress={() => void dispatch({ type: nav === 'back' ? 'back_to_batch' : 'show_batch' })}>
               <IconArrowLeft size={18} />
             </IconButton>
           ) : null}
@@ -59,6 +60,8 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
               {t.t('ng-ui-shell-doc-info', { pages: t.t('ng-ui-shell-pages', { n: pages }), size: formatSize(doc.size_bytes, t.lang) })}
             </span>
           </span>
+          {/* „+ PDF“ nur, solange das Dokument bearbeitet wird (beim Signieren liegt die Karte darüber) */}
+          {doc.phase === 'editing' || doc.phase === 'warning' ? <AddPdfMenu doc={doc} /> : null}
         </div>
       ) : !doc && batch ? (
         <div className="header-context">
