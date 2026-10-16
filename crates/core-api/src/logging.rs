@@ -104,6 +104,22 @@ fn filter(level: &str) -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level))
 }
 
+/// ANSI-Farben auf stderr nur an einem Terminal, nicht mit `NO_COLOR` und nie auf Mobilgeräten:
+/// iOS leitet stderr in das System-Log um (`log show`), Android verwirft es – Farbcodes stünden dort
+/// als `[2m…[0m` im Text (docs/integration/mobile-ios.md §7 Nr. 5).
+fn stderr_ansi(mobile: bool, no_color: Option<&std::ffi::OsStr>, terminal: bool) -> bool {
+    !mobile && no_color.is_none_or(std::ffi::OsStr::is_empty) && terminal
+}
+
+fn stderr_ansi_here() -> bool {
+    use std::io::IsTerminal;
+    stderr_ansi(
+        cfg!(any(target_os = "ios", target_os = "android")),
+        std::env::var_os("NO_COLOR").as_deref(),
+        std::io::stderr().is_terminal(),
+    )
+}
+
 /// Richtet das Logging ein: Rotation beim Start, Logdatei (ohne ANSI), optional stderr.
 pub fn init(paths: &Paths, opts: &LogOptions) -> LogGuard {
     let mut guard = None;
@@ -135,6 +151,7 @@ pub fn init(paths: &Paths, opts: &LogOptions) -> LogGuard {
     };
     let stderr_layer = opts.stderr.then(|| {
         tracing_subscriber::fmt::layer()
+            .with_ansi(stderr_ansi_here())
             .with_writer(std::io::stderr)
             .with_target(false)
             .without_time()
@@ -174,6 +191,17 @@ mod tests {
         assert!(!paths.log_dir.join(format!("{LOG_FILE}.3")).exists(), "nur `keep` alte Dateien");
         let total: u64 = std::fs::read_dir(&paths.log_dir).unwrap().map(|e| size(&e.unwrap().path())).sum();
         assert!(total <= 3 * 1100, "{total}");
+    }
+
+    /// Farbcodes nur an einem Terminal des Desktops (iOS-System-Log ohne `ESC[…m`).
+    #[test]
+    fn stderr_ansi_only_on_desktop_terminals() {
+        use std::ffi::OsStr;
+        assert!(stderr_ansi(false, None, true));
+        assert!(stderr_ansi(false, Some(OsStr::new("")), true), "leeres NO_COLOR zählt nicht");
+        assert!(!stderr_ansi(false, Some(OsStr::new("1")), true));
+        assert!(!stderr_ansi(false, None, false), "umgeleitetes stderr (Datei, Pipe, System-Log)");
+        assert!(!stderr_ansi(true, None, true), "iOS/Android: nie");
     }
 
     #[test]
