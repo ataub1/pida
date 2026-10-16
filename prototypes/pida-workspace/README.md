@@ -7,6 +7,10 @@ moderne Oberfläche: **ein Arbeitsbereich statt vier Schritten**, Signieren als 
 > Eigenständig, ohne Rust-Kern und ohne Tauri. **Keine Netzwerkzugriffe zur Laufzeit**, keine externen Fonts
 > oder CDNs, keine echten Zugangsdaten. Signieren, Prüfen und Speichern sind reine Simulation.
 > Gestaltungsentscheidungen und Übertragung auf `apps/app`: [`docs/ux-konzept.md`](docs/ux-konzept.md).
+>
+> **Stand 17.10.2026:** Den Prüfmodus dieses Prototyps übernimmt `apps/app` nicht (mehr) – Entscheidung des
+> Auftraggebers, ADR 0004 Nachtrag 15. „Zuletzt signiert“ öffnet dort die Datei bzw. bietet Ordner/Teilen und
+> „Erneut signieren“ wie „Fertig“; für die Prüfung verweist PIDA wie PDF-Over auf signaturpruefung.gv.at.
 
 ## Starten
 

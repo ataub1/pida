@@ -27,7 +27,8 @@
    Backend das Passwort, §1.2) und keine Sitzung neu geöffnet werden muss.
 4. **Neue Kernfunktionen:** Seitenlayout (Inhaltsrahmen, freie Flächen, Einrastlinien) und Live-Überdeckungsprüfung,
    Inline-Platzhalter (Felder/QR ohne Dialog), Signiermittel-Übersicht (Konto-Chip), Zusammenfassung „Fertig“,
-   Prüfmodus (`pades::verify_document`, `cades::qc_statements`), „Zuletzt signiert“ (`config::RecentStore`),
+   Prüfmodus (`pades::verify_document`, `cades::qc_statements`; **mit Nachtrag 15 wieder entfernt**), „Zuletzt
+   signiert“ (`config::RecentStore`),
    Einstellungen „sofort wirksam“ (`ApplySettings`), Ersteinrichtung, Freigaben (`ActionsView`).
 5. **Vertrag additiv:** neue Felder mit `#[serde(default)]`, neue Varianten am Ende; nichts Bestehendes wird
    umgedeutet. Was die neue UI nicht mehr nutzt, bleibt mit Migrationsregel (§3.15).
@@ -35,7 +36,7 @@
    und sein Geometriemodell (das ist Fachlogik und kommt aus dem Kern). Texte über Fluent (`crates/i18n/locales`).
    Die vorhandene Mobile-Logik (Teilen/Export, PKCS#12-Import, „Signatur fortsetzen“, Lebenszyklus) bleibt.
 7. **Etappen** E0 (Vertrag als Code) → E1 Arbeitsbereich + Signieren → E2 Stapel → E3 Einstellungen/Datenschutz/
-   Zuletzt signiert → E4 Prüfmodus/Palette/Ersteinrichtung. **Drei Pakete** (K, UI-A, UI-B) arbeiten parallel in
+   Zuletzt signiert → E4 Prüfmodus/Palette/Ersteinrichtung (Prüfmodus mit Nachtrag 15 entfernt). **Drei Pakete** (K, UI-A, UI-B) arbeiten parallel in
    getrennten Worktrees mit exakter Datei-Ownership; die Bridge-Typen entstehen in E0 aus Rust, die UI arbeitet
    bis zur Kern-Umsetzung gegen den Mock-Kern.
 
@@ -275,7 +276,9 @@ Legende: **✓** vorhanden · **◐** teilweise vorhanden · **✗** neu im Kern
 | „PDF-Over-Einstellungen übernehmen“ | ◐ nur beim Start | ✗ `OfferMigration` | K, UI-B |
 | Im Prototyp fehlend, in der App vorhanden: PDF/A erzwingen, CMS-Profil, Logo-Größe, Keystore-Speicherart, schreibgeschützte Einstellungen (`-c`), Zurücksetzen, Über (Version, Drittlizenzen, Log-Ordner) | ✓ | bleiben: Abschnitte „Erweitert“ und „Über“; Banner bei `read_only` | UI-B |
 
-### 2.9 Prüfmodus
+### 2.9 Prüfmodus (entfernt, siehe Nachtrag 15)
+
+**Entfernt (Nachtrag 15, 17.10.2026):** Den Prüfmodus gibt es nicht mehr (Entscheidung des Auftraggebers); dieser Abschnitt ist nur noch Geschichte.
 
 | Prototyp-Element | Kern heute | Vertrag | Wer |
 |---|---|---|---|
@@ -1196,7 +1199,11 @@ legt eine PNG-Miniatur (Breite 96 px) in einem eigenen Cache je Stapeleintrag ab
 `pida-render://thumb/<doc>` (Shell). Speicher: Voranalyse lädt jedes Dokument einzeln und gibt es danach frei (nur
 `DocSummary` und Miniatur bleiben).
 
-### 3.9 Prüfmodus
+### 3.9 Prüfmodus (entfernt, siehe Nachtrag 15)
+
+**Entfernt (Nachtrag 15, 17.10.2026):** Den Prüfmodus gibt es nicht mehr (Entscheidung des Auftraggebers); dieser Abschnitt ist nur noch Geschichte. Entfallen sind `OpenVerify`, `VerifyRecent`,
+`CloseVerify`, `SignVerified`, `ViewState::verify`, `ActionsView::verify` und alle `Verify*`-Typen; die Bibliothek
+`pades::verify_document` bleibt für Tests.
 
 ```rust
 pub enum UiEvent {
@@ -1363,7 +1370,8 @@ pub enum UiEvent { /* … */ RemoveRecent { id: u64 }, ClearRecent }
 - Richtlinie: neues Feld `Policy::recent_documents: Option<bool>` (wie `update_check`); `Some(false)` erzwingt „aus“
   (dann auch keine Datei), der Schalter erscheint gesperrt mit Hinweis.
 - `VerifyRecent` auf eine fehlende Datei → Hinweis `ng-recent-missing`, Eintrag bleibt (Entfernen ist eine
-  ausdrückliche Aktion).
+  ausdrückliche Aktion). **Seit Nachtrag 15** ohne Prüfmodus: `OpenRecent`, `RevealRecent` (Desktop), `ShareRecent`
+  (Mobile) und `SignRecent` („Erneut signieren“) – dieselbe Regel für fehlende Dateien.
 
 ### 3.11 Einstellungen „sofort wirksam“, Sprache, Abschnitte
 
@@ -1489,7 +1497,7 @@ pub struct ActionsView {
     pub edit_placement: bool,  // Sticker/Optionen bedienbar
     pub start_batch: bool,     // BatchOverview mit ≥ 1 signierbarem Dokument
     pub show_batch: bool,      // weitere Dokumente in der Warteschlange
-    pub verify: bool,          // OpenVerify erlaubt
+    pub verify: bool,          // OpenVerify erlaubt – entfernt mit Nachtrag 15
     pub settings: bool,        // = main_bar.settings_enabled
     pub home: bool,            // navigate{Open} erlaubt
 }
@@ -1497,7 +1505,8 @@ pub struct ActionsView {
 
 Der Kern berechnet die Freigaben aus dem Zustand (wie `State::main_bar`); die UI aktiviert danach Knöpfe, Palette
 und Kürzel. Sie verknüpft höchstens mit eigenem Darstellungszustand (z. B. offenes Overlay). Bei offenem Prüfmodus sind
-`sign`, `edit_placement`, `start_batch` und `show_batch` aus – das Dokument darunter ist verdeckt (Nachtrag 6).
+`sign`, `edit_placement`, `start_batch` und `show_batch` aus – das Dokument darunter ist verdeckt (Nachtrag 6; mit dem
+Prüfmodus entfallen, Nachtrag 15).
 
 ### 3.14 Shell (`apps/app/src-tauri`, Paket K)
 
@@ -1575,7 +1584,7 @@ und EN mit denselben Variablen steht.
 | §3.6 Karte | `SigningProgressView`, `ErrorContextView`, Abbruch → Arbeitsbereich, Sitzung bei Wiederholen, `SigningDeclined`, `sign_one` auch für Einzeldokumente | UI-A: Karte, alle Zweige | Fake-Backend: Retry nach `Network` (nach erfolgreicher Anmeldung) zeigt **keine** zweite Login-Maske und kein zweites `certificate()`; `Cancelled` ohne eigenen Abbruch → Fehlerschritt `ng-signing-declined`, Retry ohne Login-Maske; eigener Abbruch → `Positioning` + Hinweis, `edit` unverändert; `Cancel` im Fehler → `CancelSession`; UI: jeder Zweig mit axe |
 | §3.7 Fertig | `SignedSummaryView` | UI-A: DoneView | `real_pades`: Unterzeichner = Testzertifikat-CN |
 | §3.8 Stapel | States/Events/Effects, `sign_one`, `ErrorScope`, `SignSlot` über Dokumente, Voranalyse, Miniatur | UI-A: Übersicht, Stapelkarte | Fake-Backend mit Skript: **1×** `open`, **1×** Login-Maske, **≤ 1×** `certificate()`, **n×** `sign_one`, Überspringen behält Zugangsdaten, Abbruch löscht sie; Pausenarten (Dokument, Verbindung ohne neue Sitzung, Sitzung mit neuer Sitzung); `ExistingPolicy` (`Skip` ohne `sign_one`, `KeepBoth` mit `(2)`/`(3)`); `ErrorScope` je `BackendError`-Variante; Mobile-Kill mitten im Lauf; `backend-atrust`: Mock-Server-Tests zu `sign_one` (§3.8); UI: Durchlauf 4 Dokumente (1 abgelehnt) gegen den Mock |
-| §3.9 Prüfmodus | `pades::verify_document`, `cades::qc_statements`, `VerifyView` | UI-B | `testdata/verify/` (neu, erzeugt von einem Generator des Kerns mit den Testzertifikaten aus `testdata/keystores`, nie echte Personendaten): PDF-AS-signiert, manipuliert → `Broken`, `adbe.pkcs7.sha1` → `NotVerifiable`, CAdES mit SHA-1-Digest → `Intact` + `ng-verify-warning-sha1`, zwei Signaturen + spätere Revision, später ergänzt → `ModifiedAfterLastSignature`, unsichtbar, QES-Testzertifikat mit qcStatements (QcCompliance + QcSSCD), ohne Signatur |
+| §3.9 Prüfmodus (**entfernt, Nachtrag 15** – es bleiben `pades::verify_document` und die Tests `pades/tests/verify_testdata.rs` mit `testdata/verify/`) | `pades::verify_document`, `cades::qc_statements`, `VerifyView` | UI-B | `testdata/verify/` (neu, erzeugt von einem Generator des Kerns mit den Testzertifikaten aus `testdata/keystores`, nie echte Personendaten): PDF-AS-signiert, manipuliert → `Broken`, `adbe.pkcs7.sha1` → `NotVerifiable`, CAdES mit SHA-1-Digest → `Intact` + `ng-verify-warning-sha1`, zwei Signaturen + spätere Revision, später ergänzt → `ModifiedAfterLastSignature`, unsichtbar, QES-Testzertifikat mit qcStatements (QcCompliance + QcSSCD), ohne Signatur |
 | §3.10 Zuletzt signiert | `RecentStore`, Integration nach `Saved` | UI-B: Liste (Start), Datenschutz | Datei nur mit `id/file_name/path/signed_at`; 0600; max. 10; Abschalten löscht; Headless schreibt nicht |
 | §3.11 Einstellungen | `ApplySettings` (Pfad-Änderungen, Teilübernahme), `applied_revision`, `examples`, `SetUiLanguage` | UI-B: Seitenleiste, Suche, Live-Vorschau | ungültiger Proxy-Port blockiert andere Felder nicht; unbekannter Pfad; veraltete Revision; keine verlorene Kernänderung; genau ein Vorschau-Neubau je Änderung am Signaturbild; schreibgeschützt |
 | §3.12 Ersteinrichtung | `FirstRunView`, `first_run_completed`, `items`, `UpdateFirstRun`, `FinishFirstRun`, `OfferMigration`, Neuinstallation `output.folder = "."` | UI-B: Onboarding | fehlende Datei → Ersteinrichtung und `output.folder == "."`; Bestandsdatei ohne Schlüssel → keine Ersteinrichtung, `output.folder` unverändert `None`; mit Migration der PDF-Over-Wert; Abbruch der App vor „Fertig“ → nächster Start erneut; headless setzt nichts |
@@ -1895,6 +1904,9 @@ die Etappe abbildet (der Orchestrator trägt die Zeilen aus den Abschlussbericht
   8. axe ohne Verstöße je Bereich und im Suchmodus.
 
 ### E4 – Prüfmodus, Befehlspalette und Tastenkürzel, Ersteinrichtung
+
+> Der Prüfmodus (Punkte 1–3 und sein Anteil an 6) ist mit Nachtrag 15 (17.10.2026) wieder entfernt; Palette, Kürzel
+> und Ersteinrichtung bleiben.
 
 - **Kern K4:** §3.9, §3.12.
 - **UI-B B4:** Prüfmodus, Palette (⌘K) mit allen Befehlen aus `commands.ts`, Kürzelübersicht (?), Ersteinrichtung
@@ -2288,6 +2300,8 @@ Referenzrechner; Mobile im Simulator/Emulator (Vollbild-Einstellungen, PKCS#12-I
 
 ### Nachtrag 6 (Merge E4, 16.10.2026): Prüfmodus und Ersteinrichtung – Regeln aus K4, Befunde im Merge
 
+> Die Regeln zum Prüfmodus gelten seit Nachtrag 15 nicht mehr (Prüfmodus entfernt); die zur Ersteinrichtung bleiben.
+
 Vertrag unverändert (alle Typen aus K0); K4 füllt `ViewState::verify`, `ViewState::first_run`,
 `MigrationOfferView::items` und `ActionsView::verify` und wertet `OpenVerify`, `CloseVerify`, `SignVerified`,
 `VerifyRecent`, `UpdateFirstRun`, `FinishFirstRun` und `OfferMigration` aus. Verbindlich ab E4:
@@ -2553,6 +2567,10 @@ Palette und Kürzelübersicht.
 
 ### Nachtrag 10 (16.10.2026): „Zur Startseite“ parkt offene Arbeit – Karte „In Bearbeitung“
 
+> Seit Nachtrag 15 ohne die Bezüge zum Prüfmodus (`go_home` schließt keinen Prüfmodus mehr, keine Freigabe `verify`,
+> kein „Dieses Dokument signieren“); an seine Stelle tritt „Erneut signieren“ aus „Zuletzt signiert“ mit derselben
+> Rückfrage wie neue PDFs.
+
 Wunsch des Auftraggebers: Beim Wechsel zur Startseite darf offene Arbeit nicht verloren gehen. Bisher sandte „Zur
 Startseite“ (Haus-Symbol, Wortmarke, Palette) `navigate{Open}` und verwarf Dokument, Platzierung und Stapel; die
 Kopfzeile fragte deshalb bei Stapel bzw. eigener Platzierung nach. Jetzt **parkt** der Kern die Arbeit; die Rückfrage
@@ -2639,3 +2657,77 @@ nicht verloren gehen; core-api projiziert ihn als Dokumentauswahl. Zusätzlich z
 Analysewarnung und „Fertig“ ohne Speichern (`ParkedWorkView::unsaved`, damit „Schließen“ die nicht gespeicherte
 Signatur nicht ohne Rückfrage verwirft). Ob „Schließen“ nachfragt, entscheidet die Oberfläche an den Angaben des Kerns
 (wie Nachtrag 9). Das Parken übersteht keinen Neustart der App (nicht persistiert).
+
+### Nachtrag 15 (17.10.2026): Prüfmodus entfernt – „Zuletzt signiert“ bietet, was „Fertig“ kann
+
+Entscheidung des Auftraggebers (17.10.2026): Die Signaturprüfung ist zu viel Funktionalität für die App; der Prüfmodus
+(§2.9, §3.9, E4 Punkte 1–3, Nachtrag 6) wird **vollständig entfernt** – Desktop und Mobile. PDF-Over hat ebenfalls
+keine Signaturprüfung; wie dort verweist PIDA im Signaturblock und auf „Fertig“ („Vollständige Prüfung bei
+signaturpruefung.gv.at“) auf die amtliche Prüfung. Die geplante Online-Prüfung (ADR 0006, Branches `trust/*`) ist damit
+zurückgestellt; ADR 0006 kommt nicht auf `main`.
+
+1. **Vertrag – Ausnahme von §3.0 Regel 2 („additiv“).** Kern und Oberfläche werden immer gemeinsam ausgeliefert;
+   deshalb entfallen die Teile des Prüfmodus ersatzlos statt mit Migrationsregel (§3.15):
+   - `UiEvent::{OpenVerify, VerifyRecent, CloseVerify, SignVerified}` (`open_verify`, `verify_recent`, `close_verify`,
+     `sign_verified`), `ViewState::verify`, `ActionsView::verify`;
+   - die Typen `VerifyView`, `VerifyStatus`, `VerifySummaryView`, `VerifiedSignatureView`, `SignatureIntegrity`,
+     `SignatureCoverage`, `QualificationClaim`, `SignatureFormat`, `AppearanceView`, `TrustCheck` (auch in `ts.rs`,
+     `generated.ts`, `contract.test.ts`);
+   - im Kern `core-api/src/verify.rs`, `DocData::for_verify`, `Msg::Verified`, die Sperre der Freigaben bei offenem
+     Prüfmodus und das Schließen des Prüfmodus bei `open_files`/`go_home`.
+
+   Neu und additiv (Varianten am Ende von `UiEvent`, eine Methode mit Standard in `ShellHooks`):
+
+   ```rust
+   pub enum UiEvent { /* … */
+       OpenRecent { id: u64 },      // „Öffnen“: Standardanwendung, Mobile Vorschau (QuickLook bzw. ACTION_VIEW)
+       RevealRecent { id: u64 },    // „Im Ordner zeigen“ (nur Desktop)
+       ShareRecent { id: u64 },     // „Teilen“ (nur Mobile, Share-Sheet bzw. ACTION_SEND)
+       SignRecent { id: u64, #[serde(default)] #[ts(optional = nullable)] mode: Option<OpenFilesMode> },
+   }
+   pub trait ShellHooks { /* … */ fn reveal_path(&self, path: &Path) -> Result<(), String> { Err("unsupported".into()) } }
+   ```
+
+   Die Shell setzt `reveal_path` mit `opener::reveal_item_in_dir` um (wie der Command `reveal_output`). **Alte
+   gespeicherte Daten bleiben lesbar:** Einstellungen (keine Einstellung gehörte zum Prüfmodus), `recent.json` (Format
+   von K3 unverändert: `id`, `file_name`, `path`, `signed_at`; der Test `recent_entry_offers_what_done_offers` liest
+   eine so gespeicherte Liste), Resume-Datensätze (unberührt). Ein `ViewState` mit dem alten Feld `verify` liest serde
+   weiterhin (unbekannte Felder werden ignoriert).
+2. **„Zuletzt signiert“** bietet, was „Fertig“ schon kann – bestehende Bausteine, keine neue Funktion: Eintrag bzw.
+   „Öffnen“ → `open_recent` (derselbe Effekt wie `open_result`), Menü „Weitere Aktionen“ mit „Im Ordner zeigen“
+   (Desktop, `reveal_recent`) bzw. „Teilen“ (Mobile, `share_recent`, derselbe Effekt wie `share_result`) und „Erneut
+   signieren“ (`sign_recent`: die Datei öffnen wie `open_files` – Arbeitsbereich bzw. Warteschlange/Stapel nach dem
+   Zustand –, nur mit `actions.open_files`; bei geparkter Arbeit dieselbe Rückfrage „Zur offenen Arbeit hinzufügen?“
+   wie bei neuen PDFs, `mode: add | replace`). Den Pfad kennt nur der Kern; die Oberfläche bekommt weiter nur Name,
+   Ordner und Zeitpunkt. Fehlt die Datei: Hinweis `ng-recent-missing`, nichts an die Shell, der Eintrag bleibt;
+   „Im Ordner zeigen“ auf Mobilgeräten bzw. „Teilen“ auf dem Desktop bleibt ohne Wirkung, eine unbekannte Kennung
+   ebenso. Keines dieser Ereignisse öffnet eine Sitzung (A1, F-54) – signiert wird erst mit „Signieren“.
+3. **Oberfläche:** `features/verify` gelöscht; kein Knopf „Prüfen“ und kein Kontext „Prüfmodus“ in der Kopfzeile, kein
+   Befehl „Signatur prüfen“ in Palette und Kürzelübersicht, keine Karte „Signatur prüfen?“ auf der Startseite (ohne
+   „Zuletzt signiert“ eine Spalte), Ablegen öffnet immer (kein Prüfziel mehr), `goHome` ohne `close_verify`. Mock ohne
+   Bereich `verify` und ohne Szenario `?scenario=verify`; `MockCtx::native` protokolliert die nativen Aufrufe der Liste
+   (`openRecent:`, `revealRecent:`, `shareRecent:`), „Erneut signieren“ geht als Signal `open-files` mit `mode` an den
+   Ablauf. Texte: `ng-ui-vf-*`, `ng-ui-shell-verify*`, `ng-ui-shell-cmd-verify`, `ng-ui-start-verify-*` (Bereich `vf`
+   entfällt) sowie im Kern `ng-verify-open-failed`, `ng-verify-busy`, `ng-verify-warning-*` entfernt;
+   `ng-ui-recent-open` („„{ $name }“ öffnen“), neu `ng-ui-recent-more`, `ng-ui-recent-sign`; die Menüpunkte nutzen die
+   Texte von „Fertig“ (`ng-ui-fin-open`, `-reveal`, `-share`). Der Abschnitt Datenschutz der Einstellungen erwähnte den
+   Prüfmodus nicht und bleibt unverändert.
+4. **Bleibt:** die Erkennung vorhandener Signaturen beim Signieren (`ExistingSignatureView`, Sperren, Zertifizierung,
+   „bereits signiert“ im Arbeitsbereich, Analysewarnung) unverändert; `pades::verify_document` und
+   `cades::qc_statements` als Bibliothek (Tests mit `testdata/verify/*`, Golden- und Interop-Tests; `qc_statements` auch
+   für die Qualifikation „laut Zertifikat“ auf „Fertig“); das Entwickler-Werkzeug `pida verify` (`tools::verify_file`)
+   – ohne „gültig“: je Signatur „Intakt (unverändert)“ bzw. „Nicht intakt“ und immer „Vertrauenskette und Sperrstatus
+   nicht geprüft – vollständige Prüfung: https://www.signaturpruefung.gv.at“ (`ng-cli-verify-intact`,
+   `ng-cli-verify-not-intact`, `ng-cli-verify-scope`; `ng-cli-valid`/`ng-cli-invalid` stehen in `RETIRED_WAVE2_IDS`),
+   JSON `intact` statt `valid` und `trust_checked: false`, `SignatureCheck::intact` statt `valid`; Exit-Codes unverändert
+   (0 alle intakt bzw. keine Signatur, 6 mindestens eine nicht intakt, 3 nicht lesbar).
+5. **Tests und Proben:** `core-api/tests/verify.rs` gelöscht – die Ersteinrichtung (Proben, „keine Sitzung“) steht in
+   `first_run.rs`, die Qualifikation auf „Fertig“ in `real_pades.rs`; neu `settings.rs::recent_entry_offers_what_done_offers`
+   (Desktop und iOS, alte Liste, fehlende Datei, keine Sitzung), `batch.rs::sign_recent_while_parked_joins_or_replaces_like_open_files`,
+   `flow.rs` (klassischer Ablauf ignoriert die neuen Ereignisse auf unbekannte Einträge). Proben neu erzeugt:
+   `view-states.json` ohne `ws_verify_*`, `real-core-tools-views.json` nur noch Ersteinrichtung,
+   `real-core-views.json`/`real-core-batch-views.json` ohne `verify`, `ui-events.json` mit den vier neuen Ereignissen
+   (weiter 63 Varianten). Gegentests „kein Einstieg in einen Prüfmodus“: Kopfzeile, Palette und Befehlsliste,
+   Startseite, „Zuletzt signiert“, Mock (kein Szenario, keine Freigabe), Vertrag (`ViewState`/`actions` ohne `verify`),
+   Katalog (keine IDs des Prüfmodus, `catalogs.rs::verify_texts_never_claim_validity` jetzt für `pida verify`); CLI
+   `cli.rs::verify_signed_unsigned_and_broken` prüft „intakt“ und den Umfang in DE/EN ohne „gültig“.

@@ -1,4 +1,8 @@
-# Testdaten Prüfmodus (ADR 0004 §3.9, §3.17)
+# Testdaten Prüfung vorhandener Signaturen (ADR 0004 §3.17)
+
+> Entstanden für den Prüfmodus der App (ADR 0004 §3.9). Dieser ist entfernt (ADR 0004 Nachtrag 15); die Dateien
+> bleiben für die Bibliothek `pida_pades::verify_document`, Golden- und Interop-Tests und das Entwickler-Werkzeug
+> `pida verify`.
 
 > **NUR FÜR TESTS.** Signiert mit den Testschlüsseln aus `testdata/keystores` bzw. dem QES-Testzertifikat aus
 > `keys/` (selbstsigniert, Passwort `test`, Subject mit `(NUR TEST)`). Keine echten Personendaten.
@@ -20,7 +24,7 @@ Eingabe ist `pdf/generated/simple-xref-table.pdf` (eine Seite 612 × 792 pt), f�
 | `pdfas-signed.pdf` | eigene Engine, PDF-AS-kompatibel (`PdfasCompat`), RSA-2048, sichtbar | `intact`, `whole_document`, Unterzeichner `PDF-Over NG Test RSA (NUR TEST)`, SHA-256, `all_intact` |
 | `tampered.pdf` | wie `pdfas-signed.pdf`, ein Byte im signierten Bereich geändert | `broken` (`cms-digest-mismatch`), Unterzeichner trotzdem genannt, `some_broken` |
 | `pkcs7-sha1.pdf` | `/SubFilter /adbe.pkcs7.sha1`, CMS über den SHA-1-Wert (openssl) | `not_verifiable` (`pdf-signature-subfilter`), `some_not_verifiable` |
-| `cades-sha1.pdf` | `ETSI.CAdES.detached` mit SHA-1 und ESS signing-certificate v1 (openssl) | `intact` mit `ng-verify-warning-sha1`, `ng-verify-warning-signing-certificate-v1` |
+| `cades-sha1.pdf` | `ETSI.CAdES.detached` mit SHA-1 und ESS signing-certificate v1 (openssl) | `intact` mit den Hinweisen `CmsWarning::Sha1Digest` und `CmsWarning::SigningCertificateV1` |
 | `two-signatures.pdf` | RSA-Signatur, danach P-256-Signatur in einer späteren Revision | 1: `revision` (1 spätere Revision, 1 spätere Signatur), 2: `whole_document`; `all_intact` |
 | `modified-after-signing.pdf` | `pdfas-signed.pdf` + Increment ohne Signatur (Katalog geändert) | `intact`, `revision` (1 spätere Revision, 0 Signaturen), `modified_after_last_signature` |
 | `invisible.pdf` | Profil `INVISIBLE`, P-256 | `intact`, keine `appearance` |

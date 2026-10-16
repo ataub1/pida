@@ -196,11 +196,13 @@ A-Trust-Verbindung.
   `crates/core-api/tests/settings.rs::mobile_restrictions`, Screenshots `docs/integration/screenshots/stage3/mobil-*.png`
   (375 × 812 @2x); 375 px ohne waagrechtes Scrollen der Seite. Offen [H]: Simulator/Emulator.
 - **Seit E4 (ADR 0004 §3.9/§3.12, Nachtrag 6):** Prüfmodus mit den Seiten über dem Ergebnis (Kopfzeile
-  „Prüfmodus“), Datei über die Dokumentauswahl (`pickMobileFiles`) bzw. „Zuletzt signiert“; Ersteinrichtung als
+  „Prüfmodus“), Datei über die Dokumentauswahl (`pickMobileFiles`) bzw. „Zuletzt signiert“ – **seit Nachtrag 15
+  (17.10.2026) entfernt**: „Zuletzt signiert“ bietet auf Mobilgeräten „Öffnen“ (Vorschau, QuickLook bzw.
+  `ACTION_VIEW`), „Teilen“ (Share-Sheet) und „Erneut signieren“ wie „Fertig“; Ersteinrichtung als
   Sheet ohne Chipkarte (Keystore erst nach dem PKCS#12-Import wählbar), ohne „neben dem Original“ (Ausgabe bleibt in
   den App-Dokumenten) und ohne „PDF-Over-Einstellungen übernehmen“ in Einstellungen › Erweitert (auf Mobilgeräten
-  gibt es kein PDF-Over); Palette ohne Tastenkappen. Nachweise: `features/verify/verify.test.tsx`,
-  `features/onboarding/onboarding.test.tsx`, `features/palette/palette.test.tsx` (Mobile, schmal, axe), Kern
+  gibt es kein PDF-Over); Palette ohne Tastenkappen. Nachweise: `features/recent/recent.test.tsx` (Mobile, seit
+  Nachtrag 15), `features/onboarding/onboarding.test.tsx`, `features/palette/palette.test.tsx` (Mobile, schmal, axe), Kern
   `crates/core-api/tests/first_run.rs` (Mobile), Screenshots `docs/integration/screenshots/stage4/mobil-*.png`
   (375 × 812 @2x); 360 px ohne waagrechtes Scrollen. Offen [H]: Simulator/Emulator, App-Kill während der
   Ersteinrichtung.
@@ -355,7 +357,7 @@ API 35, 411 CSS-px; `docs/integration/screenshots/android-ng/`). Umfang Mobile 1
 | Keystore-Import, Signieren, Fertig, Teilen, „Sichern unter“, Öffnen | ok nach R2 (Tastatur verdeckte Dialoge), R4 (Systemtexte englisch); pyHanko *VALID* | ok; pyHanko *VALID* (5 Dateien, auch 120 MB) |
 | Stapel, Hintergrund/Vordergrund, App-Ende im Lauf | ok (3 von 3 nach Hintergrund); Keystore hat nach Kill nichts fortzusetzen | ok nach B19 („Fortsetzen“ behält „Beide behalten“) |
 | Einstellungen im Vollbild, Suche, Mobile-Einschränkungen | ok nach Befunden 5, 6, 11, 16 | ok nach B11, B14–B16 |
-| Prüfmodus | ok | ok nach B3 (Ergebnis scrollt) |
+| Prüfmodus (seit ADR 0004 Nachtrag 15 entfernt) | ok | ok nach B3 (Ergebnis scrollt) |
 | ID Austria ohne Netz | ok nach 13, 14 und R3 (Benutzername eingebbar) | ok nach B5, B9 |
 | Safe Areas, Tastatur, Schriftgröße, Bildschirmleser (Inspektion) | ok nach 4, 7–10, 15 (Dynamic Type bis 200 %) | ok (130 %, Zurück-Geste nach B18) |
 

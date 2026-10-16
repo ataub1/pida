@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# PIDA – erzeugt das QES-Testzertifikat für den Prüfmodus (ADR 0004 §3.9, §3.17) unter testdata/verify/keys/.
+# PIDA – erzeugt das QES-Testzertifikat für die Signaturprüfung der Tests (ADR 0004 §3.17) unter testdata/verify/keys/.
 #
 #   testdata/verify/make-keys.sh            # nur, wenn es fehlt
 #   testdata/verify/make-keys.sh --force    # neu erzeugen (neuer Schlüssel!)
 #
 # NUR FÜR TESTS: selbstsigniert, Passwort "test", Subject mit "(NUR TEST)". Die Erweiterung qcStatements
 # (QcCompliance 0.4.0.1862.1.1, QcSSCD 0.4.0.1862.1.4, QcType esign 0.4.0.1862.1.6.1) erklärt das Zertifikat
-# als „qualifiziert“ – das ist eine bloße Behauptung im Zertifikat und genau das, was der Prüfmodus als
-# „qualifiziert laut Zertifikat“ zeigen soll. Kein Aussteller einer Vertrauensliste, keine echten Personendaten.
+# als „qualifiziert“ – das ist eine bloße Behauptung im Zertifikat und genau das, was `pades::verify_document`
+# und die Fertig-Ansicht als „qualifiziert laut Zertifikat“ melden sollen. Kein Aussteller einer Vertrauensliste, keine echten Personendaten.
 #
 # Die signierten Testdateien erzeugt der Generator des Kerns:
 #   PIDA_BLESS=1 cargo test -p pida-pades --test verify_testdata
