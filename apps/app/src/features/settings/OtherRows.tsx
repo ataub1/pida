@@ -216,10 +216,6 @@ export function CmsRow() {
 export function MigrationRow() {
   const { t, view, dispatch } = useApp();
   const offer = view.migration;
-  const [searched, setSearched] = useState(false);
-  useEffect(() => {
-    if (offer) setSearched(false);
-  }, [offer]);
   return (
     <div className="stack-2">
       <span className="field-label">{t.t('ng-ui-set-migration')}</span>
@@ -229,23 +225,12 @@ export function MigrationRow() {
           <MigrationOfferPane offer={offer} level={4} titleId="set-migration-offer" />
         </div>
       ) : (
-        <>
-          <div className="button-row">
-            <Button
-              size="sm"
-              onPress={() =>
-                void dispatch({ type: 'offer_migration' }).then((ok) => {
-                  if (ok) setSearched(true);
-                })
-              }
-            >
-              {t.t('ng-ui-set-migration-search')}
-            </Button>
-          </div>
-          <p className="field-hint" role="status">
-            {searched ? t.t('ng-ui-set-migration-none') : ''}
-          </p>
-        </>
+        // ohne Fund meldet der Kern `ng-migration-not-found` (Hinweis über dem Dialog, eine Quelle)
+        <div className="button-row">
+          <Button size="sm" onPress={() => void dispatch({ type: 'offer_migration' })}>
+            {t.t('ng-ui-set-migration-search')}
+          </Button>
+        </div>
       )}
     </div>
   );

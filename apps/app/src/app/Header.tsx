@@ -1,17 +1,19 @@
 /**
  * Kopfzeile (Gestalt aus dem Prototyp, ADR 0004 §3 „Informationsarchitektur“): Wortmarke (→ Start, ohne
  * „Prototyp“-Plakette), Dokumentkontext (Name, Seiten, Größe; aus dem Stapel geöffnet mit „Zurück zum
- * Stapel“) bzw. Stapelkontext („Stapel · 4 Dokumente“), „Prüfen“ (Platzhalter bis zum Prüfmodus,
- * Freigabe `actions.verify`), „Befehle ⌘K“ (sobald die Palette da ist, B4), DE/EN (`set_ui_language`),
+ * Stapel“) bzw. Stapelkontext („Stapel · 4 Dokumente“) bzw. im Prüfmodus „Prüfmodus“ (ohne den Knopf
+ * „Prüfen“; die Wortmarke verlässt ihn), „Prüfen“ (Freigabe `actions.verify`), „Befehle ⌘K“, DE/EN (`set_ui_language`),
  * Farbschema (lokal je Gerät) und Einstellungen (`actions.settings`).
  */
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
 import { isMobile } from '../core/types';
 import { PALETTE_AVAILABLE } from '../features/palette';
+import { VERIFY_AVAILABLE } from '../features/verify';
 import { formatSize } from '../features/workspace/placement';
 import { IconButton, Keys, Segmented, useModKey } from '../ui/controls';
 import { IconArrowLeft, IconCheck, IconFileText, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconShieldCheck, IconSun } from '../ui/Icons';
 import { Wordmark } from '../ui/Logo';
+import { goHome } from './commands';
 import { useApp } from './context';
 import type { Theme } from './theme';
 
@@ -21,9 +23,10 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
   const doc = view.document;
   const mobile = isMobile(view);
   const themeIcon = theme === 'dark' ? <IconMoon size={18} /> : theme === 'light' ? <IconSun size={18} /> : <IconMonitor size={18} />;
-  const home = () => {
-    if (view.actions.home) void dispatch({ type: 'navigate', step: 'Open' });
-  };
+  // Prüfmodus (liegt über dem Zustand darunter): Kontext „Prüfmodus“ statt des verdeckten Dokuments wie im
+  // Prototyp; die Wortmarke führt wie dort zur Startansicht (Prüfmodus schließen, dann `navigate{Open}`)
+  const verify = VERIFY_AVAILABLE && view.verify !== null;
+  const home = () => void goHome(view, dispatch);
   const pages = doc ? doc.doc.page_count : 0;
   const batch = view.batch;
   // aus dem Stapel geöffnet (`return_to_batch`) bzw. weitere Dokumente in der Warteschlange (`show_batch`)
@@ -35,7 +38,14 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
       <AriaButton className="brand" aria-label={t.t('ng-ui-shell-home')} onPress={home}>
         <Wordmark />
       </AriaButton>
-      {doc && doc.phase !== 'done' ? (
+      {verify ? (
+        <div className="header-context">
+          <span className="header-doc">
+            <IconShieldCheck size={17} className="header-doc-icon" />
+            <span className="header-doc-name">{t.t('ng-ui-shell-verify-mode')}</span>
+          </span>
+        </div>
+      ) : doc && doc.phase !== 'done' ? (
         <div className="header-context">
           {backToBatch || showBatch ? (
             <IconButton label={t.t(backToBatch ? 'ng-ui-batch-back' : 'ng-ui-batch-show')} onPress={() => void dispatch({ type: backToBatch ? 'back_to_batch' : 'show_batch' })}>
@@ -61,10 +71,12 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
       ) : null}
       <div className="header-spacer" />
       <div className="header-actions">
-        <AriaButton className="btn btn-ghost btn-md header-verify" onPress={onVerify} isDisabled={!view.actions.verify} aria-label={t.t('ng-ui-shell-verify-long')}>
-          <IconShieldCheck size={18} />
-          <span className="hide-narrow">{t.t('ng-ui-shell-verify')}</span>
-        </AriaButton>
+        {verify ? null : (
+          <AriaButton className="btn btn-ghost btn-md header-verify" onPress={onVerify} isDisabled={!view.actions.verify} aria-label={t.t('ng-ui-shell-verify-long')}>
+            <IconShieldCheck size={18} />
+            <span className="hide-narrow">{t.t('ng-ui-shell-verify')}</span>
+          </AriaButton>
+        )}
         {PALETTE_AVAILABLE ? (
           <AriaButton className="command-button" onPress={() => setOverlay('palette')} aria-label={t.t('ng-ui-shell-commands-long')}>
             <IconSearch size={16} />

@@ -185,7 +185,6 @@ ng-ui-set-migration = PDF-Over-Einstellungen übernehmen
     .keywords = pdf-over migration übernehmen import importieren altkonfiguration alte einstellungen ersteinrichtung
 ng-ui-set-migration-hint = Sucht auf diesem Gerät nach den Einstellungen einer früheren PDF-Over-Installation und bietet sie zur Übernahme an.
 ng-ui-set-migration-search = Suchen …
-ng-ui-set-migration-none = Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.
 
 ## Einstellungen › Über
 

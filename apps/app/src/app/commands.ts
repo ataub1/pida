@@ -88,10 +88,19 @@ export function isCommandEnabled(id: CommandId, view: ViewState): boolean {
     case 'signature':
       return a.settings && view.settings === null;
     case 'home':
-      return a.home;
+      return a.home || view.verify !== null;
     default:
       return true;
   }
+}
+
+/**
+ * „Zur Startseite“ (Wortmarke, Palette): wie im Prototyp auch aus dem Prüfmodus – erst `close_verify` (er liegt
+ * über dem Zustand darunter), dann `navigate{Open}`, sofern freigegeben.
+ */
+export async function goHome(view: ViewState, dispatch: (event: UiEvent) => Promise<boolean>): Promise<void> {
+  if (view.verify) await dispatch({ type: 'close_verify' });
+  if (view.actions.home) await dispatch({ type: 'navigate', step: 'Open' });
 }
 
 /** Was ein Befehl auslöst (von der Shell bereitgestellt). */
@@ -147,7 +156,7 @@ export function buildCommands(deps: CommandDeps): CommandEntry[] {
       case 'signature':
         return () => deps.openSettings('signature');
       case 'home':
-        return () => void deps.dispatch({ type: 'navigate', step: 'Open' });
+        return () => void goHome(deps.view, deps.dispatch);
       case 'theme-light':
         return () => deps.setTheme('light');
       case 'theme-dark':

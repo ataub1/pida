@@ -216,6 +216,12 @@ describe('Migrationsangebot ohne Ersteinrichtung', () => {
     const settings = await screen.findByRole('dialog', { name: 'Einstellungen' });
     await user.type(within(settings).getByRole('searchbox', { name: 'Einstellungen durchsuchen' }), 'pdf-over');
     await user.click(within(settings).getByRole('button', { name: 'Suchen …' }));
-    expect(await within(settings).findByText('Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.')).toBeInTheDocument();
+    // eine Quelle: der Hinweis des Kerns (`ng-migration-not-found`), über dem Dialog und für Screenreader
+    // erreichbar (Top Layer), kein zweiter Text im Bereich
+    const toast = await screen.findByText('Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.');
+    expect(toast.closest('[data-notice-code]')).toHaveAttribute('data-notice-code', 'ng-migration-not-found');
+    expect(toast.closest('[data-react-aria-top-layer]')).not.toBeNull();
+    expect(within(settings).queryByText('Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.')).toBeNull();
+    expect(settings.closest('[aria-hidden="true"]')).toBeNull();
   });
 });

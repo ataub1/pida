@@ -205,6 +205,11 @@ export const verifyArea: MockArea<VerifyState> = {
       case 'close_verify':
         close(state);
         return true;
+      case 'open_files':
+        // wie K4 (Merge E4): Öffnen zeigt die Datei im Arbeitsbereich, der Prüfmodus schließt; den
+        // Ablauf behandelt der Bereich Arbeitsbereich
+        if (e.paths.length > 0) close(state);
+        return false;
       case 'sign_verified': {
         const path = state.path;
         const ready = state.view?.status.state === 'ready';

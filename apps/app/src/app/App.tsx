@@ -106,7 +106,7 @@ const TITLE: Record<MainView, string> = {
   done: 'ng-ui-fin-title',
   error: 'ng-ui-sc-error-title',
   finished: 'ng-ui-finished',
-  verify: 'ng-ui-shell-verify',
+  verify: 'ng-ui-shell-verify-mode',
   batch: 'ng-ui-batch-title',
 };
 
@@ -258,6 +258,13 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       setDragActive(false);
       if (e.type !== 'drop' || e.paths.length === 0) return;
       const { current: v, dispatch: d, toast: tst } = dropState.current;
+      // Prüfmodus: die abgelegte Datei prüfen (wie im Prototyp), nicht verdeckt im Arbeitsbereich öffnen
+      if (VERIFY_AVAILABLE && v.verify && !v.settings) {
+        const path = e.paths[0];
+        if (v.actions.verify && path) void d({ type: 'open_verify', path });
+        else tst(translator(v.language).t('ng-ui-drop-not-here'));
+        return;
+      }
       if (v.settings) {
         const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(e.x, e.y) : null;
         const image = e.paths.find((p) => IMAGE_EXT.test(p));
@@ -280,7 +287,14 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       const blocked = o !== null || v.settings !== null || document.querySelector('[data-modal-layer]') !== null;
       if (mod && !e.altKey && !e.shiftKey && k === 'k' && PALETTE_AVAILABLE) {
         e.preventDefault();
-        if (v.step.step !== 'signing') setOverlay(o === 'palette' ? null : 'palette');
+        if (o === 'palette') {
+          setOverlay(null);
+          return;
+        }
+        // nicht beim Signieren und nicht über anderen Dialogen (Ersteinrichtung, Rückfragen, „Signatur
+        // fortsetzen“ …); über den Einstellungen und der Kürzelübersicht wie im Prototyp
+        const otherDialog = Array.from(document.querySelectorAll('[data-modal-layer]')).some((el) => !el.closest('.settings-modal, .shortcuts-modal, .palette-modal'));
+        if (v.step.step !== 'signing' && !otherDialog) setOverlay('palette');
         return;
       }
       if (mod && !e.altKey && !e.shiftKey && e.key === ',') {

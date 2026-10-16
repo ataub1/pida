@@ -120,6 +120,31 @@ describe('Befehlspalette', () => {
     expect(await screen.findByRole('dialog', { name: 'Tastenkürzel' })).toBeInTheDocument();
   });
 
+  it('⌘/Strg+K nicht über anderen Dialogen (Ersteinrichtung), wohl über den Einstellungen und der Kürzelübersicht (Merge E4)', async () => {
+    const first = renderApp({ firstRun: true });
+    await screen.findByRole('dialog', { name: 'Willkommen bei PIDA' });
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByRole('dialog', { name: 'Befehle' })).not.toBeInTheDocument();
+    first.unmount();
+
+    const { user } = renderApp();
+    await screen.findByRole('heading', { level: 1 });
+    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Einstellungen' }));
+    const settings = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    const palette = await openPalette();
+    // „Einstellungen“ ist gesperrt, solange sie offen sind
+    expect(names(palette)).not.toContain('Einstellungen');
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Befehle' })).not.toBeInTheDocument());
+    expect(settings).toBeInTheDocument();
+    await user.click(within(settings).getAllByRole('button', { name: 'Schließen' })[0] as HTMLElement);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Einstellungen' })).not.toBeInTheDocument());
+    fireEvent.keyDown(window, { key: '?' });
+    await screen.findByRole('dialog', { name: 'Tastenkürzel' });
+    await openPalette();
+  });
+
   it('Mobile: ohne Tastenkappen; schmal als Sheet; axe', async () => {
     restore = emulateMedia({ narrow: true, coarse: true });
     const { user } = renderApp({ platform: 'ios' });

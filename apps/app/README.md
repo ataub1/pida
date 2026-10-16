@@ -28,6 +28,8 @@ npm run dev:mock       # Oberfläche mit Mock-Kern im Browser (http://localhost:
                        # Einstellungen › Dokument: &search=1&kind=fields (erstes leeres Feld),
                        # &pdfa=1 (PDF/A erzwungen), ?scenario=contract (PDF/A-Dokument);
                        # Richtlinie: &policy=recent-off|recent-on|updates
+                       # Prüfmodus: ?scenario=verify; Ersteinrichtung: ?firstrun=1 (&legacy=1 mit
+                       # PDF-Over-Einstellungen, &emblem=1 eigene Bildmarke, &secrets=1 Klartext-Passwörter)
 npm run build          # tsc (strict) + Vite → dist/
 npm test               # Vitest + Testing Library (jsdom)
 npm run tauri dev      # App mit Rust-Kern (Vite-Dev-Server + cargo)

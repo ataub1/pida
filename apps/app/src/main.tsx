@@ -13,6 +13,7 @@ import { App } from './app/App';
 import { createTauriBridge, inTauri, type Bridge } from './core/bridge';
 import { defaultSettings } from './core/defaults';
 import type { MockCore, MockOptions } from './core/mock';
+import type { FirstRunMockOptions } from './core/mock/firstrun';
 import type { SettingsMockOptions } from './core/mock/settings';
 import type { Settings } from './core/types';
 
@@ -36,9 +37,12 @@ async function bridge(): Promise<Bridge> {
  * `&policy=recent-off|recent-on|updates` (Richtlinie: „Zuletzt signiert“ bzw. Update-Prüfung festgelegt, E3),
  * `&fault=decline|network|session|too-large` (Störung beim zweiten Dokument), `&existing=1` (eine Zieldatei
  * gibt es schon), `&folder=ask|<Pfad>` (Speicherort), `&auto=0` (App-Bestätigung nur über „In der App
- * bestätigt“). Nur der Mock-Kern wertet das aus.
+ * bestätigt“). Ersteinrichtung (E4): `&firstrun=1` (fehlende Einstellungsdatei), `&legacy=1` (PDF-Over-
+ * Einstellungen gefunden; ohne `firstrun` als eigenes Angebot), `&secrets=1` (Klartext-Passwörter darin),
+ * `&emblem=1` (eigene Bildmarke in der Altkonfiguration; ohne bleibt das PIDA-Siegel). Nur der Mock-Kern
+ * wertet das aus.
  */
-function mockOptionsFromUrl(search: string, scenarios: readonly string[]): SettingsMockOptions {
+function mockOptionsFromUrl(search: string, scenarios: readonly string[]): SettingsMockOptions & FirstRunMockOptions {
   const params = new URLSearchParams(search);
   const platform = params.get('platform');
   const scenario = params.get('scenario') ?? params.get('szenario');
@@ -73,6 +77,10 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): Setti
     batchFaults: fault === 'decline' || fault === 'network' || fault === 'session' || fault === 'too-large' ? { 'Auftragsbestaetigung_4711.pdf': fault } : undefined,
     existingFiles: params.get('existing') === '1' ? ['/Users/demo/Dokumente/Verträge/Vertrag_signed.pdf'] : undefined,
     policy: policyFromUrl(params.get('policy')),
+    firstRun: params.get('firstrun') === '1',
+    migrationOffer: params.get('legacy') === '1' ? '/Users/demo/.pdf-over/PDF-Over.config' : null,
+    migrationSecrets: params.get('secrets') === '1',
+    legacyEmblem: params.get('emblem') === '1' ? '/Users/demo/Bilder/eigenes-logo.png' : null,
   };
 }
 

@@ -23,6 +23,7 @@ ng-ui-shell-pages =
     }
 ng-ui-shell-verify = Prüfen
 ng-ui-shell-verify-long = Signatur prüfen
+ng-ui-shell-verify-mode = Prüfmodus
 ng-ui-shell-commands = Befehle
 ng-ui-shell-commands-long = Befehle und Suche
 ng-ui-shell-lang = Sprache der Oberfläche

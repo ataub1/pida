@@ -2,7 +2,8 @@
  * Benachrichtigungen unten rechts in einer dauerhaften Live-Region (aus dem Prototyp, ADR 0004 §4.2).
  * Quellen: die Hinweise des Kerns (`ViewState::notices`, Schließen = `dismiss_notice`) und eigene
  * Hinweise der Oberfläche. Erfolg/Info verschwinden nach 6 s (pausieren bei Fokus/Hover), Fehler sind
- * `alert` und bleiben stehen (WCAG 2.2.1). Jeder Hinweis hat seine eigene Frist.
+ * `alert` und bleiben stehen (WCAG 2.2.1). Jeder Hinweis hat seine eigene Frist. Die Region liegt als
+ * „Top Layer“ über modalen Dialogen und bleibt dort für Screenreader erreichbar.
  */
 import { useEffect, useState } from 'react';
 import { Button } from 'react-aria-components';
@@ -71,7 +72,10 @@ function UiToast({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) =
 export function Toasts({ toasts, onDismiss, notices = [] }: { toasts: Toast[]; onDismiss: (id: number) => void; notices?: NoticeView[] }) {
   const { t } = useApp();
   return (
-    <section className="toasts" aria-label={t.t('ng-ui-shell-toasts')}>
+    // `data-react-aria-top-layer`: über offenen Dialogen (z. B. Einstellungen) bleiben die Hinweise für
+    // Screenreader sichtbar, bedienbar und schließen den Dialog nicht (React Aria `ariaHideOutside`,
+    // `useInteractOutside`, `FocusScope`)
+    <section className="toasts" aria-label={t.t('ng-ui-shell-toasts')} data-react-aria-top-layer="">
       <div className="toasts-list" aria-live="polite" aria-relevant="additions text">
         {notices.map((n) => (
           <CoreToast key={`core-${n.id}`} notice={n} />

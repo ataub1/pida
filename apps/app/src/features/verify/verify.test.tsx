@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ViewState } from '../../core/types';
 import { SOURCES } from '../../i18n/catalog';
@@ -236,12 +236,62 @@ describe('Prüfmodus: Dieses Dokument signieren', () => {
     expect(screen.getByRole('banner')).toHaveTextContent('Vertrag.pdf');
   });
 
-  it('ohne Freigabe `open_files` gesperrt; Kopfzeilenknopf nur mit `actions.verify`', async () => {
+  it('ohne Freigabe `open_files` gesperrt; „Anderes Dokument prüfen“ nur mit `actions.verify`', async () => {
     const v = probe('ws_verify_intact');
     await renderProbe({ ...v, actions: { ...v.actions, open_files: false, verify: false } });
     expect(screen.getByRole('button', { name: 'Dieses Dokument signieren' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Anderes Dokument prüfen' })).toBeDisabled();
-    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Signatur prüfen' })).toBeDisabled();
+    // im Prüfmodus kein Kopfzeilenknopf „Prüfen“ (wie im Prototyp), stattdessen der Kontext „Prüfmodus“
+    expect(within(screen.getByRole('banner')).queryByRole('button', { name: 'Signatur prüfen' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Prüfmodus in der Shell (Merge E4)', () => {
+  it('über einem offenen Dokument: Kopfzeile „Prüfmodus“, kein Signieren des verdeckten Dokuments, Wortmarke verlässt ihn', async () => {
+    const { mock, user } = renderApp({ scenario: 'contract', pickFilesResult: [`${DIR}/Mietvertrag_signiert.pdf`], isMac: true });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const banner = screen.getByRole('banner');
+    expect(banner).toHaveTextContent('Vertrag.pdf');
+    await user.click(within(banner).getByRole('button', { name: 'Signatur prüfen' }));
+    await screen.findByTestId('vf-summary');
+    expect(banner).toHaveTextContent('Prüfmodus');
+    expect(banner).not.toHaveTextContent('Vertrag.pdf');
+    expect(within(banner).queryByRole('button', { name: 'Signatur prüfen' })).not.toBeInTheDocument();
+    expect(document.title).toBe('PIDA – Prüfmodus');
+    // wie K4: „Signieren“ gesperrt (Palette ohne den Befehl), ⌘↵ wirkt nicht
+    const view = await mock.view();
+    expect(view.actions.sign || view.actions.edit_placement || view.actions.start_batch).toBe(false);
+    const before = mock.dispatched.length;
+    await user.keyboard('{Meta>}{Enter}{/Meta}');
+    expect(mock.dispatched.slice(before).some((e) => e.type === 'sign_with')).toBe(false);
+    await user.keyboard('{Meta>}k{/Meta}');
+    const palette = await screen.findByRole('dialog', { name: 'Befehle' });
+    expect(within(palette).queryByRole('menuitem', { name: /^Signieren/ })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    // „Prüfmodus verlassen“: zurück im Arbeitsbereich mit dem Dokument, Signieren wieder frei
+    await user.click(screen.getByRole('button', { name: 'Prüfmodus verlassen' }));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(banner).toHaveTextContent('Vertrag.pdf');
+    expect((await mock.view()).actions.sign).toBe(true);
+    // „Zur Startseite“ (Palette bzw. Wortmarke) wie im Prototyp: Prüfmodus schließen, dann Startansicht
+    await user.click(within(banner).getByRole('button', { name: 'Signatur prüfen' }));
+    await screen.findByTestId('vf-summary');
+    await user.keyboard('{Meta>}k{/Meta}');
+    await user.click(within(await screen.findByRole('dialog', { name: 'Befehle' })).getByRole('menuitem', { name: /^Zur Startseite/ }));
+    await waitFor(() => expect(mock.dispatched.slice(-2)).toEqual([{ type: 'close_verify' }, { type: 'navigate', step: 'Open' }]));
+    await screen.findByRole('heading', { level: 1, name: 'Was möchten Sie signieren?' });
+    expect(screen.queryByTestId('verify-view')).not.toBeInTheDocument();
+  });
+
+  it('Ablegen im Prüfmodus prüft die Datei; Öffnen (⌘O) zeigt sie im Arbeitsbereich', async () => {
+    const { mock, user } = await openVerify('Mietvertrag_signiert.pdf', { isMac: true });
+    act(() => mock.simulateFileDrag({ type: 'drop', paths: [`${DIR}/Kaufvertrag_manipuliert.pdf`, `${DIR}/b.pdf`], x: 1, y: 1 }));
+    await waitFor(() => expect(lastEvent(mock)).toEqual({ type: 'open_verify', path: `${DIR}/Kaufvertrag_manipuliert.pdf` }));
+    await screen.findByRole('heading', { level: 1, name: 'Kaufvertrag_manipuliert.pdf' });
+    await user.keyboard('{Meta>}o{/Meta}');
+    await waitFor(() => expect(lastEvent(mock)).toEqual({ type: 'open_files', paths: [`${DIR}/Mietvertrag_signiert.pdf`] }));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.queryByTestId('verify-view')).not.toBeInTheDocument();
   });
 });
 

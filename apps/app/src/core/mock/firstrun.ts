@@ -101,7 +101,9 @@ export const firstRunArea: MockArea<FirstRunState> = {
         ctx.emit({ kind: 'first-run-done' });
         return true;
       case 'offer_migration':
-        state.offer = state.legacy;
+        // wie K4: ohne Altkonfiguration Hinweis `ng-migration-not-found`
+        if (state.legacy) state.offer = state.legacy;
+        else ctx.notify('ng-migration-not-found');
         return true;
       default:
         return false;

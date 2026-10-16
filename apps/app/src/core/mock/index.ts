@@ -1156,6 +1156,9 @@ export class MockCore implements Bridge {
     this.dispatched.push(event);
     if (this.forced) return; // feste Testzustände reagieren nicht; Tests prüfen `dispatched`
     if (event.type === 'dismiss_notice') this.notices = this.notices.filter((n) => n.id !== event.id);
+    // wie K4 (Merge E4): bei offenem Prüfmodus ist das Dokument darunter verdeckt – kein Signieren (F-54)
+    const signing = ['sign_with', 'start_batch', 'confirm_position', 'choose_invisible', 'choose_backend'].includes(event.type);
+    if (this.verifyState.view && signing) return;
     for (const a of this.areas) a.area.handle(event, a.state, this.ctx);
     const session = this.flow.signing ?? this.flow.batch?.session() ?? null;
     if (event.type === 'open_signature_data' && session) {
@@ -1297,6 +1300,8 @@ export class MockCore implements Bridge {
     const view = this.areas.reduce<ViewState>((v, a) => ({ ...v, ...a.area.project(a.state, this.ctx) }), base);
     // Freigabe des Prüfmodus wie K4 (Leerlauf, Positionieren, Fertig, Stapelübersicht; ADR 0004 §3.9)
     view.actions = { ...view.actions, verify: verifyAllowed(view) };
+    // Prüfmodus offen: das Dokument darunter ist verdeckt (wie K4, Merge E4)
+    if (view.verify) view.actions = { ...view.actions, sign: false, edit_placement: false, start_batch: false, show_batch: false };
     // Einstellungen offen: Einstellungen nicht erneut erreichbar (wie `main_bar.settings_enabled` im Kern)
     if (view.settings) {
       view.main_bar = { ...view.main_bar, settings_enabled: false };
