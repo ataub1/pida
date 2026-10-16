@@ -166,6 +166,9 @@ export class SigningSession {
             kind: 'secret',
             request: ++this.request,
             prompt: { kind: 'KeystorePassword', subject: this.opts.keystoreSubject, retry: false },
+            // „Passwort merken?“ ergänzt die Projektion (`withStorageQuestion`)
+            ask_storage: false,
+            keychain_available: false,
           };
           return;
         case 'local_bku':
@@ -369,7 +372,7 @@ export class SigningSession {
   submitSecret(request: number, secret: string): void {
     if (this.interaction.kind !== 'secret' || this.interaction.request !== request) return;
     if (secret === 'falsch') {
-      this.interaction = { kind: 'secret', request: ++this.request, prompt: { ...this.interaction.prompt, retry: true } };
+      this.interaction = { ...this.interaction, request: ++this.request, prompt: { ...this.interaction.prompt, retry: true } };
       return;
     }
     if (this.interaction.prompt.kind === 'KeystorePassword' || this.interaction.prompt.kind === 'KeyPassword') this.host.unlocked?.();

@@ -4,30 +4,23 @@
  * - Standard-Signiermittel `backend.default` (`None` = „Jedes Mal fragen“); Keystore erst, wenn er eingerichtet
  *   ist; Chipkarte nur auf dem Desktop.
  * - Konten: ID Austria (Benutzername, „merken“; der Kern normalisiert), FIDO2 (nur mit Plattformunterstützung),
- *   Keystore (Desktop: Datei, Typ aus der Endung wie PDF-Over, Alias, Speicherart; Mobile nur über den
- *   PKCS#12-Import-Assistenten), Chipkarte (Status aus `ViewState::signers`).
+ *   Keystore (Desktop: Datei – das Format erkennt der Kern am Inhalt, keine Typauswahl –, Schlüssel als Auswahl
+ *   aus den Einträgen der Datei, Speicherart; Mobile nur über den PKCS#12-Import-Assistenten), Chipkarte
+ *   (Status aus `ViewState::signers`).
  * - Speichern: neben dem Original = `output.folder = "."` (relativ zum Quellordner, F-82), fester Ordner =
  *   absoluter Pfad, jedes Mal fragen = `None`; Mobile ohne Ordnerwahl (App-Dokumente). Namenszusatz mit dem
  *   Beispiel des Kerns (`SettingsView::examples["output.postfix"]`).
  */
-import { useState, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useApp } from '../../app/context';
 import { baseName } from '../../core/defaults';
-import type { BackendChoice, PasswordStorage } from '../../core/types';
-import { Badge, Button, SwitchField } from '../../ui/controls';
+import type { BackendChoice, KeystoreEntryView, KeystoreFormatView, PasswordStorage, UiEvent } from '../../core/types';
+import { Badge, Button, SwitchField, TextInput } from '../../ui/controls';
 import { IconCard, IconFileKey, IconFolder, IconPhone } from '../../ui/Icons';
-import { AccountCard, ChoiceCards, ChoiceSegments, PathRow, SettingTextField } from './controls';
+import { AccountCard, ChoiceCards, ChoiceSegments, PathRow, SettingSelect, SettingTextField } from './controls';
 import { KeystoreImportDialog } from './KeystoreImport';
+import { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion } from './StorageQuestion';
 import { useSettings, useTextSetting } from './state';
-
-/** Keystore-Typ aus der Dateiendung wie PDF-Over (`KeystoreConfigurationComposite`). */
-export function keystoreTypeFromFile(file: string): 'PKCS12' | 'JCEKS' | null {
-  const m = /\.([^./\\]+)$/.exec(file.trim());
-  const ext = m?.[1]?.toLowerCase();
-  if (ext === 'p12' || ext === 'pkcs12' || ext === 'pfx') return 'PKCS12';
-  if (ext === 'ks' || ext === 'jks') return 'JCEKS';
-  return null;
-}
 
 type DefaultChoice = BackendChoice | 'ask';
 
@@ -106,20 +99,184 @@ export function Fido2Row() {
   );
 }
 
-type KeystoreType = 'PKCS12' | 'JKS' | 'JCEKS';
+/** Gültigkeitsende als Datum der Oberflächensprache. */
+function validUntil(iso: string | null, lang: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat(lang === 'de' ? 'de-AT' : 'en-GB', { dateStyle: 'medium' }).format(d);
+}
+
+/** „Name · gültig bis …“ eines Eintrags (ohne Namen im Zertifikat: der Alias). */
+function entryLabel(t: ReturnType<typeof useApp>['t'], e: KeystoreEntryView): string {
+  const name = e.subject_cn ?? e.alias;
+  const date = validUntil(e.not_after, t.lang);
+  return date ? t.t('ng-ui-set-keystore-key-entry', { name, date }) : name;
+}
+
+const sameAlias = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+
+/** Format der gewählten Datei (am Inhalt erkannt, `SettingsView::keystore_format`). */
+function KeystoreFormatNote({ format }: { format: KeystoreFormatView | null }) {
+  const { t } = useApp();
+  switch (format) {
+    case 'pkcs12':
+      return <p className="field-hint">{t.t('ng-ui-set-keystore-format', { format: 'PKCS#12' })}</p>;
+    case 'jks':
+    case 'jceks':
+      return <p className="message message-warning">{t.t('ng-ui-notice-keystore-conversion')}</p>;
+    case 'unknown':
+      return <p className="message message-warning">{t.t('ng-ui-set-keystore-unsupported')}</p>;
+    default:
+      return null;
+  }
+}
+
+/** Passwortfeld „Schlüssel anzeigen“ (inline; bei der ersten Verwendung mit „Passwort merken?“). */
+function KeystorePasswordForm({ onClose }: { onClose: () => void }) {
+  const { t, dispatch } = useApp();
+  const s = useSettings();
+  const ask = !s.view.settings.keystore.storage_chosen;
+  const [password, setPassword] = useState('');
+  const [storage, setStorage] = useState<PasswordStorage>(DEFAULT_STORAGE_CHOICE);
+  const [empty, setEmpty] = useState(false);
+  // Problem des Kerns erst nach dem Absenden zeigen (nicht ein älteres beim Öffnen bzw. beim Tippen)
+  const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const problem = s.view.keystore_inspect_problem;
+  const error = empty
+    ? t.t('ng-ui-set-keystore-password-empty')
+    : submitted && problem
+      ? problem === 'keystore-wrong-password'
+        ? t.t('ng-ui-set-keystore-wrong-password')
+        : t.code(problem, {}, 'ng-ui-problem-invalid')
+      : null;
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (sending) return;
+    if (!password) return setEmpty(true);
+    setSending(true);
+    setSubmitted(true);
+    const event: UiEvent = ask ? { type: 'inspect_keystore', password, password_storage: storage } : { type: 'inspect_keystore', password };
+    void dispatch(event).finally(() => setSending(false));
+    setPassword('');
+  };
+  return (
+    <form className="stack-2 keystore-password" onSubmit={submit} noValidate>
+      <p className="field-hint">{t.t('ng-ui-set-keystore-key-lead')}</p>
+      <TextInput
+        label={t.t('ng-ui-set-keystore-password')}
+        type="password"
+        value={password}
+        onChange={(v) => {
+          setPassword(v);
+          setEmpty(false);
+          setSubmitted(false);
+        }}
+        error={error}
+        autoComplete="off"
+        autoFocus
+      />
+      {ask ? <PasswordStorageQuestion value={storage} onChange={setStorage} keychainAvailable={s.view.keychain_available} /> : null}
+      <div className="button-row">
+        <Button variant="primary" size="sm" type="submit" isDisabled={sending}>
+          {t.t('ng-ui-set-keystore-key-submit')}
+        </Button>
+        <Button variant="ghost" size="sm" onPress={onClose}>
+          {t.t('ng-ui-set-keystore-key-cancel')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Schlüssel (Alias) als Auswahl statt Textfeld: Einträge aus `SettingsView::keystore_entries` (der Kern liest
+ * sie mit einem gemerkten Passwort selbst, sonst nach „Schlüssel anzeigen …“). Nur Schlüsseleinträge sind
+ * wählbar; genau ein Schlüssel → als Text, Alias bleibt leer (der Kern nimmt den einzigen Schlüssel); mehrere →
+ * Auswahl setzt `keystore.alias`. Ein gesetzter Alias, der fehlt, erscheint als Warnung.
+ */
+function KeystoreKeyRow() {
+  const { t } = useApp();
+  const s = useSettings();
+  const [asking, setAsking] = useState(false);
+  const entries = s.view.keystore_entries;
+  const alias = s.get<string | null>('keystore.alias');
+  const label = t.t('ng-ui-set-keystore-key');
+
+  if (!entries) {
+    return (
+      <div className="stack-2">
+        <span className="field-label">{label}</span>
+        {alias ? <p className="muted">{t.t('ng-ui-set-keystore-key-alias', { alias })}</p> : null}
+        {asking ? (
+          <KeystorePasswordForm onClose={() => setAsking(false)} />
+        ) : (
+          <div className="button-row">
+            <Button variant="secondary" size="sm" onPress={() => setAsking(true)}>
+              {t.t('ng-ui-set-keystore-key-show')}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const keys = entries.filter((e) => e.is_key_entry);
+  const chosen = alias ? (keys.find((k) => sameAlias(k.alias, alias)) ?? null) : null;
+  const missing = alias && !chosen ? <p className="message message-warning">{t.t('ng-ui-set-keystore-alias-missing', { alias })}</p> : null;
+  const only = keys.length === 1 ? keys[0] : undefined;
+  if (keys.length === 0) {
+    return (
+      <div className="stack-2">
+        <span className="field-label">{label}</span>
+        <p className="message message-warning">{t.t('ng-ui-set-keystore-key-none')}</p>
+      </div>
+    );
+  }
+  if (only) {
+    return (
+      <div className="stack-2">
+        <span className="field-label">{label}</span>
+        <p className="keystore-key" data-testid="keystore-key">
+          <span>{entryLabel(t, only)}</span>
+          <span className="mono-small muted">{t.t('ng-ui-set-keystore-key-alias', { alias: only.alias })}</span>
+        </p>
+        {missing}
+        {missing ? (
+          <div className="button-row">
+            <Button variant="secondary" size="sm" onPress={() => s.apply({ 'keystore.alias': null })}>
+              {t.t('ng-ui-set-keystore-key-use')}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+  return (
+    <div className="stack-2">
+      <SettingSelect
+        label={label}
+        value={chosen?.alias ?? null}
+        placeholder={t.t('ng-ui-set-keystore-key-choose')}
+        description={chosen ? null : t.t('ng-ui-set-keystore-key-several')}
+        onChange={(id) => s.apply({ 'keystore.alias': id })}
+        options={keys.map((k) => ({ id: k.alias, label: entryLabel(t, k), detail: t.t('ng-ui-set-keystore-key-alias', { alias: k.alias }) }))}
+      />
+      {missing}
+    </div>
+  );
+}
 
 function KeystoreDetails() {
   const { t } = useApp();
   const s = useSettings();
-  const alias = useTextSetting(
-    'keystore.alias',
-    (v) => (typeof v === 'string' ? v : ''),
-    (text) => ({ value: text.trim() === '' ? null : text }),
-  );
   const storage = s.get<PasswordStorage>('keystore.password_storage');
+  // die Schlüssel lassen sich nur aus einer PKCS#12-Datei lesen (Mobile: immer PKCS#12, per Import)
+  const pkcs12 = s.view.keystore_format === 'pkcs12';
   return (
     <>
-      <SettingTextField label={t.t('ng-ui-set-keystore-alias')} description={t.t('ng-ui-keystore-alias-hint')} {...alias} />
+      {pkcs12 ? <KeystoreKeyRow /> : null}
       <ChoiceSegments<PasswordStorage>
         label={t.t('ng-ui-set-keystore-storage')}
         value={storage}
@@ -142,8 +299,8 @@ export function KeystoreRow() {
   const enabled = s.get<boolean>('keystore.enabled');
   const file = s.get<string | null>('keystore.file');
   const fileProblem = s.problem('keystore.file');
-  const declared = (s.get<string | null>('keystore.declared_type') ?? 'PKCS12').toUpperCase();
-  const type: KeystoreType = declared === 'JKS' || declared === 'JCEKS' ? declared : 'PKCS12';
+  // Format am Inhalt (Kern); solange die neue Wahl noch nicht bestätigt ist, ohne Hinweis
+  const format = s.isPending('keystore.file') ? null : s.view.keystore_format;
 
   if (s.mobile) {
     // Mobile: nur PKCS#12 und nur über den Import in die App-Sandbox (kein Dateipfad)
@@ -168,17 +325,15 @@ export function KeystoreRow() {
         title: t.t('keystore_config-KeystoreFile-Dialog_Title'),
         multiple: false,
         filters: [
-          { name: t.t('common-KeystoreExtension_Description'), extensions: ['p12', 'pkcs12', 'pfx', 'ks', 'jks'] },
           { name: t.t('common-PKCS12Extension_Description'), extensions: ['p12', 'pkcs12', 'pfx'] },
+          { name: t.t('common-KeystoreExtension_Description'), extensions: ['p12', 'pkcs12', 'pfx', 'ks', 'jks'] },
           { name: t.t('common-AllExtension_Description'), extensions: ['*'] },
         ],
         defaultPath: file,
       });
       const chosen = files?.[0];
-      if (!chosen) return;
-      // wie PDF-Over: der Typ folgt der Dateiendung (.p12/.pfx → PKCS12, .jks/.ks → Java-Keystore)
-      const derived = keystoreTypeFromFile(chosen);
-      s.apply(derived ? { 'keystore.file': chosen, 'keystore.declared_type': derived } : { 'keystore.file': chosen });
+      // das Format erkennt der Kern am Inhalt; `keystore.declared_type` bleibt unberührt (PDF-Over)
+      if (chosen) s.apply({ 'keystore.file': chosen });
     } catch {
       toast(t.t('ng-ui-dialog-failed'), 'error');
     }
@@ -212,21 +367,10 @@ export function KeystoreRow() {
               <p className="field-error" role="alert">
                 {fileProblem}
               </p>
+            ) : file ? (
+              <KeystoreFormatNote format={format} />
             ) : null}
           </div>
-          {file ? (
-            <ChoiceSegments<KeystoreType>
-              label={t.t('ng-ui-set-keystore-type')}
-              value={type}
-              onChange={(v) => s.apply({ 'keystore.declared_type': v })}
-              description={type === 'PKCS12' ? null : t.t('ng-ui-notice-keystore-conversion')}
-              options={[
-                { value: 'PKCS12', label: 'PKCS#12' },
-                { value: 'JKS', label: 'JKS' },
-                { value: 'JCEKS', label: 'JCEKS' },
-              ]}
-            />
-          ) : null}
           <KeystoreDetails />
         </>
       ) : null}

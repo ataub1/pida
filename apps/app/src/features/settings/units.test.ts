@@ -1,6 +1,6 @@
 /**
  * Reine Hilfen der Einstellungen (Paket UI-B, ADR 0004 E3): Suche mit Synonymen (`.keywords`), Sichtbarkeit
- * der Zeilen je Plattform/Profil, Keystore-Typ aus der Endung (PDF-Over), Logo-Größe in cm, Richtlinien-Sperren
+ * der Zeilen je Plattform/Profil, Logo-Größe in cm, Richtlinien-Sperren
  * aus dem vorgeschlagenen Vertragsfeld `locked`, Wertzugriff über Punktpfade.
  */
 import { describe, expect, it } from 'vitest';
@@ -9,7 +9,6 @@ import { translator } from '../../i18n/catalog';
 import { settingsView } from '../../test/views';
 import { logoCm } from './controls';
 import { ROWS, SECTIONS, fold, search, visibleRows } from './rows';
-import { keystoreTypeFromFile } from './SignerRows';
 import { lockedReason, valueAt } from './state';
 
 const desktop = visibleRows({ mobile: false, profile: 'SIGNATURBLOCK_SMALL' });
@@ -85,16 +84,6 @@ describe('Suche', () => {
 });
 
 describe('Hilfen', () => {
-  it('Keystore-Typ folgt der Dateiendung (PDF-Over KeystoreConfigurationComposite)', () => {
-    expect(keystoreTypeFromFile('/a/b/id.P12')).toBe('PKCS12');
-    expect(keystoreTypeFromFile('C:\\Keys\\id.pfx')).toBe('PKCS12');
-    expect(keystoreTypeFromFile('id.pkcs12')).toBe('PKCS12');
-    expect(keystoreTypeFromFile('/a/keystore.jks')).toBe('JCEKS');
-    expect(keystoreTypeFromFile('/a/keystore.ks ')).toBe('JCEKS');
-    expect(keystoreTypeFromFile('/a.p12/keystore')).toBeNull();
-    expect(keystoreTypeFromFile('/a/keystore.bin')).toBeNull();
-  });
-
   it('Logo-Größe: mm → cm mit Grenzen 1–20 cm', () => {
     expect(logoCm(23)).toBe(2.3);
     expect(logoCm(200)).toBe(20);

@@ -66,6 +66,8 @@ export function migratedSettings(settings: Settings, emblem: string | null, mobi
     next.output = { ...settings.output, folder: '/Users/demo/Dokumente/Signiert' };
     next.keystore = { ...settings.keystore, enabled: true, file: '/Users/demo/Zertifikate/max.p12', alias: 'max', declared_type: 'PKCS12' };
   }
+  // übernommene Speicherart gilt als gewählt (wie `pida_config::migrate`)
+  next.keystore = { ...next.keystore, storage_chosen: true };
   return next;
 }
 

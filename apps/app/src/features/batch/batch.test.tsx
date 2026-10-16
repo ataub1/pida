@@ -364,7 +364,7 @@ describe('Stapellauf (E2.2–E2.5)', () => {
   });
 
   it('⌘↵ startet „Alle signieren“; ohne Standard-Signiermittel öffnet sich das Menü, die Wahl startet (Keystore, Passwort einmal)', async () => {
-    const ks = { enabled: true, file: '/Users/demo/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'memory' as const };
+    const ks = { enabled: true, file: '/Users/demo/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'memory' as const, storage_chosen: true };
     const { user, mock } = await openBatch({ settings: settings({ backend: { default: null }, keystore: ks }), isMac: true });
     fireEvent.keyDown(window, { key: 'Enter', metaKey: true });
     const menu = await screen.findByRole('menu');

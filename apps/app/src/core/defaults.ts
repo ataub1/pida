@@ -40,7 +40,7 @@ export function defaultSettings(): Settings {
     placeholder: { search: false, kind: 'marker' },
     backend: { default: null },
     id_austria: { username: null, remember: false, fido2_default: false },
-    keystore: { enabled: false, file: null, declared_type: null, alias: null, password_storage: 'memory' },
+    keystore: { enabled: false, file: null, declared_type: null, alias: null, password_storage: 'memory', storage_chosen: true },
     output: { folder: null, postfix: '_signed' },
     proxy: { mode: 'system', host: null, port: null, user: null },
     certificate_cache: { enabled: false },

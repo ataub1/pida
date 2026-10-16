@@ -245,6 +245,14 @@ pub enum InteractionView {
         request: u64,
         /// Abfrage
         prompt: SecretPrompt,
+        /// Erste Verwendung des Keystores: unter dem Passwortfeld „Passwort merken?“ anbieten (Antwort in
+        /// [`UiEvent::SubmitSecret::password_storage`]); nur für das Keystore-Passwort einer Datei aus den
+        /// Einstellungen, deren Speicherart noch nie gewählt wurde
+        #[serde(default)]
+        ask_storage: bool,
+        /// Schlüsselbund bzw. sicherer Speicher verfügbar (sonst ist „Im Schlüsselbund“ nicht wählbar)
+        #[serde(default)]
+        keychain_available: bool,
     },
     /// Meldung
     Notice {
@@ -388,6 +396,21 @@ pub enum StepView {
     Batch,
 }
 
+/// Am Inhalt erkanntes Keystore-Format (Einstellungen › Signiermittel › Keystore; ersetzt die Typauswahl).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeystoreFormatView {
+    /// PKCS#12 (`.p12`/`.pfx`) – unterstützt
+    Pkcs12,
+    /// Java KeyStore – nicht unterstützt (Umwandlung in PKCS#12 nötig)
+    Jks,
+    /// Java JCEKS – nicht unterstützt (Umwandlung in PKCS#12 nötig)
+    Jceks,
+    /// kein bekanntes Keystore-Format
+    Unknown,
+}
+
 /// Einstellungen (Overlay über jedem Schritt).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -402,10 +425,23 @@ pub struct SettingsView {
     pub keychain_available: bool,
     /// FIDO2 verfügbar
     pub fido2_available: bool,
-    /// Keystore ist eingerichtet (aktiviert und die gewählte Datei existiert); erst dann ist er als
-    /// Standard-Signiermittel wählbar
+    /// Keystore ist eingerichtet (aktiviert, die gewählte Datei existiert und ist PKCS#12); erst dann ist
+    /// er als Standard-Signiermittel wählbar
     #[serde(default)]
     pub keystore_ready: bool,
+    /// Am Dateiinhalt erkanntes Format der gewählten Keystore-Datei (`None` = keine/fehlende Datei). Ersetzt
+    /// die Typauswahl aus PDF-Over (dort aus der Dateiendung); signiert wird nur mit PKCS#12.
+    #[serde(default)]
+    pub keystore_format: Option<KeystoreFormatView>,
+    /// Einträge der gewählten PKCS#12-Datei für die Alias-Auswahl (nach Alias sortiert), sobald das Passwort
+    /// bekannt ist: automatisch mit einem gemerkten Passwort (Speicherart), sonst nach
+    /// [`UiEvent::InspectKeystore`]. `None` = noch unbekannt (bzw. keine PKCS#12-Datei)
+    #[serde(default)]
+    pub keystore_entries: Option<Vec<KeystoreEntryView>>,
+    /// Problem der letzten Prüfung über [`UiEvent::InspectKeystore`] (Meldungs-ID, z. B.
+    /// `keystore-wrong-password`); `None` = keines
+    #[serde(default)]
+    pub keystore_inspect_problem: Option<String>,
     /// Einstellungen werden nicht gespeichert (Altdatei per `-c`, unlesbare Datei)
     #[serde(default)]
     pub read_only: bool,
@@ -624,6 +660,12 @@ pub enum UiEvent {
         request: u64,
         /// Passwort
         secret: String,
+        /// Antwort auf „Passwort merken?“ ([`InteractionView::Secret::ask_storage`]): wird als
+        /// `keystore.password_storage` gespeichert und gilt schon für dieses Passwort; danach fragt PIDA nicht
+        /// mehr. Ohne Rückfrage ohne Wirkung
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "ts", ts(as = "Option<crate::ts::PasswordStorage>", optional = nullable))]
+        password_storage: Option<pida_config::PasswordStorage>,
     },
     /// Meldung beantwortet
     AnswerNotice {
@@ -829,14 +871,36 @@ pub enum UiEvent {
     /// Einstellungen › Erweitert: Altkonfiguration erneut suchen und anbieten (auch nach
     /// `decline_migration`; §3.12)
     OfferMigration,
+    /// Einstellungen › Signiermittel › Keystore „Schlüssel anzeigen“: die gewählte PKCS#12-Datei mit dem
+    /// Passwort öffnen und ihre Einträge in [`SettingsView::keystore_entries`] zeigen (Problem in
+    /// [`SettingsView::keystore_inspect_problem`]). Ein richtiges Passwort wird gemäß
+    /// `keystore.password_storage` behalten (wie nach dem Signieren). Nur bei geöffneter Einstellungsansicht.
+    InspectKeystore {
+        /// Passwort (nur RAM, sofort in `Zeroizing`; nie geloggt); `None` = ein bekanntes (gemerktes)
+        /// Passwort verwenden
+        password: Option<String>,
+        /// Antwort auf „Passwort merken?“ (nur solange `keystore.storage_chosen` falsch ist, sonst ohne
+        /// Wirkung)
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "ts", ts(as = "Option<crate::ts::PasswordStorage>", optional = nullable))]
+        password_storage: Option<pida_config::PasswordStorage>,
+    },
 }
 
 impl std::fmt::Debug for UiEvent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UiEvent::SubmitSecret { request, .. } => {
-                f.debug_struct("SubmitSecret").field("request", request).field("secret", &"***").finish()
-            }
+            UiEvent::SubmitSecret { request, password_storage, .. } => f
+                .debug_struct("SubmitSecret")
+                .field("request", request)
+                .field("secret", &"***")
+                .field("password_storage", password_storage)
+                .finish(),
+            UiEvent::InspectKeystore { password, password_storage } => f
+                .debug_struct("InspectKeystore")
+                .field("password", &password.as_ref().map(|_| "***"))
+                .field("password_storage", password_storage)
+                .finish(),
             UiEvent::SubmitForm { request, answer } => {
                 f.debug_struct("SubmitForm").field("request", request).field("answer", answer).finish()
             }
@@ -930,6 +994,24 @@ pub struct DocRefView {
 }
 
 redacted_debug!(DocRefView { id } redact { name });
+
+/// Eintrag eines PKCS#12-Keystores für die Alias-Auswahl (Einstellungen › Signiermittel › Keystore; nur
+/// Schlüsseleinträge sind wählbar). Name und Alias sind Personendaten (ohne friendlyName ist der Alias der
+/// Subject-Text) – `Debug` redigiert sie (Regel 9).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct KeystoreEntryView {
+    /// Alias (Wert für `keystore.alias`)
+    pub alias: String,
+    /// erster Common Name (CN) des Zertifikats
+    pub subject_cn: Option<String>,
+    /// Ende der Gültigkeit des Zertifikats (RFC 3339 mit Offset, UTC)
+    pub not_after: Option<String>,
+    /// Schlüsseleintrag (sonst nur ein Zertifikat, z. B. eine Zertifizierungsstelle)
+    pub is_key_entry: bool,
+}
+
+redacted_debug!(KeystoreEntryView { not_after, is_key_entry } redact { alias, subject_cn });
 
 // Pfad der Altdatei und Details der Übernahmeliste (Ordner, maskierte Telefonnummer) nicht im Log (Regel 9)
 redacted_debug!(MigrationOfferView { plaintext_secrets, items } redact { legacy_file });
