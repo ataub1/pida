@@ -697,3 +697,54 @@ describe('Automatische Positionierung im Stapel (Nachtrag 8)', () => {
     expect(await screen.findByRole('switch', { name: 'Position automatically for this batch' })).toBeChecked();
   });
 });
+
+describe('Wortlaut je Signiermittel (Mobile-Check 16.10.2026, Nachtrag 12: SignerView::batch_flow)', () => {
+  const lead = () => screen.getByRole('heading', { level: 1 }).closest('.batch-titles')?.querySelector('.view-lead')?.textContent;
+
+  it('Einleitung der Übersicht: ID Austria, Keystore, Chipkarte und „Jedes Mal fragen“', async () => {
+    const cases = [
+      ['atrust_native', 'Alle Dokumente werden in einem Durchgang signiert: einmal anmelden, dann jedes Dokument einzeln bestätigen. Dokumente mit Fehler werden übersprungen.'],
+      ['keystore', 'Alle Dokumente werden in einem Durchgang signiert – der Keystore wird dafür einmal entsperrt. Dokumente mit Fehler werden übersprungen.'],
+      ['local_bku', 'Alle Dokumente werden in einem Durchgang signiert, jedes bestätigen Sie einzeln. Dokumente mit Fehler werden übersprungen.'],
+      [null, 'Alle Dokumente werden in einem Durchgang signiert. Dokumente mit Fehler werden übersprungen.'],
+    ] as const;
+    for (const [selected, text] of cases) {
+      const { unmount } = renderApp({ view: batchOverview(batchData(), { signers: signersView({ selected, default: selected }) }) });
+      await screen.findByRole('list', { name: 'Dokumente im Stapel' });
+      expect(lead()).toBe(text);
+      unmount();
+    }
+  });
+
+  it('Keystore-Stapel: „Dokument k von n“ und „Signiert“ statt „Bestätigung“, Abbruch ohne „Passwort wird vergessen“', async () => {
+    const ks = { enabled: true, file: '/Users/demo/max.p12', declared_type: 'PKCS12', alias: 'max', password_storage: 'memory' as const, storage_chosen: true };
+    const { user } = await openBatch({ settings: settings({ backend: { default: null }, keystore: ks }) });
+    // „Jedes Mal fragen“: neutral
+    expect(lead()).toBe('Alle Dokumente werden in einem Durchgang signiert. Dokumente mit Fehler werden übersprungen.');
+    await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
+    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Keystore/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit Keystore' });
+    await within(dialog).findByLabelText('Keystore-Passwort');
+    const strip = within(dialog).getByTestId('batch-strip');
+    expect(strip).toHaveTextContent('Dokument 1 von 3 · Angebot_2026-118.pdf');
+    expect(strip).not.toHaveTextContent(/Bestätigung/);
+    expect(within(strip).getByRole('progressbar', { name: 'Signiert' })).toBeInTheDocument();
+    // Esc fragt nach: ohne Anmeldung kein „Passwort wird vergessen“
+    await user.keyboard('{Escape}');
+    expect(await within(dialog).findByText('Stapel abbrechen?')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent('Bereits signierte Dokumente bleiben gespeichert, die übrigen werden nicht signiert.');
+    expect(dialog).not.toHaveTextContent('Das Passwort wird vergessen.');
+  });
+
+  it('ID-Austria-Stapel: „Bestätigung k von n“, „Bestätigungen“ und beim Abbruch „Passwort wird vergessen“', async () => {
+    const { user } = await openBatch();
+    expect(lead()).toMatch(/einmal anmelden, dann jedes Dokument einzeln bestätigen/);
+    await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
+    const dialog = await login(user);
+    await confirmation(dialog, 1, 3, 'Angebot_2026-118.pdf');
+    expect(within(within(dialog).getByTestId('batch-strip')).getByRole('progressbar', { name: 'Bestätigungen' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(await within(dialog).findByText('Stapel abbrechen?')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent('Das Passwort wird vergessen.');
+  });
+});

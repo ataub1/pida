@@ -7,7 +7,8 @@
  * - `accept_migration`/`decline_migration` wirken sofort (die übernommenen Werte setzt der Bereich
  *   Einstellungen, `migratedSettings`); danach zeigen Schritt 2/3 die Werte aus den Einstellungen.
  * - `update_first_run` übernimmt der Bereich Einstellungen (Vorschau neu), `finish_first_run` beendet die
- *   Ersteinrichtung (Hinweis `ng-firstrun-done`), `offer_migration` bietet die Altkonfiguration erneut an
+ *   Ersteinrichtung (Hinweis `ng-firstrun-done`; „Später einrichten“ = `postpone_first_run` mit `ng-firstrun-later`),
+ *   `offer_migration` bietet die Altkonfiguration erneut an
  *   (Einstellungen › Erweitert, auch nach `decline_migration`).
  *
  * Die Übernahmeliste enthält eine Bildmarke **nur**, wenn die Altkonfiguration eine eigene gesetzt hat
@@ -102,9 +103,11 @@ export const firstRunArea: MockArea<FirstRunState> = {
         state.offer = null;
         return true;
       case 'finish_first_run':
+      case 'postpone_first_run':
         if (!state.active) return true;
         state.active = false;
-        ctx.notify('ng-firstrun-done');
+        // wie der Kern (Nachtrag 12): „Einrichtung abgeschlossen“ nur nach „Fertig“
+        ctx.notify(e.type === 'finish_first_run' ? 'ng-firstrun-done' : 'ng-firstrun-later');
         ctx.emit({ kind: 'first-run-done' });
         return true;
       case 'offer_migration':

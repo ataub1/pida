@@ -26,7 +26,7 @@ ng-config-error-no-home = Der Konfigurationsordner kann nicht ermittelt werden.
 ng-config-error-secret = Fehler beim Zugriff auf den Schlüsselbund: { $detail }
 ng-config-file-missing = Die Konfigurationsdatei „{ $path }“ wurde nicht gefunden.
 ng-config-reset-done = Die bisherigen Einstellungen wurden nach „{ $path }“ verschoben.
-ng-secrets-not-persistent = Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Programmende gespeichert.
+ng-secrets-not-persistent = Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Beenden von PIDA gespeichert.
 
 ## Konfiguration: Lesen von PDF-Over.config (`pida_config::LegacyWarning::code`)
 
@@ -519,7 +519,7 @@ ng-ui-done-title = Erledigt ({ $count })
 ng-ui-done-signed = signiert: { $file }
 ng-ui-done-cancelled = abgebrochen
 ng-ui-done-failed = fehlgeschlagen: { $message }
-ng-ui-settings-read-only = Diese Einstellungen werden nicht gespeichert (Konfiguration per -c bzw. nicht lesbare Einstellungsdatei). Änderungen gelten bis zum Programmende.
+ng-ui-settings-read-only = Diese Einstellungen werden nicht gespeichert (Konfiguration per -c bzw. nicht lesbare Einstellungsdatei). Änderungen gelten bis zum Beenden von PIDA.
 ng-cli-fido2-pin = PIN des Sicherheitsschlüssels:{ " " }
 ng-certcache-mismatch = Das Zertifikat hat sich geändert (z. B. erneuert oder ein anderes Konto). Die Signatur wurde verworfen. „Wiederholen“ liest das Zertifikat neu, erstellt den Signaturblock mit den neuen Angaben und fragt erneut nach der Bestätigung.
 ng-placeholder-profile-unknown = Der Signaturplatzhalter nennt das unbekannte Profil „{ $profile }“; signiert wird mit dem eingestellten Profil.
@@ -637,6 +637,8 @@ ng-migration-item-position = Automatische Positionierung
 ng-migration-item-language = Sprache
 ng-migration-not-found = Auf diesem Gerät wurden keine PDF-Over-Einstellungen gefunden.
 ng-firstrun-done = Einrichtung abgeschlossen. Sie können alles jederzeit in den Einstellungen ändern.
+ng-firstrun-later = Signiermittel und Signaturbild können Sie jederzeit in den Einstellungen einrichten.
+ng-open-duplicate = „{ $name }“ ist bereits geöffnet.
 ng-settings-field-unknown = Unbekannte Einstellung.
 ng-settings-invalid-value = Dieser Wert ist für die Einstellung nicht gültig.
 ng-settings-invalid-port = Der Port muss zwischen 1 und 65535 liegen.

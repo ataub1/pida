@@ -197,6 +197,8 @@ const signersView = obj({
       capabilities: nullable(capabilities),
       notes: arr(str),
       unavailable_reason: nullable(str),
+      // Nachtrag 12 (Stapelwortlaut je Signiermittel)
+      batch_flow: optional(lit('login_then_confirm_each', 'confirm_each', 'unlock_once')),
     }),
   ),
   selected: nullable(backendId),
@@ -488,6 +490,8 @@ const viewState = obj({
   actions,
   // Nachtrag 10: geparkte Arbeit („Zur Startseite“) – in TS optional, vom Kern immer geliefert
   parked: optional(obj({ doc_name: nullable(str), documents: int, placed_by_hand: bool, unsaved: bool })),
+  // Nachtrag 12: Hinweis zum Teilen (iOS) – in TS optional
+  share_hint: optional(obj({ doc: int })),
 });
 
 const formAnswer = tagged('kind', {
@@ -570,6 +574,10 @@ const uiEvent = tagged('type', {
   go_home: {},
   resume_parked: {},
   discard_parked: {},
+  // Nachtrag 12: Ersteinrichtung „Später einrichten“; von außen übergebene Dateien (Shell), Hinweis zum Teilen
+  postpone_first_run: {},
+  files_received: { paths: arr(str) },
+  dismiss_share_hint: {},
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -713,6 +721,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
           home: true,
         },
         parked: null,
+        share_hint: null,
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);

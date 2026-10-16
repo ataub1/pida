@@ -193,6 +193,8 @@ pub use view::{DocumentDetectionView, PdfaDecision, PdfaIdView};
 pub use view::OpenFilesMode;
 // Nachtrag 10 („Zur Startseite“ parkt offene Arbeit)
 pub use view::ParkedWorkView;
+// Nachtrag 12 (Randfälle aus dem Mobile-Check: Stapelwortlaut je Signiermittel, Hinweis zum Teilen auf iOS)
+pub use view::{BatchFlowView, ShareHintView};
 
 use pida_backend_api::{Platform, SignatureBackend};
 use pida_config::{Overlay, Paths, Policy, SecretStore};
@@ -422,6 +424,7 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         first_run: None,
         actions: actions::actions_for(&pida_workflow::State::Starting, false),
         parked: None,
+        share_hint: None,
     }
 }
 

@@ -366,14 +366,16 @@ Prüfungen nach den Behebungen: `npm ci && npm run build && npm test` 606/606 (2
   Suche eingeschaltet und dieselbe Datei erneut per `VIEW` empfangen → beide Einträge „im QR-Platzhalter“, das gezeigte
   Dokument behält aber „Auf neuer Seite“ (Seite 1 / 2 mit leerer neuer Seite). Frisch geöffnet richtig (Seite 1 / 1).
   Kern (Neuauswertung der Platzierung, `new_page`) prüfen; dazu: dieselbe Datei zweimal empfangen ergibt zwei
-  Stapel-Einträge.
+  Stapel-Einträge. **Behoben** (ADR 0004 Nachtrag 12 Punkt 10): Ziel Feld/QR beendet „Auf neuer Seite“, dieselbe Datei
+  kommt nicht doppelt dazu (Hinweis `ng-open-duplicate`).
 - **Leiste der Einstellungsbereiche:** im Emulator zeitweise überlagerte Beschriftungen (z. B. „Doku“ plus Teile von
   „Signaturbild“; 25–31, 48, 52, 56) – nur in `adb screencap`; eine CDP-Aufnahme (`Page.captureScreenshot`) derselben
   Ansicht ist sauber, das DOM ohne Überlappung. Darstellungsfehler der Emulator-Grafik (`swiftshader_indirect`,
   Log „DisplaySurfaceGlContextHelper context was preempted“); auf einem echten Gerät gegenprüfen.
 - **Text der Stapelübersicht:** „einmal anmelden, dann jedes Dokument einzeln bestätigen“ steht auch beim Keystore bzw.
   „Jedes Mal fragen“ – passt nur zu ID Austria; ebenso der Zähler „Bestätigungen k von n“ bzw. „Bestätigung 1 von 2“ in
-  der Stapelkarte beim Keystore (Gegenprüfung).
+  der Stapelkarte beim Keystore (Gegenprüfung). **Behoben** (Nachtrag 12 Punkt 1: Wortlaut je Signiermittel aus
+  `SignerView::batch_flow`).
 - TalkBack mit Sprachausgabe (geprüft wurde der AX-Baum), echte Geräte, Android 9–14, Release-Build: wie §6.
 
 ### 8.5 Gegenprüfung (16.10.2026, Stand `36ff4d1` plus B19)
@@ -409,7 +411,9 @@ installiert), Emulator wie in 8.1 mit Proxy-Sperre und Flugmodus, A-Trust nie er
   („Seite 1 von 2 … Im Signaturfeld“ bei `qr.pdf`). „Sichern unter …“ meldet „„Vertrag_signed.pdf“ wurde gesichert“, obwohl die Dateiauswahl
   „Vertrag_signed (3).pdf“ anlegte. Nach „Fortsetzen“ fehlen in der Stapelzeile des fortgesetzten Dokuments Miniatur
   und Seiten/Größe. Die Leiste der Einstellungsbereiche zeigte das Überlagern auch hier nur in `adb screencap`
-  (CDP-Aufnahme sauber).
+  (CDP-Aufnahme sauber). **Behoben** bis auf das Grafikartefakt (ADR 0004 Nachtrag 12 Punkte 4, 7, 8, 9: Automatik
+  meidet Felder, Live-Region beim Dokumentwechsel, tatsächlicher Name aus `DISPLAY_NAME`, Voranalyse auch für die
+  fortgesetzte Zeile).
 
 ## 9. Mobile nur mit ID Austria (16.10.2026)
 

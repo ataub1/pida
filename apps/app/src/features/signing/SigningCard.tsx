@@ -12,7 +12,8 @@
  * bleiben nur im Formularzustand, werden nie geloggt und nach dem Senden verworfen.
  *
  * Stapel (`progress.batch`, ADR 0004 §3.8/§4.4): Kopf „Dokument k von n · Name“ bzw. „Bestätigung k von n ·
- * Name“, Zähler „Bestätigungen k von n“, aufklappbare Liste, „Dokument überspringen“ (nur dieser Job, die
+ * Name“, Zähler „Bestätigungen k von n“ (Keystore: „Dokument k von n“, „Signiert k von n“ – Wortlaut je
+ * Signiermittel nach `SignerView::batch_flow`, Nachtrag 12), aufklappbare Liste, „Dokument überspringen“ (nur dieser Job, die
  * Anmeldung bleibt) und „Stapel abbrechen“; nach dem Überspringen der Hinweis auf eine offene Anfrage in der
  * App (`ng-batch-pending-app-request`). Pausen (`progress.pause`) mit „Erneut versuchen“ (bei neuer Sitzung mit
  * Hinweis auf eine mögliche neue Anmeldung), „Überspringen“ (nur mit Dokument) und „Stapel abbrechen“. Esc/×
@@ -44,6 +45,7 @@ import { isMobile } from '../../core/types';
 import { Badge, Button, CheckboxField, Details, Progress, RadioCards, Spinner, TextInput } from '../../ui/controls';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconAlert, IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage, IconPhone, IconQr, IconUsbKey } from '../../ui/Icons';
+import { abortTextMsg, batchFlow, confirmsEach, newSessionMsg } from '../batch/flow';
 import { statusLabel, statusTone } from '../batch/texts';
 import { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion, PrivacyNote } from '../settings';
 import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerClass, signerName } from '../workspace/signers';
@@ -262,11 +264,11 @@ function SigningDialog({
           <BatchCard.Provider value={!!batch}>
             {batch ? <BatchStrip progress={batch} onSkip={skip} canSkip={mode === 'interaction' && !askAbort && !saving} skipHint={skipHint} /> : null}
             {askAbort && batch ? (
-              <AbortPane key="abort" onKeep={() => setAskAbort(false)} onAbort={abort} />
+              <AbortPane key="abort" onKeep={() => setAskAbort(false)} onAbort={abort} backend={batch?.backend ?? backend} />
             ) : (
               <>
                 {mode === 'interaction' && interaction ? <InteractionPane interaction={interaction} backend={backend} onCancel={batch ? abort : cancel} /> : null}
-                {mode === 'pause' && batch?.pause ? <PausePane pause={batch.pause} onAbort={abort} onSkip={skip} /> : null}
+                {mode === 'pause' && batch?.pause ? <PausePane pause={batch.pause} onAbort={abort} onSkip={skip} backend={batch.backend ?? backend} /> : null}
                 {mode === 'choose' && step.step === 'backend' ? <ChoosePane step={step} onCancel={cancel} /> : null}
                 {mode === 'error' && step.step === 'error' ? <ErrorPane step={step} beforeConfirm={index === 0} /> : null}
                 {mode === 'finishing' ? <DonePane /> : null}
@@ -294,13 +296,17 @@ function BatchStrip({ progress, onSkip, canSkip, skipHint }: { progress: Signing
   const done = progress.confirmations_done;
   const total = progress.total;
   const items = (view.batch?.items ?? []).filter((i) => RUN_STATES.includes(i.status.state));
-  const head = progress.stage === 'confirming' ? 'ng-ui-sc-batch-confirm' : 'ng-ui-sc-batch-doc';
+  // „Bestätigung k von n“ und „Bestätigungen“ nur mit einer Bestätigung je Dokument (Kern: `batch_flow`); beim
+  // Keystore (einmal entsperrt) „Dokument k von n“ und „Signiert“ (Mobile-Check 16.10.2026)
+  const each = confirmsEach(batchFlow(view, progress.backend));
+  const head = progress.stage === 'confirming' && each ? 'ng-ui-sc-batch-confirm' : 'ng-ui-sc-batch-doc';
+  const count = each ? 'ng-ui-sc-batch-count' : 'ng-ui-sc-batch-count-signed';
   return (
     <div className="sc-batch" data-testid="batch-strip">
       <p className="sc-batch-doc" role="status">
         {name ? t.t(head, { index: progress.index, total, name }) : null}
       </p>
-      <Progress className="sc-batch-progress" label={t.t('ng-ui-sc-batch-count')} value={total ? (done / total) * 100 : 0} valueLabel={t.t('ng-ui-sc-batch-count-value', { done, total })} />
+      <Progress className="sc-batch-progress" label={t.t(count)} value={total ? (done / total) * 100 : 0} valueLabel={t.t('ng-ui-sc-batch-count-value', { done, total })} />
       <div className="sc-batch-foot">
         {items.length > 0 ? (
           <Details label={t.t('ng-ui-sc-batch-list')} level={3}>
@@ -333,8 +339,8 @@ function BatchStrip({ progress, onSkip, canSkip, skipHint }: { progress: Signing
 }
 
 /** Rückfrage vor dem Abbruch des Stapels (Esc/×): Gespeichertes bleibt, das Passwort wird vergessen. */
-function AbortPane({ onKeep, onAbort }: { onKeep: () => void; onAbort: () => void }) {
-  const { t } = useApp();
+function AbortPane({ onKeep, onAbort, backend }: { onKeep: () => void; onAbort: () => void; backend: BackendId | null }) {
+  const { t, view } = useApp();
   return (
     <div className="step-pane">
       <span className="step-hero step-hero-info" aria-hidden="true">
@@ -342,7 +348,7 @@ function AbortPane({ onKeep, onAbort }: { onKeep: () => void; onAbort: () => voi
       </span>
       <div role="alert">
         <StepTitle>{t.t('ng-ui-sc-batch-abort-title')}</StepTitle>
-        <p className="step-text">{t.t('ng-ui-sc-batch-abort-text')}</p>
+        <p className="step-text">{t.t(abortTextMsg(batchFlow(view, backend)))}</p>
       </div>
       <div className="step-actions">
         <Button variant="ghost" onPress={onKeep}>
@@ -360,8 +366,8 @@ function AbortPane({ onKeep, onAbort }: { onKeep: () => void; onAbort: () => voi
  * Stapelpause (§3.8): Ablehnung bzw. wiederholbarer Dokumentfehler (Dokument), Verbindungsfehler (Sitzung
  * bleibt) oder Sitzungsfehler (neue Sitzung, ggf. neue Anmeldung). Nie automatisch weiter.
  */
-function PausePane({ pause, onAbort, onSkip }: { pause: BatchPauseView; onAbort: () => void; onSkip: () => void }) {
-  const { t, dispatch } = useApp();
+function PausePane({ pause, onAbort, onSkip, backend }: { pause: BatchPauseView; onAbort: () => void; onSkip: () => void; backend: BackendId | null }) {
+  const { t, dispatch, view } = useApp();
   const friendly = friendlyError(t, pause.code);
   const generic = friendly.title === t.t('ng-ui-sc-error-title');
   return (
@@ -374,7 +380,7 @@ function PausePane({ pause, onAbort, onSkip }: { pause: BatchPauseView; onAbort:
         <p className="step-text pre-line">{friendly.text ?? t.code(pause.code, pause.params)}</p>
         {/* ohne eigene Überschrift steht „Der Stapel ist angehalten“ schon im Titel */}
         <p className="step-text">{generic ? t.t('ng-ui-sc-batch-pause-decide') : t.code('ng-batch-paused')}</p>
-        {pause.new_session ? <p className="step-footnote">{t.t('ng-ui-sc-batch-pause-new-session')}</p> : null}
+        {pause.new_session ? <p className="step-footnote">{t.t(newSessionMsg(batchFlow(view, backend)))}</p> : null}
       </div>
       <Details label={t.t('ng-ui-sc-details')} level={4}>
         <p className="mono-small">{[pause.code, pause.doc?.name].filter(Boolean).join(' · ')}</p>

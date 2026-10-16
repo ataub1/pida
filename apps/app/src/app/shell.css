@@ -236,6 +236,19 @@
     right: var(--gutter);
     bottom: calc(132px + env(safe-area-inset-bottom));
   }
+  /* Ein Bottom-Sheet steht unten (Dialog bzw. ausgeklappte Seitenleiste des Arbeitsbereichs): ein Hinweis dort
+     verdeckte dessen unteren Rand samt Knöpfen (Mobile-Check 16.10.2026, „überdeckt Inhalt“ über der
+     Überschreiben-Frage). Dann stehen die Hinweise oben – bei einem Dialog über dem abgedunkelten Rest, sonst unter
+     der Kopfzeile. Seitenleisten-Dialog (Einstellungen) und Palette bleiben unberührt. */
+  :root:has(.overlay-center) .toasts,
+  :root:has(.overlay-center) .view-workspace .toasts {
+    top: max(var(--sp-2), env(safe-area-inset-top));
+    bottom: auto;
+  }
+  :root:has(.inspector[data-expanded]) .view-workspace .toasts {
+    top: calc(var(--header-h) + env(safe-area-inset-top) + var(--sp-2));
+    bottom: auto;
+  }
 }
 
 /* Finger: auch Wortmarke, Befehlsknopf und „+ PDF“ mindestens 44 × 44 px (WCAG 2.5.5, Apple HIG; das schmale

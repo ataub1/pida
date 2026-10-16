@@ -7,7 +7,7 @@
  * Shell (`data-add-drop`, `App.tsx`) mit derselben Wirkung.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Button } from 'react-aria-components';
+import { Button, type PressEvent } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
 import { isMobile, type DocumentView } from '../../core/types';
@@ -40,7 +40,18 @@ function useNearThumbs(root: HTMLElement | null, count: number): Set<number> {
   return near;
 }
 
-export function Thumbnails({ doc, sizes, current, onSelect }: { doc: DocumentView; sizes: [number, number][]; current: number; onSelect: (i: number) => void }) {
+export function Thumbnails({
+  doc,
+  sizes,
+  current,
+  onSelect,
+}: {
+  doc: DocumentView;
+  sizes: [number, number][];
+  current: number;
+  /** Seite gewählt; `pointerType` sagt, ob mit Finger/Maus oder Tastatur bzw. Bildschirmleser (Fokus danach) */
+  onSelect: (i: number, pointerType: PressEvent['pointerType']) => void;
+}) {
   const { t, bridge, view, browse } = useApp();
   const addable = doc.phase === 'editing' || doc.phase === 'warning';
   const ref = useRef<HTMLElement>(null);
@@ -60,7 +71,7 @@ export function Thumbnails({ doc, sizes, current, onSelect }: { doc: DocumentVie
             <li key={i} data-thumb={i}>
               <Button
                 className={`thumb${current === i ? ' is-current' : ''}`}
-                onPress={() => onSelect(i)}
+                onPress={(e) => onSelect(i, e.pointerType)}
                 aria-current={current === i ? 'page' : undefined}
                 aria-label={hasSticker ? t.t('ng-ui-ws-thumb-sticker', { n: i + 1 }) : t.t('ng-ui-ws-thumb', { n: i + 1 })}
               >

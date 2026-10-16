@@ -14,13 +14,14 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
-import { isMobile, type BackendId, type BatchItemView, type BatchView as BatchViewData } from '../../core/types';
+import { isMobile, type BackendId, type BatchFlowView, type BatchItemView, type BatchView as BatchViewData } from '../../core/types';
 import { AccessButton, Badge, Button, IconButton, Progress, Spinner } from '../../ui/controls';
 import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconFolder, IconInfo, IconLayers, IconLock, IconPlus, IconSignature, IconTarget, IconTrash } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { formatSize } from '../workspace/placement';
 import { SignerChip } from '../workspace/SignerChip';
 import { BatchAutoPosition } from './BatchAutoPosition';
+import { batchFlow, leadMsg } from './flow';
 import { StartBatchDialog } from './StartBatchDialog';
 import { estimateText, isOpenable, isSignable, outputText, statusDetail, statusLabel, statusTone, summaryCounts, summaryPlace } from './texts';
 import './batch.css';
@@ -46,6 +47,8 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
   const progress = view.step.step === 'signing' && view.step.progress.batch ? view.step.progress : null;
   const selected = view.signers.options.find((o) => o.backend === view.signers.selected);
   const leaves = selected?.capabilities?.document_leaves_device === true;
+  // Wortlaut je Signiermittel (Kern: `batch_flow`); im Lauf das des Laufs, ohne Wahl („Jedes Mal fragen“) neutral
+  const flow = batchFlow(view, progress?.backend ?? view.signers.selected);
   const summary = running ? null : batch.summary;
 
   const start = useCallback(
@@ -87,7 +90,7 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
           <h1 className="view-title" id="main-heading" tabIndex={-1} data-main-heading="">
             {t.t('ng-ui-batch-docs', { n: batch.items.length })}
           </h1>
-          <p className="view-lead">{t.t('ng-ui-batch-lead')}</p>
+          <p className="view-lead">{t.t(leadMsg(flow))}</p>
         </div>
         <div className="batch-actions">
           <AccessButton msg="ng-ui-batch-add" icon={<IconPlus size={17} />} onPress={() => void browse()} isDisabled={!view.actions.open_files} />
@@ -182,7 +185,7 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
 
       <ul className="batch-list" aria-label={t.t('ng-ui-batch-list')}>
         {batch.items.map((item) => (
-          <BatchRow key={item.doc} item={item} running={running} />
+          <BatchRow key={item.doc} item={item} running={running} flow={flow} />
         ))}
       </ul>
 
@@ -191,13 +194,13 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
   );
 }
 
-function BatchRow({ item, running }: { item: BatchItemView; running: boolean }) {
+function BatchRow({ item, running, flow }: { item: BatchItemView; running: boolean; flow: BatchFlowView | null }) {
   const { t, dispatch, bridge } = useApp();
   const statusId = useId();
   const s = item.status;
   const openable = isOpenable(item) && !running;
   const label = statusLabel(t, s);
-  const detail = statusDetail(t, item);
+  const detail = statusDetail(t, item, flow);
   const pages = item.page_count !== null ? t.t('ng-ui-shell-pages', { n: item.page_count }) : null;
   const size = item.size_bytes !== null ? formatSize(item.size_bytes, t.lang) : null;
   const meta = pages && size ? t.t('ng-ui-shell-doc-info', { pages, size }) : (pages ?? size ?? '');

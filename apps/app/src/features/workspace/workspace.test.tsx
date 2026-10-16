@@ -6,7 +6,7 @@
  * Wirkung der Einstellungen (Mock wie K3).
  */
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DocumentView, UiEvent } from '../../core/types';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { emulateMedia, lastEvent, renderApp } from '../../test/render';
@@ -425,6 +425,70 @@ describe('Seitenansicht, Zoom und Barrierefreiheit', () => {
     expect(screen.getByRole('navigation', { name: 'Seiten' })).toBeInTheDocument();
     await user.click(within(toolbar).getByRole('button', { name: 'Seitenleiste ein-/ausblenden' }));
     expect(screen.queryByRole('navigation', { name: 'Seiten' })).not.toBeInTheDocument();
+  });
+
+  it('schmal: nach der Wahl einer Miniatur Fokus auf dem Umschalter – sichtbar nur nach Tastatur, ohne Tooltip nach Zeiger', async () => {
+    // Mobile-Check 16.10.2026 (R10): Fokusrahmen und Tooltip des Umschalters verdeckten nach einem Tippen die Wortmarke
+    restore = emulateMedia({ narrow: true });
+    const { user } = renderApp({ view: workspaceView() });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const toggle = () => within(screen.getByRole('toolbar', { name: 'Ansicht' })).getByRole('button', { name: 'Seitenleiste ein-/ausblenden' });
+    const thumb = (n: number) => within(screen.getByRole('navigation', { name: 'Seiten' })).getByRole('button', { name: new RegExp(`^Seite ${n}`) });
+    // `focusVisible: false` unterdrückt auch das `:focus-visible` des Browsers bei Fokus per Skript (WebKit)
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    const focusedQuietly = () => focus.mock.contexts.some((el, i) => el === toggle() && (focus.mock.calls[i]?.[0] as FocusOptions | undefined)?.focusVisible === false);
+    const quiet = () => {
+      expect(screen.queryByRole('navigation', { name: 'Seiten' })).not.toBeInTheDocument();
+      expect(toggle()).toHaveFocus();
+      expect(toggle()).not.toHaveAttribute('data-focus-visible');
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+      expect(focusedQuietly()).toBe(true);
+      focus.mockClear();
+    };
+    try {
+      // Maus bzw. Finger
+      await user.click(toggle());
+      await user.click(thumb(2));
+      quiet();
+      // Tippen ohne Kontaktfläche bzw. Bildschirmleser („virtuell“, `detail = 0`)
+      await user.click(toggle());
+      fireEvent.click(thumb(1));
+      quiet();
+      // Tastatur: der Fokus bleibt sichtbar
+      await user.click(toggle());
+      thumb(3).focus();
+      focus.mockClear();
+      await user.keyboard('{Enter}');
+      expect(toggle()).toHaveFocus();
+      expect(toggle()).toHaveAttribute('data-focus-visible');
+      expect(focusedQuietly()).toBe(false);
+    } finally {
+      focus.mockRestore();
+    }
+  });
+
+  it('Live-Region: nach dem Wechsel zu einem anderen Dokument nicht mehr die Lage des vorigen', async () => {
+    // Mobile-Check 16.10.2026 (Android): nach dem Öffnen eines anderen Stapeldokuments stand dort zunächst noch die Lage
+    // des vorigen
+    const { mock } = renderApp({ view: workspaceView() });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const moved = documentView({
+      revision: 2,
+      placement: { page_index: 2, x: 309, y: 322, width: 230, height: 82 },
+      sticker: { left: 309, right: 539, top: 322, bottom: 240 },
+      check: { for_revision: 2, overlaps_content: false, overlaps_widget: false, clamped: false },
+      announce: { page: '3', pages: '3', left: '109', top: '114', bottom: '85' },
+    });
+    act(() => mock.setView(workspaceView(moved)));
+    const live = screen.getByTestId('live-region');
+    await waitFor(() => expect(live).toHaveTextContent(/^Seite 3 von 3, 109 mm von links/));
+    const other = documentView({ doc: { ...moved.doc, id: 8, name: 'Angebot.pdf' }, revision: 1 });
+    act(() => mock.setView(workspaceView(other)));
+    await screen.findByRole('img', { name: 'Seite 3 von 3 – Angebot.pdf' });
+    expect(live).toBeEmptyDOMElement();
+    // auch eine noch ausstehende Ansage des vorigen landet nicht mehr
+    await act(() => new Promise((r) => setTimeout(r, 350)));
+    expect(live).toBeEmptyDOMElement();
   });
 
   it('sichtbare Seiten gehen als inspect_pages an den Kern', async () => {

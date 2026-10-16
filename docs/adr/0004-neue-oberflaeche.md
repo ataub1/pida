@@ -2730,3 +2730,106 @@ Signiermittel); der Wert bleibt in der Datei. Ein gespeicherter Chipkarten-Stand
 Chipkarte gab es mobil nie). Der Desktop-Kern behält `import_keystore` (keine Oberfläche nutzt es mehr; Kandidat zum
 Aufräumen, wenn der Vertrag einmal bereinigt wird). Simulator und Emulator wurden für diesen Nachtrag nicht erneut
 durchgespielt; die Abläufe sind durch Kern- und Oberflächentests belegt (mobile.md §12.3).
+
+### Nachtrag 12 (16.10.2026): Randfälle und Wortlaut aus dem Mobile-Check
+
+Befunde aus dem Mobile-Check (docs/integration/mobile-ios.md §8.4/§8.5, mobile-android.md §8.4/§8.5, mobile.md §11.4),
+die Desktop und Mobile betreffen, dazu die Entscheidung des Auftraggebers zum Teilen mehrerer PDFs auf iOS („Hinweis
+reicht“, keine Share-Extension). (Parallel zu Nachtrag 11 „Mobile nur mit ID Austria“ entstanden.) Vertrag,
+additiv nach §3.0 Regel 2 (in TypeScript optional bzw. neue Varianten am Ende):
+
+```rust
+pub struct SignerView {
+    // … wie §3.4
+    #[serde(default)] #[ts(optional = nullable)] pub batch_flow: Option<BatchFlowView>,   // None ohne Fähigkeiten
+}
+pub enum BatchFlowView { LoginThenConfirmEach, ConfirmEach, UnlockOnce }  // BatchFlowView::from_capabilities
+pub struct ViewState {
+    // … wie §3.1 und Nachträge
+    #[serde(default)] #[ts(optional = nullable)] pub share_hint: Option<ShareHintView>,
+}
+pub struct ShareHintView { pub doc: DocId }
+pub enum UiEvent { /* … */ PostponeFirstRun, FilesReceived { paths: Vec<PathBuf> }, DismissShareHint }
+// "postpone_first_run" | "files_received" | "dismiss_share_hint"
+// core-api (Rust, kein TS-Vertrag): ShellHooks::export_path → Result<Option<String>, String> (tatsächlicher Name);
+// plan::PlanInput::avoid_widgets; pida_placement::WidgetAwareScanner. Plugin `exportFile` → { saved, name? }.
+// Meldungs-IDs (pida.ftl): ng-firstrun-later, ng-open-duplicate ($name)
+```
+
+1. **Stapelwortlaut je Signiermittel.** Der Kern leitet den Ablauf aus den Fähigkeiten ab: `max_batch > 1` →
+   `unlock_once` (Keystore: einmal entsperren, danach ohne Rückfrage), sonst `login_once_per_batch` →
+   `login_then_confirm_each` (ID Austria), sonst `confirm_each` (Chipkarte: PIN je Dokument). Die Oberfläche wählt
+   danach ihre Texte (`features/batch/flow.ts`): Hinweis der Startfläche (Desktop, Standard-Signiermittel),
+   Einleitung der Übersicht, „Überspringen“ im Startdialog („ohne Bestätigung in der App“ nur bei ID Austria), Kopf
+   und Zähler der Stapelkarte („Bestätigung k von n“/„Bestätigungen“ nur mit einer Bestätigung je Dokument; Keystore
+   „Dokument k von n“/„Signiert“, Phase „wird signiert“), Rückfrage beim Abbruch („Das Passwort wird vergessen“ nur
+   mit Anmeldung) und Fußnote der Sitzungspause. Ohne gewähltes Signiermittel („Jedes Mal fragen“) neutrale Texte.
+   Neue UI-Texte `ng-ui-start-drop-hint-{unlock,each,ask}`, `ng-ui-batch-lead-{unlock,each,ask}`,
+   `ng-ui-batch-stage-signing`, `ng-ui-sc-batch-count-signed`, `ng-ui-sc-batch-abort-text-local`,
+   `ng-ui-sc-batch-pause-new-session-{unlock,each}`. Auf Mobilgeräten gibt es nur ID Austria (Nachtrag 11), dort
+   also immer `login_then_confirm_each`.
+2. **„Später einrichten“** sendet `postpone_first_run` (auch Esc): abgeschlossen und gespeichert wie
+   `finish_first_run`, aber mit `ng-firstrun-later` („Signiermittel und Signaturbild können Sie jederzeit in den
+   Einstellungen einrichten.“) statt „Einrichtung abgeschlossen“; „Los geht’s“ bleibt `finish_first_run`.
+3. **„Bis zum Beenden“** einheitlich: Einstellungen › Keystore (bisher „Bis Programmende“) wie „Passwort merken?“;
+   `ng-secrets-not-persistent` und `ng-ui-settings-read-only` sagen „bis zum Beenden von PIDA“ (Welle-1-Liste
+   `wave1-message-ids.json` in docs und testdata nachgezogen).
+4. **Automatik überdeckt keine Felder.** Ursache: Der PDF-AS-Rasterscan sieht nur Gezeichnetes; ein leeres
+   Signaturfeld ohne Erscheinungsbild (seitenfüllendes `Signature_7` auf der letzten Seite von
+   `manySignFields-xref-stream.pdf` bzw. `Testdokument.pdf`) galt als frei, die Überdeckungsprüfung
+   (`widget_overlaps`) warnte zugleich „überdeckt ein Feld“, „Freie Fläche suchen“ landete wieder dort. Im
+   Arbeitsbereich zählt `WidgetAwareScanner` die Widgets vorhandener Felder wie Inhalt (Unterkante des tiefsten
+   Widgets oberhalb der Fußzeile; passt der Block nicht mehr, die neue Seite) – in der Vorschau (`auto_place`) und
+   beim Signieren (`PlanInput::avoid_widgets = ws.enabled`, Vorschau = Ergebnis). CLI und klassischer Ablauf behalten
+   die PDF-AS-Regel. Die virtuelle neue Seite meldet `overlaps_content = Some(false)` (leer wie ihr Layout).
+5. **Hinweise auf Telefonen** stehen oben, solange unten ein Bottom-Sheet steht (Dialog `overlay-center` bzw.
+   ausgeklapptes Sheet des Arbeitsbereichs), statt dessen Knöpfe zu verdecken (`shell.css`).
+6. **Miniatur gewählt (schmal):** Fokus auf den Umschalter der Seitenleiste wie bisher, sichtbar aber nur nach der
+   Tastatur; nach Finger, Maus bzw. Bildschirmleser Modalität „Zeiger“ und `focus({ focusVisible: false })` – kein
+   Fokusrahmen, kein Tooltip über der Wortmarke.
+7. **Live-Region:** Schließt bzw. wechselt das Dokument, verlässt seine Lage die Live-Region; eine noch ausstehende
+   Ansage verfällt (`announce('')`).
+8. **„Sichern unter“** meldet den tatsächlichen Dateinamen (von der Nutzerin geändert bzw. vom System nummeriert,
+   z. B. „Vertrag_signed (3).pdf“): iOS `lastPathComponent` der exportierten Kopie, Android `DISPLAY_NAME`; nur der
+   Dateiname, sonst der Vorschlag.
+9. **Fortgesetzte Stapelzeile:** Auch ein signierter Eintrag bekommt seine Voranalyse (Miniatur, Seiten, Größe; der
+   Status bleibt „Signiert“) – nach „Signatur fortsetzen“ eines unterbrochenen Stapels mit der signierten Datei, wenn
+   die Eingabe nicht mehr existiert, ebenso nach „Zum Stapel“ eines einzeln signierten Dokuments.
+10. **Platzhaltersuche nachträglich eingeschaltet, dieselbe Datei erneut empfangen.** Ursache 1: Wechselt das Ziel
+    eines (automatisch platzierten bzw. von der Nutzerin gewählten) Dokuments auf Feld bzw. QR-Platzhalter, blieben
+    Seite und `new_page` der virtuellen neuen Seite stehen. Der Reducer (`settle_on_target`) beendet „Auf neuer
+    Seite“ und zeigt die Seite des Ziels (Einstellungsänderung, nachgeholte Suche, Zielwahl); frei bleibt es Sache
+    der Automatik. Ursache 2: Mobile legt bei jedem „Teilen“/„Öffnen in“ eine neue Kopie an; `OpenFiles` nahm sie als
+    neues Dokument. Jetzt nimmt der Arbeitsbereich Dateien, die schon offen sind (gleicher Pfad oder gleicher Name mit
+    gleichem Inhalt; aktuelles, wartende, Stapel, geparkte Arbeit), nicht erneut auf: Hinweis `ng-open-duplicate`;
+    nur schon offene Dateien bei geparkter Arbeit setzen sie fort (Nachtrag 10 Punkt 4); `mode: replace` darf
+    dieselbe Datei neu öffnen; der klassische Ablauf bleibt bei F-89. Ein signiertes und gespeichertes Dokument
+    („Fertig“, `Output` mit `saved`) zählt nicht mehr als offen: eine neue Kopie derselben Datei öffnet wie bisher als
+    nächstes Dokument (F-89 „sofort weiter“), statt „ist bereits geöffnet“ zu melden (Nachprüfung 16.10.2026).
+11. **Bereichsleiste der Einstellungen** (waagrecht, schmal bzw. große Schrift) rollt den aktiven Bereich ins Bild –
+    beim Öffnen, nach jedem Wechsel, nach der Suche und wenn die Schrift wächst (nur die Leiste, nicht der Dialog).
+12. `pida verify` (CLI) bleibt in diesem Nachtrag unverändert (Online-Prüfung).
+13. **iOS: Hinweis zum Teilen.** Die Shell gibt von außen übergebene Dateien als `files_received` weiter (Mobile:
+    „Teilen“/„Öffnen in“, Desktop: „Öffnen mit“, zweite Instanz) – wie `open_files` ohne `mode`. Auf iOS setzt der
+    Kern danach `share_hint` für das empfangene Dokument, solange es allein im Arbeitsbereich offen ist (kein Stapel,
+    nichts wartet). Die Oberfläche (`features/workspace/ShareHint.tsx`) zeigt über „Signieren“ (auch im eingeklappten
+    Sheet) den nicht blockierenden Hinweis `ng-ui-ws-share-hint` mit „Weitere PDFs hinzufügen …“ (Dateiauswahl mit
+    Mehrfachauswahl) und „Hinweis ausblenden“ (`dismiss_share_hint`, bis zum Beenden der App). Nicht nach der
+    Dateiauswahl, nicht auf Android (`SEND_MULTIPLE`) und am Desktop.
+
+**Tests:** `crates/placement/tests/position_logic.rs` (`widget_aware_scan_keeps_automatic_placement_out_of_fields`);
+`crates/workflow/tests/workspace.rs` (`target_on_an_existing_page_ends_the_new_page`), `batch.rs`
+(`signed_single_document_joins_the_overview_with_its_preanalysis`, `resumed_document_of_…`); `crates/core-api/tests`
+`workspace.rs` (`automatic_placement_stays_out_of_existing_fields`,
+`the_same_file_opens_again_after_it_was_signed`), `settings.rs`
+(`qr_search_switched_on_leaves_the_new_page`), `batch.rs` (`the_same_file_received_again_is_not_added_twice`,
+`batch_flow_follows_the_capabilities_of_each_signer`), `first_run.rs`, `mobile.rs` (tatsächlicher Exportname,
+fortgesetzte Zeile, `ios_shows_the_share_hint_only_after_receiving_a_document`); Plugin `pida-mobile`
+(`export_and_import_treat_cancel_as_no_result`); Oberfläche `batch.test.tsx`, `start.test.tsx`,
+`onboarding.test.tsx`, `settings.test.tsx`, `workspace.test.tsx`, `Mobile.test.tsx`, `mobile-css.test.ts`; Proben
+`view-states.json` (`ws_share_hint_ios`), Real-Core-Proben, `ui-events.json`.
+
+**Angenommene Abweichungen:** „Hinweis ausblenden“ gilt bis zum Beenden der App (kein neuer Einstellungsschlüssel –
+der Hinweis erscheint ohnehin nur nach dem Teilen). `files_received` ersetzt in der Shell auch am Desktop `open_files`
+(gleiche Wirkung; der Kern entscheidet nach der Plattform). Duplikate erkennt der Kern nur im Arbeitsbereich-Modus und
+nur unter den offenen Dokumenten; eine inhaltsgleiche Kopie mit anderem Namen ist ein eigenes Dokument.

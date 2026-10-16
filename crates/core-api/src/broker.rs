@@ -51,8 +51,10 @@ pub trait ShellHooks: Send + Sync {
     }
     /// Exportiert eine Datei („Sichern unter“: `UIDocumentPickerViewController(forExporting:)` bzw. SAF
     /// `ACTION_CREATE_DOCUMENT` mit `file_name` als Vorschlag). Blockiert, bis die Nutzerin gewählt hat;
-    /// `Ok(false)` = abgebrochen. Standard: nicht unterstützt (Desktop: Speichern-Dialog des Kerns).
-    fn export_path(&self, path: &std::path::Path, file_name: &str) -> Result<bool, String> {
+    /// `Ok(Some(name))` = gesichert unter dem tatsächlichen Dateinamen (von der Nutzerin geändert bzw. vom System
+    /// vergeben, z. B. „Vertrag_signed (3).pdf“; kennt die Shell ihn nicht, der Vorschlag), `Ok(None)` =
+    /// abgebrochen. Standard: nicht unterstützt (Desktop: Speichern-Dialog des Kerns).
+    fn export_path(&self, path: &std::path::Path, file_name: &str) -> Result<Option<String>, String> {
         let _ = (path, file_name);
         Err("unsupported".into())
     }

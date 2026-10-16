@@ -90,4 +90,18 @@ describe('Mobile-Stile', () => {
   it('Schlüssel des Keystores: Name und Alias untereinander', () => {
     expect(topRule(read('features/settings/settings.css'), '.keystore-key')).toMatch(/display: grid/);
   });
+
+  it('Telefon: Hinweise oben, solange ein Bottom-Sheet unten steht (Dialog, ausgeklappte Seitenleiste)', () => {
+    const shell = read('app/shell.css');
+    // Dialog als Bottom-Sheet (`overlay-center`): oben, über dem abgedunkelten Rest – auch im Arbeitsbereich
+    const dialog = ruleInMedia(shell, '(max-width: 760px)', ':root:has(.overlay-center) .toasts,\n  :root:has(.overlay-center) .view-workspace .toasts');
+    expect(dialog).toMatch(/top: max\(var\(--sp-2\), env\(safe-area-inset-top\)\);/);
+    expect(dialog).toMatch(/bottom: auto;/);
+    // ausgeklappte Seitenleiste: unter der Kopfzeile
+    const sheet = ruleInMedia(shell, '(max-width: 760px)', ':root:has(.inspector[data-expanded]) .view-workspace .toasts');
+    expect(sheet).toMatch(/top: calc\(var\(--header-h\) \+ env\(safe-area-inset-top\) \+ var\(--sp-2\)\);/);
+    expect(sheet).toMatch(/bottom: auto;/);
+    // nach den Regeln „unten“ derselben Breite (gleiche Eigenschaft, spätere Regel gewinnt ohnehin über `bottom: auto`)
+    expect(shell.indexOf(':root:has(.overlay-center) .toasts')).toBeGreaterThan(shell.indexOf('.view-workspace .toasts {\n    right: var(--gutter);'));
+  });
 });

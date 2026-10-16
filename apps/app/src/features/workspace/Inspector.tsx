@@ -10,6 +10,9 @@
  * Stapelübersicht geöffnet) bzw. „Zum Stapel“ (weitere Dokumente). In der Phase `warning` steht hier die Warnung
  * der Eingangsanalyse mit „Trotzdem signieren“/„Verwerfen“.
  *
+ * iOS: nach dem Empfang über „Teilen“ der Hinweis, dass nur das erste geteilte PDF ankommt (`ShareHint`,
+ * `ViewState::share_hint`, ADR 0004 Nachtrag 12).
+ *
  * Einstellung „Automatische Positionierung“ (`placement_locked`, ADR 0004 Nachtrag 8): Platzierung „Automatisch
  * (laut Einstellung)“ mit „Diesmal selbst platzieren“ (`unlock_placement`) statt „Neu platzieren“/„Frei
  * platzieren“; nach dem Öffnen liegt der Fokus auf „Signieren“ (das Dokument ist bereit). Optionen bleiben
@@ -26,6 +29,7 @@ import { useFitScale, useNarrow } from '../../ui/hooks';
 import { IconAlert, IconChevronDown, IconFileText, IconGrip, IconLock, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { displayPages, overlapState, zoneText } from './placement';
+import { ShareHint } from './ShareHint';
 import { SignerChip } from './SignerChip';
 
 function formatTime(iso: string | null, lang: 'de' | 'en'): string | null {
@@ -289,6 +293,10 @@ export function Inspector({
           </div>
         </div>
       ) : null}
+
+      {/* iOS nach dem Empfang über „Teilen“ (Nachtrag 12): nur das erste geteilte PDF kommt an – wie die Warnung über
+          „Signieren“, damit der Hinweis auch im eingeklappten Bottom-Sheet sichtbar ist (der Kern entscheidet) */}
+      {!warning ? <ShareHint /> : null}
 
       {/* Schmal (Bottom-Sheet): der Konto-Chip steht unten – der Kurzhinweis „wird an A-Trust übermittelt“
           (ADR 0003, „bei der Signiermittel-Auswahl“) deshalb direkt darüber, auch eingeklappt */}

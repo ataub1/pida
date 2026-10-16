@@ -6,7 +6,7 @@
  * Updates/Log, Keystore nur per Import).
  */
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { EMBLEM_DROP_EVENT } from '../../app/events';
 import { defaultSettings } from '../../core/defaults';
 import type { SettingsMockOptions } from '../../core/mock/settings';
@@ -419,6 +419,9 @@ describe('Signiermittel und Speichern', () => {
     expect(await within(keystore).findByText('Format: PKCS#12')).toBeInTheDocument();
     expect(within(keystore).queryByRole('radiogroup', { name: 'Typ' })).toBeNull();
     expect(within(keystore).getByRole('button', { name: 'Schlüssel anzeigen …' })).toBeInTheDocument();
+    // Speicherart mit demselben Wortlaut wie „Passwort merken?“ (Mobile-Check 16.10.2026: hier stand „Bis Programmende“)
+    expect(within(keystore).getByRole('radio', { name: 'Bis zum Beenden' })).toBeInTheDocument();
+    expect(within(keystore).queryByText(/Programmende/)).toBeNull();
     await user.click(within(keystore).getByRole('radio', { name: 'Nicht speichern' }));
     await waitFor(async () =>
       expect((await mock.view()).settings!.settings.keystore).toEqual({ enabled: true, file: '/Users/demo/Zertifikate/max.p12', declared_type: null, alias: null, password_storage: 'none', storage_chosen: true }),
@@ -437,7 +440,7 @@ describe('Signiermittel und Speichern', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
     await user.click(nav(dialog, 'Signiermittel'));
     expect(within(dialog).getByRole('radio', { name: 'Schlüsselbund' })).toBeDisabled();
-    expect(within(dialog).getByText('Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Programmende gespeichert.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Beenden von PIDA gespeichert.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('switch', { name: /FIDO2/ })).toBeNull();
     expect(within(dialog).getByText('Ihr System unterstützt keine Authentifizierung mittels FIDO2-Token.')).toBeInTheDocument();
   });
@@ -614,12 +617,12 @@ describe('Erweitert und Über', () => {
 });
 
 describe('Schreibgeschützt (Abnahme E3 Punkt 6)', () => {
-  it('Banner; Änderungen gelten trotzdem sofort (bis Programmende, Kern)', async () => {
+  it('Banner; Änderungen gelten trotzdem sofort (bis zum Beenden von PIDA, Kern)', async () => {
     const { mock, user } = renderApp({ readOnly: true });
     await user.click(await screen.findByRole('button', { name: 'Einstellungen' }));
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
     expect(within(dialog).getByRole('note')).toHaveTextContent('Diese Einstellungen werden nicht gespeichert');
-    expect(within(dialog).getByRole('note')).toHaveTextContent('Änderungen gelten bis zum Programmende.');
+    expect(within(dialog).getByRole('note')).toHaveTextContent('Änderungen gelten bis zum Beenden von PIDA.');
     await user.click(within(dialog).getByRole('radio', { name: /Amtssignatur/ }));
     expect((await mock.view()).settings!.settings.signature.profile).toBe('AMTSSIGNATURBLOCK');
   });
@@ -696,5 +699,50 @@ describe('Mobile (Abnahme E3 Punkt 7; nur ID Austria, ADR 0004 Nachtrag 11)', ()
     expect(after.problems['keystore.enabled']).toBe('ng-settings-unavailable-mobile');
     expect(after.settings.keystore.enabled).toBe(true);
     expect((await mock.view()).signers.options.map((o) => o.backend)).toEqual(['atrust_native']);
+  });
+});
+
+describe('Bereichsleiste bei großer Schrift (Mobile-Check 16.10.2026)', () => {
+  /**
+   * Waagrechte Leiste 300 px breit, jeder Bereich 150 px (große Schrift): sichtbar sind nur zwei. Geometrie aus
+   * `scrollLeft` der Leiste, wie im Browser.
+   */
+  function stubNavGeometry() {
+    const rect = (left: number, width: number) => ({ left, right: left + width, top: 0, bottom: 40, width, height: 40, x: left, y: 0, toJSON: () => ({}) });
+    return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('settings-nav')) return rect(0, 300) as DOMRect;
+      if (this.classList.contains('settings-nav-item')) {
+        const bar = this.parentElement as HTMLElement;
+        return rect(Array.from(bar.children).indexOf(this) * 150 - bar.scrollLeft, 150) as DOMRect;
+      }
+      return rect(0, 0) as DOMRect;
+    });
+  }
+
+  it('der aktive Bereich rollt ins Bild – beim Öffnen auf „Signiermittel“ und nach jedem Wechsel', async () => {
+    const spy = stubNavGeometry();
+    try {
+      const { mock, user } = renderApp({ view: workspaceView() });
+      await user.click(await screen.findByTestId('signer-chip'));
+      await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Einstellungen …' }));
+      act(() => mock.setView({ ...workspaceView(), settings: settingsView().settings }));
+      const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+      const bar = within(dialog).getByRole('navigation', { name: 'Bereiche' });
+      expect(nav(dialog, 'Signiermittel')).toHaveAttribute('aria-current', 'true');
+      // dritter Bereich (300–450 px): ganz sichtbar mit 12 px Abstand
+      expect(bar.scrollLeft).toBe(162);
+      await user.click(nav(dialog, 'Signaturbild'));
+      expect(bar.scrollLeft).toBe(0);
+      await user.click(nav(dialog, 'Erweitert'));
+      expect(bar.scrollLeft).toBe(6 * 150 + 150 - 300 + 12);
+      // nach der Suche (die Leiste verschwindet währenddessen) wieder beim aktiven Bereich
+      const search = within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' });
+      await user.type(search, 'proxy');
+      expect(within(dialog).queryByRole('navigation', { name: 'Bereiche' })).toBeNull();
+      await user.clear(search);
+      expect(within(dialog).getByRole('navigation', { name: 'Bereiche' }).scrollLeft).toBe(6 * 150 + 150 - 300 + 12);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

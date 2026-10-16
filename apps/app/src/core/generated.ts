@@ -1389,7 +1389,15 @@ actions: ActionsView,
  * Dokument bzw. einen Stapel verdeckt (Karte „In Bearbeitung“); dann sind `document` und `batch` `None`.
  * Additiv, in TypeScript optional; der Kern liefert es immer (`None` ohne geparkte Arbeit).
  */
-parked?: ParkedWorkView | null, };
+parked?: ParkedWorkView | null, 
+/**
+ * iOS: Hinweis nach dem Empfang über „Teilen“ bzw. „Öffnen in“ (ADR 0004 Nachtrag 12) – die Dateien-App
+ * übergibt von mehreren geteilten PDFs nur das erste; weitere für einen Stapel wählt man über „Weitere PDFs
+ * hinzufügen …“ (Mehrfachauswahl). Nur, solange das empfangene Dokument allein im Arbeitsbereich offen ist,
+ * und nicht mehr nach `dismiss_share_hint` (bis zum Beenden der App). Additiv, in TypeScript optional; sonst
+ * `None` (Desktop, Android, Dateiauswahl).
+ */
+share_hint?: ShareHintView | null, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1652,7 +1660,11 @@ enabled: boolean,
 /**
  * von Hand platzierte Einträge ebenfalls automatisch platzieren
  */
-replace_manual: boolean, } | { "type": "go_home" } | { "type": "resume_parked" } | { "type": "discard_parked" };
+replace_manual: boolean, } | { "type": "go_home" } | { "type": "resume_parked" } | { "type": "discard_parked" } | { "type": "postpone_first_run" } | { "type": "files_received", 
+/**
+ * Pfade (Kopien in der Sandbox)
+ */
+paths: Array<string>, } | { "type": "dismiss_share_hint" };
 
 /**
  * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).
@@ -2058,7 +2070,13 @@ notes: Array<string>,
  * `ng-signer-keystore-missing`, `ng-signer-policy` (der frühere Mobile-Grund „PKCS#12-Datei importieren“ entfiel
  * mit ADR 0004 Nachtrag 11 – auf Mobilgeräten gibt es keinen Keystore mehr)
  */
-unavailable_reason: string | null, };
+unavailable_reason: string | null, 
+/**
+ * Ablauf eines Stapellaufs mit diesem Signiermittel (aus den Fähigkeiten; `None` ohne Fähigkeiten, z. B.
+ * Keystore nicht eingerichtet): Wortlaut von Startfläche, Stapelübersicht, Startdialog und Stapelkarte (ADR 0004
+ * Nachtrag 12). Additiv, in TypeScript optional; der Kern liefert es immer.
+ */
+batch_flow?: BatchFlowView | null, };
 
 /**
  * Phase der Signierkarte (§3.6).
@@ -2766,3 +2784,21 @@ placed_by_hand: boolean,
  * vorher nach
  */
 unsaved: boolean, };
+
+/**
+ * Ablauf eines Stapellaufs mit einem Signiermittel (ADR 0004 §3.8, Nachtrag 12). Der Kern leitet ihn aus den
+ * Fähigkeiten des Backends ab ([`BatchFlowView::from_capabilities`]); die Oberfläche wählt danach ihre Texte
+ * („einmal anmelden, dann jedes Dokument einzeln bestätigen“ nur bei ID Austria, „Bestätigung k von n“ nur mit
+ * einer Bestätigung je Dokument).
+ */
+export type BatchFlowView = "login_then_confirm_each" | "confirm_each" | "unlock_once";
+
+/**
+ * Hinweis zum Teilen auf iOS (ADR 0004 Nachtrag 12, [`ViewState::share_hint`]): ein kurzer, nicht blockierender
+ * Hinweis im Arbeitsbereich mit „Weitere PDFs hinzufügen …“ und „Ausblenden“ (`dismiss_share_hint`).
+ */
+export type ShareHintView = { 
+/**
+ * das über „Teilen“ empfangene Dokument (das offene im Arbeitsbereich)
+ */
+doc: DocId, };

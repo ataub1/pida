@@ -353,6 +353,7 @@ export const settingsArea: MockArea<SettingsState> = {
         changed(state, ctx, migratedSettings(state.settings, state.legacyEmblem, ctx.platform().mobile));
         return true;
       case 'finish_first_run':
+      case 'postpone_first_run':
         if (state.settings.general.first_run_completed) return false;
         state.settings = { ...state.settings, general: { ...state.settings.general, first_run_completed: true } };
         return true;

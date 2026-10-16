@@ -19,17 +19,17 @@ use pida_backend_api::{
 };
 use pida_config::{NoteSetting, Settings};
 use pida_core_api::{
-    ActionsView, AppearanceView, BackendOptionView, BatchEstimateView, BatchItemStatusView, BatchItemView,
-    BatchOutputView, BatchPauseView, BatchSummaryView, BatchView, BlockView, CertificateSource, ConfirmMethod,
-    DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView,
-    ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis,
-    GuideKind, GuideView, InteractionView, KeystoreEntryView, KeystoreFormatView, KeystoreImportView, MainBarView,
-    MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView, ParkedWorkView,
-    PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView,
-    PositionSummaryView, PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView, RecentItemView,
-    RectPt, ResumeOfferView, SaveDialogView, SettingsView, SignatureCoverage, SignatureFormat, SignatureIntegrity,
-    SignedSummaryView, SignerView, SignersView, SigningProgressView, SigningStage, StepView, TrustCheck, UiEvent,
-    VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView, ViewState,
+    ActionsView, AppearanceView, BackendOptionView, BatchEstimateView, BatchFlowView, BatchItemStatusView,
+    BatchItemView, BatchOutputView, BatchPauseView, BatchSummaryView, BatchView, BlockView, CertificateSource,
+    ConfirmMethod, DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView,
+    DoneItemView, ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView,
+    GuideAxis, GuideKind, GuideView, InteractionView, KeystoreEntryView, KeystoreFormatView, KeystoreImportView,
+    MainBarView, MigrationItemView, MigrationOfferView, NoticeView, OutputModeView, OutputView, PageLayoutView,
+    ParkedWorkView, PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs,
+    PlatformView, PositionSummaryView, PriorStatusView, QrInfo, QrTargetView, QualificationClaim, QueueItemView,
+    RecentItemView, RectPt, ResumeOfferView, SaveDialogView, SettingsView, ShareHintView, SignatureCoverage,
+    SignatureFormat, SignatureIntegrity, SignedSummaryView, SignerView, SignersView, SigningProgressView, SigningStage,
+    StepView, TrustCheck, UiEvent, VerifiedSignatureView, VerifyStatus, VerifySummaryView, VerifyView, ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -69,6 +69,7 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         first_run: None,
         actions: ActionsView::default(),
         parked: None,
+        share_hint: None,
     }
 }
 
@@ -673,6 +674,7 @@ fn signers() -> SignersView {
                 capabilities: Some(caps_native()),
                 notes: Vec::new(),
                 unavailable_reason: None,
+                batch_flow: Some(BatchFlowView::LoginThenConfirmEach),
             },
             SignerView {
                 backend: BackendId::Keystore,
@@ -681,6 +683,7 @@ fn signers() -> SignersView {
                 capabilities: None,
                 notes: Vec::new(),
                 unavailable_reason: Some("ng-signer-keystore-missing".into()),
+                batch_flow: None,
             },
             SignerView {
                 backend: BackendId::LocalBku,
@@ -689,6 +692,7 @@ fn signers() -> SignersView {
                 capabilities: None,
                 notes: vec!["ng-fido2-unavailable-mobile".into()],
                 unavailable_reason: Some("ng-signer-localbku-not-running".into()),
+                batch_flow: None,
             },
         ],
         selected: Some(BackendId::AtrustNative),
@@ -708,6 +712,7 @@ fn mobile_signers() -> SignersView {
             capabilities: Some(caps),
             notes: vec!["ng-fido2-unavailable-mobile".into()],
             unavailable_reason: None,
+            batch_flow: Some(BatchFlowView::LoginThenConfirmEach),
         }],
         selected: Some(BackendId::AtrustNative),
         default: Some(BackendId::AtrustNative),
@@ -1046,7 +1051,14 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     editing.document = Some(document(DocumentPhase::Editing, PlacementOrigin::Auto, PlacementTarget::Free));
     editing.signers = signers();
     editing.actions = ws_actions(true);
+    // iOS nach dem Empfang über „Teilen“ (Nachtrag 12): Hinweis, dass nur das erste geteilte PDF ankommt
+    let mut shared = editing.clone();
+    shared.platform = PlatformView { os: PlatformOs::Ios, mobile: true };
+    shared.share_hint = Some(ShareHintView { doc: DocId(7) });
+    // auf iOS nur ID Austria (Nachtrag 11)
+    shared.signers = mobile_signers();
     out.push(("ws_editing", editing));
+    out.push(("ws_share_hint_ios", shared));
 
     // Einstellung „Automatische Positionierung“ (Nachtrag 8): automatisch platziert und gesperrt
     let mut locked = view(position_step(), position_bar());
@@ -1459,7 +1471,7 @@ fn typescript_events_deserialize_into_ui_event() {
 
 /// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
 /// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
-const UI_EVENT_VARIANTS: usize = 66;
+const UI_EVENT_VARIANTS: usize = 69;
 
 /// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
 /// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).

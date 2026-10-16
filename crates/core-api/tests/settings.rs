@@ -610,6 +610,38 @@ async fn qr_search_toggled_after_opening() {
     wait_for(&core, "wieder im QR", |v| v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Qr)).await;
 }
 
+/// Mobile-Check 16.10.2026 (`qr.pdf`, eine Seite mit QR-Platzhalter ganz unten): mit ausgeschalteter Suche
+/// platziert die Automatik auf einer neuen Seite; Suche eingeschaltet → im QR-Platzhalter, „Auf neuer Seite“
+/// entfällt und die Ansage nennt „Seite 1 von 1“ (vorher blieb „Seite 1 / 2“ mit leerer neuer Seite). Suche
+/// wieder aus: zurück auf die neue Seite (PDFium nötig).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn qr_search_switched_on_leaves_the_new_page() {
+    let fx = Fixture::new();
+    let a = copy_pdf("golden/pdfas-4.4.2/inputs/qr.pdf", &fx.dir("in"), "qr.pdf");
+    let Some(core) = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, true, |_| {}) else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    let on_new_page = |v: &ViewState| v.document.as_ref().is_some_and(|d| editing(v) && d.new_page);
+    let v = wait_for(&core, "auf neuer Seite", on_new_page).await;
+    let d = v.document.unwrap();
+    assert_eq!((d.doc.page_count, d.placement.page_index, d.target), (1, 1, PlacementTarget::Free));
+    open_settings(&core).await;
+    apply(&core, 1, &[("placeholder.search", json!(true))]).await;
+    let v =
+        wait_for(&core, "im QR-Platzhalter", |v| v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Qr))
+            .await;
+    let d = v.document.unwrap();
+    assert!(!d.new_page, "„Auf neuer Seite“ entfällt");
+    assert_eq!(d.placement.page_index, 0);
+    assert_eq!(d.announce.get("pages").map(String::as_str), Some("1"), "{:?}", d.announce);
+    assert_eq!(d.sticker, d.qr.map(|q| q.rect));
+    let StepView::Position { page, .. } = v.step else { panic!("Positionierung erwartet: {:?}", v.step) };
+    assert_eq!(page, 0, "Ansicht auf der Seite des Platzhalters");
+    apply(&core, 2, &[("placeholder.search", json!(false))]).await;
+    wait_for(&core, "wieder auf neuer Seite", on_new_page).await;
+}
+
 /// QR-Suche während der Analysewarnung eingeschaltet (Dokument mit Hinweis, z. B. Nutzungsrechte): nach
 /// „Fortfahren“ wird die Suche nachgeholt und der Block kommt in den QR-Platzhalter (PDFium nötig).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

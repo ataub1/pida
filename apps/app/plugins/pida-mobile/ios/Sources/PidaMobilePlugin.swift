@@ -71,8 +71,10 @@ struct ValueResponse: Encodable {
 
 struct EmptyResponse: Encodable {}
 
+/// `{ saved, name? }` – `name`: tatsächlicher Dateiname am Ziel (der Picker nummeriert bei „Beide behalten“)
 struct ExportResponse: Encodable {
   let saved: Bool
+  let name: String?
 }
 
 class PidaMobilePlugin: Plugin {
@@ -200,7 +202,7 @@ class PidaMobilePlugin: Plugin {
     }
   }
 
-  /// `{ path, fileName, mimeType }` → `{ saved }` (UIDocumentPickerViewController forExporting, als Kopie);
+  /// `{ path, fileName, mimeType }` → `{ saved, name? }` (UIDocumentPickerViewController forExporting, als Kopie);
   /// Abbruch → Code `cancelled`
   @objc public func exportFile(_ invoke: Invoke) {
     guard let a = args(invoke, ExportArgs.self) else { return }
@@ -232,7 +234,7 @@ class PidaMobilePlugin: Plugin {
         onPick: { urls in
           self.activePicker = nil
           cleanup()
-          invoke.resolve(ExportResponse(saved: !urls.isEmpty))
+          invoke.resolve(ExportResponse(saved: !urls.isEmpty, name: urls.first?.lastPathComponent))
         },
         onCancel: {
           self.activePicker = nil

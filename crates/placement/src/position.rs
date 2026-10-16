@@ -936,6 +936,62 @@ pub fn widget_overlaps(pos: &ResolvedPosition, page: &PageInfo, fields: &[SigFie
     })
 }
 
+/// Freiraumsuche, die zusätzlich die Widgets vorhandener Felder als belegt zählt (Arbeitsbereich, ADR 0004
+/// §3.3, Nachtrag 12). Der PDF-AS-Rasterscan sieht nur Gezeichnetes – ein leeres Signaturfeld ohne
+/// Erscheinungsbild ist für ihn frei. Die automatische Platzierung setzte den Block deshalb in ein solches Feld
+/// (Beispiel: seitenfüllendes `Signature_7` auf der letzten Seite von `manySignFields.pdf`), während die
+/// Überdeckungsprüfung ([`widget_overlaps`]) zugleich „überdeckt ein Feld“ meldete. Mit diesem Scanner reicht der
+/// Inhalt einer Seite bis zur Unterkante ihres tiefsten Widgets oberhalb der Fußzeile; passt der Block darunter
+/// nicht mehr, gilt wie bei Inhalt die neue Seite. Ohne Widgets auf der Seite verhält er sich genau wie `inner`
+/// (PDF-AS-Regel unverändert; die CLI und der klassische Ablauf benutzen ihn nicht).
+pub struct WidgetAwareScanner<'a> {
+    /// eigentliche Freiraumsuche (Rasterscan bzw. leere Seiten)
+    pub inner: &'a mut dyn FreeSpaceScanner,
+    /// Seiten des Dokuments
+    pub pages: &'a [PageInfo],
+    /// Felder der Analyse (Widgets mit Seite und `/Rect`, wie für [`widget_overlaps`])
+    pub fields: &'a [SigField],
+}
+
+impl fmt::Debug for WidgetAwareScanner<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WidgetAwareScanner")
+            .field("pages", &self.pages.len())
+            .field("fields", &self.fields.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl WidgetAwareScanner<'_> {
+    /// Unterste Kante der Widgets auf `page_index` oberhalb der Fußzeile, von oben gemessen (pt, sichtbare
+    /// Seite wie [`FreeSpaceScanner::lowest_content`]); `None` ohne Widgets.
+    fn lowest_widget(&self, page_index: usize, footer: f32) -> Option<f32> {
+        let page = self.pages.get(page_index)?;
+        let (_, ph) = page.visible_size();
+        self.fields
+            .iter()
+            .flat_map(|f| f.widgets.iter())
+            .filter(|w| w.page_index == Some(page_index) && !w.rect.normalized().is_empty())
+            .map(|w| user_rect_to_visible(page, w.rect))
+            // wie der Rasterscan nur oberhalb der Fußzeile (er beginnt in der Zeile `ph − footer`)
+            .filter(|r| r.ury > footer && r.lly < ph)
+            .map(|r| (ph - r.lly.max(footer)).max(0.0))
+            .reduce(f32::max)
+    }
+}
+
+impl FreeSpaceScanner for WidgetAwareScanner<'_> {
+    fn lowest_content(&mut self, page_index: usize, footer: f32) -> Result<f32> {
+        let lowest = self.inner.lowest_content(page_index, footer)?;
+        Ok(self.lowest_widget(page_index, footer).map_or(lowest, |w| w.max(lowest)))
+    }
+
+    fn region_occupied(&mut self, page_index: usize, area: Rect) -> Result<Option<bool>> {
+        // „überdeckt Inhalt“ bleibt dem Gezeichneten vorbehalten (Widgets meldet `widget_overlaps`)
+        self.inner.region_occupied(page_index, area)
+    }
+}
+
 /// Startposition der UI: x = 50 % Breite, y = 25 % Höhe, geklemmt (F-33).
 pub fn default_start_position(page: &PageInfo, block: BlockGeometry) -> Point {
     let (w, h) = page.visible_size();

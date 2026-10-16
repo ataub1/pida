@@ -15,6 +15,7 @@ import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
 import { AccessButton, Button, Keys, useModKey } from '../../ui/controls';
 import { IconLock, IconShieldCheck, IconUpload } from '../../ui/Icons';
+import { batchFlow, dropHintMsg } from '../batch/flow';
 import { RECENT_AVAILABLE, RecentPanel } from '../recent';
 import { ParkedCard } from './ParkedCard';
 import './start.css';
@@ -46,7 +47,8 @@ export function StartView({ onVerify }: { onVerify: () => void }) {
                 {dragActive ? t.t('ng-ui-start-drop-release') : t.t('ng-ui-start-drop-title')}
               </p>
             )}
-            <p className="drop-hint">{t.t(mobile ? 'ng-ui-start-drop-hint-mobile' : 'ng-ui-start-drop-hint')}</p>
+            {/* mehrere Dateien = Stapel: Wortlaut je Standard-Signiermittel (Kern: `batch_flow`), sonst neutral */}
+            <p className="drop-hint">{t.t(mobile ? 'ng-ui-start-drop-hint-mobile' : dropHintMsg(batchFlow(view, view.signers.selected ?? view.signers.default)))}</p>
             <AccessButton msg={mobile ? 'ng-ui-start-pick-mobile' : 'ng-ui-start-pick'} variant="primary" size="lg" onPress={() => void browse()} isDisabled={!view.actions.open_files} />
             <p className="drop-foot">
               <span className="drop-foot-item">

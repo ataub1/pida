@@ -27,11 +27,11 @@ use pida_workflow::{
 
 use crate::docs::DocData;
 use crate::view::{
-    BlockView, CertificateSource, ConfirmMethod, DocConstraintsView, DocRefView, DocumentDetectionView, DocumentPhase,
-    DocumentView, ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldTargetView, GuideAxis, GuideKind,
-    GuideView, InteractionView, PageLayoutView, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget,
-    PriorStatusView, QrTargetView, RectPt, SignedSummaryView, SignerView, SignersView, SigningProgressView,
-    SigningStage,
+    BatchFlowView, BlockView, CertificateSource, ConfirmMethod, DocConstraintsView, DocRefView, DocumentDetectionView,
+    DocumentPhase, DocumentView, ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldTargetView, GuideAxis,
+    GuideKind, GuideView, InteractionView, PageLayoutView, PdfaDecision, PdfaIdView, PlacementCheckView,
+    PlacementTarget, PriorStatusView, QrTargetView, RectPt, SignedSummaryView, SignerView, SignersView,
+    SigningProgressView, SigningStage,
 };
 
 /// Höchstzahl gecachter Belegungsraster je Dokument (LRU).
@@ -232,6 +232,11 @@ pub(crate) struct WorkspaceRuntime {
     pub error_at: Option<String>,
     /// Optionen für den Konto-Chip
     pub signer_options: Vec<BackendOption>,
+    /// iOS: über „Teilen“ bzw. „Öffnen in“ empfangenes Dokument, dem der Hinweis zum Teilen gilt (ADR 0004
+    /// Nachtrag 12, `ViewState::share_hint`)
+    pub share_hint: Option<DocId>,
+    /// Hinweis zum Teilen in diesem Lauf ausgeblendet (`DismissShareHint`)
+    pub share_hint_dismissed: bool,
 }
 
 /// Lokale Zeit als RFC 3339 mit Offset.
@@ -680,6 +685,9 @@ impl crate::runtime::CoreTask {
                     if let Some(info) = data.pages.get(placement.page_index) {
                         check.overlaps_widget = widget_overlaps(&pos, info, &data.report.fields);
                     }
+                } else {
+                    // virtuelle neue Seite: leer (wie ihr Layout, `OccupancyGrid::empty`), ohne Felder
+                    check.overlaps_content = Some(false);
                 }
             }
         }
@@ -765,6 +773,7 @@ impl crate::runtime::CoreTask {
                     capabilities: o.capabilities.clone(),
                     notes,
                     unavailable_reason,
+                    batch_flow: o.capabilities.as_ref().map(BatchFlowView::from_capabilities),
                 }
             })
             .collect();
@@ -783,6 +792,7 @@ impl crate::runtime::CoreTask {
                 capabilities: None,
                 notes: Vec::new(),
                 unavailable_reason: Some(reason.to_owned()),
+                batch_flow: None,
             });
         }
         out

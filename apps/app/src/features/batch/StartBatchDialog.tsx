@@ -14,6 +14,7 @@ import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconClock, IconFolder } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { signerName, SignerGlyph } from '../workspace/signers';
+import { batchFlow, skipDescMsg } from './flow';
 import { estimateText, isSignable } from './texts';
 
 /** „Vertrag_signed.pdf“ → „Vertrag_signed (2).pdf“ (nur Beispieltext; die Nummer vergibt der Kern). */
@@ -87,7 +88,8 @@ export function StartBatchDialog({ batch, backend, onClose }: { batch: BatchView
               options={[
                 { value: 'keep_both', label: t.t('ng-ui-batch-start-keep'), description: t.t('ng-ui-batch-start-keep-desc', { example }) },
                 { value: 'overwrite', label: t.t('ng-ui-batch-start-overwrite'), description: t.t('ng-ui-batch-start-overwrite-desc') },
-                { value: 'skip', label: t.t('ng-ui-batch-start-skip'), description: t.t(leaves ? 'ng-ui-batch-start-skip-desc' : 'ng-ui-batch-start-skip-desc-local') },
+                // „ohne Bestätigung in der App“ nur bei ID Austria (Kern: `batch_flow` des gewählten Signiermittels)
+                { value: 'skip', label: t.t('ng-ui-batch-start-skip'), description: t.t(skipDescMsg(batchFlow(view, backend))) },
               ]}
             />
           </section>

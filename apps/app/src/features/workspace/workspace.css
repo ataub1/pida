@@ -598,6 +598,16 @@
   margin: 0 var(--sp-5) var(--sp-3);
   animation: fade-in var(--dur-2) var(--ease-out);
 }
+/* Hinweis zum Teilen (iOS, ADR 0004 Nachtrag 12): wie die Überdeckungswarnung über „Signieren“ */
+.share-hint {
+  flex: none;
+  margin: 0 var(--sp-5) var(--sp-3);
+}
+.share-hint > .share-hint-close {
+  flex: none;
+  margin: -6px -10px 0 auto;
+  color: inherit;
+}
 .sign-button {
   width: 100%;
   height: 48px;
@@ -853,7 +863,8 @@
     flex: 1;
     min-width: 0;
   }
-  .inspector-warn {
+  .inspector-warn,
+  .share-hint {
     margin: var(--sp-2) var(--gutter) 0;
   }
   .inspector-privacy {

@@ -23,7 +23,7 @@
 //! | `secureStoreDelete` | `{ key }` | `{}` | wie oben (fehlender Eintrag ist kein Fehler) |
 //! | `shareFile` | `{ path, mimeType }` | `{}` sobald das Share-Sheet gezeigt wird | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI und `FLAG_GRANT_READ_URI_PERMISSION` |
 //! | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | iOS: QuickLook (`QLPreviewController`, ohne Bearbeiten) / `ACTION_VIEW` mit `FileProvider`-URI (ohne die App selbst) |
-//! | `exportFile` | `{ path, fileName, mimeType }` | `{ saved: bool }` nach der Wahl | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT`, dann Bytes kopieren |
+//! | `exportFile` | `{ path, fileName, mimeType }` | `{ saved: bool, name?: string }` nach der Wahl (`name`: tatsächlicher Dateiname) | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT`, dann Bytes kopieren |
 //! | `importFile` | `{ kind: "pdf" \| "pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; Inhalt nach `destination` kopieren (Security-Scoped bzw. `ContentResolver`) |
 //! | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | eingegangene Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE` `application/pdf`) **und** die übergebenen URLs (Security-Scoped `file://` bzw. `content://`) nach `destination` kopieren; die Warteschlange danach leeren |
 //!
@@ -114,6 +114,9 @@ struct ValueResponse {
 struct ExportResponse {
     #[serde(default)]
     saved: bool,
+    /// tatsächlicher Dateiname am Ziel (iOS: Name der exportierten Kopie, Android: `DISPLAY_NAME` des Dokuments)
+    #[serde(default)]
+    name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -181,12 +184,24 @@ impl PidaMobile {
         Ok(())
     }
 
-    /// Exportiert eine Datei („Sichern unter“); `Ok(false)` = abgebrochen.
-    pub fn export_file(&self, path: &Path, file_name: &str, mime_type: &str) -> Result<bool> {
+    /// Exportiert eine Datei („Sichern unter“); `Ok(Some(name))` = gesichert unter dem tatsächlichen Dateinamen
+    /// (ohne Angabe der nativen Seite der Vorschlag `file_name`), `Ok(None)` = abgebrochen.
+    pub fn export_file(&self, path: &Path, file_name: &str, mime_type: &str) -> Result<Option<String>> {
         let payload = serde_json::json!({ "path": path, "fileName": file_name, "mimeType": mime_type });
         match self.native.call("exportFile", payload) {
-            Ok(v) => Ok(parse::<ExportResponse>(v)?.saved),
-            Err(Error::Cancelled) => Ok(false),
+            Ok(v) => {
+                let r = parse::<ExportResponse>(v)?;
+                // nur ein Dateiname (Schutz gegen fehlerhafte native Seiten), sonst der Vorschlag
+                let name = r
+                    .name
+                    .as_deref()
+                    .and_then(|n| Path::new(n).file_name())
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| file_name.to_owned());
+                Ok(r.saved.then_some(name))
+            }
+            Err(Error::Cancelled) => Ok(None),
             Err(e) => Err(e),
         }
     }
@@ -335,10 +350,24 @@ mod tests {
     #[test]
     fn export_and_import_treat_cancel_as_no_result() {
         let (m, _) = fake(|_, _| Err(Error::from_native_code(Some("cancelled"))));
-        assert!(!m.export_file(Path::new("/a.pdf"), "a.pdf", "application/pdf").unwrap());
+        assert_eq!(m.export_file(Path::new("/a.pdf"), "a.pdf", "application/pdf").unwrap(), None);
         assert!(m.import_file(ImportKind::Pkcs12, false, Path::new("/tmp")).unwrap().is_empty());
+        let (m, _) = fake(|_, _| Ok(serde_json::json!({ "saved": false })));
+        assert_eq!(m.export_file(Path::new("/a.pdf"), "a.pdf", "application/pdf").unwrap(), None);
+        // tatsächlicher Name der nativen Seite (vom System nummeriert); nur der Dateiname zählt
+        for (name, expected) in
+            [("a_signed (3).pdf", "a_signed (3).pdf"), ("../x/b.pdf", "b.pdf"), ("", "a_signed.pdf")]
+        {
+            let (m, _) = fake(move |_, _| Ok(serde_json::json!({ "saved": true, "name": name })));
+            let saved = m.export_file(Path::new("/a_signed.pdf"), "a_signed.pdf", "application/pdf").unwrap();
+            assert_eq!(saved.as_deref(), Some(expected));
+        }
         let (m, f) = fake(|_, _| Ok(serde_json::json!({ "saved": true })));
-        assert!(m.export_file(Path::new("/a_signed.pdf"), "a_signed.pdf", "application/pdf").unwrap());
+        assert_eq!(
+            m.export_file(Path::new("/a_signed.pdf"), "a_signed.pdf", "application/pdf").unwrap().as_deref(),
+            Some("a_signed.pdf"),
+            "ohne Angabe der Vorschlag"
+        );
         let calls = f.calls.lock().unwrap();
         assert_eq!(
             calls[0].1,

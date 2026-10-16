@@ -143,4 +143,8 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'go_home' },
   { type: 'resume_parked' },
   { type: 'discard_parked' },
+  // Nachtrag 12: Ersteinrichtung „Später einrichten“; von außen übergebene Dateien (Shell), Hinweis zum Teilen (iOS)
+  { type: 'postpone_first_run' },
+  { type: 'files_received', paths: ['/private/var/mobile/Containers/Data/Application/X/Library/Caches/inbox/Vertrag.pdf'] },
+  { type: 'dismiss_share_hint' },
 ];

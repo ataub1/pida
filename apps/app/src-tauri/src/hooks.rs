@@ -93,7 +93,7 @@ impl<R: Runtime> ShellHooks for TauriHooks<R> {
         self.app.pida_mobile().share_file(path, crate::mobile::PDF_MIME).map_err(|e| e.code().to_owned())
     }
 
-    fn export_path(&self, path: &Path, file_name: &str) -> Result<bool, String> {
+    fn export_path(&self, path: &Path, file_name: &str) -> Result<Option<String>, String> {
         use tauri_plugin_pida_mobile::PidaMobileExt;
         if !path.is_file() {
             return Err("keine Datei".into());
