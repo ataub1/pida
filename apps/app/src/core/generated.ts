@@ -1210,6 +1210,11 @@ keychain_available: boolean,
  */
 fido2_available: boolean, 
 /**
+ * Keystore ist eingerichtet (aktiviert und die gewählte Datei existiert); erst dann ist er als
+ * Standard-Signiermittel wählbar
+ */
+keystore_ready: boolean, 
+/**
  * Einstellungen werden nicht gespeichert (Altdatei per `-c`, unlesbare Datei)
  */
 read_only: boolean, 

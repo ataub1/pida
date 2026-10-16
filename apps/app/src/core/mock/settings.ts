@@ -64,7 +64,6 @@ function validate(next: Settings, blocking = false): Record<string, string> {
   if (next.proxy.mode === 'manual' && !next.proxy.host?.trim()) problems['proxy.host'] = 'ng-settings-proxy-host-missing';
   if (next.proxy.port !== null && !(Number.isInteger(next.proxy.port) && next.proxy.port >= 1 && next.proxy.port <= 65535)) problems['proxy.port'] = 'ng-settings-invalid-port';
   if (blocking) return problems;
-  if (next.keystore.enabled && !next.keystore.file) problems['keystore.file'] = 'error-KeyStoreFileNotExist';
   const size = next.signature.logo_only_size_mm;
   if (!(Number.isFinite(size) && size > 0 && size <= 120)) problems['signature.logo_only_size_mm'] = 'ng-settings-invalid-logo-size';
   return problems;
@@ -222,6 +221,7 @@ export const settingsArea: MockArea<SettingsState> = {
           problems: { ...validate(state.settings), ...state.problems },
           keychain_available: state.keychainAvailable,
           fido2_available: state.fido2Available,
+          keystore_ready: state.settings.keystore.enabled && !!state.settings.keystore.file,
           read_only: state.readOnly,
           preview_revision: state.previewRevision,
           applied_revision: state.appliedRevision,

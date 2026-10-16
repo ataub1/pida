@@ -2530,11 +2530,14 @@ impl CoreTask {
     }
 
     fn settings_view_for(&self, settings: Settings, problems: BTreeMap<String, String>) -> SettingsView {
+        let keystore_ready =
+            settings.keystore.enabled && settings.keystore.file.as_deref().is_some_and(std::path::Path::is_file);
         SettingsView {
             settings,
             problems,
             keychain_available: self.cfg.secrets.is_persistent(),
             fido2_available: self.fido2_available,
+            keystore_ready,
             read_only: self.cfg.read_only(),
             preview_revision: 0,
             applied_revision: 0,

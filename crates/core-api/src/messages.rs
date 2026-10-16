@@ -26,12 +26,17 @@ pub fn notice_message(n: &Notice) -> (String, BTreeMap<String, String>) {
         }
         NoticeCode::ConnectionFailed => ("error-FailedToConnect", one("arg1", text)),
         NoticeCode::LocalBkuNotReachable => ("error-LocalBKU", BTreeMap::new()),
-        NoticeCode::KeystoreFileMissing => ("error-KeyStoreFileNotExist", one("arg1", text)),
+        NoticeCode::KeystoreFileMissing => ("ng-keystore-file-not-found-at", one("name", file_name(&text))),
         NoticeCode::KeystoreAliasMissing => ("error-KeyStoreAliasExist", one("arg1", text)),
         NoticeCode::KeystoreError => ("error-KeyStore", BTreeMap::new()),
         NoticeCode::KeystoreConversionNeeded => ("ng-migrate-keystore-jks", one("value", text)),
     };
     (id.to_owned(), params)
+}
+
+/// Nur der Dateiname eines Pfads (Meldungen zeigen keine vollständigen Pfade).
+fn file_name(path: &str) -> String {
+    std::path::Path::new(path).file_name().map_or_else(|| path.to_owned(), |n| n.to_string_lossy().into_owned())
 }
 
 /// Hinweis in einer Maske → (Meldungs-ID, Parameter).

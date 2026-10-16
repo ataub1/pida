@@ -86,7 +86,7 @@ export function noticeTexts(t: Translator, notice: Notice): { title: string; tex
         text = t.t('error-LocalBKU');
         break;
       case 'KeystoreFileMissing':
-        text = t.t('error-KeyStoreFileNotExist', { arg1: raw });
+        text = t.t('ng-keystore-file-not-found-at', { name: raw.split(/[\\/]/).pop() || raw });
         break;
       case 'KeystoreAliasMissing':
         text = t.t('error-KeyStoreAliasExist', { arg1: raw });
