@@ -882,6 +882,39 @@ async fn automatic_placement_stays_out_of_existing_fields() {
     }
 }
 
+/// Nachtrag 12, Duplikate: Ein signiertes und gespeichertes Dokument („Fertig“) ist nicht mehr offen. Dieselbe
+/// Datei erneut empfangen (Mobile: neue Kopie in der Sandbox) öffnet sie wie vor Nachtrag 12 als nächstes Dokument
+/// (F-89 „sofort weiter“) – nicht „ist bereits geöffnet“, solange „Fertig“ zu sehen ist. Vor dem Speichern bleibt
+/// es dagegen offen (Hinweis, nichts kommt dazu).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_same_file_opens_again_after_it_was_signed() {
+    let fx = Fixture::new();
+    let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "doc.pdf");
+    let again = copy_pdf(TEXT_PDF, &fx.dir("inbox/2"), "doc.pdf");
+    let core = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), None, None, false).expect("Kern");
+    let duplicate = |v: &ViewState| v.notices.iter().any(|n| n.code == "ng-open-duplicate");
+    wait_for(&core, "Arbeitsbereich", editing).await;
+    // offen: dieselbe Datei kommt nicht dazu
+    core.dispatch(UiEvent::FilesReceived { paths: vec![again.clone()] });
+    let v = wait_for(&core, "Hinweis", duplicate).await;
+    assert!(editing(&v) && !v.actions.show_batch, "kein zweites Dokument");
+    for n in v.notices.iter().filter(|n| n.code == "ng-open-duplicate") {
+        core.dispatch(UiEvent::DismissNotice { id: n.id });
+    }
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    let v = wait_for(&core, "gespeichert", saved).await;
+    let first = v.document.as_ref().map(|d| (d.doc.id, d.phase));
+    assert!(matches!(first, Some((_, DocumentPhase::Done))), "{first:?}");
+    // signiert und gespeichert: dieselbe Datei öffnet erneut
+    core.dispatch(UiEvent::FilesReceived { paths: vec![again] });
+    let v = wait_for(&core, "erneut geöffnet", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| Some(d.doc.id) != first.map(|f| f.0))
+    })
+    .await;
+    assert_eq!(v.document.as_ref().map(|d| d.doc.name.as_str()), Some("doc.pdf"));
+    assert!(!duplicate(&v), "nicht „ist bereits geöffnet“");
+}
+
 /// QR-Platzhalter mit eingeschalteter Platzhaltersuche: automatisch Ziel QR (PDFium nötig).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn qr_placeholder_is_used_automatically_with_search() {

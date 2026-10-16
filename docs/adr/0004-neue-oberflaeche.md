@@ -2711,7 +2711,9 @@ pub enum UiEvent { /* … */ PostponeFirstRun, FilesReceived { paths: Vec<PathBu
     neues Dokument. Jetzt nimmt der Arbeitsbereich Dateien, die schon offen sind (gleicher Pfad oder gleicher Name mit
     gleichem Inhalt; aktuelles, wartende, Stapel, geparkte Arbeit), nicht erneut auf: Hinweis `ng-open-duplicate`;
     nur schon offene Dateien bei geparkter Arbeit setzen sie fort (Nachtrag 10 Punkt 4); `mode: replace` darf
-    dieselbe Datei neu öffnen; der klassische Ablauf bleibt bei F-89.
+    dieselbe Datei neu öffnen; der klassische Ablauf bleibt bei F-89. Ein signiertes und gespeichertes Dokument
+    („Fertig“, `Output` mit `saved`) zählt nicht mehr als offen: eine neue Kopie derselben Datei öffnet wie bisher als
+    nächstes Dokument (F-89 „sofort weiter“), statt „ist bereits geöffnet“ zu melden (Nachprüfung 16.10.2026).
 11. **Bereichsleiste der Einstellungen** (waagrecht, schmal bzw. große Schrift) rollt den aktiven Bereich ins Bild –
     beim Öffnen, nach jedem Wechsel, nach der Suche und wenn die Schrift wächst (nur die Leiste, nicht der Dialog).
 12. `pida verify` (CLI) bleibt in diesem Nachtrag unverändert (Online-Prüfung).
@@ -2726,7 +2728,8 @@ pub enum UiEvent { /* … */ PostponeFirstRun, FilesReceived { paths: Vec<PathBu
 **Tests:** `crates/placement/tests/position_logic.rs` (`widget_aware_scan_keeps_automatic_placement_out_of_fields`);
 `crates/workflow/tests/workspace.rs` (`target_on_an_existing_page_ends_the_new_page`), `batch.rs`
 (`signed_single_document_joins_the_overview_with_its_preanalysis`, `resumed_document_of_…`); `crates/core-api/tests`
-`workspace.rs` (`automatic_placement_stays_out_of_existing_fields`), `settings.rs`
+`workspace.rs` (`automatic_placement_stays_out_of_existing_fields`,
+`the_same_file_opens_again_after_it_was_signed`), `settings.rs`
 (`qr_search_switched_on_leaves_the_new_page`), `batch.rs` (`the_same_file_received_again_is_not_added_twice`,
 `batch_flow_follows_the_capabilities_of_each_signer`), `first_run.rs`, `mobile.rs` (tatsächlicher Exportname,
 fortgesetzte Zeile, `ios_shows_the_share_hint_only_after_receiving_a_document`); Plugin `pida-mobile`

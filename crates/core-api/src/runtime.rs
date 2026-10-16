@@ -1209,13 +1209,19 @@ impl CoreTask {
     /// legt jedes „Teilen“ bzw. „Öffnen in“ eine neue Kopie an (Mobile-Check 16.10.2026: dieselbe Datei zweimal
     /// empfangen ergab zwei Stapeleinträge). Eine inhaltsgleiche Datei mit anderem Namen ist eine eigene Kopie und
     /// kommt dazu. Je übergangener Datei der Hinweis `ng-open-duplicate`; ebenso doppelt in einer Auswahl. Der
-    /// klassische Ablauf bleibt bei F-89 (Duplikate nach Pfad still verworfen).
+    /// klassische Ablauf bleibt bei F-89 (Duplikate nach Pfad still verworfen). Ein eben signiertes und gespeichertes
+    /// Dokument („Fertig“, `Output` mit `saved`) ist nicht mehr offen: eine neue Kopie derselben Datei öffnet wie
+    /// bisher als nächstes Dokument (F-89 „sofort weiter“) statt „ist bereits geöffnet“.
     fn drop_already_open(&mut self, docs: Vec<InputDocument>) -> Vec<InputDocument> {
         if !self.ws.enabled {
             return docs;
         }
-        let open: Vec<InputDocument> =
-            self.state.queue().map(|q| q.current.iter().chain(q.pending.iter()).cloned().collect()).unwrap_or_default();
+        let finished = matches!(self.state, pida_workflow::State::Output { saved: Some(_), .. });
+        let open: Vec<InputDocument> = self
+            .state
+            .queue()
+            .map(|q| q.current.iter().filter(|_| !finished).chain(q.pending.iter()).cloned().collect())
+            .unwrap_or_default();
         let mut kept: Vec<InputDocument> = Vec::new();
         for d in docs {
             if open.iter().chain(kept.iter()).any(|o| same_document(o, &d)) {
