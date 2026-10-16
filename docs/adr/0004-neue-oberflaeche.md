@@ -2101,3 +2101,72 @@ Datei gehört wie die übrigen Fixtures K (§6.1), der UI-Test UI-A.
   Rückfall für den klassischen Ablauf behalten. Mit eingeschaltetem `workspace_ui` sind sie in der App nicht
   mehr erreichbar und werden nach §3.15 im Merge-Commit gelöscht; ein klassischer Zustand ohne `document`
   zeigt die Startansicht.
+
+### Nachtrag 4 (Merge E2, 16.10.2026): Stapel – Schalter, Titel der Zusammenfassung, angenommene Abweichungen
+
+- **Schalter:** `CoreOptions::batch_overview = Some(true)` im Merge-Commit von A2 (`apps/app/src-tauri/src/lib.rs`,
+  §3.14); `PIDA_UI=workspace,batch` bleibt in Debug-Builds ohne weitere Wirkung. `-b … -a` (D-06) bleibt ohne
+  Übersicht (`cli_auto`).
+- **Vertrag, additiv nach §3.0 Regel 2:** Der Titel der Zusammenfassung („Stapel abgeschlossen“ bzw. „Stapel
+  abgebrochen“) ließ sich aus `BatchSummaryView` nicht ableiten – `cancelled > 0` irrt nach einem regulär
+  beendeten Lauf, wenn ein Eintrag aus einem früheren, abgebrochenen Lauf „Abgebrochen“ bleibt, und bei einem
+  Abbruch vor dem ersten Dokument (nichts ist „Abgebrochen“). Neu:
+
+  ```rust
+  pub struct BatchSummaryView {
+      // … wie §3.8
+      /// der letzte Lauf wurde abgebrochen („Stapel abbrechen“, Esc)
+      #[serde(default)] pub aborted: bool,
+  }
+  ```
+
+  Umgesetzt im Merge-Commit (Kern: `view.rs`, `batch.rs` aus `BatchSummary::aborted`; `generated.ts`,
+  `view-states.json`, `real-core-batch-views.json`, `contract.test.ts`; UI: `BatchView` nutzt das Feld; Mock und
+  TS-Literale nach §3.0 Regel 10).
+- **Befund behoben (Kern-Review K2):** „Stapel abbrechen“, während das Ergebnis eines Dokuments geschrieben wird:
+  Das Schreiben läuft ohne Epoche zu Ende, `Saved` kam aber erst in der Übersicht an und wurde verworfen – die
+  Datei lag auf der Platte, der Eintrag zeigte „Abgebrochen“. Jetzt merkt sich der Stapel das Dokument
+  (`Batch::writing`, interner Workflow-Zustand), `Saved` verbucht es in der Übersicht als „Signiert“
+  („gespeichert ist gespeichert“), `SaveFailed` bzw. eine noch ausstehende Zielentscheidung lassen es
+  „Abgebrochen“ (Tabellentest `abort_while_writing_keeps_the_saved_result`).
+- **Zustände des echten Kerns als UI-Probe (wie Nachtrag 2):** `apps/app/src/app/RealCoreBatch.test.tsx` rendert
+  `real-core-batch-views.json` (aus `crates/core-api/tests/batch.rs::real_core_batch_views_for_the_ui`):
+  Übersicht mit abgelehnter Datei, Schätzung, Start mit genau den signierbaren Dokumenten, eine Anmeldung,
+  „Bestätigung k von n · Name“ mit eigenem Vergleichswert, Pause (Verbindung), Überspringen,
+  Zusammenfassung „2 von 4 signiert, 1 übersprungen, 1 abgelehnt“ mit Speicherort, „Im Ordner zeigen“; kein
+  Zustand stößt eine Sitzung an (F-54).
+- **Angenommene Abweichungen K2:** `State::BatchOverview { queue }`/`BatchSigning { queue, run: Box<BatchRun> }`
+  mit den Einträgen in `Queue::batch` (statt `items`/`last_run` im Zustand); zusätzliche interne Felder
+  (`DocSummary::{placeholder, new_visible_field_allowed}`, `BatchItem::reviewed`, `BatchPhase::CheckingTarget`,
+  `BatchRun::{caps, certificate_doc, signed, session_open, doc, position, skipping}`); `BatchStarted::output`
+  als `Option<BatchOutput>`; `Event::ShowBatch`, `Effect::NotifyWith(code, params)`; Überspringen wartet auf das
+  Ende des laufenden Schritts statt Jobs zu markieren; die Bestätigung zählt nach `PhaseCompleted(Signing)`; ein
+  eigener Abbruch im Lauf, der kein Überspringen ist, gilt als `AbortBatch`; DocMDP-zertifiziert ohne
+  vorhandenes Feld bzw. „unsichtbar“ → `Failed` mit `ng-constraint-certified`; `AnalysisWarning` → `BackToBatch`
+  ohne Bestätigung bleibt „Bitte prüfen“ (die Prüfung lässt sich nicht überspringen); Voranalyse nacheinander
+  in core-api statt im Reducer; Schätzung `confirmations = 0` für Signiermittel mit `max_batch > 1`
+  (Keystore); übersprungene, abgebrochene und fehlgeschlagene Einträge werden nur über „öffnen → Zurück zum
+  Stapel“ wieder signierbar; Zustände des echten Kerns in `real-core-batch-views.json` (eigene Datei, K).
+- **Angenommene Abweichungen A2:** Startdialog nur, wenn es etwas zu entscheiden gibt (Ordnerwahl, vorhandene
+  Zieldateien), sonst startet „Alle signieren“ direkt; Kurzhinweis Datenschutz in der Übersicht (kein
+  blockierender Dialog); abgelehnte Dateien als „Abgelehnt“ mit „Entfernen“ (§8 F1) statt „Fehler“/„Kennwort
+  eingeben“; Zeile mit Schätzung und Speicherort unter dem Kopf (Schätzung verlangt §3.8); k/n nicht im
+  Stepper, sondern im Kopf der Stapelkarte; im Mock verwirft „Neuer Stapel“ den Stapel (wie der Kern).
+- **Abgleich Mock ↔ Kern:** „Start“ bzw. „Weiteres Dokument“ (`Navigate(Open)`) in einem aus der Übersicht
+  geöffneten Dokument führt im Kern zurück zur Übersicht (Eintrag unverändert, Stapel bleibt, auch nach
+  abgebrochenem Speichern-Dialog); der Mock verwarf den Stapel und folgt jetzt dem Kern (Tests
+  `opened_item_with_cancelled_save_dialog_returns_to_the_overview` bzw. Mock-Test).
+- **„Zum Stapel“ auf „Fertig“:** Der Kern erlaubt `ShowBatch` auch aus `Output` (gespeichert, weitere Dokumente
+  warten; `actions.show_batch`), A2 bot es nur im Arbeitsbereich an. „Fertig“ zeigt jetzt unter „Nächstes
+  Dokument“ zusätzlich „Zum Stapel“ (`DoneView`, Test in `done.test.tsx`); der Mock bietet es dort nicht an.
+- **Pause ohne eigene Überschrift:** Titel „Der Stapel ist angehalten“, darunter nur „Bitte entscheiden Sie, wie
+  es weitergeht.“ (`ng-ui-sc-batch-pause-decide`) statt des Satzes zweimal.
+- **Änderungsbitten:** an K4 – `pida_config::migrate::migrate_emblem` übernimmt jeden gesetzten `EMBLEM`-Pfad;
+  nach der Entscheidung des Auftraggebers zählt der PDF-AS-Standardlogo-Pfad (`…/images/signatur-logo_*.png`
+  aus der PDF-AS-Konfiguration) nicht als eigene Bildmarke und darf das PIDA-Siegel nie ersetzen (prüfen in K4,
+  Migration/Ersteinrichtung). An B4 – der Mock der Ersteinrichtung (`core/mock/firstrun.ts`) nennt eine
+  erfundene Bildmarke `firmenlogo.png` als Übernahme; nur eine tatsächlich gesetzte eigene Bildmarke darf
+  erscheinen (B4 arbeitet daran).
+- **Offen [H]:** A-08 mit dem Testkonto (eine Anmeldung je Stapel, je Dokument eine Bestätigung, weitere
+  Anmeldung nur nach A-Trust-Fehlerseite) und E2.8 im Simulator/Emulator (App-Wechsel je Bestätigung, App-Kill im
+  Lauf → „Signatur fortsetzen“ nur für das unterbrochene Dokument).

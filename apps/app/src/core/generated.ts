@@ -2225,7 +2225,13 @@ not_started: number,
 /**
  * Speicherort zur Anzeige
  */
-folder_display: string | null, };
+folder_display: string | null, 
+/**
+ * der letzte Lauf wurde abgebrochen („Stapel abbrechen“, Esc) – Titel der Zusammenfassung; `cancelled`
+ * allein genügt nicht (Abbruch vor dem ersten Dokument bzw. Einträge aus einem früheren Lauf;
+ * Nachtrag 4 im ADR 0004)
+ */
+aborted: boolean, };
 
 /**
  * Stapel (§3.8; nur mit `batch_overview`).

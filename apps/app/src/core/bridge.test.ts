@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blockPreviewPath, errorCode, inTauri, isAllowedExternalUrl, pageTilePath, renderBase, resolveRenderBase, tileScale } from './bridge';
+import { blockPreviewPath, errorCode, inTauri, isAllowedExternalUrl, pageTilePath, renderBase, resolveRenderBase, thumbPath, tileScale } from './bridge';
 import { mainBar, mmToPt, ptToMm, withSection, defaultSettings, baseName, dirName } from './defaults';
 import { MockCore } from './mock';
 
@@ -29,6 +29,8 @@ describe('Bridge-Hilfen', () => {
     expect(pageTilePath(7, 2, 1.37)).toBe('page/7/2?scale=1.25');
     expect(pageTilePath(1, 0, 100)).toBe('page/1/0?scale=8');
     expect(blockPreviewPath(0.01, 3)).toBe('block?scale=0.25&rev=3');
+    // Miniatur eines Stapeleintrags (ADR 0004 §3.14)
+    expect(thumbPath(12)).toBe('thumb/12');
     expect(tileScale(2.126)).toBe(2.25);
   });
 
@@ -89,7 +91,8 @@ describe('Standardwerte und Hilfen', () => {
 
 describe('Mock-Kern', () => {
   it('startet im Öffnen-Schritt und liefert serde-nahe Zustände', async () => {
-    const mock = new MockCore({ delayMs: 0 });
+    // ohne Stapelübersicht: mehrere Dokumente nacheinander (Warteschlange)
+    const mock = new MockCore({ delayMs: 0, batchOverview: false });
     const views: string[] = [];
     mock.onState((v) => views.push(v.step.step));
     await new Promise((r) => setTimeout(r, 5));

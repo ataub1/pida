@@ -1319,6 +1319,7 @@
       },
       "running": false,
       "summary": {
+        "aborted": false,
         "cancelled": 0,
         "failed": 0,
         "folder_display": "/Users/test/Dokumente",

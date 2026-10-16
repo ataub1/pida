@@ -21,7 +21,7 @@ import { isMobile, type OutputView, type StepView } from '../../core/types';
 import { Button } from '../../ui/controls';
 import { useNarrow } from '../../ui/hooks';
 import { ConfirmDialog } from '../../ui/Dialog';
-import { IconCheck, IconExternal, IconFileText, IconFolder, IconShare, IconShieldCheck, IconUpload } from '../../ui/Icons';
+import { IconCheck, IconExternal, IconFileText, IconFolder, IconLayers, IconShare, IconShieldCheck, IconUpload } from '../../ui/Icons';
 import { displayPages, rectToBox } from '../workspace/placement';
 import './done.css';
 
@@ -230,6 +230,13 @@ export function DoneView({ step }: { step: Extract<StepView, { step: 'output' }>
                 {t.t('ng-ui-fin-next-hint', { name: next.name })}
                 {step.pending > 0 ? ` · ${t.t('ng-ui-fin-waiting', { n: step.pending })}` : null}
               </span>
+            ) : null}
+            {/* weitere Dokumente warten (Stapelübersicht, ADR 0004 §3.8 `ShowBatch`): dieses zählt dort als signiert */}
+            {view.actions.show_batch ? (
+              <Button variant="ghost" size="sm" onPress={() => void dispatch({ type: 'show_batch' })}>
+                <IconLayers size={15} />
+                {t.t('ng-ui-batch-show')}
+              </Button>
             ) : null}
           </div>
         </div>

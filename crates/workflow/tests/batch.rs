@@ -388,6 +388,35 @@ fn opened_item_signed_individually_returns_to_the_overview() {
 }
 
 #[test]
+fn opened_item_with_cancelled_save_dialog_returns_to_the_overview() {
+    // einzeln signiert, Speichern-Dialog abgebrochen (kein Ausgabeordner): „Weiteres Dokument“ (Navigate Open)
+    // führt zurück zur Übersicht, der Stapel bleibt, der Eintrag unverändert (Nachtrag 4)
+    let s = overview(&[1, 2]);
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
+    let t = step(s, Event::SignRequested { backend: BackendId::Keystore, options: options(false, true) }, &ctx());
+    let (s, _) = run(
+        t.state,
+        [
+            Event::PhaseCompleted(SigningPhase::OpeningSession),
+            Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+            Event::PhaseCompleted(SigningPhase::Preparing),
+            Event::PhaseCompleted(SigningPhase::Signing),
+            Event::PhaseCompleted(SigningPhase::Finishing),
+        ],
+        &ctx(),
+    );
+    let ask = pida_workflow::OutputDecision::Ask { directory: "/in".into(), file_name: "doc1_signed.pdf".into() };
+    let s = step(s, Event::OutputDecided(ask), &ctx()).state;
+    assert!(matches!(s, State::Output { saved: None, .. }), "{s:?}");
+    let t = step(s, Event::Navigate(Step::Open), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{:?}", t.state);
+    assert_eq!(batch_of(&t.state).items.len(), 2, "Stapel bleibt");
+    assert_eq!(status(&t.state, 1), BatchItemStatus::Ready, "nichts gespeichert");
+    assert_eq!(batch_of(&t.state).open, None);
+}
+
+#[test]
 fn analysis_warning_from_the_overview() {
     let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &ctx());
     let warned = DocSummary { warnings: vec!["pdf-usage-rights".into()], ..summary(1) };
@@ -566,6 +595,48 @@ fn skip_keeps_the_session_and_abort_cancels_it() {
     d.until(1, BatchPhase::Loading);
     assert!(d.send(Event::Cancel).contains(&Effect::CancelSession));
     assert_eq!(status(&d.state, 1), BatchItemStatus::Cancelled);
+}
+
+#[test]
+fn abort_while_writing_keeps_the_saved_result() {
+    // „Stapel abbrechen“, während das Ergebnis des zweiten Dokuments geschrieben wird: das Schreiben läuft
+    // zu Ende (ohne Epoche) – die Datei liegt auf der Platte und zählt als signiert
+    let mut d =
+        Driver::new(started(overview(&[1, 2, 3]), BackendId::AtrustNative, &[1, 2, 3], ExistingPolicy::KeepBoth));
+    d.until(2, BatchPhase::Writing);
+    let e = d.ok();
+    assert!(e.iter().any(|e| matches!(e, Effect::Write(_))), "Schreiben angestoßen: {e:?}");
+    let e = d.send(Event::BatchAbort);
+    assert!(e.contains(&Effect::CancelSession));
+    assert_eq!(status(&d.state, 2), BatchItemStatus::Cancelled);
+    d.send(Event::Saved(info("/out/doc2_signed.pdf")));
+    assert!(matches!(d.state, State::BatchOverview { .. }));
+    assert!(matches!(status(&d.state, 2), BatchItemStatus::Signed { .. }), "gespeichert ist gespeichert");
+    assert_eq!(status(&d.state, 3), BatchItemStatus::Ready);
+    assert_eq!(batch_of(&d.state).last_run.as_ref().unwrap().signed, 2);
+    assert_eq!(batch_of(&d.state).writing, None);
+    assert!(d.state.queue().unwrap().done.iter().any(|o| o.doc.id == DocId(2)));
+    // ein späteres `Saved` ohne laufendes Schreiben ändert nichts
+    d.send(Event::Saved(info("/out/fremd.pdf")));
+    assert_eq!(status(&d.state, 3), BatchItemStatus::Ready);
+
+    // Abbruch vor der Zielentscheidung: es wird nichts geschrieben, der Eintrag bleibt „Abgebrochen“
+    let mut d =
+        Driver::new(started(overview(&[1, 2, 3]), BackendId::AtrustNative, &[1, 2, 3], ExistingPolicy::KeepBoth));
+    d.until(2, BatchPhase::Writing);
+    d.send(Event::BatchAbort);
+    d.send(Event::BatchOutputDecided { doc: DocId(2), path: "/out/doc2_signed.pdf".into(), exists: false });
+    assert_eq!(batch_of(&d.state).writing, None);
+    d.send(Event::Saved(info("/out/doc2_signed.pdf")));
+    assert_eq!(status(&d.state, 2), BatchItemStatus::Cancelled);
+    // Schreiben fehlgeschlagen: bleibt „Abgebrochen“
+    let mut d = Driver::new(started(overview(&[1, 2]), BackendId::AtrustNative, &[1, 2], ExistingPolicy::KeepBoth));
+    d.until(2, BatchPhase::Writing);
+    d.ok();
+    d.send(Event::BatchAbort);
+    d.send(Event::SaveFailed("voll".into()));
+    assert_eq!(status(&d.state, 2), BatchItemStatus::Cancelled);
+    assert_eq!(batch_of(&d.state).writing, None);
 }
 
 #[test]

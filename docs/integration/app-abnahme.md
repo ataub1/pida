@@ -6,14 +6,15 @@ fest, was automatisch nachgewiesen ist, und enthält die Checkliste für die **m
 den Auftraggeber (Bildschirme, Tastatur, Drag & Drop, ID Austria mit Testkonto).
 
 Stand: 15.10.2026, Welle 3 Track T1; Etappe **E1** der neuen Oberfläche „Arbeitsbereich“ (ADR 0004 §5, Merge
-K1 + A1, `workspace_ui` eingeschaltet) ergänzt am 15.10.2026; gemessen auf macOS 27 (arm64), Xcode 27, Rust 1.99.0, Node 22,
+K1 + A1, `workspace_ui` eingeschaltet) ergänzt am 15.10.2026, Etappe **E2** (Stapel, Merge K2 + A2,
+`batch_overview` eingeschaltet) am 16.10.2026; gemessen auf macOS 27 (arm64), Xcode 27, Rust 1.99.0, Node 22,
 PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft die CI (Job `bundle`).
 
 ## 1. Automatische Nachweise
 
 | Nr. | Prüfung | Befehl | Ergebnis |
 |---|---|---|---|
-| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review); seit E1 15 Testdateien, 379 Tests (inkl. axe-core, Mock-Projektion, Token-Kontrast, echte Kernzustände) |
+| N-01 | Oberfläche installieren, bauen, testen | `cd apps/app && npm ci && npm run build && npm test` | grün: tsc strict + Vite-Build, 10 Testdateien, 237 Tests (nach dem Review); seit E1 15 Testdateien, 379 Tests (inkl. axe-core, Mock-Projektion, Token-Kontrast, echte Kernzustände); seit E2 17 Testdateien, 429 Tests |
 | N-02 | Shell-Crate | `cargo test -p pida-app` | grün: 40 Tests nach dem Review (Startargumente, Kernstart/Fehlerschritt, Shell-Funktionen, Startprüfung, Custom Protocol, Dateien, frühe Dokumente/Single-Instance-Socket, PDFium-Auflösung, Sicherheitskonfiguration, Serde-Vertrag) |
 | N-03 | Vertrag Kern ↔ UI | `cargo test -p pida-core-api --test ts_bindings` | grün: `generated.ts` entspricht den Rust-Typen (ts-rs 12.0.1) |
 | N-04 | Debug-Bundle mit PDFium und Drittlizenzen | `npm run notices && PIDA_PDFIUM_DIR=… npm run bundle:mac:debug` | `PIDA.app` **121,3 MiB** (Binary 112 MiB unoptimiert mit Debug-Infos, `Contents/Frameworks/libpdfium.dylib` 7,0 MiB, `Contents/Resources/THIRD-PARTY-NOTICES.md` + `RUST-STD-COPYRIGHT.html`) |
@@ -34,6 +35,12 @@ PDFium chromium/8100 (`tools/pdfium.lock`). Windows und Linux baut und prüft di
 | N-19 | E1: Invariante A1 (F-54) | `cargo test -p pida-workflow --test props --test workspace` | Property-Test `workspace_session_only_after_explicit_action` (50 Ereignisarten, zufällige Einstellungen) und 19 Tabellentests grün |
 | N-20 | E1: Oberfläche gegen echte Kernzustände | `cd apps/app && npm test` (`src/app/RealCore.test.tsx`, Fixture `src/core/fixtures/real-core-views.json` aus N-18) | Seitenansicht bleibt vom Bearbeiten bis „Fertig“ eingehängt, Karte je Schritt (Anmeldung, Netzfehler, SMS-TAN), Wortlaut F3, kein Zustand stößt eine Sitzung an |
 | N-21 | E1: Mobile-Typprüfung | `cargo check -p pida-app --target aarch64-apple-ios-sim` bzw. `--target aarch64-linux-android` (NDK 29) | grün (nur die bekannte Warnung in `pida-pades`) |
+| N-22 | E2: Debug-Bundle mit Stapelübersicht | `PIDA_SMOKE=1 PIDA_HOME=<leer> HOME=<leer> …/pida a.pdf b.pdf geheim.pdf` bzw. `-b MOBILE -a a.pdf b.pdf` | `ok step=batch pdfium=true` (Übersicht ab zwei Dokumenten, `batch_overview` eingeschaltet; WebView + Kern nach 377–434 ms) bzw. `ok step=loading` (Startargument-Automatik: nacheinander, keine Übersicht, keine Sitzung); ohne Dokument `ok step=open` (450–518 ms); je zwei Läufe |
+| N-23 | E2: D-06 mit eingeschalteter Stapelübersicht (Abnahme E2.9) | `PIDA_HOME=<leer> …/pida -b KS -ks testdata/keystores/test-rsa2048.p12 -kspass test -a -s -o <ordner> a.pdf b.pdf` | unverändert ohne Übersicht: beide signiert, Ende mit 0 nach 2 s, Log ohne Pfade/Namen; `pyhanko sign validate --trust …/test-rsa2048.crt.pem`: `INTACT:TRUSTED,UNTOUCHED`, `qpdf --check` ohne Fehler |
+| N-24 | E2: Stapel im Kern | `cargo test -p pida-workflow --test batch --test props`, `cargo test -p pida-core-api --test batch --test mobile` (mit `PIDA_PDFIUM_DIR`) | 28 Tabellentests (Übersicht, Voranalyse, öffnen/zurück mit Plan, eine Sitzung, Überspringen ≠ Abbrechen, Pausen je Fehlerart, vorhandene Ziele, Abbruch während des Schreibens); A1-Property-Test mit Stapelereignissen; core-api: E2.1–E2.7 und E2.9 mit ID-Austria-artigem Fake-Backend (eine Anmeldung, höchstens ein `certificate()`, eigener Vergleichswert je Dokument), Keystore mit echter Engine (pyHanko), E2.8 (`mobile.rs`: App-Kill im Lauf → nur das unterbrochene Dokument, danach Übersicht) |
+| N-25 | E2: Oberfläche gegen echte Stapelzustände | `cd apps/app && npm test` (`src/app/RealCoreBatch.test.tsx`, Fixture `src/core/fixtures/real-core-batch-views.json` aus N-24) | jeder Zustand in der Stapelübersicht, Schätzung, `start_batch` mit genau den signierbaren Dokumenten, eine Anmeldung, „Bestätigung k von n · Name“ mit eigenem Vergleichswert, Pause (Verbindung) mit Erneut versuchen/Überspringen/Stapel abbrechen, Zusammenfassung mit Speicherort und „Im Ordner zeigen“; kein Zustand stößt eine Sitzung an (F-54); axe ohne Verstöße |
+| N-26 | E2: Stapel gegen den Mock | `cd apps/app && npm test` (`features/batch/batch.test.tsx`, `core/mock/mock.test.ts`) | alle [M]-Kriterien E2.1–E2.7, Mobile (App-Dokumente, schmal), Englisch, ⌘↵, Keystore mit einmaligem Passwort; axe (auch schmal, Startdialog, Pausen, Abbruch-Rückfrage) |
+| N-27 | E2: Mobile-Typprüfung | wie N-21 | grün (nur die bekannte Warnung in `pida-pades`) |
 
 Hinweise zur Messung:
 
@@ -43,6 +50,12 @@ Hinweise zur Messung:
   Demo-Steuerung, „Befehle ⌘K“ erst mit der Palette (E4), „Prüfen“ gesperrt, Startlage nach der PDF-AS-Regel
   (waagrecht mittig unter dem Inhalt), leere Signaturfelder nur angeboten (ADR 0004 §8 F2), Wortlaut F3 auf
   „Fertig“.
+- **Gestaltung E2** (Stapel) neben dem Prototyp (`?scenario=batch`): Mock-Kern im Browser auf eigenem Port,
+  Desktop 1280 × 800 hell/dunkel und 375 × 812 @2x hell/dunkel, 23 Aufnahmen in
+  `docs/integration/screenshots/stage2/`; 360 px ohne waagrechtes Scrollen. Gewollte Abweichungen (ADR 0004
+  §9 Nachtrag 4): abgelehnte Dateien „Abgelehnt“ + „Entfernen“ statt „Kennwort eingeben“ (§8 F1), Zeile mit
+  Schätzung und Speicherort, Startdialog nur bei Ordnerwahl bzw. vorhandenen Zieldateien, k/n im Kopf der
+  Stapelkarte statt im Stepper.
 
 - Die **Startprüfung** (`PIDA_SMOKE=1`, `apps/app/src-tauri/src/smoke.rs`) beendet die App, sobald die
   Oberfläche über IPC den ersten ViewState abgefragt hat (WebView, JavaScript-Bundle und IPC laufen) und
@@ -87,7 +100,7 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | S-09 | ID Austria: Netzfehler **nach** erfolgreicher Anmeldung (z. B. WLAN kurz trennen) → „Erneut versuchen“ | Fehlerschritt in der Karte mit Alltagstext und „Technische Details“ (Code, Zeitpunkt); „Erneut versuchen“ ohne neue Login-Maske und ohne zweites Lesen des Zertifikats |
 | S-09a | Konto-Chip: Wechsel ID Austria / Keystore / Bürgerkarte, „Als Standard verwenden“; Standard „Jedes Mal fragen“ | Wahl startet nichts (Sitzung erst mit „Signieren“); ohne Standard öffnet „Signieren“ das Menü, die Wahl dort signiert; bei ID Austria Kurzhinweis „Das Dokument wird zum Signieren an A-Trust übermittelt.“ mit „Details“ (→ Einstellungen › Datenschutz), kein Zustimmungsdialog (ADR 0003); kein Weg startet ID Austria ohne „Signieren“ (F-54) |
 | S-10 | Keystore-Signatur mit Test-Keystore | Passwortabfrage, Signatur, Ergebnis-Schritt; Datei `<name>_signed.pdf` neben der Quelle bzw. im Ausgabeordner |
-| S-11 | Fertig: Öffnen, Im Ordner zeigen, „Nächstes Dokument“ bzw. „Weiteres Dokument signieren“ | Standard-PDF-Anzeige öffnet die Ausgabe; Finder zeigt sie; bei mehreren Dokumenten „Weiter mit „…“ · n Dokumente warten“, danach das nächste im Arbeitsbereich (kein automatisches Weiterschalten, F-88 nur mit `-b … -a`) |
+| S-11 | Fertig: Öffnen, Im Ordner zeigen, „Nächstes Dokument“ bzw. „Weiteres Dokument signieren“ | Standard-PDF-Anzeige öffnet die Ausgabe; Finder zeigt sie; bei mehreren Dokumenten „Weiter mit „…“ · n Dokumente warten“, danach das nächste im Arbeitsbereich (kein automatisches Weiterschalten, F-88 nur mit `-b … -a`); seit E2 (Dokumente während eines Einzeldokuments hinzugefügt) zusätzlich „Zum Stapel“ – dieses Dokument zählt dort als signiert |
 | S-12 | Ausgabe existiert bereits | Rückfrage „Überschreiben?“; Nein → Speichern-Knopf bleibt |
 | S-13 | Kein Ausgabeordner eingestellt | Speichern-Dialog mit Startordner der Quelle und Namensvorschlag `<name>_signed.pdf`; Abbrechen → Knopf „Speichern“ |
 | S-14 | Fehler (z. B. falsches Keystore-Passwort, defektes PDF) | Fehlerschritt mit verständlichem Text, „Details“ (Code), Wiederholen wo sinnvoll |
@@ -97,6 +110,11 @@ Vorbereitung: Release-Bundle (N-05) bzw. `npm run tauri dev` im Repo; ein leeres
 | S-18 | Hinweise (Toasts) | Hinweise des Kerns stapeln, einzeln schließbar; Info-Hinweise verschwinden nach 8 s, Fehler bleiben |
 | S-19 | Beenden während einer offenen Maske (⌘Q / Fenster schließen) | Vorgang wird abgebrochen, Einstellungen gesichert, App endet (spätestens nach 5 s) |
 | S-20 | Fenstergröße/-position | bleibt nach Neustart erhalten |
+| S-21 | E2: mehrere PDFs ablegen bzw. „Öffnen mit“ (≥ 2) | Stapelübersicht „Stapel · n Dokumente“: je Datei Miniatur, Seiten, Größe, Status (Wird geprüft → Bereit/Positioniert „im QR-Platzhalter“/Abgelehnt „Mit Kennwort geschützt“ mit „Entfernen“/Bitte prüfen); Schätzung „3 Dokumente · 1 Anmeldung · 3 Bestätigungen (ggf. +1 für das Zertifikat)“ (Keystore: ohne Anmeldung), Speicherort, Kurzhinweis Datenschutz bei ID Austria; **nichts startet von selbst** (F-54) |
+| S-22 | E2: Eintrag öffnen, Block verschieben, „Zurück zum Stapel“ (Kopfzeile bzw. Inspektor); einzeln „Signieren“ | Eintrag „Positioniert“ mit dieser Lage (erneut öffnen zeigt sie); einzeln signiert → Hinweis „… signiert“, zurück zur Übersicht, zählt in der Zusammenfassung; „Start“/„Weiteres Dokument“ führt zurück zur Übersicht |
+| S-23 | E2: „Alle signieren (n)“ (⌘↵) mit vorhandener Zieldatei bzw. „Jedes Mal fragen“ als Ausgabeordner | Startdialog **vor** dem Lauf: „Beide behalten“ (Standard, `… (2).pdf`), „Überschreiben“, „Überspringen“ (ohne Bestätigung für dieses Dokument) bzw. Ordnerwahl; sonst startet der Lauf direkt; ohne Standard-Signiermittel öffnet sich das Menü des Konto-Chips |
+| S-24 | E2: Stapellauf mit Keystore (Test-Keystore) | Passwort **einmal**, Stapelkarte „n Dokumente“ mit „Dokument k von n · Name“, Fortschritt in Karte und Liste, danach Zusammenfassung „n von m signiert …“ mit Speicherort, „Im Ordner zeigen“, „Neuer Stapel“; Ausgaben gültig (pyHanko) |
+| S-25 | E2: Esc bzw. × im Lauf, „Stapel abbrechen“ | Rückfrage „Stapel abbrechen?“ („Weiter signieren“); Abbruch: Gespeichertes bleibt, aktuelles „Abgebrochen“, Rest „Bereit“, Zusammenfassung „Stapel abgebrochen“, Passwort vergessen |
 
 ### 2.2 Tastatur und Barrierefreiheit
 
@@ -141,7 +159,7 @@ oder Logs. Einen Zustimmungsdialog gibt es nicht mehr (ADR 0003); der Kurzhinwei
 | A-05 | „Signaturdaten anzeigen“ | öffnet die A-Trust-Seite im Systembrowser (nur `https://`, A-Trust-Host) |
 | A-06 | Abbrechen in jeder Maske | zurück zum Arbeitsbereich mit unveränderter Platzierung und Hinweis „es wurde nichts signiert“, nichts gespeichert, Passwort der Sitzung gelöscht (F-72); Ablehnung in der App → Fehlerschritt „In der App abgelehnt oder abgelaufen“ mit „Erneut versuchen“ ohne neue Anmeldung |
 | A-07 | Signatur prüfen | Ausgabe in Adobe Acrobat und mit RTR-Prüfdienst/DSS gültig; `qpdf --check` ohne Fehler |
-| A-08 | Mehrere Dokumente (Warteschlange) | je Dokument eine Bestätigung; Anmeldung je Batch |
+| A-08 | Stapel (≥ 2 Dokumente, Stapelübersicht) – „Alle signieren (n)“ | eine Anmeldung je Stapel, je Dokument eine eigene Bestätigung mit eigenem Vergleichswert („Bestätigung k von n · Name“); weitere Anmeldung nur nach A-Trust-Fehlerseite bzw. Sitzungsfehler; „Dokument überspringen“ ohne neue Anmeldung (eine offene Anfrage in der App bitte ablehnen); Netzfehler → Pause „Erneut versuchen“ in derselben Sitzung; Zusammenfassung über alle Einträge mit Speicherort |
 | A-09 | Zertifikats-Cache (Einstellungen › Opt-in) – zweite Signatur | kein zweites Lesen des Zertifikats (eine Bestätigung weniger); Block zeigt korrekten Namen/Seriennummer |
 | A-10 | Zertifikats-Cache – anderes Konto bzw. erneuertes Zertifikat | Signatur wird verworfen, Fehlerschritt `ng-certcache-mismatch` mit Begründung; „Wiederholen“ liest das Zertifikat neu und fragt erneut nach der Bestätigung |
 | A-11 | Netzwerk weg / Proxy mit Anmeldung | verständliche Meldung (`error-FailedToConnect`, Proxy-Passwortabfrage) |
@@ -172,3 +190,8 @@ oder Logs. Einen Zustimmungsdialog gibt es nicht mehr (ADR 0003); der Kurzhinwei
   Referenzrechner stehen aus.
 - E1: Stapel (E2), Einstellungen „sofort wirksam“/Live-Editor (E3), Prüfmodus, Befehlspalette und
   Ersteinrichtung (E4) folgen; bis dahin bisheriger Einstellungsdialog, „Prüfen“ gesperrt, kein „Befehle ⌘K“.
+- E2: Der Stapel signiert mit ID Austria je Dokument einzeln (eine Anmeldung, n Bestätigungen); „Eine Anmeldung“
+  ist eine Erwartung – nach einer A-Trust-Fehlerseite fragt die Karte erneut. Überspringen bzw. Abbrechen
+  verwerfen die laufende Anfrage nur in PIDA; in der App kann sie bis zum Ablauf sichtbar bleiben (Schutz: eigener
+  Vergleichswert). Wieder signierbar werden übersprungene/abgebrochene Einträge nur über „öffnen → Zurück zum
+  Stapel“. Offen [H]: A-08 mit Testkonto, E2.8 im Simulator/Emulator.

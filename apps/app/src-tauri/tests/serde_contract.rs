@@ -857,6 +857,7 @@ fn batch(mode: OutputModeView) -> BatchView {
             cancelled: 1,
             not_started: 6,
             folder_display: (!mobile).then(|| "/Users/demo".into()),
+            aborted: true,
         }),
         output: BatchOutputView {
             mode,

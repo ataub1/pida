@@ -364,6 +364,7 @@ impl crate::runtime::CoreTask {
                 skipped: count(|s| matches!(s, BatchItemStatus::Skipped { .. })),
                 cancelled: count(|s| matches!(s, BatchItemStatus::Cancelled)),
                 not_started: count(BatchItemStatus::not_started),
+                aborted: last.aborted,
                 folder_display: if self.mobile.platform.is_desktop() {
                     last.folder.as_ref().map(|f| f.display().to_string()).or_else(|| output.folder_display.clone())
                 } else {

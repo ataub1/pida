@@ -268,6 +268,7 @@ const batchView = obj({
       cancelled: int,
       not_started: int,
       folder_display: nullable(str),
+      aborted: bool,
     }),
   ),
   output: obj({ mode: lit('next_to_source', 'folder', 'ask', 'app_documents'), folder_display: nullable(str), needs_folder: bool }),

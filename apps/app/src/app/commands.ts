@@ -80,7 +80,8 @@ export function isCommandEnabled(id: CommandId, view: ViewState): boolean {
     case 'open':
       return a.open_files;
     case 'sign':
-      return a.sign;
+      // im Stapel: „Alle signieren“ (ausdrückliche Aktion, A1)
+      return a.sign || a.start_batch;
     case 'verify':
       return a.verify;
     case 'settings':

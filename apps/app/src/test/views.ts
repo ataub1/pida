@@ -4,6 +4,8 @@ import { capabilitiesFor } from '../core/mock/shared';
 import type {
   ActionsView,
   BackendOptionView,
+  BatchItemView,
+  BatchView,
   DocInfo,
   DocumentView,
   ErrorContextView,
@@ -283,5 +285,49 @@ export function doneView(result: Partial<OutputView> = {}, next: DocInfo | null 
   return viewOf(
     { step: 'output', result: outputResult({ path: '/Users/demo/Dokumente/Vertrag_signed.pdf', summary: summary(), ...result }), next, pending },
     { document: documentView({ phase: 'done' }), signers: signersView(), actions: { ...noActions(), open_files: true, settings: true, home: true }, ...extra },
+  );
+}
+
+/* ---------------------------------------------------------------- Stapel (ADR 0004 §3.8) */
+
+/** Eintrag der Stapelübersicht (Vertrag mit 3 Seiten, bereit). */
+export function batchItem(extra: Partial<BatchItemView> = {}): BatchItemView {
+  return {
+    doc: 7,
+    name: 'Vertrag.pdf',
+    page_count: 3,
+    size_bytes: 214 * 1024,
+    status: { state: 'ready' },
+    position: { kind: 'auto' },
+    target_name: 'Vertrag_signed.pdf',
+    target_exists: false,
+    thumbnail: true,
+    ...extra,
+  };
+}
+
+/** Stapel wie im Abnahmekriterium E2.1: drei signierbar, einer kennwortgeschützt. */
+export function batchData(extra: Partial<BatchView> = {}): BatchView {
+  return {
+    items: [
+      batchItem({ doc: 1, name: 'Angebot.pdf', page_count: 2, size_bytes: 96 * 1024, target_name: 'Angebot_signed.pdf' }),
+      batchItem({ doc: 2, name: 'Auftrag.pdf', page_count: 1, size_bytes: 74 * 1024, status: { state: 'positioned' }, position: { kind: 'qr' }, target_name: 'Auftrag_signed.pdf' }),
+      batchItem({ doc: 3, name: 'Scan.pdf', page_count: null, size_bytes: 184 * 1024, status: { state: 'rejected', code: 'error-PDFPwdProtected' }, target_name: null, thumbnail: false }),
+      batchItem({ doc: 4 }),
+    ],
+    open_item: null,
+    running: false,
+    summary: null,
+    output: { mode: 'next_to_source', folder_display: null, needs_folder: false },
+    estimate: { backend: 'atrust_native', documents: 3, logins: 1, confirmations: 3, certificate_confirmation_possible: true, large: false },
+    ...extra,
+  };
+}
+
+/** Stapelübersicht (`StepView::Batch`). */
+export function batchOverview(batch: BatchView = batchData(), extra: Partial<ViewState> = {}): ViewState {
+  return viewOf(
+    { step: 'batch' },
+    { batch, signers: signersView(), actions: { ...noActions(), open_files: true, start_batch: batch.items.some((i) => i.status.state === 'ready' || i.status.state === 'positioned'), settings: true, home: true }, ...extra },
   );
 }

@@ -47,6 +47,11 @@ export interface CoreBridge {
   pageTileUrl(doc: DocId, page: number, scale: number): string;
   /** URL der Blockvorschau (Revision = Cache-Busting). */
   blockPreviewUrl(scale: number, revision: number): string;
+  /**
+   * URL der Miniatur eines Stapeleintrags (`pida-render://thumb/<doc>`, Voranalyse, Breite 96 px; ADR 0004
+   * §3.8/§3.14). Nur bei `BatchItemView::thumbnail`.
+   */
+  thumbUrl(doc: DocId): string;
 }
 
 /** Native Dienste (Dialoge, Drag & Drop, Öffnen im System). */
@@ -67,8 +72,11 @@ export interface PlatformServices {
   onFileDrag(cb: (event: FileDragEvent) => void): () => void;
   /** Öffnet eine `https:`/`mailto:`-URL im Systembrowser. */
   openUrl(url: string): Promise<void>;
-  /** Zeigt die Ergebnisdatei des Ergebnis-Schritts im Dateimanager. */
-  revealOutput(): Promise<void>;
+  /**
+   * Zeigt die Ergebnisdatei im Dateimanager: ohne `doc` die des Ergebnis-Schritts, mit `doc` die Ausgabe
+   * dieses Stapeleintrags (nur Pfade, die der Kern geschrieben hat; ADR 0004 §3.14).
+   */
+  revealOutput(doc?: DocId | null): Promise<void>;
   /** Öffnet den Log-Ordner. */
   openLogDir(): Promise<void>;
   /** Öffnet die Drittlizenz-Hinweise des Pakets (THIRD-PARTY-NOTICES). */
@@ -126,6 +134,11 @@ export function pageTilePath(doc: DocId, page: number, scale: number): string {
   return `page/${encodeURIComponent(String(doc))}/${encodeURIComponent(String(page))}?scale=${tileScale(scale)}`;
 }
 
+/** URL der Miniatur eines Stapeleintrags relativ zur Basis. */
+export function thumbPath(doc: DocId): string {
+  return `thumb/${encodeURIComponent(String(doc))}`;
+}
+
 /** URL der Blockvorschau relativ zur Basis. */
 export function blockPreviewPath(scale: number, revision: number): string {
   return `block?scale=${tileScale(scale)}&rev=${encodeURIComponent(String(revision))}`;
@@ -173,6 +186,7 @@ export async function createTauriBridge(): Promise<Bridge> {
     },
     pageTileUrl: (doc, page, scale) => base + pageTilePath(doc, page, scale),
     blockPreviewUrl: (scale, revision) => base + blockPreviewPath(scale, revision),
+    thumbUrl: (doc) => base + thumbPath(doc),
 
     async pickFiles({ title, filters, defaultPath, multiple }) {
       const result = await dialog.open({ title, filters, multiple, directory: false, defaultPath: defaultPath ?? undefined });
@@ -226,9 +240,9 @@ export async function createTauriBridge(): Promise<Bridge> {
       if (!isAllowedExternalUrl(url)) throw new Error('ng-ui-open-failed');
       await opener.openUrl(url);
     },
-    async revealOutput() {
+    async revealOutput(doc) {
       try {
-        await invoke('reveal_output');
+        await invoke('reveal_output', doc === undefined || doc === null ? {} : { doc });
       } catch (e) {
         throw new Error(errorCode(e));
       }

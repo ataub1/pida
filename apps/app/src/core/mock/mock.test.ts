@@ -51,6 +51,13 @@ describe('Szenarien', () => {
         case 'verify':
           expect(v.verify).not.toBeNull();
           break;
+        case 'batch': {
+          // Stapelübersicht (ADR 0004 §3.8): kein Dokument im Arbeitsbereich, Voranalyse im Hintergrund
+          const b = await until(c, (x) => x.step.step === 'batch' && (x.batch?.items.every((i) => i.status.state !== 'analyzing') ?? false));
+          expect(b.document).toBeNull();
+          expect(b.batch?.items).toHaveLength(4);
+          break;
+        }
         case 'error-password': {
           const e = await until(c, (x) => x.step.step === 'error');
           expect(e.step.step === 'error' && e.step.code).toBe('error-PDFPwdProtected');
@@ -102,20 +109,20 @@ describe('Szenarien', () => {
     expect(v.document?.constraints.new_page_allowed).toBe(false);
   });
 
-  it('Stapel: bis E2 das erste von vier Dokumenten im Arbeitsbereich, keine Stapelansicht', async () => {
-    const v = await until(core({ scenario: 'batch' }), hasDoc);
+  it('Stapel ohne Stapelübersicht (`batchOverview: false`): das erste von vier Dokumenten im Arbeitsbereich', async () => {
+    const v = await until(core({ scenario: 'batch', batchOverview: false }), hasDoc);
     expect(v.document?.doc.name).toBe('Angebot_2026-118.pdf');
     expect(v.batch).toBeNull();
     expect(v.actions.show_batch).toBe(false);
   });
 
-  it('Beispiele der späteren Etappen (`examples`): Stapel, zuletzt signiert, Prüfbericht, Ersteinrichtung', async () => {
+  it('Beispiele der späteren Etappen (`examples`): zuletzt signiert, Prüfbericht, Ersteinrichtung (Stapel: echter Ablauf)', async () => {
     const v = await until(core({ examples: true, firstRun: true }), (x) => x.step.step === 'open');
     expect(v.recent?.length).toBeGreaterThan(0);
     expect(v.verify).not.toBeNull();
     expect(v.first_run).not.toBeNull();
-    expect(v.batch?.items.map((i) => i.status.state)).toEqual(['positioned', 'ready', 'rejected', 'ready']);
-    // bis A2 ohne Stapelansicht
+    // der Stapel kommt seit A2 aus dem Ablauf (Szenario `batch`), nicht als festes Beispiel
+    expect(v.batch).toBeNull();
     expect(v.actions.show_batch).toBe(false);
     const plain = await until(core(), (x) => x.step.step === 'open');
     expect(plain.recent).toBeNull();
@@ -216,5 +223,288 @@ describe('Bereiche über Signale', () => {
     const after = await until(c, (x) => x.settings === null);
     expect(after.document!.block.preview_revision).toBeGreaterThan(rev);
     expect(after.document!.block.width).toBeGreaterThan(v.document!.block.width);
+  });
+});
+
+describe('Stapel (ADR 0004 §3.8)', () => {
+  /** ID Austria, Platzhaltersuche an (QR-Platzhalter → positioniert). */
+  function batchSettings(extra: Partial<Settings> = {}): Settings {
+    return { ...idAustria(), placeholder: { search: true, kind: 'marker' }, ...extra };
+  }
+  const ready = (v: ViewState) => v.step.step === 'batch' && !!v.batch && v.batch.items.every((i) => i.status.state !== 'analyzing');
+  const DIR = '/Users/demo/Dokumente';
+
+  /** Bestätigungen in der App bis zum Ende des Laufs; zählt Anmeldemasken und Vergleichswerte. */
+  async function runAll(c: MockCore, password = 'geheim123') {
+    const logins: number[] = [];
+    const refs: string[] = [];
+    for (let i = 0; i < 40; i++) {
+      const v = await c.view();
+      if (v.step.step !== 'signing') return { logins, refs, view: v };
+      const it = v.step.interaction;
+      if (it.kind === 'form' && 'Login' in it.form) {
+        logins.push(it.request);
+        await c.dispatch({ type: 'submit_form', request: it.request, answer: { kind: 'login', username: '+43 660 1234123', password, remember: false } });
+      } else if (it.kind === 'form' && 'WaitForApp' in it.form) {
+        refs.push(it.form.WaitForApp.reference_value ?? '');
+        c.completeConfirmation();
+      }
+      await new Promise((r) => setTimeout(r, 3));
+    }
+    throw new Error('Lauf endet nicht');
+  }
+
+  it('Voranalyse: Seiten, Größe, Miniatur, Status; Schätzung für das gewählte Signiermittel; keine Sitzung (A1)', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    const seen: string[] = [];
+    c.onState((v) => seen.push(v.step.step));
+    const v = await until(c, ready);
+    expect(v.document).toBeNull();
+    expect(v.batch?.items.map((i) => [i.name, i.status.state, i.position.kind])).toEqual([
+      ['Angebot_2026-118.pdf', 'ready', 'auto'],
+      ['Auftragsbestaetigung_4711.pdf', 'positioned', 'qr'],
+      ['Lieferschein_Scan.pdf', 'rejected', 'auto'],
+      ['Vertrag.pdf', 'ready', 'auto'],
+    ]);
+    expect(v.batch?.items[2]).toMatchObject({ page_count: 1, thumbnail: false, target_name: null, status: { state: 'rejected', code: 'error-PDFPwdProtected' } });
+    expect(v.batch?.items[0]).toMatchObject({ page_count: 2, size_bytes: 96 * 1024, thumbnail: true, target_name: 'Angebot_2026-118_signed.pdf', target_exists: false });
+    expect(v.batch?.estimate).toEqual({ backend: 'atrust_native', documents: 3, logins: 1, confirmations: 3, certificate_confirmation_possible: true, large: false });
+    expect(v.batch?.output).toEqual({ mode: 'next_to_source', folder_display: null, needs_folder: false });
+    expect(v.actions).toMatchObject({ start_batch: true, sign: false, open_files: true });
+    expect(c.thumbUrl(1)).toMatch(/^data:image\/svg\+xml/);
+    expect(seen).not.toContain('signing');
+  });
+
+  it('eine Sitzung: eine Anmeldung, n Bestätigungen mit je eigenem Vergleichswert; danach Zusammenfassung und Hinweis', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 3, 4], output_dir: null, on_existing: 'keep_both' });
+    const running = await c.view();
+    expect(running.batch?.running).toBe(true);
+    expect(running.step.step === 'signing' && running.step.progress).toMatchObject({ batch: true, index: 1, total: 3, confirmations_total: 3 });
+    expect(running.actions).toMatchObject({ open_files: false, start_batch: false, settings: false, home: false });
+    const { logins, refs, view } = await runAll(c);
+    expect(logins).toHaveLength(1);
+    expect(refs).toHaveLength(3);
+    expect(new Set(refs).size).toBe(3);
+    expect(view.batch?.summary).toEqual({ total: 4, signed: 3, rejected: 1, failed: 0, skipped: 0, cancelled: 0, not_started: 0, folder_display: null, aborted: false });
+    expect(view.batch?.items.map((i) => i.status.state)).toEqual(['signed', 'signed', 'rejected', 'signed']);
+    expect(view.notices.some((n) => n.code === 'ng-batch-done' && n.params.signed === '3' && n.params.total === '4')).toBe(true);
+  });
+
+  it('Zertifikat höchstens einmal je Sitzung (ab dem zweiten Dokument `session`)', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    const certs: string[] = [];
+    c.onState((v) => {
+      if (v.step.step === 'signing' && v.step.interaction.kind === 'waiting' && v.step.interaction.progress === 'ReadingCertificate') certs.push(String(v.step.progress.index));
+    });
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: null, on_existing: 'keep_both' });
+    await runAll(c);
+    expect([...new Set(certs)]).toEqual(['1']);
+  });
+
+  it('vorhandene Dateien: Beide behalten → erste freie Nummer, Überspringen ohne Bestätigung, Überschreiben', async () => {
+    const existing = [`${DIR}/Verträge/Vertrag_signed.pdf`, `${DIR}/Verträge/Vertrag_signed (2).pdf`];
+    for (const [policy, expected, confirmations] of [
+      ['keep_both', { state: 'signed', path: `${DIR}/Verträge/Vertrag_signed (3).pdf` }, 3],
+      ['skip', { state: 'skipped', existing: true }, 2],
+      ['overwrite', { state: 'signed', path: `${DIR}/Verträge/Vertrag_signed.pdf` }, 3],
+    ] as const) {
+      const c = core({ scenario: 'batch', settings: batchSettings(), existingFiles: [...existing] });
+      const v = await until(c, ready);
+      expect(v.batch?.items[3]?.target_exists).toBe(true);
+      await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: null, on_existing: policy });
+      const { refs, view } = await runAll(c);
+      expect(refs).toHaveLength(confirmations);
+      expect(view.batch?.items[3]?.status).toEqual(expected);
+    }
+  });
+
+  it('„jedes Mal fragen“ bzw. Dateipfad als Ordner: ohne `output_dir` kein Lauf (Hinweis); mit Ordner dorthin', async () => {
+    for (const folder of [null, '/Users/demo/Signiert/alle.pdf']) {
+      const c = core({ scenario: 'batch', settings: batchSettings({ output: { folder, postfix: '_signed' } }) });
+      const v = await until(c, ready);
+      expect(v.batch?.output.needs_folder).toBe(true);
+      await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: null, on_existing: 'keep_both' });
+      const refused = await c.view();
+      expect(refused.batch?.running).toBe(false);
+      expect(refused.notices.some((n) => n.code === 'ng-batch-output-folder-required')).toBe(true);
+      await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: '/Users/demo/Signiert', on_existing: 'keep_both' });
+      const { view } = await runAll(c);
+      expect(view.batch?.items[0]?.status).toEqual({ state: 'signed', path: '/Users/demo/Signiert/Angebot_2026-118_signed.pdf' });
+      expect(view.batch?.summary?.folder_display).toBe('/Users/demo/Signiert');
+    }
+  });
+
+  it('nichts signierbar bzw. Signiermittel nicht verfügbar: Hinweis, keine Sitzung', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings(), localBkuAvailable: false });
+    await until(c, ready);
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [3], output_dir: null, on_existing: 'keep_both' });
+    await c.dispatch({ type: 'start_batch', backend: 'local_bku', docs: [1], output_dir: null, on_existing: 'keep_both' });
+    const v = await c.view();
+    expect(v.step.step).toBe('batch');
+    expect(v.notices.map((n) => n.code)).toEqual(expect.arrayContaining(['ng-batch-nothing-to-sign', 'ng-signer-unavailable']));
+  });
+
+  it('Überspringen behält die Anmeldung; Abbruch vergisst das Passwort (F-72), wartende bleiben bereit', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: null, on_existing: 'keep_both' });
+    let v = await until(c, (x) => x.step.step === 'signing' && x.step.interaction.kind === 'form' && 'Login' in x.step.interaction.form);
+    if (v.step.step === 'signing' && v.step.interaction.kind === 'form') {
+      await c.dispatch({ type: 'submit_form', request: v.step.interaction.request, answer: { kind: 'login', username: '+43 660 1234123', password: 'geheim123', remember: true } });
+    }
+    await until(c, (x) => x.step.step === 'signing' && x.step.interaction.kind === 'form' && 'WaitForApp' in x.step.interaction.form);
+    await c.dispatch({ type: 'skip_batch_document' });
+    v = await until(c, (x) => x.step.step === 'signing' && x.step.progress.index === 2 && x.step.interaction.kind === 'form' && 'WaitForApp' in x.step.interaction.form);
+    expect(v.step.step === 'signing' && v.step.progress.login_done).toBe(true);
+    await c.dispatch({ type: 'abort_batch' });
+    v = await c.view();
+    expect(v.batch?.items.map((i) => i.status.state)).toEqual(['skipped', 'cancelled', 'rejected', 'ready']);
+    expect(v.notices.some((n) => n.code === 'ng-batch-aborted' && n.params.signed === '0')).toBe(true);
+    // „Daten merken“ gilt nach dem Abbruch nicht mehr: wieder eine Anmeldung
+    expect(v.batch?.estimate?.logins).toBe(1);
+  });
+
+  it('mit gemerktem Passwort: Schätzung 0 Anmeldungen und kein Login im nächsten Lauf', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1], output_dir: null, on_existing: 'keep_both' });
+    const v = await until(c, (x) => x.step.step === 'signing' && x.step.interaction.kind === 'form' && 'Login' in x.step.interaction.form);
+    if (v.step.step === 'signing' && v.step.interaction.kind === 'form') {
+      await c.dispatch({ type: 'submit_form', request: v.step.interaction.request, answer: { kind: 'login', username: '+43 660 1234123', password: 'geheim123', remember: true } });
+    }
+    await runAll(c);
+    expect((await c.view()).batch?.estimate?.logins).toBe(0);
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [2, 4], output_dir: null, on_existing: 'keep_both' });
+    const { logins, refs } = await runAll(c);
+    expect(logins).toEqual([]);
+    expect(refs).toHaveLength(2);
+  });
+
+  it('Pausen: Verbindung (gleiche Sitzung), Sitzung (neue Sitzung), Dokument (Ablehnung); nicht wiederholbar → Fehler', async () => {
+    const c = core({
+      scenario: 'batch',
+      settings: batchSettings(),
+      batchFaults: { 'Angebot_2026-118.pdf': 'decline', 'Auftragsbestaetigung_4711.pdf': 'network', 'Vertrag.pdf': 'session' },
+    });
+    await until(c, ready);
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: null, on_existing: 'keep_both' });
+    const pauses: unknown[] = [];
+    let logins = 0;
+    for (let i = 0; i < 80; i++) {
+      const v = await c.view();
+      if (v.step.step !== 'signing') break;
+      const p = v.step.progress;
+      if (p.pause) {
+        expect(p.stage).toBe('paused');
+        pauses.push({ doc: p.pause.doc?.name, scope: p.pause.scope, new_session: p.pause.new_session, code: p.pause.code });
+        await c.dispatch({ type: 'retry' });
+      } else if (v.step.interaction.kind === 'form' && 'Login' in v.step.interaction.form) {
+        logins += 1;
+        await c.dispatch({ type: 'submit_form', request: v.step.interaction.request, answer: { kind: 'login', username: '+43 660 1234123', password: 'geheim123', remember: false } });
+      } else if (v.step.interaction.kind === 'form' && 'WaitForApp' in v.step.interaction.form) {
+        c.completeConfirmation();
+      }
+      await new Promise((r) => setTimeout(r, 15));
+    }
+    expect(pauses).toEqual([
+      { doc: 'Angebot_2026-118.pdf', scope: 'document', new_session: false, code: 'ng-signing-declined' },
+      { doc: 'Auftragsbestaetigung_4711.pdf', scope: 'session', new_session: false, code: 'backend-network' },
+      { doc: 'Vertrag.pdf', scope: 'session', new_session: true, code: 'backend-unknown-page' },
+    ]);
+    // erste Anmeldung und nach dem Sitzungsfehler (ohne „Daten merken“) eine zweite
+    expect(logins).toBe(2);
+    expect((await c.view()).batch?.summary?.signed).toBe(3);
+  }, 10000);
+
+  it('Einzeldokument: öffnen, zurück mit Plan, Plan wird beim erneuten Öffnen angewendet; einzeln signiert → Übersicht + Hinweis', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'open_batch_item', doc: 1 });
+    let v = await until(c, hasDoc);
+    expect(v.batch?.open_item).toBe(1);
+    expect(v.actions.show_batch).toBe(false);
+    await c.dispatch({ type: 'set_invisible', invisible: true });
+    await c.dispatch({ type: 'back_to_batch' });
+    v = await c.view();
+    expect(v.step.step).toBe('batch');
+    expect(v.batch?.items[0]).toMatchObject({ status: { state: 'positioned' }, position: { kind: 'invisible' } });
+    await c.dispatch({ type: 'open_batch_item', doc: 1 });
+    v = await until(c, hasDoc);
+    expect(v.document?.invisible).toBe(true);
+    await c.dispatch({ type: 'sign_with', backend: 'atrust_native' });
+    v = await until(c, (x) => x.step.step === 'signing' && x.step.interaction.kind === 'form');
+    if (v.step.step === 'signing' && v.step.interaction.kind === 'form') {
+      await c.dispatch({ type: 'submit_form', request: v.step.interaction.request, answer: { kind: 'login', username: '+43 660 1234123', password: 'geheim123', remember: false } });
+    }
+    await until(c, (x) => x.step.step === 'signing' && x.step.interaction.kind === 'form' && 'WaitForApp' in x.step.interaction.form);
+    c.completeConfirmation();
+    v = await until(c, (x) => x.step.step === 'batch');
+    expect(v.document).toBeNull();
+    expect(v.batch?.open_item).toBeNull();
+    expect(v.batch?.items[0]?.status.state).toBe('signed');
+    expect(v.notices.some((n) => n.code === 'ng-batch-item-signed' && n.params.file === 'Angebot_2026-118.pdf')).toBe(true);
+  });
+
+  it('Einstellungen wirken sofort: QR-Plan der Voranalyse folgt der Platzhaltersuche, gemerkte Pläne bleiben', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'open_batch_item', doc: 4 });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'nudge_block', dx: 0, dy: 1, fine: false, coarse: false });
+    await c.dispatch({ type: 'back_to_batch' });
+    await c.dispatch({ type: 'open_settings' });
+    const s = (await c.view()).settings!.settings;
+    await c.dispatch({ type: 'save_settings', settings: { ...s, placeholder: { search: false, kind: 'marker' } } });
+    const v = await until(c, (x) => x.settings === null);
+    expect(v.batch?.items[1]).toMatchObject({ status: { state: 'ready' }, position: { kind: 'auto' } });
+    expect(v.batch?.items[3]).toMatchObject({ status: { state: 'positioned' }, position: { kind: 'manual' } });
+  });
+
+  it('Einzeldokument mit hinzugefügten Dateien: `show_batch` → Übersicht mit der Platzierung als Plan', async () => {
+    const c = core({ settings: batchSettings() });
+    await until(c, (x) => x.step.step === 'open');
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Vertrag.pdf`] });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'open_files', paths: [`${DIR}/Angebot.pdf`, `${DIR}/Vertrag.pdf`] });
+    let v = await c.view();
+    expect(v.notices.some((n) => n.code === 'ng-batch-added' && n.params.count === '1')).toBe(true);
+    expect(v.actions.show_batch).toBe(true);
+    await c.dispatch({ type: 'show_batch' });
+    v = await until(c, ready);
+    expect(v.batch?.items.map((i) => [i.name, i.status.state])).toEqual([
+      ['Vertrag.pdf', 'positioned'],
+      ['Angebot.pdf', 'ready'],
+    ]);
+    // Startseite verwirft den Stapel
+    await c.dispatch({ type: 'navigate', step: 'Open' });
+    v = await c.view();
+    expect(v.step.step).toBe('open');
+    expect(v.batch).toBeNull();
+  });
+
+  it('aus der Übersicht geöffnet: „Start“ bzw. „Weiteres Dokument“ führt wie im Kern zurück zur Übersicht, der Stapel bleibt', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings() });
+    await until(c, ready);
+    await c.dispatch({ type: 'open_batch_item', doc: 1 });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'navigate', step: 'Open' });
+    const v = await c.view();
+    expect(v.step.step).toBe('batch');
+    expect(v.batch?.items).toHaveLength(4);
+    expect(v.batch?.open_item).toBeNull();
+    expect(v.batch?.items[0]?.status.state).toBe('ready');
+  });
+
+  it('Mobile: Ausgabe in die App-Dokumente, keine Ordnerwahl', async () => {
+    const c = core({ scenario: 'batch', settings: batchSettings({ output: { folder: null, postfix: '_signed' } }), platform: 'android' });
+    const v = await until(c, ready);
+    expect(v.batch?.output).toEqual({ mode: 'app_documents', folder_display: null, needs_folder: false });
+    await c.dispatch({ type: 'start_batch', backend: 'atrust_native', docs: [1], output_dir: null, on_existing: 'keep_both' });
+    const { view } = await runAll(c);
+    expect(view.batch?.items[0]?.status).toEqual({ state: 'signed', path: '/var/mobile/Containers/Data/Application/DEMO/Documents/Angebot_2026-118_signed.pdf' });
+    expect(view.batch?.summary?.folder_display).toBeNull();
   });
 });

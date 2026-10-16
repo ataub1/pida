@@ -512,8 +512,8 @@ async fn run_with_one_login_and_one_confirmation_per_document() {
         names,
         "eigene Bestätigung je Dokument"
     );
-    references.dedup();
-    assert_eq!(references.len(), 3, "eigener Vergleichswert je Dokument");
+    let distinct: std::collections::BTreeSet<&String> = references.iter().collect();
+    assert_eq!(distinct.len(), 3, "eigener Vergleichswert je Dokument: {references:?}");
     for name in names {
         let signed = out.join(name.replace(".pdf", "_signed.pdf"));
         assert!(signed.is_file(), "{name}");
@@ -555,6 +555,7 @@ async fn skip_keeps_the_login_and_the_summary_counts_all_entries() {
     let v = summary(&core).await;
     let s = batch(&v).summary.clone().unwrap();
     assert_eq!((s.total, s.signed, s.skipped, s.rejected, s.failed, s.cancelled, s.not_started), (4, 2, 1, 1, 0, 0, 0));
+    assert!(!s.aborted, "Lauf zu Ende, nicht abgebrochen");
     assert_eq!(s.folder_display.as_deref(), Some(out.display().to_string().as_str()));
     assert!(!out.join("b_signed.pdf").exists());
     assert_eq!(atrust.n(&atrust.opened), 1);
@@ -587,6 +588,7 @@ async fn abort_keeps_saved_documents_and_clears_the_password() {
     assert_eq!(item_status(&v, "c.pdf"), BatchItemStatusView::Ready);
     assert!(out.join("a_signed.pdf").is_file(), "Gespeichertes bleibt");
     assert!(v.notices.iter().any(|n| n.code == "ng-batch-aborted" && n.params["signed"] == "1"));
+    assert!(batch(&v).summary.as_ref().unwrap().aborted, "Zusammenfassung: abgebrochen");
     for _ in 0..50 {
         if atrust.n(&atrust.cancelled) >= 1 {
             break;
@@ -601,6 +603,12 @@ async fn abort_keeps_saved_documents_and_clears_the_password() {
     let (v, _) = confirmation(&core, 1).await;
     assert_eq!(progress(&v).unwrap().total, 1, "nur „Bereit“");
     assert_eq!(atrust.n(&atrust.logins), 2);
+    // der zweite Lauf endet regulär: nicht „abgebrochen“, obwohl b.pdf aus dem ersten Lauf abgebrochen bleibt
+    tan(&core, &v);
+    let v = summary(&core).await;
+    let s = batch(&v).summary.clone().unwrap();
+    assert_eq!((s.signed, s.cancelled), (2, 1));
+    assert!(!s.aborted);
 }
 
 // ------------------------------------------------------------------------------------------------

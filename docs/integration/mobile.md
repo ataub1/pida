@@ -179,6 +179,14 @@ A-Trust-Verbindung.
   mit Kurzhinweis bei ID Austria. Nachweise: `src/app/Mobile.test.tsx` (`?platform=ios|android` im Mock),
   Screenshots `docs/integration/screenshots/stage1/mobil-*.png` (375 × 812 @2x, hell/dunkel). Offen [H]:
   Simulator/Emulator (Safe Areas, App-Wechsel bei der Bestätigung, Touch-Ziehen auf dem Gerät).
+- **Seit E2 (ADR 0004 §3.8, Stapel):** ab zwei geteilten bzw. gewählten PDFs die Stapelübersicht (unter 760 px
+  einspaltig, „Alle signieren“ über die volle Breite); Ausgabe in die App-Dokumente ohne Ordnerwahl und ohne
+  „Im Ordner zeigen“; Stapelkarte als Bottom-Sheet mit „Bestätigung k von n · Name“, Überspringen, Pausen und
+  Abbruch-Rückfrage; App-Wechsel je Bestätigung ist kein Abbruch. App-Kill im Lauf: „Signatur fortsetzen“ setzt
+  nur das unterbrochene Dokument fort, danach die Übersicht mit dem Rest „Bereit“ – der Lauf geht nicht von selbst
+  weiter (Kern: `crates/core-api/tests/mobile.rs`). Nachweise: `features/batch/batch.test.tsx` (Mobile, schmal,
+  axe), Screenshots `docs/integration/screenshots/stage2/mobil-*.png`; 360 px ohne waagrechtes Scrollen. Offen
+  [H]: Simulator/Emulator (App-Wechsel je Bestätigung, App-Kill im Lauf).
 
 ## 8. Bauen und Prüfen
 

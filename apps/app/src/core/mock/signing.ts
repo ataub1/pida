@@ -58,6 +58,8 @@ export interface SigningHost {
   loggedIn(remember: boolean): void;
   /** A-Trust hat das Passwort verworfen (Fehlerseite) */
   passwordCleared(): void;
+  /** Keystore-Passwort angenommen (Stapel: gilt für die ganze Sitzung) */
+  unlocked?(): void;
 }
 
 export interface SigningOptions {
@@ -77,6 +79,16 @@ export interface SigningOptions {
   keystoreSubject: string;
   /** erster Signierversuch scheitert mit `backend-network` (Szenario `error-atrust`) */
   networkErrorOnce: boolean;
+  /** Vergleichswert dieser Bestätigung (Stapel: je Dokument ein eigener; Standard `REFERENCE_VALUE`) */
+  referenceValue?: string;
+  /** Zertifikat in dieser Sitzung schon gelesen (Stapel ab dem zweiten Dokument mit sichtbarem Block) */
+  certificateRead?: boolean;
+  /** Keystore in dieser Sitzung schon entsperrt (Stapel: Passwort nur einmal) */
+  sessionUnlocked?: boolean;
+  /** erster Signierversuch scheitert mit diesem Fehler (Stapel: Störungen je Dokument) */
+  failOnce?: { code: string; params: Record<string, string>; retry: boolean } | null;
+  /** weiteres Dokument einer laufenden Sitzung (Stapel): „Dokument k von n“ statt Verbindungsaufbau */
+  continuing?: { index: number; total: number } | null;
 }
 
 /** Eine Signiersitzung (Einzeldokument). */
@@ -88,6 +100,7 @@ export class SigningSession {
   private certificate: CertificateSource;
   private request = 0;
   private networkErrorPending: boolean;
+  private failPending: SigningOptions['failOnce'];
   private confirmations = 0;
   /** schon eine Bestätigung angefordert (Ablehnung/Zeitablauf nur beim ersten Mal) */
   private attempted = false;
@@ -98,8 +111,9 @@ export class SigningSession {
     private readonly host: SigningHost,
     readonly opts: SigningOptions,
   ) {
-    this.certificate = opts.backend === 'atrust_native' && opts.visible ? 'read' : 'not_needed';
+    this.certificate = opts.backend === 'atrust_native' && opts.visible ? (opts.certificateRead ? 'session' : 'read') : 'not_needed';
     this.networkErrorPending = opts.networkErrorOnce;
+    this.failPending = opts.failOnce ?? null;
     this.loginDone = opts.remembered;
   }
 
@@ -125,14 +139,27 @@ export class SigningSession {
     };
   }
 
+  private get ref(): string {
+    return this.opts.referenceValue ?? REFERENCE_VALUE;
+  }
+
   /** Sitzung öffnen bzw. nach „Erneut versuchen“ fortsetzen. */
   start(): void {
     this.closed = false;
-    this.stage = 'connecting';
-    this.interaction = { kind: 'waiting', progress: 'Connecting' };
+    const next = this.opts.continuing;
+    this.stage = next ? 'preparing' : 'connecting';
+    this.interaction = next ? { kind: 'waiting', progress: { Document: { index: next.index, total: next.total } } } : { kind: 'waiting', progress: 'Connecting' };
     this.later(() => {
       switch (this.opts.backend) {
         case 'keystore':
+          if (this.opts.sessionUnlocked) {
+            // Stapel: Passwort der Sitzung bekannt – signieren ohne neue Abfrage
+            this.stage = 'confirming';
+            this.method = 'password';
+            this.interaction = { kind: 'waiting', progress: 'Signing' };
+            this.later(() => this.confirmOrFail(() => this.finish()));
+            return;
+          }
           this.stage = 'confirming';
           this.method = 'password';
           this.interaction = {
@@ -201,11 +228,26 @@ export class SigningSession {
     this.confirm();
   }
 
+  /** Vorgemerkte Störung auslösen (`true`) oder `next` ausführen. */
+  private confirmOrFail(next: () => void): void {
+    const fail = this.failPending;
+    if (fail) {
+      this.failPending = null;
+      this.host.failed(fail.code, { ...fail.params }, fail.retry);
+      return;
+    }
+    next();
+  }
+
   /** Bestätigungsmaske je Ablauf. */
   private confirm(): void {
     if (this.networkErrorPending) {
       this.networkErrorPending = false;
       this.host.failed('backend-network', { detail: 'service.a-trust.at:443 – Zeitüberschreitung nach 30 s' }, true);
+      return;
+    }
+    if (this.failPending) {
+      this.confirmOrFail(() => undefined);
       return;
     }
     this.stage = 'confirming';
@@ -217,18 +259,18 @@ export class SigningSession {
     switch (flow) {
       case 'sms':
         this.method = 'sms';
-        return this.form({ SmsTan: { reference_value: REFERENCE_VALUE, ctx: this.ctx() } });
+        return this.form({ SmsTan: { reference_value: this.ref, ctx: this.ctx() } });
       case 'qr':
         this.method = 'qr';
         return this.form({
-          QrCode: { reference_value: REFERENCE_VALUE, image: { bytes: demoQrBytes(), mime: 'image/svg+xml' }, timeout_secs: 300, ctx: this.ctx() },
+          QrCode: { reference_value: this.ref, image: { bytes: demoQrBytes(), mime: 'image/svg+xml' }, timeout_secs: 300, ctx: this.ctx() },
         });
       case 'fido2':
         this.method = 'fido2';
         return this.form({ Fido2: { in_progress: false, ctx: this.ctx({ can_switch_to_fido2: false }) } });
       case 'decline': {
         this.method = 'app';
-        this.form({ WaitForApp: { reference_value: REFERENCE_VALUE, timeout_secs: 300, ctx: this.ctx() } });
+        this.form({ WaitForApp: { reference_value: this.ref, timeout_secs: 300, ctx: this.ctx() } });
         const req = this.request;
         this.later(() => {
           if (this.interaction.kind === 'form' && this.interaction.request === req) this.host.failed('ng-signing-declined', {}, true);
@@ -237,7 +279,7 @@ export class SigningSession {
       }
       case 'timeout': {
         this.method = 'app';
-        this.form({ WaitForApp: { reference_value: REFERENCE_VALUE, timeout_secs: 12, ctx: this.ctx() } });
+        this.form({ WaitForApp: { reference_value: this.ref, timeout_secs: 12, ctx: this.ctx() } });
         const req = this.request;
         // Long-Poll abgelaufen → A-Trust zeigt eine Fehlerseite (das Backend löscht das Passwort)
         this.host.later(() => {
@@ -253,7 +295,7 @@ export class SigningSession {
       }
       default: {
         this.method = 'app';
-        this.form({ WaitForApp: { reference_value: REFERENCE_VALUE, timeout_secs: 300, ctx: this.ctx() } });
+        this.form({ WaitForApp: { reference_value: this.ref, timeout_secs: 300, ctx: this.ctx() } });
         if (this.opts.autoComplete) {
           const req = this.request;
           this.later(() => {
@@ -300,14 +342,14 @@ export class SigningSession {
       }
       case 'tan':
         if (answer.tan === '000000') {
-          return this.form({ SmsTan: { reference_value: REFERENCE_VALUE, ctx: this.ctx({ problem: { Atrust: 'TAN falsch' } }) } });
+          return this.form({ SmsTan: { reference_value: this.ref, ctx: this.ctx({ problem: { Atrust: 'TAN falsch' } }) } });
         }
         this.interaction = { kind: 'waiting', progress: 'WaitingForServer' };
         this.later(() => this.finish());
         return;
       case 'switch_to_sms':
         this.method = 'sms';
-        return this.form({ SmsTan: { reference_value: REFERENCE_VALUE, ctx: this.ctx() } });
+        return this.form({ SmsTan: { reference_value: this.ref, ctx: this.ctx() } });
       case 'switch_to_fido2':
         this.method = 'fido2';
         return this.form({ Fido2: { in_progress: false, ctx: this.ctx({ can_switch_to_fido2: false }) } });
@@ -330,6 +372,7 @@ export class SigningSession {
       this.interaction = { kind: 'secret', request: ++this.request, prompt: { ...this.interaction.prompt, retry: true } };
       return;
     }
+    if (this.interaction.prompt.kind === 'KeystorePassword' || this.interaction.prompt.kind === 'KeyPassword') this.host.unlocked?.();
     this.interaction = { kind: 'waiting', progress: 'Signing' };
     this.later(() => this.finish());
   }

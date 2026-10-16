@@ -455,6 +455,25 @@ pub(super) fn overview(state: State, event: Event, _ctx: &Context) -> Transition
             start(queue, backend, &docs, output, on_existing, &options)
         }
         Event::Navigate(Step::Open) => discard_all(queue, Vec::new()),
+        // „Stapel abbrechen“ während des Schreibens: gespeichert ist gespeichert
+        Event::Saved(info) => {
+            let Some(doc) = queue.batch.as_mut().and_then(|b| b.writing.take()) else { return stay(queue) };
+            let batch = queue.batch.as_mut().expect("eben gelesen");
+            if let Some(item) = batch.item_mut(doc) {
+                item.status = BatchItemStatus::Signed { output: info.clone() };
+            }
+            if let Some(last) = &mut batch.last_run {
+                last.signed += 1;
+            }
+            queue.complete(doc, DocResult::Signed { output: info });
+            stay(queue)
+        }
+        Event::SaveFailed(_) | Event::BatchOutputDecided { .. } => {
+            if let Some(b) = &mut queue.batch {
+                b.writing = None;
+            }
+            stay(queue)
+        }
         _ => stay(queue),
     }
 }
@@ -486,6 +505,7 @@ fn start(
     queue.park_current();
     let batch = queue.batch.as_mut().expect("Einträge geprüft");
     batch.last_run = None;
+    batch.writing = None;
     for doc in &order {
         if let Some(item) = batch.item_mut(*doc) {
             item.status = BatchItemStatus::Queued;
@@ -738,6 +758,13 @@ impl Lauf<'_> {
         if let Some(doc) = self.run.current() {
             if self.item(doc).is_some_and(|i| i.status == BatchItemStatus::Active) {
                 self.set_status(doc, BatchItemStatus::Cancelled);
+                // das Schreiben des Ergebnisses kann schon laufen: `Saved` kommt dann in der Übersicht an
+                if self.run.phase == BatchPhase::Writing
+                    && self.run.pause.is_none()
+                    && let Some(b) = self.queue.batch.as_mut()
+                {
+                    b.writing = Some(doc);
+                }
             }
             self.effects.push(Effect::Discard(doc));
         }

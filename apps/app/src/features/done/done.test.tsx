@@ -45,6 +45,20 @@ describe('Fertig', () => {
     expect(mock.dispatched).toEqual([{ type: 'navigate', step: 'Open' }]);
   });
 
+  it('Stapelübersicht an (E2): mit wartenden Dokumenten zusätzlich „Zum Stapel“ (`show_batch`)', async () => {
+    const base = doneView({}, { ...DOC, id: 8, name: 'Angebot.pdf' }, {}, 2);
+    const { mock, user } = renderApp({ view: { ...base, actions: { ...base.actions, show_batch: true } } });
+    await user.click(await screen.findByRole('button', { name: 'Zum Stapel' }));
+    expect(mock.dispatched).toEqual([{ type: 'show_batch' }]);
+    await expectNoAxeViolations();
+  });
+
+  it('ohne `show_batch` kein „Zum Stapel“', async () => {
+    renderApp({ view: doneView({}, { ...DOC, id: 8, name: 'Angebot.pdf' }, {}, 2) });
+    await screen.findByRole('button', { name: 'Nächstes Dokument' });
+    expect(screen.queryByRole('button', { name: 'Zum Stapel' })).not.toBeInTheDocument();
+  });
+
   it('Mobile: Teilen und Sichern unter statt Im Ordner zeigen, kein Sandbox-Pfad', async () => {
     const path = '/var/mobile/Containers/Data/Application/X/Documents/Vertrag_signed.pdf';
     const { mock, user } = renderApp({ view: onMobile(doneView({ path, summary: summary({ folder_display: null }) })) });

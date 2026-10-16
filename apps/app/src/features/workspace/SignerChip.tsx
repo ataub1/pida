@@ -4,7 +4,8 @@
  *
  * - Wahl im Menü → `select_signer` (startet nichts, A1); „Als Standard verwenden“ → `make_default`.
  * - Öffnet „Signieren“ das Menü (kein Signiermittel gewählt, „Jedes Mal fragen“, §8 F12), sendet die Wahl
- *   direkt `sign_with` – eine ausdrückliche Aktion.
+ *   direkt `sign_with` – eine ausdrückliche Aktion. In der Stapelübersicht startet die Wahl stattdessen den
+ *   Stapel (`onSignWith`, „Alle signieren mit X“).
  * - Mobile: „PKCS#12 importieren …“ öffnet den Import-Assistenten (UI-B).
  */
 import { useState } from 'react';
@@ -20,12 +21,15 @@ export function SignerChip({
   isOpen,
   onOpenChange,
   signMode,
+  onSignWith,
 }: {
   compact?: boolean;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   /** Menü wurde von „Signieren“ geöffnet: die Wahl signiert sofort */
   signMode: boolean;
+  /** statt `sign_with`: was die Wahl im Signier-Modus auslöst (Stapel: „Alle signieren mit X“) */
+  onSignWith?: (backend: BackendId) => void;
 }) {
   const { t, view, dispatch, openSettings } = useApp();
   const [importing, setImporting] = useState(false);
@@ -42,7 +46,8 @@ export function SignerChip({
     const k = String(key);
     if (k.startsWith('signer:')) {
       const backend = k.slice('signer:'.length) as BackendId;
-      if (signMode) void dispatch({ type: 'sign_with', backend });
+      if (signMode && onSignWith) onSignWith(backend);
+      else if (signMode) void dispatch({ type: 'sign_with', backend });
       else void dispatch({ type: 'select_signer', backend, make_default: false });
     } else if (k === 'default' && selected) {
       void dispatch({ type: 'select_signer', backend: selected, make_default: true });

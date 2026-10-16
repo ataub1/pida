@@ -1148,9 +1148,10 @@
 .push-left {
   margin-right: auto;
 }
+/* `inline-block` statt Flex: sonst fiele das Leerzeichen vor einer Zugriffstaste mitten im Text weg
+   („PDF hinzufügen“ mit H) – Textstücke wären einzelne Flex-Elemente */
 .btn-label {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
 }
 
 /* Link im Fließtext (`Markup`): bricht innerhalb langer URLs um, Satzzeichen bleiben am Link */

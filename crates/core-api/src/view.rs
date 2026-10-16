@@ -1584,9 +1584,14 @@ pub struct BatchSummaryView {
     pub not_started: u32,
     /// Speicherort zur Anzeige
     pub folder_display: Option<String>,
+    /// der letzte Lauf wurde abgebrochen („Stapel abbrechen“, Esc) – Titel der Zusammenfassung; `cancelled`
+    /// allein genügt nicht (Abbruch vor dem ersten Dokument bzw. Einträge aus einem früheren Lauf;
+    /// Nachtrag 4 im ADR 0004)
+    #[serde(default)]
+    pub aborted: bool,
 }
 
-redacted_debug!(BatchSummaryView { total, signed, rejected, failed, skipped, cancelled, not_started }
+redacted_debug!(BatchSummaryView { total, signed, rejected, failed, skipped, cancelled, not_started, aborted }
     redact { folder_display });
 
 /// Stapel (§3.8; nur mit `batch_overview`).

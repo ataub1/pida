@@ -76,7 +76,7 @@ ng-ui-start-drop-label = Ablagefläche für PDF-Dokumente
 ng-ui-start-drop-title = PDF hierher ziehen oder auswählen
 ng-ui-start-drop-title-mobile = PDF auswählen
 ng-ui-start-drop-release = Loslassen zum Öffnen
-ng-ui-start-drop-hint = Mehrere Dateien werden nacheinander signiert.
+ng-ui-start-drop-hint = Mehrere Dateien werden als Stapel signiert – eine Anmeldung, jedes Dokument bestätigen Sie einzeln.
 ng-ui-start-drop-hint-mobile = Oder ein PDF aus einer anderen App über „Teilen“ bzw. „Öffnen in“ an PIDA senden.
 ng-ui-start-pick = PDF auswählen
     .accesskey = P
@@ -312,3 +312,134 @@ ng-ui-fin-waiting =
 ng-ui-fin-more = Weiteres Dokument signieren
 ng-ui-fin-overwrite-title = Datei überschreiben?
 ng-ui-fin-overwrite = Überschreiben
+
+## Stapel (ADR 0004 §3.8): eine Anmeldung, je Dokument eine eigene Bestätigung
+
+ng-ui-batch-title = Stapel
+ng-ui-batch-docs =
+    { $n ->
+        [one] { $n } Dokument
+       *[other] { $n } Dokumente
+    }
+ng-ui-batch-lead = Alle Dokumente werden in einem Durchgang signiert: einmal anmelden, dann jedes Dokument einzeln bestätigen. Dokumente mit Fehler werden übersprungen.
+ng-ui-batch-add = PDF hinzufügen
+    .accesskey = H
+ng-ui-batch-sign-all = Alle signieren
+    .accesskey = A
+ng-ui-batch-sign-all-long = Alle signieren ({ $n })
+ng-ui-batch-estimate = Voraussichtlich
+ng-ui-batch-estimate-logins =
+    { $n ->
+        [one] { $n } Anmeldung
+       *[other] { $n } Anmeldungen
+    }
+ng-ui-batch-estimate-confirmations =
+    { $n ->
+        [one] { $n } Bestätigung
+       *[other] { $n } Bestätigungen
+    }
+ng-ui-batch-estimate-cert = (ggf. +1 für das Zertifikat)
+ng-ui-batch-estimate-keystore = Keystore-Passwort einmal
+ng-ui-batch-estimate-none = Wählen Sie beim Signieren das Signiermittel.
+ng-ui-batch-output-next = Speichern: jeweils neben dem Original
+ng-ui-batch-output-folder = Speichern in { $folder }
+ng-ui-batch-output-ask = Den Ordner für die signierten Dokumente wählen Sie beim Start.
+ng-ui-batch-output-missing = Den Ordner „{ $folder }“ gibt es nicht – Sie wählen beim Start einen anderen.
+ng-ui-batch-output-app = Speichern in den Dokumenten dieser App
+ng-ui-batch-existing =
+    { $n ->
+        [one] Eine Zieldatei gibt es schon – Sie entscheiden beim Start.
+       *[other] { $n } Zieldateien gibt es schon – Sie entscheiden beim Start.
+    }
+ng-ui-batch-list = Dokumente im Stapel
+ng-ui-batch-open = „{ $name }“ öffnen und positionieren
+ng-ui-batch-review = Prüfen
+ng-ui-batch-remove = „{ $name }“ aus dem Stapel entfernen
+ng-ui-batch-remove-short = Entfernen
+ng-ui-batch-status-analyzing = Wird geprüft
+ng-ui-batch-status-ready = Bereit
+ng-ui-batch-status-positioned = Positioniert
+ng-ui-batch-status-rejected = Abgelehnt
+ng-ui-batch-status-review = Bitte prüfen
+ng-ui-batch-status-queued = Wartet
+ng-ui-batch-status-active = Wird signiert
+ng-ui-batch-status-signed = Signiert
+ng-ui-batch-status-failed = Fehler
+ng-ui-batch-status-skipped = Übersprungen
+ng-ui-batch-status-cancelled = Abgebrochen
+ng-ui-batch-detail-auto = automatisch platziert
+ng-ui-batch-detail-checked = Position geprüft
+ng-ui-batch-detail-qr = im QR-Platzhalter
+ng-ui-batch-detail-field = im Signaturfeld „{ $name }“
+ng-ui-batch-detail-manual = Seite { $page }, selbst platziert
+ng-ui-batch-detail-invisible = unsichtbar
+ng-ui-batch-detail-locked = Mit Kennwort geschützt
+ng-ui-batch-detail-notpdf = Keine PDF-Datei
+ng-ui-batch-detail-review = Hinweis zum Dokument – einzeln öffnen und bestätigen
+ng-ui-batch-detail-signed = als { $file }
+ng-ui-batch-detail-skipped = von Ihnen übersprungen
+ng-ui-batch-detail-skipped-existing = Zieldatei gab es schon
+ng-ui-batch-detail-cancelled = nicht signiert
+ng-ui-batch-detail-exists = „{ $file }“ gibt es schon
+ng-ui-batch-detail-waiting = wartet auf die Bestätigung
+ng-ui-batch-stage-connecting = Verbindung wird aufgebaut
+ng-ui-batch-stage-login = Anmeldung
+ng-ui-batch-stage-certificate = Zertifikat wird gelesen
+ng-ui-batch-stage-preparing = wird vorbereitet
+ng-ui-batch-stage-confirming = Bestätigung läuft
+ng-ui-batch-stage-finishing = Signatur wird erstellt
+ng-ui-batch-stage-saving = wird gespeichert
+ng-ui-batch-stage-paused = angehalten
+ng-ui-batch-progress = { $done } von { $total } signiert
+ng-ui-batch-sum-title = Stapel abgeschlossen
+ng-ui-batch-sum-title-aborted = Stapel abgebrochen
+ng-ui-batch-sum-signed = { $signed } von { $total } signiert
+ng-ui-batch-sum-skipped = { $n } übersprungen
+ng-ui-batch-sum-rejected = { $n } abgelehnt
+ng-ui-batch-sum-failed = { $n } fehlgeschlagen
+ng-ui-batch-sum-cancelled = { $n } abgebrochen
+ng-ui-batch-sum-not-started = { $n } nicht begonnen
+ng-ui-batch-sum-folder = Gespeichert in { $folder }.
+ng-ui-batch-sum-next = Jeweils neben dem Original gespeichert.
+ng-ui-batch-sum-app = Gespeichert in den Dokumenten dieser App.
+ng-ui-batch-reveal = Im Ordner zeigen
+ng-ui-batch-new = Neuer Stapel
+ng-ui-batch-back = Zurück zum Stapel
+ng-ui-batch-show = Zum Stapel
+ng-ui-batch-start-title =
+    { $n ->
+        [one] Ein Dokument signieren
+       *[other] { $n } Dokumente signieren
+    }
+ng-ui-batch-start-folder = Speichern in
+ng-ui-batch-start-folder-none = Noch kein Ordner gewählt
+ng-ui-batch-start-folder-pick = Ordner wählen …
+ng-ui-batch-start-folder-change = Anderen Ordner wählen …
+ng-ui-batch-start-folder-dialog = Ordner für die signierten Dokumente
+ng-ui-batch-start-existing = Wenn es die Zieldatei schon gibt
+ng-ui-batch-start-existing-count =
+    { $n ->
+        [one] Für ein Dokument gibt es die Zieldatei schon.
+       *[other] Für { $n } Dokumente gibt es die Zieldatei schon.
+    }
+ng-ui-batch-start-keep = Beide behalten
+ng-ui-batch-start-keep-desc = Die neue Datei bekommt eine Nummer, z. B. „{ $example }“.
+ng-ui-batch-start-overwrite = Überschreiben
+ng-ui-batch-start-overwrite-desc = Die vorhandene Datei wird durch die signierte ersetzt.
+ng-ui-batch-start-skip = Überspringen
+ng-ui-batch-start-skip-desc = Diese Dokumente werden nicht signiert – ohne Bestätigung in der App.
+ng-ui-batch-start-go = Signieren starten
+ng-ui-sc-batch-doc = Dokument { $index } von { $total } · { $name }
+ng-ui-sc-batch-confirm = Bestätigung { $index } von { $total } · { $name }
+ng-ui-sc-batch-count = Bestätigungen
+ng-ui-sc-batch-count-value = { $done } von { $total }
+ng-ui-sc-batch-list = Alle Dokumente des Stapels
+ng-ui-sc-batch-skip = Dokument überspringen
+ng-ui-sc-batch-abort = Stapel abbrechen
+ng-ui-sc-batch-abort-title = Stapel abbrechen?
+ng-ui-sc-batch-abort-text = Bereits signierte Dokumente bleiben gespeichert, die übrigen werden nicht signiert. Das Passwort wird vergessen.
+ng-ui-sc-batch-abort-keep = Weiter signieren
+ng-ui-sc-batch-pause-title = Der Stapel ist angehalten
+ng-ui-sc-batch-pause-decide = Bitte entscheiden Sie, wie es weitergeht.
+ng-ui-sc-batch-pause-new-session = Erneut versuchen öffnet eine neue Sitzung – eine neue Anmeldung ist möglich.
+ng-ui-sc-batch-pause-skip = Überspringen

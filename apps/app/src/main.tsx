@@ -29,7 +29,11 @@ async function bridge(): Promise<Bridge> {
  * Browser-Vorschau (ADR 0004 §4.8): `?scenario=start|blank|contract|field|signed|batch|verify|
  * error-password|error-atrust` wie im Prototyp, `&platform=ios|android` (Mobile-Oberfläche), `&flow=app|sms|
  * qr|fido2|decline|timeout` (Antwort von ID Austria nach der Anmeldung), `&resume=1` (Angebot „Signatur
- * fortsetzen“), `&lang=en`, `&examples=1` (Beispiele der späteren Etappen). Nur der Mock-Kern wertet das aus.
+ * fortsetzen“), `&lang=en`, `&examples=1` (Beispiele der späteren Etappen). Stapel (ADR 0004 §3.8):
+ * `&batch=0` (ohne Stapelübersicht), `&search=0|1` (Platzhaltersuche; im Szenario `batch` an),
+ * `&fault=decline|network|session|too-large` (Störung beim zweiten Dokument), `&existing=1` (eine Zieldatei
+ * gibt es schon), `&folder=ask|<Pfad>` (Speicherort), `&auto=0` (App-Bestätigung nur über „In der App
+ * bestätigt“). Nur der Mock-Kern wertet das aus.
  */
 function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockOptions {
   const params = new URLSearchParams(search);
@@ -38,6 +42,9 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockO
   const flow = params.get('flow');
   const lang = params.get('lang');
   const mobile = platform === 'ios' || platform === 'android';
+  const fault = params.get('fault');
+  const folder = params.get('folder');
+  const placeholderSearch = params.get('search') ?? (scenario === 'batch' ? '1' : '0');
   // Demo-Konto wie im Prototyp (frei erfunden): ID Austria als Standard mit gemerktem Benutzer, Keystore
   // auf dem Desktop; `?ask=1` = „Jedes Mal fragen“ (Konto-Chip ohne Vorauswahl)
   const base = defaultSettings();
@@ -46,7 +53,8 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockO
     backend: { default: params.get('ask') === '1' ? null : 'id_austria' },
     id_austria: { ...base.id_austria, username: '+43 660 1234123', remember: true },
     keystore: mobile ? base.keystore : { ...base.keystore, enabled: true, file: '/Users/demo/Zertifikate/max.p12', alias: 'max', declared_type: 'PKCS12' },
-    output: { ...base.output, folder: '.' },
+    output: { ...base.output, folder: folder === 'ask' ? null : (folder ?? '.') },
+    placeholder: { ...base.placeholder, search: placeholderSearch === '1' },
   };
   return {
     settings,
@@ -56,6 +64,10 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): MockO
     language: lang === 'en' ? 'en' : undefined,
     examples: params.get('examples') === '1',
     resumeOffer: params.get('resume') === '1' ? { name: 'Vertrag.pdf', backend: 'atrust_native', age_minutes: 4, pending: 1, document_leaves_device: true } : null,
+    batchOverview: params.get('batch') !== '0',
+    autoCompleteApp: params.get('auto') !== '0',
+    batchFaults: fault === 'decline' || fault === 'network' || fault === 'session' || fault === 'too-large' ? { 'Auftragsbestaetigung_4711.pdf': fault } : undefined,
+    existingFiles: params.get('existing') === '1' ? ['/Users/demo/Dokumente/Verträge/Vertrag_signed.pdf'] : undefined,
   };
 }
 

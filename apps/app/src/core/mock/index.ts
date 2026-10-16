@@ -9,10 +9,12 @@
  * Signiersitzung beginnt nur nach `sign_with`, `choose_backend` (Rückfall), `resume_signature` oder
  * „Erneut versuchen“.
  *
- * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, batch, settings, verify, recent, firstrun }` mit je
+ * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, settings, verify, recent, firstrun }` mit je
  * eigenem Zustandsausschnitt (`shared.ts`), verteilt jedes Ereignis an alle, leitet Signale weiter und
- * setzt die Projektionen zusammen. Der Bereich `flow` (Kern, Arbeitsbereich, Signieren) steht hier und nutzt
- * `workspace.ts` (Dokumente, Platzierung) und `signing.ts` (Signiersitzung).
+ * setzt die Projektionen zusammen. Der Bereich `flow` (Kern, Arbeitsbereich, Signieren, Stapel) steht hier
+ * und nutzt `workspace.ts` (Dokumente, Platzierung), `signing.ts` (Signiersitzung) und `batch.ts`
+ * (Stapelübersicht und -lauf mit eigenem Zustand, wie `State::BatchOverview`/`BatchSigning` des Kerns neben
+ * der Warteschlange; mit `batchOverview` bei ≥ 2 Dokumenten, ADR 0004 §3.8).
  */
 import { defaultErrorContext, defaultSigners, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../defaults';
 import type { Bridge, FileDragEvent } from '../bridge';
@@ -35,7 +37,7 @@ import type {
   UiEvent,
   ViewState,
 } from '../types';
-import { batchArea } from './batch';
+import { MockBatch, type BatchHost, type BatchPlan } from './batch';
 import { firstRunArea } from './firstrun';
 import { recentArea } from './recent';
 import { settingsArea } from './settings';
@@ -48,6 +50,7 @@ import {
   joinPath,
   maskAccount,
   outputFileName,
+  SANDBOX,
   type MockArea,
   type MockCtx,
   type MockOptions,
@@ -88,7 +91,7 @@ export { MOCK_SCENARIOS } from './shared';
 
 /* ================================================================ Bereich „flow“ */
 
-type Stage = 'starting' | 'open' | 'loading' | 'warning' | 'editing' | 'choosing' | 'signing' | 'output' | 'error' | 'finished';
+type Stage = 'starting' | 'open' | 'loading' | 'warning' | 'editing' | 'choosing' | 'signing' | 'output' | 'error' | 'finished' | 'batch';
 
 interface OutputState {
   path: string | null;
@@ -133,9 +136,11 @@ interface FlowState {
   networkErrorOnce: boolean;
   /** letzte Position/Signiermittel (Tests) */
   last: { position: string; backend: BackendId | null };
+  /** Stapel (Übersicht, Lauf; auch während ein Dokument daraus geöffnet ist) */
+  batch: MockBatch | null;
+  /** Plan des aus dem Stapel geöffneten Dokuments (wird nach der Analyse angewendet) */
+  pendingPlan: BatchPlan | null;
 }
-
-const SANDBOX = '/var/mobile/Containers/Data/Application/DEMO';
 
 function mobile(o: MockOptions): boolean {
   return (o.platform ?? 'desktop') !== 'desktop';
@@ -230,6 +235,8 @@ function analyze(s: FlowState, ctx: MockCtx): void {
       fail(s, ctx, 'error-PDFPwdProtected', {}, false, 'load', () => undefined, () => dropCurrent(s, ctx));
     } else {
       s.edit = startEdit(d, ctx.settings(), blockLang(ctx));
+      if (s.pendingPlan) s.edit = applyPlan(d, s.edit, s.pendingPlan, blockSize(ctx.settings(), blockLang(ctx)));
+      s.pendingPlan = null;
       // Raster der Seite des Blocks (die übrigen nach `inspect_pages`)
       if (s.edit.placement) s.edit.ready = [s.edit.placement.page_index];
       resetSelection(s, ctx);
@@ -258,26 +265,122 @@ function finishDoc(s: FlowState, result: DoneItemView['result']): void {
   if (d) s.done.push({ id: d.id, name: d.name, input: d.path, result });
 }
 
+/** Stapelübersicht bei ≥ 2 Dokumenten (`batch_overview`, nur im Arbeitsbereich-Modus). */
+function batchOn(s: FlowState): boolean {
+  return s.opts.batchOverview !== false;
+}
+
+/** Dienste des Ablaufs für den Stapel (`batch.ts`). */
+function batchHost(s: FlowState, ctx: MockCtx): BatchHost {
+  return {
+    ctx,
+    opts: s.opts,
+    available: (backend) => available(s, ctx, backend),
+    selected: () => s.selected,
+    remembered: () => s.remembered,
+    setRemembered: (value) => {
+      s.remembered = value;
+    },
+    openSingle: (doc, plan) => {
+      s.queue = [doc];
+      s.pendingPlan = plan;
+      s.output = EMPTY_OUTPUT;
+      s.summary = null;
+      s.error = null;
+      analyze(s, ctx);
+    },
+    runEnded: () => {
+      s.explicit = false;
+      resetSelection(s, ctx);
+    },
+  };
+}
+
+/** Stapelübersicht mit diesen Dokumenten (Voranalyse im Hintergrund). */
+function enterBatch(s: FlowState, ctx: MockCtx, docs: MockDoc[]): void {
+  const batch = new MockBatch(batchHost(s, ctx));
+  batch.add(docs);
+  s.batch = batch;
+  s.queue = [];
+  s.edit = null;
+  s.error = null;
+  s.output = EMPTY_OUTPUT;
+  s.summary = null;
+  s.stage = 'batch';
+  resetSelection(s, ctx);
+}
+
+/** Zurück in die Übersicht (aus dem geöffneten Einzeldokument). */
+function leaveSingle(s: FlowState): void {
+  s.signing?.close();
+  s.signing = null;
+  s.queue = [];
+  s.edit = null;
+  s.error = null;
+  s.output = EMPTY_OUTPUT;
+  s.summary = null;
+  s.stage = 'batch';
+}
+
+/** aus dem Stapel geöffnetes Dokument (`return_to_batch`) */
+function fromBatch(s: FlowState): boolean {
+  const d = current(s);
+  return !!s.batch && !!d && s.batch.openItem === d.id;
+}
+
 function openFiles(s: FlowState, ctx: MockCtx, paths: string[]): void {
-  const before = s.queue.length;
-  for (const path of paths) {
-    if (s.queue.some((d) => d.path === path)) continue; // F-89 ohne Duplikate
-    s.queue.push(makeDoc(s, path));
+  const fresh = paths.filter((p, i) => paths.indexOf(p) === i && !s.queue.some((d) => d.path === p) && !s.batch?.has(p)); // F-89 ohne Duplikate
+  if (fresh.length === 0) return;
+  if (s.batch) {
+    // Übersicht: hinzufügen und voranalysieren; während eines Laufs gehören sie nicht zum Lauf
+    s.batch.add(fresh.map((p) => makeDoc(s, p)));
+    if (s.stage !== 'batch') ctx.notify('ng-batch-added', { count: String(fresh.length) });
+    return;
   }
-  const added = s.queue.length - before;
-  if (added === 0) return;
-  if (before === 0 && (s.stage === 'open' || s.stage === 'error')) {
+  const saved = s.stage === 'output' && !!s.output.path;
+  const idle = saved || (s.queue.length === 0 && (s.stage === 'open' || s.stage === 'error'));
+  if (idle) {
+    if (saved && s.output.path) {
+      // gespeichert: Dokument verbuchen, dann wie im Leerlauf
+      finishDoc(s, { kind: 'signed', output: { path: s.output.path, len: 1024, sha256: '00' } });
+      s.queue.shift();
+      s.output = EMPTY_OUTPUT;
+      s.summary = null;
+    }
+    const docs = [...s.queue, ...fresh.map((p) => makeDoc(s, p))];
     s.error = null;
+    if (batchOn(s) && docs.length >= 2) {
+      enterBatch(s, ctx, docs);
+      return;
+    }
+    s.queue = docs;
     analyze(s, ctx);
-  } else if (s.stage === 'output' && s.output.path) {
-    // gespeichert: Dokument verbuchen, dann wie im Leerlauf
-    finishDoc(s, { kind: 'signed', output: { path: s.output.path, len: 1024, sha256: '00' } });
-    s.queue.shift();
-    s.output = EMPTY_OUTPUT;
-    s.summary = null;
-    analyze(s, ctx);
-  } else if (s.stage === 'editing' || s.stage === 'warning') {
-    ctx.notify('ng-batch-added', { count: String(added) });
+    return;
+  }
+  for (const path of fresh) s.queue.push(makeDoc(s, path));
+  if (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading') ctx.notify('ng-batch-added', { count: String(fresh.length) });
+}
+
+/** Plan aus dem Bearbeitungszustand (`BackToBatch`/`ShowBatch`; `origin == Auto` → automatisch). */
+function planFromEdit(d: MockDoc, e: EditState): BatchPlan | null {
+  if (e.invisible && !e.invisibleProfile) return { kind: 'invisible' };
+  if (e.target.kind === 'qr') return { kind: 'qr' };
+  if (e.target.kind === 'field') return { kind: 'field', index: e.target.index, name: d.spec.fields[e.target.index]?.name ?? '' };
+  if (e.origin === 'user' && e.placement) return { kind: 'manual', placement: { ...e.placement }, newPage: e.newPage };
+  return null;
+}
+
+/** Gemerkten Plan auf den Bearbeitungszustand anwenden (Dokument aus dem Stapel geöffnet). */
+function applyPlan(d: MockDoc, e: EditState, plan: BatchPlan, block: { width: number; height: number }): EditState {
+  switch (plan.kind) {
+    case 'qr':
+      return useTarget(d, e, { kind: 'qr' }, block) ?? e;
+    case 'field':
+      return useTarget(d, e, { kind: 'field', index: plan.index }, block) ?? e;
+    case 'invisible':
+      return { ...e, invisible: true, revision: e.revision + 1 };
+    case 'manual':
+      return { ...e, placement: { ...plan.placement, width: block.width, height: block.height }, newPage: plan.newPage, origin: 'user', target: { kind: 'free' }, revision: e.revision + 1 };
   }
 }
 
@@ -401,6 +504,15 @@ function saved(s: FlowState, ctx: MockCtx, path: string, backend: BackendId = s.
     page: s.edit && !s.edit.invisible && s.edit.placement ? s.edit.placement.page_index : null,
   };
   ctx.emit({ kind: 'signed', file_name: fileNameOf(path), path });
+  const d = current(s);
+  if (s.batch && d && s.batch.openItem === d.id) {
+    // aus dem Stapel geöffnet: zurück zur Übersicht statt „Fertig“ (§3.6), Hinweis `ng-batch-item-signed`
+    d.signed = true;
+    s.batch.singleSigned(d.id, path);
+    leaveSingle(s);
+    s.explicit = false;
+    resetSelection(s, ctx);
+  }
 }
 
 function save(s: FlowState, path: string | null, ctx: MockCtx): void {
@@ -422,6 +534,31 @@ function save(s: FlowState, path: string | null, ctx: MockCtx): void {
 }
 
 function navigateOpen(s: FlowState, ctx: MockCtx): void {
+  if (s.batch?.running) return;
+  const d = current(s);
+  if (s.batch && d && fromBatch(s) && s.stage !== 'signing') {
+    // aus dem Stapel geöffnet (z. B. „Weiteres Dokument“ nach abgebrochenem Speichern-Dialog): wie der Kern
+    // (`batch_run::intercept`) zurück zur Übersicht, Eintrag unverändert – der Stapel bleibt
+    s.batch.back(d.id, undefined);
+    leaveSingle(s);
+    s.explicit = false;
+    return;
+  }
+  if (s.batch) {
+    // Startseite: Stapel verwerfen (gespeicherte Dokumente bleiben)
+    s.batch.dispose();
+    s.batch = null;
+    s.signing?.close();
+    s.signing = null;
+    s.queue = [];
+    s.edit = null;
+    s.error = null;
+    s.output = EMPTY_OUTPUT;
+    s.summary = null;
+    s.explicit = false;
+    s.stage = 'open';
+    return;
+  }
   if (s.stage === 'output') {
     finishDoc(s, s.output.path ? { kind: 'signed', output: { path: s.output.path, len: 1024, sha256: '00' } } : { kind: 'cancelled' });
     s.queue.shift();
@@ -507,6 +644,8 @@ function bar(s: FlowState): MainBarView {
       return mainBar(['A', 'A', 'A', ''], false);
     case 'output':
       return mainBar(['AE', 'AE', 'AE', 'A'], true);
+    case 'batch':
+      return s.batch?.running ? mainBar(['A', 'A', 'A', ''], false) : mainBar(['AE', '', '', ''], true);
   }
 }
 
@@ -578,16 +717,34 @@ function stepView(s: FlowState, ctx: MockCtx): StepView {
     }
     case 'finished':
       return { step: 'finished', exit_code: s.exitCode };
+    case 'batch': {
+      const b = s.batch;
+      if (!b?.running) return { step: 'batch' };
+      const backend = b.backend();
+      return {
+        step: 'signing',
+        interaction: b.interaction(),
+        queue: b.docs().map((q, i) => ({ id: q.id, name: q.name, current: i === 0 })),
+        document_leaves_device: backend ? capabilitiesFor(backend).document_leaves_device : false,
+        progress: b.progress(),
+      };
+    }
   }
 }
 
 function actionsView(s: FlowState, b: MainBarView): ActionsView {
   const editing = s.stage === 'editing';
+  if (s.stage === 'batch' && s.batch) {
+    const running = s.batch.running;
+    return { ...noActions(), open_files: !running, start_batch: !running && s.batch.signable().length > 0, settings: !running && b.settings_enabled, home: !running };
+  }
   return {
     ...noActions(),
     open_files: !['starting', 'finished', 'signing'].includes(s.stage),
     sign: editing && placementAllowed(s),
     edit_placement: editing,
+    // weitere Dokumente in der Warteschlange (Einzeldokument, nicht aus dem Stapel geöffnet)
+    show_batch: batchOn(s) && !s.batch && (editing || s.stage === 'warning') && s.queue.length > 1,
     settings: b.settings_enabled,
     home: b.steps[0]?.enabled ?? false,
   };
@@ -614,6 +771,8 @@ const flowArea: MockArea<FlowState> = {
       exitCode: 0,
       networkErrorOnce: o.scenario === 'error-atrust',
       last: { position: 'manual', backend: null },
+      batch: null,
+      pendingPlan: null,
     };
     return s;
   },
@@ -622,14 +781,94 @@ const flowArea: MockArea<FlowState> = {
     const d = current(s);
     const settings = ctx.settings();
     const lang = blockLang(ctx);
+    const b = s.batch;
+    // Stapellauf: Masken, Pausen, Überspringen, Abbruch (§3.8); `Cancel` im Lauf = `AbortBatch`
+    if (s.stage === 'batch' && b?.running) {
+      switch (e.type) {
+        case 'submit_form':
+          b.session()?.submitForm(e.request, e.answer);
+          return true;
+        case 'submit_secret':
+          b.session()?.submitSecret(e.request, e.secret);
+          return true;
+        case 'answer_notice':
+          b.session()?.answerNotice(e.request, e.answer);
+          return true;
+        case 'retry':
+          b.retry();
+          return true;
+        case 'skip_batch_document':
+          b.skip();
+          return true;
+        case 'abort_batch':
+        case 'cancel':
+          b.abort();
+          return true;
+        case 'quit':
+          b.dispose();
+          s.stage = 'finished';
+          return true;
+        case 'open_files':
+          openFiles(s, ctx, e.paths);
+          return true;
+        case 'select_signer':
+        case 'dismiss_notice':
+          break;
+        default:
+          return e.type === 'open_signature_data';
+      }
+    }
     switch (e.type) {
       case 'open_files':
         openFiles(s, ctx, e.paths);
         return true;
+      case 'show_batch':
+        if ((s.stage === 'editing' || s.stage === 'warning') && !b && batchOn(s) && d && s.queue.length > 1) {
+          const [cur, ...rest] = s.queue;
+          const batch = new MockBatch(batchHost(s, ctx));
+          if (cur && s.edit && s.stage === 'editing') batch.addEdited(cur, planFromEdit(cur, s.edit));
+          batch.add(s.stage === 'editing' ? rest : s.queue);
+          s.batch = batch;
+          leaveSingle(s);
+        }
+        return true;
+      case 'open_batch_item':
+        if (s.stage === 'batch' && b) b.open(e.doc);
+        return true;
+      case 'back_to_batch':
+        if (b && d && fromBatch(s) && (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading')) {
+          b.back(d.id, s.stage === 'editing' && s.edit ? planFromEdit(d, s.edit) : undefined);
+          leaveSingle(s);
+        }
+        return true;
+      case 'remove_from_batch':
+        if (s.stage === 'batch' && b) {
+          b.remove(e.doc);
+          if (b.size === 0) {
+            s.batch = null;
+            s.stage = 'open';
+          }
+        }
+        return true;
+      case 'start_batch':
+        if (s.stage === 'batch' && b) b.start(e);
+        return true;
+      case 'skip_batch_document':
+      case 'abort_batch':
+        return true;
       case 'answer_warning':
         if (s.stage !== 'warning') return true;
         if (e.proceed) s.stage = 'editing';
-        else {
+        else if (b && d && fromBatch(s)) {
+          // „Dokument verwerfen“ aus dem Stapel: Eintrag entfernen, zurück zur Übersicht
+          b.back(d.id, undefined);
+          b.remove(d.id);
+          leaveSingle(s);
+          if (b.size === 0) {
+            s.batch = null;
+            s.stage = 'open';
+          }
+        } else {
           finishDoc(s, { kind: 'cancelled' });
           dropCurrent(s, ctx);
         }
@@ -702,7 +941,11 @@ const flowArea: MockArea<FlowState> = {
       case 'open_signature_data':
         return true;
       case 'cancel':
-        if (s.stage === 'signing') cancelSigning(s, ctx);
+        if (b && fromBatch(s) && (s.stage === 'loading' || s.stage === 'warning' || s.stage === 'editing')) {
+          // aus dem Stapel geöffnet: zurück zur Übersicht, Status unverändert
+          if (d) b.back(d.id, undefined);
+          leaveSingle(s);
+        } else if (s.stage === 'signing') cancelSigning(s, ctx);
         else if (s.stage === 'choosing') {
           s.stage = s.edit ? 'editing' : 'open';
           ctx.notify('ng-signing-cancelled');
@@ -750,6 +993,7 @@ const flowArea: MockArea<FlowState> = {
       case 'quit':
         s.signing?.close();
         s.signing = null;
+        s.batch?.dispose();
         s.stage = 'finished';
         s.exitCode = 0;
         return true;
@@ -766,6 +1010,7 @@ const flowArea: MockArea<FlowState> = {
         s.edit = resizeBlock(d, s.edit, sig.settings, sig.settings.signature.block_language ?? sig.settings.general.ui_language ?? 'de');
       }
       if (!s.explicit) resetSelection(s, ctx);
+      s.batch?.settingsChanged();
     } else if (sig.kind === 'open-files') {
       openFiles(s, ctx, sig.paths);
     }
@@ -784,6 +1029,7 @@ const flowArea: MockArea<FlowState> = {
       resume: s.stage === 'open' && s.resume ? { ...s.resume } : null,
       document: d && s.edit && phase ? projectDocument(d, s.edit, phase, ctx.settings(), lang, s.preview) : null,
       signers: { ...defaultSigners(), options, selected: s.selected, default: backendFor(ctx.settings().backend.default) },
+      batch: s.batch ? s.batch.view() : null,
       actions: actionsView(s, b),
     };
   },
@@ -823,13 +1069,12 @@ export class MockCore implements Bridge {
     this.flow = flowArea.init(this.opts);
     this.areas = [
       { area: flowArea as MockArea<unknown>, state: this.flow },
-      { area: batchArea as MockArea<unknown>, state: batchArea.init(this.opts) },
       { area: settingsArea as MockArea<unknown>, state: settingsArea.init(this.opts) },
       { area: verifyArea as MockArea<unknown>, state: verifyArea.init(this.opts) },
       { area: recentArea as MockArea<unknown>, state: recentArea.init(this.opts) },
       { area: firstRunArea as MockArea<unknown>, state: firstRunArea.init(this.opts) },
     ];
-    const settingsState = this.areas[2]?.state as ReturnType<typeof settingsArea.init>;
+    const settingsState = this.areas[1]?.state as ReturnType<typeof settingsArea.init>;
     this.ctx = {
       emit: (signal: MockSignal) => {
         for (const a of this.areas) a.area.signal?.(signal, a.state, this.ctx);
@@ -844,9 +1089,10 @@ export class MockCore implements Bridge {
     } else {
       this.later(() => {
         this.flow.stage = 'open';
-        const docs = scenarioDocs(this.opts);
-        if (docs.length > 0) {
-          for (const { path, spec } of docs) this.flow.queue.push(makeDoc(this.flow, path, spec));
+        const docs = scenarioDocs(this.opts).map(({ path, spec }) => makeDoc(this.flow, path, spec));
+        if (docs.length >= 2 && batchOn(this.flow)) enterBatch(this.flow, this.ctx, docs);
+        else if (docs.length > 0) {
+          this.flow.queue.push(...docs);
           analyze(this.flow, this.ctx);
         }
       });
@@ -866,12 +1112,24 @@ export class MockCore implements Bridge {
     return () => this.listeners.delete(cb);
   }
 
+  private doc(doc: DocId): MockDoc | undefined {
+    return this.flow.queue.find((q) => q.id === doc) ?? this.flow.batch?.docs().find((q) => q.id === doc);
+  }
+
   pageTileUrl(doc: DocId, page: number, scale: number): string {
-    const d = this.flow.queue.find((q) => q.id === doc);
+    const d = this.doc(doc);
     const p = d?.spec.pages[page] ?? null;
     const last = d?.spec.pages[d.spec.pages.length - 1];
     const size: [number, number] = p ? [p.w, p.h] : last ? [last.w, last.h] : A4;
     return pageTileSvg(p, size, scale);
+  }
+
+  /** Miniatur der ersten Seite (Voranalyse des Stapels, `pida-render://thumb/<doc>`; Breite 96 px). */
+  thumbUrl(doc: DocId): string {
+    const d = this.doc(doc);
+    const p = d?.spec.pages[0] ?? null;
+    const size: [number, number] = p ? [p.w, p.h] : A4;
+    return pageTileSvg(p, size, 96 / size[0]);
   }
 
   blockPreviewUrl(scale: number, revision: number): string {
@@ -884,8 +1142,9 @@ export class MockCore implements Bridge {
     if (this.forced) return; // feste Testzustände reagieren nicht; Tests prüfen `dispatched`
     if (event.type === 'dismiss_notice') this.notices = this.notices.filter((n) => n.id !== event.id);
     for (const a of this.areas) a.area.handle(event, a.state, this.ctx);
-    if (event.type === 'open_signature_data' && this.flow.signing) {
-      const url = this.flow.signing.signatureDataUrl(event.request);
+    const session = this.flow.signing ?? this.flow.batch?.session() ?? null;
+    if (event.type === 'open_signature_data' && session) {
+      const url = session.signatureDataUrl(event.request);
       if (url) this.openedUrls.push(url);
     }
     if (event.type === 'open_result' && this.flow.output.path) this.nativeCalls.push(`openResult:${this.flow.output.path}`);
@@ -953,8 +1212,8 @@ export class MockCore implements Bridge {
     this.openedUrls.push(url);
   }
 
-  async revealOutput(): Promise<void> {
-    this.nativeCalls.push('revealOutput');
+  async revealOutput(doc?: DocId | null): Promise<void> {
+    this.nativeCalls.push(doc === undefined || doc === null ? 'revealOutput' : `revealOutput:${doc}`);
   }
 
   async openLogDir(): Promise<void> {
@@ -982,6 +1241,7 @@ export class MockCore implements Bridge {
   /** Long-Poll meldet „bestätigt“ (App/QR) bzw. die Chipkarten-Software ist fertig. */
   completeConfirmation(): void {
     if (this.flow.stage === 'signing' && this.flow.signing?.completeConfirmation()) this.emit();
+    else if (this.flow.stage === 'batch' && this.flow.batch?.session()?.completeConfirmation()) this.emit();
   }
 
   /** Gewählte Position und Signiermittel des letzten Signiervorgangs (Tests). */
@@ -991,6 +1251,7 @@ export class MockCore implements Bridge {
 
   /** Alle Zeitgeber stoppen. */
   dispose(): void {
+    this.flow.batch?.dispose();
     for (const t of this.timers) clearTimeout(t);
     this.timers.clear();
     this.listeners.clear();

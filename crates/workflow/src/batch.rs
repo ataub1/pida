@@ -183,6 +183,11 @@ pub struct Batch {
     pub open: Option<DocId>,
     /// Ergebnis des letzten Laufs
     pub last_run: Option<BatchSummary>,
+    /// „Stapel abbrechen“ während des Schreibens: Dokument, dessen Ergebnis noch geschrieben wird (das Schreiben
+    /// läuft ohne Epoche zu Ende; „gespeichert ist gespeichert“ – `Saved` verbucht es in der Übersicht als
+    /// signiert, `SaveFailed` bzw. eine noch ausstehende Zielentscheidung lassen es „Abgebrochen“)
+    #[serde(default)]
+    pub writing: Option<DocId>,
 }
 
 impl Batch {

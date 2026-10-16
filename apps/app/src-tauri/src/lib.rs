@@ -547,7 +547,9 @@ pub fn run() {
             shell.set_system_language(system_language);
             // Oberfläche „Arbeitsbereich“ (ADR 0004 §3.14, eingeschaltet im Merge-Commit von A1)
             shell.update_options(|o| o.workspace_ui = Some(true));
-            // `PIDA_UI=workspace` (nur Debug-Builds) bleibt für die Abnahme späterer Etappen (`workspace,batch`)
+            // Stapelübersicht ab zwei Dokumenten (ADR 0004 §3.14, eingeschaltet im Merge-Commit von A2)
+            shell.update_options(|o| o.batch_overview = Some(true));
+            // `PIDA_UI=workspace` (nur Debug-Builds) bleibt für die Abnahme späterer Etappen
             let pida_ui = std::env::var("PIDA_UI").ok();
             if let Some(workspace) = shell::workspace_ui_from_env(pida_ui.as_deref(), cfg!(debug_assertions)) {
                 tracing::info!("Oberfläche „Arbeitsbereich“ (PIDA_UI)");
