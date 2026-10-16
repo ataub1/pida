@@ -217,10 +217,21 @@ pub(crate) fn apply_changes(
             rejected.insert(path.clone(), code.to_owned());
             continue;
         }
+        normalize(&mut next, path);
         next.sanitize();
         settings = next;
     }
     Applied { settings, rejected }
+}
+
+/// Normalisierung eines übernommenen Felds (ADR 0004 §3.11 „Benutzername speichert der Kern normalisiert“):
+/// der ID-Austria-Benutzername wie nach der Anmeldung (`+43…` statt `0…`, ohne Leerraum); leer = keiner.
+fn normalize(next: &mut Settings, path: &str) {
+    if path == "id_austria.username" {
+        let user = next.id_austria.username.take();
+        next.id_austria.username =
+            user.as_deref().map(str::trim).filter(|u| !u.is_empty()).map(pida_config::normalize_mobile_number);
+    }
 }
 
 /// Problem eines Felds: (Pfad, i18n-ID, blockiert das klassische Speichern).
@@ -368,6 +379,13 @@ mod tests {
         assert_eq!(a.settings.placeholder.kind, pida_config::PlaceholderKind::Fields);
         assert_eq!(a.settings.backend.default, Some(BackendChoice::Keystore));
         assert!(!a.settings.general.recent_documents);
+        // Benutzername normalisiert wie nach der Anmeldung; leer = keiner; ein Name bleibt
+        let a = apply(&s, &[("id_austria.username", json!(" 0664 123 4567 "))]);
+        assert_eq!(a.settings.id_austria.username.as_deref(), Some("+436641234567"));
+        let a = apply(&s, &[("id_austria.username", json!("  "))]);
+        assert_eq!(a.settings.id_austria.username, None);
+        let a = apply(&s, &[("id_austria.username", json!("max.muster"))]);
+        assert_eq!(a.settings.id_austria.username.as_deref(), Some("max.muster"));
         // Hinweis für ein anderes Feld lehnt nichts ab
         let a = apply(&s, &[("proxy.mode", json!("manual"))]);
         assert!(a.rejected.is_empty());

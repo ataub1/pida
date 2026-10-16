@@ -287,6 +287,42 @@ async fn open_document_block_follows_signature_changes() {
     assert_eq!((d.placement.page_index, d.placement.x, d.placement.y), (0, moved.placement.x, moved.placement.y));
 }
 
+/// Profil „unsichtbar“ und zurück („Weitere Profile“ im Live-Editor): das offene Dokument wird unsichtbar und
+/// danach wieder sichtbar und automatisch platziert; „Unsichtbar signieren“ der Nutzerin bleibt.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn invisible_profile_and_back_restores_the_visible_block() {
+    let fx = Fixture::new();
+    let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "doc.pdf");
+    let pdfium = pdfium_dir().is_some();
+    let core = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), pdfium, |_| {}).unwrap();
+    let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    assert!(!v.document.unwrap().invisible);
+    open_settings(&core).await;
+    apply(&core, 1, &[("signature.profile", json!("INVISIBLE"))]).await;
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    apply(&core, 2, &[("signature.profile", json!("SIGNATURBLOCK_SMALL"))]).await;
+    let v = wait_for(&core, "wieder sichtbar", |v| v.document.as_ref().is_some_and(|d| !d.invisible)).await;
+    let d = v.document.unwrap();
+    assert_eq!((d.origin, d.target), (PlacementOrigin::Auto, PlacementTarget::Free));
+    assert!(d.detection.as_ref().is_some_and(|x| x.auto_placed));
+    if pdfium {
+        let v = wait_for(&core, "Block mit Maßen des Profils", |v| {
+            v.document
+                .as_ref()
+                .is_some_and(|d| (d.placement.height - d.block.height).abs() < 0.01 && d.block.height > 1.0)
+        })
+        .await;
+        assert!(!v.document.unwrap().invisible);
+    }
+    // eigene Wahl bleibt über einen Profilwechsel hinweg
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "selbst unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    apply(&core, 3, &[("signature.profile", json!("INVISIBLE"))]).await;
+    apply(&core, 4, &[("signature.profile", json!("SIGNATURBLOCK_SMALL"))]).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(core.view().document.unwrap().invisible, "von der Nutzerin gewählt");
+}
+
 // ------------------------------------------------------------------------------------------------
 // Einstellungen › Dokument: PDF/A und Platzhaltersuche
 // ------------------------------------------------------------------------------------------------
@@ -378,6 +414,73 @@ async fn field_search_places_into_the_first_empty_field_immediately() {
     );
 }
 
+fn tool(name: &str) -> bool {
+    std::process::Command::new(name).arg("--version").output().is_ok_and(|o| o.status.success())
+}
+
+/// Echte Engine: „Leere Signaturfelder“ und „PDF/A-kompatibel signieren“ sofort wirksam – signiert wird in das
+/// erste leere Feld (kein neues Feld), PDF/A-kompatibel (OutputIntent ergänzt); pyHanko: intakt, qpdf: ohne
+/// Fehler (ohne Werkzeug übersprungen).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn real_engine_signs_into_the_first_field_pdfa_compatible() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf(FIELDS_PDF, &fx.dir("in"), "fields.pdf");
+    let original = std::fs::read(&a).unwrap();
+    let core = start(&fx, keystore_overlay(vec![a], &out), false, |o| o.engine = None).unwrap();
+    let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    let first = v.document.unwrap().fields[0].name.clone();
+    open_settings(&core).await;
+    apply(
+        &core,
+        1,
+        &[
+            ("placeholder.search", json!(true)),
+            ("placeholder.kind", json!("fields")),
+            ("signature.pdfa_force", json!(true)),
+        ],
+    )
+    .await;
+    let v = wait_for(&core, "Feld, PDF/A erzwungen", |v| {
+        v.document.as_ref().is_some_and(|d| {
+            d.target == PlacementTarget::Field { index: 0 }
+                && d.detection.as_ref().is_some_and(|x| x.auto_placed && x.pdfa_decision == PdfaDecision::Forced)
+        })
+    })
+    .await;
+    assert_eq!(v.document.unwrap().origin, PlacementOrigin::Field);
+    core.dispatch(UiEvent::CloseSettings);
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    wait_for(&core, "gespeichert", saved).await;
+    let signed = out.join("fields_signed.pdf");
+    let bytes = std::fs::read(&signed).unwrap();
+    assert!(bytes.starts_with(&original), "inkrementell");
+    let tail = String::from_utf8_lossy(&bytes[original.len()..]).into_owned();
+    assert!(tail.contains("/OutputIntents"), "PDF/A-kompatibel: OutputIntent ergänzt");
+    if tool("pyhanko") {
+        let pyhanko = |pretty: bool| {
+            let mut c = std::process::Command::new("pyhanko");
+            c.args(["sign", "validate", "--no-strict-syntax"]);
+            if pretty {
+                c.arg("--pretty-print");
+            }
+            String::from_utf8_lossy(&c.arg(&signed).output().unwrap().stdout).into_owned()
+        };
+        // ohne Vertrauensanker „untrusted“, aber intakt
+        let text = pyhanko(false);
+        assert!(text.contains("INTACT") || text.contains("intact"), "pyHanko: {text}");
+        let text = pyhanko(true);
+        assert!(text.contains(&format!("Field 1: {first}\n")), "im ersten leeren Feld „{first}“: {text}");
+        assert!(!text.contains("Field 2:"), "genau eine Signatur, kein neues Feld: {text}");
+    } else {
+        eprintln!("pyHanko fehlt – Orakel übersprungen");
+    }
+    if tool("qpdf") {
+        let o = std::process::Command::new("qpdf").arg("--check").arg(&signed).output().unwrap();
+        assert!(o.status.success(), "qpdf: {}", String::from_utf8_lossy(&o.stdout));
+    }
+}
+
 /// Platzhaltersuche „QR-Code-Platzhalter“ nachträglich eingeschaltet: die Suche wird nachgeholt, der Block
 /// kommt in den QR-Platzhalter; aus → frei; wieder an → ohne neue Suche zurück (PDFium nötig).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -407,6 +510,38 @@ async fn qr_search_toggled_after_opening() {
     .await;
     apply(&core, 3, &[("placeholder.search", json!(true))]).await;
     wait_for(&core, "wieder im QR", |v| v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Qr)).await;
+}
+
+/// QR-Suche während der Analysewarnung eingeschaltet (Dokument mit Hinweis, z. B. Nutzungsrechte): nach
+/// „Fortfahren“ wird die Suche nachgeholt und der Block kommt in den QR-Platzhalter (PDFium nötig).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn qr_search_switched_on_during_the_analysis_warning() {
+    let fx = Fixture::new();
+    let a = copy_pdf(QR_PDF, &fx.dir("in"), "qr.pdf");
+    let engine = FakeEngine::new();
+    engine.findings.lock().unwrap().push(pida_pades::Finding {
+        code: "pdf-usage-rights".into(),
+        class: pida_pades::AcceptanceClass::K1Regular,
+        warning: true,
+    });
+    let e2 = engine.clone();
+    let Some(core) = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, true, move |o| {
+        o.engine = Some(e2 as std::sync::Arc<dyn pida_core_api::engine::PadesEngine>)
+    }) else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    wait_for(&core, "Warnung", |v| matches!(v.step, StepView::Warning { .. })).await;
+    open_settings(&core).await;
+    apply(&core, 1, &[("placeholder.search", json!(true))]).await;
+    core.dispatch(UiEvent::CloseSettings);
+    core.dispatch(UiEvent::AnswerWarning { proceed: true });
+    let v =
+        wait_for(&core, "im QR-Platzhalter", |v| v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Qr))
+            .await;
+    let d = v.document.unwrap();
+    assert_eq!(d.origin, PlacementOrigin::Qr);
+    assert!(d.detection.as_ref().is_some_and(|x| x.auto_placed));
 }
 
 // ------------------------------------------------------------------------------------------------

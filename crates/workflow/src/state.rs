@@ -175,11 +175,16 @@ pub struct WorkspaceEdit {
     /// suchen“). Gilt in der Projektion als `DocumentDetectionView::auto_placed`.
     #[serde(default)]
     pub automatic: bool,
+    /// „unsichtbar“ nur wegen des unsichtbaren Profils (nicht von der Nutzerin bzw. ihrem Plan gewählt):
+    /// wechselt das Profil wieder auf ein sichtbares, wird der Block wieder sichtbar (Einstellungen „sofort
+    /// wirksam“, ADR 0004 §3.11, K3). Eine eigene Wahl („Unsichtbar signieren“) bleibt.
+    #[serde(default)]
+    pub invisible_by_profile: bool,
 }
 
 impl WorkspaceEdit {
     /// Start nach der Analyse: frei mit automatischer Platzierung bzw. im QR-Platzhalter (Lage aus der
-    /// Automatik).
+    /// Automatik). `invisible` = unsichtbares Profil ([`Context::invisible`]).
     pub fn new(fields: Vec<EmptyFieldCandidate>, qr: Option<QrPlaceholder>, invisible: bool) -> WorkspaceEdit {
         let (target, origin) =
             if qr.is_some() { (Target::Qr, PlacementOrigin::Qr) } else { (Target::Free, PlacementOrigin::Auto) };
@@ -194,7 +199,34 @@ impl WorkspaceEdit {
             parked: None,
             qr_search,
             automatic: true,
+            invisible_by_profile: invisible,
         }
+    }
+
+    /// Unsichtbares Profil ein bzw. aus (Einstellungen „sofort wirksam“): erzwingt „unsichtbar“; zurück auf
+    /// ein sichtbares Profil wird der Block wieder sichtbar, außer die Nutzerin hat „unsichtbar“ selbst
+    /// gewählt. Liefert `true`, wenn der Block dadurch wieder sichtbar wurde.
+    pub fn follow_profile(&mut self, ctx: &Context) -> bool {
+        if ctx.invisible {
+            if !self.invisible {
+                self.invisible = true;
+                self.invisible_by_profile = true;
+            }
+            false
+        } else if self.invisible && self.invisible_by_profile {
+            self.invisible = false;
+            self.invisible_by_profile = false;
+            true
+        } else {
+            self.invisible_by_profile = false;
+            false
+        }
+    }
+
+    /// „Unsichtbar signieren“ von der Nutzerin bzw. ihrem Plan gewählt (ein- oder ausgeschaltet).
+    pub fn choose_invisible(&mut self, invisible: bool) {
+        self.invisible = invisible;
+        self.invisible_by_profile = false;
     }
 
     /// Wie [`WorkspaceEdit::new`], dazu das automatische Ziel nach den Einstellungen › Dokument: mit

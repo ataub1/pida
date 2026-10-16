@@ -435,6 +435,17 @@ pub(crate) struct CoreTask {
     block_change: Option<bool>,
     /// „Zuletzt signiert“ (ADR 0004 §3.10)
     pub(crate) recent: crate::recent::RecentState,
+    /// QR-Platzhaltersuchen (Einstellungen › Dokument, K3)
+    qr_searches: QrSearches,
+}
+
+/// QR-Platzhaltersuchen je Dokument (Einstellungen › Dokument, K3).
+#[derive(Debug, Default)]
+struct QrSearches {
+    /// die Analyse hat gesucht (Ergebnis „keiner“ dem Reducer noch nicht gemeldet, falls er es braucht)
+    analyzed: std::collections::HashSet<DocId>,
+    /// nachträgliche Suche läuft
+    requested: std::collections::HashSet<DocId>,
 }
 
 /// Zustand der sofort wirksamen Einstellungen (ADR 0004 §3.11).
@@ -512,6 +523,7 @@ impl CoreTask {
             block_done: 0,
             block_change: None,
             recent: crate::recent::RecentState::new(&paths),
+            qr_searches: QrSearches::default(),
         }
     }
 
@@ -838,9 +850,11 @@ impl CoreTask {
         self.cancel_session();
     }
 
-    /// Nach jeder Nachricht (Arbeitsbereich): Revision der Platzierung, Belegungsraster anfordern; Stapel:
-    /// nächste Voranalyse, Miniaturen entfernter Einträge verwerfen; „Zuletzt signiert“: Dateien noch da?
+    /// Nach jeder Nachricht (Arbeitsbereich): Revision der Platzierung, Belegungsraster anfordern, QR-Suche
+    /// nachholen; Stapel: nächste Voranalyse, Miniaturen entfernter Einträge verwerfen; „Zuletzt signiert“:
+    /// Dateien noch da?
     fn after_message(&mut self) {
+        self.ensure_qr_search();
         self.track_revision();
         self.request_layout();
         self.pump_preanalysis();
@@ -905,6 +919,8 @@ impl CoreTask {
         self.queue.clear();
         self.dialog = None;
         self.settings_view = None;
+        // eine abgebrochene Übernahme (`apply_settings`) darf spätere Vorschauen nicht unterdrücken
+        self.block_change = None;
         self.cancel_session();
         let error = WorkflowError::Unexpected("Programmfehler".into());
         let mut queue = self.state.queue().cloned().unwrap_or_default();
@@ -1007,23 +1023,27 @@ impl CoreTask {
             }
         }
         self.shared.docs.insert(loaded.data.clone());
+        if loaded.qr_searched {
+            self.qr_searches.analyzed.insert(id);
+        }
         self.apply(event);
-        self.after_analysis_qr(id, &loaded);
     }
 
-    /// Arbeitsbereich nach der Analyse (Einstellungen › Dokument, K3): hat die Analyse nach dem QR-Platzhalter
-    /// gesucht und keinen gefunden, erfährt es der Reducer (ein späteres Umschalten braucht dann keine neue
-    /// Suche); wurde die Suche erst während der Analyse eingeschaltet, wird sie nachgeholt.
-    fn after_analysis_qr(&mut self, id: DocId, loaded: &Loaded) {
-        let unknown = matches!(&self.state, State::Positioning { doc, edit: Some(e), .. }
-            if doc.id == id && e.qr_search.is_none());
-        if !unknown {
+    /// Arbeitsbereich (Einstellungen › Dokument, K3): ist das Ergebnis der QR-Suche des positionierten
+    /// Dokuments unbekannt (`WorkspaceEdit::qr_search == None`) und hat die Analyse schon gesucht, erfährt der
+    /// Reducer „gesucht, keiner gefunden“ (ein späteres Umschalten braucht dann keine neue Suche); sonst wird
+    /// die Suche nachgeholt, sobald „QR-Code-Platzhalter“ eingestellt ist – auch wenn die Suche erst während
+    /// der Analyse bzw. der Analysewarnung eingeschaltet wurde.
+    fn ensure_qr_search(&mut self) {
+        let id = match &self.state {
+            State::Positioning { doc, edit: Some(e), .. } if e.qr_search.is_none() => doc.id,
+            _ => return,
+        };
+        if self.qr_searches.analyzed.remove(&id) {
+            self.apply(Event::PlaceholderSearched { doc: id, qr: None });
             return;
         }
-        let want_qr = self.ctx.placeholder_search && !self.ctx.placeholder_fields && !self.ctx.invisible;
-        if loaded.qr_searched {
-            self.apply(Event::PlaceholderSearched { doc: id, qr: None });
-        } else if want_qr {
+        if self.ctx.placeholder_search && !self.ctx.placeholder_fields && !self.ctx.invisible {
             self.effect_search_placeholder(id);
         }
     }
@@ -1122,6 +1142,11 @@ impl CoreTask {
             // „Zuletzt signiert“ (ADR 0004 §3.10): jede gespeicherte Datei (Einzeldokument und Stapel)
             if let Event::Saved(info) = &event {
                 self.record_recent(&info.path);
+            }
+            // Ergebnis einer QR-Suche (Einstellungen › Dokument): eine neue Suche ist wieder möglich, falls der
+            // Reducer es verwirft (Dokument gerade nicht im Arbeitsbereich)
+            if let Event::PlaceholderSearched { doc, .. } = &event {
+                self.qr_searches.requested.remove(doc);
             }
             // Kopie statt `mem::replace`: bricht der Reducer ab, bleibt der bisherige Zustand erhalten
             let t = reduce(self.state.clone(), event, &self.ctx);
@@ -1329,9 +1354,13 @@ impl CoreTask {
     }
 
     /// QR-Platzhalter eines geladenen Dokuments suchen (Einstellungen › Dokument nachträglich auf
-    /// „QR-Code-Platzhalter“; ohne Renderer: keiner) → `Event::PlaceholderSearched`.
+    /// „QR-Code-Platzhalter“; ohne Renderer: keiner) → `Event::PlaceholderSearched`. Eine laufende Suche
+    /// desselben Dokuments wird nicht verdoppelt.
     fn effect_search_placeholder(&mut self, doc: DocId) {
         let Some(data) = self.shared.docs.get(doc) else { return };
+        if !self.qr_searches.requested.insert(doc) {
+            return;
+        }
         let render = self.shared.render.clone();
         let shared = self.shared.clone();
         tokio::task::spawn_blocking(move || {
@@ -1371,22 +1400,30 @@ impl CoreTask {
         };
         self.block_requested += 1;
         let generation = self.block_requested;
-        tokio::task::spawn_blocking(move || match shared.build_block(&snap, data.as_deref(), page) {
-            Ok(info) => shared.send(Msg::BlockBuilt(info, generation)),
-            Err(code) => {
-                tracing::warn!(code = %code, "Blockvorschau nicht erstellt");
-                shared.send(Msg::BlockFailed { generation, code });
+        tokio::task::spawn_blocking(move || {
+            // eine Panik (Programmfehler, feindliche Bildmarke) meldet sich wie ein Fehler zurück – sonst
+            // wartete eine Übernahme (`applied_revision`, ADR 0004 §3.11) für immer auf diese Vorschau
+            let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                shared.build_block(&snap, data.as_deref(), page)
+            }))
+            .unwrap_or_else(|_| {
+                tracing::error!("Blockvorschau abgebrochen (Programmfehler)");
+                Err(pida_workflow::MSG_UNEXPECTED.into())
+            });
+            match built {
+                Ok(info) => shared.send(Msg::BlockBuilt(info, generation)),
+                Err(code) => {
+                    tracing::warn!(code = %code, "Blockvorschau nicht erstellt");
+                    shared.send(Msg::BlockFailed { generation, code });
+                }
             }
         });
     }
 
-    /// Vorschau der Einstellungsansicht neu bauen (Signaturbild geändert, kein Dokument im Arbeitsbereich):
-    /// mit dem positionierten Dokument, sonst mit dem A4-Beispiel.
+    /// Vorschau der Einstellungsansicht neu bauen (Signaturbild geändert, der Reducer baut keine): mit dem
+    /// aktuellen Dokument (Seitenmaße, PDF/A-Kennung – wie beim Öffnen der Ansicht), sonst mit dem A4-Beispiel.
     fn preview_doc(&self) -> Option<DocId> {
-        match &self.state {
-            State::Positioning { doc, .. } => Some(doc.id),
-            _ => None,
-        }
+        self.current_doc().map(|d| d.id)
     }
 
     /// Blockvorschau der Generation `generation` angekommen bzw. fehlgeschlagen: eine auf sie wartende

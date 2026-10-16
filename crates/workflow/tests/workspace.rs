@@ -45,6 +45,7 @@ fn workspace_state(target: Target, origin: PlacementOrigin, invisible: bool) -> 
         parked: None,
         qr_search: Some(Some(qr())),
         automatic: matches!(origin, PlacementOrigin::Auto | PlacementOrigin::Qr),
+        invisible_by_profile: false,
     };
     State::Positioning {
         queue: queue(&[1]),
@@ -795,4 +796,45 @@ fn user_placements_end_the_automatic() {
     let e = edit_of(&t.state);
     assert_eq!((e.target, e.qr.is_some()), (Target::Qr, true));
     assert!(!t.effects.contains(&Effect::AutoPlace(DocId(1))));
+}
+
+/// Profil „unsichtbar“ in den Einstellungen ein und wieder aus („sofort wirksam“): das offene Dokument wird
+/// unsichtbar und danach wieder sichtbar (automatisch platziert); eine eigene Wahl „Unsichtbar signieren“
+/// bleibt auch nach dem Wechsel auf ein sichtbares Profil. Startet das Dokument mit dem unsichtbaren Profil,
+/// wird es mit einem sichtbaren Profil ebenfalls sichtbar.
+#[test]
+fn invisible_profile_switch_is_reversible_unless_chosen_by_the_user() {
+    let inv = Context { invisible: true, ..ws() };
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 1, true), &ws());
+    let t = step(t.state, Event::SettingsChanged, &inv);
+    let e = edit_of(&t.state);
+    assert!(e.invisible && e.invisible_by_profile);
+    assert!(!t.effects.contains(&Effect::AutoPlace(DocId(1))), "unsichtbar: keine Platzierung");
+    let t = step(t.state, Event::SettingsChanged, &ws());
+    let e = edit_of(&t.state);
+    assert!(!e.invisible && !e.invisible_by_profile, "wieder sichtbar");
+    assert!(e.automatic && e.auto_free());
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))), "{:?}", t.effects);
+    // „Leere Signaturfelder“ unter dem unsichtbaren Profil: kein Feld; wieder sichtbar → erstes Feld
+    let fields_inv = Context { invisible: true, ..fields_search() };
+    let t = step(t.state, Event::SettingsChanged, &fields_inv);
+    assert_eq!((edit_of(&t.state).target, edit_of(&t.state).invisible), (Target::Free, true));
+    let t = step(t.state, Event::SettingsChanged, &fields_search());
+    assert_eq!((edit_of(&t.state).target, edit_of(&t.state).invisible), (Target::Field(0), false));
+
+    // eigene Wahl bleibt
+    let t = step(t.state, Event::InvisibleSet(true), &fields_search());
+    let t = step(t.state, Event::SettingsChanged, &fields_inv);
+    let t = step(t.state, Event::SettingsChanged, &fields_search());
+    let e = edit_of(&t.state);
+    assert!(e.invisible && !e.invisible_by_profile, "von der Nutzerin gewählt");
+
+    // Start mit dem unsichtbaren Profil, dann sichtbares Profil
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed_with(1, 3, None, 0, true), &inv);
+    assert!(edit_of(&t.state).invisible_by_profile);
+    let t = step(t.state, Event::SettingsChanged, &ws());
+    assert!(!edit_of(&t.state).invisible);
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))), "{:?}", t.effects);
+    let t = step(t.state, sign_with(BackendId::Keystore), &ws());
+    assert!(matches!(&t.state, State::Signing { position: PositionChoice::Manual(_), .. }), "{:?}", t.state);
 }

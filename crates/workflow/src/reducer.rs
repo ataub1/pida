@@ -620,12 +620,13 @@ fn settings_changed(state: State, ctx: &Context) -> Transition {
         State::ChoosingBackend { .. } => vec![Effect::ProbeBackends],
         _ => Vec::new(),
     };
-    // Arbeitsbereich: unsichtbares Profil erzwingt „unsichtbar“; Platzhaltersuche
+    // Arbeitsbereich: unsichtbares Profil erzwingt „unsichtbar“ (zurück auf ein sichtbares Profil wird der
+    // Block wieder sichtbar, außer die Nutzerin hat „unsichtbar“ selbst gewählt); Platzhaltersuche
     let mut state = match state {
         State::Positioning { queue, page, placement, new_page, doc, edit: Some(mut edit) } => {
-            edit.invisible |= ctx.invisible;
+            let visible_again = edit.follow_profile(ctx);
             let follow = edit.follow_settings(ctx);
-            if follow.auto_place && placement.is_some() {
+            if (follow.auto_place || (visible_again && edit.auto_free())) && placement.is_some() {
                 effects.push(Effect::AutoPlace(doc.id));
             }
             if follow.search_qr {
@@ -1003,7 +1004,7 @@ fn positioning(state: State, event: Event, ctx: &Context) -> Transition {
                     let effects = vec![Effect::Notify(MSG_CONSTRAINT_INVISIBLE_PROFILE.into())];
                     return stay(queue, page, placement, new_page, doc, Some(e), effects);
                 }
-                e.invisible = invisible;
+                e.choose_invisible(invisible);
                 stay(queue, page, placement, new_page, doc, Some(e), Vec::new())
             }
             None => stay(queue, page, placement, new_page, doc, None, Vec::new()),

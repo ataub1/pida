@@ -65,7 +65,7 @@ pub(super) fn apply_plan(
     let n = doc.page_count;
     edit.automatic = false;
     match plan {
-        Some(PositionChoice::Invisible) => edit.invisible = true,
+        Some(PositionChoice::Invisible) => edit.choose_invisible(true),
         Some(PositionChoice::Manual(p)) => {
             edit.target = Target::Free;
             edit.origin = PlacementOrigin::User;
@@ -106,9 +106,18 @@ fn plan_of(
     new_page: bool,
     doc: &DocFacts,
 ) -> Option<PositionChoice> {
-    if edit.invisible {
+    if edit.invisible && !edit.invisible_by_profile {
         return Some(PositionChoice::Invisible);
     }
+    // „unsichtbar“ nur wegen des Profils: der sichtbare Plan bleibt (im Lauf erzwingt das Profil ohnehin
+    // „unsichtbar“; zurück auf ein sichtbares Profil gilt wieder die Lage)
+    let visible;
+    let edit = if edit.invisible {
+        visible = WorkspaceEdit { invisible: false, ..edit.clone() };
+        &visible
+    } else {
+        edit
+    };
     match edit.target {
         Target::Qr => edit.qr.clone().map(PositionChoice::Placeholder),
         Target::Field(i) => edit.fields.get(i).cloned().map(PositionChoice::Field),
@@ -1101,6 +1110,11 @@ mod tests {
         let mut edit = WorkspaceEdit::new(Vec::new(), None, false);
         apply_plan(&mut edit, Some(&PositionChoice::Invisible), &facts(3));
         assert_eq!(plan_of(&edit, None, false, &facts(3)), Some(PositionChoice::Invisible));
+        // „unsichtbar“ nur wegen des Profils: der sichtbare Plan bleibt (das Profil erzwingt es im Lauf)
+        let mut edit = WorkspaceEdit::new(Vec::new(), None, true);
+        apply_plan(&mut edit, Some(&PositionChoice::Manual(p)), &facts(3));
+        assert!(edit.invisible && edit.invisible_by_profile);
+        assert_eq!(plan_of(&edit, Some(p), false, &facts(3)), Some(PositionChoice::Manual(p)));
         // neue Seite bleibt erhalten
         let np = Placement { page_index: 3, ..p };
         let mut edit = WorkspaceEdit::new(Vec::new(), None, false);
