@@ -197,8 +197,13 @@ fn start_core(app: &AppHandle, shell: &Shell) {
             };
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
+                let mut title_lang = None;
                 loop {
                     let view = rx.borrow_and_update().clone();
+                    if title_lang != Some(view.language) {
+                        title_lang = Some(view.language);
+                        set_window_title(&app, view.language);
+                    }
                     let finished = match &view.step {
                         pida_core_api::StepView::Finished { exit_code } => Some(i32::from(*exit_code)),
                         _ => None,
@@ -230,6 +235,16 @@ fn start_core(app: &AppHandle, shell: &Shell) {
             let _ = app.emit(VIEW_EVENT, shell.view());
         }
     }
+}
+
+/// Fenstertitel in der Sprache der Oberfläche („PIDA – PDF-Signatur ID Austria“); nur Desktop.
+fn set_window_title(app: &AppHandle, lang: Lang) {
+    #[cfg(desktop)]
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_title(&pida_i18n::translate(lang, "ng-window-title", &[]));
+    }
+    #[cfg(not(desktop))]
+    let _ = (app, lang);
 }
 
 /// Mobile: Der Kern meldet `Finished` (z. B. „Abbrechen“ im Fehlerschritt beim Start, `SKIP_FINISH`).

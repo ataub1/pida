@@ -645,3 +645,4 @@ ng-settings-invalid-value = This value is not valid for the setting.
 ng-settings-invalid-port = The port must be between 1 and 65535.
 ng-settings-policy = This setting is set by your organisation.
 ng-settings-unavailable-mobile = This setting is not available on mobile devices.
+ng-window-title = PIDA – PDF signature with ID Austria
