@@ -1089,7 +1089,7 @@ Die UI meldet nur Zeigerereignisse. Startposition und Startseite (letzte Seite, 
   - Payload `PDF-AS-POS;id=…;profile=…;type=…;key=…` [B recherche/03 §8.1]; Position x = floor, y = ceil(Oberkante), w = ceil, die Höhe wird ignoriert.
   - Modi STRICT/MODERATE/LENIENT/SORTED; PDF-Over sucht mit id 1 im Modus SORTED und signiert im Modus MODERATE. Belegte Platzhalter werden über `/Location` markiert. `profile=` im QR-Code überschreibt das Profil.
   - Der Block wird über den Platzhalter gelegt; nichts wird entfernt.
-- **Leere Signaturfelder:** Auswahlliste, nativ bzw. als Sheet auf Mobile. Sie gilt **je Signatur** (B-05). Die Appearance wird ins vorhandene Rect skaliert. Gesperrte und bereits signierte Felder werden nicht angeboten.
+- **Leere Signaturfelder:** Auswahlliste, nativ bzw. als Sheet auf Mobile. Sie gilt **je Signatur** (B-05). Der Block steht im vorhandenen Rect proportional, höchstens in natürlicher Größe und mittig (KR-P10, ADR 0004 Nachtrag 16). Gesperrte und bereits signierte Felder werden nicht angeboten.
 - **Vorrang:** `USE_FIELDS` vor `USE_MARKER`, wie im Original [B analyse/05].
 
 ### 6.9 PDF/A und PDF/UA
