@@ -4,7 +4,8 @@
  * (`InteractionView::Secret::ask_storage`) und bei „Schlüssel anzeigen …“ in den Einstellungen
  * (`keystore.storage_chosen = false`). Voreinstellung „Bis zum Beenden“; die Wahl geht mit dem Absenden an
  * den Kern (`password_storage`), der sie als `keystore.password_storage` speichert und danach nicht mehr
- * fragt. „Im Schlüsselbund“ (Mobile: „Im sicheren Speicher“) nur mit verfügbarem Schlüsselbund.
+ * fragt. „Im Schlüsselbund“ nur mit verfügbarem Schlüsselbund. Nur am Desktop – auf iOS/Android gibt es keinen
+ * Keystore (nur ID Austria, ADR 0004 Nachtrag 11).
  */
 import { useApp } from '../../app/context';
 import type { PasswordStorage } from '../../core/types';
@@ -24,8 +25,7 @@ export function PasswordStorageQuestion({
   keychainAvailable: boolean;
   isDisabled?: boolean;
 }) {
-  const { t, view } = useApp();
-  const mobile = view.platform.mobile;
+  const { t } = useApp();
   return (
     <ChoiceSegments<PasswordStorage>
       label={t.t('ng-ui-set-ks-remember')}
@@ -36,7 +36,7 @@ export function PasswordStorageQuestion({
       options={[
         { value: 'none', label: t.t('ng-ui-set-ks-remember-none') },
         { value: 'memory', label: t.t('ng-ui-set-ks-remember-memory') },
-        { value: 'keychain', label: t.t(mobile ? 'ng-ui-set-ks-remember-keychain-mobile' : 'ng-ui-set-ks-remember-keychain'), isDisabled: !keychainAvailable },
+        { value: 'keychain', label: t.t('ng-ui-set-ks-remember-keychain'), isDisabled: !keychainAvailable },
       ]}
     />
   );

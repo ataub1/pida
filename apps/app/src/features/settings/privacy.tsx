@@ -7,8 +7,8 @@
  *
  * Der vollständige Text ([`PrivacyInfo`]) ist der Datenschutztext aus PDF-Over bzw. – per Richtlinie
  * `privacy_notice_text` – der eigene Text der Organisation, dazu der Hinweis auf das lokale Signieren mit
- * Keystore und Chipkarte (Mobilgeräte: nur Keystore – dort gibt es keine Chipkarte) und der Link zur
- * Datenschutzerklärung von A-Trust.
+ * Keystore und Chipkarte (Mobilgeräte: dort wird nur mit ID Austria signiert, ADR 0004 Nachtrag 11 – der Hinweis
+ * sagt das) und der Link zur Datenschutzerklärung von A-Trust.
  */
 import { useState } from 'react';
 import { Link } from 'react-aria-components';

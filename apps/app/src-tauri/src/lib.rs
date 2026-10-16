@@ -160,16 +160,16 @@ fn open_notices(app: AppHandle) -> Result<(), String> {
     app.opener().open_path(file.to_string_lossy(), None::<&str>).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
-/// Mobile: System-Dateiauswahl über das Plugin (`kind` = `pdf` bzw. `pkcs12`); die gewählten Dateien liegen
-/// danach als Kopien im Import-Ordner der Sandbox (die Oberfläche sendet ihre Pfade als `open_files` bzw.
-/// `import_keystore`). Desktop: `ng-mobile-unsupported` (dort gilt der Dateidialog). Läuft im
-/// Hintergrund (die native Seite darf nicht vom Hauptthread aus blockierend gerufen werden).
+/// Mobile: System-Dateiauswahl über das Plugin (`kind` = `pdf`); die gewählten Dateien liegen danach als
+/// Kopien im Import-Ordner der Sandbox (die Oberfläche sendet ihre Pfade als `open_files`). `pkcs12` wird seit
+/// ADR 0004 Nachtrag 11 abgelehnt: auf iOS/Android wird nur mit ID Austria signiert, einen Keystore-Import gibt
+/// es nicht mehr. Desktop: `ng-mobile-unsupported` (dort gilt der Dateidialog). Läuft im Hintergrund (die
+/// native Seite darf nicht vom Hauptthread aus blockierend gerufen werden).
 #[tauri::command]
 async fn mobile_pick_files(app: AppHandle, kind: String, multiple: bool) -> Result<Vec<String>, String> {
     use tauri_plugin_pida_mobile::{ImportKind, PidaMobileExt};
     let kind = match kind.as_str() {
         "pdf" => ImportKind::Pdf,
-        "pkcs12" => ImportKind::Pkcs12,
         _ => return Err(shell::EVENT_INVALID.to_owned()),
     };
     let dest = app.path().app_cache_dir().map_err(|_| "ng-ui-open-failed".to_owned())?.join(mobile::IMPORT_DIR);

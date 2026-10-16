@@ -5852,7 +5852,7 @@
     }
   },
   {
-    "name": "mobile_keystore_imported",
+    "name": "keystore_imported",
     "view": {
       "actions": {
         "edit_placement": false,
@@ -5904,8 +5904,8 @@
       "notices": [],
       "parked": null,
       "platform": {
-        "mobile": true,
-        "os": "android"
+        "mobile": false,
+        "os": "macos"
       },
       "privacy_text": null,
       "recent": null,
@@ -15236,7 +15236,7 @@
               "factors": {
                 "app": true,
                 "card": false,
-                "fido2": true,
+                "fido2": false,
                 "qr": true,
                 "sms": true
               },
@@ -15248,26 +15248,10 @@
               "qualification": "Qes",
               "server": "None"
             },
-            "notes": [],
-            "unavailable_reason": null
-          },
-          {
-            "account": "max.p12 · signer",
-            "available": false,
-            "backend": "keystore",
-            "capabilities": null,
-            "notes": [],
-            "unavailable_reason": "ng-signer-keystore-missing"
-          },
-          {
-            "account": null,
-            "available": false,
-            "backend": "local_bku",
-            "capabilities": null,
             "notes": [
               "ng-fido2-unavailable-mobile"
             ],
-            "unavailable_reason": "ng-signer-localbku-not-running"
+            "unavailable_reason": null
           }
         ],
         "selected": "atrust_native"

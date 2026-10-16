@@ -8,6 +8,10 @@
  * Bildmarke: Eine eigene Bildmarke der Altkonfiguration steht als eigener Eintrag in der Liste (der Kern
  * übernimmt nur eine tatsächlich gesetzte eigene, nicht den PDF-AS-Standardlogo-Pfad). Fehlt sie, sagt die
  * Ersteinrichtung ausdrücklich, dass das PIDA-Siegel bleibt (ADR 0005) – die Oberfläche ersetzt es nie.
+ *
+ * Mobile (ADR 0004 Nachtrag 11): signiert wird nur mit ID Austria; ein Keystore bzw. die Chipkarte aus PDF-Over
+ * wird nicht übernommen – der Kern nennt das als eigenen Eintrag (`ng-migration-item-signer-mobile`), hier als
+ * Hinweis (Info-Symbol statt Haken) gezeigt.
  */
 import { useState } from 'react';
 import { useApp } from '../../app/context';
@@ -18,6 +22,8 @@ import { IconCheck, IconFolder, IconInfo } from '../../ui/Icons';
 import './onboarding.css';
 
 const EMBLEM_ITEM = 'ng-migration-item-emblem';
+/** Einträge, die etwas erklären statt eine Übernahme zu nennen (Info-Symbol). */
+const NOTE_ITEMS = new Set(['ng-migration-item-signer-mobile']);
 
 export interface MigrationOfferPaneProps {
   offer: MigrationOfferView;
@@ -69,12 +75,19 @@ export function MigrationOfferPane({ offer, onDone, level = 3, showSeal = false,
             {t.t('ng-ui-ob-import-list')}
           </p>
           <ul className="check-list" aria-labelledby={listId}>
-            {offer.items.map((item) => (
-              <li key={item.code}>
-                <IconCheck size={16} />
-                <span>{migrationItemText(item, t)}</span>
-              </li>
-            ))}
+            {offer.items.map((item) =>
+              NOTE_ITEMS.has(item.code) ? (
+                <li key={item.code} className="is-note" data-testid="migration-note">
+                  <IconInfo size={16} />
+                  <span>{migrationItemText(item, t)}</span>
+                </li>
+              ) : (
+                <li key={item.code}>
+                  <IconCheck size={16} />
+                  <span>{migrationItemText(item, t)}</span>
+                </li>
+              ),
+            )}
             {showSeal && !ownEmblem ? (
               <li className="is-note" data-testid="seal-stays">
                 <IconInfo size={16} />

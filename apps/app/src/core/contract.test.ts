@@ -777,12 +777,17 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(63);
   });
 
-  it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen, Import)', () => {
+  it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen) und den Import nur am Desktop', () => {
     const fixture = JSON.parse(readFileSync(fixtureUrl('view-states.json'), 'utf8')) as { name: string; view: ViewState }[];
     const names = new Set(fixture.map((f) => f.name));
-    for (const n of ['mobile_backend', 'mobile_resume_offer', 'mobile_keystore_imported']) expect(names.has(n)).toBe(true);
+    for (const n of ['mobile_backend', 'mobile_resume_offer', 'keystore_imported']) expect(names.has(n)).toBe(true);
     const backend = fixture.find((f) => f.name === 'mobile_backend')?.view;
     expect(backend?.platform).toEqual({ os: 'android', mobile: true });
+    // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): keine Probe mit Keystore auf Mobilgeräten
+    for (const f of fixture.filter((x) => x.view.platform.mobile)) {
+      expect(f.view.keystore_import, f.name).toBeNull();
+      expect(f.view.signers.options.map((o) => o.backend), f.name).not.toContain('keystore');
+    }
   });
 
   it('ui-events.json ist aktuell (für den Rust-Test)', () => {

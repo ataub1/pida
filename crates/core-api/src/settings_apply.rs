@@ -12,7 +12,8 @@
 //!   aus der UI) – Kernänderungen seit dem letzten Projizieren (`last_source_directory`, gemerkter
 //!   Benutzername, `SelectSigner { make_default }`, `SetUiLanguage`) gehen nicht verloren.
 //! - Je Feld: von einer Richtlinie festgelegt → Grund als Problem ([`locked_paths`]); auf Mobile nicht
-//!   verfügbar → [`MSG_UNAVAILABLE_MOBILE`]; Wert nicht lesbar → [`MSG_INVALID_VALUE`] (Proxy-Port:
+//!   verfügbar (Proxy, Ausgabeordner, Updates, Keystore; als Standard-Signiermittel nur ID Austria bzw. „Jedes
+//!   Mal fragen“, ADR 0004 Nachtrag 11) → [`MSG_UNAVAILABLE_MOBILE`]; Wert nicht lesbar → [`MSG_INVALID_VALUE`] (Proxy-Port:
 //!   [`MSG_INVALID_PORT`]); Prüfung ([`validate`]) meldet ein Problem **für dieses Feld** → abgelehnt. Ein
 //!   abgelehntes Feld behält seinen bisherigen Wert; alle anderen werden übernommen.
 //! - Hinweise für **andere** Felder (z. B. manueller Proxy ohne Host nach `proxy.mode = manual`) lehnen
@@ -33,7 +34,8 @@ pub(crate) const MSG_INVALID_PORT: &str = "ng-settings-invalid-port";
 pub(crate) const MSG_POLICY: &str = "ng-settings-policy";
 /// Meldungs-ID: „Zuletzt signiert“ per Richtlinie festgelegt.
 pub(crate) const MSG_RECENT_POLICY: &str = "ng-recent-policy";
-/// Meldungs-ID: auf Mobilgeräten nicht verfügbar (Proxy, Ausgabeordner, Updates, Keystore-Datei).
+/// Meldungs-ID: auf Mobilgeräten nicht verfügbar (Proxy, Ausgabeordner, Updates, Keystore, Standard-Signiermittel
+/// außer ID Austria).
 pub(crate) const MSG_UNAVAILABLE_MOBILE: &str = "ng-settings-unavailable-mobile";
 
 /// Bekannte Abschnitte der Einstellungen (alles andere ist [`Settings::unknown`]).
@@ -49,9 +51,9 @@ const SECTIONS: &[&str] = &[
     "certificate_cache",
 ];
 
-/// Auf Mobilgeräten nicht einstellbar (ADR 0004 E3 Punkt 7: ohne Proxy/Ordner/Updates; Keystore nur per
-/// Import-Assistent). Ein Eintrag ohne Punkt sperrt den ganzen Abschnitt.
-const MOBILE_UNAVAILABLE: &[&str] = &["proxy", "output.folder", "general.update_check", "keystore.file"];
+/// Auf Mobilgeräten nicht einstellbar (ADR 0004 E3 Punkt 7: ohne Proxy/Ordner/Updates; Nachtrag 11: ohne
+/// Keystore – signiert wird nur mit ID Austria). Ein Eintrag ohne Punkt sperrt den ganzen Abschnitt.
+const MOBILE_UNAVAILABLE: &[&str] = &["proxy", "output.folder", "general.update_check", "keystore"];
 
 /// Beispieldatei für [`examples`].
 pub(crate) const EXAMPLE_FILE: &str = "Vertrag.pdf";
@@ -210,6 +212,17 @@ pub(crate) fn apply_changes(
         };
         if policy_forbids(policy, path, &next) {
             rejected.insert(path.clone(), MSG_POLICY.to_owned());
+            continue;
+        }
+        // Mobile: nur ID Austria (bzw. „Jedes Mal fragen“) als Standard-Signiermittel (ADR 0004 Nachtrag 11)
+        if mobile
+            && path == "backend.default"
+            && matches!(
+                next.backend.default,
+                Some(pida_config::BackendChoice::Keystore | pida_config::BackendChoice::LocalBku)
+            )
+        {
+            rejected.insert(path.clone(), MSG_UNAVAILABLE_MOBILE.to_owned());
             continue;
         }
         // vor `sanitize` prüfen: eine ungültige Logo-Größe wird abgelehnt, nicht still auf 23 mm gesetzt
@@ -441,7 +454,8 @@ mod tests {
         assert_eq!(a.rejected["backend.default"], MSG_POLICY);
         assert!(a.settings.signature.pdfa_force, "Rest übernommen");
         assert!(locked_paths(None).is_empty());
-        // Mobile: Proxy, Ausgabeordner, Updates, Keystore-Datei nicht einstellbar
+        // Mobile: Proxy, Ausgabeordner, Updates, Keystore (ganzer Abschnitt, ADR 0004 Nachtrag 11) nicht
+        // einstellbar; als Standard-Signiermittel nur ID Austria bzw. „Jedes Mal fragen“
         let a = apply_changes(
             &s,
             &changes(&[
@@ -449,17 +463,48 @@ mod tests {
                 ("output.folder", json!("/tmp")),
                 ("general.update_check", json!(false)),
                 ("keystore.file", json!("/x.p12")),
-                ("keystore.enabled", json!(false)),
+                ("keystore.enabled", json!(true)),
+                ("keystore.password_storage", json!("keychain")),
+                ("keystore.alias", json!("max")),
+                ("backend.default", json!("keystore")),
                 ("signature.profile", json!("AMTSSIGNATURBLOCK")),
             ]),
             &BTreeMap::new(),
             None,
             true,
         );
-        for p in ["proxy.mode", "output.folder", "general.update_check", "keystore.file"] {
+        for p in [
+            "proxy.mode",
+            "output.folder",
+            "general.update_check",
+            "keystore.file",
+            "keystore.enabled",
+            "keystore.password_storage",
+            "keystore.alias",
+            "backend.default",
+        ] {
             assert_eq!(a.rejected[p], MSG_UNAVAILABLE_MOBILE, "{p}");
         }
+        assert_eq!(a.settings.keystore, s.keystore, "Keystore unverändert");
+        assert_eq!(a.settings.backend.default, s.backend.default);
         assert_eq!(a.settings.signature.profile, SignatureProfile::Amtssignaturblock);
+        for (value, expected) in [(json!("local_bku"), None), (json!("id_austria"), Some(BackendChoice::IdAustria))] {
+            let a = apply_changes(&s, &changes(&[("backend.default", value)]), &BTreeMap::new(), None, true);
+            assert_eq!(a.settings.backend.default, expected.or(s.backend.default));
+            assert_eq!(a.rejected.contains_key("backend.default"), expected.is_none());
+        }
+        let a = apply_changes(&s, &changes(&[("backend.default", json!(null))]), &BTreeMap::new(), None, true);
+        assert!(a.rejected.is_empty(), "„Jedes Mal fragen“ bleibt möglich");
+        // Desktop unverändert: Keystore einstellbar und als Standard wählbar
+        let a = apply_changes(
+            &s,
+            &changes(&[("keystore.enabled", json!(true)), ("backend.default", json!("keystore"))]),
+            &BTreeMap::new(),
+            None,
+            false,
+        );
+        assert!(a.rejected.is_empty(), "{:?}", a.rejected);
+        assert_eq!(a.settings.backend.default, Some(BackendChoice::Keystore));
     }
 
     #[test]

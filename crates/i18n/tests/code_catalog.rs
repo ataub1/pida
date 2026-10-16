@@ -28,6 +28,7 @@ const WAVE2_IDS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/integra
 const NOT_MESSAGE_CODES: &[(&str, &str)] = &[
     ("atrust-native", "config::certcache – Backend-Kennung im Cache-Schlüssel"),
     ("pida", "config::paths – Ordnername unter Linux"),
+    ("keystore-secrets-removed", "core-api::mobile_signers – Name des Merkers im Datenordner (ADR 0004 Nachtrag 11)"),
 ];
 
 // --- Quelltexte -----------------------------------------------------------------------------------

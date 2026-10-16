@@ -47,7 +47,7 @@ export interface SettingsState {
   problem: (path: string) => string | null;
   /** übersetzter Grund, falls eine Richtlinie den Pfad festlegt */
   locked: (path: string) => string | null;
-  /** Mobile-Oberfläche (ohne Proxy, Ordner, Updates, Protokolle; Keystore nur per Import) */
+  /** Mobile-Oberfläche (ohne Proxy, Ordner, Updates, Protokolle; nur ID Austria – kein Keystore, ADR 0004 Nachtrag 11) */
   mobile: boolean;
   /** offene Texteingaben sofort senden (vor dem Schließen) */
   flush: () => void;

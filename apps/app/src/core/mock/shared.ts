@@ -63,7 +63,7 @@ export interface MockOptions {
   migrationSecrets?: boolean;
   /** Einstellungen schreibgeschützt (`-c` mit Altdatei, unlesbare Datei) */
   readOnly?: boolean;
-  /** Plattform (Standard: Desktop/macOS); Mobile: Teilen/Exportieren, PKCS#12-Import, kein FIDO2 */
+  /** Plattform (Standard: Desktop/macOS); Mobile: Teilen/Exportieren, nur ID Austria (kein Keystore), kein FIDO2 */
   platform?: 'desktop' | 'ios' | 'android';
   /** Angebot „Signatur fortsetzen“ beim Start (Mobile) */
   resumeOffer?: ResumeOfferView | null;

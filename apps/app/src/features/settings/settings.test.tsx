@@ -625,21 +625,24 @@ describe('Schreibgeschützt (Abnahme E3 Punkt 6)', () => {
   });
 });
 
-describe('Mobile (Abnahme E3 Punkt 7)', () => {
-  it('Vollbild ohne Proxy, Ordner, Update-Prüfung, Protokolle, Chipkarte und Bildmarke', async () => {
+describe('Mobile (Abnahme E3 Punkt 7; nur ID Austria, ADR 0004 Nachtrag 11)', () => {
+  it('Vollbild ohne Proxy, Ordner, Update-Prüfung, Protokolle, Chipkarte, Keystore und Bildmarke', async () => {
     const { user } = renderApp({ view: onMobile(settingsView(defaultSettings(), { fido2_available: false }), IOS) });
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
     expect(document.documentElement).toHaveAttribute('data-mobile');
     expect(dialog.closest('.settings-modal')).not.toBeNull();
     expect(within(dialog).queryByRole('group', { name: 'Bildmarke' })).toBeNull();
     await user.click(nav(dialog, 'Signiermittel'));
+    // nur ID Austria: keine Wahl des Standards, kein Keystore, keine Chipkarte
+    expect(within(dialog).queryByRole('radiogroup', { name: 'Standard-Signiermittel' })).toBeNull();
     expect(within(dialog).queryByRole('radio', { name: /Chipkarte/ })).toBeNull();
     expect(within(dialog).queryByRole('region', { name: 'Chipkarte' })).toBeNull();
+    expect(within(dialog).queryByRole('region', { name: 'Keystore' })).toBeNull();
+    const ida = within(dialog).getByRole('region', { name: 'ID Austria' });
+    expect(within(ida).getByRole('textbox', { name: 'ID Austria: Telefonnummer oder Benutzername' })).toBeInTheDocument();
+    expect(within(ida).getByRole('switch', { name: /merken/ })).toBeInTheDocument();
     expect(within(dialog).getByText(/FIDO2-Sicherheitsschlüssel sind auf diesem Gerät nicht verfügbar/)).toBeInTheDocument();
-    const keystore = within(dialog).getByRole('region', { name: 'Keystore' });
-    expect(within(keystore).getByRole('button', { name: 'PKCS#12-Datei importieren …' })).toBeInTheDocument();
-    expect(within(keystore).queryByRole('button', { name: 'Datei wählen …' })).toBeNull();
-    expect(within(keystore).queryByRole('switch')).toBeNull();
+    expect(dialog.textContent).not.toMatch(/Keystore|PKCS|Passwort merken\?|Sicherer Speicher|Datei mit Zertifikat|Zertifikatsdatei/);
     await user.click(nav(dialog, 'Speichern'));
     expect(within(dialog).queryByRole('radiogroup', { name: 'Speicherort' })).toBeNull();
     expect(within(dialog).getByText('Das signierte Dokument liegt in den Dokumenten dieser App.')).toBeInTheDocument();
@@ -649,39 +652,49 @@ describe('Mobile (Abnahme E3 Punkt 7)', () => {
     await user.click(nav(dialog, 'Über PIDA'));
     expect(within(dialog).queryByRole('button', { name: /Logs/ })).toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Drittlizenzen anzeigen' })).toBeInTheDocument();
-    // Datenschutz: lokales Signieren nur mit dem Keystore (keine Chipkarte auf Mobilgeräten)
+    // Datenschutz: auf Mobilgeräten nur ID Austria – kein lokales Signieren mit Keystore oder Chipkarte
     await user.click(nav(dialog, 'Datenschutz'));
-    expect(within(dialog).getByText('Mit einem Keystore wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.')).toBeInTheDocument();
-    expect(within(dialog).queryByText(/Mit einem Keystore oder der Chipkarte/)).toBeNull();
+    expect(within(dialog).getByText('Auf diesem Gerät wird mit ID Austria signiert; dazu wird das Dokument an A-Trust übermittelt.')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Mit einem Keystore/)).toBeNull();
   });
 
-  it('Keystore nur per Import: Assistent im neuen Stil, danach Datei und Alias in den Einstellungen', async () => {
-    const settings: Settings = defaultSettings();
+  it('Suche findet keine Keystore-Einträge (Mobile), am Desktop schon', async () => {
+    for (const mobile of [true, false]) {
+      const view = settingsView(defaultSettings(), { fido2_available: false });
+      const { user, unmount } = renderApp({ view: mobile ? onMobile(view, IOS) : view });
+      const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+      for (const q of ['keystore', 'pkcs12', 'zertifikatsdatei', 'alias']) {
+        const search = within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' });
+        await user.clear(search);
+        await user.type(search, q);
+        expect(dialog.querySelector('[data-row="signers.keystore"]') === null).toBe(mobile);
+        if (mobile) expect(dialog.querySelectorAll('[data-row]')).toHaveLength(0);
+      }
+      unmount();
+    }
+  });
+
+  it('Mock-Kern: Keystore-Werte eines früheren Builds werden ignoriert; Keystore als Standard abgelehnt', async () => {
+    const base = defaultSettings();
+    const settings: Settings = {
+      ...base,
+      backend: { default: 'keystore' },
+      keystore: { ...base.keystore, enabled: true, file: '/var/mobile/k/test.p12', alias: 'max', declared_type: 'PKCS12' },
+    };
     const { mock, user } = renderApp({ platform: 'android', settings });
     await user.click(await screen.findByRole('button', { name: 'Einstellungen' }));
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
     await user.click(nav(dialog, 'Signiermittel'));
-    const keystore = within(dialog).getByRole('region', { name: 'Keystore' });
-    expect(keystore).toHaveTextContent('Noch kein Keystore auf diesem Gerät.');
-    await user.click(within(keystore).getByRole('button', { name: 'PKCS#12-Datei importieren …' }));
-    const wizard = await screen.findByRole('alertdialog', { name: 'PKCS#12-Keystore importieren' });
-    expect(within(wizard).getByLabelText('Passwort des Keystores')).toBeDisabled();
-    await user.click(within(wizard).getByRole('button', { name: 'Datei wählen …' }));
-    expect(await within(wizard).findByTestId('keystore-import-file')).toHaveTextContent('Gewählte Datei: test.p12');
-    await user.type(within(wizard).getByLabelText('Passwort des Keystores'), 'test');
-    expect(within(wizard).getByRole('switch', { name: 'Passwort sicher auf diesem Gerät speichern' })).toBeChecked();
-    await user.click(within(wizard).getByRole('button', { name: 'Importieren' }));
-    expect(mock.dispatched.find((e) => e.type === 'import_keystore')).toMatchObject({ password: 'test', remember: true });
-    const done = await screen.findByRole('alertdialog', { name: 'PKCS#12-Keystore importieren' });
-    expect(within(done).getByRole('status')).toHaveTextContent('test.p12');
-    await user.click(within(done).getByRole('button', { name: 'Fertig' }));
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
-    expect(within(keystore).getByText('Importierte Datei: test.p12')).toBeInTheDocument();
-    // mit Passwort importiert: die Schlüssel sind bekannt – Auswahl statt Textfeld (zwei Schlüssel)
-    expect(within(keystore).getByRole('button', { name: /Schlüssel/ })).toHaveTextContent('Schlüssel wählen');
-    expect(within(keystore).queryByRole('textbox', { name: 'Alias' })).toBeNull();
-    // Speicherart: auf Mobilgeräten „Sicherer Speicher“ statt „Schlüsselbund“ (Emulator 16.10.2026)
-    expect(within(keystore).getByRole('radio', { name: 'Sicherer Speicher' })).toBeInTheDocument();
-    expect(within(keystore).queryByRole('radio', { name: 'Schlüsselbund' })).toBeNull();
+    expect(within(dialog).queryByRole('region', { name: 'Keystore' })).toBeNull();
+    const v = (await mock.view()).settings!;
+    expect(v.settings.backend.default).toBe('id_austria');
+    expect(v.settings.keystore.file).toBe('/var/mobile/k/test.p12');
+    expect([v.keystore_ready, v.keystore_format, v.keystore_entries]).toEqual([false, null, null]);
+    await mock.dispatch({ type: 'apply_settings', changes: { 'backend.default': 'keystore', 'keystore.enabled': false }, revision: 1 });
+    const after = (await mock.view()).settings!;
+    expect(after.problems['backend.default']).toBe('ng-settings-unavailable-mobile');
+    expect(after.problems['keystore.enabled']).toBe('ng-settings-unavailable-mobile');
+    expect(after.settings.keystore.enabled).toBe(true);
+    expect((await mock.view()).signers.options.map((o) => o.backend)).toEqual(['atrust_native']);
   });
 });

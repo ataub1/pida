@@ -2,28 +2,27 @@
  * Einstellungen › Signiermittel und › Speichern (ADR 0004 §3.11).
  *
  * - Standard-Signiermittel `backend.default` (`None` = „Jedes Mal fragen“); Keystore erst, wenn er eingerichtet
- *   ist; Chipkarte nur auf dem Desktop.
+ *   ist. Nur am Desktop: auf iOS/Android wird nur mit ID Austria signiert (ADR 0004 Nachtrag 11) – dort gibt es
+ *   weder diese Wahl noch Keystore oder Chipkarte (`rows.ts`).
  * - Konten: ID Austria (Benutzername, „merken“; der Kern normalisiert), FIDO2 (nur mit Plattformunterstützung),
  *   Keystore (Desktop: Datei – das Format erkennt der Kern am Inhalt, keine Typauswahl –, Schlüssel als Auswahl
- *   aus den Einträgen der Datei, Speicherart; Mobile nur über den PKCS#12-Import-Assistenten), Chipkarte
- *   (Status aus `ViewState::signers`).
+ *   aus den Einträgen der Datei, Speicherart), Chipkarte (Desktop, Status aus `ViewState::signers`).
  * - Speichern: neben dem Original = `output.folder = "."` (relativ zum Quellordner, F-82), fester Ordner =
  *   absoluter Pfad, jedes Mal fragen = `None`; Mobile ohne Ordnerwahl (App-Dokumente). Namenszusatz mit dem
  *   Beispiel des Kerns (`SettingsView::examples["output.postfix"]`).
  */
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useApp } from '../../app/context';
-import { baseName } from '../../core/defaults';
 import type { BackendChoice, KeystoreEntryView, KeystoreFormatView, PasswordStorage, UiEvent } from '../../core/types';
 import { Badge, Button, SwitchField, TextInput } from '../../ui/controls';
 import { IconCard, IconFileKey, IconFolder, IconPhone } from '../../ui/Icons';
 import { AccountCard, ChoiceCards, ChoiceSegments, PathRow, SettingSelect, SettingTextField } from './controls';
-import { KeystoreImportDialog } from './KeystoreImport';
 import { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion } from './StorageQuestion';
 import { useSettings, useTextSetting } from './state';
 
 type DefaultChoice = BackendChoice | 'ask';
 
+/** Standard-Signiermittel (nur Desktop; auf iOS/Android gibt es nur ID Austria, ADR 0004 Nachtrag 11). */
 export function DefaultSignerRow() {
   const { t } = useApp();
   const s = useSettings();
@@ -32,7 +31,7 @@ export function DefaultSignerRow() {
   const keystore = s.view.keystore_ready;
   const locked = s.locked('backend.default');
   const options: { value: DefaultChoice; label: string; description: string; icon?: ReactNode; isDisabled?: boolean }[] = [
-    { value: 'id_austria', label: t.t('ng-ui-set-signer-ida'), description: t.t(s.mobile ? 'ng-ui-set-signer-ida-desc-mobile' : 'ng-ui-set-signer-ida-desc'), icon: <IconPhone size={18} /> },
+    { value: 'id_austria', label: t.t('ng-ui-set-signer-ida'), description: t.t('ng-ui-set-signer-ida-desc'), icon: <IconPhone size={18} /> },
     {
       value: 'keystore',
       label: t.t('ng-ui-set-signer-keystore'),
@@ -40,10 +39,9 @@ export function DefaultSignerRow() {
       icon: <IconFileKey size={18} />,
       isDisabled: !keystore && current !== 'keystore',
     },
+    { value: 'local_bku', label: t.t('ng-ui-set-signer-card'), description: t.t('ng-ui-set-signer-card-desc'), icon: <IconCard size={18} /> },
+    { value: 'ask', label: t.t('ng-ui-set-signer-ask'), description: t.t('ng-ui-set-signer-ask-desc') },
   ];
-  // Mobile: keine lokale Chipkarten-Software (Plan §5.2)
-  if (!s.mobile) options.push({ value: 'local_bku', label: t.t('ng-ui-set-signer-card'), description: t.t('ng-ui-set-signer-card-desc'), icon: <IconCard size={18} /> });
-  options.push({ value: 'ask', label: t.t('ng-ui-set-signer-ask'), description: t.t('ng-ui-set-signer-ask-desc') });
   return (
     <ChoiceCards<DefaultChoice>
       label={t.t('ng-ui-set-default')}
@@ -274,7 +272,7 @@ function KeystoreDetails() {
   const { t } = useApp();
   const s = useSettings();
   const storage = s.get<PasswordStorage>('keystore.password_storage');
-  // die Schlüssel lassen sich nur aus einer PKCS#12-Datei lesen (Mobile: immer PKCS#12, per Import)
+  // die Schlüssel lassen sich nur aus einer PKCS#12-Datei lesen
   const pkcs12 = s.view.keystore_format === 'pkcs12';
   return (
     <>
@@ -287,40 +285,22 @@ function KeystoreDetails() {
         options={[
           { value: 'none', label: t.t('ng-ui-set-keystore-storage-none') },
           { value: 'memory', label: t.t('ng-ui-set-keystore-storage-memory') },
-          // Mobile: Keychain bzw. Android Keystore – wie „Im sicheren Speicher“ bei „Passwort merken?“
-          { value: 'keychain', label: t.t(s.mobile ? 'ng-ui-set-keystore-storage-keychain-mobile' : 'ng-ui-set-keystore-storage-keychain'), isDisabled: !s.view.keychain_available },
+          { value: 'keychain', label: t.t('ng-ui-set-keystore-storage-keychain'), isDisabled: !s.view.keychain_available },
         ]}
       />
     </>
   );
 }
 
+/** Keystore (nur Desktop; auf iOS/Android gibt es keinen Keystore, ADR 0004 Nachtrag 11). */
 export function KeystoreRow() {
   const { t, bridge, toast } = useApp();
   const s = useSettings();
-  const [importing, setImporting] = useState(false);
   const enabled = s.get<boolean>('keystore.enabled');
   const file = s.get<string | null>('keystore.file');
   const fileProblem = s.problem('keystore.file');
   // Format am Inhalt (Kern); solange die neue Wahl noch nicht bestätigt ist, ohne Hinweis
   const format = s.isPending('keystore.file') ? null : s.view.keystore_format;
-
-  if (s.mobile) {
-    // Mobile: nur PKCS#12 und nur über den Import in die App-Sandbox (kein Dateipfad)
-    return (
-      <AccountCard icon={<IconFileKey size={18} />} title={t.t('ng-ui-set-keystore')}>
-        <p>{file ? t.t('ng-ui-keystore-current', { name: baseName(file) }) : t.t('ng-ui-backend-keystore-import-hint')}</p>
-        {fileProblem ? <p className="field-error">{fileProblem}</p> : null}
-        <div className="button-row">
-          <Button variant="secondary" size="sm" onPress={() => setImporting(true)}>
-            {t.t('ng-ui-keystore-import')}
-          </Button>
-        </div>
-        {file ? <KeystoreDetails /> : null}
-        {importing ? <KeystoreImportDialog onClose={() => setImporting(false)} /> : null}
-      </AccountCard>
-    );
-  }
 
   const pick = async () => {
     try {

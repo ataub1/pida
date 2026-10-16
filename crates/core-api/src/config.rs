@@ -6,10 +6,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use pida_backend_api::BackendId;
+use pida_backend_api::{BackendId, Platform};
 use pida_config::{
-    ConfigError, ConfigSource, Effective, LoadOutcome, MemorySecretStore, Overlay, Paths, PlaceholderKind, Policy,
-    SecretStore, Settings, SignatureProfile, load_config_source_with_secrets, resolve_config_file,
+    BackendChoice, ConfigError, ConfigSource, Effective, LoadOutcome, MemorySecretStore, Overlay, Paths,
+    PlaceholderKind, Policy, SecretStore, Settings, SignatureProfile, load_config_source_with_secrets,
+    resolve_config_file,
 };
 use pida_i18n::Lang;
 use pida_workflow::Context;
@@ -43,6 +44,9 @@ pub(crate) struct ConfigState {
     /// Speichern zurückgestellt: Ersteinrichtung mit offenem Übernahmeangebot (die Datei entsteht erst mit
     /// der Entscheidung, sonst verschwände das Angebot beim nächsten Start; ADR 0004 §3.12)
     pub defer_save: bool,
+    /// Signieren mit Keystore auf dieser Plattform (Desktop ja; iOS/Android nein – nur ID Austria, ADR 0004
+    /// Nachtrag 11, [`crate::mobile_signers`]); gesetzt von [`ConfigState::adopt_platform`] nach jedem Laden
+    pub keystore_offered: bool,
 }
 
 impl std::fmt::Debug for ConfigState {
@@ -56,6 +60,7 @@ impl std::fmt::Debug for ConfigState {
             .field("migration_offer", &self.migration_offer.is_some())
             .field("fresh_install", &self.fresh_install)
             .field("defer_save", &self.defer_save)
+            .field("keystore_offered", &self.keystore_offered)
             .finish_non_exhaustive()
     }
 }
@@ -127,8 +132,30 @@ impl ConfigState {
             legacy_dir,
             fresh_install,
             defer_save: false,
+            keystore_offered: true,
         };
         Ok((state, problem))
+    }
+
+    /// Plattform übernehmen (nach jedem Laden, Zurücksetzen und Übernehmen): auf iOS/Android gibt es nur ID
+    /// Austria – ein gespeichertes Standard-Signiermittel Keystore (bzw. Chipkarte) gilt als ID Austria; der
+    /// Abschnitt `[keystore]` bleibt unberührt und wird nur ignoriert (ADR 0004 Nachtrag 11).
+    pub(crate) fn adopt_platform(&mut self, platform: Platform) {
+        self.keystore_offered = crate::mobile_signers::keystore_offered(platform);
+        if !self.keystore_offered && crate::mobile_signers::map_default_signer(&mut self.settings) {
+            tracing::info!("gespeichertes Standard-Signiermittel auf ID Austria abgebildet (Mobile: nur ID Austria)");
+        }
+    }
+
+    /// Effektives Standard-Signiermittel (Richtlinie > Overlay > Einstellung, [`Effective::default_backend`]).
+    /// Auf iOS/Android ist ID Austria das einzige Signiermittel und damit immer der Standard (sofern die
+    /// Richtlinie es erlaubt) – auch bei „Jedes Mal fragen“; signiert wird trotzdem nur nach einer
+    /// ausdrücklichen Aktion (A1, Autostart-Befund F-54).
+    pub(crate) fn default_backend(&self) -> Option<BackendChoice> {
+        if self.keystore_offered {
+            return self.effective().default_backend();
+        }
+        self.policy.as_ref().is_none_or(|p| p.allows(BackendChoice::IdAustria)).then_some(BackendChoice::IdAustria)
     }
 
     pub(crate) fn effective(&self) -> Effective<'_> {
@@ -176,7 +203,7 @@ impl ConfigState {
             invisible: eff.profile() == SignatureProfile::Invisible,
             placeholder_search: self.settings.placeholder.search,
             placeholder_fields: self.settings.placeholder.kind == PlaceholderKind::Fields,
-            default_backend: eff.default_backend(),
+            default_backend: self.default_backend(),
             skip_finish: eff.skip_finish(),
             headless,
             output_postfix: self.settings.output.postfix.clone(),
@@ -283,6 +310,39 @@ mod tests {
         assert!(ctx.auto_position && ctx.invisible && ctx.placeholder_search && ctx.placeholder_fields && ctx.headless);
         assert_eq!(ctx.output_postfix, "_x");
         assert!(!s.context(false).headless);
+    }
+
+    /// iOS/Android (ADR 0004 Nachtrag 11): ID Austria ist der Standard, ein gespeicherter Keystore- bzw.
+    /// Chipkarten-Standard wird beim Laden abgebildet, `[keystore]` bleibt; Desktop unverändert.
+    #[test]
+    fn mobile_default_signer_is_id_austria() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (mut s, _) = state(tmp.path(), Overlay { backend: Some(BackendChoice::Keystore), ..Overlay::default() });
+        s.settings.backend.default = Some(BackendChoice::Keystore);
+        s.settings.keystore.enabled = true;
+        s.settings.keystore.file = Some("/var/mobile/k.p12".into());
+        let keystore = s.settings.keystore.clone();
+        s.adopt_platform(Platform::MacOs);
+        assert!(s.keystore_offered);
+        assert_eq!(s.default_backend(), Some(BackendChoice::Keystore), "Desktop: Overlay bzw. Einstellung");
+        assert_eq!(s.settings.backend.default, Some(BackendChoice::Keystore));
+        s.adopt_platform(Platform::Ios);
+        assert!(!s.keystore_offered);
+        assert_eq!(s.settings.backend.default, Some(BackendChoice::IdAustria), "beim Lesen abgebildet");
+        assert_eq!(s.settings.keystore, keystore, "Keystore-Werte nur ignoriert");
+        assert_eq!(s.default_backend(), Some(BackendChoice::IdAustria), "auch gegen das Overlay");
+        assert_eq!(s.context(false).default_backend, Some(BackendChoice::IdAustria));
+        s.settings.backend.default = None;
+        assert_eq!(
+            s.default_backend(),
+            Some(BackendChoice::IdAustria),
+            "„Jedes Mal fragen“: das einzige Signiermittel"
+        );
+        // Richtlinie: ein vorgeschriebener Keystore wird zu ID Austria, ein Verbot von ID Austria lässt keinen Standard
+        s.policy = Some(Policy { forced_backend: Some(BackendChoice::Keystore), ..Policy::default() });
+        assert_eq!(s.default_backend(), Some(BackendChoice::IdAustria));
+        s.policy = Some(Policy { allowed_backends: Some(vec![BackendChoice::Keystore]), ..Policy::default() });
+        assert_eq!(s.default_backend(), None);
     }
 
     #[test]

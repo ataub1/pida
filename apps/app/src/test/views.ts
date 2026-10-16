@@ -167,7 +167,10 @@ export function outputResult(extra: Partial<OutputView> = {}): OutputView {
 
 /* ---------------------------------------------------------------- Arbeitsbereich (ADR 0004) */
 
-/** Signiermittel wie im Kern (ID Austria mit gemerktem Benutzer, lokale BKU, Keystore). */
+/**
+ * Signiermittel wie im Kern (ID Austria mit gemerktem Benutzer, lokale BKU, Keystore); `mobile` = iOS/Android:
+ * nur ID Austria (ADR 0004 Nachtrag 11).
+ */
 export function signersView(extra: Partial<SignersView> = {}, mobile = false): SignersView {
   return {
     options: [
@@ -179,10 +182,12 @@ export function signersView(extra: Partial<SignersView> = {}, mobile = false): S
         notes: mobile ? ['ng-fido2-unavailable-mobile'] : [],
         unavailable_reason: null,
       },
-      ...(mobile ? [] : [{ backend: 'local_bku' as const, available: true, account: null, capabilities: capabilitiesFor('local_bku'), notes: [], unavailable_reason: null }]),
-      mobile
-        ? { backend: 'keystore' as const, available: false, account: null, capabilities: null, notes: [], unavailable_reason: 'ng-signer-keystore-import' }
-        : { backend: 'keystore' as const, available: true, account: 'max.p12 · max', capabilities: capabilitiesFor('keystore'), notes: [], unavailable_reason: null },
+      ...(mobile
+        ? []
+        : [
+            { backend: 'local_bku' as const, available: true, account: null, capabilities: capabilitiesFor('local_bku'), notes: [], unavailable_reason: null },
+            { backend: 'keystore' as const, available: true, account: 'max.p12 · max', capabilities: capabilitiesFor('keystore'), notes: [], unavailable_reason: null },
+          ]),
     ],
     selected: 'atrust_native',
     default: 'atrust_native',

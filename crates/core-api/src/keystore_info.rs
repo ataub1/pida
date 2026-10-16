@@ -157,7 +157,8 @@ impl CoreTask {
     /// Nach jeder Nachricht bei offener Einstellungsansicht: Format der gewählten Datei aktuell halten und die
     /// Einträge einmal je Stand automatisch lesen, wenn ein Passwort bekannt ist.
     pub(crate) fn refresh_keystore_info(&mut self) {
-        if self.settings_view.is_none() {
+        // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): keine Keystore-Angaben
+        if self.settings_view.is_none() || !self.cfg.keystore_offered {
             return;
         }
         let file = self.cfg.settings.keystore.file.clone();

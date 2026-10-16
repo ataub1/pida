@@ -1,7 +1,8 @@
 //! Mobile-Lebenszyklus und Mobile-Funktionen des Kerns (Plan §3.5, §5.2; docs/integration/mobile.md):
 //! App-Wechsel ist kein Abbruch und setzt den Long-Poll fort, „Signatur fortsetzen“ nach einem App-Kill
-//! mit `Prepared::persist/restore`, Signiermittel je Plattform, Ausgabe in die App-Dokumente,
-//! Teilen/Exportieren über die Shell und PKCS#12-Import in die Sandbox.
+//! mit `Prepared::persist/restore`, Signiermittel je Plattform (iOS/Android nur ID Austria, ADR 0004
+//! Nachtrag 11: Einstellungen, Passwörter, „Fortsetzen“ und Übernahme eines früheren Keystores), Ausgabe in
+//! die App-Dokumente, Teilen/Exportieren über die Shell; PKCS#12-Import nur noch am Desktop wirksam.
 
 mod common;
 
@@ -16,7 +17,7 @@ use pida_backend_api::{
     InteractionBroker, InteractionError, NativeForm, Platform, SessionContext, SignJob, SignResult, SignatureBackend,
 };
 use pida_cades::{CmsProfile, DigestAlg, RawSigner, SigningTime};
-use pida_config::{Overlay, SecretId, SecretStore, SecureStorage, Settings, ShellSecretStore};
+use pida_config::{Overlay, PasswordStorage, SecretId, SecretStore, SecureStorage, Settings, ShellSecretStore};
 use pida_core_api::{
     Core, CoreConfig, CoreOptions, FormAnswerView, InteractionView, PlatformOs, ShellHooks, StepView, UiEvent,
     ViewState,
@@ -378,13 +379,16 @@ async fn desktop_does_not_persist_the_prepared_state() {
 // Signiermittel je Plattform, Ausgabe, Teilen/Exportieren
 // ------------------------------------------------------------------------------------------------
 
-/// iOS/Android: keine lokale BKU, ID Austria mit Hinweis „FIDO2 nicht verfügbar“, Keystore nur mit
-/// eingerichteter Datei.
+/// iOS/Android: nur ID Austria (ADR 0004 Nachtrag 11) – keine lokale BKU, kein Keystore (auch nicht mit
+/// eingerichteter Datei), ID Austria mit Hinweis „FIDO2 nicht verfügbar“. Desktop unverändert: Chipkarte und
+/// Keystore.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn mobile_backend_list_has_no_local_bku_and_marks_fido2() {
+async fn mobile_backend_list_has_only_id_austria_and_marks_fido2() {
     for (platform, mobile) in [(Platform::Ios, true), (Platform::Android, true), (Platform::MacOs, false)] {
         let fx = Fixture::new();
-        fx.write_settings("[signature]\nauto_position = true\n");
+        let ks = fx.dir("ks").join("test.p12");
+        std::fs::copy(testdata(P12), &ks).unwrap();
+        fx.write_settings(&format!("[signature]\nauto_position = true\n[keystore]\nenabled = true\nfile = {ks:?}\n"));
         let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
         let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
         let core = start(&fx, platform, options);
@@ -403,8 +407,9 @@ async fn mobile_backend_list_has_no_local_bku_and_marks_fido2() {
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
             assert!(matches!(core.view().step, StepView::Backend { .. }), "{platform:?}: {:?}", core.view().step);
         } else {
-            assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::LocalBku], "{platform:?}");
+            assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::LocalBku, BackendId::Keystore], "{platform:?}");
             assert!(options.iter().all(|o| o.notes.is_empty()));
+            assert!(options[2].available, "Desktop: Keystore wie bisher");
         }
     }
 }
@@ -432,31 +437,25 @@ impl ShellHooks for RecordingHooks {
     }
 }
 
-fn keystore_settings(file: &Path) -> String {
-    format!(
-        "[signature]\nauto_position = true\nprofile = \"INVISIBLE\"\n[backend]\ndefault = \"keystore\"\n[keystore]\nenabled = true\nfile = {file:?}\n"
-    )
-}
-
 /// Ausgabe in die App-Dokumente; „Teilen“ und „Exportieren“ gehen an die Shell (Effekte des Kerns).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn output_goes_to_app_documents_and_can_be_shared_and_exported() {
     let fx = Fixture::new();
-    let ks = fx.dir("ks").join("test.p12");
-    std::fs::copy(testdata(P12), &ks).unwrap();
-    fx.write_settings(&keystore_settings(&ks));
+    fx.write_settings("[signature]\nauto_position = true\nprofile = \"INVISIBLE\"\n");
     let docs = fx.tmp.path().join("Documents");
     let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
     let hooks = Arc::new(RecordingHooks::default());
-    let options = CoreOptions { shell: Some(hooks.clone()), ..mobile_options(&FakeEngine::new(), &docs, None) };
+    let fake = FakeAtrust::new();
+    let options = CoreOptions {
+        shell: Some(hooks.clone()),
+        ..mobile_options(&FakeEngine::new(), &docs, Some(vec![fake.backend()]))
+    };
     let core = start(&fx, Platform::Ios, options);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
-    let v = wait_for(&core, "Passwort", |v| {
-        matches!(&v.step, StepView::Signing { interaction: InteractionView::Secret { .. }, .. })
-    })
-    .await;
-    let StepView::Signing { interaction: InteractionView::Secret { request, .. }, .. } = v.step else { unreachable!() };
-    core.dispatch(UiEvent::SubmitSecret { request, secret: "test".into(), password_storage: None });
+    choose_id_austria(&core).await;
+    // unsichtbar: ohne Zertifikat für den Block, also ohne eigene Anmeldung – gleich die TAN
+    let request = wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
+    core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
     let v =
         wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
             .await;
@@ -471,7 +470,7 @@ async fn output_goes_to_app_documents_and_can_be_shared_and_exported() {
 }
 
 // ------------------------------------------------------------------------------------------------
-// PKCS#12-Import in die Sandbox
+// Mobile nur mit ID Austria (Entscheidung des Auftraggebers 16.10.2026, ADR 0004 Nachtrag 11)
 // ------------------------------------------------------------------------------------------------
 
 #[derive(Debug, Default)]
@@ -494,8 +493,347 @@ impl SecureStorage for FakeSecureStorage {
     }
 }
 
+/// Sicherer Speicher wie in der Mobile-Shell (`ShellSecretStore` auf einem Schlüssel-Wert-Speicher).
+fn shell_secrets() -> (Arc<FakeSecureStorage>, Arc<dyn SecretStore>) {
+    let storage = Arc::new(FakeSecureStorage::default());
+    let secrets: Arc<dyn SecretStore> = Arc::new(ShellSecretStore::new(storage.clone()));
+    (storage, secrets)
+}
+
+/// Einstellungen eines früheren Mobile-Builds: importierter Keystore (Datei in `data_dir/keystores`), als
+/// Standard-Signiermittel, Passwörter im sicheren Speicher; daneben ein Proxy-Passwort und ein fremder Eintrag.
+fn earlier_mobile_build(fx: &Fixture, storage: &FakeSecureStorage, secrets: &dyn SecretStore) -> PathBuf {
+    let keystores = fx.paths.data_dir.join("keystores");
+    std::fs::create_dir_all(&keystores).unwrap();
+    let ks = keystores.join("test.p12");
+    std::fs::copy(testdata(P12), &ks).unwrap();
+    fx.write_settings(&format!(
+        "[backend]\ndefault = \"keystore\"\n[keystore]\nenabled = true\nfile = {ks:?}\nalias = \"max\"\n\
+         declared_type = \"PKCS12\"\npassword_storage = \"keychain\"\n"
+    ));
+    secrets.set(&SecretId::keystore_store(&ks), "test").unwrap();
+    secrets.set(&SecretId::keystore_key(&ks, "max"), "test").unwrap();
+    secrets.set(&SecretId::keystore_key(&ks, ""), "test").unwrap();
+    secrets.set(&SecretId::proxy("proxy.example.test", "u"), "proxy-geheim").unwrap();
+    storage.set("ANDERE-APP/keystore-store:/x.p12", "fremd").unwrap();
+    ks
+}
+
+fn keystore_entries(storage: &FakeSecureStorage) -> Vec<String> {
+    let mut keys: Vec<String> =
+        storage.0.lock().unwrap().keys().filter(|k| k.starts_with("PIDA/keystore-")).cloned().collect();
+    keys.sort();
+    keys
+}
+
+fn workspace_options(secrets: &Arc<dyn SecretStore>, docs: &Path) -> CoreOptions {
+    CoreOptions {
+        secret_store: Some(secrets.clone()),
+        workspace_ui: Some(true),
+        batch_overview: Some(true),
+        engine: Some(FakeEngine::new()),
+        default_output_dir: Some(docs.to_path_buf()),
+        ..CoreOptions::isolated()
+    }
+}
+
+fn file_settings(fx: &Fixture) -> Settings {
+    Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap()
+}
+
+/// Einstellungen eines früheren Mobile-Builds mit Keystore als Standard (ADR 0004 Nachtrag 11): der Kern
+/// registriert keinen Keystore, bietet nur ID Austria an (Konto-Chip ohne „Keystore einrichten“, Standard ID
+/// Austria), die Einstellungsansicht ohne Keystore-Angaben; die Werte unter `[keystore]` bleiben in der Datei.
+/// Die Keystore-Passwörter im sicheren Speicher entfernt er beim ersten Start **einmalig** (nur Einträge von
+/// PIDA). Import, Prüfung und jede Wahl des Keystores bleiben ohne Wirkung – ohne Sitzung.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn pkcs12_import_copies_into_the_sandbox_and_configures_the_keystore() {
+async fn keystore_of_an_earlier_mobile_build_is_ignored_and_its_passwords_removed_once() {
+    let fx = Fixture::new();
+    let (storage, secrets) = shell_secrets();
+    let ks = earlier_mobile_build(&fx, &storage, secrets.as_ref());
+    let keystore_before = file_settings(&fx).keystore;
+    assert_eq!(keystore_entries(&storage).len(), 3);
+    let docs = fx.dir("docs");
+    let core = start(&fx, Platform::Ios, workspace_options(&secrets, &docs));
+    let v = wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. })).await;
+
+    // nur ID Austria, als Standard gewählt
+    let ids: Vec<BackendId> = v.signers.options.iter().map(|o| o.backend).collect();
+    assert_eq!(ids, vec![BackendId::AtrustNative]);
+    assert_eq!(v.signers.default, Some(BackendId::AtrustNative));
+    assert_eq!(v.signers.selected, Some(BackendId::AtrustNative));
+    assert!(v.keystore_import.is_none());
+    // Keystore-Passwörter entfernt, Proxy-Passwort und fremde Einträge bleiben; Merker gesetzt
+    assert!(keystore_entries(&storage).is_empty(), "{:?}", keystore_entries(&storage));
+    assert!(storage.0.lock().unwrap().contains_key("ANDERE-APP/keystore-store:/x.p12"));
+    let proxy = secrets.get(&SecretId::proxy("proxy.example.test", "u")).unwrap();
+    assert_eq!(proxy.as_deref().map(String::as_str), Some("proxy-geheim"));
+    assert!(fx.paths.data_dir.join("keystore-secrets-removed").is_file());
+    assert!(ks.is_file(), "die Datei selbst bleibt");
+
+    // Einstellungen: Standard ID Austria, `[keystore]` unverändert, keine Keystore-Angaben
+    core.dispatch(UiEvent::OpenSettings);
+    let v = wait_for(&core, "Einstellungen", |v| v.settings.is_some()).await;
+    let s = v.settings.unwrap();
+    assert_eq!(s.settings.backend.default, Some(pida_config::BackendChoice::IdAustria));
+    assert_eq!(s.settings.keystore, keystore_before, "Keystore-Werte nicht löschen, nur ignorieren");
+    assert!(!s.keystore_ready);
+    assert_eq!((s.keystore_format, s.keystore_entries, s.keystore_inspect_problem), (None, None, None));
+    assert!(s.problems.keys().all(|k| !k.starts_with("keystore.")), "{:?}", s.problems);
+    // „Schlüssel anzeigen“ (mit bekanntem Passwort) und Import: ohne Wirkung
+    core.dispatch(UiEvent::InspectKeystore { password: Some("test".into()), password_storage: None });
+    let p12 = fx.dir("import").join("neu.p12");
+    std::fs::copy(testdata(P12), &p12).unwrap();
+    core.dispatch(UiEvent::ImportKeystore { path: p12.clone(), password: Some("test".into()), remember: true });
+    // sofort wirksame Einstellungen: Keystore und Keystore als Standard abgelehnt, anderes übernommen
+    let changes = [
+        ("keystore.enabled", serde_json::json!(false)),
+        ("keystore.file", serde_json::json!("/x.p12")),
+        ("backend.default", serde_json::json!("keystore")),
+        ("signature.profile", serde_json::json!("AMTSSIGNATURBLOCK")),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_owned(), v))
+    .collect();
+    core.dispatch(UiEvent::ApplySettings { changes, revision: 1 });
+    let v = wait_for(&core, "übernommen", |v| v.settings.as_ref().is_some_and(|s| s.applied_revision == 1)).await;
+    let s = v.settings.unwrap();
+    for field in ["keystore.enabled", "keystore.file", "backend.default"] {
+        assert_eq!(s.problems.get(field).map(String::as_str), Some("ng-settings-unavailable-mobile"), "{field}");
+    }
+    assert_eq!(s.settings.signature.profile, pida_config::SignatureProfile::Amtssignaturblock);
+    assert!(s.keystore_entries.is_none() && s.keystore_inspect_problem.is_none());
+    assert!(v.keystore_import.is_none(), "kein Import");
+    assert!(!fx.paths.data_dir.join("keystores/neu.p12").exists());
+    let saved = file_settings(&fx);
+    assert_eq!(saved.backend.default, Some(pida_config::BackendChoice::IdAustria), "beim Lesen abgebildet");
+    assert_eq!(saved.keystore, keystore_before, "Abschnitt `[keystore]` unverändert gespeichert");
+    assert!(keystore_entries(&storage).is_empty(), "ein richtiges Passwort wird nicht gemerkt");
+    core.dispatch(UiEvent::CloseSettings);
+
+    // Arbeitsbereich und Stapel: jede Wahl des Keystores ohne Wirkung, keine Sitzung
+    let inbox = fx.dir("inbox");
+    let a = copy_pdf(PDF, &inbox, "a.pdf");
+    let b = copy_pdf(PDF, &inbox, "b.pdf");
+    std::fs::write(&b, [std::fs::read(&b).unwrap().as_slice(), b"\n%b\n"].concat()).unwrap();
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
+    wait_for(&core, "Arbeitsbereich", |v| v.document.is_some() && v.actions.sign).await;
+    core.dispatch(UiEvent::SelectSigner { backend: Some(BackendId::Keystore), make_default: true });
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    core.dispatch(UiEvent::SubmitSecret {
+        request: 1,
+        secret: "test".into(),
+        password_storage: Some(PasswordStorage::Keychain),
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    let v = core.view();
+    assert!(v.document.is_some() && v.actions.sign, "kein Signieren: {:?}", v.step);
+    assert_eq!(v.signers.selected, Some(BackendId::AtrustNative));
+    assert_eq!(v.signers.default, Some(BackendId::AtrustNative));
+    core.dispatch(UiEvent::OpenFiles { paths: vec![b], mode: Some(pida_core_api::OpenFilesMode::Add) });
+    let v = wait_for(&core, "Stapel", |v| batch_ready(v, 2)).await;
+    let docs_in_batch = v.batch.as_ref().unwrap().items.iter().map(|i| i.doc).collect();
+    core.dispatch(UiEvent::StartBatch {
+        backend: BackendId::Keystore,
+        docs: docs_in_batch,
+        output_dir: None,
+        on_existing: pida_workflow::ExistingPolicy::KeepBoth,
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert!(matches!(core.view().step, StepView::Batch), "kein Stapellauf mit Keystore: {:?}", core.view().step);
+    let estimate = core.view().batch.and_then(|b| b.estimate).expect("Schätzung");
+    assert_eq!(estimate.backend, BackendId::AtrustNative, "Stapel signiert mit ID Austria");
+    drop(core);
+
+    // zweiter Start: einmalig – ein (z. B. von einer anderen Quelle) neu abgelegtes Passwort bleibt
+    secrets.set(&SecretId::keystore_store(&ks), "test").unwrap();
+    let core = start(&fx, Platform::Ios, workspace_options(&secrets, &docs));
+    wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. })).await;
+    assert_eq!(keystore_entries(&storage).len(), 1, "nur beim ersten Start entfernt");
+}
+
+/// Desktop-Gegenprobe: dieselben Einstellungen und Passwörter – Keystore wie bisher (registriert, Standard,
+/// Passwort aus dem Schlüsselbund), nichts entfernt, kein Merker.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn desktop_keeps_the_keystore_of_the_same_settings() {
+    let fx = Fixture::new();
+    let (storage, secrets) = shell_secrets();
+    let ks = earlier_mobile_build(&fx, &storage, secrets.as_ref());
+    let core = start(&fx, Platform::Linux, workspace_options(&secrets, &fx.dir("docs")));
+    let v =
+        wait_for(&core, "Start", |v| matches!(v.step, StepView::Open { .. }) && !v.signers.options.is_empty()).await;
+    let keystore = v.signers.options.iter().find(|o| o.backend == BackendId::Keystore).expect("Keystore");
+    assert!(keystore.available);
+    assert_eq!(keystore.account.as_deref(), Some("test.p12 · max"));
+    assert_eq!(v.signers.default, Some(BackendId::Keystore));
+    assert_eq!(keystore_entries(&storage).len(), 3, "nichts entfernt");
+    assert!(!fx.paths.data_dir.join("keystore-secrets-removed").exists());
+    core.dispatch(UiEvent::OpenSettings);
+    let v =
+        wait_for(&core, "Einstellungen", |v| v.settings.as_ref().is_some_and(|s| s.keystore_format.is_some())).await;
+    let s = v.settings.unwrap();
+    assert_eq!(s.settings.backend.default, Some(pida_config::BackendChoice::Keystore));
+    assert!(s.keystore_ready);
+    assert_eq!(s.settings.keystore.file.as_deref(), Some(ks.as_path()));
+}
+
+/// Eingeschalteter Keystore eines früheren Builds, Datei fehlt: auf Mobile nur ID Austria, aber **keine**
+/// automatische ID-Austria-Sitzung (F-54, ADR 0003 – ohne „Signieren“ bleibt die Auswahl), und kein
+/// Keystore-Problem in den Einstellungen. Desktop: Problem „Datei nicht gefunden“ wie bisher.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn keystore_settings_of_an_earlier_build_do_not_start_id_austria_automatically() {
+    for platform in [Platform::Ios, Platform::Linux] {
+        let fx = Fixture::new();
+        let gone = fx.tmp.path().join("weg/keystores/test.p12");
+        fx.write_settings(&format!("[signature]\nauto_position = true\n[keystore]\nenabled = true\nfile = {gone:?}\n"));
+        let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
+        let core = start(&fx, platform, options);
+        let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
+        core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
+        let v =
+            wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()))
+                .await;
+        let StepView::Backend { options } = v.step else { unreachable!() };
+        let ids: Vec<BackendId> = options.iter().map(|o| o.id).collect();
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(matches!(core.view().step, StepView::Backend { .. }), "{platform:?}: kein Autostart");
+        core.dispatch(UiEvent::OpenSettings);
+        let v = wait_for(&core, "Einstellungen", |v| v.settings.is_some()).await;
+        let problem = v.settings.unwrap().problems.get("keystore.file").cloned();
+        if platform == Platform::Ios {
+            assert_eq!(ids, vec![BackendId::AtrustNative]);
+            assert_eq!(problem, None);
+        } else {
+            assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::LocalBku, BackendId::Keystore]);
+            assert!(!options[2].available);
+            assert_eq!(problem.as_deref(), Some("ng-keystore-file-not-found"));
+        }
+    }
+}
+
+/// „Signatur fortsetzen“ eines Keystore-Vorgangs aus einem früheren Mobile-Build: gibt es nicht – der Kern
+/// verwirft den gesicherten Zustand beim Start mit Hinweis, statt ihn anzubieten; nichts bricht, ID Austria
+/// signiert danach wie gewohnt.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn keystore_resume_of_an_earlier_build_is_discarded() {
+    let fx = Fixture::new();
+    fx.write_settings("[signature]\nauto_position = true\n");
+    let docs = fx.dir("docs");
+    let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
+    let core = start(
+        &fx,
+        Platform::Android,
+        mobile_options(&FakeEngine::new(), &docs, Some(vec![FakeAtrust::new().backend()])),
+    );
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone()], mode: None });
+    choose_id_austria(&core).await;
+    login(&core).await;
+    wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
+    drop(core);
+    // wie von einem früheren Build mit Keystore gesichert
+    let record = resume_dir(&fx).join("resume.json");
+    let mut json: serde_json::Value = serde_json::from_slice(&std::fs::read(&record).unwrap()).unwrap();
+    assert_eq!(json["backend"], "atrust_native");
+    json["backend"] = serde_json::json!("keystore");
+    std::fs::write(&record, serde_json::to_vec(&json).unwrap()).unwrap();
+
+    let fake = FakeAtrust::new();
+    let core = start(&fx, Platform::Android, mobile_options(&FakeEngine::new(), &docs, Some(vec![fake.backend()])));
+    let v = wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-resume-signer-not-offered")).await;
+    assert!(v.resume.is_none(), "kein Angebot");
+    assert!(!resume_dir(&fx).exists(), "gesicherter Zustand verworfen");
+    core.dispatch(UiEvent::ResumeSignature);
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
+    choose_id_austria(&core).await;
+    login(&core).await;
+    wait_form(&core, "TAN mit ID Austria", |f| matches!(f, NativeForm::SmsTan { .. })).await;
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1);
+}
+
+/// Übernahme aus PDF-Over auf Mobile (ADR 0004 Nachtrag 11): Keystore als Standard wird zu ID Austria, Datei,
+/// Alias und Keystore-Passwörter werden nicht übernommen, die Übernahmeliste erklärt es kurz
+/// (`ng-migration-item-signer-mobile`), ohne Frage nach Klartext-Passwörtern; die Ersteinrichtung bietet nur ID
+/// Austria. Desktop-Gegenprobe: Keystore samt Passwort wie bisher.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn migration_on_mobile_takes_over_no_keystore() {
+    for platform in [Platform::Android, Platform::Linux] {
+        let fx = Fixture::new();
+        let legacy = fx.dir("home/.pdf-over");
+        let ks = legacy.join("test.p12");
+        std::fs::copy(testdata(P12), &ks).unwrap();
+        std::fs::write(
+            legacy.join("PDF-Over.config"),
+            format!(
+                "BKU=KS\nKEYSTORE_ENABLED=true\nKEYSTORE_FILE={}\nKEYSTORE_ALIAS=max\nKEYSTORE_TYPE=PKCS12\n\
+                 KEYSTORE_PASS_STORE_TYPE=disk\nKEYSTORE_STOREPASS=test\nKEYSTORE_KEYPASS=test\n\
+                 MOBILE_NUMBER=+436641234567\nSIGNATURE_PROFILE=AMTSSIGNATURBLOCK\n",
+                ks.display()
+            ),
+        )
+        .unwrap();
+        let store = Arc::new(pida_config::MemorySecretStore::default());
+        let options = CoreOptions {
+            workspace_ui: Some(true),
+            engine: Some(FakeEngine::new()),
+            legacy_dir: Some(legacy.clone()),
+            secret_store: Some(store.clone()),
+            default_output_dir: Some(fx.dir("docs")),
+            ..CoreOptions::isolated()
+        };
+        let core = start(&fx, platform, options);
+        let v = wait_for(&core, "Angebot", |v| v.first_run.as_ref().is_some_and(|f| f.migration.is_some())).await;
+        let offer = v.first_run.unwrap().migration.unwrap();
+        let codes: Vec<&str> = offer.items.iter().map(|i| i.code.as_str()).collect();
+        let mobile = platform == Platform::Android;
+        if mobile {
+            assert!(codes.contains(&"ng-migration-item-signer-mobile"), "{codes:?}");
+            assert!(!codes.contains(&"ng-migration-item-keystore"), "{codes:?}");
+            assert!(!offer.plaintext_secrets, "nur Keystore-Passwörter in der Altdatei – keine Frage");
+            assert_eq!(v.signers.options.iter().map(|o| o.backend).collect::<Vec<_>>(), vec![BackendId::AtrustNative]);
+        } else {
+            assert!(
+                codes.contains(&"ng-migration-item-keystore") && !codes.contains(&"ng-migration-item-signer-mobile")
+            );
+            assert!(offer.plaintext_secrets);
+        }
+        assert!(codes.contains(&"ng-migration-item-username"), "anderes wird übernommen: {codes:?}");
+        core.dispatch(UiEvent::AcceptMigration { store_secrets: true });
+        let v = wait_for(&core, "übernommen", |v| v.notices.iter().any(|n| n.code == "ng-migrate-done")).await;
+        assert!(v.first_run.is_some(), "Ersteinrichtung bleibt offen");
+        let saved = file_settings(&fx);
+        let stored = |id: &SecretId| store.get(id).unwrap().is_some();
+        if mobile {
+            assert_eq!(saved.backend.default, Some(pida_config::BackendChoice::IdAustria));
+            assert_eq!(saved.keystore, pida_config::KeystoreSettings::default(), "ohne Pfad und Alias");
+            assert!(!stored(&SecretId::keystore_store(&ks)) && !stored(&SecretId::keystore_key(&ks, "max")));
+            // Schritt 2 der Ersteinrichtung: Keystore als Standard abgelehnt, das Profil übernommen
+            core.dispatch(UiEvent::UpdateFirstRun {
+                default_backend: Some(pida_config::BackendChoice::Keystore),
+                profile: pida_config::SignatureProfile::SignaturblockSmall,
+                block_language: None,
+            });
+            let v = wait_for(&core, "Schritt 2", |v| {
+                v.first_run.as_ref().is_some_and(|f| f.profile == pida_config::SignatureProfile::SignaturblockSmall)
+            })
+            .await;
+            assert_eq!(v.first_run.unwrap().default_backend, Some(pida_config::BackendChoice::IdAustria));
+            assert_eq!(v.signers.selected, Some(BackendId::AtrustNative));
+        } else {
+            assert_eq!(saved.backend.default, Some(pida_config::BackendChoice::Keystore));
+            assert_eq!(saved.keystore.file.as_deref(), Some(ks.as_path()));
+            assert!(stored(&SecretId::keystore_store(&ks)));
+        }
+        assert_eq!(saved.id_austria.username.as_deref(), Some("+436641234567"));
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// PKCS#12-Import in die Sandbox (Kern; seit ADR 0004 Nachtrag 11 nur noch am Desktop wirksam – die
+// Oberfläche bietet ihn nirgends mehr an, auf iOS/Android ist das Ereignis ohne Wirkung)
+// ------------------------------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn pkcs12_import_copies_into_the_data_folder_and_configures_the_keystore() {
     let fx = Fixture::new();
     fx.write_settings("[signature]\nauto_position = true\n");
     let pick = fx.dir("import");
@@ -503,13 +841,12 @@ async fn pkcs12_import_copies_into_the_sandbox_and_configures_the_keystore() {
     std::fs::copy(testdata(P12), &p12).unwrap();
     let not_p12 = pick.join("kein.p12");
     std::fs::write(&not_p12, b"%PDF-1.7\n").unwrap();
-    let storage = Arc::new(FakeSecureStorage::default());
-    let secrets: Arc<dyn SecretStore> = Arc::new(ShellSecretStore::new(storage.clone()));
+    let (storage, secrets) = shell_secrets();
     let options = CoreOptions {
         secret_store: Some(secrets.clone()),
         ..mobile_options(&FakeEngine::new(), &fx.dir("docs"), None)
     };
-    let core = start(&fx, Platform::Ios, options);
+    let core = start(&fx, Platform::Linux, options);
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
 
     // falsches Format, falsches Passwort: nichts geändert
@@ -541,7 +878,7 @@ async fn pkcs12_import_copies_into_the_sandbox_and_configures_the_keystore() {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(std::fs::metadata(&copy).unwrap().permissions().mode() & 0o777, 0o600);
     }
-    let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
+    let saved = file_settings(&fx);
     assert!(saved.keystore.enabled);
     assert_eq!(saved.keystore.file.as_deref(), Some(copy.as_path()));
     assert_eq!(saved.keystore.declared_type.as_deref(), Some("PKCS12"));
@@ -552,10 +889,8 @@ async fn pkcs12_import_copies_into_the_sandbox_and_configures_the_keystore() {
     assert!(p12.is_file());
     let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
     core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
-    let v = wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if options.len() == 2))
-        .await;
-    let StepView::Backend { options, .. } = v.step else { unreachable!() };
-    assert!(options.iter().any(|o| o.id == BackendId::Keystore && o.available));
+    let keystore_ready = |v: &ViewState| matches!(&v.step, StepView::Backend { options, .. } if options.iter().any(|o| o.id == BackendId::Keystore && o.available));
+    wait_for(&core, "Auswahl", keystore_ready).await;
     core.dispatch(UiEvent::ChooseBackend { backend: BackendId::Keystore });
     wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
         .await;
@@ -573,7 +908,7 @@ async fn pkcs12_import_is_refused_while_signing_and_redacts_the_password() {
     std::fs::copy(testdata(P12), &p12).unwrap();
     let core = start(
         &fx,
-        Platform::Ios,
+        Platform::Linux,
         mobile_options(&FakeEngine::new(), &fx.dir("docs"), Some(vec![FakeAtrust::new().backend()])),
     );
     core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
@@ -585,8 +920,8 @@ async fn pkcs12_import_is_refused_while_signing_and_redacts_the_password() {
     assert!(form_request(&core.view()).is_some(), "Signiervorgang läuft weiter");
 }
 
-/// Import direkt aus der Signiermittel-Auswahl (Mobile, Keystore noch nicht eingerichtet): danach ist der
-/// Keystore dort sofort verfügbar; ohne „merken“ wird das Passwort nicht gespeichert.
+/// Import direkt aus der Signiermittel-Auswahl (Keystore noch nicht eingerichtet): danach ist der Keystore
+/// dort sofort verfügbar; ohne „merken“ wird das Passwort nicht gespeichert.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn pkcs12_import_from_the_backend_selection_offers_the_keystore() {
     let fx = Fixture::new();
@@ -595,9 +930,9 @@ async fn pkcs12_import_from_the_backend_selection_offers_the_keystore() {
     let p12 = fx.dir("import").join("test.p12");
     std::fs::copy(testdata(P12), &p12).unwrap();
     let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
-    let core = start(&fx, Platform::Android, options);
+    let core = start(&fx, Platform::Linux, options);
     core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
-    // nur ID Austria, ohne „Signieren“ kein Autostart: die Auswahl erscheint (kein Zustimmungsdialog)
+    // ohne „Signieren“ kein Autostart: die Auswahl erscheint (kein Zustimmungsdialog)
     wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options } if !options.is_empty())).await;
     core.dispatch(UiEvent::ImportKeystore { path: p12, password: Some("test".into()), remember: false });
     let v = wait_for(&core, "Keystore verfügbar", |v| {
@@ -610,9 +945,9 @@ async fn pkcs12_import_from_the_backend_selection_offers_the_keystore() {
     assert!(!r.password_stored, "ohne „merken“ nichts im sicheren Speicher");
 }
 
-/// Die Kopie der Dateiauswahl im Cache (`mobile_pick_files` → `<cache>/import/<n>/`) verschwindet nach
-/// einem erfolgreichen Import – der private Schlüssel liegt danach nur noch einmal in der Sandbox. Nach
-/// einem falschen Passwort bleibt sie (neuer Versuch mit derselben Datei).
+/// Die Kopie der Dateiauswahl im Cache (`<cache>/import/<n>/`) verschwindet nach einem erfolgreichen Import –
+/// der private Schlüssel liegt danach nur noch einmal im Datenordner. Nach einem falschen Passwort bleibt sie
+/// (neuer Versuch mit derselben Datei).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn pkcs12_import_removes_the_picker_copy_from_the_cache() {
     let fx = Fixture::new();
@@ -621,7 +956,7 @@ async fn pkcs12_import_removes_the_picker_copy_from_the_cache() {
     std::fs::create_dir_all(&pick).unwrap();
     let p12 = pick.join("test.p12");
     std::fs::copy(testdata(P12), &p12).unwrap();
-    let core = start(&fx, Platform::Android, mobile_options(&FakeEngine::new(), &fx.dir("docs"), None));
+    let core = start(&fx, Platform::Linux, mobile_options(&FakeEngine::new(), &fx.dir("docs"), None));
     wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
     core.dispatch(UiEvent::ImportKeystore { path: p12.clone(), password: Some("falsch".into()), remember: false });
     let v = wait_for(&core, "Passwortfehler", |v| v.keystore_import.is_some()).await;
@@ -637,57 +972,32 @@ async fn pkcs12_import_removes_the_picker_copy_from_the_cache() {
     assert!(fx.paths.cache_dir.join("import").is_dir(), "der Import-Ordner selbst bleibt");
 }
 
-/// iOS vergibt bei jedem Update einen neuen Container-Pfad: der in den Einstellungen gespeicherte absolute
-/// Pfad des importierten Keystores zeigt dann ins Leere. Der Kern ordnet die Datei (gleicher Name in
-/// `data_dir/keystores`) neu zu und überträgt die Passwörter im sicheren Speicher – signiert wird ohne
-/// Passwortabfrage und ohne Umweg über ID Austria. Auf dem Desktop bleibt der Pfad unverändert.
+/// iOS/Android: der Import ist ohne Wirkung – keine Kopie, keine Einstellung, kein Ergebnis, kein Passwort im
+/// sicheren Speicher; die Kopie der Dateiauswahl bleibt unberührt (sie gehört der Shell).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn imported_keystore_follows_a_moved_sandbox() {
-    for platform in [Platform::Ios, Platform::Linux] {
+async fn pkcs12_import_is_without_effect_on_mobile() {
+    for platform in [Platform::Ios, Platform::Android] {
         let fx = Fixture::new();
-        let keystores = fx.paths.data_dir.join("keystores");
-        std::fs::create_dir_all(&keystores).unwrap();
-        let now = keystores.join("test.p12");
-        std::fs::copy(testdata(P12), &now).unwrap();
-        let old = fx.tmp.path().join("Application/ALTE-UUID/Library/at.pida/data/keystores/test.p12");
-        fx.write_settings(&format!("{}password_storage = \"keychain\"\n", keystore_settings(&old)));
-        let storage = Arc::new(FakeSecureStorage::default());
-        let secrets: Arc<dyn SecretStore> = Arc::new(ShellSecretStore::new(storage.clone()));
-        secrets.set(&SecretId::keystore_store(&old), "test").unwrap();
-        secrets.set(&SecretId::keystore_key(&old, ""), "test").unwrap();
+        fx.write_settings("[signature]\nauto_position = true\n");
+        let pick = fx.paths.cache_dir.join("import").join("1");
+        std::fs::create_dir_all(&pick).unwrap();
+        let p12 = pick.join("test.p12");
+        std::fs::copy(testdata(P12), &p12).unwrap();
+        let (storage, secrets) = shell_secrets();
         let options = CoreOptions {
             secret_store: Some(secrets.clone()),
             ..mobile_options(&FakeEngine::new(), &fx.dir("docs"), None)
         };
         let core = start(&fx, platform, options);
-        let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
-        core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
-        if platform == Platform::Linux {
-            // Desktop: kein Umzug – der Keystore ist nicht verfügbar, die Auswahl erscheint
-            let v = wait_for(
-                &core,
-                "Auswahl",
-                |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()),
-            )
-            .await;
-            let StepView::Backend { options } = v.step else { unreachable!() };
-            assert!(options.iter().any(|o| o.id == BackendId::Keystore && !o.available));
-            let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
-            assert_eq!(saved.keystore.file.as_deref(), Some(old.as_path()));
-            continue;
-        }
-        // Standard-Signiermittel Keystore, Passwort aus dem sicheren Speicher (umgezogen): keine Abfrage
-        wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
-            .await;
-        let saved = Settings::from_toml(&std::fs::read_to_string(fx.paths.settings_file()).unwrap()).unwrap();
-        assert_eq!(saved.keystore.file.as_deref(), Some(now.as_path()));
-        assert_eq!(secrets.get(&SecretId::keystore_store(&now)).unwrap().as_deref().map(String::as_str), Some("test"));
-        assert_eq!(
-            secrets.get(&SecretId::keystore_key(&now, "")).unwrap().as_deref().map(String::as_str),
-            Some("test")
-        );
-        assert_eq!(secrets.get(&SecretId::keystore_store(&old)).unwrap(), None, "alter Eintrag entfernt");
-        assert_eq!(storage.0.lock().unwrap().len(), 2);
+        wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+        core.dispatch(UiEvent::ImportKeystore { path: p12.clone(), password: Some("test".into()), remember: true });
+        core.dispatch(UiEvent::DismissKeystoreImport);
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(core.view().keystore_import.is_none(), "{platform:?}");
+        assert!(!fx.paths.data_dir.join("keystores").exists());
+        assert!(p12.is_file());
+        assert!(keystore_entries(&storage).is_empty());
+        assert_eq!(file_settings(&fx).keystore, pida_config::KeystoreSettings::default());
     }
 }
 
@@ -724,25 +1034,6 @@ async fn recent_documents_follow_a_moved_sandbox() {
         assert_eq!(saved[0]["path"], serde_json::json!(docs.join("a_signed.pdf")));
         assert_eq!(saved[1]["path"], serde_json::json!(elsewhere));
     }
-}
-
-/// Eingeschalteter, aber fehlender Keystore (nicht neu zuordenbar): auf Mobile **keine** automatische
-/// ID-Austria-Sitzung (F-54 wie PDF-Over: nur ohne aktiven Keystore), sondern die Auswahl.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn missing_keystore_does_not_start_id_austria_automatically() {
-    let fx = Fixture::new();
-    let gone = fx.tmp.path().join("weg/keystores/test.p12");
-    fx.write_settings(&format!("[signature]\nauto_position = true\n[keystore]\nenabled = true\nfile = {gone:?}\n"));
-    let options = CoreOptions { engine: Some(FakeEngine::new()), ..CoreOptions::isolated() };
-    let core = start(&fx, Platform::Ios, options);
-    let a = copy_pdf(PDF, &fx.dir("inbox"), "a.pdf");
-    core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
-    let v = wait_for(&core, "Auswahl", |v| matches!(&v.step, StepView::Backend { options, .. } if !options.is_empty()))
-        .await;
-    let StepView::Backend { options } = v.step else { unreachable!() };
-    let ids: Vec<BackendId> = options.iter().map(|o| o.id).collect();
-    assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::Keystore]);
-    assert!(!options[1].available);
 }
 
 // ------------------------------------------------------------------------------------------------

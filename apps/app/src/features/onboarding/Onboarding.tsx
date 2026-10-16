@@ -4,8 +4,9 @@
  *
  * 1. **PDF-Over-Einstellungen übernehmen** – nur mit Altkonfiguration (`first_run.migration`), mit der Liste
  *    der Übernahmen; ohne Altkonfiguration beginnt die Einrichtung direkt mit Schritt 2.
- * 2. **Standard-Signiermittel** (ID Austria, Keystore – wählbar, sobald eingerichtet –, Chipkarte am Desktop,
- *    „Jedes Mal fragen“) → `update_first_run`, sofort gespeichert.
+ * 2. **Standard-Signiermittel** (ID Austria, Keystore – wählbar, sobald eingerichtet –, Chipkarte, „Jedes Mal
+ *    fragen“) → `update_first_run`, sofort gespeichert. Nur am Desktop: auf iOS/Android wird nur mit ID Austria
+ *    signiert (ADR 0004 Nachtrag 11) – dort entfällt der Schritt.
  * 3. **Signaturbild** (Profil, Blocksprache) mit der Blockvorschau des Kerns (`first_run.preview_revision`)
  *    → `update_first_run`. Die Bildmarke bleibt das PIDA-Siegel, sofern PDF-Over keine eigene gesetzt hatte.
  *
@@ -67,20 +68,24 @@ const LANG_LABEL: Record<LangChoice, string> = {
 };
 
 function FirstRunDialog({ firstRun }: { firstRun: FirstRunView }) {
-  const { t, dispatch } = useApp();
+  const { t, view, dispatch } = useApp();
   // Schritt 1 nur, wenn beim Öffnen ein Angebot vorlag (danach ist es beantwortet und verschwindet)
   const [hadMigration] = useState(() => firstRun.migration !== null);
-  const [step, setStep] = useState<Step>(() => (firstRun.migration ? 0 : 1));
+  // Mobile: nur ID Austria – keine Wahl des Signiermittels (ADR 0004 Nachtrag 11)
+  const signerStep = !isMobile(view);
+  const afterMigration: Step = signerStep ? 1 : 2;
+  const [step, setStep] = useState<Step>(() => (firstRun.migration ? 0 : afterMigration));
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLDivElement>(null);
   const firstStep = useRef(true);
-  const total = hadMigration ? 3 : 2;
-  const n = hadMigration ? step + 1 : step;
+  const steps: Step[] = [...(hadMigration ? [0 as Step] : []), ...(signerStep ? [1 as Step] : []), 2];
+  const total = steps.length;
+  const n = steps.indexOf(step) + 1;
 
-  // Angebot anderswo beantwortet → weiter mit Schritt 2
+  // Angebot anderswo beantwortet → weiter mit dem nächsten Schritt
   useEffect(() => {
-    if (step === 0 && !firstRun.migration) setStep(1);
-  }, [step, firstRun.migration]);
+    if (step === 0 && !firstRun.migration) setStep(afterMigration);
+  }, [step, firstRun.migration, afterMigration]);
 
   // Fokus auf die Überschrift des neuen Schritts (Screenreader hören den Wechsel)
   useEffect(() => {
@@ -109,9 +114,9 @@ function FirstRunDialog({ firstRun }: { firstRun: FirstRunView }) {
         ))}
       </div>
       <div className="ob-body" ref={titleRef}>
-        {step === 0 && firstRun.migration ? <MigrationOfferPane offer={firstRun.migration} showSeal titleId="ob-step-title" onDone={() => setStep(1)} /> : null}
-        {step === 1 ? <SignerStep firstRun={firstRun} onNext={() => setStep(2)} /> : null}
-        {step === 2 ? <BlockStep firstRun={firstRun} onBack={() => setStep(1)} onFinish={() => void finish(false)} busy={busy} /> : null}
+        {step === 0 && firstRun.migration ? <MigrationOfferPane offer={firstRun.migration} showSeal titleId="ob-step-title" onDone={() => setStep(afterMigration)} /> : null}
+        {step === 1 && signerStep ? <SignerStep firstRun={firstRun} onNext={() => setStep(2)} /> : null}
+        {step === 2 ? <BlockStep firstRun={firstRun} onBack={signerStep ? () => setStep(1) : undefined} onFinish={() => void finish(false)} busy={busy} /> : null}
       </div>
       <footer className="ob-footer">
         <Button variant="quiet" size="sm" onPress={later} isDisabled={busy}>
@@ -136,10 +141,10 @@ function useFirstRunUpdate(firstRun: FirstRunView) {
   return { current, update };
 }
 
+/** Standard-Signiermittel (nur Desktop). */
 function SignerStep({ firstRun, onNext }: { firstRun: FirstRunView; onNext: () => void }) {
   const { t, view } = useApp();
   const { current, update } = useFirstRunUpdate(firstRun);
-  const mobile = isMobile(view);
   const option = (id: 'atrust_native' | 'keystore' | 'local_bku') => view.signers.options.find((o) => o.backend === id) ?? null;
   const ida = option('atrust_native');
   const keystore = option('keystore');
@@ -149,7 +154,7 @@ function SignerStep({ firstRun, onNext }: { firstRun: FirstRunView; onNext: () =
     {
       value: 'id_austria',
       label: t.t('ng-ui-set-signer-ida'),
-      description: ida?.account ?? t.t(mobile ? 'ng-ui-set-signer-ida-desc-mobile' : 'ng-ui-set-signer-ida-desc'),
+      description: ida?.account ?? t.t('ng-ui-set-signer-ida-desc'),
       icon: <IconPhone size={18} />,
     },
     {
@@ -159,10 +164,9 @@ function SignerStep({ firstRun, onNext }: { firstRun: FirstRunView; onNext: () =
       icon: <IconFileKey size={18} />,
       isDisabled: !keystoreReady,
     },
+    { value: 'local_bku', label: t.t('ng-ui-set-signer-card'), description: t.t('ng-ui-set-signer-card-desc'), icon: <IconCard size={18} /> },
+    { value: 'ask', label: t.t('ng-ui-set-signer-ask'), description: t.t('ng-ui-set-signer-ask-desc') },
   ];
-  // Mobile: keine lokale Chipkarten-Software
-  if (!mobile) options.push({ value: 'local_bku', label: t.t('ng-ui-set-signer-card'), description: t.t('ng-ui-set-signer-card-desc'), icon: <IconCard size={18} /> });
-  options.push({ value: 'ask', label: t.t('ng-ui-set-signer-ask'), description: t.t('ng-ui-set-signer-ask-desc') });
   return (
     <div className="step-pane">
       <h3 className="step-title" id="ob-step-title" tabIndex={-1}>
@@ -179,7 +183,8 @@ function SignerStep({ firstRun, onNext }: { firstRun: FirstRunView; onNext: () =
   );
 }
 
-function BlockStep({ firstRun, onBack, onFinish, busy }: { firstRun: FirstRunView; onBack: () => void; onFinish: () => void; busy: boolean }) {
+/** Signaturbild; `onBack` fehlt ohne vorigen Schritt (Mobile ohne Übernahmeangebot). */
+function BlockStep({ firstRun, onBack, onFinish, busy }: { firstRun: FirstRunView; onBack?: () => void; onFinish: () => void; busy: boolean }) {
   const { t, bridge } = useApp();
   const { current, update } = useFirstRunUpdate(firstRun);
   const profile = current.profile;
@@ -222,9 +227,11 @@ function BlockStep({ firstRun, onBack, onFinish, busy }: { firstRun: FirstRunVie
         ) : null}
       </div>
       <div className="step-actions">
-        <Button variant="ghost" onPress={onBack}>
-          {t.t('ng-ui-ob-back')}
-        </Button>
+        {onBack ? (
+          <Button variant="ghost" onPress={onBack}>
+            {t.t('ng-ui-ob-back')}
+          </Button>
+        ) : null}
         <Button variant="primary" onPress={onFinish} isDisabled={busy}>
           {t.t('ng-ui-ob-finish')}
         </Button>

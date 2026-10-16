@@ -526,7 +526,8 @@ ng-placeholder-profile-unknown = The signature placeholder names the unknown pro
 ng-ui-args-cli-only = The option { $option } is only available on the command line (pida-cli).
 ng-ui-about-notices = Show third-party licenses
 
-## Mobile (mobile wave, package M0: lifecycle, "resume signature", PKCS#12 import, sharing; plan §5.2)
+## Mobile (mobile wave, package M0: lifecycle, "resume signature", sharing; plan §5.2). Since ADR 0004 addendum 11 the core
+## returns the `ng-keystore-import*` codes on the desktop only (iOS/Android: ID Austria only).
 
 ng-fido2-unavailable-mobile = FIDO2 security keys are not available on this device. Please confirm in the "ID Austria" app or with an SMS TAN.
 ng-resume-expired = An interrupted signature was older than one hour and has been discarded.
@@ -563,23 +564,7 @@ ng-ui-resume-continue = Resume
     .accesskey = R
 ng-ui-resume-discard = Discard
     .accesskey = D
-ng-ui-keystore-import = Import PKCS#12 file …
-    .accesskey = I
-ng-ui-keystore-import-title = Import PKCS#12 keystore
-ng-ui-keystore-import-lead = The file is copied into this app's protected storage; the original remains unchanged.
-ng-ui-keystore-import-choose = Choose file …
-    .accesskey = C
-ng-ui-keystore-import-file = Selected file: { $name }
-ng-ui-keystore-import-password = Keystore password
-ng-ui-keystore-import-remember = Store the password securely on this device
-ng-ui-keystore-import-start = Import
-    .accesskey = m
-ng-ui-keystore-import-done = Done
-ng-ui-keystore-import-stored = The password is stored in the device's secure storage.
-ng-ui-keystore-import-not-stored = The password was not stored; you will be asked for it when signing.
-ng-ui-keystore-current = Imported file: { $name }
 ng-ui-backend-atrust-desc-mobile = Sign with ID Austria: confirm in the "ID Austria" app or with an SMS TAN.
-ng-ui-backend-keystore-import-hint = No keystore on this device yet.
 ng-ui-fido2-unavailable-badge = FIDO2 not available
 ng-ui-browse-mobile = Choose document …
     .accesskey = C
@@ -593,7 +578,7 @@ ng-ui-privacy-statement = The software PIDA processes the data required for the 
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Privacy details
 ng-ui-privacy-local = With a keystore or the smart card (local smart card software) the document is signed on this device and is not uploaded.
-ng-ui-privacy-local-mobile = With a keystore the document is signed on this device and is not uploaded.
+ng-ui-privacy-local-mobile = On this device, documents are signed with ID Austria; for this, the document is sent to A-Trust.
 ng-ui-privacy-atrust-link = A-Trust privacy policy: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Where your documents go when signing is described in the <a>Privacy</a> section.
 ng-ui-certcache-title = Certificate cache
@@ -604,7 +589,6 @@ ng-ui-certcache-title = Certificate cache
 ng-signer-unavailable = The selected signing method is currently not available. Please choose another one.
 ng-signer-localbku-not-running = The smart card software (local BKU) is not running. Start it and try again.
 ng-signer-keystore-missing = No keystore is set up, or the file is missing (Settings › Signing methods).
-ng-signer-keystore-import = There is no keystore on this device yet – import a PKCS#12 file.
 ng-signer-policy = This signing method is not permitted by your organisation.
 ng-signing-cancelled = Signing cancelled – nothing was signed.
 ng-signing-declined = Declined or expired in the app – nothing was signed.
@@ -662,3 +646,9 @@ ng-window-title = PIDA – PDF signature with ID Austria
 ng-keystore-file-not-found = The selected keystore file could not be found. Please choose it again.
 ng-keystore-password-needed = Please enter the keystore password.
 ng-keystore-file-not-found-at = The keystore file “{ $name }” could not be found. Please choose it again under Settings › Signing methods.
+
+## Mobile with ID Austria only (decision of the client, 16.10.2026, ADR 0004 addendum 11)
+
+ng-migration-item-signer-mobile = Signing method: ID Austria – other signing methods from PDF-Over are not available on this device
+ng-migrate-keystore-mobile = { $key } is not imported (on mobile devices, signing uses ID Austria only).
+ng-resume-signer-not-offered = An interrupted signature was discarded because its signing method is no longer available in this app. Please open the document again and sign with ID Austria.

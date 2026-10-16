@@ -167,6 +167,19 @@ function backendFor(choice: Settings['backend']['default']): BackendId | null {
   }
 }
 
+/**
+ * Standard-Signiermittel wie `ConfigState::default_backend` im Kern: auf iOS/Android immer ID Austria (das einzige
+ * Signiermittel, ADR 0004 Nachtrag 11), sonst die Einstellung.
+ */
+function defaultBackend(ctx: MockCtx): BackendId | null {
+  return ctx.platform().mobile ? 'atrust_native' : backendFor(ctx.settings().backend.default);
+}
+
+/** Wahl des Keystores auf Mobilgeräten (dort ohne Wirkung wie `mobile_signers::is_keystore_event`)? */
+function mobileKeystore(ctx: MockCtx, backend: BackendId | null): boolean {
+  return ctx.platform().mobile && backend === 'keystore';
+}
+
 function signerOptions(s: FlowState, ctx: MockCtx): SignerView[] {
   const settings = ctx.settings();
   const isMobile = ctx.platform().mobile;
@@ -186,15 +199,16 @@ function signerOptions(s: FlowState, ctx: MockCtx): SignerView[] {
     const ok = s.opts.localBkuAvailable ?? true;
     out.push({ backend: 'local_bku', available: ok, account: null, capabilities: ok ? capabilitiesFor('local_bku') : null, notes: [], unavailable_reason: ok ? null : 'ng-signer-localbku-not-running' });
   }
-  if (ks.enabled || isMobile) {
-    const ok = ks.enabled && !!ks.file;
+  // Keystore nur am Desktop (iOS/Android: nur ID Austria, ADR 0004 Nachtrag 11)
+  if (ks.enabled && !isMobile) {
+    const ok = !!ks.file;
     out.push({
       backend: 'keystore',
       available: ok,
       account: ok && ks.file ? [fileNameOf(ks.file), ks.alias].filter(Boolean).join(' · ') : null,
       capabilities: ok ? capabilitiesFor('keystore') : null,
       notes: [],
-      unavailable_reason: ok ? null : isMobile ? 'ng-signer-keystore-import' : 'ng-signer-keystore-missing',
+      unavailable_reason: ok ? null : 'ng-signer-keystore-missing',
     });
   }
   return out;
@@ -222,7 +236,7 @@ function makeDoc(s: FlowState, path: string, specOverride?: MockDocSpec): MockDo
 /** Auswahl des Konto-Chips zu Beginn eines Dokuments: Standard, sofern verfügbar (§3.4, §8 F12). */
 function resetSelection(s: FlowState, ctx: MockCtx): void {
   if (s.explicit && s.selected && available(s, ctx, s.selected)) return;
-  const def = backendFor(ctx.settings().backend.default);
+  const def = defaultBackend(ctx);
   s.selected = def && available(s, ctx, def) ? def : null;
   s.explicit = false;
 }
@@ -1065,6 +1079,7 @@ const flowArea: MockArea<FlowState> = {
         }
         return true;
       case 'start_batch':
+        if (mobileKeystore(ctx, e.backend)) return true;
         if (s.stage === 'batch' && b) b.start(e);
         return true;
       case 'set_batch_auto_position':
@@ -1146,10 +1161,12 @@ const flowArea: MockArea<FlowState> = {
         return true;
       }
       case 'select_signer':
+        if (mobileKeystore(ctx, e.backend)) return true;
         s.selected = e.backend && available(s, ctx, e.backend) ? e.backend : null;
         s.explicit = e.backend !== null;
         return true;
       case 'sign_with':
+        if (mobileKeystore(ctx, e.backend)) return true;
         if (s.stage === 'choosing') startSigning(s, ctx, e.backend);
         else if (s.stage === 'editing' && placementAllowed(s)) startSigning(s, ctx, e.backend);
         return true;
@@ -1164,6 +1181,7 @@ const flowArea: MockArea<FlowState> = {
         }
         return true;
       case 'choose_backend':
+        if (mobileKeystore(ctx, e.backend)) return true;
         if (s.stage === 'choosing') startSigning(s, ctx, e.backend);
         return true;
       case 'submit_form':
@@ -1266,7 +1284,7 @@ const flowArea: MockArea<FlowState> = {
         done: s.done.map((x) => structuredClone(x)),
         resume: null,
         document: null,
-        signers: { ...defaultSigners(), options: signerOptions(s, ctx), selected: s.selected, default: backendFor(ctx.settings().backend.default) },
+        signers: { ...defaultSigners(), options: signerOptions(s, ctx), selected: s.selected, default: defaultBackend(ctx) },
         batch: null,
         actions: { ...noActions(), open_files: true, settings: bp.settings_enabled, home: true },
         parked: parkedView(s),
@@ -1283,7 +1301,7 @@ const flowArea: MockArea<FlowState> = {
       done: s.done.map((x) => structuredClone(x)),
       resume: s.stage === 'open' && s.resume ? { ...s.resume } : null,
       document: d && s.edit && phase ? projectDocument(d, s.edit, phase, ctx.settings(), lang, s.preview) : null,
-      signers: { ...defaultSigners(), options, selected: s.selected, default: backendFor(ctx.settings().backend.default) },
+      signers: { ...defaultSigners(), options, selected: s.selected, default: defaultBackend(ctx) },
       batch: s.batch ? s.batch.view() : null,
       actions: actionsView(s, b),
       parked: null,
@@ -1443,11 +1461,11 @@ export class MockCore implements Bridge {
     return this.opts.pickDirectoryResult === undefined ? '/Users/demo/Signiert' : this.opts.pickDirectoryResult;
   }
 
-  async pickMobileFiles(options: { kind: 'pdf' | 'pkcs12'; multiple: boolean }): Promise<string[]> {
+  async pickMobileFiles(options: { kind: 'pdf'; multiple: boolean }): Promise<string[]> {
     this.nativeCalls.push(`pickMobileFiles:${options.kind}:${options.multiple ? 'multiple' : 'single'}`);
     if (!mobile(this.opts)) throw new Error('ng-mobile-unsupported');
     const sandbox = `${SANDBOX}/Library/Caches/import/1`;
-    const result = this.opts.pickMobileFilesResult ?? (options.kind === 'pdf' ? [`${sandbox}/Vertrag.pdf`, `${sandbox}/Angebot.pdf`] : [`${sandbox}/test.p12`]);
+    const result = this.opts.pickMobileFilesResult ?? [`${sandbox}/Vertrag.pdf`, `${sandbox}/Angebot.pdf`];
     return options.multiple ? [...result] : result.slice(0, 1);
   }
 

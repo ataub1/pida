@@ -596,6 +596,13 @@ impl CoreTask {
         let dir = self.resume_dir();
         match resume::load(&dir, SystemTime::now()) {
             resume::Loaded::Nothing => {}
+            // Mobile nur mit ID Austria (ADR 0004 Nachtrag 11): einen Keystore-Vorgang eines früheren Builds gibt
+            // es nicht fortzusetzen – verwerfen statt anbieten (das Original bleibt, wo es war)
+            resume::Loaded::Offer(p) if !self.cfg.keystore_offered && p.record.backend == BackendId::Keystore => {
+                tracing::info!("unterbrochene Keystore-Signatur eines früheren Builds – verworfen (nur ID Austria)");
+                resume::delete(&dir);
+                self.notify(crate::mobile_signers::MSG_RESUME_SIGNER_NOT_OFFERED, BTreeMap::new());
+            }
             resume::Loaded::Offer(p) => {
                 tracing::info!("unterbrochener Signiervorgang gefunden – „Signatur fortsetzen“ wird angeboten");
                 // Kurzhinweis beim Angebot (ADR 0003): Capability des gespeicherten Signiermittels
@@ -666,39 +673,24 @@ impl CoreTask {
 
     /// Mobile: Pfade importierter Dateien nach einem Umzug der Sandbox neu auflösen.
     ///
-    /// Die Einstellungen speichern absolute Pfade (`[keystore] file`, `signature.emblem`). iOS vergibt bei
-    /// jeder Installation bzw. jedem Update einen neuen Container (`…/Application/<UUID>/`), die Dateien
-    /// ziehen mit um – der gespeicherte Pfad zeigte danach ins Leere („Keystore nicht auf diesem Gerät“).
-    /// Liegt die Datei unter demselben Namen im Ordner der importierten Dateien (`data_dir/keystores`
-    /// bzw. `data_dir/emblem`), wird der Pfad umgestellt und – beim Keystore – die Passwörter im sicheren
-    /// Speicher (Konto = Pfad, `SecretId::account`) auf den neuen Pfad übertragen. Andere Pfade bleiben
-    /// unangetastet.
+    /// Die Einstellungen speichern absolute Pfade (`signature.emblem`). iOS vergibt bei jeder Installation
+    /// bzw. jedem Update einen neuen Container (`…/Application/<UUID>/`), die Dateien ziehen mit um – der
+    /// gespeicherte Pfad zeigte danach ins Leere. Liegt die Datei unter demselben Namen im Ordner der
+    /// importierten Dateien (`data_dir/emblem`), wird der Pfad umgestellt. Andere Pfade bleiben unangetastet –
+    /// auch `[keystore] file` eines früheren Mobile-Builds: auf iOS/Android wird nur mit ID Austria signiert,
+    /// die Keystore-Werte werden nur ignoriert (ADR 0004 Nachtrag 11).
     fn relocate_sandbox_files(&mut self) {
         if self.mobile.platform.is_desktop() {
             return;
-        }
-        let mut changed = false;
-        let keystores = self.cfg.paths.data_dir.join(KEYSTORE_DIR);
-        if let Some(old) = self.cfg.settings.keystore.file.clone()
-            && let Some(new) = relocated(&old, &keystores)
-        {
-            let alias = self.cfg.settings.keystore.alias.clone().unwrap_or_default();
-            let secrets = self.cfg.secrets.as_ref();
-            let moved = migrate_secret(secrets, &old, &new, pida_config::SecretId::keystore_store)
-                + migrate_secret(secrets, &old, &new, |p| pida_config::SecretId::keystore_key(p, &alias));
-            tracing::info!(secrets = moved, "importierter Keystore nach Umzug der Sandbox neu zugeordnet");
-            self.cfg.settings.keystore.file = Some(new);
-            changed = true;
         }
         if let Some(old) = self.cfg.settings.signature.emblem.clone()
             && let Some(new) = relocated(&old, &self.cfg.paths.emblem_dir())
         {
             tracing::info!("Bildmarke nach Umzug der Sandbox neu zugeordnet");
             self.cfg.settings.signature.emblem = Some(new);
-            changed = true;
-        }
-        if changed && let Err(e) = self.cfg.save() {
-            tracing::warn!(id = e.message_id(), "Einstellungen nach dem Umzug der Sandbox nicht gespeichert");
+            if let Err(e) = self.cfg.save() {
+                tracing::warn!(id = e.message_id(), "Einstellungen nach dem Umzug der Sandbox nicht gespeichert");
+            }
         }
     }
 
@@ -850,6 +842,7 @@ impl CoreTask {
         // beim Lesen der Altdatei darf das gerade verarbeitete Ereignis nicht verwerfen und sich nicht
         // bei jedem weiteren Ereignis wiederholen (dann: ohne Rückfrage zu Passwörtern). Probelauf wie beim
         // Übernehmen (mit Pfadprüfung), nichts wird geschrieben; daraus auch die Übernahmeliste (§3.12).
+        let keystore_offered = self.cfg.keystore_offered;
         let probe = std::panic::catch_unwind(|| {
             pida_config::LegacyConfig::load(&file)
                 .map(|legacy| {
@@ -858,8 +851,19 @@ impl CoreTask {
                         system_language: Lang::system(),
                         check_paths: true,
                     };
-                    let r = pida_config::migrate(&legacy, &ctx);
-                    (!r.report.secrets_found.is_empty(), crate::first_run::migration_items(&r))
+                    let mut r = pida_config::migrate(&legacy, &ctx);
+                    // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): wie beim Übernehmen ohne Keystore;
+                    // die Liste erklärt das (`ng-migration-item-signer-mobile`)
+                    let dropped =
+                        !keystore_offered && crate::mobile_signers::restrict_migration(&mut r, Lang::system());
+                    let mut items = crate::first_run::migration_items(&r);
+                    if dropped {
+                        items.push(crate::view::MigrationItemView {
+                            code: crate::mobile_signers::MSG_MIGRATION_ITEM_SIGNER.to_owned(),
+                            detail: None,
+                        });
+                    }
+                    (!r.report.secrets_found.is_empty(), items)
                 })
                 .unwrap_or((false, Vec::new()))
         });
@@ -1153,10 +1157,14 @@ impl CoreTask {
         // Ersteinrichtung bei Neuinstallation (ADR 0004 §3.12)
         self.begin_first_run();
         self.relocate_sandbox_files();
+        // Mobile nur mit ID Austria (ADR 0004 Nachtrag 11): Keystore-Passwörter früherer Builds einmalig entfernen
+        self.remove_former_keystore_secrets();
         self.registry.configure(&self.cfg);
         self.refresh_signers();
-        // Schlüsselbund gewünscht, aber nicht verfügbar (z. B. Linux ohne Secret Service): Hinweis
-        if self.cfg.settings.keystore.password_storage == pida_config::PasswordStorage::Keychain
+        // Schlüsselbund für Keystore-Passwörter gewünscht, aber nicht verfügbar (z. B. Linux ohne Secret
+        // Service): Hinweis – nur dort, wo es den Keystore gibt
+        if self.cfg.keystore_offered
+            && self.cfg.settings.keystore.password_storage == pida_config::PasswordStorage::Keychain
             && !self.cfg.secrets.is_persistent()
         {
             self.notify("ng-secrets-not-persistent", BTreeMap::new());
@@ -1228,7 +1236,7 @@ impl CoreTask {
             self.state = t.state;
             if was_running && !matches!(self.state, State::BatchSigning { .. }) {
                 // „Jedes Mal fragen“: die Auswahl gilt nur bis zum Ende des Stapellaufs (§8 F12)
-                if self.cfg.effective().default_backend().is_none() {
+                if self.cfg.default_backend().is_none() {
                     self.ws.selection = None;
                 }
                 // Zieldateien, gemerkte Passwörter und Zertifikats-Cache können sich im Lauf geändert haben
@@ -2210,7 +2218,10 @@ impl CoreTask {
         // (`OfferMigration`, ADR 0004 §3.12); ohne Angebot beim Zurücksetzen selbst (`offer_migration = false`)
         let legacy_dir = self.cfg.legacy_dir.clone();
         match ConfigState::load(paths, overlay, self.cfg.policy.clone(), self.cfg.secrets.clone(), legacy_dir, false) {
-            Ok((cfg, _)) => self.cfg = cfg,
+            Ok((mut cfg, _)) => {
+                cfg.adopt_platform(self.mobile.platform);
+                self.cfg = cfg;
+            }
             Err(e) => tracing::warn!(id = e.message_id(), "Einstellungen nach Zurücksetzen nicht geladen"),
         }
         self.refresh_ctx();
@@ -2261,6 +2272,14 @@ impl CoreTask {
             )
         {
             tracing::debug!(event = ui_event_kind(&event), "Arbeit geparkt – ignoriert");
+            return;
+        }
+        // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): Import, Prüfung und jede Wahl des Keystores
+        // bleiben ohne Wirkung
+        if !self.cfg.keystore_offered
+            && let Some(kind) = crate::mobile_signers::is_keystore_event(&event)
+        {
+            tracing::info!(event = kind, "Keystore auf Mobilgeräten nicht verfügbar (nur ID Austria) – ignoriert");
             return;
         }
         match event {
@@ -2341,9 +2360,12 @@ impl CoreTask {
             }
             UiEvent::SubmitSecret { request, secret, password_storage } => {
                 let secret = zeroize::Zeroizing::new(secret);
-                // „Passwort merken?“ (erste Verwendung): vor der Antwort, damit sie schon für dieses Passwort gilt
-                if let Some(storage) = password_storage {
-                    self.answer_storage_for_prompt(request, storage);
+                // „Passwort merken?“ (erste Verwendung): vor der Antwort, damit sie schon für dieses Passwort gilt;
+                // die Frage gibt es nur zum Keystore (auf Mobilgeräten ohne Wirkung, ADR 0004 Nachtrag 11)
+                match password_storage {
+                    Some(storage) if self.cfg.keystore_offered => self.answer_storage_for_prompt(request, storage),
+                    Some(_) => tracing::info!("Speicherart auf Mobilgeräten ohne Keystore – ignoriert"),
+                    None => {}
                 }
                 if !self.shared.broker.answer_secret(request, secret) {
                     tracing::debug!(request, "Passwortantwort ohne offene Anfrage");
@@ -2632,7 +2654,7 @@ impl CoreTask {
         self.options = self.registry.options(&env);
         self.ws.signer_options = self.options.clone();
         // „Jedes Mal fragen“: die Wahl gilt für diesen Lauf (§8 F12)
-        if self.ws.selection.is_none() && self.cfg.effective().default_backend().is_none() {
+        if self.ws.selection.is_none() && self.cfg.default_backend().is_none() {
             self.ws.selection = Some(Selection { backend: Some(backend), doc: None });
         }
         self.apply(Event::BatchStarted { backend, docs, output, on_existing, options: self.options.clone() });
@@ -2668,7 +2690,7 @@ impl CoreTask {
         self.ws.signer_options = self.options.clone();
         // „Jedes Mal fragen“ ohne Auswahl: die Wahl im Menü gilt für dieses Dokument (§8 F12); mit Standard
         // bleibt der Konto-Chip beim Standard bzw. bei der Auswahl
-        let default = self.cfg.effective().default_backend();
+        let default = self.cfg.default_backend();
         if self.ws.selection.is_none() && default.is_none() {
             let doc = self.state.queue().and_then(|q| q.current_id());
             self.ws.selection = Some(Selection { backend: Some(backend), doc });
@@ -2735,7 +2757,13 @@ impl CoreTask {
 
     fn save_settings(&mut self, mut settings: Settings) {
         settings.sanitize();
-        let (problems, blocking) = validate(&settings);
+        if !self.cfg.keystore_offered {
+            // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): `[keystore]` nicht übernehmen, kein Keystore
+            // bzw. keine Chipkarte als Standard
+            settings.keystore = self.cfg.settings.keystore.clone();
+            crate::mobile_signers::map_default_signer(&mut settings);
+        }
+        let (problems, blocking) = self.validate_here(&settings);
         if blocking {
             // klassisch: die Ansicht zeigt die abgelehnte Arbeitskopie mit den Problemen
             self.settings_view = Some(self.settings_view_for(settings, problems));
@@ -2762,6 +2790,16 @@ impl CoreTask {
         self.refresh_signers();
         self.sync_recent();
         self.apply(Event::SettingsChanged);
+    }
+
+    /// Prüfung der Einstellungen ([`validate`]); auf iOS/Android ohne Probleme unter `keystore.*` (dort nur ID
+    /// Austria, die Keystore-Werte werden ignoriert).
+    pub(crate) fn validate_here(&self, settings: &Settings) -> (BTreeMap<String, String>, bool) {
+        let (mut problems, blocking) = validate(settings);
+        if !self.cfg.keystore_offered {
+            problems.retain(|field, _| !field.starts_with("keystore."));
+        }
+        (problems, blocking)
     }
 
     /// Ansicht geöffnet bzw. geschlossen: Feldfehler und Arbeitskopie verwerfen; die zuletzt übernommene
@@ -2854,9 +2892,15 @@ impl CoreTask {
         // vor dem Übernehmen: die übernommenen Einstellungen tragen `first_run_completed = true`
         let first_run = self.first_run_active();
         let legacy_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
+        let keystore_offered = self.cfg.keystore_offered;
         let result = pida_config::LegacyConfig::load(&file).map(|legacy| {
             let ctx = pida_config::MigrationContext { legacy_dir, system_language: Lang::system(), check_paths: true };
-            pida_config::migrate(&legacy, &ctx)
+            let mut r = pida_config::migrate(&legacy, &ctx);
+            // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): ohne Keystore-Datei, Alias und -Passwörter
+            if !keystore_offered {
+                crate::mobile_signers::restrict_migration(&mut r, Lang::system());
+            }
+            r
         });
         // erneutes Angebot (Einstellungen › Erweitert, ADR 0004 §3.12): die vorhandene `settings.toml` wird
         // vorher gesichert (`settings.toml.before-import`)
@@ -2876,6 +2920,7 @@ impl CoreTask {
                     pida_config::LoadOutcome::Loaded(s) => *s,
                     _ => r.settings,
                 };
+                self.cfg.adopt_platform(self.mobile.platform);
                 self.migration_decided(true, first_run);
                 if self.first_run_active() {
                     // Ersteinrichtung bleibt offen (Schritte 2/3 zeigen die übernommenen Werte)
@@ -3153,7 +3198,7 @@ impl CoreTask {
         v.preview_revision = lock(&self.shared.block).revision;
         if !self.apply_state.draft {
             v.settings = self.cfg.settings.clone();
-            let (mut problems, _) = validate(&v.settings);
+            let (mut problems, _) = self.validate_here(&v.settings);
             problems.extend(self.apply_state.rejected.clone());
             v.problems = problems;
         }
@@ -3161,6 +3206,14 @@ impl CoreTask {
         v.applied_revision = self.apply_state.published;
         v.examples = crate::settings_apply::examples(&v.settings);
         v.locked = Some(crate::settings_apply::locked_paths(self.cfg.policy.as_ref()));
+        if !self.cfg.keystore_offered {
+            // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): keine Keystore-Angaben
+            v.keystore_ready = false;
+            v.keystore_format = None;
+            v.keystore_entries = None;
+            v.keystore_inspect_problem = None;
+            return v;
+        }
         // Keystore (Nachtrag ADR 0004): Format am Inhalt; als Standard wählbar nur mit PKCS#12
         let (format, entries, problem) = self.keystore_info.view_for(v.settings.keystore.file.as_deref());
         v.keystore_ready = v.settings.keystore.enabled && format == Some(crate::view::KeystoreFormatView::Pkcs12);
@@ -3413,37 +3466,6 @@ pub(crate) fn relocated(old: &Path, dir: &Path) -> Option<PathBuf> {
     }
     let new = dir.join(old.file_name()?);
     (new != old && new.is_file()).then_some(new)
-}
-
-/// Überträgt ein Secret vom alten auf den neuen Pfad (Konto = Pfad). Der alte Pfad existiert nicht mehr
-/// und wurde beim Speichern kanonisiert: unter iOS ist `/var` ein Symlink auf `/private/var`, deshalb
-/// beide Schreibweisen. Liefert die Anzahl übertragener Secrets.
-fn migrate_secret(
-    secrets: &dyn pida_config::SecretStore,
-    old: &Path,
-    new: &Path,
-    id: impl Fn(&Path) -> pida_config::SecretId,
-) -> usize {
-    let mut candidates = vec![old.to_path_buf()];
-    if let Ok(rest) = old.strip_prefix("/var") {
-        candidates.push(Path::new("/private/var").join(rest));
-    }
-    let target = id(new);
-    for candidate in candidates {
-        let old_id = id(&candidate);
-        if old_id == target {
-            continue;
-        }
-        if let Ok(Some(value)) = secrets.get(&old_id) {
-            if secrets.set(&target, &value).is_err() {
-                tracing::warn!("Passwort nach Umzug der Sandbox nicht übertragen");
-                return 0;
-            }
-            let _ = secrets.delete(&old_id);
-            return 1;
-        }
-    }
-    0
 }
 
 /// Dateiname ohne Pfadanteile und Steuerzeichen; leer → `fallback`.

@@ -301,13 +301,17 @@ describe('Signierkarte: Fehler, Rückfall, Fertigstellen', () => {
     await expectNoAxeViolations();
   });
 
-  it('Mobile-Rückfall ohne Keystore: Import-Assistent aus der Karte', async () => {
+  it('Mobile-Rückfall: nur ID Austria, kein Import (ADR 0004 Nachtrag 11); axe', async () => {
     const options = [{ id: 'atrust_native' as const, available: true, capabilities: capabilitiesFor('atrust_native', true), notes: ['ng-fido2-unavailable-mobile'] }];
     const view = onMobile(viewOf({ step: 'backend', options }, { document: documentView({ phase: 'signing' }), signers: signersView({}, true) }), IOS);
-    const { user } = renderApp({ view, platform: 'ios' });
+    const { mock, user } = renderApp({ view, platform: 'ios' });
     const dialog = await screen.findByRole('dialog', { name: 'Signiermittel wählen' });
-    await user.click(within(dialog).getByRole('button', { name: 'PKCS#12-Datei importieren …' }));
-    expect(await screen.findByRole('alertdialog', { name: 'PKCS#12-Keystore importieren' })).toBeInTheDocument();
+    expect(within(dialog).getAllByRole('radio')).toHaveLength(1);
+    expect(within(dialog).queryByRole('button', { name: /PKCS#12/ })).toBeNull();
+    expect(dialog.textContent).not.toMatch(/Keystore|PKCS/);
+    await expectNoAxeViolations();
+    await user.click(within(dialog).getByRole('button', { name: 'Signieren' }));
+    expect(lastEvent(mock)).toEqual({ type: 'choose_backend', backend: 'atrust_native' });
   });
 
   it('Signatur erstellt, Speichern läuft: Häkchen „Signiert“, kein Abbrechen, Seitenansicht bleibt', async () => {

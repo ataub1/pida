@@ -192,11 +192,15 @@ describe('Keystore: „Schlüssel anzeigen …“ mit Passwort', () => {
     expect(within(keystore).getByRole('button', { name: /Schlüssel/ })).toHaveTextContent('Schlüssel wählen');
   });
 
-  it('Mobile: gleicher Weg nach dem Import ohne Passwort', async () => {
-    const { user, keystore } = await signers(onMobile(settingsView(withKeystore('/var/mobile/k/test.p12'), { keystore_format: 'pkcs12', keystore_ready: true }), IOS));
-    expect(within(keystore).getByText('Importierte Datei: test.p12')).toBeInTheDocument();
-    await user.click(within(keystore).getByRole('button', { name: 'Schlüssel anzeigen …' }));
-    expect(within(keystore).getByLabelText('Passwort des Keystores')).toBeInTheDocument();
+  it('Mobile: kein Keystore – auch mit Keystore-Einstellungen eines früheren Builds (ADR 0004 Nachtrag 11)', async () => {
+    const { user } = renderApp({ view: onMobile(settingsView(withKeystore('/var/mobile/k/test.p12')), IOS) });
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    const nav = within(dialog).getByRole('navigation', { name: 'Bereiche' });
+    await user.click(within(nav).getByRole('button', { name: 'Signiermittel' }));
+    expect(dialog.querySelector('[data-row="signers.keystore"]')).toBeNull();
+    expect(dialog.querySelector('[data-row="signers.default"]')).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Schlüssel anzeigen …' })).toBeNull();
+    expect(dialog.textContent).not.toMatch(/Keystore|PKCS|Schlüssel anzeigen/);
     await expectNoAxeViolations();
   });
 });
@@ -249,15 +253,15 @@ describe('„Passwort merken?“ bei der ersten Verwendung', () => {
     expect(mock.dispatched).toEqual([{ type: 'submit_secret', request: 4, secret: 'geheim', password_storage: 'none' }]);
   });
 
-  it('Signierkarte: Voreinstellung ohne Änderung = „Bis zum Beenden“; Mobile „Im sicheren Speicher“, gesperrt ohne Speicher', async () => {
+  it('Signierkarte: Voreinstellung ohne Änderung = „Bis zum Beenden“; „Im Schlüsselbund“ gesperrt ohne Speicher', async () => {
     const first = renderApp({ view: ksCard(secret(true)) });
     const dialog = await screen.findByRole('dialog', { name: 'Signieren mit Keystore' });
     await first.user.type(within(dialog).getByLabelText('Keystore-Passwort'), 'geheim{Enter}');
     expect(first.mock.dispatched).toEqual([{ type: 'submit_secret', request: 4, secret: 'geheim', password_storage: 'memory' }]);
     first.unmount();
-    renderApp({ view: onMobile(ksCard(secret(true, false)), IOS) });
-    const mobile = await screen.findByRole('dialog', { name: 'Signieren mit Keystore' });
-    expect(within(mobile).getByRole('radio', { name: 'Im sicheren Speicher' })).toBeDisabled();
+    renderApp({ view: ksCard(secret(true, false)) });
+    const locked = await screen.findByRole('dialog', { name: 'Signieren mit Keystore' });
+    expect(within(locked).getByRole('radio', { name: 'Im Schlüsselbund' })).toBeDisabled();
     await expectNoAxeViolations();
   });
 

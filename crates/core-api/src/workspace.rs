@@ -688,11 +688,19 @@ impl crate::runtime::CoreTask {
 
     /// `ViewState::signers` (Konto-Chip): Optionen, Auswahl, Standard.
     pub(crate) fn signers_view(&self) -> SignersView {
-        let default = self.cfg.effective().default_backend().map(pida_workflow::backend_for_choice);
+        // iOS/Android: ID Austria ist das einzige Signiermittel und damit der Standard (ADR 0004 Nachtrag 11)
+        let default = self.cfg.default_backend().map(pida_workflow::backend_for_choice);
         let current = self.state.queue().and_then(|q| q.current_id());
         let options = self.signer_views();
         let available = |id: BackendId| options.iter().any(|o| o.backend == id && o.available);
-        let forced = self.cfg.policy.as_ref().and_then(|p| p.forced_backend).map(pida_workflow::backend_for_choice);
+        // eine Richtlinie, die ein auf Mobilgeräten fehlendes Signiermittel vorschreibt, wählt dort nichts vor
+        let forced = self
+            .cfg
+            .policy
+            .as_ref()
+            .and_then(|p| p.forced_backend)
+            .filter(|f| self.cfg.keystore_offered || *f == pida_config::BackendChoice::IdAustria)
+            .map(pida_workflow::backend_for_choice);
         let selection = self.ws.selection.filter(|s| default.is_some() || s.doc.is_none() || s.doc == current);
         let selected = match (forced, selection) {
             (Some(f), _) => Some(f),
@@ -744,7 +752,6 @@ impl crate::runtime::CoreTask {
                     } else {
                         match o.id {
                             BackendId::LocalBku => "ng-signer-localbku-not-running",
-                            BackendId::Keystore if mobile => "ng-signer-keystore-import",
                             BackendId::Keystore => "ng-signer-keystore-missing",
                             _ => pida_workflow::MSG_SIGNER_UNAVAILABLE,
                         }
@@ -761,15 +768,14 @@ impl crate::runtime::CoreTask {
                 }
             })
             .collect();
-        // Keystore nicht eingerichtet: trotzdem im Menü (Einrichten bzw. Mobile: PKCS#12-Import)
-        if !self.registry.is_fixed() && !out.iter().any(|o| o.backend == BackendId::Keystore) {
-            let reason = if !by_policy(BackendId::Keystore) {
-                "ng-signer-policy"
-            } else if mobile {
-                "ng-signer-keystore-import"
-            } else {
-                "ng-signer-keystore-missing"
-            };
+        // Keystore nicht eingerichtet: trotzdem im Menü (Einrichten in den Einstellungen) – nur am Desktop; auf
+        // iOS/Android gibt es nur ID Austria (ADR 0004 Nachtrag 11)
+        if !self.registry.is_fixed()
+            && self.cfg.keystore_offered
+            && !out.iter().any(|o| o.backend == BackendId::Keystore)
+        {
+            let reason =
+                if !by_policy(BackendId::Keystore) { "ng-signer-policy" } else { "ng-signer-keystore-missing" };
             out.push(SignerView {
                 backend: BackendId::Keystore,
                 available: false,
