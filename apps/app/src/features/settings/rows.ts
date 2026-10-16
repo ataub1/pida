@@ -51,7 +51,6 @@ export type RowId =
   | 'privacy.recent'
   | 'advanced.proxy'
   | 'advanced.updates'
-  | 'advanced.cms'
   | 'advanced.reset'
   | 'about.info'
   | 'about.logs';
@@ -97,7 +96,6 @@ export const ROWS: readonly RowDef[] = [
   { id: 'privacy.recent', section: 'privacy', label: 'ng-ui-set-recent' },
   { id: 'advanced.proxy', section: 'advanced', label: 'ng-ui-set-proxy', visible: desktop },
   { id: 'advanced.updates', section: 'advanced', label: 'ng-ui-set-updates', visible: desktop },
-  { id: 'advanced.cms', section: 'advanced', label: 'ng-ui-set-cms' },
   { id: 'advanced.reset', section: 'advanced', label: 'ng-ui-set-reset' },
   { id: 'about.info', section: 'about', label: 'ng-ui-set-about' },
   { id: 'about.logs', section: 'about', label: 'ng-ui-set-logs', visible: desktop },

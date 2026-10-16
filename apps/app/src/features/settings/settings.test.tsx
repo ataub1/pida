@@ -516,13 +516,12 @@ describe('Datenschutz (Abnahme E3 Punkt 4)', () => {
 });
 
 describe('Erweitert und Über', () => {
-  it('Signaturformat, Update-Prüfung, Zurücksetzen mit Rückfrage', async () => {
+  it('Update-Prüfung, Zurücksetzen mit Rückfrage; kein Signaturformat (immer PDF-AS-Verfahren)', async () => {
     const { dialog, mock, user } = await open();
     await user.click(nav(dialog, 'Erweitert'));
-    await user.click(within(dialog).getByRole('radio', { name: 'PAdES-BASELINE-B' }));
-    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'signature.cms_profile': 'pades_bb' }, revision: 1 });
+    expect(within(dialog).queryByText(/Signaturformat|PAdES-BASELINE-B/)).toBeNull();
     await user.click(within(dialog).getByRole('switch', { name: 'Automatisch nach Updates suchen' }));
-    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'general.update_check': false }, revision: 2 });
+    expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'general.update_check': false }, revision: 1 });
     await user.click(within(dialog).getByRole('button', { name: /Einstellungen zurücksetzen/ }));
     const confirm = await screen.findByRole('alertdialog', { name: /Einstellungen zurücksetzen/ });
     await user.click(within(confirm).getByRole('button', { name: 'Zurücksetzen' }));

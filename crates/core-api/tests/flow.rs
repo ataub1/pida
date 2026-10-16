@@ -765,14 +765,15 @@ fn openssl() -> bool {
 }
 
 /// Externes Orakel (openssl cms) für das CMS aus Modell A (Keystore): Signaturwert, message-digest über
-/// den Inhalt und die signierten Attribute je CMS-Profil (PDF-AS-kompatibel bzw. PAdES-B-B).
+/// den Inhalt und die signierten Attribute. Immer PDF-AS-Verfahren (mit signing-time), auch wenn eine
+/// alte Einstellungsdatei noch `pades_bb` enthält.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn model_a_cms_passes_openssl() {
     if !openssl() {
         eprintln!("openssl fehlt – Orakel übersprungen");
         return;
     }
-    for (profile, signing_time) in [("pdfas_compat", true), ("pades_bb", false)] {
+    for (profile, signing_time) in [("pdfas_compat", true), ("pades_bb", true)] {
         let fx = Fixture::new();
         fx.write_settings(&format!("[signature]\ncms_profile = \"{profile}\"\n"));
         let input = fx.dir("in");

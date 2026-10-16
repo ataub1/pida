@@ -19,7 +19,7 @@ import { EMBLEM_DROP_EVENT } from '../../app/events';
 import { isMobile, type SettingsView, type SignatureProfile } from '../../core/types';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconClose, IconFileText, IconFolder, IconInfo, IconPhone, IconSearch, IconSettings, IconShield, IconSignature, IconSun } from '../../ui/Icons';
-import { AboutRow, CertCacheRow, CmsRow, LogsRow, PRIVACY_HEADING_ID, PrivacyInfoRow, ProxyRow, RecentRow, ResetRow, ThemeRow, UiLangRow, UpdatesRow } from './OtherRows';
+import { AboutRow, CertCacheRow, LogsRow, PRIVACY_HEADING_ID, PrivacyInfoRow, ProxyRow, RecentRow, ResetRow, ThemeRow, UiLangRow, UpdatesRow } from './OtherRows';
 import { ROWS, SECTIONS, search, visibleRows, type RowDef, type RowId, type SectionId } from './rows';
 import { BlockLangRow, BlockPreview, EmblemRow, LogoSizeRow, NoteRow, PdfaRow, PlaceholderRow, ProfileRow } from './SignatureRows';
 import { CardRow, DefaultSignerRow, Fido2Row, IdAustriaRow, KeystoreRow, PostfixRow, SaveTargetRow } from './SignerRows';
@@ -99,8 +99,6 @@ function SettingRow({ id, goto }: { id: RowId; goto: (section: SectionId, focus?
       return <ProxyRow />;
     case 'advanced.updates':
       return <UpdatesRow />;
-    case 'advanced.cms':
-      return <CmsRow />;
     case 'advanced.reset':
       return <ResetRow />;
     case 'about.info':
