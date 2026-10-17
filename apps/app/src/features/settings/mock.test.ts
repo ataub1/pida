@@ -125,6 +125,12 @@ describe('Zuletzt signiert (Mock wie K3)', () => {
     expect(v.document?.doc.name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
     expect(v.step.step).not.toBe('signing');
     expect('verify' in v).toBe(false);
+    // noch einmal: schon offen – Hinweis wie bei `open_files` (Nachtrag 17; Kern: `open_paths`), kein zweites Dokument
+    await c.dispatch({ type: 'sign_recent', id: 3 });
+    const again = await c.view();
+    expect(again.notices.find((n) => n.code === 'ng-open-duplicates')?.params).toEqual({ count: '1', file: 'Kaufvertrag_Fahrzeug_signiert.pdf' });
+    expect(again.document?.doc.name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
+    expect(again.batch).toBeNull();
   });
 });
 

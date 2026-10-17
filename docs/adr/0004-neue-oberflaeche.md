@@ -3008,7 +3008,10 @@ nicht kopierbare Dateien (nicht lesbar, zu groß) verschwanden ebenfalls still.
    F-89; „Offene schließen und neu beginnen“ schließt zuerst, die gewählten sind danach kein Duplikat). Nach dem
    Übergang zählt der Kern die neuen Dokumente, die nicht offen sind, obwohl ein offenes denselben Pfad hat, und
    meldet `ng-open-duplicates` (`$count`, bei einem Dokument `$file`; neue Meldungs-ID in `pida.ftl`) – auch wenn
-   nichts dazukommt (bisher still). Doppelt in derselben Auswahl zählt ebenso.
+   nichts dazukommt (bisher still). Doppelt in derselben Auswahl zählt ebenso. Seit dem Zusammenführen mit
+   Nachtrag 15 (fix/int, 17.10.2026) gilt das auch für „Erneut signieren“ aus „Zuletzt signiert“ (`sign_recent`):
+   beide gehen über `CoreTask::open_paths`; ein schon offenes Dokument meldet der Kern statt es still zu verwerfen
+   (Tests `settings.rs::recent_entry_offers_what_done_offers`, Mock `features/settings/mock.test.ts`).
 3. **Mobile: Kopien nach Inhalt.** Auf iOS/Android (`!Platform::is_desktop`) gilt eine Sandbox-Kopie mit gleichem
    Dateinamen und byte-gleichem Inhalt wie ein offenes bzw. in derselben Auswahl früher gewähltes Dokument als
    dasselbe Dokument: sie bekommt vor dem Reducer dessen Pfad, danach gilt 2. Auf dem Desktop bleibt es beim

@@ -864,7 +864,8 @@ impl pida_core_api::ShellHooks for RecordingShell {
 
 /// ADR 0004 Nachtrag 15 (Prüfmodus entfernt): Ein Eintrag aus „Zuletzt signiert“ bietet, was „Fertig“ kann –
 /// Desktop „Öffnen“ (Standardanwendung) und „Im Ordner zeigen“, Mobile „Öffnen“ (Vorschau) und „Teilen“; die jeweils
-/// andere Plattform bleibt ohne Wirkung. „Erneut signieren“ öffnet die Datei wie `open_files` im Arbeitsbereich.
+/// andere Plattform bleibt ohne Wirkung. „Erneut signieren“ öffnet die Datei wie `open_files` im Arbeitsbereich; ist
+/// sie schon offen, meldet der Kern es wie bei `open_files` (`ng-open-duplicates`, Nachtrag 17).
 /// Fehlt die Datei: Hinweis, nichts an die Shell, der Eintrag bleibt. Keine dieser Aktionen öffnet eine Sitzung
 /// (A1), es gibt keinen Prüfmodus mehr (`ViewState` ohne `verify`).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -948,6 +949,19 @@ async fn recent_entry_offers_what_done_offers() {
         assert_eq!(v.recent.map(|r| r.len()), Some(2), "Liste unverändert");
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert_eq!(fake.opened.load(std::sync::atomic::Ordering::SeqCst), 0, "{platform:?}: keine Sitzung (A1)");
+
+        // noch einmal „Erneut signieren“: das Dokument ist schon offen – wie bei `open_files` ein Hinweis statt
+        // stillem Verwerfen (Nachtrag 17, `open_paths`), kein zweites Dokument
+        core.dispatch(UiEvent::SignRecent { id: kept, mode: None });
+        let v =
+            wait_for(&core, "Hinweis schon offen", |v| v.notices.iter().any(|n| n.code == "ng-open-duplicates")).await;
+        let dup = v.notices.iter().find(|n| n.code == "ng-open-duplicates").unwrap();
+        assert_eq!(dup.params.get("count").map(String::as_str), Some("1"), "{platform:?}");
+        assert_eq!(dup.params.get("file").map(String::as_str), Some("Vertrag_signed.pdf"), "{platform:?}");
+        assert!(
+            v.batch.is_none() && v.document.as_ref().is_some_and(|d| d.doc.name == "Vertrag_signed.pdf"),
+            "{platform:?}: bleibt das eine offene Dokument"
+        );
     }
 }
 

@@ -638,8 +638,7 @@
       "settings": true,
       "show_batch": false,
       "sign": false,
-      "start_batch": false,
-      "verify": true
+      "start_batch": false
     },
     "batch": null,
     "document": null,
@@ -760,8 +759,7 @@
     "step": {
       "queue": [],
       "step": "open"
-    },
-    "verify": null
+    }
   },
   "batch_entry_resumed": {
     "actions": {
@@ -771,8 +769,7 @@
       "settings": true,
       "show_batch": false,
       "sign": false,
-      "start_batch": true,
-      "verify": true
+      "start_batch": true
     },
     "batch": {
       "auto_position_once": false,
@@ -932,8 +929,7 @@
     },
     "step": {
       "step": "batch"
-    },
-    "verify": null
+    }
   },
   "batch_login": {
     "actions": {
