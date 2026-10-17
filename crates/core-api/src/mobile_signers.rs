@@ -149,11 +149,14 @@ fn former_keystore_secret_ids(
     let mut files: Vec<PathBuf> = Vec::new();
     if let Some(file) = &keystore.file {
         files.push(file.clone());
-        if let Ok(rest) = file.strip_prefix("/var") {
-            files.push(Path::new("/private/var").join(rest));
-        }
-        if let Ok(rest) = file.strip_prefix("/private/var") {
-            files.push(Path::new("/var").join(rest));
+        // iOS-Pfade als Zeichenkette umschreiben (mit „/“ wie gespeichert; `Path::join` setzte unter Windows „\“)
+        if let Some(s) = file.to_str() {
+            if let Some(rest) = s.strip_prefix("/var/") {
+                files.push(PathBuf::from(format!("/private/var/{rest}")));
+            }
+            if let Some(rest) = s.strip_prefix("/private/var/") {
+                files.push(PathBuf::from(format!("/var/{rest}")));
+            }
         }
     }
     if let Ok(dir) = std::fs::read_dir(imported) {
