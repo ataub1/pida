@@ -17,8 +17,8 @@ use pida_pades::PriorStatus;
 use pida_pdf_cos::{PageInfo, Rect};
 use pida_placement::{
     BlockGeometry, GuideAxis as PGuideAxis, GuideKind as PGuideKind, LayoutOptions, OccupancyGrid, PageLayout,
-    Placement, ResolvedPosition, matrix_unit_rect, new_page_geometry, page_layout, user_rect_to_visible,
-    widget_overlaps,
+    Placement, ResolvedPosition, field_fit, field_suitable, matrix_unit_rect, new_page_geometry, obstacle_fields,
+    page_layout, user_rect_to_visible, widget_overlaps,
 };
 use pida_workflow::{
     BackendOption, DocFacts, DocId, PlacementOrigin, PositionChoice, SignFlow, SigningPhase, State, Target,
@@ -371,14 +371,16 @@ pub(crate) fn shown<'a>(state: &'a State, invisible_profile: bool, data: Option<
     Some(Shown { phase, doc, page, placement, new_page, edit })
 }
 
-/// Rechteck und Seite des Ziels im sichtbaren Raum (`PAGE_ABS`): Feld-Widget bzw. QR-Bild.
-fn target_rect(data: &DocData, edit: &WorkspaceEdit) -> Option<(usize, Rect)> {
+/// Seite und Rechteck des Blocks am Ziel im sichtbaren Raum (`PAGE_ABS`): im Signaturfeld proportional, höchstens
+/// in natürlicher Größe und mittig (`field_fit`, so schreibt ihn der Kern – KR-P10), im QR-Platzhalter das
+/// Rechteck des QR-Bildes.
+fn target_rect(data: &DocData, edit: &WorkspaceEdit, block: BlockGeometry) -> Option<(usize, Rect)> {
     match edit.target {
         Target::Field(i) => {
             let f = edit.fields.get(i)?;
             let page = f.page_index.unwrap_or(0);
             let info = data.pages.get(page)?;
-            Some((page, user_rect_to_visible(info, f.rect)))
+            Some((page, field_fit(user_rect_to_visible(info, f.rect), block).rect))
         }
         Target::Qr => {
             let qr = edit.qr.as_ref()?;
@@ -481,8 +483,9 @@ impl crate::runtime::CoreTask {
             (false, Some(p)) => (p.width, p.height),
             (false, None) => (block.width, block.height),
         };
-        let target = data.as_deref().and_then(|d| target_rect(d, edit));
-        // maßgebliche Lage: beim Feld/QR das Ziel-Rechteck
+        let block_geom = BlockGeometry { width: bw, height: bh };
+        let target = data.as_deref().and_then(|d| target_rect(d, edit, block_geom));
+        // maßgebliche Lage: beim Feld die Lage des Blocks im Feld (Nachtrag 16), beim QR-Platzhalter dessen Rechteck
         let placement = match (&target, s.placement) {
             (Some((page, r)), _) => {
                 Placement { page_index: *page, x: r.llx, y: r.ury, width: r.width(), height: r.height() }
@@ -507,17 +510,20 @@ impl crate::runtime::CoreTask {
             .iter()
             .enumerate()
             .map(|(i, f)| {
-                let rect = data.as_deref().and_then(|d| {
+                let shown = data.as_deref().and_then(|d| {
                     let info = d.pages.get(f.page_index?)?;
                     let r = f.rect.normalized();
-                    (!r.is_empty()).then(|| rect_pt(user_rect_to_visible(info, r)))
+                    (!r.is_empty()).then(|| (user_rect_to_visible(info, r), info.visible_size()))
                 });
+                // Lage und Eignung für den Block in aktueller Größe (Nachtrag 16): nur plausible Felder anbieten
                 FieldTargetView {
                     index: u32::try_from(i).unwrap_or(u32::MAX),
                     name: f.qualified_name.clone(),
                     page: f.page_index,
-                    rect,
+                    rect: shown.map(|(r, _)| rect_pt(r)),
                     selectable: true,
+                    suitable: shown.is_some_and(|(r, page)| field_suitable(r, block_geom, page)),
+                    block: shown.map(|(r, _)| rect_pt(field_fit(r, block_geom).rect)),
                 }
             })
             .collect();
@@ -547,7 +553,6 @@ impl crate::runtime::CoreTask {
             reasons,
         };
         // Layout der angefragten Seiten und der Seite des Stickers (fertige Raster; virtuelle Seite leer)
-        let block_geom = BlockGeometry { width: bw, height: bh };
         let layout = self
             .layout_pages(sticker_page.or(Some(s.page)), n)
             .into_iter()
@@ -562,7 +567,7 @@ impl crate::runtime::CoreTask {
                 Some(layout_view(&self.ws.layouts.layout(s.doc.id, page, &grid, block_geom)))
             })
             .collect();
-        let check = self.placement_check(data.as_deref(), &s, &placement, sticker_rect);
+        let check = self.placement_check(data.as_deref(), &s, &placement, sticker_rect, block_geom);
         let mut announce = std::collections::BTreeMap::new();
         let mm = |pt: f32| format!("{:.0}", pt * 25.4 / 72.0);
         announce.insert("page".into(), (placement.page_index + 1).to_string());
@@ -595,6 +600,7 @@ impl crate::runtime::CoreTask {
             announce,
             detection: Some(self.detection(data.as_deref(), edit)),
             placement_locked: edit.placement_locked(),
+            new_page_size: data.as_deref().and_then(|d| page_info(d, n)).map(|p| p.visible_size()),
         })
     }
 
@@ -633,6 +639,7 @@ impl crate::runtime::CoreTask {
         s: &Shown<'_>,
         placement: &Placement,
         sticker: Option<Rect>,
+        block: BlockGeometry,
     ) -> PlacementCheckView {
         let mut check = PlacementCheckView {
             for_revision: self.ws.revision,
@@ -647,19 +654,21 @@ impl crate::runtime::CoreTask {
             }
             return check;
         };
+        // Hindernisse: signierte und als Ziel plausible leere Felder (Nachtrag 16, `pida_placement::obstacle_fields`)
+        let obstacles = obstacle_fields(&data.pages, &data.report.fields, block);
         match s.edit.target {
             Target::Field(i) => {
                 // das Zielfeld selbst ist kein Inhalt; Widgets anderer Felder schon
                 check.overlaps_content = Some(false);
                 if let Some(f) = s.edit.fields.get(i) {
-                    check.overlaps_widget = other_widgets_overlap(data, f.page_index, f.rect, Some(f.field_id));
+                    check.overlaps_widget = other_widgets_overlap(&obstacles, f.page_index, f.rect, Some(f.field_id));
                 }
             }
             Target::Qr => {
                 check.overlaps_content = Some(false);
                 if let Some(q) = &s.edit.qr {
                     check.overlaps_widget =
-                        other_widgets_overlap(data, Some(q.page_index), matrix_unit_rect(&q.ctm), None);
+                        other_widgets_overlap(&obstacles, Some(q.page_index), matrix_unit_rect(&q.ctm), None);
                 }
             }
             Target::Free => {
@@ -678,7 +687,7 @@ impl crate::runtime::CoreTask {
                         notices: Vec::new(),
                     };
                     if let Some(info) = data.pages.get(placement.page_index) {
-                        check.overlaps_widget = widget_overlaps(&pos, info, &data.report.fields);
+                        check.overlaps_widget = widget_overlaps(&pos, info, &obstacles);
                     }
                 }
             }
@@ -946,13 +955,13 @@ pub(crate) fn remembered_method(view: &InteractionView) -> Option<ConfirmMethod>
 
 /// Überdecken Widgets anderer Felder das Rechteck (Benutzerraum der Seite)?
 fn other_widgets_overlap(
-    data: &DocData,
+    fields: &[pida_pdf_cos::SigField],
     page: Option<usize>,
     rect: Rect,
     except: Option<pida_pdf_cos::ObjectId>,
 ) -> bool {
     let r = rect.normalized();
-    data.report.fields.iter().filter(|f| Some(f.field_id) != except).flat_map(|f| f.widgets.iter()).any(|w| {
+    fields.iter().filter(|f| Some(f.field_id) != except).flat_map(|f| f.widgets.iter()).any(|w| {
         let o = w.rect.normalized();
         w.page_index == page && !o.is_empty() && r.llx < o.urx && o.llx < r.urx && r.lly < o.ury && o.lly < r.ury
     })

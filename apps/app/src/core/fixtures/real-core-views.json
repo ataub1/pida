@@ -118,6 +118,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {
@@ -374,6 +378,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "done",
       "placement": {
@@ -618,6 +626,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {
@@ -868,6 +880,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "signing",
       "placement": {
@@ -1128,6 +1144,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "signing",
       "placement": {
@@ -1360,6 +1380,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "signing",
       "placement": {
@@ -1619,6 +1643,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {
@@ -1779,11 +1807,11 @@
     "batch": null,
     "document": {
       "announce": {
-        "bottom": "245",
+        "bottom": "248",
         "left": "13",
         "page": "1",
         "pages": "2",
-        "top": "270"
+        "top": "267"
       },
       "block": {
         "height": 82.0,
@@ -1826,6 +1854,12 @@
       "existing": [],
       "fields": [
         {
+          "block": {
+            "bottom": 704.0560302734375,
+            "left": 35.654998779296875,
+            "right": 183.23899841308594,
+            "top": 756.6729125976562
+          },
           "index": 0,
           "name": "Signature_0",
           "page": 0,
@@ -1835,9 +1869,16 @@
             "right": 183.23899841308594,
             "top": 766.2620239257812
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": true
         },
         {
+          "block": {
+            "bottom": 755.253662109375,
+            "left": 236.49600219726562,
+            "right": 251.38900756835938,
+            "top": 760.5633544921875
+          },
           "index": 1,
           "name": "Signature_1",
           "page": 0,
@@ -1847,9 +1888,16 @@
             "right": 251.38900756835938,
             "top": 765.3590087890625
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": false
         },
         {
+          "block": {
+            "bottom": 621.77001953125,
+            "left": 398.5250549316406,
+            "right": 437.7849426269531,
+            "top": 635.7670288085938
+          },
           "index": 2,
           "name": "Signature_2",
           "page": 0,
@@ -1859,9 +1907,16 @@
             "right": 612.0,
             "top": 635.7670288085938
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": false
         },
         {
+          "block": {
+            "bottom": 544.851806640625,
+            "left": 177.3719940185547,
+            "right": 190.91200256347656,
+            "top": 549.6791381835938
+          },
           "index": 3,
           "name": "Signature_3",
           "page": 0,
@@ -1871,9 +1926,16 @@
             "right": 190.91200256347656,
             "top": 670.083984375
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": false
         },
         {
+          "block": {
+            "bottom": 468.58636474609375,
+            "left": 349.77899169921875,
+            "right": 352.93798828125,
+            "top": 469.7126159667969
+          },
           "index": 4,
           "name": "Signature_4",
           "page": 0,
@@ -1883,9 +1945,16 @@
             "right": 352.93798828125,
             "top": 581.1309814453125
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": false
         },
         {
+          "block": {
+            "bottom": 499.24383544921875,
+            "left": 426.0530090332031,
+            "right": 596.655029296875,
+            "top": 560.067138671875
+          },
           "index": 5,
           "name": "Signature_5",
           "page": 0,
@@ -1895,9 +1964,16 @@
             "right": 596.655029296875,
             "top": 604.6110229492188
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": true
         },
         {
+          "block": {
+            "bottom": 722.5349731445312,
+            "left": 324.0530090332031,
+            "right": 383.177001953125,
+            "top": 743.6139526367188
+          },
           "index": 6,
           "name": "Signature_6",
           "page": 0,
@@ -1907,9 +1983,16 @@
             "right": 383.177001953125,
             "top": 758.135009765625
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": true
         },
         {
+          "block": {
+            "bottom": 355.0,
+            "left": 191.0,
+            "right": 421.0,
+            "top": 437.0
+          },
           "index": 7,
           "name": "Signature_7",
           "page": 1,
@@ -1919,30 +2002,35 @@
             "right": 612.0,
             "top": 792.0
           },
-          "selectable": true
+          "selectable": true,
+          "suitable": false
         }
       ],
       "invisible": false,
       "layout": [],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "field",
       "phase": "editing",
       "placement": {
-        "height": 71.7950439453125,
+        "height": 52.61688232421875,
         "page_index": 0,
         "width": 147.58399963378906,
         "x": 35.654998779296875,
-        "y": 766.2620239257812
+        "y": 756.6729125976562
       },
       "placement_locked": false,
       "qr": null,
       "revision": 1,
       "size_bytes": 181760,
       "sticker": {
-        "bottom": 694.4669799804688,
+        "bottom": 704.0560302734375,
         "left": 35.654998779296875,
         "right": 183.23899841308594,
-        "top": 766.2620239257812
+        "top": 756.6729125976562
       },
       "target": {
         "index": 0,
@@ -2340,6 +2428,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        595.0,
+        842.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {
@@ -2606,6 +2698,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {
@@ -2866,6 +2962,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "qr",
       "phase": "editing",
       "placement": {
@@ -3141,6 +3241,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "done",
       "placement": {
@@ -3426,6 +3530,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {
@@ -3717,6 +3825,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "signing",
       "placement": {
@@ -4005,6 +4117,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {
@@ -4342,6 +4458,10 @@
         }
       ],
       "new_page": false,
+      "new_page_size": [
+        612.0,
+        792.0
+      ],
       "origin": "auto",
       "phase": "editing",
       "placement": {

@@ -2739,3 +2739,163 @@ zurückgestellt; ADR 0006 kommt nicht auf `main`.
    alter `ViewState` mit `verify` schon),
    Katalog (keine IDs des Prüfmodus, `catalogs.rs::verify_texts_never_claim_validity` jetzt für `pida verify`); CLI
    `cli.rs::verify_signed_unsigned_and_broken` prüft „intakt“ und den Umfang in DE/EN ohne „gültig“.
+
+### Nachtrag 16 (17.10.2026): Einrasten in Signaturfelder – nur plausible Ziele, Block proportional im Feld, neue Seite in MediaBox-Größe
+
+Meldung des Auftraggebers (iOS, Aufnahme): „Wenn ich in iOS den Block auf eine neue Seite schiebe, dann befüllt dieser
+auf einmal die ganze Seite.“ Das Dokument ist byte-gleich mit `testdata/pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf`
+(PDF-AS-Testdaten, 2 Seiten Letter): Seite 2 trägt das leere Feld `Signature_7` mit `/Rect [0 0 612 792]` (ganze Seite),
+Seite 1 sieben weitere (`Signature_0` 148 × 72, `_1` 15 × 15, `_2` 388 × 14, `_3` 13,5 × 246, `_4` 3,2 × 224, `_5`
+171 × 150, `_6` 59 × 50 pt).
+
+**Befund**
+
+1. *Einrasten:* `targetAt` (UI) nahm jedes wählbare Feld unter der Blockmitte. Auf Seite 2 liegt die Blockmitte immer im
+   seitengroßen Feld → `use_target`, der Sticker bekam das Feld-Rechteck (612 × 792 pt). Die Markierung „Hier signieren“
+   dieses Felds bedeckte zudem die ganze Seite (Doppeltippen/Doppelklick dort = „Ins Feld setzen“).
+2. *Vorschau:* Das PNG der Blockvorschau (natürliche Blockgröße, Maßstab Zoom × Gerätepixel) wurde per CSS auf das Feld
+   gezogen – verzerrt und hochskaliert, also unscharf.
+3. *Ergebnis ≠ Vorschau:* `core-api` `plan::build_plan` baute den Block für ein Feld mit der **Feldbreite**
+   (`spec.build(rect.width())`: bei 612 pt ein breiter, flacher Block, bei 3,16 pt ein zeichenweise umgebrochener Turm),
+   und ein Viewer bildet dessen BBox nicht proportional auf das `/Rect` ab. `pida-pades` `plan_signature` nahm dagegen
+   die Profilbreite (wie PDF-AS) – zwei verschiedene Ergebnisse, keines wie die Vorschau.
+4. *PDF-AS 4.4.2 / PDF-Over:* `PADESPDFBOXSigner.signPDF` (`reference/pdf-as-4/pdf-as-pdfbox-2/…/PADESPDFBOXSigner.java`
+   Z. 144–150 `findExistingSignature(SIGNATURE_FIELD_NAME)` → `isAdobeSigForm`, Z. 223 `Positioning.
+   determineTablePositioning` mit der Profil-`pos`, Z. 227 keine Positionierung für Formularfelder, Z. 256–291 Appearance
+   aus `PDFAsVisualSignatureProperties`; `PDFAsVisualSignatureBuilder.java` Z. 542/578: `/BBox [W+1 H+1]` für Holder und
+   Inner-Form) übergibt die Appearance an PDFBox 2.0.32 (`pdf-as-pdfbox-2/build.gradle`); `PDDocument.addSignature` →
+   `prepareVisibleSignature` →
+   `assignSignatureRectangle` behält das `/Rect` („in case of an existing field keep the original rect“) und
+   `assignAppearanceDictionary` hängt die AP an. Ein Viewer streckt die BBox auf das `/Rect` (ISO 32000-1 §12.5.5,
+   Matrix A; PDFium zeichnet ebenso, siehe Renderprüfung unten). Beleg: `manySignFields_signed4.pdf` – PDF-AS schrieb in
+   `Signature_4` (3,16 × 224 pt) eine AP mit `/BBox [231.99998 84 0 0]` und Einheitsmatrix. PDF-Over
+   (`OpenState.java` Z. 127–175) listet nur die Namen (`SignatureFieldsAndPlaceHolderExtractor.findEmptySignatureFields`,
+   keine Geometrieprüfung), fragt „Platzhalter verwenden?“ und lässt per `PlaceholderSelectionGui` wählen – Ziehen und
+   Einrasten gibt es dort nicht.
+5. *Neue Seite:* `new_page_geometry` (MediaBox und `/Rotate` der letzten Seite, CropBox = MediaBox, wie
+   `new PDPage(lastPage.getMediaBox())`, Z. 233) ist richtig, und der Block behält dort seine Größe (keine Felder). Die
+   Oberfläche zeigte die virtuelle Seite aber in der **sichtbaren** Größe der letzten Seite (deren CropBox): Bei
+   CropBox ≠ MediaBox stand der Block in der Vorschau anders als im Ergebnis.
+
+**Entscheidung (Kern, Geschäftslogik)**
+
+1. *Lage im Feld* – `pida_placement::field_fit` (KR-F13) und `pida_pades::fit_into_field` (KR-P10): Der Block steht
+   **proportional, höchstens in natürlicher Größe und mittig** im Feld. `/Rect` bleibt; nur die Holder-`/BBox` wird so
+   erweitert, dass die Viewer-Abbildung BBox → `/Rect` den Block genau dorthin zeichnet (Inhalt, Inner-Form und
+   `/Matrix` unverändert, außerhalb des Blocks durchsichtig; geändert wird wie bisher nur `/AP` des Widgets – die
+   Änderungsanalyse bei DocMDP P=2 bleibt „Formular ausfüllen“). Breite = Profilbreite wie in der Vorschau
+   (`plan::block_width`, dieselbe Regel wie `block_geometry`), **nicht** die Feldbreite. `CompatMode::PdfasQuirks`
+   (nur Golden-Tests) schreibt wie PDF-AS. Begründung: PDF-AS verzerrt; „nie größer als nötig“ und Vorschau = Ergebnis
+   gehen nur mit einer Lage, die nicht von der Feldform abhängt.
+2. *Plausibilität* – `pida_placement::field_suitable` (Fassung nach der Nachprüfung, siehe unten): Der Block wird
+   höchstens auf ⅕ verkleinert (`FIELD_MIN_SCALE`; der Signaturblock passt so noch in eine Formularzeile von ≈ 16 pt,
+   die Amtssignatur 495 × 120 pt in ein 150 × 50-pt-Feld), die Form des Felds ist höchstens achtfach gestreckter als die
+   des Blocks (`FIELD_MIN_SHAPE` = ⅛, Verhältnis der Seitenverhältnisse – schließt Leisten wie 13,5 × 246 pt und
+   seitenhohe Spalten aus) und das Feld bedeckt höchstens die halbe Seite (`FIELD_MAX_PAGE_SHARE` – schließt das
+   seitengroße Feld aus, das den Block überall auf der Seite einfinge und dessen Markierung die Seite verdeckte). Der
+   Flächenanteil des Blocks am Feld zählt nicht: Ein großzügiges Feld bleibt für einen kleinen Block ein Ziel. Im
+   Dokument der Meldung (Block 230 × 82 pt) geeignet: `Signature_0` (Maßstab 0,64), `Signature_5` (0,74) und
+   `Signature_6` (59 × 50 pt, 0,26); nicht: `Signature_1` (15 × 15), `_2` (388 × 14, 0,17), `_3`/`_4` (schmal) und
+   `Signature_7` (ganze Seite).
+3. *Angeboten* (Einrasten beim Ziehen, „Hier signieren“, Hinweisleiste „Signaturfeld gefunden“) werden nur geeignete
+   Felder. Ungeeignete bleiben über den Vertrag erreichbar (`use_target`, der Kern lehnt nicht ab; die Platzhaltersuche
+   „Leere Signaturfelder“ nimmt wie PDF-Over weiter das erste leere Feld) und werden dann ebenfalls proportional
+   geschrieben; die Oberfläche bietet sie nicht an – ein seitengroßes Feld ergäbe nur einen mittig gesetzten Block, eine
+   seitengroße Markierung verdeckte die Seite, ein 3-pt-Feld einen unlesbaren Block.
+4. *Neue Seite:* Der Kern nennt die Größe einer angehängten Seite (`new_page_size`); die Oberfläche zeigt die virtuelle
+   Seite in dieser Größe.
+5. *Überdeckung:* Ein leeres Feld, das kein plausibles Ziel ist, ist auch kein Hindernis für `check.overlaps_widget`
+   (`pida_placement::obstacle_fields`; signierte und geeignete leere Felder zählen weiter). Sonst meldete im Dokument
+   der Meldung jede Lage auf Seite 2 „überdeckt ein Formular- oder Signaturfeld“, und „Freie Fläche suchen“ setzte den
+   Block wieder auf Seite 2 (Befund am Gerät). Der Hinweis `OverlapsWidget` des klassischen Ablaufs (`pida-pades`)
+   bleibt. Die Funktion liegt in `pida-placement`, damit die widget-bewusste Freiraumsuche aus Nachtrag 12 (Zweig
+   `mob2/int`, `WidgetAwareScanner`) beim Zusammenführen dieselben Hindernisse nehmen kann.
+
+**Vertrag** (additiv nach §3.0 Regel 2):
+
+```rust
+pub struct FieldTargetView {
+    // … index, name, page, rect, selectable
+    /// als Ziel angeboten (Maßstab ≥ ⅕, Form ≥ ⅛, ≤ halbe Seite für den Block in aktueller Größe)
+    #[serde(default)] pub suitable: bool,
+    /// Lage des Blocks in diesem Feld (PAGE_ABS, proportional, ≤ natürliche Größe, mittig); nach use_target = sticker
+    #[serde(default)] pub block: Option<RectPt>,
+}
+pub struct DocumentView {
+    // … wie §3.3 und Nachträge
+    /// sichtbare Größe einer neuen Seite (MediaBox der letzten Seite, `new_page_geometry`); TS optional
+    #[serde(default)] #[ts(optional = nullable)] pub new_page_size: Option<(f32, f32)>,
+}
+```
+
+`sticker` behält seine Bedeutung „tatsächliches Rechteck des Blocks“ – im Feld ist das jetzt `block` (vorher das
+Feld-Rechteck, weil der Block auf das Feld gestreckt wurde); `placement` im Feld ebenso (linke obere Ecke und Maße des
+Blocks), `announce` folgt.
+
+**Oberfläche:** `placement.ts` `offeredField` (wählbar und `suitable`), `targetAt` (Lage `block`, Rahmen = Feld),
+`previewScale` (Zoom × Gerätepixel × Verkleinerung im Feld, auf 0,25 **aufgerundet**: das Bild wird nie hochskaliert;
+maßgeblich ist die geringere Verkleinerung der beiden Achsen, damit auch der nicht proportionale Sticker eines
+QR-Platzhalters auf keiner Achse hochgezogen wird),
+`displayPages` mit `new_page_size`. `Pages.tsx`: Markierungen nur für angebotene Felder, beim Ziehen über einem Feld
+`is-hit`; Rahmen `.field-frame` des Felds, in dem der Block steht bzw. landen würde. `Workspace.tsx`: Hinweisleiste nur
+für ein angebotenes Feld. Mock wie der Kern (`fieldFit`, Dokument „Signaturfelder.pdf“ = `manyFieldsSpec`).
+
+**Tests:** `pida-placement` `field::tests` (Felder der Meldung, seitengroßes Feld, Schwellen, Benutzerraum = sichtbare
+Seite für alle Drehungen, Hindernisse `only_signed_or_plausible_fields_are_obstacles`); `pida-sigblock` `place_in_rect_*`; `pida-pades` `tests/field_fit.rs` (Beleg PDF-AS
+`manySignFields_signed4.pdf`, alle Felder korrigiert und mit `PdfasQuirks`, Keystore-Signatur ins seitengroße Feld);
+`pida-core-api` `tests/workspace.rs` `only_plausible_fields_are_offered_and_the_block_keeps_its_size` (Ansicht = Plan
+für alle acht Felder), `page_sized_field_is_signed_exactly_where_the_preview_shows_the_block` (echte Engine, Keystore,
+PDFium-Renderdifferenz = Sticker ± 1 pt, pyHanko `INTACT`, qpdf), ebenso `scaled_field_is_signed_exactly_where_the_preview_shows_the_block`
+(`Signature_5`, Block auf etwa drei Viertel verkleinert), `new_page_has_the_media_box_size_and_the_block_keeps_its_size`
+(CropBox ≠ MediaBox, neue Seite mit MediaBox, `/Rect` = Sticker, pyHanko); UI `placement.test.ts`,
+`workspace.test.tsx` (je Desktop/Maus und schmal/Touch iOS: Ziehen über das seitengroße Feld rastet nicht ein,
+passendes Feld mittig mit Rahmen → `use_target`; Vorschau in Darstellungsgröße, auch beim QR-Platzhalter), `mock.test.ts` (auch: keine Überdeckung durch das seitengroße Feld). Browser-Vorschau des Mocks:
+`?pick=Signaturfelder.pdf` („PDF auswählen“ öffnet das Formular).
+
+**Gerät (17.10.2026):** eigener temporärer Simulator „PIDA-Fix-field“ (iPhone 17e, iOS 27.0, Sprache de, danach
+heruntergefahren und gelöscht), Debug-Build dieses Stands, `manySignFields.pdf` als „Testdokument.pdf“, Ziehen mit
+Touch-Zeigerereignissen in der WKWebView (Web-Inspektor): Hinweisleiste nennt `Signature_0`, Markierungen „Hier
+signieren“ nur bei `Signature_0` und `Signature_5`; Block auf Seite 2 automatisch platziert, „Freie Fläche“, ohne
+Überdeckungswarnung; dreimal auf Seite 2 gezogen – der Block bleibt 125,5 × 44,8 px (230 × 82 pt bei 41 %), kein
+Einrasten, kein Feldrahmen (über Text: „Überdeckt Inhalt“, wie es sein soll); „Ins Feld setzen“ → proportional und mittig
+in `Signature_0` (80,5 × 28,7 px im Rahmen 80,5 × 39,2 px), Vorschaubild 287 px breit für 80,5 px; Ziehen in `Signature_5`
+rastet ein (93,1 × 33,2 px, senkrecht mittig), bei 75 % Vorschau 517 px für 170,6 px (3 Gerätepixel/px) – scharf.
+Aufnahmen `docs/integration/screenshots/ios-ng/feld-01-befund-block-fuellt-seite.jpg` (Meldung) bis
+`feld-04-signature5-gezogen-zoom75-scharf.jpg`.
+
+**Nachprüfung (17.10.2026, unabhängiger Review):** Die erste Fassung der Plausibilität (Maßstab ≥ ⅓, Flächenanteil des
+Blocks ≥ ⅕, `FieldFit::suitable`) brach übliche Felder: Das Platzhalterfeld der PDF-AS-Testdaten selbst
+(`testdata/pdf/pdfas/pdf-as-web/data/placeholder_sigfield_and_qr.pdf`, `Signature_0` 63,7 × 61,1 pt, eigens für das
+Signieren in ein Feld) war mit dem Standardblock kein Ziel (Maßstab 0,28); mit der Amtssignatur (495 × 120 pt auf A4) kein
+übliches 150 × 50-pt-Feld (0,30); mit „Nur Bildmarke“ (23 mm ≈ 62 × 65 pt) kein Feld ab etwa 250 × 100 pt (Anteil < ⅕),
+mit 15 mm nicht einmal das einzige Feld des DocMDP-Testdokuments `testdata/pades/certified-docmdp-p2.pdf` (230 × 50 pt) –
+dort bliebe nur unsichtbares Signieren. Die Lesbarkeit taugt als Begründung nicht: Der Standardblock setzt 5 pt
+(`BASE_SMALL` `font=HELVETICA,5`), schon bei ⅓ sind das 1,7 pt. Neu daher Maßstab ≥ ⅕, Formähnlichkeit ≥ ⅛ und höchstens
+die halbe Seite (Punkt 2); Kern (`field_suitable`, `obstacle_fields`), Mock (`fieldFit` mit Seitengröße) und Fixtures
+folgen. Zusätzlich belegt: gedrehte Seiten mit CropBox ≠ MediaBox (0/90/180/270°, großes und verkleinerndes Feld) –
+PDFium zeichnet den signierten Block genau im Sticker, `/Rect` bleibt, pyHanko `INTACT`
+(`rotated_cropped_field_is_signed_exactly_where_the_preview_shows_the_block`); das PDF-AS-Platzhalterfeld wird angeboten
+und genau im Sticker signiert (`pdfas_placeholder_field_is_offered_and_signed_where_the_preview_shows_the_block`); das
+DocMDP-Dokument (P = 2) wird in sein einziges Feld signiert, pyHanko sieht nur „signing and form filling“, mit der
+Regel vereinbar (`certified_document_is_signed_into_its_only_field_like_the_preview`);
+`field::tests::common_fields_are_targets_for_every_profile` und der Paritätstest des Mocks (`mock.test.ts`) prüfen übliche
+und absurde Felder für Signaturblock, Amtssignatur und Bildmarke. Gegenprobe mit Apples PDFKit (Rendering wie Vorschau/iOS):
+auf ungedrehten Seiten liegt der Block im Sticker (± 2,5 pt Kantenglättung); auf gedrehten Seiten zeichnet die
+PDFKit-Miniaturansicht eine PIDA-Signatur je nach Lage gar nicht – ebenso bei freier Platzierung, also unabhängig von
+diesem Nachtrag (nicht weiter verfolgt). Die Geräteaufnahmen oben stammen aus der ersten Fassung; seitdem trägt auch
+`Signature_6` auf Seite 1 die Markierung „Hier signieren“, Seite 2 verhält sich unverändert.
+
+*Zusammenführung mit Nachtrag 12* (`mob2/polish`, `WidgetAwareScanner`): Dort zählt die automatische Platzierung alle
+Widgets als Inhalt (`plan.rs`: `fields: &inp.report.fields`). Beim Zusammenführen dort
+`pida_placement::obstacle_fields(inp.pages, &inp.report.fields, BlockGeometry { width: width.width, height:
+measured.height })` übergeben – sonst setzt „Freie Fläche suchen“ das Dokument der Meldung auf eine neue Seite, während
+die Überdeckungsprüfung Seite 2 als frei meldet.
+
+**Angenommene Abweichungen / offen:** Die Schwellen ⅕, ⅛ und ½ sind Entwurfswerte (Auftraggeber). Die Platzhaltersuche
+„Leere Signaturfelder“ nimmt automatisch weiter das erste leere Feld, auch wenn es kein angebotenes Ziel ist (wie
+PDF-Over ohne Auswahldialog; der Block steht dann proportional darin). Ein DocMDP-zertifiziertes Dokument, dessen leere
+Felder alle unplausibel sind, lässt sich in der Oberfläche nur unsichtbar (oder über diese Platzhaltersuche) signieren. Die Blockbreite von
+Profilen ohne `w` (Amtssignatur, KR-F01) hängt von der Seitenbreite ab: Die Vorschau gilt für die Seite des
+Positionierens, die Signatur nimmt die Seite des Felds – bei Seiten unterschiedlicher Breite wie bei freier Platzierung
+über Seiten hinweg ein Unterschied. Der Sticker im QR-Platzhalter ist weiterhin das Rechteck des QR-Bildes (nicht Teil
+dieses Nachtrags).

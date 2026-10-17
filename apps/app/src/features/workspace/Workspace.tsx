@@ -23,7 +23,7 @@ import { useNarrow } from '../../ui/hooks';
 import { IconEyeOff, IconFitWidth, IconQr, IconSidebar, IconSignature, IconZoomIn, IconZoomOut } from '../../ui/Icons';
 import { Inspector } from './Inspector';
 import { Pages } from './Pages';
-import { announceText, displayPages, isAutoPlaced, layoutPages, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
+import { announceText, displayPages, isAutoPlaced, layoutPages, offeredField, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
 import { Thumbnails } from './Thumbnails';
 import './workspace.css';
 
@@ -80,8 +80,9 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     return () => ro.disconnect();
   }, [maxW]);
 
-  // Hinweisleiste über den Seiten (unsichtbar signieren | Signaturfeld gefunden | QR-Platzhalter)
-  const unusedField = movable && doc.target.kind !== 'field' ? doc.fields.find((f) => f.selectable && f.rect && f.page !== null) : undefined;
+  // Hinweisleiste über den Seiten (unsichtbar signieren | Signaturfeld gefunden | QR-Platzhalter); genannt wird nur
+  // ein angebotenes Feld (Kern: `suitable`, ADR 0004 Nachtrag 16) – kein seitengroßes oder 3 pt schmales
+  const unusedField = movable && doc.target.kind !== 'field' ? doc.fields.find(offeredField) : undefined;
   const banner = doc.invisible ? 'invisible' : unusedField ? 'field' : doc.target.kind === 'qr' ? 'qr' : null;
   // Erscheint oder verschwindet die Leiste (z. B. Block aus dem Signaturfeld gezogen), verschöbe sich die
   // Seitenansicht um ihre Höhe – auf dem Telefon (Leiste bis ~130 px) läge der gerade abgelegte Block dann

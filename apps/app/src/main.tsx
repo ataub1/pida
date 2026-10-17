@@ -39,7 +39,8 @@ async function bridge(): Promise<Bridge> {
  * gibt es schon), `&folder=ask|<Pfad>` (Speicherort), `&auto=0` (App-Bestätigung nur über „In der App
  * bestätigt“). Ersteinrichtung (E4): `&firstrun=1` (fehlende Einstellungsdatei), `&legacy=1` (PDF-Over-
  * Einstellungen gefunden; ohne `firstrun` als eigenes Angebot), `&secrets=1` (Klartext-Passwörter darin),
- * `&emblem=1` (eigene Bildmarke in der Altkonfiguration; ohne bleibt das PIDA-Siegel). Nur der Mock-Kern
+ * `&emblem=1` (eigene Bildmarke in der Altkonfiguration; ohne bleibt das PIDA-Siegel), `&pick=<Name>.pdf`
+ * („PDF auswählen“ öffnet dieses Beispiel, z. B. `Signaturfelder.pdf`, ADR 0004 Nachtrag 16). Nur der Mock-Kern
  * wertet das aus.
  */
 function mockOptionsFromUrl(search: string, scenarios: readonly string[]): SettingsMockOptions & FirstRunMockOptions {
@@ -76,6 +77,8 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): Setti
     autoCompleteApp: params.get('auto') !== '0',
     batchFaults: fault === 'decline' || fault === 'network' || fault === 'session' || fault === 'too-large' ? { 'Auftragsbestaetigung_4711.pdf': fault } : undefined,
     existingFiles: params.get('existing') === '1' ? ['/Users/demo/Dokumente/Verträge/Vertrag_signed.pdf'] : undefined,
+    // „PDF auswählen“ liefert diese Datei (z. B. `?pick=Signaturfelder.pdf`, Formular mit Signaturfeldern)
+    pickFilesResult: params.get('pick') ? [`/Users/demo/Dokumente/${params.get('pick')}`] : undefined,
     policy: policyFromUrl(params.get('policy')),
     firstRun: params.get('firstrun') === '1',
     migrationOffer: params.get('legacy') === '1' ? '/Users/demo/.pdf-over/PDF-Over.config' : null,

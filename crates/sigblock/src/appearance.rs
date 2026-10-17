@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
-use pida_pdf_cos::{Dictionary, Object, ObjectId, Stream, lopdf};
+use pida_pdf_cos::{Dictionary, Object, ObjectId, Rect, Stream, lopdf};
 
 use crate::Result;
 use crate::SigBlockError;
@@ -793,6 +793,19 @@ fn push_image(
     Ok(idx)
 }
 
+/// Begrenzungsrechteck von `r` unter der Matrix `m` (`[a b c d e f]`).
+fn transform_rect(m: &[f32; 6], r: Rect) -> Rect {
+    let pts = [(r.llx, r.lly), (r.urx, r.lly), (r.llx, r.ury), (r.urx, r.ury)]
+        .map(|(x, y)| (m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]));
+    let fold = |f: fn(f32, f32) -> f32, init: f32, pick: fn(&(f32, f32)) -> f32| pts.iter().map(pick).fold(init, f);
+    Rect::new(
+        fold(f32::min, f32::INFINITY, |p| p.0),
+        fold(f32::min, f32::INFINITY, |p| p.1),
+        fold(f32::max, f32::NEG_INFINITY, |p| p.0),
+        fold(f32::max, f32::NEG_INFINITY, |p| p.1),
+    )
+}
+
 /// `/Matrix` für eine Drehung in Grad (`AffineTransform.rotate`, exakt bei Vielfachen von 90°).
 fn rotation_matrix(deg: i32) -> [f32; 6] {
     match deg.rem_euclid(360) {
@@ -938,6 +951,93 @@ impl Appearance {
         }
     }
 
+    /// `/Matrix` des Holder-Forms (Rotation des Inhalts; Einheitsmatrix, wenn keine gesetzt ist).
+    pub fn holder_matrix(&self) -> [f32; 6] {
+        match self.objects.get(self.holder) {
+            Some(Object::Stream(s)) => s.dict.get(b"Matrix").ok().and_then(|m| m.as_array().ok()).map(|a| {
+                let mut m = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
+                for (i, v) in a.iter().take(6).enumerate() {
+                    m[i] = v.as_float().unwrap_or(m[i]);
+                }
+                m
+            }),
+            _ => None,
+        }
+        .unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+    }
+
+    /// `/BBox` des Holder-Forms (normalisiert; `None` ohne Holder bzw. ohne gültige BBox).
+    pub fn holder_bbox(&self) -> Option<Rect> {
+        let Some(Object::Stream(s)) = self.objects.get(self.holder) else { return None };
+        let a = s.dict.get(b"BBox").ok()?.as_array().ok()?;
+        let v: Vec<f32> = a.iter().filter_map(|o| o.as_float().ok()).collect();
+        let [llx, lly, urx, ury] = <[f32; 4]>::try_from(v).ok()?;
+        Some(Rect::new(llx, lly, urx, ury).normalized())
+    }
+
+    /// Natürliche Größe des Blocks im Benutzerraum der Seite – das Widget-`/Rect` einer freien Platzierung:
+    /// W × H, bei 90°/270° (Holder-`/Matrix`) H × W.
+    pub fn user_size(&self) -> (f32, f32) {
+        let m = self.holder_matrix();
+        let sideways = (m[0].abs() < 0.5) && (m[1].abs() > 0.5);
+        if sideways { (self.height, self.width) } else { (self.width, self.height) }
+    }
+
+    /// Vorhandenes Signaturfeld (`pida-pades` KR-P10, `pida_placement::field_fit`): setzt die Holder-`/BBox` so,
+    /// dass ein Viewer, der die transformierte BBox auf das Widget-`/Rect` `rect` abbildet (ISO 32000-1 §12.5.5),
+    /// den Block – die transformierte BBox `[0 0 W+1 H+1]` des Inner-Forms – genau auf `block` zeichnet (beide im
+    /// Benutzerraum der Seite, `block` innerhalb von `rect`). Ist `block` proportional zu [`Appearance::user_size`],
+    /// erscheint der Block wie bei einer freien Platzierung, nur verkleinert. Inhalt, Inner-Form und `/Matrix`
+    /// bleiben unverändert; außerhalb des Blocks bleibt das Feld durchsichtig.
+    ///
+    /// Liefert `false` (nichts geändert) ohne sichtbares Inner-Form, bei schräger Rotation, leerem Rechteck oder
+    /// nicht endlichen Werten.
+    pub fn place_in_rect(&mut self, rect: Rect, block: Rect) -> bool {
+        if self.inner_name.is_empty() || self.width <= 0.0 || self.height <= 0.0 {
+            return false;
+        }
+        let m = self.holder_matrix();
+        let axis = |v: f32| v.abs() < 1e-4 || (v.abs() - 1.0).abs() < 1e-4;
+        if !m[..4].iter().all(|v| axis(*v)) {
+            return false;
+        }
+        let det = m[0] * m[3] - m[1] * m[2];
+        if det.abs() < 1e-6 {
+            return false;
+        }
+        // transformierte Inner-BBox (Lage des Blocks im Formularraum nach der `/Matrix`)
+        let t = transform_rect(&m, Rect::new(0.0, 0.0, self.width + 1.0, self.height + 1.0));
+        let (r, b) = (rect.normalized(), block.normalized());
+        if t.width() <= 0.0 || t.height() <= 0.0 || b.width() <= 0.0 || b.height() <= 0.0 || r.width() <= 0.0 {
+            return false;
+        }
+        // Abbildung des Viewers: Rechteck T' (transformierte neue BBox) → `rect`, dieselben Faktoren bilden T → `block`
+        let sx = b.width() / t.width();
+        let sy = b.height() / t.height();
+        let wanted = Rect::new(
+            t.llx + (r.llx - b.llx) / sx,
+            t.lly + (r.lly - b.lly) / sy,
+            t.llx + (r.urx - b.llx) / sx,
+            t.lly + (r.ury - b.lly) / sy,
+        );
+        // zurück in den Formularraum (Umkehrung der achsenparallelen `/Matrix`)
+        let inv = [
+            m[3] / det,
+            -m[1] / det,
+            -m[2] / det,
+            m[0] / det,
+            (m[2] * m[5] - m[3] * m[4]) / det,
+            (m[1] * m[4] - m[0] * m[5]) / det,
+        ];
+        let bbox = transform_rect(&inv, wanted);
+        if ![bbox.llx, bbox.lly, bbox.urx, bbox.ury].iter().all(|v| v.is_finite()) {
+            return false;
+        }
+        let Some(Object::Stream(holder)) = self.objects.get_mut(self.holder) else { return false };
+        holder.dict.set("BBox", real_array(&[bbox.llx, bbox.lly, bbox.urx, bbox.ury]));
+        true
+    }
+
     /// Eigenständiges Mini-PDF mit genau diesem Block (Blockvorschau über denselben Renderer,
     /// Plan §6.6); Seitengröße `W × H` (bei 90°/270° `H × W`). Die Seite zeigt das Holder-Form
     /// (bzw. bei `preview_only` das Inner-Form mit der Holder-Matrix) mit derselben Abbildung
@@ -956,17 +1056,7 @@ impl Appearance {
             id
         });
         doc.max_id = next - 1;
-        let holder_matrix = match &self.objects[self.holder] {
-            Object::Stream(s) => s.dict.get(b"Matrix").ok().and_then(|m| m.as_array().ok()).map(|a| {
-                let mut m = [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0];
-                for (i, v) in a.iter().take(6).enumerate() {
-                    m[i] = v.as_float().unwrap_or(m[i]);
-                }
-                m
-            }),
-            _ => None,
-        }
-        .unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+        let holder_matrix = self.holder_matrix();
         for (id, obj) in mat.objects {
             doc.objects.insert(id, obj);
         }
@@ -980,8 +1070,7 @@ impl Appearance {
         let x1 = tp.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max);
         let y0 = tp.iter().map(|p| p.1).fold(f32::INFINITY, f32::min);
         let y1 = tp.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max);
-        let sideways = (m[0].abs() < 0.5) && (m[1].abs() > 0.5);
-        let (pw, ph) = if sideways { (self.height, self.width) } else { (self.width, self.height) };
+        let (pw, ph) = self.user_size();
         let sx = pw / (x1 - x0);
         let sy = ph / (y1 - y0);
         // Wie im Viewer über das Holder-Form (Seite → Holder mit `/Matrix` → Inner-Form): PDFium
@@ -1064,6 +1153,75 @@ fn relink_dict(d: &Dictionary, ids: &[ObjectId]) -> Dictionary {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Appearance ohne Inhalt (nur Holder mit BBox/Matrix und ein Inner-Form) für die Geometrie.
+    fn bare(width: f32, height: f32, rotation: i32) -> Appearance {
+        let mut holder = Dictionary::new();
+        holder.set("BBox", real_array(&[width + 1.0, height + 1.0, 0.0, 0.0]));
+        holder.set("Matrix", real_array(&rotation_matrix(rotation)));
+        let mut inner = Dictionary::new();
+        inner.set("BBox", real_array(&[width + 1.0, height + 1.0, 0.0, 0.0]));
+        Appearance {
+            width,
+            height,
+            layout: None,
+            objects: vec![plain_stream(holder, b"q /FRM1 Do Q".to_vec()), plain_stream(inner, Vec::new())],
+            holder: 0,
+            inner: 1,
+            inner_name: INNER_NAME.into(),
+            tu_text: String::new(),
+        }
+    }
+
+    /// Abbildung eines Viewers (ISO 32000-1 §12.5.5): transformierte Holder-BBox → `/Rect`; liefert, wohin das
+    /// Inner-Form (transformierte BBox `[0 0 W+1 H+1]`) gezeichnet wird.
+    fn drawn_block(app: &Appearance, rect: Rect) -> Rect {
+        let m = app.holder_matrix();
+        let tb = transform_rect(&m, app.holder_bbox().unwrap());
+        let t = transform_rect(&m, Rect::new(0.0, 0.0, app.width + 1.0, app.height + 1.0));
+        let (sx, sy) = (rect.width() / tb.width(), rect.height() / tb.height());
+        Rect::new(
+            rect.llx + (t.llx - tb.llx) * sx,
+            rect.lly + (t.lly - tb.lly) * sy,
+            rect.llx + (t.urx - tb.llx) * sx,
+            rect.lly + (t.ury - tb.lly) * sy,
+        )
+    }
+
+    /// KR-P10: die erweiterte Holder-BBox setzt den Block genau in das gewünschte Rechteck im Feld – für alle
+    /// Rotationen; ohne Erweiterung (PDF-AS) füllte er das ganze Feld.
+    #[test]
+    fn place_in_rect_maps_the_block_exactly() {
+        let field = Rect::new(0.0, 0.0, 612.0, 792.0);
+        for rotation in [0, 90, 180, 270] {
+            let mut app = bare(230.0, 82.0, rotation);
+            assert_eq!(drawn_block(&app, field), field, "PDF-AS: gestreckt auf das Feld ({rotation}°)");
+            let (uw, uh) = app.user_size();
+            assert_eq!((uw, uh), if rotation % 180 == 0 { (230.0, 82.0) } else { (82.0, 230.0) });
+            let block = Rect::new(191.0, 355.0, 191.0 + uw, 355.0 + uh);
+            assert!(app.place_in_rect(field, block));
+            let drawn = drawn_block(&app, field);
+            for (a, b) in
+                [(drawn.llx, block.llx), (drawn.lly, block.lly), (drawn.urx, block.urx), (drawn.ury, block.ury)]
+            {
+                assert!((a - b).abs() < 1e-2, "{rotation}°: {drawn:?} ≠ {block:?}");
+            }
+            // Inhalt und Matrix unverändert
+            assert_eq!(app.holder_matrix(), rotation_matrix(rotation));
+        }
+    }
+
+    #[test]
+    fn place_in_rect_refuses_what_it_cannot_map() {
+        let field = Rect::new(0.0, 0.0, 300.0, 100.0);
+        let mut slanted = bare(230.0, 82.0, 45);
+        assert!(!slanted.place_in_rect(field, Rect::new(0.0, 0.0, 230.0, 82.0)));
+        let mut app = bare(230.0, 82.0, 0);
+        assert!(!app.place_in_rect(field, Rect::new(10.0, 10.0, 10.0, 50.0)), "leerer Block");
+        let before = app.holder_bbox();
+        assert!(!Appearance::invisible().place_in_rect(field, field));
+        assert_eq!(app.holder_bbox(), before);
+    }
 
     #[test]
     fn string_encoding_like_cos_writer() {

@@ -4,8 +4,12 @@
  * zeigt die Blockvorschau des Kerns (`bridge.blockPreviewUrl`) im Rechteck `document.sticker`.
  *
  * - **Ziehen** (Maus/Touch/Stift): Entwurf lokal, Einrasten an `layout.guides` der Zielseite (7 px), freie
- *   Flächen aus `layout.free` als Bänder, Feld-Treffer (Blockmitte im Feld) → `use_target`, sonst beim
- *   Loslassen `move_block`. Ohne Layoutdaten entfallen Einrasten und Bänder – Ziehen geht weiter.
+ *   Flächen aus `layout.free` als Bänder, Feld-Treffer (Blockmitte in einem **angebotenen** Feld, `suitable`)
+ *   → `use_target`, sonst beim Loslassen `move_block`. Ohne Layoutdaten entfallen Einrasten und Bänder – Ziehen
+ *   geht weiter. Im Feld steht der Block, wo ihn der Kern schreibt (`block`: proportional, höchstens natürliche
+ *   Größe, mittig; das Feld als Rahmen) – nie über das ganze Feld gestreckt (ADR 0004 Nachtrag 16).
+ * - **Blockvorschau** in der tatsächlichen Darstellungsgröße (Zoom × Gerätepixel × Verkleinerung im Feld,
+ *   aufgerundet): nie hochskaliert.
  * - **Touch** (aus `PositionScreen`): Greifversatz bleibt, Haptik beim Greifen, ein zweiter Finger verschiebt
  *   nicht, Doppeltippen setzt den Block mittig über den Finger (Fingerversatz), `touch-action: none` nur
  *   auf dem Sticker.
@@ -20,18 +24,21 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent
 import { Button } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
-import type { DocumentView, GuideKind, GuideView, PlacementTarget, RectPt } from '../../core/types';
+import type { DocumentView, GuideKind, GuideView, RectPt } from '../../core/types';
 import { useModKey } from '../../ui/controls';
 import { IconAlert, IconCheck, IconGrip, IconLock, IconPen, IconQr } from '../../ui/Icons';
 import {
   clampToPage,
   grabPoint,
+  offeredField,
   overlapState,
   placementRect,
+  previewScale,
   rectToBox,
   snapToGuides,
   SNAP_PX,
   targetAt,
+  type DropTarget,
   type PagesLayout,
 } from './placement';
 
@@ -40,8 +47,8 @@ interface Draft {
   /** linke obere Ecke (`PAGE_ABS`) */
   x: number;
   y: number;
-  /** Ziel unter der Blockmitte (Feld/QR) */
-  target: { target: PlacementTarget; rect: RectPt } | null;
+  /** Ziel unter der Blockmitte (angebotenes Feld/QR): Lage des Blocks dort und Rechteck des Ziels */
+  target: DropTarget | null;
   guides: GuideView[];
   snapped: GuideKind[];
 }
@@ -298,8 +305,23 @@ export function Pages({
   const inField = draft ? !!draft.target : doc.target.kind !== 'free';
   const overlap = draft ? null : overlapState(doc);
   const box = stickerRect ? rectToBox(stickerRect, pageH(stickerPage), scale) : null;
-  const previewUrl = bridge.blockPreviewUrl(tile, block.preview_revision);
+  // Vorschau in der Darstellungsgröße: im Feld verkleinert der Kern den Block proportional (nie vergrößert).
+  // Maßgeblich ist das größere der beiden Achsenverhältnisse (die geringere Verkleinerung), damit keine Achse
+  // hochskaliert wird (QR-Platzhalter: Sticker = Rechteck des QR-Bildes, nicht proportional zum Block)
+  const fit = box && block.width > 0 && block.height > 0 ? Math.max(box.width / (block.width * scale), box.height / (block.height * scale)) : 1;
+  const previewUrl = bridge.blockPreviewUrl(previewScale(scale * dpr, fit), block.preview_revision);
   const currentField = doc.target.kind === 'field' ? doc.target.index : null;
+  // Rahmen des Felds, in dem der Block steht bzw. beim Ziehen landen würde
+  const current = currentField !== null ? doc.fields.find((f) => f.index === currentField) : undefined;
+  const frame: { page: number; rect: RectPt } | null = draft
+    ? draft.target && draft.target.target.kind === 'field'
+      ? { page: draft.page, rect: draft.target.frame }
+      : null
+    : current && current.rect && current.page !== null && current.page < sizes.length
+      ? { page: current.page, rect: current.rect }
+      : null;
+  const frameBox = frame ? rectToBox(frame.rect, pageH(frame.page), scale) : null;
+  const hitField = draft?.target?.target.kind === 'field' ? draft.target.target.index : null;
 
   return (
     <div className={`pages${dragging ? ' is-dragging' : ''}`} ref={hostRef} style={{ width: layout.width, height: layout.height }}>
@@ -349,14 +371,24 @@ export function Pages({
             )
           : null}
 
+        {frame && frameBox && !doc.invisible ? (
+          <div
+            className="field-frame"
+            style={{ top: top(frame.page) + frameBox.top, left: left(frame.page) + frameBox.left, width: frameBox.width, height: frameBox.height }}
+            aria-hidden="true"
+            data-testid="field-frame"
+          />
+        ) : null}
+
         {editable
           ? doc.fields.map((f) => {
-              if (!f.selectable || !f.rect || f.page === null || f.page >= sizes.length || f.index === currentField) return null;
+              // nur angebotene Felder (Kern: `suitable`); ein seitengroßes Feld verdeckte sonst die ganze Seite
+              if (!offeredField(f) || f.page >= sizes.length || f.index === currentField) return null;
               const b = rectToBox(f.rect, pageH(f.page), scale);
               return (
                 <Button
                   key={`field-${f.index}`}
-                  className={`field-marker field-marker-field${dragging ? ' is-target' : ''}`}
+                  className={`field-marker field-marker-field${dragging ? ' is-target' : ''}${hitField === f.index ? ' is-hit' : ''}`}
                   style={{ top: top(f.page) + b.top, left: left(f.page) + b.left, width: b.width, height: b.height }}
                   aria-label={t.t('ng-ui-ws-marker-field', { name: f.name })}
                   onPress={() => {

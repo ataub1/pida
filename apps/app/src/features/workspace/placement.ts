@@ -21,10 +21,14 @@ export const SNAP_PX = 7;
 /** Touch: Abstand zwischen Blockunterkante und Finger in pt (Fingerversatz, aus `PositionScreen`). */
 export const TOUCH_OFFSET_PT = 12;
 
-/** Seitengrößen der Anzeige inkl. virtueller neuer Seite (`page == page_count`, Größe der letzten Seite). */
+/**
+ * Seitengrößen der Anzeige inkl. virtueller neuer Seite (`page == page_count`): deren Größe nennt der Kern
+ * (`new_page_size` = MediaBox der letzten Seite ohne CropBox, wie PDF-AS sie anhängt; ADR 0004 Nachtrag 16),
+ * sonst die der letzten Seite.
+ */
 export function displayPages(doc: DocumentView): [number, number][] {
   const sizes = doc.doc.page_sizes.map((s) => [s[0], s[1]] as [number, number]);
-  const last = sizes[sizes.length - 1] ?? [595.28, 841.89];
+  const last = doc.new_page_size ?? sizes[sizes.length - 1] ?? [595.28, 841.89];
   return doc.new_page ? [...sizes, [last[0], last[1]]] : sizes;
 }
 
@@ -124,14 +128,43 @@ export function snapToGuides(x: number, yTop: number, w: number, h: number, guid
   return out;
 }
 
-/** Ziel unter der Blockmitte beim Ziehen (leeres Signaturfeld bzw. QR-Platzhalter), sonst `null`. */
-export function targetAt(fields: FieldTargetView[], qr: QrTargetView | null, page: number, cx: number, cy: number): { target: PlacementTarget; rect: RectPt } | null {
+/** Ziel beim Ziehen: `rect` = wo der Block dort steht, `frame` = Rechteck des Felds bzw. Platzhalters. */
+export interface DropTarget {
+  target: PlacementTarget;
+  rect: RectPt;
+  frame: RectPt;
+}
+
+/**
+ * Als Ziel angebotenes Feld (ADR 0004 Nachtrag 16): wählbar und laut Kern geeignet (`suitable` – ein seitengroßes
+ * oder 3 pt schmales Feld nicht), mit Seite und Rechteck.
+ */
+export function offeredField(f: FieldTargetView): f is FieldTargetView & { page: number; rect: RectPt } {
+  return f.selectable && f.suitable && f.page !== null && f.rect !== null;
+}
+
+/**
+ * Ziel unter der Blockmitte beim Ziehen (angebotenes Signaturfeld bzw. QR-Platzhalter), sonst `null`. Im Feld
+ * steht der Block dort, wo ihn der Kern schreibt (`block`: proportional, höchstens natürliche Größe, mittig).
+ */
+export function targetAt(fields: FieldTargetView[], qr: QrTargetView | null, page: number, cx: number, cy: number): DropTarget | null {
   const inside = (r: RectPt) => cx >= r.left && cx <= r.right && cy >= r.bottom && cy <= r.top;
   for (const f of fields) {
-    if (f.selectable && f.page === page && f.rect && inside(f.rect)) return { target: { kind: 'field', index: f.index }, rect: f.rect };
+    if (offeredField(f) && f.page === page && inside(f.rect)) return { target: { kind: 'field', index: f.index }, rect: f.block ?? f.rect, frame: f.rect };
   }
-  if (qr && qr.page === page && inside(qr.rect)) return { target: { kind: 'qr' }, rect: qr.rect };
+  if (qr && qr.page === page && inside(qr.rect)) return { target: { kind: 'qr' }, rect: qr.rect, frame: qr.rect };
   return null;
+}
+
+/**
+ * Maßstab der Blockvorschau (`blockPreviewUrl`) für die tatsächliche Darstellungsgröße: Bildpunkte je pt
+ * (`pxPerPt` = Zoom × Gerätepixel) mal Verkleinerung im Feld (`fit` ≤ 1), auf 0,25 **aufgerundet** – das Bild
+ * wird nie hochskaliert (unscharf), nur geringfügig verkleinert.
+ */
+export function previewScale(pxPerPt: number, fit = 1): number {
+  const s = pxPerPt * Math.min(1, Math.max(0, fit));
+  if (!Number.isFinite(s) || s <= 0) return 0.25;
+  return Math.min(8, Math.max(0.25, Math.ceil(s * 4 - 1e-6) / 4));
 }
 
 export type ZoneH = 'left' | 'center' | 'right';

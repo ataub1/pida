@@ -2,6 +2,7 @@
 import { defaultErrorContext, defaultSettings, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../core/defaults';
 import { mockKeystoreFormat } from '../core/mock/settings';
 import { capabilitiesFor } from '../core/mock/shared';
+import { fieldFit } from '../core/mock/workspace';
 import type {
   ActionsView,
   BackendOptionView,
@@ -10,6 +11,7 @@ import type {
   DocInfo,
   DocumentView,
   ErrorContextView,
+  FieldTargetView,
   PlatformView,
   FormContext,
   InteractionView,
@@ -238,6 +240,20 @@ export function documentView(extra: Partial<DocumentView> = {}): DocumentView {
     placement_locked: false,
     ...extra,
   };
+}
+
+/**
+ * Leeres Signaturfeld wie vom Kern (ADR 0004 Nachtrag 16): `suitable` und `block` (Lage des Blocks im Feld:
+ * proportional, höchstens natürliche Größe, mittig) für den Block 230 × 82 pt aus [`documentView`] auf einer
+ * A4-Seite, sofern nicht angegeben.
+ */
+export function fieldTarget(
+  f: Omit<FieldTargetView, 'suitable' | 'block'> & Partial<Pick<FieldTargetView, 'suitable' | 'block'>>,
+  block = { width: 230, height: 82 },
+  page: [number, number] = [595.28, 841.89],
+): FieldTargetView {
+  const fit = f.rect ? fieldFit(f.rect, block, page) : null;
+  return { suitable: fit?.suitable ?? false, block: fit?.rect ?? null, ...f };
 }
 
 /** Arbeitsbereich (Schritt `position` als Phasenmarker, Inhalt in `document`). */

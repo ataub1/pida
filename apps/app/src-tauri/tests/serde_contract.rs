@@ -738,8 +738,19 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
                 page: Some(1),
                 rect: Some(rect(56.0, 100.0, 256.0, 160.0)),
                 selectable: true,
+                // Nachtrag 16: geeignet, Block proportional und mittig im Feld
+                suitable: true,
+                block: Some(rect(71.0, 100.0, 241.0, 160.0)),
             },
-            FieldTargetView { index: 1, name: "Gesperrt".into(), page: None, rect: None, selectable: false },
+            FieldTargetView {
+                index: 1,
+                name: "Gesperrt".into(),
+                page: None,
+                rect: None,
+                selectable: false,
+                suitable: false,
+                block: None,
+            },
         ],
         qr: Some(QrTargetView { page: 1, rect: rect(400.0, 40.0, 480.0, 120.0), id: Some("1".into()) }),
         existing: vec![
@@ -797,6 +808,8 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
             auto_placed: origin != PlacementOrigin::User,
         }),
         placement_locked: false,
+        // Nachtrag 16: Größe einer neuen Seite (MediaBox der letzten Seite)
+        new_page_size: Some((595.28, 841.89)),
     }
 }
 
