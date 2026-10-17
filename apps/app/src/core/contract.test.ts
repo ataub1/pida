@@ -206,6 +206,8 @@ const signersView = obj({
   ),
   selected: nullable(backendId),
   default: nullable(backendId),
+  // Nachtrag 20: Signiermittel-Auswahl nur bei mehr als einem Signiermittel (Kern entscheidet)
+  choice_offered: bool,
 });
 
 const signingProgress = obj({
@@ -671,7 +673,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         keystore_import: null,
         privacy_text: null,
         document: null,
-        signers: { options: [], selected: null, default: null },
+        signers: { options: [], selected: null, default: null, choice_offered: false },
         batch: null,
         recent: null,
         first_run: null,
@@ -744,11 +746,15 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
     for (const n of ['mobile_backend', 'mobile_resume_offer', 'keystore_imported']) expect(names.has(n)).toBe(true);
     const backend = fixture.find((f) => f.name === 'mobile_backend')?.view;
     expect(backend?.platform).toEqual({ os: 'android', mobile: true });
-    // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): keine Probe mit Keystore auf Mobilgeräten
+    // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): keine Probe mit Keystore auf Mobilgeräten – und
+    // damit keine Signiermittel-Auswahl (Nachtrag 20)
     for (const f of fixture.filter((x) => x.view.platform.mobile)) {
       expect(f.view.keystore_import, f.name).toBeNull();
       expect(f.view.signers.options.map((o) => o.backend), f.name).not.toContain('keystore');
+      expect(f.view.signers.choice_offered, f.name).toBe(false);
     }
+    // Desktop mit mehreren Signiermitteln: Auswahl wie bisher
+    expect(fixture.some((x) => !x.view.platform.mobile && x.view.signers.options.length > 1 && x.view.signers.choice_offered)).toBe(true);
   });
 
   it('ui-events.json ist aktuell (für den Rust-Test)', () => {

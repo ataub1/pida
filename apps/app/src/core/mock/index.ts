@@ -34,6 +34,7 @@ import type {
   Settings,
   SignedSummaryView,
   SignerView,
+  SignersView,
   StepView,
   UiEvent,
   ViewState,
@@ -216,8 +217,36 @@ function signerOptions(s: FlowState, ctx: MockCtx): SignerView[] {
       unavailable_reason: ok ? null : 'ng-signer-keystore-missing',
     });
   }
+  // Richtlinie `allowed_backends` wie im Kern: nicht freigegebene gesperrt mit Grund (bleiben in den Optionen)
+  const allowed = s.opts.allowedBackends;
+  const byPolicy = out.map((o) => (!allowed || allowed.includes(o.backend) ? o : { ...o, available: false, capabilities: null, unavailable_reason: 'ng-signer-policy' }));
   // Ablauf des Stapels aus den Fähigkeiten wie der Kern (Nachtrag 12)
-  return out.map((o) => ({ ...o, batch_flow: batchFlowFor(o.capabilities) }));
+  return byPolicy.map((o) => ({ ...o, batch_flow: batchFlowFor(o.capabilities) }));
+}
+
+/**
+ * Signiermittel, die in Frage kommen (wie `eligible_signers` im Kern, ADR 0004 Nachtrag 20): jede Option außer den
+ * von der Richtlinie ausgeschlossenen – ein nicht laufendes bzw. nicht eingerichtetes Signiermittel zählt.
+ */
+function eligibleSigners(options: SignerView[]): BackendId[] {
+  return options.filter((o) => o.unavailable_reason !== 'ng-signer-policy').map((o) => o.backend);
+}
+
+/**
+ * `ViewState::signers` wie `signers_view` im Kern: kommt nur ein Signiermittel in Frage (iOS/Android: ID Austria;
+ * Desktop per Richtlinie), gibt es keine Auswahl (`choice_offered = false`) und es ist gewählt – auch bei „Jedes Mal
+ * fragen“ und nach `select_signer` (Nachtrag 20).
+ */
+function signersProjection(s: FlowState, ctx: MockCtx): SignersView {
+  const options = signerOptions(s, ctx);
+  const eligible = eligibleSigners(options);
+  const choiceOffered = eligible.length > 1;
+  return { ...defaultSigners(), options, selected: choiceOffered ? s.selected : (eligible[0] ?? null), default: defaultBackend(ctx), choice_offered: choiceOffered };
+}
+
+/** Wirksame Auswahl des Konto-Chips (`signers.selected`). */
+function selectedSigner(s: FlowState, ctx: MockCtx): BackendId | null {
+  return signersProjection(s, ctx).selected;
 }
 
 function available(s: FlowState, ctx: MockCtx, id: BackendId): boolean {
@@ -324,7 +353,7 @@ function batchHost(s: FlowState, ctx: MockCtx): BatchHost {
     ctx,
     opts: s.opts,
     available: (backend) => available(s, ctx, backend),
-    selected: () => s.selected,
+    selected: () => selectedSigner(s, ctx),
     remembered: () => s.remembered,
     setRemembered: (value) => {
       s.remembered = value;
@@ -541,7 +570,10 @@ function startSigning(s: FlowState, ctx: MockCtx, backend: BackendId): void {
   const edit = s.edit;
   if (!d || !edit) return;
   if (!available(s, ctx, backend)) {
-    ctx.notify('ng-signer-unavailable');
+    // ohne Auswahl (nur ein Signiermittel, Nachtrag 20) nennt der Hinweis den Grund statt „wählen Sie ein anderes“
+    const signers = signersProjection(s, ctx);
+    const reason = signers.choice_offered ? null : signers.options.find((o) => o.backend === backend)?.unavailable_reason;
+    ctx.notify(reason ?? 'ng-signer-unavailable');
     return;
   }
   const settings = ctx.settings();
@@ -629,7 +661,7 @@ function toOutput(s: FlowState, ctx: MockCtx): void {
   const name = outputFileName(d.path, settings.output.postfix || '_signed');
   const isMobile = ctx.platform().mobile;
   const folder = settings.output.folder ?? (isMobile ? `${SANDBOX}/Documents` : null);
-  const backend = session?.backend ?? s.selected ?? 'atrust_native';
+  const backend = session?.backend ?? selectedSigner(s, ctx) ?? 'atrust_native';
   const finish = (path: string) => saved(s, ctx, path, backend);
   if (folder) {
     const target = joinPath(folder === '.' ? folderOf(d.path) : folder, name);
@@ -1234,16 +1266,20 @@ const flowArea: MockArea<FlowState> = {
         if (s.stage === 'choosing') startSigning(s, ctx, e.backend);
         else if (s.stage === 'editing' && placementAllowed(s)) startSigning(s, ctx, e.backend);
         return true;
-      case 'confirm_position':
+      case 'confirm_position': {
         // Alias im Arbeitsbereich-Modus (§3.2): nur mit gewähltem Signiermittel
-        if (s.stage === 'editing' && s.selected) startSigning(s, ctx, s.selected);
+        const backend = selectedSigner(s, ctx);
+        if (s.stage === 'editing' && backend) startSigning(s, ctx, backend);
         return true;
-      case 'choose_invisible':
-        if (s.stage === 'editing' && s.edit && s.selected) {
+      }
+      case 'choose_invisible': {
+        const backend = selectedSigner(s, ctx);
+        if (s.stage === 'editing' && s.edit && backend) {
           s.edit = { ...s.edit, invisible: true, revision: s.edit.revision + 1 };
-          startSigning(s, ctx, s.selected);
+          startSigning(s, ctx, backend);
         }
         return true;
+      }
       case 'choose_backend':
         if (mobileKeystore(ctx, e.backend)) return true;
         if (s.stage === 'choosing') startSigning(s, ctx, e.backend);
@@ -1350,7 +1386,7 @@ const flowArea: MockArea<FlowState> = {
         done: s.done.map((x) => structuredClone(x)),
         resume: null,
         document: null,
-        signers: { ...defaultSigners(), options: signerOptions(s, ctx), selected: s.selected, default: defaultBackend(ctx) },
+        signers: signersProjection(s, ctx),
         batch: null,
         actions: { ...noActions(), open_files: true, settings: bp.settings_enabled, home: true },
         parked: parkedView(s),
@@ -1360,14 +1396,13 @@ const flowArea: MockArea<FlowState> = {
     const b = bar(s);
     const lang = blockLang(ctx);
     const phase = s.stage === 'warning' ? 'warning' : s.stage === 'editing' ? 'editing' : s.stage === 'signing' || s.stage === 'choosing' ? 'signing' : s.stage === 'output' ? 'done' : s.stage === 'error' && s.error?.origin === 'signing' ? 'signing' : null;
-    const options = signerOptions(s, ctx);
     return {
       step: stepView(s, ctx),
       main_bar: b,
       done: s.done.map((x) => structuredClone(x)),
       resume: s.stage === 'open' && s.resume ? { ...s.resume } : null,
       document: d && s.edit && phase ? projectDocument(d, s.edit, phase, ctx.settings(), lang, s.preview) : null,
-      signers: { ...defaultSigners(), options, selected: s.selected, default: defaultBackend(ctx) },
+      signers: signersProjection(s, ctx),
       batch: s.batch ? s.batch.view() : null,
       actions: actionsView(s, b),
       parked: null,

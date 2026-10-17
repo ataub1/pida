@@ -182,6 +182,55 @@ impl BackendSession for FakeAtrustSession {
     }
 }
 
+/// Weiteres Signiermittel wie am Desktop (Chipkarte), das nie signiert: Mit nur einem fest vorgegebenen Backend
+/// gäbe es keine Signiermittel-Auswahl (ADR 0004 Nachtrag 20) – Tests der Auswahl („Jedes Mal fragen“, Konto-Chip)
+/// stellen dem Fake-Backend dieses zur Seite. `available = false` wie eine nicht gestartete Chipkarten-Software.
+#[derive(Debug)]
+pub struct IdleBackend {
+    pub available: bool,
+    pub opened: AtomicUsize,
+}
+
+impl IdleBackend {
+    pub fn card() -> Arc<dyn SignatureBackend> {
+        Arc::new(IdleBackend { available: true, opened: AtomicUsize::new(0) })
+    }
+    pub fn card_not_running() -> Arc<dyn SignatureBackend> {
+        Arc::new(IdleBackend { available: false, opened: AtomicUsize::new(0) })
+    }
+}
+
+#[async_trait]
+impl SignatureBackend for IdleBackend {
+    fn id(&self) -> BackendId {
+        BackendId::LocalBku
+    }
+    fn capabilities(&self, env: &Environment) -> Option<Capabilities> {
+        // wie `LocalBkuBackend::capabilities`
+        (self.available && env.allows(BackendId::LocalBku)).then(|| Capabilities {
+            input: SignInput::Document,
+            output: SignOutput::Cms,
+            certificate: CertNeed::Required,
+            interaction: Interaction::External,
+            server: ServerNeed::None,
+            max_batch: 1,
+            login_once_per_batch: false,
+            document_leaves_device: false,
+            qualification: Qualification::Qes,
+            factors: FactorSet { card: true, ..FactorSet::default() },
+            cms_reserve: Some(16 * 1024),
+        })
+    }
+    async fn open(
+        &self,
+        _ctx: SessionContext,
+        _ui: Arc<dyn InteractionBroker>,
+    ) -> Result<Box<dyn BackendSession>, BackendError> {
+        self.opened.fetch_add(1, Ordering::SeqCst);
+        Err(BackendError::Unavailable("nie benutzt (Test)".into()))
+    }
+}
+
 /// Backend mit Programmfehler: `capabilities` bricht ab (Panik im Kern-Task, F-106).
 #[derive(Debug)]
 pub struct PanickingBackend;

@@ -450,8 +450,9 @@ async fn default_signer_with_auto_position_never_starts_by_itself() {
         let engine = FakeEngine::new();
         let mut overlay = keystore_overlay(vec![a], &fx.dir("out"));
         overlay.keystore_store_password = Some(Zeroizing::new("test".into()));
+        // wie am Desktop mehr als ein Signiermittel (sonst gäbe es keine Auswahl, Nachtrag 20)
         let backends: Option<Vec<Arc<dyn SignatureBackend>>> =
-            if default == "id_austria" { Some(vec![fake.backend()]) } else { None };
+            if default == "id_austria" { Some(vec![fake.backend(), IdleBackend::card()]) } else { None };
         let core = start(&fx, overlay, backends, Some(engine.clone()), false).unwrap();
         let v = wait_for(&core, "Arbeitsbereich", editing).await;
         // „Automatische Positionierung“ (Nachtrag 8): bereit zum Signieren, Platzierung gesperrt – signiert
@@ -596,15 +597,17 @@ async fn signer_chip_selection_and_default() {
     let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
     fx.write_settings("[id_austria]\nusername = \"+436641234567\"\nremember = true\n");
     let fake = FakeAtrust::new();
+    // wie am Desktop mit Chipkarte: mit nur einem Signiermittel gäbe es keine Auswahl (Nachtrag 20)
     let core = start(
         &fx,
         Overlay { input_files: vec![a], ..Overlay::default() },
-        Some(vec![fake.backend()]),
+        Some(vec![fake.backend(), IdleBackend::card()]),
         Some(FakeEngine::new()),
         false,
     )
     .unwrap();
     let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    assert!(v.signers.choice_offered);
     assert_eq!((v.signers.selected, v.signers.default), (None, None), "„Jedes Mal fragen“");
     let atrust = v.signers.options.iter().find(|s| s.backend == BackendId::AtrustNative).unwrap();
     assert_eq!(atrust.account.as_deref(), Some("+43 664 ···567"));
@@ -618,6 +621,99 @@ async fn signer_chip_selection_and_default() {
     wait_for(&core, "Jedes Mal fragen", |v| v.signers.default.is_none() && v.signers.selected.is_none()).await;
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "SelectSigner öffnet nie eine Sitzung");
+}
+
+/// Kern am Desktop mit Richtlinie und Dokument im Arbeitsbereich (Nachtrag 20).
+fn start_with_policy(
+    fx: &Fixture,
+    backends: Vec<Arc<dyn SignatureBackend>>,
+    policy: Option<pida_config::Policy>,
+) -> pida_core_api::Core {
+    let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        backends: Some(backends),
+        engine: Some(FakeEngine::new()),
+        policy,
+        ..CoreOptions::isolated()
+    };
+    let overlay = Overlay { input_files: vec![a], ..Overlay::default() };
+    pida_core_api::Core::new_with(fx.config(overlay, false), opts).expect("Kern startet")
+}
+
+/// Keine Signiermittel-Auswahl bei nur einem Signiermittel am Desktop (ADR 0004 Nachtrag 20): Eine Richtlinie,
+/// die nur ID Austria freigibt (`allowed_backends`) bzw. vorschreibt (`forced_backend`), lässt nichts zu wählen –
+/// `choice_offered = false`, `selected` = ID Austria auch bei „Jedes Mal fragen“ und nach `select_signer` ohne
+/// bzw. mit einem anderen Signiermittel; die Chipkarte bleibt in den Optionen (gesperrt mit Grund). Signiert wird
+/// erst nach „Signieren mit“ (A1). Gegenprobe ohne Richtlinie: Auswahl wie bisher, „Jedes Mal fragen“ ohne Vorauswahl.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn single_signer_by_policy_offers_no_choice() {
+    use pida_config::{BackendChoice, Policy};
+    let only_ida = Policy { allowed_backends: Some(vec![BackendChoice::IdAustria]), ..Policy::default() };
+    let forced = Policy { forced_backend: Some(BackendChoice::IdAustria), ..Policy::default() };
+    for (name, policy) in [("allowed_backends", only_ida), ("forced_backend", forced)] {
+        let fx = Fixture::new();
+        fx.write_settings("[general]\n"); // „Jedes Mal fragen“ (kein `backend.default`), ohne Ersteinrichtung
+        let fake = FakeAtrust::new();
+        let core = start_with_policy(&fx, vec![fake.backend(), IdleBackend::card()], Some(policy));
+        let v = wait_for(&core, "Arbeitsbereich", editing).await;
+        assert!(!v.signers.choice_offered, "{name}");
+        assert_eq!(v.signers.selected, Some(BackendId::AtrustNative), "{name}: das eine Signiermittel ist gewählt");
+        assert_eq!(v.signers.options.len(), 2, "{name}: Optionen unverändert");
+        for signer in [None, Some(BackendId::LocalBku)] {
+            core.dispatch(UiEvent::SelectSigner { backend: signer, make_default: false });
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let v = core.view();
+            assert_eq!(v.signers.selected, Some(BackendId::AtrustNative), "{name}: {signer:?}");
+            assert!(!v.signers.choice_offered && editing(&v));
+        }
+        assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "{name}: keine Sitzung ohne „Signieren“ (A1)");
+        core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
+        form_request(&core, "Anmeldung", |f| matches!(f, NativeForm::Login { .. })).await;
+        assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "{name}");
+    }
+
+    // Gegenprobe: ohne Richtlinie zwei Signiermittel – Auswahl, „Jedes Mal fragen“ ohne Vorauswahl
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let core = start_with_policy(&fx, vec![FakeAtrust::new().backend(), IdleBackend::card()], None);
+    let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    assert!(v.signers.choice_offered);
+    assert_eq!(v.signers.selected, None);
+}
+
+/// Das eine Signiermittel ist nicht verfügbar (Richtlinie gibt nur die Chipkarte frei, die Chipkarten-Software läuft
+/// nicht, Nachtrag 20): keine Auswahl, die Chipkarte ist gewählt; „Signieren mit“ nennt den Grund
+/// (`ng-signer-localbku-not-running`) statt „Bitte wählen Sie ein anderes“ und startet nichts. Mit Auswahl
+/// (ohne Richtlinie) bleibt der allgemeine Hinweis des Workflows.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn single_unavailable_signer_names_the_reason() {
+    use pida_config::{BackendChoice, Policy};
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let fake = FakeAtrust::new();
+    let only_card = Policy { allowed_backends: Some(vec![BackendChoice::LocalBku]), ..Policy::default() };
+    let core = start_with_policy(&fx, vec![fake.backend(), IdleBackend::card_not_running()], Some(only_card));
+    let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    assert!(!v.signers.choice_offered);
+    assert_eq!(v.signers.selected, Some(BackendId::LocalBku));
+    let card = v.signers.options.iter().find(|o| o.backend == BackendId::LocalBku).unwrap();
+    assert_eq!(card.unavailable_reason.as_deref(), Some("ng-signer-localbku-not-running"));
+    core.dispatch(UiEvent::SignWith { backend: BackendId::LocalBku });
+    let v = wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-signer-localbku-not-running")).await;
+    assert!(editing(&v), "{:?}", v.step);
+    assert!(!v.notices.iter().any(|n| n.code == "ng-signer-unavailable"));
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0);
+
+    // Gegenprobe mit Auswahl: der allgemeine Hinweis („Bitte wählen Sie ein anderes“)
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let core = start_with_policy(&fx, vec![FakeAtrust::new().backend(), IdleBackend::card_not_running()], None);
+    let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    assert!(v.signers.choice_offered);
+    core.dispatch(UiEvent::SignWith { backend: BackendId::LocalBku });
+    let v = wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-signer-unavailable")).await;
+    assert!(editing(&v));
 }
 
 /// Ohne PDFium (Abnahme E1 Punkt 10): Arbeitsbereich bedienbar, Hinweis, „Signieren“ signiert automatisch

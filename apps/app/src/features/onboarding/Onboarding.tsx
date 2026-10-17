@@ -5,8 +5,9 @@
  * 1. **PDF-Over-Einstellungen übernehmen** – nur mit Altkonfiguration (`first_run.migration`), mit der Liste
  *    der Übernahmen; ohne Altkonfiguration beginnt die Einrichtung direkt mit Schritt 2.
  * 2. **Standard-Signiermittel** (ID Austria, Keystore – wählbar, sobald eingerichtet –, Chipkarte, „Jedes Mal
- *    fragen“) → `update_first_run`, sofort gespeichert. Nur am Desktop: auf iOS/Android wird nur mit ID Austria
- *    signiert (ADR 0004 Nachtrag 11) – dort entfällt der Schritt.
+ *    fragen“) → `update_first_run`, sofort gespeichert. Nur mit Signiermittel-Auswahl (`signers.choice_offered`,
+ *    ADR 0004 Nachtrag 20): auf iOS/Android wird nur mit ID Austria signiert (Nachtrag 11), am Desktop kann eine
+ *    Richtlinie nur ein Signiermittel lassen – dann entfällt der Schritt.
  * 3. **Signaturbild** (Profil, Blocksprache) mit der Blockvorschau des Kerns (`first_run.preview_revision`)
  *    → `update_first_run`. Die Bildmarke bleibt das PIDA-Siegel, sofern PDF-Over keine eigene gesetzt hatte.
  *
@@ -17,10 +18,11 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../app/context';
-import { isMobile, type BackendChoice, type FirstRunView, type Lang, type MigrationOfferView, type SignatureProfile } from '../../core/types';
+import { type BackendChoice, type FirstRunView, type Lang, type MigrationOfferView, type SignatureProfile } from '../../core/types';
 import { Button, RadioCards, Segmented, type ChoiceOption } from '../../ui/controls';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconCard, IconFileKey, IconPhone } from '../../ui/Icons';
+import { signerChoice } from '../workspace/signers';
 import { MigrationOfferPane } from './MigrationOffer';
 import './onboarding.css';
 
@@ -72,8 +74,8 @@ function FirstRunDialog({ firstRun }: { firstRun: FirstRunView }) {
   const { t, view, dispatch } = useApp();
   // Schritt 1 nur, wenn beim Öffnen ein Angebot vorlag (danach ist es beantwortet und verschwindet)
   const [hadMigration] = useState(() => firstRun.migration !== null);
-  // Mobile: nur ID Austria – keine Wahl des Signiermittels (ADR 0004 Nachtrag 11)
-  const signerStep = !isMobile(view);
+  // nur ein Signiermittel (Mobile: ID Austria, Nachtrag 11; Desktop per Richtlinie) – keine Wahl (Nachtrag 20)
+  const signerStep = signerChoice(view);
   const afterMigration: Step = signerStep ? 1 : 2;
   const [step, setStep] = useState<Step>(() => (firstRun.migration ? 0 : afterMigration));
   const [busy, setBusy] = useState(false);

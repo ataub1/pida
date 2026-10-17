@@ -171,7 +171,7 @@ export function outputResult(extra: Partial<OutputView> = {}): OutputView {
 
 /**
  * Signiermittel wie im Kern (ID Austria mit gemerktem Benutzer, lokale BKU, Keystore); `mobile` = iOS/Android:
- * nur ID Austria (ADR 0004 Nachtrag 11).
+ * nur ID Austria (ADR 0004 Nachtrag 11) und damit keine Signiermittel-Auswahl (`choice_offered`, Nachtrag 20).
  */
 export function signersView(extra: Partial<SignersView> = {}, mobile = false): SignersView {
   return {
@@ -194,6 +194,23 @@ export function signersView(extra: Partial<SignersView> = {}, mobile = false): S
     ],
     selected: 'atrust_native',
     default: 'atrust_native',
+    choice_offered: !mobile,
+    ...extra,
+  };
+}
+
+/**
+ * Desktop mit Richtlinie, die nur ID Austria freigibt (`allowed_backends`, ADR 0004 Nachtrag 20): Chipkarte und
+ * Keystore gesperrt mit Grund, keine Auswahl, ID Austria gewählt – auch bei „Jedes Mal fragen“ (`default` leer).
+ */
+export function singleSignerView(extra: Partial<SignersView> = {}): SignersView {
+  const base = signersView();
+  return {
+    ...base,
+    options: base.options.map((o) => (o.backend === 'atrust_native' ? o : { ...o, available: false, capabilities: null, batch_flow: null, unavailable_reason: 'ng-signer-policy' })),
+    selected: 'atrust_native',
+    default: null,
+    choice_offered: false,
     ...extra,
   };
 }

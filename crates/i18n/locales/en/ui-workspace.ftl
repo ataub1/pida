@@ -367,6 +367,10 @@ ng-ui-sc-choose-title = Choose signing method
 ng-ui-sc-choose-text = The signing method chosen originally is not available. What would you like to sign with?
 ng-ui-sc-choose-unavailable = Currently not available
 ng-ui-sc-choose-sign = Sign
+# without a choice of signing method (only one, ADR 0004 addendum 20): no “Choose signing method”
+ng-ui-sc-single-title = Continue with { $signer }
+ng-ui-sc-single-text = The signing method chosen originally is not available. The document will be signed with { $signer }.
+ng-ui-sc-single-unavailable = { $signer } is currently not available.
 
 ## Done
 

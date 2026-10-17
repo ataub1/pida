@@ -1,7 +1,8 @@
 /**
  * Mobile-Oberfläche (ADR 0004 §4.6, Plan §5.2, docs/integration/mobile.md): Bottom-Sheet, Touch-Ziehen mit
- * Fingerversatz, „Signatur fortsetzen“ (mit Kurzhinweis), nur ID Austria (ADR 0004 Nachtrag 11: Konto-Chip ohne
- * Wechsel, nirgends Keystore-Texte), Teilen/Sichern unter, FIDO2 ausgegraut, Dateiauswahl über das Plugin,
+ * Fingerversatz, „Signatur fortsetzen“ (mit Kurzhinweis), nur ID Austria (ADR 0004 Nachtrag 11: nirgends
+ * Keystore-Texte; Nachtrag 20: keine Signiermittel-Auswahl, kein Konto-Chip), Teilen/Sichern unter, FIDO2
+ * ausgegraut, Dateiauswahl über das Plugin,
  * Plattform-Kennzeichen; dieselben Ansichten mit `platform: ios|android` wie `?platform=` (Abnahme E1 Punkt 9 [M]).
  */
 import { act, screen, waitFor, within } from '@testing-library/react';
@@ -93,7 +94,7 @@ describe('Bottom-Sheet und Touch', () => {
     await expectNoAxeViolations();
   });
 
-  it('schmal mit ID Austria: Kurzhinweis „an A-Trust übermittelt“ über dem Konto-Chip, auch eingeklappt', async () => {
+  it('schmal mit ID Austria: Kurzhinweis „an A-Trust übermittelt“ über „Signieren“, auch eingeklappt', async () => {
     restore = emulateMedia({ narrow: true });
     const { unmount } = renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), ANDROID) });
     await screen.findByRole('application', { name: 'Signaturblock' });
@@ -125,26 +126,55 @@ describe('Bottom-Sheet und Touch', () => {
   });
 });
 
-describe('Konto-Chip und Signiermittel auf Mobilgeräten', () => {
-  it('nur ID Austria: Konto-Chip ohne Wechsel – das Menü bietet nur „Einstellungen …“ (ADR 0004 Nachtrag 11)', async () => {
-    const view = onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), IOS);
-    const { user } = renderApp({ view, platform: 'ios' });
-    const chip = await screen.findByTestId('signer-chip');
-    expect(chip).toHaveAccessibleName('Signiermittel: ID Austria · +43 660 ···123');
-    await user.click(chip);
-    const menu = await screen.findByRole('menu');
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Einstellungen …']);
-    expect(within(menu).queryByText('Signiermittel wechseln')).not.toBeInTheDocument();
-    expect(menu.textContent).not.toMatch(/Keystore|PKCS/);
+describe('Signiermittel auf Mobilgeräten: nur ID Austria, keine Auswahl (ADR 0004 Nachtrag 20)', () => {
+  it.each([
+    ['ios', IOS],
+    ['android', ANDROID],
+  ] as const)('%s schmal: kein Konto-Chip, „Signieren“ über die volle Breite, Kurzhinweis bleibt; axe', async (platform, os) => {
+    restore = emulateMedia({ narrow: true, coarse: true });
+    const view = onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), os);
+    const { mock, user } = renderApp({ view, platform });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const sheet = screen.getByRole('complementary', { name: 'Signatur' });
+    expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
+    expect(sheet.querySelector('.inspector-footer')).toHaveClass('is-single');
+    expect(sheet.querySelector('.inspector-footer-chip')).toBeNull();
+    expect(within(sheet).getByTestId('privacy-note')).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
+    expect(sheet.textContent).not.toMatch(/Signiermittel|Signieren mit/);
+    await expectNoAxeViolations();
+    // ausgeklappt ebenso kein Abschnitt „Signieren mit“
+    await user.click(within(sheet).getByRole('button', { name: /Optionen einblenden/ }));
+    expect(within(sheet).queryByRole('heading', { name: 'Signieren mit' })).not.toBeInTheDocument();
+    expect(sheet.textContent).not.toMatch(/Signiermittel/);
+    await expectNoAxeViolations();
+    // „Signieren“ signiert mit dem vom Kern gewählten ID Austria – kein Menü
+    await user.click(within(sheet).getByRole('button', { name: /^Signieren/ }));
+    expect(lastEvent(mock)).toEqual({ type: 'sign_with', backend: 'atrust_native' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('breit (Tablet): kein Abschnitt „Signieren mit“, Kurzhinweis über „Signieren“', async () => {
+    renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), IOS), platform: 'ios' });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const inspector = screen.getByRole('complementary', { name: 'Signatur' });
+    expect(within(inspector).queryByRole('heading', { name: 'Signieren mit' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
+    const footer = inspector.querySelector('.inspector-footer') as HTMLElement;
+    expect(within(footer).getByTestId('privacy-note')).toBeInTheDocument();
+    expect(within(footer).getByRole('button', { name: /^Signieren/ })).toBeEnabled();
     await expectNoAxeViolations();
   });
 
-  it('ID Austria ohne FIDO2: Beschreibung im Menü ohne FIDO2 (noch nicht gewählt)', async () => {
-    const { user } = renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({ selected: null, default: null }, true) }), ANDROID) });
-    await user.click(await screen.findByTestId('signer-chip'));
-    const item = await screen.findByRole('menuitem', { name: /ID Austria/ });
-    expect(item).toHaveTextContent('Bestätigung in der App „ID Austria“ oder per SMS-TAN');
-    expect(screen.queryByRole('menuitem', { name: /Chipkarte|Keystore/ })).not.toBeInTheDocument();
+  it('kein leeres Menü: ohne Signiermittel (Richtlinie schließt ID Austria aus) bleibt „Signieren“ gesperrt', async () => {
+    const base = signersView({}, true);
+    const signers = { ...base, options: base.options.map((o) => ({ ...o, available: false, capabilities: null, unavailable_reason: 'ng-signer-policy' })), selected: null, default: null };
+    const { mock, user } = renderApp({ view: onMobile(workspaceView(documentView(), { signers }), ANDROID) });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const sign = screen.getByRole('button', { name: /^Signieren/ });
+    expect(sign).toBeDisabled();
+    await user.click(sign);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(mock.dispatched).toEqual([]);
   });
 
   it('Dateiauswahl über das Plugin (Kopien in der Sandbox)', async () => {
@@ -167,8 +197,9 @@ describe('Konto-Chip und Signiermittel auf Mobilgeräten', () => {
   it('Mock-Kern mit `platform: android`: Arbeitsbereich und Karte im Szenario „Vertrag“', async () => {
     const { user } = renderApp({ platform: 'android', scenario: 'contract' });
     await screen.findByRole('application', { name: 'Signaturblock' });
-    // ID Austria ist das einzige Signiermittel und schon gewählt; „Signieren“ bleibt die ausdrückliche Aktion
-    expect(screen.getByTestId('signer-chip')).toHaveTextContent('ID Austria');
+    // ID Austria ist das einzige Signiermittel und schon gewählt (kein Konto-Chip); „Signieren“ bleibt die
+    // ausdrückliche Aktion
+    expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Signieren/ }));
     expect(await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' })).toBeInTheDocument();
     await expectNoAxeViolations();

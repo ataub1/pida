@@ -2,12 +2,22 @@
  * Anzeige der Signiermittel (Konto-Chip, Menü, Signierkarte): Name, Beschreibung, Symbol und Farbe je
  * Backend. Verfügbarkeit, Konto und Fähigkeiten kommen aus `ViewState::signers` (ADR 0004 §3.4).
  */
-import type { BackendId, SignerView } from '../../core/types';
+import type { BackendId, SignerView, ViewState } from '../../core/types';
 import type { Translator } from '../../i18n/catalog';
 import { IconCard, IconFileKey, IconLock, IconPhone, IconShield } from '../../ui/Icons';
 
 /** Backends mit Oberfläche (reservierte Szenarien B/C/D erscheinen nicht). */
 export const SHOWN_BACKENDS: readonly BackendId[] = ['atrust_native', 'keystore', 'local_bku'];
+
+/**
+ * Signiermittel-Auswahl anbieten (Kern: `SignersView::choice_offered`, ADR 0004 Nachtrag 20)? Ohne Auswahl – auf
+ * iOS/Android immer (nur ID Austria), am Desktop z. B. per Richtlinie – gibt es keinen Konto-Chip mit Menü, keinen
+ * Abschnitt „Signieren mit“ und keine Wahl in Stapel, Ersteinrichtung und Signierkarte; „Signieren“ signiert mit
+ * `signers.selected` (vom Kern gesetzt). Fehlt das Feld (ältere Daten), wie bisher mit Auswahl.
+ */
+export function signerChoice(view: ViewState): boolean {
+  return view.signers.choice_offered !== false;
+}
 
 export function signerName(t: Translator, backend: BackendId | null): string {
   switch (backend) {

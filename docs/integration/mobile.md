@@ -1,7 +1,8 @@
 # Mobile (iOS/Android) – Fundament M0 und Aufgaben für M-iOS/M-Android
 
 Stand: 15.10.2026, Welle Mobile, Paket **M0** (plattformneutrales Fundament); ergänzt am 16.10.2026: **Mobile
-nur mit ID Austria** – kein Keystore auf iOS/Android (Entscheidung des Auftraggebers, §12, ADR 0004 Nachtrag 11).
+nur mit ID Austria** – kein Keystore auf iOS/Android (Entscheidung des Auftraggebers, §12, ADR 0004 Nachtrag 11);
+am 17.10.2026: **keine Signiermittel-Auswahl** – kein Konto-Chip (§13, ADR 0004 Nachtrag 20).
 Grundlage: Plan
 §5 (Plattform-Matrix, §5.2 Mobile 1.0, §5.3 Plattformspezifika), §3.5 (Lebenszyklus), §4.7 (FIDO2),
 §7.7 (Sicherheit); ADR 0001; docs/analyse/02 (A-Trust auf Mobile: kein FIDO2, App-Wechsel).
@@ -463,7 +464,7 @@ Keystore-Option und keine Keystore-Angaben); Folgen für die Geräteprotokolle: 
 
 | Bereich | vorher (Mobile 1.0 bis 16.10.2026) | jetzt |
 |---|---|---|
-| Signiermittel (Auswahl, Konto-Chip, Stapel) | ID Austria und Keystore (nach Import), „PKCS#12-Datei importieren …“ im Menü | nur ID Austria; Konto-Chip ohne „Signiermittel wechseln“, Menü nur „Einstellungen …“ |
+| Signiermittel (Auswahl, Konto-Chip, Stapel) | ID Austria und Keystore (nach Import), „PKCS#12-Datei importieren …“ im Menü | nur ID Austria; Konto-Chip ohne „Signiermittel wechseln“, Menü nur „Einstellungen …“ (seit 17.10.2026 gar kein Konto-Chip, §13) |
 | Standard-Signiermittel | Einstellung (`backend.default`), Ersteinrichtung mit Auswahl | immer ID Austria; Ersteinrichtung ohne Signiermittel-Schritt |
 | Einstellungen › Signiermittel | Standard, ID Austria, FIDO2-Hinweis, Keystore (Import-Assistent, Schlüssel, Speicherart „Sicherer Speicher“) | ID Austria (Telefonnummer/Benutzername, „merken“) und FIDO2-Hinweis; Suche findet keine Keystore-Einträge |
 | „Passwort merken?“ (Keystore) | beim ersten Keystore-Passwort | entfällt |
@@ -669,3 +670,52 @@ Startprüfung `PIDA_SMOKE=1` mit leerem `PIDA_HOME`/`HOME` dreimal `pida-smoke: 
   mit der Entfernung des Prüfmodus frei geworden, am Gerät noch nicht wieder angesehen.
 - Aufnahmen mit dem Android-Emulator künftig mit `-gpu host` (mit `swiftshader_indirect` doppelte Bildteile in
   `adb screencap`, kein Fehler der App).
+
+## 13. Keine Signiermittel-Auswahl (17.10.2026)
+
+Meldung des Auftraggebers (iPhone, Fuß des Arbeitsbereichs mit dem Auswahl-Chip „ID Austria · a···er ⌄“ neben
+„Signieren“): „In der mobilen App brauchen wir die Signiermittelauswahl nicht, es gibt nur ID Austria als einziges
+Mittel.“ Regeln und Vertrag: ADR 0004 Nachtrag 20 (additives Feld `SignersView::choice_offered`, der Kern entscheidet).
+
+### 13.1 Was sich ändert
+
+| Bereich | vorher (Nachtrag 11) | jetzt |
+|---|---|---|
+| Arbeitsbereich, Bottom-Sheet (Telefon) | Konto-Chip „ID Austria · Konto ⌄“ neben „Signieren“, Menü nur „Einstellungen …“ | kein Konto-Chip; „Signieren“ über die volle Breite, Kurzhinweis „wird an A-Trust übermittelt“ darüber |
+| Arbeitsbereich breit (Tablet, Querformat) | Abschnitt „Signieren mit“ mit Konto-Chip | Abschnitt entfällt; Kurzhinweis direkt über „Signieren“ |
+| Stapelübersicht | „PDF hinzufügen“, Konto-Chip, „Alle signieren“ | „PDF hinzufügen“ und „Alle signieren“ (schmal je volle Breite) |
+| Ersteinrichtung, Signierkarte | ohne Signiermittel-Schritt; Rückfall „Signiermittel wählen“ mit einer Option | unverändert ohne Schritt; Rückfall „Weiter mit ID Austria“ ohne Liste |
+| Konto (Benutzername/Telefonnummer) | im Konto-Chip | in der Signierkarte beim Anmelden; geändert unter Einstellungen › Signiermittel (unverändert) |
+
+Am Desktop gilt dieselbe Regel, wenn eine Richtlinie nur ein Signiermittel freigibt bzw. vorschreibt; mit mehreren
+Signiermitteln bleibt dort alles wie bisher (Konto-Chip, „Signiermittel wechseln“, „Jedes Mal fragen“).
+
+### 13.2 Nachweise
+
+- Kern: `tests/mobile.rs::only_id_austria_on_mobile_offers_no_signer_choice` (iOS, Android, Gegenprobe Linux),
+  `tests/workspace.rs::{single_signer_by_policy_offers_no_choice, single_unavailable_signer_names_the_reason}`,
+  `workspace.rs::{eligible_signers_follow_policy_not_availability, choice_offered_defaults}`.
+- Oberfläche (Mock-Kern mit `platform: ios|android` bzw. `allowedBackends`): `app/MobileIdAustriaOnly.test.tsx`
+  (alle Ansichten, Befehlspalette samt Suche, Kürzelübersicht, Ersteinrichtung, Stapel – nirgends Konto-Chip, Menü,
+  „Signiermittel wählen/wechseln“; axe), `app/Mobile.test.tsx`, `app/SingleSigner.test.tsx` (Desktop per Richtlinie
+  und Gegenprobe mit mehreren), `features/signing/signing.test.tsx`, `app/RealCore.test.tsx`, `core/contract.test.ts`,
+  `styles/mobile-css.test.ts`.
+- Sichtprüfung im Mock-Modus (Vite auf Port 1437, Telefon-Viewport 375 × 812 mit Touch-Emulation, hell und dunkel,
+  Desktop; axe-core 4.14 im Browser ohne neue Befunde – `label-content-name-mismatch` nur an den bekannten Stellen
+  aus N-44 und am Zähler von „Alle signieren“, unverändert): `screenshots/mobile-signer/` –
+  `ios-01-arbeitsbereich-eingeklappt.jpg`, `ios-02-arbeitsbereich-ausgeklappt.jpg`, `ios-03-signierkarte-konto.jpg`,
+  `ios-04-stapel-ohne-konto-chip.jpg`, `android-01-arbeitsbereich-eingeklappt.jpg`, `android-02-stapel-dunkel.jpg`,
+  `desktop-01-richtlinie-nur-id-austria.jpg`, `desktop-02-mehrere-signiermittel-gegenprobe.jpg`. Kein Simulator bzw.
+  Emulator gestartet, kein Gerät benutzt, keine Anfrage an A-Trust.
+
+### 13.3 Prüfungen
+
+`cargo test --workspace --no-fail-fast` 1509 bestanden, 0 fehlgeschlagen, 5 ignoriert (ein erster Lauf parallel zu
+`npm test` und `vite build` scheiterte einmal an der Zeitprüfung `workspace.rs::layout_and_overlap_check_read_only_the_grid`
+– Zähler des PDFium-Scans unter Last, unabhängig von dieser Änderung; einzeln dreimal und im zweiten Gesamtlauf grün);
+`cargo clippy` wie die CI (`--workspace` ohne `CLIPPY_LENIENT`, `--no-deps --all-targets --locked -- -D warnings`) und
+`cargo fmt --all --check` ohne Befund; `npm ci && npm run build && npm test` 36 Dateien, 732 Tests (die Warnung zur
+Chunk-Größe über 900 kB gab es schon vorher: 911,7 kB auf `main`, jetzt 914,0 kB); `ts_bindings` und `serde_contract`
+mit `PIDA_BLESS=1` neu erzeugt und ohne `PIDA_BLESS` grün, ebenso die Real-Core-Proben (`workspace`, `batch`,
+`first_run`); `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p pida-app` für
+`aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK 29, je eigenes `CARGO_TARGET_DIR`) grün.

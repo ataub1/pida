@@ -2725,6 +2725,14 @@ impl CoreTask {
         let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
         self.options = self.registry.options(&env);
         self.ws.signer_options = self.options.clone();
+        // ohne Signiermittel-Auswahl (nur ein Signiermittel, Nachtrag 20): „Bitte wählen Sie ein anderes“ wäre
+        // nicht möglich – der Hinweis nennt den Grund (z. B. Chipkarten-Software nicht gestartet); nichts startet
+        if matches!(self.state, State::Positioning { .. })
+            && let Some(reason) = self.single_signer_unavailable(backend)
+        {
+            self.notify_code(&reason);
+            return;
+        }
         // „Jedes Mal fragen“ ohne Auswahl: die Wahl im Menü gilt für dieses Dokument (§8 F12); mit Standard
         // bleibt der Konto-Chip beim Standard bzw. bei der Auswahl
         let default = self.cfg.default_backend();

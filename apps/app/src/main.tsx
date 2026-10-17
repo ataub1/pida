@@ -35,6 +35,7 @@ async function bridge(): Promise<Bridge> {
  * `&batch=0` (ohne Stapelübersicht), `&search=0|1` (Platzhaltersuche; im Szenario `batch` an), `&kind=fields`
  * (Platzhaltersuche „Leere Signaturfelder“ statt QR, E3), `&pdfa=1` („PDF/A-kompatibel signieren“, E3),
  * `&policy=recent-off|recent-on|updates` (Richtlinie: „Zuletzt signiert“ bzw. Update-Prüfung festgelegt, E3),
+ * `&policy=only-ida` (Richtlinie gibt nur ID Austria frei: keine Signiermittel-Auswahl am Desktop, Nachtrag 20),
  * `&fault=decline|network|session|too-large` (Störung beim zweiten Dokument), `&existing=1` (eine Zieldatei
  * gibt es schon), `&folder=ask|<Pfad>` (Speicherort), `&auto=0` (App-Bestätigung nur über „In der App
  * bestätigt“). Ersteinrichtung (E4): `&firstrun=1` (fehlende Einstellungsdatei), `&legacy=1` (PDF-Over-
@@ -80,6 +81,7 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): Setti
     // „PDF auswählen“ liefert diese Datei (z. B. `?pick=Signaturfelder.pdf`, Formular mit Signaturfeldern)
     pickFilesResult: params.get('pick') ? [`/Users/demo/Dokumente/${params.get('pick')}`] : undefined,
     policy: policyFromUrl(params.get('policy')),
+    allowedBackends: params.get('policy') === 'only-ida' ? ['atrust_native'] : undefined,
     firstRun: params.get('firstrun') === '1',
     migrationOffer: params.get('legacy') === '1' ? '/Users/demo/.pdf-over/PDF-Over.config' : null,
     migrationSecrets: params.get('secrets') === '1',

@@ -11,6 +11,8 @@
  * - Fingerbedienung: Fokusrahmen von React-Aria-Elementen nur nach deren Modalität (Android-Emulator, 17.10.2026).
  * Dazu aus dem Gerätenachweis am iPhone 17e (17.10.2026): Knöpfe der Signierkarte bleiben am unteren Rand stehen,
  * Stapelkarte und Zoomwert bei großer Schrift, mitlaufende Teile rollen bei eingeblendeter Bildschirmtastatur mit.
+ * Ohne Signiermittel-Auswahl (nur ID Austria, ADR 0004 Nachtrag 20): „Signieren“ über die volle Breite des Fußes,
+ * im Stapel „PDF hinzufügen“ und „Alle signieren“ ausgewogen.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -52,6 +54,16 @@ function ruleInMedia(css: string, query: string, selector: string): string | nul
 }
 
 describe('Mobile-Stile', () => {
+  it('ohne Signiermittel-Auswahl (Nachtrag 20): „Signieren“ volle Breite, Stapel-Knöpfe ohne umbrochene Beschriftung', () => {
+    const ws = read('features/workspace/workspace.css');
+    const sign = ruleInMedia(ws, '(max-width: 760px)', '.inspector-footer.is-single .sign-button');
+    expect(sign).toMatch(/flex: 1 1 auto/);
+    expect(sign).toMatch(/width: 100%/);
+    const batch = read('features/batch/batch.css');
+    expect(ruleInMedia(batch, '(max-width: 760px)', '.batch-actions.is-single > *')).toMatch(/flex: 1 1 auto/);
+    expect(ruleInMedia(batch, '(max-width: 760px)', '.batch-actions.is-single > .batch-sign')).toMatch(/white-space: nowrap/);
+  });
+
   it('nur der Arbeitsbereich sperrt den Bildlauf des Hauptbereichs; kein Prüfmodus mehr', () => {
     const shell = read('app/shell.css');
     expect(topRule(shell, '.view-workspace .app-main')).toMatch(/overflow: hidden/);

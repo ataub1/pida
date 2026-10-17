@@ -78,9 +78,9 @@ export function defaultDocumentDetection(): DocumentDetectionView {
   return { pdfa: null, pdfa_decision: 'none', auto_placed: false };
 }
 
-/** Entspricht `SignersView::default()` (ADR 0004 §3.4). */
+/** Entspricht `SignersView::default()` (ADR 0004 §3.4): ohne Optionen keine Signiermittel-Auswahl (Nachtrag 20). */
 export function defaultSigners(): SignersView {
-  return { options: [], selected: null, default: null };
+  return { options: [], selected: null, default: null, choice_offered: false };
 }
 
 /** Entspricht `ActionsView::default()`: nichts freigegeben (ADR 0004 §3.13). */

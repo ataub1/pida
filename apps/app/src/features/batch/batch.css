@@ -265,6 +265,14 @@ button.batch-row-main {
   .batch-actions > .batch-sign {
     flex: 1;
   }
+  /* ohne Signiermittel-Auswahl (kein Konto-Chip, ADR 0004 Nachtrag 20): „PDF hinzufügen“ und „Alle signieren“ teilen
+     sich die Breite; passt beides nicht in eine Zeile, steht jedes über die volle Breite (Beschriftung nie umbrochen) */
+  .batch-actions.is-single > * {
+    flex: 1 1 auto;
+  }
+  .batch-actions.is-single > .batch-sign {
+    white-space: nowrap;
+  }
 }
 /* Stapel schmal: Dateiname über die volle Breite, Status und Aktion darunter. Öffnet die Zeile per Tipp
    (`has-caret`), entfällt nur der Pfeil – der Papierkorb („aus dem Stapel entfernen“) steht dann rechts neben

@@ -8,7 +8,8 @@
  *   Kern, der dafür Layout (Einrastlinien, freie Flächen) und Prüfung liefert.
  * - Live-Region nach jeder Änderung der Platzierung (`announce` + Einrasten + Prüfergebnis).
  * - „Signieren“ (Knopf, ⌘↵, Palette): mit gewähltem Signiermittel `sign_with`, sonst öffnet sich das Menü
- *   des Konto-Chips und die Wahl dort signiert (§3.4, §8 F12).
+ *   des Konto-Chips und die Wahl dort signiert (§3.4, §8 F12). Ohne Signiermittel-Auswahl (nur ein Signiermittel,
+ *   `signers.choice_offered`, ADR 0004 Nachtrag 20) ist es vom Kern gewählt; ein Menü gibt es dann nicht.
  * - ⌘/Strg + Plus/Minus/0 zoomt nur die Seitenansicht.
  * - Einstellung „Automatische Positionierung“ (`document.placement_locked`, ADR 0004 Nachtrag 8): der Block ist
  *   gesperrt (kein Ziehen, keine Tastatur, keine Feld-Angebote), bis „Diesmal selbst platzieren“; „Unsichtbar“ und
@@ -22,6 +23,7 @@ import { Button, IconButton } from '../../ui/controls';
 import { useNarrow } from '../../ui/hooks';
 import { IconEyeOff, IconFitWidth, IconQr, IconSidebar, IconSignature, IconZoomIn, IconZoomOut } from '../../ui/Icons';
 import { Inspector } from './Inspector';
+import { signerChoice } from './signers';
 import { Pages } from './Pages';
 import { announceText, displayPages, isAutoPlaced, layoutPages, offeredField, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
 import { Thumbnails } from './Thumbnails';
@@ -226,13 +228,15 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     lastSnap.current = s;
   }, []);
 
-  // „Signieren“: mit gewähltem Signiermittel sofort, sonst das Menü des Konto-Chips (Wahl signiert)
+  // „Signieren“: mit gewähltem Signiermittel sofort, sonst das Menü des Konto-Chips (Wahl signiert) – ohne
+  // Signiermittel-Auswahl gibt es kein Menü (Nachtrag 20)
+  const choice = signerChoice(view);
   const sign = useCallback(() => {
     if (!view.actions.sign) return;
     setCoach(false);
     if (view.signers.selected) void dispatch({ type: 'sign_with', backend: view.signers.selected });
-    else setChip({ open: true, sign: true });
-  }, [view.actions.sign, view.signers.selected, dispatch]);
+    else if (choice) setChip({ open: true, sign: true });
+  }, [view.actions.sign, view.signers.selected, choice, dispatch]);
   useEffect(() => {
     registerSign(sign);
     return () => registerSign(null);

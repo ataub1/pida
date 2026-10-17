@@ -694,10 +694,12 @@ fn signers() -> SignersView {
         ],
         selected: Some(BackendId::AtrustNative),
         default: Some(BackendId::AtrustNative),
+        choice_offered: true,
     }
 }
 
-/// Konto-Chip auf iOS/Android: nur ID Austria, FIDO2 mit Hinweis (ADR 0004 Nachtrag 11).
+/// Signiermittel auf iOS/Android: nur ID Austria, FIDO2 mit Hinweis (ADR 0004 Nachtrag 11) – keine Auswahl,
+/// kein Konto-Chip (Nachtrag 20).
 fn mobile_signers() -> SignersView {
     let mut caps = caps_native();
     caps.factors.fido2 = false;
@@ -713,6 +715,7 @@ fn mobile_signers() -> SignersView {
         }],
         selected: Some(BackendId::AtrustNative),
         default: Some(BackendId::AtrustNative),
+        choice_offered: false,
     }
 }
 
@@ -1253,7 +1256,10 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         .map(|(code, detail)| MigrationItemView { code: code.into(), detail: detail.map(str::to_owned) })
         .collect(),
     };
+    // Ersteinrichtung am Desktop: die Signiermittel stehen schon fest (Schritt „Standard-Signiermittel“ nur mit
+    // Auswahl, Nachtrag 20)
     let mut first_run = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    first_run.signers = SignersView { selected: None, default: None, ..signers() };
     first_run.migration = Some(offer.clone());
     first_run.first_run = Some(FirstRunView {
         migration: Some(offer),
@@ -1264,6 +1270,7 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     });
     out.push(("ws_first_run", first_run));
     let mut first_run_plain = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    first_run_plain.signers = SignersView { selected: None, default: None, ..signers() };
     first_run_plain.first_run = Some(FirstRunView {
         migration: None,
         default_backend: None,

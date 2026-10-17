@@ -136,6 +136,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -157,6 +158,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -303,6 +331,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -324,6 +353,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -549,6 +605,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -570,6 +627,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -716,6 +800,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -891,6 +976,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -1076,6 +1162,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -1097,6 +1184,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -1299,6 +1413,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -1320,6 +1435,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -1472,6 +1614,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -1493,6 +1636,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -1567,6 +1737,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -1588,6 +1759,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -1758,6 +1956,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -1779,6 +1978,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",
@@ -2049,6 +2275,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -2070,6 +2297,33 @@
             "input": "Document",
             "interaction": "NativeForms",
             "login_once_per_batch": true,
+            "max_batch": 1,
+            "output": "Cms",
+            "qualification": "Qes",
+            "server": "None"
+          },
+          "notes": [],
+          "unavailable_reason": null
+        },
+        {
+          "account": null,
+          "available": true,
+          "backend": "local_bku",
+          "batch_flow": "confirm_each",
+          "capabilities": {
+            "certificate": "Required",
+            "cms_reserve": 16384,
+            "document_leaves_device": false,
+            "factors": {
+              "app": false,
+              "card": true,
+              "fido2": false,
+              "qr": false,
+              "sms": false
+            },
+            "input": "Document",
+            "interaction": "External",
+            "login_once_per_batch": false,
             "max_batch": 1,
             "output": "Cms",
             "qualification": "Qes",

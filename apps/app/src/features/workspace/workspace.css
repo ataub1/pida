@@ -898,6 +898,12 @@
   .sign-button .keys {
     display: none;
   }
+  /* ohne Signiermittel-Auswahl (nur ID Austria, ADR 0004 Nachtrag 20): kein Konto-Chip – „Signieren“ nimmt die
+     volle Breite */
+  .inspector-footer.is-single .sign-button {
+    flex: 1 1 auto;
+    width: 100%;
+  }
   /* schmal: „Zurück zum Stapel“ steht als Pfeil in der Kopfzeile (Platz für Konto-Chip und „Signieren“) */
   .inspector-footer .insp-back {
     display: none;

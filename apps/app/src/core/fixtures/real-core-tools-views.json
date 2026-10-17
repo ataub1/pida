@@ -67,6 +67,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": "atrust_native",
       "options": [
         {
@@ -182,6 +183,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -306,6 +308,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": "atrust_native",
       "options": [
         {
@@ -495,6 +498,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {

@@ -6,9 +6,10 @@
  * - Öffnet „Signieren“ das Menü (kein Signiermittel gewählt, „Jedes Mal fragen“, §8 F12), sendet die Wahl
  *   direkt `sign_with` – eine ausdrückliche Aktion. In der Stapelübersicht startet die Wahl stattdessen den
  *   Stapel (`onSignWith`, „Alle signieren mit X“).
- * - Nur ein Signiermittel (iOS/Android: nur ID Austria, ADR 0004 Nachtrag 11): nichts zu wechseln – das Menü
- *   zeigt dann keine Signiermittel (kein leeres „Signiermittel wechseln“), nur „Einstellungen …“; öffnet
- *   „Signieren“ das Menü, steht das eine Signiermittel als ausdrückliche Wahl darin.
+ * - Nur ein Signiermittel (iOS/Android: nur ID Austria; Desktop z. B. per Richtlinie): der Kern bietet keine
+ *   Auswahl an (`signers.choice_offered = false`, ADR 0004 Nachtrag 20) – Inspektor und Stapelübersicht zeigen den
+ *   Konto-Chip dann gar nicht. Fehlt das Feld (ältere Daten) und gibt es doch nur eines, gilt weiter Nachtrag 11:
+ *   das Menü zeigt keine Signiermittel (kein leeres „Signiermittel wechseln“), nur „Einstellungen …“.
  */
 import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Separator, type Key } from 'react-aria-components';
 import { useApp } from '../../app/context';

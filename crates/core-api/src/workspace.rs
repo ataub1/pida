@@ -290,6 +290,24 @@ pub(crate) fn mask_account(value: &str) -> String {
     format!("{head}···{tail}")
 }
 
+/// Grund „von Ihrer Organisation nicht freigegeben“ (`SignerView::unavailable_reason`).
+pub(crate) const MSG_SIGNER_POLICY: &str = "ng-signer-policy";
+
+/// Signiermittel, die in Frage kommen (ADR 0004 Nachtrag 20, `SignersView::choice_offered`): mit einer Richtlinie
+/// `forced_backend` nur dieses, sonst jede Option außer den von der Richtlinie ausgeschlossenen. Ein nicht
+/// eingerichteter Keystore bzw. eine nicht laufende Chipkarten-Software zählt – wählbar, sobald eingerichtet bzw.
+/// gestartet (am Desktop bleibt die Auswahl dann wie bisher). Reihenfolge wie die Optionen.
+pub(crate) fn eligible_signers(options: &[SignerView], forced: Option<BackendId>) -> Vec<BackendId> {
+    match forced {
+        Some(f) => vec![f],
+        None => options
+            .iter()
+            .filter(|o| o.unavailable_reason.as_deref() != Some(MSG_SIGNER_POLICY))
+            .map(|o| o.backend)
+            .collect(),
+    }
+}
+
 /// Signiermittel → Einstellung (`backend.default`).
 pub(crate) fn choice_for(backend: BackendId) -> Option<pida_config::BackendChoice> {
     match backend {
@@ -719,12 +737,28 @@ impl crate::runtime::CoreTask {
             .filter(|f| self.cfg.keystore_offered || *f == pida_config::BackendChoice::IdAustria)
             .map(pida_workflow::backend_for_choice);
         let selection = self.ws.selection.filter(|s| default.is_some() || s.doc.is_none() || s.doc == current);
+        // nur ein Signiermittel kommt in Frage (Mobile, Richtlinie): keine Auswahl, es ist gewählt (Nachtrag 20)
+        let eligible = eligible_signers(&options, forced);
+        let choice_offered = eligible.len() > 1;
         let selected = match (forced, selection) {
             (Some(f), _) => Some(f),
+            _ if !choice_offered => eligible.first().copied(),
             (None, Some(s)) => s.backend,
             (None, None) => default.filter(|d| available(*d)),
         };
-        SignersView { options, selected, default }
+        SignersView { options, selected, default, choice_offered }
+    }
+
+    /// Grund, aus dem „Signieren mit“ `backend` ohne Wirkung bleibt, wenn es keine Signiermittel-Auswahl gibt
+    /// (ADR 0004 Nachtrag 20): das eine Signiermittel ist gerade nicht verfügbar (z. B. Chipkarten-Software
+    /// nicht gestartet). Statt „Bitte wählen Sie ein anderes“ nennt der Hinweis dann den Grund; mit Auswahl
+    /// `None` (unverändert der allgemeine Hinweis des Workflows).
+    pub(crate) fn single_signer_unavailable(&self, backend: BackendId) -> Option<String> {
+        let view = self.signers_view();
+        if view.choice_offered {
+            return None;
+        }
+        view.options.into_iter().find(|o| o.backend == backend && !o.available).and_then(|o| o.unavailable_reason)
     }
 
     fn signer_views(&self) -> Vec<SignerView> {
@@ -765,7 +799,7 @@ impl crate::runtime::CoreTask {
                 };
                 let unavailable_reason = (!o.available()).then(|| {
                     if !by_policy(o.id) {
-                        "ng-signer-policy"
+                        MSG_SIGNER_POLICY
                     } else {
                         match o.id {
                             BackendId::LocalBku => "ng-signer-localbku-not-running",
@@ -792,8 +826,7 @@ impl crate::runtime::CoreTask {
             && self.cfg.keystore_offered
             && !out.iter().any(|o| o.backend == BackendId::Keystore)
         {
-            let reason =
-                if !by_policy(BackendId::Keystore) { "ng-signer-policy" } else { "ng-signer-keystore-missing" };
+            let reason = if !by_policy(BackendId::Keystore) { MSG_SIGNER_POLICY } else { "ng-signer-keystore-missing" };
             out.push(SignerView {
                 backend: BackendId::Keystore,
                 available: false,
@@ -1060,6 +1093,45 @@ mod tests {
         assert_eq!(mask_account(""), "···");
         // keine vollständige Nummer im Ergebnis
         assert!(!mask_account("+436641234567").contains("1234567"));
+    }
+
+    /// Nachtrag 20: wählbar ist, was die Richtlinie nicht ausschließt; `forced_backend` lässt nur dieses.
+    #[test]
+    fn eligible_signers_follow_policy_not_availability() {
+        let signer = |backend: BackendId, reason: Option<&str>| SignerView {
+            backend,
+            available: reason.is_none(),
+            account: None,
+            capabilities: None,
+            notes: Vec::new(),
+            unavailable_reason: reason.map(str::to_owned),
+            batch_flow: None,
+        };
+        let (ida, card, ks) = (BackendId::AtrustNative, BackendId::LocalBku, BackendId::Keystore);
+        // Mobile: nur ID Austria
+        assert_eq!(eligible_signers(&[signer(ida, None)], None), vec![ida]);
+        // Desktop: Chipkarten-Software nicht gestartet, Keystore nicht eingerichtet – trotzdem wählbar
+        let desktop = [
+            signer(ida, None),
+            signer(card, Some("ng-signer-localbku-not-running")),
+            signer(ks, Some("ng-signer-keystore-missing")),
+        ];
+        assert_eq!(eligible_signers(&desktop, None), vec![ida, card, ks]);
+        // Richtlinie: nur ID Austria freigegeben bzw. vorgeschrieben
+        let policy = [signer(ida, None), signer(card, Some(MSG_SIGNER_POLICY)), signer(ks, Some(MSG_SIGNER_POLICY))];
+        assert_eq!(eligible_signers(&policy, None), vec![ida]);
+        assert_eq!(eligible_signers(&desktop, Some(card)), vec![card]);
+        // nichts freigegeben (z. B. Mobile mit einer Richtlinie nur für den Keystore)
+        assert!(eligible_signers(&[signer(ida, Some(MSG_SIGNER_POLICY))], None).is_empty());
+        assert!(eligible_signers(&[], None).is_empty());
+    }
+
+    /// Fehlt `choice_offered` (ältere Daten), gilt die Auswahl wie bisher; ohne Optionen gibt es keine.
+    #[test]
+    fn choice_offered_defaults() {
+        let old: SignersView = serde_json::from_str(r#"{"options":[],"selected":null,"default":null}"#).unwrap();
+        assert!(old.choice_offered);
+        assert!(!SignersView::default().choice_offered);
     }
 
     #[test]

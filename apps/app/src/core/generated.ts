@@ -2067,7 +2067,19 @@ selected: BackendId | null,
  * Standard aus den Einstellungen (`None` = „Jedes Mal fragen“); auf iOS/Android immer ID Austria (das
  * einzige Signiermittel, sofern die Richtlinie es erlaubt)
  */
-default: BackendId | null, };
+default: BackendId | null, 
+/**
+ * Signiermittel-Auswahl anbieten (ADR 0004 Nachtrag 20). `false`, wenn höchstens ein Signiermittel in Frage
+ * kommt: auf iOS/Android immer (nur ID Austria, Nachtrag 11), am Desktop bei einer Richtlinie
+ * (`forced_backend` bzw. `allowed_backends` mit einem Signiermittel) oder fest vorgegebenen Backends mit
+ * einem. Von der Richtlinie ausgeschlossene Optionen zählen nicht; ein nicht eingerichteter Keystore bzw.
+ * eine nicht laufende Chipkarten-Software zählt (wählbar, sobald eingerichtet bzw. gestartet). Ohne Auswahl
+ * ist [`SignersView::selected`] das eine Signiermittel (auch bei „Jedes Mal fragen“ – es gibt nichts zu
+ * fragen) und „Signieren“ signiert damit; die Oberfläche zeigt dann keinen Konto-Chip mit Menü, keinen
+ * Abschnitt „Signieren mit“ und keine Wahl in Stapel, Ersteinrichtung und Signierkarte. Additiv: fehlt das
+ * Feld (ältere Daten), gilt `true` wie bisher; ohne Optionen ([`Default`]) `false`.
+ */
+choice_offered: boolean, };
 
 /**
  * Ein Signiermittel im Konto-Chip (§3.4).

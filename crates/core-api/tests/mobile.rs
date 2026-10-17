@@ -757,6 +757,62 @@ async fn desktop_keeps_the_keystore_of_the_same_settings() {
     assert_eq!(s.settings.keystore.file.as_deref(), Some(ks.as_path()));
 }
 
+/// Keine Signiermittel-Auswahl auf iOS/Android (ADR 0004 Nachtrag 20, Meldung des Auftraggebers „es gibt nur ID
+/// Austria“): `choice_offered = false`, `selected` = ID Austria – auch mit „Jedes Mal fragen“ in der Datei, nach
+/// `select_signer` ohne Signiermittel bzw. mit dem Keystore und in der Stapelübersicht; „Signieren mit ID Austria“
+/// öffnet die Sitzung erst auf die ausdrückliche Aktion (A1). Desktop-Gegenprobe mit denselben Einstellungen:
+/// ID Austria, Chipkarte und (nicht eingerichtet) Keystore, Auswahl angeboten, ohne Vorauswahl.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn only_id_austria_on_mobile_offers_no_signer_choice() {
+    for platform in [Platform::Ios, Platform::Android, Platform::Linux] {
+        let mobile = platform != Platform::Linux;
+        let fx = Fixture::new();
+        fx.write_settings("[general]\n"); // „Jedes Mal fragen“ (kein `backend.default`), ohne Ersteinrichtung
+        let fake = FakeAtrust::new();
+        let backends: Option<Vec<Arc<dyn SignatureBackend>>> = mobile.then(|| vec![fake.backend()]);
+        let options = CoreOptions {
+            workspace_ui: Some(true),
+            batch_overview: Some(true),
+            ..mobile_options(&FakeEngine::new(), &fx.dir("docs"), backends)
+        };
+        let core = start(&fx, platform, options);
+        let inbox = fx.dir("inbox");
+        let a = copy_pdf(PDF, &inbox, "a.pdf");
+        core.dispatch(UiEvent::OpenFiles { paths: vec![a], mode: None });
+        let v = wait_for(&core, "Arbeitsbereich", |v| v.document.is_some() && v.actions.sign).await;
+        if !mobile {
+            let ids: Vec<BackendId> = v.signers.options.iter().map(|o| o.backend).collect();
+            assert_eq!(ids, vec![BackendId::AtrustNative, BackendId::LocalBku, BackendId::Keystore], "Desktop");
+            assert!(v.signers.choice_offered, "Desktop: Auswahl wie bisher");
+            assert_eq!(v.signers.selected, None, "Desktop: „Jedes Mal fragen“ ohne Vorauswahl");
+            continue;
+        }
+        assert!(!v.signers.choice_offered, "{platform:?}");
+        assert_eq!(v.signers.selected, Some(BackendId::AtrustNative), "{platform:?}");
+        for signer in [None, Some(BackendId::Keystore)] {
+            core.dispatch(UiEvent::SelectSigner { backend: signer, make_default: false });
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            let v = core.view();
+            assert!(!v.signers.choice_offered);
+            assert_eq!(v.signers.selected, Some(BackendId::AtrustNative), "{platform:?}: {signer:?}");
+        }
+        // Stapelübersicht: ebenso keine Auswahl
+        let b = copy_pdf(PDF, &inbox, "b.pdf");
+        std::fs::write(&b, [std::fs::read(&b).unwrap().as_slice(), b"\n%b\n"].concat()).unwrap();
+        core.dispatch(UiEvent::OpenFiles { paths: vec![b], mode: Some(pida_core_api::OpenFilesMode::Add) });
+        let v = wait_for(&core, "Stapel", |v| batch_ready(v, 2)).await;
+        assert!(!v.signers.choice_offered && v.signers.selected == Some(BackendId::AtrustNative), "{platform:?}");
+        assert!(v.batch.as_ref().unwrap().estimate.is_some(), "{platform:?}: Schätzung mit ID Austria");
+        assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "{platform:?}: keine Sitzung ohne „Signieren“ (A1)");
+        let doc = v.batch.as_ref().unwrap().items[0].doc;
+        core.dispatch(UiEvent::OpenBatchItem { doc });
+        wait_for(&core, "Eintrag", |v| v.document.as_ref().is_some_and(|d| d.doc.id == doc) && v.actions.sign).await;
+        core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
+        wait_form(&core, "Anmeldung", |f| matches!(f, NativeForm::Login { .. })).await;
+        assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "{platform:?}");
+    }
+}
+
 /// Eingeschalteter Keystore eines früheren Builds, Datei fehlt: auf Mobile nur ID Austria, aber **keine**
 /// automatische ID-Austria-Sitzung (F-54, ADR 0003 – ohne „Signieren“ bleibt die Auswahl), und kein
 /// Keystore-Problem in den Einstellungen. Desktop: Problem „Datei nicht gefunden“ wie bisher.

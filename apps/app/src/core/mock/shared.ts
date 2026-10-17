@@ -35,6 +35,11 @@ export interface MockOptions {
   signingFlow?: MockSigningFlow;
   /** lokale BKU erreichbar */
   localBkuAvailable?: boolean;
+  /**
+   * Richtlinie `allowed_backends` (Desktop): nur diese Signiermittel sind freigegeben, die anderen gesperrt mit
+   * `ng-signer-policy`. Bleibt nur eines, gibt es keine Signiermittel-Auswahl (ADR 0004 Nachtrag 20).
+   */
+  allowedBackends?: BackendId[];
   /** App-Bestätigung bzw. Chipkarte schließen sich nach einiger Zeit selbst ab; Tests: `false` */
   autoCompleteApp?: boolean;
   /** Einstellungen beim Start */

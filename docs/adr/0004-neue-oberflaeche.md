@@ -2720,7 +2720,8 @@ heißt jetzt `keystore_imported` (Desktop), `ws_batch_mobile` zeigt nur ID Austr
 8. **Oberfläche:** Der PKCS#12-Import-Assistent (`KeystoreImport.tsx`, `keystore-import.css`) ist entfernt.
    Einstellungen › Signiermittel zeigt auf Mobilgeräten nur „ID Austria“ (Telefonnummer/Benutzername, „merken“) und den
    FIDO2-Hinweis – die Zeilen `signers.default` und `signers.keystore` sind wie `signers.card` nur am Desktop sichtbar,
-   die Suche findet deshalb keine Keystore-Einträge. Konto-Chip: mit genau einem, bereits gewählten Signiermittel ohne
+   die Suche findet deshalb keine Keystore-Einträge. Konto-Chip (**seit Nachtrag 20 entfällt er auf Mobilgeräten
+   ganz** – keine Signiermittel-Auswahl): mit genau einem, bereits gewählten Signiermittel ohne
    Abschnitt „Signiermittel wechseln“ (kein leeres Menü) – das Menü bietet nur „Einstellungen …“, der Name lautet
    „Signiermittel: …“ (`ng-ui-insp-chip-label-single`, Menüname `ng-ui-insp-signer-menu`); ist nichts gewählt bzw. öffnet
    „Signieren“ das Menü, steht ID Austria als ausdrückliche Wahl darin. Signierkarte (Rückfall „Signiermittel wählen“)
@@ -3386,3 +3387,88 @@ PDF-Over nur beim Long-Poll („a-trust timeout is 5 minutes“, `MobileBKUConne
    `BackendFailed(SessionClosed)` und bleibt grün: eine neue Sitzung des Kerns gibt es nur nach „Erneut versuchen“;
    die Erneuerung aus 3./4. liegt im Backend innerhalb einer schon ausdrücklich begonnenen Signatur, nach dem
    ausdrücklichen Absenden der Anmeldedaten, höchstens einmal.
+
+### Nachtrag 20 (17.10.2026): Keine Signiermittel-Auswahl bei nur einem Mittel
+
+**Meldung des Auftraggebers** (iPhone, Aufnahme des Arbeitsbereichs: im Fuß der Auswahl-Chip „ID Austria · a···er ⌄“
+neben „Signieren“, darüber „Das Dokument wird zum Signieren an A-Trust übermittelt. Details“): „In der mobilen App
+brauchen wir die Signiermittelauswahl nicht, es gibt nur ID Austria als einziges Mittel.“ Nachtrag 11 hatte den
+Konto-Chip auf Mobilgeräten nur entschärft (ohne „Signiermittel wechseln“, Menü nur „Einstellungen …“); er stand
+weiter im Fuß und nahm „Signieren“ die halbe Breite.
+
+**Regel:** Kommt nur **ein** Signiermittel in Frage, zeigt PIDA **keine** Signiermittel-Auswahl – immer auf iOS/Android
+(nur ID Austria, Nachtrag 11), am Desktop z. B. per Richtlinie. Der Kern entscheidet, die Oberfläche rendert. Vertrag,
+additiv nach §3.0 Regel 2:
+
+```rust
+pub struct SignersView {
+    // … wie §3.4
+    /// `false`, wenn höchstens ein Signiermittel in Frage kommt (fehlt das Feld: `true` wie bisher; `Default`: `false`)
+    #[serde(default = "yes")] pub choice_offered: bool,
+}
+// TypeScript: choice_offered: boolean (Pflichtfeld wie `placement_locked`)
+// Meldungs-IDs (ui-workspace.ftl): ng-ui-sc-single-title ($signer), ng-ui-sc-single-text ($signer),
+//                                  ng-ui-sc-single-unavailable ($signer)
+```
+
+1. **Was „in Frage kommt“** (`workspace.rs::eligible_signers`): mit einer Richtlinie `forced_backend` nur dieses (auf
+   Mobilgeräten nur, wenn es ID Austria ist – wie bisher), sonst jede Option außer den von der Richtlinie
+   ausgeschlossenen (`ng-signer-policy`). Eine nicht laufende Chipkarten-Software bzw. ein nicht eingerichteter Keystore
+   zählt (wählbar, sobald gestartet bzw. eingerichtet). Damit gilt: iOS/Android → `false`; Desktop ohne Richtlinie
+   (ID Austria, Chipkarte, Keystore) → `true` wie bisher; Desktop mit `allowed_backends = ["id_austria"]` bzw.
+   `forced_backend` → `false`; fest vorgegebene Backends (Tests, Einbettung) mit einem → `false`.
+2. **Auswahl:** Ohne Auswahl ist `SignersView::selected` das eine Signiermittel – auch bei „Jedes Mal fragen“, nach
+   `select_signer` ohne bzw. mit einem anderen Signiermittel und in der Stapelübersicht (Schätzung, Wortlaut je
+   Ablauf). Signiert wird weiter **nur** nach der ausdrücklichen Aktion „Signieren“/„Alle signieren“ (A1, F-54); die
+   Vorauswahl startet nichts. Kein Wert mehr, mit dem die Oberfläche ein Menü öffnen müsste.
+3. **Nicht verfügbar:** Ist das eine Signiermittel gerade nicht verfügbar (Desktop: Richtlinie gibt nur die Chipkarte
+   frei, die Chipkarten-Software läuft nicht), meldet „Signieren mit“ den Grund der Option (`unavailable_reason`, z. B.
+   `ng-signer-localbku-not-running`) statt `ng-signer-unavailable` („Bitte wählen Sie ein anderes“ – ohne Auswahl
+   nicht möglich); nichts startet (`runtime.rs::sign_with`, `single_signer_unavailable`). Mit Auswahl unverändert.
+4. **Oberfläche** (`features/workspace/signers.tsx::signerChoice`): ohne Auswahl kein Konto-Chip – weder im Fuß des
+   Bottom-Sheets (dort nimmt „Signieren“ die volle Breite, `inspector-footer.is-single`) noch im Abschnitt „Signieren
+   mit“ des breiten Inspektors (der Abschnitt entfällt; der Kurzhinweis Datenschutz steht dann direkt über
+   „Signieren“), noch in der Stapelübersicht („PDF hinzufügen“ und „Alle signieren“ teilen sich die Zeile bzw. stehen
+   schmal untereinander über die volle Breite, `batch-actions.is-single`). „Signieren“, ⌘↵ und die Palette signieren
+   mit `signers.selected`, ohne Menü; gibt es gar keines (Richtlinie schließt alle aus), ist „Signieren“ gesperrt
+   statt ein leeres Menü zu öffnen. Die Ersteinrichtung zeigt den Schritt „Standard-Signiermittel“ nur mit Auswahl
+   (bisher: nur am Desktop). Der Rückfall der Signierkarte (`StepView::Backend`, nach „Signatur fortsetzen“) zeigt
+   ohne Auswahl keine Liste und kein „Signiermittel wählen“, sondern „Weiter mit ID Austria“ mit „Signieren“
+   (`choose_backend`) bzw. – nicht verfügbar – den Grund und nur „Abbrechen“. Das Konto (maskierter Benutzername bzw.
+   Telefonnummer) steht nicht mehr im Fuß; die Signierkarte zeigt es beim Anmelden, geändert wird es weiter unter
+   Einstellungen › Signiermittel (dort unverändert). Befehlspalette, Kürzelübersicht und Suche hatten keinen Befehl
+   zum Wechseln des Signiermittels; sie bleiben, wie sie sind.
+5. **Desktop mit mehreren Signiermitteln unverändert:** Abschnitt „Signieren mit“ mit Konto-Chip, Menü
+   „Signiermittel wechseln“, „Als Standard verwenden“, „Jedes Mal fragen“ (Menü beim „Signieren“), Konto-Chip in der
+   Stapelübersicht und im schmalen Fuß, Ersteinrichtung mit Schritt „Standard-Signiermittel“.
+6. **Mock-Kern** folgt dem Kern (`signersProjection`, `eligibleSigners`, Grund statt „wählen Sie ein anderes“); neue
+   Option `allowedBackends` (Richtlinie `allowed_backends`), in der Browser-Vorschau `?policy=only-ida`.
+
+**Tests:** Kern `workspace.rs` (`eligible_signers_follow_policy_not_availability`, `choice_offered_defaults`),
+`tests/mobile.rs::only_id_austria_on_mobile_offers_no_signer_choice` (iOS, Android: keine Auswahl, ID Austria gewählt
+trotz „Jedes Mal fragen“ und `select_signer` ohne bzw. mit Keystore, Stapelübersicht mit Schätzung, Sitzung erst nach
+„Signieren mit“; Desktop-Gegenprobe Linux mit Auswahl ohne Vorauswahl), `tests/workspace.rs`
+(`single_signer_by_policy_offers_no_choice` – `allowed_backends` und `forced_backend`, Gegenprobe ohne Richtlinie;
+`single_unavailable_signer_names_the_reason` – Grund statt `ng-signer-unavailable`, Gegenprobe mit Auswahl). Tests mit
+einem einzigen Fake-Backend, die die Auswahl am Desktop prüfen („Jedes Mal fragen“, Konto-Chip), bekommen wie am
+Desktop eine (nie benutzte) Chipkarte dazu (`common::IdleBackend`; `batch.rs::Atrust::backends`,
+`workspace.rs::signer_chip_selection_and_default`, `default_signer_with_auto_position_never_starts_by_itself`).
+Oberfläche: `app/SingleSigner.test.tsx` (Desktop per Richtlinie: breit, schmal, Stapel, Ersteinrichtung, Chipkarte
+nicht gestartet; Gegenprobe Desktop mit mehreren: breit, schmal, „Jedes Mal fragen“, Stapel, Ersteinrichtung),
+`app/MobileIdAustriaOnly.test.tsx` (iOS und Android: Arbeitsbereich breit, schmal und ausgeklappt, Signierkarte,
+Befehlspalette samt Suche, Kürzelübersicht, Ersteinrichtung, Stapel – nirgends Konto-Chip, Menü, „Signiermittel
+wählen/wechseln“, „Signieren mit“ als Auswahl, „Als Standard verwenden“, „Jedes Mal fragen“; axe),
+`app/Mobile.test.tsx` (schmal je Plattform: „Signieren“ volle Breite, Kurzhinweis bleibt, `sign_with` ohne Menü;
+Tablet-Breite; ohne Signiermittel gesperrt statt leerem Menü), `features/signing/signing.test.tsx` (Rückfall ohne
+Wahl, nicht verfügbar mit Grund), `app/RealCore.test.tsx` (echter Kern: ein fest vorgegebenes Backend → kein Konto-Chip;
+drei Signiermittel → Auswahl), `core/contract.test.ts` (Schema; jede Mobile-Probe `choice_offered = false`, eine
+Desktop-Probe mit Auswahl). Proben: `generated.ts`, `view-states.json` (Mobile-Proben ohne Auswahl, Ersteinrichtung am
+Desktop mit Signiermitteln), Real-Core-Proben neu erzeugt (nur das neue Feld; `real-core-batch-views.json` zusätzlich
+mit der Chipkarte). Sichtprüfung im Mock-Modus (Telefon-Viewport 375 × 812 mit Touch, Desktop):
+`docs/integration/screenshots/mobile-signer/` (docs/integration/mobile.md §13).
+
+**Angenommene Abweichungen:** Am Desktop wirkt die Regel auch bei einer Richtlinie (`allowed_backends` mit einem
+Signiermittel, `forced_backend`): dort gibt es ebenfalls nichts zu wählen; die übrigen Signiermittel bleiben in
+`options` (gesperrt mit Grund) und in Einstellungen › Signiermittel sichtbar. „Jedes Mal fragen“ wirkt dann wie der
+Standard des einen Signiermittels (wie auf Mobilgeräten seit Nachtrag 11); der Wert bleibt in der Datei. Die Texte
+`ng-ui-insp-chip-label-single` und `ng-ui-insp-signer-menu` (Nachtrag 11) bleiben für ältere Daten ohne das Feld.

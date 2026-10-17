@@ -55,6 +55,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -120,6 +121,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -186,6 +188,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -263,6 +266,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -340,6 +344,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -478,6 +483,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -544,6 +550,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -636,6 +643,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -722,6 +730,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -823,6 +832,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -919,6 +929,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1053,6 +1064,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1149,6 +1161,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1245,6 +1258,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1341,6 +1355,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1437,6 +1452,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1538,6 +1554,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1634,6 +1651,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1743,6 +1761,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1852,6 +1871,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -1961,6 +1981,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2070,6 +2091,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2181,6 +2203,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2295,6 +2318,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2403,6 +2427,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2511,6 +2536,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2619,6 +2645,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2727,6 +2754,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2845,6 +2873,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -2955,6 +2984,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3064,6 +3094,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3173,6 +3204,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3281,6 +3313,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3391,6 +3424,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3494,6 +3528,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3597,6 +3632,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3700,6 +3736,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3803,6 +3840,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -3905,6 +3943,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4007,6 +4046,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4109,6 +4149,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4211,6 +4252,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4317,6 +4359,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4419,6 +4462,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4521,6 +4565,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4623,6 +4668,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4725,6 +4771,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4827,6 +4874,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -4929,6 +4977,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5003,6 +5052,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5092,6 +5142,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5166,6 +5217,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5243,6 +5295,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5319,6 +5372,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5483,6 +5537,7 @@
       },
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5618,6 +5673,7 @@
       },
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5684,6 +5740,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5783,6 +5840,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -5854,6 +5912,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -6165,6 +6224,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": "atrust_native",
         "options": [
           {
@@ -6558,6 +6618,7 @@
         "doc": 7
       },
       "signers": {
+        "choice_offered": false,
         "default": "atrust_native",
         "options": [
           {
@@ -6931,6 +6992,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": "atrust_native",
         "options": [
           {
@@ -7320,6 +7382,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": null,
         "options": [
           {
@@ -7536,6 +7599,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -7876,6 +7940,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -8205,6 +8270,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -8549,6 +8615,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -8893,6 +8960,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -9237,6 +9305,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -9581,6 +9650,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -9925,6 +9995,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -10269,6 +10340,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -10613,6 +10685,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -10957,6 +11030,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -11301,6 +11375,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -11645,6 +11720,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -11989,6 +12065,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -12304,6 +12381,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -12636,6 +12714,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -12968,6 +13047,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -13081,6 +13161,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -13155,6 +13236,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -13229,6 +13311,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -13548,6 +13631,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -13625,6 +13709,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -13699,6 +13784,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -13773,6 +13859,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -14092,6 +14179,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -14435,6 +14523,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -14759,6 +14848,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": "atrust_native",
         "options": [
           {
@@ -15098,6 +15188,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": "atrust_native",
         "options": [
           {
@@ -15437,6 +15528,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": "atrust_native",
         "options": [
           {
@@ -15776,6 +15868,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": "atrust_native",
         "options": [
           {
@@ -15885,6 +15978,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -16176,6 +16270,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": "atrust_native",
         "options": [
           {
@@ -16515,6 +16610,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": "atrust_native",
         "options": [
           {
@@ -16643,6 +16739,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -16709,6 +16806,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -16780,6 +16878,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -16851,6 +16950,7 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": false,
         "default": null,
         "options": [],
         "selected": null
@@ -16997,8 +17097,57 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": null,
-        "options": [],
+        "options": [
+          {
+            "account": "+43 660 ···123",
+            "available": true,
+            "backend": "atrust_native",
+            "batch_flow": "login_then_confirm_each",
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": true,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "notes": [],
+            "unavailable_reason": null
+          },
+          {
+            "account": "max.p12 · signer",
+            "available": false,
+            "backend": "keystore",
+            "batch_flow": null,
+            "capabilities": null,
+            "notes": [],
+            "unavailable_reason": "ng-signer-keystore-missing"
+          },
+          {
+            "account": null,
+            "available": false,
+            "backend": "local_bku",
+            "batch_flow": null,
+            "capabilities": null,
+            "notes": [
+              "ng-fido2-unavailable-mobile"
+            ],
+            "unavailable_reason": "ng-signer-localbku-not-running"
+          }
+        ],
         "selected": null
       },
       "step": {
@@ -17069,8 +17218,57 @@
       "settings": null,
       "share_hint": null,
       "signers": {
+        "choice_offered": true,
         "default": null,
-        "options": [],
+        "options": [
+          {
+            "account": "+43 660 ···123",
+            "available": true,
+            "backend": "atrust_native",
+            "batch_flow": "login_then_confirm_each",
+            "capabilities": {
+              "certificate": "OnlyForVisibleBlock",
+              "cms_reserve": 16384,
+              "document_leaves_device": true,
+              "factors": {
+                "app": true,
+                "card": false,
+                "fido2": true,
+                "qr": true,
+                "sms": true
+              },
+              "input": "Document",
+              "interaction": "NativeForms",
+              "login_once_per_batch": true,
+              "max_batch": 1,
+              "output": "Cms",
+              "qualification": "Qes",
+              "server": "None"
+            },
+            "notes": [],
+            "unavailable_reason": null
+          },
+          {
+            "account": "max.p12 · signer",
+            "available": false,
+            "backend": "keystore",
+            "batch_flow": null,
+            "capabilities": null,
+            "notes": [],
+            "unavailable_reason": "ng-signer-keystore-missing"
+          },
+          {
+            "account": null,
+            "available": false,
+            "backend": "local_bku",
+            "batch_flow": null,
+            "capabilities": null,
+            "notes": [
+              "ng-fido2-unavailable-mobile"
+            ],
+            "unavailable_reason": "ng-signer-localbku-not-running"
+          }
+        ],
         "selected": null
       },
       "step": {

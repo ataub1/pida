@@ -193,6 +193,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": false,
       "default": null,
       "options": [
         {
@@ -457,6 +458,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": false,
       "default": null,
       "options": [
         {
@@ -699,6 +701,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": false,
       "default": null,
       "options": [
         {
@@ -955,6 +958,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": false,
       "default": null,
       "options": [
         {
@@ -1221,6 +1225,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": false,
       "default": null,
       "options": [
         {
@@ -1459,6 +1464,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": false,
       "default": null,
       "options": [
         {
@@ -1724,6 +1730,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -2095,6 +2102,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -2244,6 +2252,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -2521,6 +2530,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -2795,6 +2805,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -3072,6 +3083,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -3354,6 +3366,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -3639,6 +3652,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -3938,6 +3952,7 @@
     "settings": null,
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -4305,6 +4320,7 @@
     },
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {
@@ -4652,6 +4668,7 @@
     },
     "share_hint": null,
     "signers": {
+      "choice_offered": true,
       "default": null,
       "options": [
         {

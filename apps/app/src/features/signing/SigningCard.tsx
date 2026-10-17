@@ -48,7 +48,7 @@ import { IconAlert, IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage
 import { abortTextMsg, batchFlow, confirmsEach, newSessionMsg } from '../batch/flow';
 import { statusLabel, statusTone } from '../batch/texts';
 import { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion, PrivacyNote } from '../settings';
-import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerClass, signerName } from '../workspace/signers';
+import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerChoice, signerClass, signerName } from '../workspace/signers';
 import { CountdownRing, useCountdown } from './CountdownRing';
 import { friendlyError, noticeTexts, problemText, progressText, qrDataUrl } from './texts';
 import './signing.css';
@@ -151,9 +151,12 @@ export function SigningCard() {
   const progress: SigningProgressView | null = step.step === 'signing' && step.progress.backend ? step.progress : null;
   const prev = memo.current;
   const docName = progress?.doc?.name ?? view.document?.doc.name ?? (step.step === 'error' ? step.context.doc?.name : null) ?? prev?.docName ?? '';
+  // Rückfall „Signiermittel wählen“ ohne Auswahl (nur ein Signiermittel, Nachtrag 20): das eine, vom Kern gewählte
   const backend: BackendId | null =
     mode === 'choose'
-      ? null
+      ? signerChoice(view)
+        ? null
+        : view.signers.selected
       : (progress?.backend ?? (step.step === 'error' ? step.context.backend : null) ?? prev?.backend ?? view.signers.selected ?? 'atrust_native');
   let stage: SigningStage = prev?.stage ?? 'connecting';
   let method: ConfirmMethod | null = prev?.method ?? null;
@@ -225,7 +228,14 @@ function SigningDialog({
     target?.focus({ preventScroll: true });
   }, [paneKey]);
 
-  const title = mode === 'choose' ? t.t('ng-ui-sc-choose-title') : t.t('ng-ui-sc-title', { signer: signerName(t, backend) });
+  // ohne Signiermittel-Auswahl (Nachtrag 20) kein „Signiermittel wählen“, auch nicht im Rückfall
+  const single = mode === 'choose' && !signerChoice(view);
+  const title =
+    mode === 'choose' && !single
+      ? t.t('ng-ui-sc-choose-title')
+      : backend
+        ? t.t('ng-ui-sc-title', { signer: signerName(t, backend) })
+        : t.t('ng-ui-insp-sign');
   const steps = stepsFor(backend);
   const errorNow = mode === 'error' || mode === 'pause';
   // Stapel: „Signiert“ erst am Ende des Laufs; zwischen den Dokumenten bleibt der Schritt „Bestätigen“ aktiv
@@ -269,7 +279,9 @@ function SigningDialog({
               <>
                 {mode === 'interaction' && interaction ? <InteractionPane interaction={interaction} backend={backend} onCancel={batch ? abort : cancel} /> : null}
                 {mode === 'pause' && batch?.pause ? <PausePane pause={batch.pause} onAbort={abort} onSkip={skip} backend={batch.backend ?? backend} /> : null}
-                {mode === 'choose' && step.step === 'backend' ? <ChoosePane step={step} onCancel={cancel} /> : null}
+                {mode === 'choose' && step.step === 'backend' ? (
+                  single ? <SinglePane step={step} backend={backend} onCancel={cancel} /> : <ChoosePane step={step} onCancel={cancel} />
+                ) : null}
                 {mode === 'error' && step.step === 'error' ? <ErrorPane step={step} beforeConfirm={index === 0} /> : null}
                 {mode === 'finishing' ? <DonePane /> : null}
               </>
@@ -1036,6 +1048,45 @@ function ChoosePane({ step, onCancel }: { step: Extract<StepView, { step: 'backe
         <Button variant="primary" isDisabled={!choice} onPress={() => choice && void dispatch({ type: 'choose_backend', backend: choice })}>
           {t.t('ng-ui-sc-choose-sign')}
         </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Rückfall ohne Signiermittel-Auswahl (nur ein Signiermittel – iOS/Android: ID Austria; Desktop per Richtlinie,
+ * ADR 0004 Nachtrag 20): keine Liste zum Wählen. Das eine Signiermittel (vom Kern gewählt, `signers.selected`) mit
+ * „Signieren“ (`choose_backend`, ausdrückliche Aktion) bzw. – nicht verfügbar – mit dem Grund des Kerns und nur
+ * „Abbrechen“.
+ */
+function SinglePane({ step, backend, onCancel }: { step: Extract<StepView, { step: 'backend' }>; backend: BackendId | null; onCancel: () => void }) {
+  const { t, view, dispatch } = useApp();
+  const option = backend ? step.options.find((o) => o.id === backend) : undefined;
+  const signer = backend ? view.signers.options.find((o) => o.backend === backend) : undefined;
+  const available = option?.available === true;
+  const name = signerName(t, backend);
+  return (
+    <div className="step-pane" data-testid="single-signer">
+      <StepTitle>{backend ? t.t('ng-ui-sc-single-title', { signer: name }) : t.t('ng-ui-insp-sign')}</StepTitle>
+      {available && backend ? (
+        <p className="step-text">{t.t('ng-ui-sc-single-text', { signer: name })}</p>
+      ) : (
+        <div className="callout callout-warning" role="status">
+          <IconAlert size={18} />
+          <div>
+            <p className="callout-title">{backend ? t.t('ng-ui-sc-single-unavailable', { signer: name }) : t.t('ng-ui-sc-choose-unavailable')}</p>
+            {signer?.unavailable_reason ? <p>{t.code(signer.unavailable_reason)}</p> : null}
+          </div>
+        </div>
+      )}
+      {available && option?.capabilities?.document_leaves_device ? <PrivacyNote /> : null}
+      <div className="step-actions">
+        <CancelButton onCancel={onCancel} />
+        {available && backend ? (
+          <Button variant="primary" onPress={() => void dispatch({ type: 'choose_backend', backend })}>
+            {t.t('ng-ui-sc-choose-sign')}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

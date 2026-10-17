@@ -7,8 +7,9 @@
  *
  * Alles kommt aus `ViewState::batch` (Status, Schätzung, Ausgabenamen, Ordner). „Alle signieren“ ist eine
  * ausdrückliche Aktion (A1): mit gewähltem Signiermittel `start_batch`, sonst öffnet sich das Menü des
- * Konto-Chips und die Wahl dort startet. Ordnerwahl und der Umgang mit vorhandenen Dateien werden **vor**
- * dem Start festgelegt (`StartBatchDialog`, nur wenn es etwas zu entscheiden gibt). „Für diesen Stapel
+ * Konto-Chips und die Wahl dort startet. Ohne Signiermittel-Auswahl (nur ein Signiermittel, auf iOS/Android immer –
+ * `signers.choice_offered`, ADR 0004 Nachtrag 20) kein Konto-Chip: der Kern hat das eine gewählt. Ordnerwahl und
+ * der Umgang mit vorhandenen Dateien werden **vor** dem Start festgelegt (`StartBatchDialog`, nur wenn es etwas zu entscheiden gibt). „Für diesen Stapel
  * automatisch positionieren“ bzw. der Hinweis „laut Einstellung“: `BatchAutoPosition` (Nachtrag 8).
  */
 import { useCallback, useEffect, useId, useState } from 'react';
@@ -20,6 +21,7 @@ import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconFolder, Ic
 import { PrivacyNote } from '../settings';
 import { formatSize } from '../workspace/placement';
 import { SignerChip } from '../workspace/SignerChip';
+import { signerChoice } from '../workspace/signers';
 import { BatchAutoPosition } from './BatchAutoPosition';
 import { batchFlow, leadMsg } from './flow';
 import { StartBatchDialog } from './StartBatchDialog';
@@ -50,6 +52,7 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
   // Wortlaut je Signiermittel (Kern: `batch_flow`); im Lauf das des Laufs, ohne Wahl („Jedes Mal fragen“) neutral
   const flow = batchFlow(view, progress?.backend ?? view.signers.selected);
   const summary = running ? null : batch.summary;
+  const choice = signerChoice(view);
 
   const start = useCallback(
     (backend: BackendId) => {
@@ -60,12 +63,13 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
     [batch, dispatch],
   );
 
-  // „Alle signieren“ (Knopf, ⌘↵): mit gewähltem Signiermittel sofort, sonst das Menü des Konto-Chips
+  // „Alle signieren“ (Knopf, ⌘↵): mit gewähltem Signiermittel sofort, sonst das Menü des Konto-Chips (ohne
+  // Auswahl gibt es keines, Nachtrag 20)
   const signAll = useCallback(() => {
     if (!view.actions.start_batch) return;
     if (view.signers.selected) start(view.signers.selected);
-    else setChip({ open: true, sign: true });
-  }, [view.actions.start_batch, view.signers.selected, start]);
+    else if (choice) setChip({ open: true, sign: true });
+  }, [view.actions.start_batch, view.signers.selected, choice, start]);
   useEffect(() => {
     registerSign(signAll);
     return () => registerSign(null);
@@ -92,9 +96,11 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
           </h1>
           <p className="view-lead">{t.t(leadMsg(flow))}</p>
         </div>
-        <div className="batch-actions">
+        <div className={`batch-actions${choice ? '' : ' is-single'}`}>
           <AccessButton msg="ng-ui-batch-add" icon={<IconPlus size={17} />} onPress={() => void browse()} isDisabled={!view.actions.open_files} />
-          <SignerChip isOpen={chip.open} onOpenChange={(open) => setChip({ open, sign: open ? chip.sign : false })} signMode={chip.sign} onSignWith={start} />
+          {choice ? (
+            <SignerChip isOpen={chip.open} onOpenChange={(open) => setChip({ open, sign: open ? chip.sign : false })} signMode={chip.sign} onSignWith={start} />
+          ) : null}
           <AccessButton
             msg="ng-ui-batch-sign-all"
             variant="primary"
@@ -103,7 +109,7 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
             icon={<IconSignature size={18} />}
             aria-label={t.t('ng-ui-batch-sign-all-long', { n: signable.length })}
             onPress={signAll}
-            isDisabled={!view.actions.start_batch}
+            isDisabled={!view.actions.start_batch || (!choice && view.signers.selected === null)}
           >
             <span className="btn-count" aria-hidden="true">
               {signable.length}

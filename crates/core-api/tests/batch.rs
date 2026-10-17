@@ -87,8 +87,10 @@ impl Atrust {
         })
     }
 
+    /// Wie am Desktop: ID Austria und Chipkarte (nie benutzt) – mit nur einem Signiermittel gäbe es keine
+    /// Signiermittel-Auswahl und kein „Jedes Mal fragen“ (ADR 0004 Nachtrag 20).
     fn backends(self: &Arc<Self>) -> Option<Vec<Arc<dyn SignatureBackend>>> {
-        Some(vec![Arc::new(AtrustBackend(self.clone()))])
+        Some(vec![Arc::new(AtrustBackend(self.clone())), IdleBackend::card()])
     }
 
     fn n(&self, c: &AtomicUsize) -> usize {

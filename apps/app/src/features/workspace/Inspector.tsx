@@ -1,7 +1,9 @@
 /**
  * Inspektor des Arbeitsbereichs (Gestalt aus dem Prototyp, ADR 0004 §2.4), unter 760 px als Bottom-Sheet
  * (eingeklappt: Konto-Chip, „Signieren“, Überdeckungswarnung). Abschnitte: Signieren mit (Konto-Chip,
- * Kurzhinweis Datenschutz), Signaturbild (Vorschau des Kerns, „Bearbeiten“ → Einstellungen ›
+ * Kurzhinweis Datenschutz; nur mit Signiermittel-Auswahl – sonst steht der Kurzhinweis direkt über „Signieren“,
+ * das im Bottom-Sheet die volle Breite nimmt, `signers.choice_offered`, ADR 0004 Nachtrag 20), Signaturbild
+ * (Vorschau des Kerns, „Bearbeiten“ → Einstellungen ›
  * Signaturbild), Optionen (Unsichtbar, Auf neuer Seite – gesperrt mit Begründung aus `constraints`),
  * Platzierung (sprechende Lage, „Neu platzieren“/„Frei platzieren“, **keine** Zahlenfelder, D1),
  * dezente Hinweise auf Erkanntes (Einstellungen › Dokument, `DocumentView::detection`: PDF/A erkannt bzw.
@@ -31,6 +33,7 @@ import { PrivacyNote } from '../settings';
 import { displayPages, overlapState, zoneText } from './placement';
 import { ShareHint } from './ShareHint';
 import { SignerChip } from './SignerChip';
+import { signerChoice } from './signers';
 
 function formatTime(iso: string | null, lang: 'de' | 'en'): string | null {
   if (!iso) return null;
@@ -72,6 +75,9 @@ export function Inspector({
   const c = doc.constraints;
   const selected = view.signers.options.find((o) => o.backend === view.signers.selected);
   const leaves = selected?.capabilities?.document_leaves_device === true;
+  // nur ein Signiermittel (iOS/Android: ID Austria; Desktop z. B. per Richtlinie): keine Auswahl, kein Konto-Chip –
+  // das Konto zeigt die Signierkarte beim Anmelden, geändert wird es unter Einstellungen › Signiermittel (Nachtrag 20)
+  const choice = signerChoice(view);
   const field = doc.target.kind === 'field' ? doc.fields.find((f) => doc.target.kind === 'field' && f.index === doc.target.index) : undefined;
   const reason = (id: string) => (c.reasons.includes(id) ? t.code(id) : null);
   // Einstellungen › Dokument (E3): Erkanntes nur nennen, solange die Automatik platziert hat (nicht nach „Ins
@@ -129,7 +135,7 @@ export function Inspector({
           </section>
         ) : null}
 
-        {!narrow && !warning ? (
+        {!narrow && !warning && choice ? (
           <section className="insp-section" aria-labelledby={`${bodyId}-signer`}>
             <h2 className="insp-heading" id={`${bodyId}-signer`}>
               {t.t('ng-ui-insp-sign-with')}
@@ -299,7 +305,8 @@ export function Inspector({
       {!warning ? <ShareHint /> : null}
 
       {/* Schmal (Bottom-Sheet): der Konto-Chip steht unten – der Kurzhinweis „wird an A-Trust übermittelt“
-          (ADR 0003, „bei der Signiermittel-Auswahl“) deshalb direkt darüber, auch eingeklappt */}
+          (ADR 0003, „bei der Signiermittel-Auswahl“) deshalb direkt darüber, auch eingeklappt (ohne Auswahl über
+          „Signieren“, Nachtrag 20) */}
       {narrow && leaves && !warning ? (
         <div className="inspector-privacy">
           <PrivacyNote />
@@ -307,15 +314,18 @@ export function Inspector({
       ) : null}
 
       {!warning ? (
-        <div className="inspector-footer">
-          {narrow ? <div className="inspector-footer-chip">{chip(true)}</div> : null}
+        <div className={`inspector-footer${choice ? '' : ' is-single'}`}>
+          {/* breit ohne Auswahl (Nachtrag 20): kein Abschnitt „Signieren mit“ – der Kurzhinweis über „Signieren“ */}
+          {!narrow && !choice && leaves ? <PrivacyNote /> : null}
+          {narrow && choice ? <div className="inspector-footer-chip">{chip(true)}</div> : null}
           <AccessButton
             msg="ng-ui-insp-sign"
             variant="primary"
             size="lg"
             className="sign-button"
             onPress={onSign}
-            isDisabled={!view.actions.sign}
+            // ohne Auswahl und ohne Signiermittel (Richtlinie schließt alle aus): nichts, womit signiert werden könnte
+            isDisabled={!view.actions.sign || (!choice && view.signers.selected === null)}
             // beim Öffnen gesperrt = bereit: Fokus auf „Signieren“ (React Aria wertet `autoFocus` nur beim Einhängen
             // aus – nach der Analysewarnung bzw. beim Öffnen, nie bei späteren Änderungen)
             autoFocus={locked && view.actions.sign}

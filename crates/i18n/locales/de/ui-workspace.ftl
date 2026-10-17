@@ -367,6 +367,10 @@ ng-ui-sc-choose-title = Signiermittel wählen
 ng-ui-sc-choose-text = Das ursprünglich gewählte Signiermittel ist nicht verfügbar. Womit möchten Sie signieren?
 ng-ui-sc-choose-unavailable = Derzeit nicht verfügbar
 ng-ui-sc-choose-sign = Signieren
+# ohne Signiermittel-Auswahl (nur ein Signiermittel, ADR 0004 Nachtrag 20): kein „Signiermittel wählen“
+ng-ui-sc-single-title = Weiter mit { $signer }
+ng-ui-sc-single-text = Das ursprünglich gewählte Signiermittel ist nicht verfügbar. Signiert wird mit { $signer }.
+ng-ui-sc-single-unavailable = { $signer } ist derzeit nicht verfügbar.
 
 ## Fertig
 

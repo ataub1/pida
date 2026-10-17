@@ -81,8 +81,11 @@ describe('Zustände des echten Kerns', () => {
     expect(s.querySelector('img')).not.toBeNull();
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
     await expectNoAxeViolations();
-    // ohne Standard-Signiermittel öffnet „Signieren“ das Menü; erst die Wahl dort signiert (§8 F12)
+    // ohne Standard-Signiermittel öffnet „Signieren“ das Menü; erst die Wahl dort signiert (§8 F12) – am Desktop mit
+    // mehreren Signiermitteln bleibt die Auswahl (Nachtrag 20)
     expect(editing.signers.selected).toBeNull();
+    expect(editing.signers.choice_offered).toBe(true);
+    expect(screen.getByTestId('signer-chip')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Signieren/ }));
     expect(sessionEvents(mock.dispatched)).toEqual([]);
     const menu = await screen.findByRole('menu');
@@ -113,8 +116,12 @@ describe('Zustände des echten Kerns', () => {
   it('ID Austria (Skript): Anmeldung, Netzfehler mit „Erneut versuchen“, SMS-TAN, Fertig – Karte über der Seitenansicht', async () => {
     const { mock, user } = renderApp({ view: state('atrust_editing') });
     await screen.findByRole('application', { name: 'Signaturblock' });
-    // Kurzhinweis Datenschutz am Konto-Chip (document_leaves_device)
+    // Kurzhinweis Datenschutz (document_leaves_device); nur ein Signiermittel (fest vorgegeben): der Kern bietet keine
+    // Auswahl an, kein Konto-Chip, kein Abschnitt „Signieren mit“ (Nachtrag 20)
     expect(screen.getByTestId('privacy-note')).toBeInTheDocument();
+    expect(state('atrust_editing').signers.choice_offered).toBe(false);
+    expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Signieren mit' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Signieren/ }));
     expect(sessionEvents(mock.dispatched)).toEqual([{ type: 'sign_with', backend: 'atrust_native' }]);
     const workspace = document.querySelector('.workspace');

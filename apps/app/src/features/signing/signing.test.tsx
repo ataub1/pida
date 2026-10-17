@@ -11,7 +11,7 @@ import { capabilitiesFor } from '../../core/mock/shared';
 import type { FormContext, InteractionView, NativeForm } from '../../core/types';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { lastEvent, renderApp } from '../../test/render';
-import { cardErrorView, cardView, ctx, documentView, IOS, onMobile, outputResult, signersView, viewOf } from '../../test/views';
+import { cardErrorView, cardView, ctx, documentView, IOS, onMobile, outputResult, signersView, singleSignerView, viewOf } from '../../test/views';
 
 function form(f: NativeForm, request = 1): InteractionView {
   return { kind: 'form', request, form: f };
@@ -329,17 +329,47 @@ describe('Signierkarte: Fehler, Rückfall, Fertigstellen', () => {
     await expectNoAxeViolations();
   });
 
-  it('Mobile-Rückfall: nur ID Austria, kein Import (ADR 0004 Nachtrag 11); axe', async () => {
+  it('Mobile-Rückfall: nur ID Austria – keine Wahl, kein „Signiermittel wählen“, kein Import (Nachträge 11, 20); axe', async () => {
     const options = [{ id: 'atrust_native' as const, available: true, capabilities: capabilitiesFor('atrust_native', true), notes: ['ng-fido2-unavailable-mobile'] }];
     const view = onMobile(viewOf({ step: 'backend', options }, { document: documentView({ phase: 'signing' }), signers: signersView({}, true) }), IOS);
     const { mock, user } = renderApp({ view, platform: 'ios' });
-    const dialog = await screen.findByRole('dialog', { name: 'Signiermittel wählen' });
-    expect(within(dialog).getAllByRole('radio')).toHaveLength(1);
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });
+    expect(within(dialog).getByTestId('single-signer')).toBeInTheDocument();
+    expect(within(dialog).queryAllByRole('radio')).toHaveLength(0);
+    expect(within(dialog).getByRole('heading', { name: 'Weiter mit ID Austria' })).toBeInTheDocument();
+    expect(dialog).toHaveTextContent('Das ursprünglich gewählte Signiermittel ist nicht verfügbar. Signiert wird mit ID Austria.');
+    expect(within(dialog).getByTestId('privacy-note')).toBeInTheDocument();
     expect(within(dialog).queryByRole('button', { name: /PKCS#12/ })).toBeNull();
-    expect(dialog.textContent).not.toMatch(/Keystore|PKCS/);
+    expect(dialog.textContent).not.toMatch(/Keystore|PKCS|Signiermittel wählen|Womit möchten Sie signieren/);
     await expectNoAxeViolations();
     await user.click(within(dialog).getByRole('button', { name: 'Signieren' }));
     expect(lastEvent(mock)).toEqual({ type: 'choose_backend', backend: 'atrust_native' });
+  });
+
+  it('Rückfall ohne Auswahl, das eine Signiermittel nicht verfügbar (Desktop per Richtlinie, Nachtrag 20): Grund, nur „Abbrechen“', async () => {
+    const options = [
+      { id: 'atrust_native' as const, available: false, capabilities: null, notes: [] },
+      { id: 'local_bku' as const, available: false, capabilities: null, notes: [] },
+    ];
+    const base = singleSignerView();
+    const signers = {
+      ...base,
+      options: base.options.map((o) =>
+        o.backend === 'local_bku' ? { ...o, unavailable_reason: 'ng-signer-localbku-not-running' } : { ...o, available: false, capabilities: null, unavailable_reason: 'ng-signer-policy' },
+      ),
+      selected: 'local_bku' as const,
+    };
+    const { mock, user } = renderApp({ view: viewOf({ step: 'backend', options }, { document: documentView({ phase: 'signing' }), signers }) });
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit Chipkarte' });
+    expect(within(dialog).queryAllByRole('radio')).toHaveLength(0);
+    expect(dialog).toHaveTextContent('Chipkarte ist derzeit nicht verfügbar.');
+    expect(dialog).toHaveTextContent('Die Chipkarten-Software (lokale BKU) läuft nicht.');
+    expect(within(dialog).queryByRole('button', { name: 'Signieren' })).toBeNull();
+    expect(dialog.textContent).not.toMatch(/Signiermittel wählen/);
+    await expectNoAxeViolations();
+    const actions = dialog.querySelector('.step-actions') as HTMLElement;
+    await user.click(within(actions).getAllByRole('button')[0] as HTMLElement);
+    expect(lastEvent(mock)).toEqual({ type: 'cancel' });
   });
 
   it('Signatur erstellt, Speichern läuft: Häkchen „Signiert“, kein Abbrechen, Seitenansicht bleibt', async () => {
