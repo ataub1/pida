@@ -109,7 +109,7 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
             icon={<IconSignature size={18} />}
             aria-label={t.t('ng-ui-batch-sign-all-long', { n: signable.length })}
             onPress={signAll}
-            isDisabled={!view.actions.start_batch || (!choice && view.signers.selected === null)}
+            isDisabled={!view.actions.start_batch}
           >
             <span className="btn-count" aria-hidden="true">
               {signable.length}

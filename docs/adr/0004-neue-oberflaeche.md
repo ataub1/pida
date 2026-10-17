@@ -3422,16 +3422,21 @@ pub struct SignersView {
    Ablauf). Signiert wird weiter **nur** nach der ausdrücklichen Aktion „Signieren“/„Alle signieren“ (A1, F-54); die
    Vorauswahl startet nichts. Kein Wert mehr, mit dem die Oberfläche ein Menü öffnen müsste.
 3. **Nicht verfügbar:** Ist das eine Signiermittel gerade nicht verfügbar (Desktop: Richtlinie gibt nur die Chipkarte
-   frei, die Chipkarten-Software läuft nicht), meldet „Signieren mit“ den Grund der Option (`unavailable_reason`, z. B.
-   `ng-signer-localbku-not-running`) statt `ng-signer-unavailable` („Bitte wählen Sie ein anderes“ – ohne Auswahl
-   nicht möglich); nichts startet (`runtime.rs::sign_with`, `single_signer_unavailable`). Mit Auswahl unverändert.
+   frei, die Chipkarten-Software läuft nicht), melden „Signieren mit“ und „Alle signieren“ den Grund der Option
+   (`unavailable_reason`, z. B. `ng-signer-localbku-not-running`) statt `ng-signer-unavailable` („Bitte wählen Sie ein
+   anderes“ – ohne Auswahl nicht möglich); nichts startet (`runtime.rs::sign_with` bzw. `start_batch`,
+   `single_signer_unavailable`). Mit Auswahl unverändert. Gibt es **gar kein** Signiermittel (die Richtlinie schließt
+   jedes aus: `choice_offered = false`, `selected = None`), sperrt der Kern `actions.sign` und `actions.start_batch` –
+   Knopf, ⌘↵ und Befehlspalette folgen den Freigaben, die Oberfläche leitet nichts aus den Signiermitteln ab.
 4. **Oberfläche** (`features/workspace/signers.tsx::signerChoice`): ohne Auswahl kein Konto-Chip – weder im Fuß des
-   Bottom-Sheets (dort nimmt „Signieren“ die volle Breite, `inspector-footer.is-single`) noch im Abschnitt „Signieren
-   mit“ des breiten Inspektors (der Abschnitt entfällt; der Kurzhinweis Datenschutz steht dann direkt über
-   „Signieren“), noch in der Stapelübersicht („PDF hinzufügen“ und „Alle signieren“ teilen sich die Zeile bzw. stehen
-   schmal untereinander über die volle Breite, `batch-actions.is-single`). „Signieren“, ⌘↵ und die Palette signieren
-   mit `signers.selected`, ohne Menü; gibt es gar keines (Richtlinie schließt alle aus), ist „Signieren“ gesperrt
-   statt ein leeres Menü zu öffnen. Die Ersteinrichtung zeigt den Schritt „Standard-Signiermittel“ nur mit Auswahl
+   Bottom-Sheets (dort nimmt „Signieren“ die volle Breite, `inspector-footer.is-single`; der Kurzhinweis Datenschutz
+   steht wie bisher direkt darüber) noch im Abschnitt „Signieren mit“ des breiten Inspektors (der Abschnitt entfällt;
+   der Kurzhinweis steht an seiner Stelle oben im rollbaren Teil, **nicht** im festen Fuß – im Querformat des Telefons
+   bzw. mit großer Schrift ließe er sonst kaum Platz für Signaturbild, Optionen und Platzierung), noch in der
+   Stapelübersicht („PDF hinzufügen“ und „Alle signieren“ teilen sich die Zeile bzw. stehen schmal untereinander über
+   die volle Breite, `batch-actions.is-single`). „Signieren“, ⌘↵ und die Palette signieren mit `signers.selected`,
+   ohne Menü; gibt es gar keines, sind sie gesperrt (Freigaben des Kerns, Punkt 3) statt ein leeres Menü zu öffnen.
+   Die Ersteinrichtung zeigt den Schritt „Standard-Signiermittel“ nur mit Auswahl
    (bisher: nur am Desktop). Der Rückfall der Signierkarte (`StepView::Backend`, nach „Signatur fortsetzen“) zeigt
    ohne Auswahl keine Liste und kein „Signiermittel wählen“, sondern „Weiter mit ID Austria“ mit „Signieren“
    (`choose_backend`) bzw. – nicht verfügbar – den Grund und nur „Abbrechen“. Das Konto (maskierter Benutzername bzw.
@@ -3449,7 +3454,9 @@ pub struct SignersView {
 trotz „Jedes Mal fragen“ und `select_signer` ohne bzw. mit Keystore, Stapelübersicht mit Schätzung, Sitzung erst nach
 „Signieren mit“; Desktop-Gegenprobe Linux mit Auswahl ohne Vorauswahl), `tests/workspace.rs`
 (`single_signer_by_policy_offers_no_choice` – `allowed_backends` und `forced_backend`, Gegenprobe ohne Richtlinie;
-`single_unavailable_signer_names_the_reason` – Grund statt `ng-signer-unavailable`, Gegenprobe mit Auswahl). Tests mit
+`single_unavailable_signer_names_the_reason` – Grund statt `ng-signer-unavailable`, Gegenprobe mit Auswahl;
+`single_unavailable_signer_in_the_batch_names_the_reason` – ebenso „Alle signieren“;
+`no_signer_at_all_locks_sign_and_start_batch` – Freigaben gesperrt, Gegenprobe ohne Richtlinie). Tests mit
 einem einzigen Fake-Backend, die die Auswahl am Desktop prüfen („Jedes Mal fragen“, Konto-Chip), bekommen wie am
 Desktop eine (nie benutzte) Chipkarte dazu (`common::IdleBackend`; `batch.rs::Atrust::backends`,
 `workspace.rs::signer_chip_selection_and_default`, `default_signer_with_auto_position_never_starts_by_itself`).
@@ -3459,12 +3466,15 @@ nicht gestartet; Gegenprobe Desktop mit mehreren: breit, schmal, „Jedes Mal fr
 Befehlspalette samt Suche, Kürzelübersicht, Ersteinrichtung, Stapel – nirgends Konto-Chip, Menü, „Signiermittel
 wählen/wechseln“, „Signieren mit“ als Auswahl, „Als Standard verwenden“, „Jedes Mal fragen“; axe),
 `app/Mobile.test.tsx` (schmal je Plattform: „Signieren“ volle Breite, Kurzhinweis bleibt, `sign_with` ohne Menü;
-Tablet-Breite; ohne Signiermittel gesperrt statt leerem Menü), `features/signing/signing.test.tsx` (Rückfall ohne
+breit/Querformat: Kurzhinweis oben im rollbaren Teil, Fuß nur mit „Signieren“, Fokusreihenfolge; ohne Signiermittel
+gesperrt statt leerem Menü – Knopf, Palette, ⌘↵, „Alle signieren“ nach den Freigaben des Mock-Kerns),
+`features/signing/signing.test.tsx` (Rückfall ohne
 Wahl, nicht verfügbar mit Grund), `app/RealCore.test.tsx` (echter Kern: ein fest vorgegebenes Backend → kein Konto-Chip;
 drei Signiermittel → Auswahl), `core/contract.test.ts` (Schema; jede Mobile-Probe `choice_offered = false`, eine
 Desktop-Probe mit Auswahl). Proben: `generated.ts`, `view-states.json` (Mobile-Proben ohne Auswahl, Ersteinrichtung am
 Desktop mit Signiermitteln), Real-Core-Proben neu erzeugt (nur das neue Feld; `real-core-batch-views.json` zusätzlich
-mit der Chipkarte). Sichtprüfung im Mock-Modus (Telefon-Viewport 375 × 812 mit Touch, Desktop):
+mit der Chipkarte). Sichtprüfung im Mock-Modus (Telefon-Viewport 375 × 812 mit Touch, Querformat 812 × 375 mit
+200 % Schrift, Desktop):
 `docs/integration/screenshots/mobile-signer/` (docs/integration/mobile.md §13).
 
 **Angenommene Abweichungen:** Am Desktop wirkt die Regel auch bei einer Richtlinie (`allowed_backends` mit einem

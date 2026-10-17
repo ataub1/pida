@@ -2590,7 +2590,9 @@ export type ActionsView = {
  */
 open_files: boolean, 
 /**
- * `sign_with` möglich (ohne `signers.selected` öffnet die UI das Signiermittel-Menü)
+ * `sign_with` möglich (ohne `signers.selected` öffnet die UI das Signiermittel-Menü); ohne
+ * Signiermittel-Auswahl und ohne Signiermittel (`signers.choice_offered = false`, `selected = None`: die
+ * Richtlinie schließt jedes aus, ADR 0004 Nachtrag 20) `false`
  */
 sign: boolean, 
 /**
@@ -2598,7 +2600,7 @@ sign: boolean,
  */
 edit_placement: boolean, 
 /**
- * Stapelübersicht mit mindestens einem signierbaren Dokument
+ * Stapelübersicht mit mindestens einem signierbaren Dokument (und einem Signiermittel, siehe [`Self::sign`])
  */
 start_batch: boolean, 
 /**

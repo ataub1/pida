@@ -1,8 +1,9 @@
 /**
  * Inspektor des Arbeitsbereichs (Gestalt aus dem Prototyp, ADR 0004 §2.4), unter 760 px als Bottom-Sheet
  * (eingeklappt: Konto-Chip, „Signieren“, Überdeckungswarnung). Abschnitte: Signieren mit (Konto-Chip,
- * Kurzhinweis Datenschutz; nur mit Signiermittel-Auswahl – sonst steht der Kurzhinweis direkt über „Signieren“,
- * das im Bottom-Sheet die volle Breite nimmt, `signers.choice_offered`, ADR 0004 Nachtrag 20), Signaturbild
+ * Kurzhinweis Datenschutz; nur mit Signiermittel-Auswahl, `signers.choice_offered`, ADR 0004 Nachtrag 20 – sonst
+ * steht breit nur der Kurzhinweis an dieser Stelle, im Bottom-Sheet direkt über „Signieren“, das dort die volle
+ * Breite nimmt), Signaturbild
  * (Vorschau des Kerns, „Bearbeiten“ → Einstellungen ›
  * Signaturbild), Optionen (Unsichtbar, Auf neuer Seite – gesperrt mit Begründung aus `constraints`),
  * Platzierung (sprechende Lage, „Neu platzieren“/„Frei platzieren“, **keine** Zahlenfelder, D1),
@@ -143,6 +144,14 @@ export function Inspector({
             {chip(false)}
             {leaves ? <PrivacyNote /> : null}
           </section>
+        ) : null}
+        {/* breit ohne Auswahl (Nachtrag 20): kein Abschnitt „Signieren mit“ – der Kurzhinweis steht, wo er stand (oben
+            im rollbaren Teil), nicht im festen Fuß: im Querformat bzw. mit großer Schrift bliebe sonst kaum Platz für
+            Signaturbild, Optionen und Platzierung */}
+        {!narrow && !warning && !choice && leaves ? (
+          <div className="insp-section" data-testid="insp-privacy">
+            <PrivacyNote />
+          </div>
         ) : null}
 
         <section className="insp-section" aria-labelledby={`${bodyId}-block`}>
@@ -315,8 +324,6 @@ export function Inspector({
 
       {!warning ? (
         <div className={`inspector-footer${choice ? '' : ' is-single'}`}>
-          {/* breit ohne Auswahl (Nachtrag 20): kein Abschnitt „Signieren mit“ – der Kurzhinweis über „Signieren“ */}
-          {!narrow && !choice && leaves ? <PrivacyNote /> : null}
           {narrow && choice ? <div className="inspector-footer-chip">{chip(true)}</div> : null}
           <AccessButton
             msg="ng-ui-insp-sign"
@@ -324,8 +331,8 @@ export function Inspector({
             size="lg"
             className="sign-button"
             onPress={onSign}
-            // ohne Auswahl und ohne Signiermittel (Richtlinie schließt alle aus): nichts, womit signiert werden könnte
-            isDisabled={!view.actions.sign || (!choice && view.signers.selected === null)}
+            // ohne Signiermittel (die Richtlinie schließt jedes aus) sperrt der Kern `actions.sign` (Nachtrag 20)
+            isDisabled={!view.actions.sign}
             // beim Öffnen gesperrt = bereit: Fokus auf „Signieren“ (React Aria wertet `autoFocus` nur beim Einhängen
             // aus – nach der Analysewarnung bzw. beim Öffnen, nie bei späteren Änderungen)
             autoFocus={locked && view.actions.sign}

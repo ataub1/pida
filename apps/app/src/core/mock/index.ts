@@ -244,6 +244,16 @@ function signersProjection(s: FlowState, ctx: MockCtx): SignersView {
   return { ...defaultSigners(), options, selected: choiceOffered ? s.selected : (eligible[0] ?? null), default: defaultBackend(ctx), choice_offered: choiceOffered };
 }
 
+/**
+ * Hinweis, wenn mit `backend` gerade nicht signiert werden kann: ohne Auswahl (nur ein Signiermittel, Nachtrag 20) der
+ * Grund der Option (wie `single_signer_unavailable` im Kern) statt „Bitte wählen Sie ein anderes“.
+ */
+function unavailableNotice(s: FlowState, ctx: MockCtx, backend: BackendId): string {
+  const signers = signersProjection(s, ctx);
+  const reason = signers.choice_offered ? null : signers.options.find((o) => o.backend === backend)?.unavailable_reason;
+  return reason ?? 'ng-signer-unavailable';
+}
+
 /** Wirksame Auswahl des Konto-Chips (`signers.selected`). */
 function selectedSigner(s: FlowState, ctx: MockCtx): BackendId | null {
   return signersProjection(s, ctx).selected;
@@ -353,6 +363,7 @@ function batchHost(s: FlowState, ctx: MockCtx): BatchHost {
     ctx,
     opts: s.opts,
     available: (backend) => available(s, ctx, backend),
+    unavailableNotice: (backend) => unavailableNotice(s, ctx, backend),
     selected: () => selectedSigner(s, ctx),
     remembered: () => s.remembered,
     setRemembered: (value) => {
@@ -570,10 +581,7 @@ function startSigning(s: FlowState, ctx: MockCtx, backend: BackendId): void {
   const edit = s.edit;
   if (!d || !edit) return;
   if (!available(s, ctx, backend)) {
-    // ohne Auswahl (nur ein Signiermittel, Nachtrag 20) nennt der Hinweis den Grund statt „wählen Sie ein anderes“
-    const signers = signersProjection(s, ctx);
-    const reason = signers.choice_offered ? null : signers.options.find((o) => o.backend === backend)?.unavailable_reason;
-    ctx.notify(reason ?? 'ng-signer-unavailable');
+    ctx.notify(unavailableNotice(s, ctx, backend));
     return;
   }
   const settings = ctx.settings();
@@ -1396,15 +1404,22 @@ const flowArea: MockArea<FlowState> = {
     const b = bar(s);
     const lang = blockLang(ctx);
     const phase = s.stage === 'warning' ? 'warning' : s.stage === 'editing' ? 'editing' : s.stage === 'signing' || s.stage === 'choosing' ? 'signing' : s.stage === 'output' ? 'done' : s.stage === 'error' && s.error?.origin === 'signing' ? 'signing' : null;
+    const signers = signersProjection(s, ctx);
+    const actions = actionsView(s, b);
+    // wie der Kern (Nachtrag 20): ohne Auswahl und ohne Signiermittel (Richtlinie schließt jedes aus) nichts zu signieren
+    if (!signers.choice_offered && signers.selected === null) {
+      actions.sign = false;
+      actions.start_batch = false;
+    }
     return {
       step: stepView(s, ctx),
       main_bar: b,
       done: s.done.map((x) => structuredClone(x)),
       resume: s.stage === 'open' && s.resume ? { ...s.resume } : null,
       document: d && s.edit && phase ? projectDocument(d, s.edit, phase, ctx.settings(), lang, s.preview) : null,
-      signers: signersProjection(s, ctx),
+      signers,
       batch: s.batch ? s.batch.view() : null,
-      actions: actionsView(s, b),
+      actions,
       parked: null,
     };
   },

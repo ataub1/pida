@@ -28,13 +28,15 @@ const inspector = () => screen.getByRole('complementary', { name: 'Signatur' });
 const footer = () => inspector().querySelector('.inspector-footer') as HTMLElement;
 
 describe('Desktop mit nur einem Signiermittel (Richtlinie): keine Auswahl', () => {
-  it('Arbeitsbereich breit: kein „Signieren mit“, kein Konto-Chip, Kurzhinweis über „Signieren“; signiert direkt mit ID Austria', async () => {
+  it('Arbeitsbereich breit: kein „Signieren mit“, kein Konto-Chip, Kurzhinweis an seiner Stelle oben; signiert direkt mit ID Austria', async () => {
     const { mock, user } = renderApp({ scenario: 'contract', ...ONLY_IDA });
     await screen.findByRole('application', { name: 'Signaturblock' });
     expect(within(inspector()).queryByRole('heading', { name: 'Signieren mit' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
     expect(footer()).toHaveClass('is-single');
-    expect(within(footer()).getByTestId('privacy-note')).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
+    // oben im rollbaren Teil (wie bisher im Abschnitt „Signieren mit“), nicht im festen Fuß
+    expect(within(footer()).queryByTestId('privacy-note')).toBeNull();
+    expect(within(screen.getByTestId('insp-privacy')).getByTestId('privacy-note')).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
     const view = await mock.view();
     expect(view.signers).toMatchObject({ choice_offered: false, selected: 'atrust_native', default: null });
     await expectNoAxeViolations();

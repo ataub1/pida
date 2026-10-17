@@ -2024,11 +2024,13 @@ redacted_debug!(FirstRunView { default_backend, profile, block_language, preview
 pub struct ActionsView {
     /// Dateidialog/Ablegen sinnvoll (nicht während des Signierens)
     pub open_files: bool,
-    /// `sign_with` möglich (ohne `signers.selected` öffnet die UI das Signiermittel-Menü)
+    /// `sign_with` möglich (ohne `signers.selected` öffnet die UI das Signiermittel-Menü); ohne
+    /// Signiermittel-Auswahl und ohne Signiermittel (`signers.choice_offered = false`, `selected = None`: die
+    /// Richtlinie schließt jedes aus, ADR 0004 Nachtrag 20) `false`
     pub sign: bool,
     /// Sticker und Optionen bedienbar
     pub edit_placement: bool,
-    /// Stapelübersicht mit mindestens einem signierbaren Dokument
+    /// Stapelübersicht mit mindestens einem signierbaren Dokument (und einem Signiermittel, siehe [`Self::sign`])
     pub start_batch: bool,
     /// weitere Dokumente in der Warteschlange (`show_batch`)
     pub show_batch: bool,

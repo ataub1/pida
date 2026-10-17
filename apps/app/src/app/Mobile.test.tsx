@@ -5,12 +5,12 @@
  * ausgegraut, Dateiauswahl über das Plugin,
  * Plattform-Kennzeichen; dieselben Ansichten mit `platform: ios|android` wie `?platform=` (Abnahme E1 Punkt 9 [M]).
  */
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { UiEvent } from '../core/types';
 import { expectNoAxeViolations } from '../test/a11y';
 import { emulateMedia, lastEvent, renderApp } from '../test/render';
-import { ANDROID, documentView, IOS, onMobile, signersView, viewOf, workspaceView } from '../test/views';
+import { ANDROID, documentView, editActions, IOS, onMobile, signersView, viewOf, workspaceView } from '../test/views';
 
 let restore: (() => void) | null = null;
 afterEach(() => {
@@ -153,28 +153,73 @@ describe('Signiermittel auf Mobilgeräten: nur ID Austria, keine Auswahl (ADR 00
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 
-  it('breit (Tablet): kein Abschnitt „Signieren mit“, Kurzhinweis über „Signieren“', async () => {
+  it('breit (Tablet, Querformat): kein Abschnitt „Signieren mit“, Kurzhinweis oben im rollbaren Teil statt im festen Fuß', async () => {
     renderApp({ view: onMobile(workspaceView(documentView(), { signers: signersView({}, true) }), IOS), platform: 'ios' });
     await screen.findByRole('application', { name: 'Signaturblock' });
     const inspector = screen.getByRole('complementary', { name: 'Signatur' });
     expect(within(inspector).queryByRole('heading', { name: 'Signieren mit' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
+    // der Fuß bleibt so niedrig wie mit Auswahl (nur „Signieren“): im Querformat bzw. mit großer Schrift bleibt der
+    // rollbare Teil (Signaturbild, Optionen, Platzierung) bedienbar
     const footer = inspector.querySelector('.inspector-footer') as HTMLElement;
-    expect(within(footer).getByTestId('privacy-note')).toBeInTheDocument();
+    expect(within(footer).queryByTestId('privacy-note')).toBeNull();
     expect(within(footer).getByRole('button', { name: /^Signieren/ })).toBeEnabled();
+    const scroll = inspector.querySelector('.inspector-scroll') as HTMLElement;
+    const note = within(scroll).getByTestId('privacy-note');
+    expect(note).toHaveTextContent('Das Dokument wird zum Signieren an A-Trust übermittelt.');
+    expect(scroll.firstElementChild).toBe(screen.getByTestId('insp-privacy'));
+    // Fokusreihenfolge: „Details“ des Kurzhinweises vor „Bearbeiten“ (Signaturbild), „Signieren“ zuletzt im Inspektor
+    const focusable = [...inspector.querySelectorAll<HTMLElement>('a, [role="link"], button:not([disabled])')];
+    const details = within(note).getByRole('link');
+    const edit = within(inspector).getByRole('button', { name: /Signaturbild bearbeiten/ });
+    expect(focusable.indexOf(details)).toBeLessThan(focusable.indexOf(edit));
+    expect(focusable.indexOf(edit)).toBeLessThan(focusable.indexOf(within(footer).getByRole('button', { name: /^Signieren/ })));
     await expectNoAxeViolations();
   });
 
   it('kein leeres Menü: ohne Signiermittel (Richtlinie schließt ID Austria aus) bleibt „Signieren“ gesperrt', async () => {
     const base = signersView({}, true);
     const signers = { ...base, options: base.options.map((o) => ({ ...o, available: false, capabilities: null, unavailable_reason: 'ng-signer-policy' })), selected: null, default: null };
-    const { mock, user } = renderApp({ view: onMobile(workspaceView(documentView(), { signers }), ANDROID) });
+    // der Kern sperrt `actions.sign` dann selbst (Nachtrag 20) – die Oberfläche leitet nichts ab
+    const { mock, user } = renderApp({ view: onMobile(workspaceView(documentView(), { signers, actions: editActions({ sign: false }) }), ANDROID) });
     await screen.findByRole('application', { name: 'Signaturblock' });
     const sign = screen.getByRole('button', { name: /^Signieren/ });
     expect(sign).toBeDisabled();
     await user.click(sign);
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(mock.dispatched).toEqual([]);
+    // nichts zum Signieren bzw. Wählen gesendet (Layout-Anfragen der Seitenansicht kommen unter Last später an)
+    expect(mock.dispatched.filter((e) => ['sign_with', 'select_signer', 'choose_backend', 'start_batch'].includes(e.type))).toEqual([]);
+  });
+
+  it('ohne Signiermittel (Mock-Kern wie der Kern): „Signieren“ gesperrt, nicht in der Befehlspalette, ⌘↵ ohne Wirkung', async () => {
+    const { mock, user } = renderApp({ platform: 'android', scenario: 'contract', allowedBackends: [] });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const v = await mock.view();
+    expect(v.signers).toMatchObject({ choice_offered: false, selected: null });
+    expect(v.actions.sign).toBe(false);
+    expect(screen.getByRole('button', { name: /^Signieren/ })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Befehle und Suche' }));
+    const palette = await screen.findByRole('dialog', { name: 'Befehle' });
+    expect(within(palette).queryByRole('menuitem', { name: /^Signieren/ })).toBeNull();
+    await user.keyboard('{Escape}');
+    // Palette samt Befehlsliste und Modal-Ebene geschlossen (Ausblenden ist animiert), erst dann ⌘↵
+    await waitFor(() => expect(document.querySelector('[data-modal-layer]')).toBeNull());
+    // ⌘/Strg+↵ als Tastenkürzel der Shell (am Fenster, unabhängig davon, wohin der Fokus nach der Palette zurückkehrt)
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'Enter', metaKey: true });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(mock.dispatched.some((e) => e.type === 'sign_with')).toBe(false);
+  });
+
+  it('ohne Signiermittel im Stapel: „Alle signieren“ gesperrt (Kern), kein Konto-Chip, kein Menü', async () => {
+    const { mock, user } = renderApp({ platform: 'ios', scenario: 'batch', allowedBackends: [] });
+    const signAll = await screen.findByRole('button', { name: /Alle signieren/ });
+    expect((await mock.view()).actions.start_batch).toBe(false);
+    expect(signAll).toBeDisabled();
+    await user.click(signAll);
+    expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(mock.dispatched.some((e) => e.type === 'start_batch')).toBe(false);
   });
 
   it('Dateiauswahl über das Plugin (Kopien in der Sandbox)', async () => {

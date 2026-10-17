@@ -682,18 +682,21 @@ Mittel.“ Regeln und Vertrag: ADR 0004 Nachtrag 20 (additives Feld `SignersView
 | Bereich | vorher (Nachtrag 11) | jetzt |
 |---|---|---|
 | Arbeitsbereich, Bottom-Sheet (Telefon) | Konto-Chip „ID Austria · Konto ⌄“ neben „Signieren“, Menü nur „Einstellungen …“ | kein Konto-Chip; „Signieren“ über die volle Breite, Kurzhinweis „wird an A-Trust übermittelt“ darüber |
-| Arbeitsbereich breit (Tablet, Querformat) | Abschnitt „Signieren mit“ mit Konto-Chip | Abschnitt entfällt; Kurzhinweis direkt über „Signieren“ |
+| Arbeitsbereich breit (Tablet, Querformat) | Abschnitt „Signieren mit“ mit Konto-Chip | Abschnitt entfällt; Kurzhinweis an seiner Stelle oben im rollbaren Teil (nicht im festen Fuß – im Querformat mit großer Schrift bliebe sonst kaum Platz für Signaturbild und Optionen) |
 | Stapelübersicht | „PDF hinzufügen“, Konto-Chip, „Alle signieren“ | „PDF hinzufügen“ und „Alle signieren“ (schmal je volle Breite) |
 | Ersteinrichtung, Signierkarte | ohne Signiermittel-Schritt; Rückfall „Signiermittel wählen“ mit einer Option | unverändert ohne Schritt; Rückfall „Weiter mit ID Austria“ ohne Liste |
 | Konto (Benutzername/Telefonnummer) | im Konto-Chip | in der Signierkarte beim Anmelden; geändert unter Einstellungen › Signiermittel (unverändert) |
 
 Am Desktop gilt dieselbe Regel, wenn eine Richtlinie nur ein Signiermittel freigibt bzw. vorschreibt; mit mehreren
-Signiermitteln bleibt dort alles wie bisher (Konto-Chip, „Signiermittel wechseln“, „Jedes Mal fragen“).
+Signiermitteln bleibt dort alles wie bisher (Konto-Chip, „Signiermittel wechseln“, „Jedes Mal fragen“). Gibt es gar
+kein Signiermittel (Richtlinie schließt ID Austria aus), sperrt der Kern „Signieren“ und „Alle signieren“
+(`actions`), auch in der Befehlspalette und für ⌘↵.
 
 ### 13.2 Nachweise
 
 - Kern: `tests/mobile.rs::only_id_austria_on_mobile_offers_no_signer_choice` (iOS, Android, Gegenprobe Linux),
-  `tests/workspace.rs::{single_signer_by_policy_offers_no_choice, single_unavailable_signer_names_the_reason}`,
+  `tests/workspace.rs::{single_signer_by_policy_offers_no_choice, single_unavailable_signer_names_the_reason,
+  single_unavailable_signer_in_the_batch_names_the_reason, no_signer_at_all_locks_sign_and_start_batch}`,
   `workspace.rs::{eligible_signers_follow_policy_not_availability, choice_offered_defaults}`.
 - Oberfläche (Mock-Kern mit `platform: ios|android` bzw. `allowedBackends`): `app/MobileIdAustriaOnly.test.tsx`
   (alle Ansichten, Befehlspalette samt Suche, Kürzelübersicht, Ersteinrichtung, Stapel – nirgends Konto-Chip, Menü,
@@ -707,6 +710,12 @@ Signiermitteln bleibt dort alles wie bisher (Konto-Chip, „Signiermittel wechse
   `ios-04-stapel-ohne-konto-chip.jpg`, `android-01-arbeitsbereich-eingeklappt.jpg`, `android-02-stapel-dunkel.jpg`,
   `desktop-01-richtlinie-nur-id-austria.jpg`, `desktop-02-mehrere-signiermittel-gegenprobe.jpg`. Kein Simulator bzw.
   Emulator gestartet, kein Gerät benutzt, keine Anfrage an A-Trust.
+- Nachprüfung (Review, 17.10.2026; Vite auf Port 1447): Querformat 812 × 375 mit 200 % Schrift (`html { font-size:
+  32px }` wie `TextSize.swift`) – mit dem Kurzhinweis im festen Fuß blieben für Signaturbild, Optionen und Platzierung
+  rund 40 px, jetzt wieder so viel wie mit Auswahl: `ios-05-querformat-200-prozent.jpg`; `desktop-01-…` neu
+  aufgenommen (Kurzhinweis oben). Hochformat 375 × 812 mit 200 %: Bottom-Sheet ein- und ausgeklappt, Stapel (beide
+  Knöpfe je volle Breite, nicht abgeschnitten) ohne Befund. Desktop mit mehreren Signiermitteln: Konto-Chip, Menü
+  „Signiermittel wechseln“ mit „Einstellungen …“, nach Wahl der Chipkarte „Als Standard verwenden“ – unverändert.
 
 ### 13.3 Prüfungen
 
@@ -719,3 +728,9 @@ Chunk-Größe über 900 kB gab es schon vorher: 911,7 kB auf `main`, jetzt 914,0
 mit `PIDA_BLESS=1` neu erzeugt und ohne `PIDA_BLESS` grün, ebenso die Real-Core-Proben (`workspace`, `batch`,
 `first_run`); `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p pida-app` für
 `aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK 29, je eigenes `CARGO_TARGET_DIR`) grün.
+
+Nach dem Review (Kurzhinweis breit im rollbaren Teil, Freigaben ohne Signiermittel im Kern, Grund auch bei „Alle
+signieren“): `cargo test --workspace --no-fail-fast` 1511 bestanden, 0 fehlgeschlagen, 5 ignoriert; Clippy wie die CI
+und `cargo fmt --all --check` ohne Befund; `npm ci && npm run build && npm test` 36 Dateien, 734 Tests (mehrfach
+hintereinander grün); `ts_bindings` neu erzeugt (nur die Doku von `ActionsView::sign`/`start_batch`), Rename-Prüfung
+und Mobile-`cargo check` (iOS-Simulator, Android) grün.

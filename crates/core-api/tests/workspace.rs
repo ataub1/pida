@@ -716,6 +716,109 @@ async fn single_unavailable_signer_names_the_reason() {
     assert!(editing(&v));
 }
 
+/// Kern am Desktop mit Richtlinie und Stapelübersicht (zwei Dokumente, Ausgabeordner fest).
+fn start_batch_with_policy(
+    fx: &Fixture,
+    backends: Vec<Arc<dyn SignatureBackend>>,
+    policy: Option<pida_config::Policy>,
+) -> pida_core_api::Core {
+    let dir = fx.dir("in");
+    let inputs: Vec<PathBuf> = ["a.pdf", "b.pdf"]
+        .iter()
+        .map(|n| {
+            let p = copy_pdf(PDF, &dir, n);
+            std::fs::write(&p, [std::fs::read(&p).unwrap().as_slice(), format!("\n%{n}\n").as_bytes()].concat())
+                .unwrap();
+            p
+        })
+        .collect();
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        batch_overview: Some(true),
+        backends: Some(backends),
+        engine: Some(FakeEngine::new()),
+        policy,
+        ..CoreOptions::isolated()
+    };
+    let overlay = Overlay { input_files: inputs, output: Some(fx.dir("out")), ..Overlay::default() };
+    pida_core_api::Core::new_with(fx.config(overlay, false), opts).expect("Kern startet")
+}
+
+/// Stapelübersicht ohne Signiermittel-Auswahl (ADR 0004 Nachtrag 20): Ist das eine Signiermittel nicht verfügbar
+/// (Richtlinie gibt nur die Chipkarte frei, die Chipkarten-Software läuft nicht), nennt „Alle signieren“ wie „Signieren
+/// mit“ den Grund statt „Bitte wählen Sie ein anderes“; der Lauf beginnt nicht.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn single_unavailable_signer_in_the_batch_names_the_reason() {
+    use pida_config::{BackendChoice, Policy};
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let fake = FakeAtrust::new();
+    let only_card = Policy { allowed_backends: Some(vec![BackendChoice::LocalBku]), ..Policy::default() };
+    let core = start_batch_with_policy(&fx, vec![fake.backend(), IdleBackend::card_not_running()], Some(only_card));
+    let v = wait_for(&core, "Übersicht", |v| matches!(v.step, StepView::Batch) && v.actions.start_batch).await;
+    assert!(!v.signers.choice_offered);
+    assert_eq!(v.signers.selected, Some(BackendId::LocalBku));
+    let docs = v.batch.as_ref().unwrap().items.iter().map(|i| i.doc).collect();
+    core.dispatch(UiEvent::StartBatch {
+        backend: BackendId::LocalBku,
+        docs,
+        output_dir: None,
+        on_existing: pida_workflow::ExistingPolicy::KeepBoth,
+    });
+    let v = wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-signer-localbku-not-running")).await;
+    assert!(!v.notices.iter().any(|n| n.code == "ng-signer-unavailable"), "{:?}", v.notices);
+    assert!(matches!(v.step, StepView::Batch) && !v.batch.as_ref().unwrap().running);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0);
+}
+
+/// Keine Signiermittel-Auswahl und gar kein Signiermittel (die Richtlinie gibt nur den Keystore frei, den es hier nicht
+/// gibt; Nachtrag 20): `selected = None`, und der Kern sperrt „Signieren“ (Arbeitsbereich, ⌘↵, Palette) bzw. „Alle
+/// signieren“ selbst – die Oberfläche leitet das nicht aus den Signiermitteln ab. Gegenprobe ohne Richtlinie: frei.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn no_signer_at_all_locks_sign_and_start_batch() {
+    use pida_config::{BackendChoice, Policy};
+    let only_keystore = || Policy { allowed_backends: Some(vec![BackendChoice::Keystore]), ..Policy::default() };
+    // Arbeitsbereich
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let fake = FakeAtrust::new();
+    let core = start_with_policy(&fx, vec![fake.backend(), IdleBackend::card()], Some(only_keystore()));
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        matches!(v.step, StepView::Position { .. })
+            && v.document.as_ref().is_some_and(|d| d.phase == DocumentPhase::Editing)
+    })
+    .await;
+    assert!(!v.signers.choice_offered && v.signers.selected.is_none(), "{:?}", v.signers);
+    assert!(v.signers.options.iter().all(|o| o.unavailable_reason.as_deref() == Some("ng-signer-policy")));
+    assert!(!v.actions.sign, "nichts, womit signiert werden könnte");
+    assert!(v.actions.edit_placement, "Platzierung bleibt bedienbar");
+    // Stapelübersicht
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let core = start_batch_with_policy(&fx, vec![fake.backend(), IdleBackend::card()], Some(only_keystore()));
+    let v = wait_for(&core, "Übersicht voranalysiert", |v| {
+        matches!(v.step, StepView::Batch)
+            && v.batch.as_ref().is_some_and(|b| {
+                b.items.iter().any(|i| {
+                    matches!(
+                        i.status,
+                        pida_core_api::BatchItemStatusView::Ready | pida_core_api::BatchItemStatusView::Positioned
+                    )
+                })
+            })
+    })
+    .await;
+    assert!(!v.signers.choice_offered && v.signers.selected.is_none());
+    assert!(!v.actions.start_batch, "nichts, womit der Stapel signiert werden könnte");
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0);
+    // Gegenprobe ohne Richtlinie
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let core = start_batch_with_policy(&fx, vec![FakeAtrust::new().backend(), IdleBackend::card()], None);
+    let v = wait_for(&core, "Übersicht", |v| matches!(v.step, StepView::Batch) && v.actions.start_batch).await;
+    assert!(v.signers.choice_offered && v.signers.selected.is_none(), "„Jedes Mal fragen“: Menü statt Sperre");
+}
+
 /// Ohne PDFium (Abnahme E1 Punkt 10): Arbeitsbereich bedienbar, Hinweis, „Signieren“ signiert automatisch
 /// platziert; ohne „Signieren mit“ keine Sitzung.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

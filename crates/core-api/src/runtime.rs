@@ -2690,6 +2690,11 @@ impl CoreTask {
         let env = self.registry.environment(self.shared.broker.interactive(), &self.cfg);
         self.options = self.registry.options(&env);
         self.ws.signer_options = self.options.clone();
+        // ohne Signiermittel-Auswahl wie „Signieren mit“: der Grund statt „Bitte wählen Sie ein anderes“ (Nachtrag 20)
+        if let Some(reason) = self.single_signer_unavailable(backend) {
+            self.notify_code(&reason);
+            return;
+        }
         // „Jedes Mal fragen“: die Wahl gilt für diesen Lauf (§8 F12)
         if self.ws.selection.is_none() && self.cfg.default_backend().is_none() {
             self.ws.selection = Some(Selection { backend: Some(backend), doc: None });
@@ -3183,6 +3188,13 @@ impl CoreTask {
             actions.start_batch = crate::actions::batch_start_allowed(shown);
             actions.show_batch = crate::actions::batch_show_allowed(shown);
         }
+        let signers = if self.ws.enabled { self.signers_view() } else { SignersView::default() };
+        if self.ws.enabled && !signers.choice_offered && signers.selected.is_none() {
+            // ohne Signiermittel-Auswahl und ohne Signiermittel (die Richtlinie schließt jedes aus, Nachtrag 20): nichts,
+            // womit „Signieren“/„Alle signieren“ (Knopf, ⌘↵, Palette) signieren könnte – gesperrt statt ohne Wirkung
+            actions.sign = false;
+            actions.start_batch = false;
+        }
         let document = if parked { None } else { self.document_view() };
         let batch = if parked { None } else { self.batch_view() };
         let done = self
@@ -3219,7 +3231,7 @@ impl CoreTask {
             // ADR 0004: K1 document, signers (Arbeitsbereich), K2 batch, K3 recent, K4 first_run
             share_hint: self.share_hint_view(document.as_ref(), batch.as_ref()),
             document,
-            signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
+            signers,
             batch,
             recent: self.recent_view(),
             first_run: self.first_run_view(),

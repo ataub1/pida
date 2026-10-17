@@ -49,6 +49,8 @@ export interface BatchHost {
   readonly opts: MockOptions;
   /** Signiermittel verfügbar (`signers`) */
   available(backend: BackendId): boolean;
+  /** Hinweis, wenn `backend` nicht verfügbar ist (ohne Auswahl der Grund, Nachtrag 20) */
+  unavailableNotice(backend: BackendId): string;
   /** Auswahl des Konto-Chips */
   selected(): BackendId | null;
   /** Passwort im „Merken“-Speicher des Backends (ID Austria) */
@@ -413,7 +415,7 @@ export class MockBatch {
       return;
     }
     if (!this.host.available(e.backend)) {
-      this.ctx.notify('ng-signer-unavailable');
+      this.ctx.notify(this.host.unavailableNotice(e.backend));
       return;
     }
     const out = this.outputView();
