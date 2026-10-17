@@ -563,13 +563,16 @@ async fn real_engine_signs_into_the_first_field_pdfa_compatible() {
             if pretty {
                 c.arg("--pretty-print");
             }
-            String::from_utf8_lossy(&c.arg(&signed).output().unwrap().stdout).into_owned()
+            // Zeilenweise vergleichen: Python schreibt stdout auf Windows im Textmodus mit CRLF
+            // („Field 1: Signature_0\r\n“), `contains("…\n")` schlug dort fehl.
+            String::from_utf8_lossy(&c.arg(&signed).output().unwrap().stdout).replace("\r\n", "\n")
         };
         // ohne Vertrauensanker „untrusted“, aber intakt
         let text = pyhanko(false);
         assert!(text.contains("INTACT") || text.contains("intact"), "pyHanko: {text}");
         let text = pyhanko(true);
-        assert!(text.contains(&format!("Field 1: {first}\n")), "im ersten leeren Feld „{first}“: {text}");
+        let field_line = format!("Field 1: {first}");
+        assert!(text.lines().any(|l| l.trim_end() == field_line), "im ersten leeren Feld „{first}“: {text}");
         assert!(!text.contains("Field 2:"), "genau eine Signatur, kein neues Feld: {text}");
     } else {
         eprintln!("pyHanko fehlt – Orakel übersprungen");

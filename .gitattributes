@@ -1,9 +1,26 @@
 * text=auto eol=lf
+# Binärdateien ausdrücklich (nicht der Heuristik von text=auto überlassen): keine Zeilenende-Umwandlung
+# beim Einchecken, kein Diff. Textdateien bleiben auch unter Windows LF (eol=lf); Fixtures mit CRLF
+# halten testdata/config/.gitattributes und testdata/i18n/.gitattributes byte-genau (-text).
 *.pdf binary
 *.p12 binary
+*.pfx binary
 *.der binary
+*.jks binary
+*.jceks binary
+*.bin binary
 *.png binary
 *.jpg binary
+*.jpeg binary
 *.gif binary
+*.ico binary
+*.icns binary
 *.ttf binary
+*.otf binary
+*.woff2 binary
+*.jar binary
+*.zip binary
+*.dylib binary
+*.so binary
+*.dll binary
 *.bat text eol=crlf
