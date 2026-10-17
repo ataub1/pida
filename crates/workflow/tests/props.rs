@@ -506,6 +506,25 @@ proptest! {
             if before.parked() && matches!(event, Event::SignRequested { .. } | Event::BatchStarted { .. } | Event::PlacementChanged(_) | Event::Cancel) {
                 prop_assert_eq!(&t.state, &before, "{:?} wirkt auf verdeckte Arbeit", event);
             }
+            // „Weiter bearbeiten“ (Nachtrag 13): ein Stapel in die Übersicht – wie „Zurück zum Stapel“ bzw. „Zum
+            // Stapel“, nur das offene Dokument wird freigegeben –, sonst genau die Arbeit wie vor dem Parken
+            if before.parked() && matches!(event, Event::ParkedResumed) {
+                prop_assert!(!t.state.parked(), "bleibt geparkt: {}", t.state.name());
+                if before.resumes_to_overview(&ctx) {
+                    prop_assert!(matches!(t.state, State::BatchOverview { .. }), "{} → {}", before.name(), t.state.name());
+                    prop_assert!(t.effects.iter().all(|e| matches!(e, Effect::Discard(_) | Effect::Preanalyze(_))), "{:?}", t.effects);
+                    let released = t.effects.iter().filter(|e| matches!(e, Effect::Discard(_))).count();
+                    prop_assert!(released <= 1, "{:?}", t.effects);
+                    prop_assert_eq!(before.queue().map(Queue::len), t.state.queue().map(Queue::len), "kein Dokument verloren");
+                } else {
+                    let mut unparked = before.clone();
+                    if let Some(q) = unparked.queue_mut() {
+                        q.parked = false;
+                    }
+                    prop_assert_eq!(&t.state, &unparked, "unverändert fortsetzen");
+                    prop_assert!(t.effects.is_empty(), "{:?}", t.effects);
+                }
+            }
             // „PDF hinzufügen“ startet nie etwas und schließt nie ein Dokument eines Laufs bzw. beim Signieren
             if matches!(event, Event::MoreFilesAdded(_) | Event::DocumentReplaced(_)) {
                 prop_assert!(!t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_) | Effect::SignDocument)), "{:?}", t.effects);

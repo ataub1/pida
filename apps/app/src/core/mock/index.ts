@@ -355,6 +355,29 @@ function fromBatch(s: FlowState): boolean {
   return !!s.batch && !!d && s.batch.openItem === d.id;
 }
 
+/**
+ * „Zum Stapel“ (`show_batch`): Einzeldokument mit wartenden Dokumenten (Arbeitsbereich, Analysewarnung) → Übersicht;
+ * die Platzierung des offenen Dokuments wird dessen Plan, ein Dokument mit Warnung ein Eintrag.
+ */
+function showBatch(s: FlowState, ctx: MockCtx): void {
+  if ((s.stage !== 'editing' && s.stage !== 'warning') || s.batch || !batchOn(s) || s.queue.length < 2) return;
+  const [cur, ...rest] = s.queue;
+  const batch = new MockBatch(batchHost(s, ctx));
+  if (cur && s.edit && s.stage === 'editing') batch.addEdited(cur, planFromEdit(cur, s.edit), followsSettings(s.edit));
+  batch.add(s.stage === 'editing' ? rest : s.queue);
+  s.batch = batch;
+  leaveSingle(s);
+}
+
+/** „Zurück zum Stapel“ (`back_to_batch`): aus der Übersicht geöffnetes Dokument zurück, die Platzierung wird Plan. */
+function backToBatch(s: FlowState): void {
+  const b = s.batch;
+  const d = current(s);
+  if (!b || !d || !fromBatch(s)) return;
+  b.back(d.id, s.stage === 'editing' && s.edit ? planFromEdit(d, s.edit) : undefined, s.edit ? followsSettings(s.edit) : false);
+  leaveSingle(s);
+}
+
 function openFiles(s: FlowState, ctx: MockCtx, paths: string[]): void {
   const fresh = paths.filter((p, i) => paths.indexOf(p) === i && !s.queue.some((d) => d.path === p) && !s.batch?.has(p)); // F-89 ohne Duplikate
   if (fresh.length === 0) return;
@@ -743,12 +766,37 @@ function discardParked(s: FlowState): void {
 }
 
 /**
+ * Führt „Weiter bearbeiten“ zur Stapelübersicht (wie `State::resumes_to_overview` im Kern, ADR 0004 Nachtrag 13)?
+ * Mit Stapelübersicht: die Übersicht selbst, ein aus ihr geöffnetes Dokument und ein Dokument mit wartenden
+ * (Arbeitsbereich, Analysewarnung) – nicht „Fertig“ ohne Speichern.
+ */
+function resumesToOverview(s: FlowState): boolean {
+  if (!batchOn(s)) return false;
+  if (s.stage === 'batch') return !!s.batch;
+  if (s.stage === 'editing' || s.stage === 'warning') return !!current(s) && (s.queue.length > 1 || fromBatch(s));
+  return false;
+}
+
+/**
+ * „Weiter bearbeiten“ (`resume_parked`) wie der Kern (`Event::ParkedResumed`, Nachtrag 13): ein Stapel kommt in die
+ * Stapelübersicht – wie „Zurück zum Stapel“ bzw. „Zum Stapel“, die Platzierung des offenen Dokuments wird dessen
+ * Plan –, sonst unverändert zurück.
+ */
+function resumeParked(s: FlowState, ctx: MockCtx): void {
+  s.parked = false;
+  if (!resumesToOverview(s) || s.stage === 'batch') return;
+  if (fromBatch(s)) backToBatch(s);
+  else showBatch(s, ctx);
+}
+
+/**
  * Neue Dateien bei geparkter Arbeit wie der Kern: „Zum Stapel hinzufügen“ (`mode: 'add'`) bzw. – `openWith` – „Öffnen
- * mit“/zweite Instanz (ohne Rückfrage, Hinweis `ng-parked-files-added`). Fortsetzen, dann hinzufügen: Arbeitsbereich wie
- * „Weitere PDFs hinzufügen“ (Platzierung bleibt Plan), Übersicht mit neuen Einträgen, Analysewarnung als Eintrag.
+ * mit“/zweite Instanz (ohne Rückfrage, Hinweis `ng-parked-files-added`). Fortsetzen wie „Weiter bearbeiten“ (ein
+ * Stapel ist danach die Übersicht), dann hinzufügen: Arbeitsbereich wie „Weitere PDFs hinzufügen“ (Platzierung bleibt
+ * Plan), Übersicht mit neuen Einträgen, Analysewarnung als Eintrag.
  */
 function joinParked(s: FlowState, ctx: MockCtx, paths: string[], openWith: boolean): void {
-  s.parked = false;
+  resumeParked(s, ctx);
   const open = () => s.queue.length + (s.batch?.size ?? 0);
   const before = open();
   const d = current(s);
@@ -775,9 +823,11 @@ function parkedView(s: FlowState): ParkedWorkView | null {
   const e = s.edit;
   const byHand = !!e && (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'output') && !e.automatic;
   const unsaved = s.stage === 'output';
+  // „Weiter bearbeiten“ führt zur Stapelübersicht → „Stapel · n Dokumente“, sonst zum Dokument (Nachtrag 13)
+  const doc_name = resumesToOverview(s) ? null : (current(s)?.name ?? null);
   const b = s.batch;
-  if (b) return { doc_name: null, documents: b.size, placed_by_hand: byHand || b.view().manual_plans > 0, unsaved };
-  return { doc_name: current(s)?.name ?? null, documents: s.queue.length, placed_by_hand: byHand, unsaved };
+  if (b) return { doc_name, documents: b.size, placed_by_hand: byHand || b.view().manual_plans > 0, unsaved };
+  return { doc_name, documents: s.queue.length, placed_by_hand: byHand, unsaved };
 }
 
 /** Platzierung zulässig (z. B. kein neues sichtbares Feld auf DocMDP-zertifizierten Dokumenten). */
@@ -984,7 +1034,7 @@ const flowArea: MockArea<FlowState> = {
     if (s.parked) {
       switch (e.type) {
         case 'resume_parked':
-          s.parked = false;
+          resumeParked(s, ctx);
           return true;
         case 'discard_parked':
           discardParked(s);
@@ -1054,23 +1104,13 @@ const flowArea: MockArea<FlowState> = {
         else openFiles(s, ctx, e.paths);
         return true;
       case 'show_batch':
-        if ((s.stage === 'editing' || s.stage === 'warning') && !b && batchOn(s) && d && s.queue.length > 1) {
-          const [cur, ...rest] = s.queue;
-          const batch = new MockBatch(batchHost(s, ctx));
-          if (cur && s.edit && s.stage === 'editing') batch.addEdited(cur, planFromEdit(cur, s.edit), followsSettings(s.edit));
-          batch.add(s.stage === 'editing' ? rest : s.queue);
-          s.batch = batch;
-          leaveSingle(s);
-        }
+        if (!b && d && s.queue.length > 1) showBatch(s, ctx);
         return true;
       case 'open_batch_item':
         if (s.stage === 'batch' && b) b.open(e.doc);
         return true;
       case 'back_to_batch':
-        if (b && d && fromBatch(s) && (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading')) {
-          b.back(d.id, s.stage === 'editing' && s.edit ? planFromEdit(d, s.edit) : undefined, s.edit ? followsSettings(s.edit) : false);
-          leaveSingle(s);
-        }
+        if (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading') backToBatch(s);
         return true;
       case 'remove_from_batch':
         if (s.stage === 'batch' && b) {

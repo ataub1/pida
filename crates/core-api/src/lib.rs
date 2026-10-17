@@ -122,7 +122,8 @@
 //!
 //! „Zur Startseite“ (ADR 0004 Nachtrag 10, nur im Arbeitsbereich-Modus): `go_home` parkt das offene Dokument bzw.
 //! den Stapel (Reducer, `Queue::parked`) statt es zu verwerfen; die Projektion zeigt dann die Dokumentauswahl mit
-//! [`ViewState::parked`] (`parked.rs`). `resume_parked` setzt unverändert fort, `discard_parked` verwirft; neue Dateien
+//! [`ViewState::parked`] (`parked.rs`). `resume_parked` setzt fort (ein Stapel in der Stapelübersicht, Nachtrag 13;
+//! sonst unverändert), `discard_parked` verwirft; neue Dateien
 //! kommen mit `mode: add` bzw. ohne `mode` („Öffnen mit“, Hinweis) zum Stapel, `mode: replace` beginnt neu. Nichts
 //! davon öffnet eine Sitzung (A1).
 //!

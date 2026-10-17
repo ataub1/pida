@@ -1,6 +1,7 @@
 //! Tabellentests „Zur Startseite“ parkt offene Arbeit (ADR 0004 Nachtrag 10): Parken statt Verwerfen
 //! (Arbeitsbereich mit Platzierung, Analysewarnung, Stapelübersicht, „Fertig“ ohne Speichern), „Weiter
-//! bearbeiten“ unverändert, „Schließen“ verwirft wie „Öffnen“, neue Dateien kommen zum Stapel („Zum Stapel
+//! bearbeiten“ eines Einzeldokuments unverändert, eines Stapels in die Stapelübersicht mit allen Änderungen am
+//! offenen Dokument (Nachtrag 13), „Schließen“ verwirft wie „Öffnen“, neue Dateien kommen zum Stapel („Zum Stapel
 //! hinzufügen“, „Öffnen mit“) bzw. ersetzen („Offene schließen und neu beginnen“), verdeckte Arbeit ist nicht
 //! bedienbar (F-54), Ergebnisse von Effekten wirken weiter; Signieren, Stapellauf und Fehler bleiben unberührt.
 
@@ -64,11 +65,15 @@ fn placed_by_hand(id: u64) -> (State, Placement) {
 
 /// Übersicht mit `ids`, alle voranalysiert (`Ready`).
 fn overview(ids: &[u64]) -> State {
-    let t =
-        step(State::Idle { queue: Queue::default() }, Event::FilesAdded(ids.iter().map(|i| doc(*i)).collect()), &ctx());
+    overview_in(ids, &ctx())
+}
+
+/// Wie [`overview`] mit eigenem Kontext (z. B. Platzhaltersuche).
+fn overview_in(ids: &[u64], c: &Context) -> State {
+    let t = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(ids.iter().map(|i| doc(*i)).collect()), c);
     let mut s = t.state;
     for id in ids {
-        s = step(s, Event::Preanalyzed { doc: DocId(*id), result: Ok(summary(Vec::new())) }, &ctx()).state;
+        s = step(s, Event::Preanalyzed { doc: DocId(*id), result: Ok(summary(Vec::new())) }, c).state;
     }
     assert!(matches!(s, State::BatchOverview { .. }), "{}", s.name());
     s
@@ -362,12 +367,339 @@ fn loading_an_entry_returns_to_the_overview_and_parks_it() {
     let t = home(s);
     assert!(matches!(t.state, State::BatchOverview { .. }) && t.state.parked(), "{}", t.state.name());
     assert_eq!(batch_of(&t.state).item(DocId(1)).unwrap().status, BatchItemStatus::Ready, "Eintrag unverändert");
-    // ein geöffneter Eintrag im Arbeitsbereich wird mit seiner Platzierung geparkt („Zurück zum Stapel“ bleibt)
+    // ein geöffneter Eintrag im Arbeitsbereich wird mit seiner Platzierung geparkt (Zustand unverändert, nichts
+    // freigegeben); „Weiter bearbeiten“ führt wie „Zurück zum Stapel“ in die Übersicht (Nachtrag 13)
     let s = step(overview(&[1, 2]), Event::BatchItemOpened(DocId(1)), &ctx()).state;
     let s = step(s, analyzed(1, 3, None, false), &ctx()).state;
     let t = home(s.clone());
-    assert!(t.state.parked() && t.state.opened_from_batch());
-    assert_eq!(step(t.state, Event::ParkedResumed, &ctx()).state, s);
+    assert!(t.state.parked() && t.state.opened_from_batch() && t.effects.is_empty());
+    assert_eq!(unparked(t.state.clone()), s);
+    assert_eq!(resume(t.state), step(s, Event::BackToBatch, &ctx()));
+}
+
+// ------------------------------------------------------------------------------------------------
+// „Weiter bearbeiten“ eines Stapels führt zur Stapelübersicht (ADR 0004 Nachtrag 13)
+// ------------------------------------------------------------------------------------------------
+
+fn resume(s: State) -> Transition {
+    step(s, Event::ParkedResumed, &ctx())
+}
+
+/// Aus der Übersicht geöffneter Eintrag `id` im Arbeitsbereich (eben analysiert).
+fn opened_entry(s: State, id: u64) -> State {
+    let s = step(s, Event::BatchItemOpened(DocId(id)), &ctx()).state;
+    let s = step(s, analyzed(id, 3, None, false), &ctx()).state;
+    assert!(matches!(s, State::Positioning { .. }) && s.opened_from_batch(), "{}", s.name());
+    s
+}
+
+fn plan_of(s: &State, id: u64) -> Option<PositionChoice> {
+    batch_of(s).item(DocId(id)).and_then(|i| i.plan.clone())
+}
+
+fn status_of(s: &State, id: u64) -> BatchItemStatus {
+    batch_of(s).item(DocId(id)).expect("Eintrag").status.clone()
+}
+
+/// Der Fall der Meldung: Eintrag aus der Übersicht geöffnet, Block verschoben, „Zur Startseite“, „Weiter
+/// bearbeiten“ → Stapelübersicht (nicht das Dokument), die Platzierung ist Plan des Eintrags („Positioniert“).
+#[test]
+fn resume_of_an_opened_entry_shows_the_overview_with_its_placement() {
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = opened_entry(overview(&[1, 2, 3]), 2);
+    let s = step(s, Event::PlacementChanged(p), &ctx()).state;
+    assert!(s.resumes_to_overview(&ctx()));
+    let parked = home(s.clone()).state;
+    assert!(parked.parked() && parked.resumes_to_overview(&ctx()));
+    let t = resume(parked);
+    assert!(matches!(t.state, State::BatchOverview { .. }) && !t.state.parked(), "{}", t.state.name());
+    assert_eq!(plan_of(&t.state, 2), Some(PositionChoice::Manual(p)), "Platzierung bleibt als Plan");
+    assert_eq!(status_of(&t.state, 2), BatchItemStatus::Positioned);
+    assert_eq!(batch_of(&t.state).open, None, "kein Dokument mehr geöffnet");
+    assert_eq!(batch_of(&t.state).items.len(), 3);
+    assert_eq!(t.effects, vec![Effect::Discard(DocId(2))], "nur das Dokument freigegeben, nichts gestartet");
+    // genau wie „Zurück zum Stapel“ aus dem Arbeitsbereich
+    assert_eq!(t, step(s, Event::BackToBatch, &ctx()));
+    // „Unsichtbar signieren“ der Nutzerin bleibt ebenso Plan
+    let s = step(opened_entry(overview(&[1, 2]), 1), Event::InvisibleSet(true), &ctx()).state;
+    let t = resume(home(s).state);
+    assert_eq!(plan_of(&t.state, 1), Some(PositionChoice::Invisible));
+    // was während des Parkens ankommt (automatische Lage, Einstellungen), geht nicht verloren
+    let s = opened_entry(overview(&[1, 2]), 1);
+    let q = Placement { page_index: 2, x: 300.0, y: 200.0, width: 230.0, height: 49.0 };
+    let parked = step(home(s).state, Event::AutoPlaced(q), &ctx()).state;
+    let parked = step(parked, Event::SettingsChanged, &ctx()).state;
+    assert!(parked.parked());
+    let t = resume(parked);
+    assert!(matches!(t.state, State::BatchOverview { .. }));
+    assert_eq!(plan_of(&t.state, 1), None, "automatische Lage: kein Plan (PDF-AS-Regel wie „Zurück zum Stapel“)");
+    assert!(batch_of(&t.state).item(DocId(1)).unwrap().auto_plan, "folgt weiter den Einstellungen");
+}
+
+/// Einzeldokument, zu dem weitere Dokumente gekommen sind (wartend bzw. mit „+ PDF“ zum Stapel geworden): „Weiter
+/// bearbeiten“ zeigt den Stapel – wie „Zum Stapel“, die Platzierung des Dokuments bleibt dessen Plan.
+#[test]
+fn resume_with_waiting_or_added_documents_shows_the_overview() {
+    // wartend (Dateien im Arbeitsbereich hinzugefügt): wie „Zum Stapel“
+    let (s, p) = placed_by_hand(1);
+    let s = step(s, Event::FilesAdded(vec![doc(2)]), &ctx()).state;
+    assert!(matches!(&s, State::Positioning { queue, .. } if queue.pending.len() == 1 && queue.batch.is_none()));
+    let parked = home(s.clone()).state;
+    assert!(parked.resumes_to_overview(&ctx()));
+    let t = resume(parked);
+    assert!(matches!(t.state, State::BatchOverview { .. }) && !t.state.parked(), "{}", t.state.name());
+    assert_eq!(plan_of(&t.state, 1), Some(PositionChoice::Manual(p)));
+    assert_eq!(status_of(&t.state, 2), BatchItemStatus::Analyzing);
+    assert!(t.effects.contains(&Effect::Discard(DocId(1))) && t.effects.contains(&Effect::Preanalyze(DocId(2))));
+    assert_eq!(opens(&t.effects), 0);
+    assert_eq!(t, step(s, Event::ShowBatch, &ctx()), "wie „Zum Stapel“");
+    // „+ PDF“: Stapel aus dem offenen Dokument, ein Eintrag geöffnet und verschoben, geparkt → Übersicht mit beiden
+    // Plänen
+    let (s, p1) = placed_by_hand(1);
+    let s = step(s, Event::MoreFilesAdded(vec![doc(2)]), &ctx()).state;
+    let s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(summary(Vec::new())) }, &ctx()).state;
+    let p2 = Placement { page_index: 0, x: 80.0, y: 120.0, width: 230.0, height: 49.0 };
+    let s = step(opened_entry(s, 2), Event::PlacementChanged(p2), &ctx()).state;
+    let t = resume(home(s).state);
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(
+        (plan_of(&t.state, 1), plan_of(&t.state, 2)),
+        (Some(PositionChoice::Manual(p1)), Some(PositionChoice::Manual(p2)))
+    );
+    // ohne Stapelübersicht (nur Arbeitsbereich): unverändert zurück, die wartenden bleiben in der Warteschlange
+    let single = Context { workspace: true, ..Context::default() };
+    let s = step(workspace_with(1, &single), Event::FilesAdded(vec![doc(2)]), &single).state;
+    let parked = step(s.clone(), Event::WentHome, &single).state;
+    assert!(parked.parked() && !parked.resumes_to_overview(&single));
+    assert_eq!(step(parked, Event::ParkedResumed, &single).state, s);
+}
+
+/// Analysewarnung eines Stapels: aus der Übersicht geöffnet zurück (Eintrag unverändert), mit wartenden Dokumenten
+/// als Eintrag der Übersicht („Bitte prüfen“ nach der Voranalyse). Ein einzelnes Dokument mit Warnung bleibt.
+#[test]
+fn resume_of_a_batch_analysis_warning_shows_the_overview() {
+    let warning = |id: u64| {
+        let mut e = analyzed(id, 3, None, false);
+        if let Event::Analyzed { warnings, .. } = &mut e {
+            warnings.push("pdf-usage-rights".into());
+        }
+        e
+    };
+    // aus der Übersicht geöffnet (Eintrag „Bitte prüfen“)
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1), doc(2)]), &ctx()).state;
+    let s = step(s, Event::Preanalyzed { doc: DocId(1), result: Ok(summary(vec!["pdf-usage-rights".into()])) }, &ctx())
+        .state;
+    let s = step(s, Event::Preanalyzed { doc: DocId(2), result: Ok(summary(Vec::new())) }, &ctx()).state;
+    let review = status_of(&s, 1);
+    assert!(matches!(review, BatchItemStatus::NeedsReview { .. }));
+    let s = step(s, Event::BatchItemOpened(DocId(1)), &ctx()).state;
+    let s = step(s, warning(1), &ctx()).state;
+    assert!(matches!(s, State::AnalysisWarning { .. }) && s.opened_from_batch(), "{}", s.name());
+    let t = resume(home(s.clone()).state);
+    assert!(matches!(t.state, State::BatchOverview { .. }) && !t.state.parked(), "{}", t.state.name());
+    assert_eq!(status_of(&t.state, 1), review, "Eintrag unverändert");
+    assert_eq!(t.effects, vec![Effect::Discard(DocId(1))]);
+    assert_eq!(t, step(s, Event::BackToBatch, &ctx()), "wie „Zurück zum Stapel“");
+    // Einzeldokument mit Warnung, ein weiteres kam dazu („+ PDF“ in der Warnung: an die Warteschlange)
+    let s = step(State::Idle { queue: Queue::default() }, Event::FilesAdded(vec![doc(1)]), &ctx()).state;
+    let s = step(s, warning(1), &ctx()).state;
+    let s = step(s, Event::MoreFilesAdded(vec![doc(2)]), &ctx()).state;
+    assert!(matches!(&s, State::AnalysisWarning { queue, .. } if queue.pending.len() == 1));
+    let t = resume(home(s).state);
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![1, 2]);
+    assert_eq!(t.effects, vec![Effect::Discard(DocId(1)), Effect::Preanalyze(DocId(1)), Effect::Preanalyze(DocId(2))]);
+    let t = step(
+        t.state,
+        Event::Preanalyzed { doc: DocId(1), result: Ok(summary(vec!["pdf-usage-rights".into()])) },
+        &ctx(),
+    );
+    assert!(matches!(status_of(&t.state, 1), BatchItemStatus::NeedsReview { .. }), "Warnung bleibt zu prüfen");
+}
+
+/// „Fertig“ ohne Speichern eines Stapeleintrags: zurück zu „Fertig“ (die Signatur ist erst gespeichert sicher); das
+/// Speichern führt dann wie bisher in die Übersicht. Eine geparkte Übersicht bleibt, wie sie ist.
+#[test]
+fn unsaved_entry_resumes_to_done_and_saving_returns_to_the_overview() {
+    let s = opened_entry(overview(&[1, 2]), 1);
+    let (s, _) = run(
+        s,
+        [
+            Event::SignRequested { backend: BackendId::Keystore, options: options(true, true) },
+            Event::PhaseCompleted(SigningPhase::OpeningSession),
+            Event::PhaseCompleted(SigningPhase::ReadingCertificate),
+            Event::PhaseCompleted(SigningPhase::Preparing),
+            Event::PhaseCompleted(SigningPhase::Signing),
+            Event::PhaseCompleted(SigningPhase::Finishing),
+            Event::OutputChosen(None),
+        ],
+        &ctx(),
+    );
+    assert!(matches!(s, State::Output { saved: None, decision: None, .. }) && s.opened_from_batch(), "{}", s.name());
+    let parked = home(s.clone()).state;
+    assert!(parked.parked() && !parked.resumes_to_overview(&ctx()));
+    let t = resume(parked);
+    assert_eq!((t.state.clone(), t.effects.len()), (s, 0), "„Fertig“ unverändert");
+    let t = step(t.state, Event::Saved(output_info(1)), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert!(matches!(status_of(&t.state, 1), BatchItemStatus::Signed { .. }));
+    // Übersicht: unverändert
+    let s = overview(&[1, 2]);
+    let t = resume(home(s.clone()).state);
+    assert_eq!((t.state, t.effects.len()), (s, 0));
+}
+
+/// „Zum Stapel hinzufügen“ bzw. „Öffnen mit“ bei einem geparkten Eintrag: Übersicht mit dem Plan des Eintrags und
+/// den neuen Dokumenten – auch nur mit Duplikaten die Übersicht, nie das Einzeldokument. Ein geparktes
+/// Einzeldokument wird zum Stapel; parkt man danach einen Eintrag, führt „Weiter bearbeiten“ ebenfalls zur Übersicht.
+#[test]
+fn join_of_a_parked_entry_shows_the_overview_and_stays_a_batch() {
+    let p = Placement { page_index: 0, x: 60.0, y: 200.0, width: 230.0, height: 49.0 };
+    let s = step(opened_entry(overview(&[1, 2]), 1), Event::PlacementChanged(p), &ctx()).state;
+    let parked = home(s).state;
+    let t = step(parked.clone(), Event::MoreFilesAdded(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }) && !t.state.parked(), "{}", t.state.name());
+    assert_eq!(batch_of(&t.state).items.iter().map(|i| i.doc.0).collect::<Vec<_>>(), vec![1, 2, 3]);
+    assert_eq!(plan_of(&t.state, 1), Some(PositionChoice::Manual(p)));
+    assert_eq!(t.effects, vec![Effect::Discard(DocId(1)), Effect::Preanalyze(DocId(3))]);
+    // nur Duplikate: trotzdem die Übersicht (wie „Weiter bearbeiten“)
+    let dup = pida_workflow::InputDocument::new(DocId(9), "/in/doc2.pdf");
+    let t = step(parked.clone(), Event::MoreFilesAdded(vec![dup]), &ctx());
+    assert_eq!(t, resume(parked.clone()));
+    // „Öffnen mit“: dazu, mit Hinweis
+    let t = step(parked, Event::FilesAdded(vec![doc(3)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }));
+    assert!(notified(&t.effects, MSG_PARKED_FILES_ADDED));
+    // geparktes Einzeldokument + „Zum Stapel hinzufügen“ → Stapel; Eintrag öffnen, parken, fortsetzen → Übersicht
+    let (s, p1) = placed_by_hand(1);
+    let t = step(home(s).state, Event::MoreFilesAdded(vec![doc(2)]), &ctx());
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    let s = step(t.state, Event::Preanalyzed { doc: DocId(2), result: Ok(summary(Vec::new())) }, &ctx()).state;
+    let t = resume(home(opened_entry(s, 2)).state);
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(plan_of(&t.state, 1), Some(PositionChoice::Manual(p1)));
+    assert_eq!(opens(&t.effects), 0);
+}
+
+/// Wohin „Weiter bearbeiten“ führt: Übersicht für Stapel, sonst die Arbeit selbst.
+#[test]
+fn resumes_to_overview_only_for_batches() {
+    let c = ctx();
+    assert!(overview(&[1, 2]).resumes_to_overview(&c));
+    assert!(opened_entry(overview(&[1, 2]), 1).resumes_to_overview(&c));
+    assert!(!workspace_with(1, &c).resumes_to_overview(&c), "Einzeldokument");
+    assert!(!placed_by_hand(1).0.resumes_to_overview(&c));
+    // ohne Stapelübersicht nie
+    let single = Context { workspace: true, ..Context::default() };
+    assert!(!positioning(&[1, 2]).resumes_to_overview(&single));
+    assert!(!State::Idle { queue: Queue::default() }.resumes_to_overview(&c));
+}
+
+/// Eintrag 1 einer Übersicht aus 1 und 2 öffnen; `analysis` = Ergebnis seiner Analyse (Felder, QR-Platzhalter).
+fn open_entry_with(c: &Context, analysis: &Event) -> State {
+    let s = step(overview_in(&[1, 2], c), Event::BatchItemOpened(DocId(1)), c).state;
+    let s = step(s, analysis.clone(), c).state;
+    assert!(matches!(s, State::Positioning { .. }) && s.opened_from_batch(), "{}", s.name());
+    s
+}
+
+/// Dokument → Startseite → „Weiter bearbeiten“ (Übersicht, genau wie „Zurück zum Stapel“) → Eintrag erneut
+/// geöffnet: Übersicht und erneut geöffneter Arbeitsbereich.
+fn roundtrip(s: State, analysis: &Event, c: &Context) -> (State, State) {
+    let parked = step(s.clone(), Event::WentHome, c).state;
+    assert!(parked.parked());
+    let t = step(parked, Event::ParkedResumed, c);
+    assert!(matches!(t.state, State::BatchOverview { .. }) && !t.state.parked(), "{}", t.state.name());
+    assert_eq!(t, step(s, Event::BackToBatch, c), "wie „Zurück zum Stapel“");
+    assert_eq!(opens(&t.effects), 0);
+    let again = step(t.state.clone(), Event::BatchItemOpened(DocId(1)), c).state;
+    let again = step(again, analysis.clone(), c).state;
+    assert!(matches!(again, State::Positioning { .. }), "{}", again.name());
+    (t.state, again)
+}
+
+fn edit_of(s: &State) -> &pida_workflow::WorkspaceEdit {
+    match s {
+        State::Positioning { edit: Some(e), .. } => e,
+        other => panic!("{}", other.name()),
+    }
+}
+
+/// Nichts geht auf dem Weg Dokument → Startseite → Übersicht verloren: Feldziel, eigener QR-Platzhalter, „Auf neuer
+/// Seite“ werden Plan des Eintrags (keine Automatik mehr) und gelten beim erneuten Öffnen wieder; wird das Profil
+/// während des Parkens „unsichtbar“, bleibt die eigene Lage Plan.
+#[test]
+fn resume_keeps_every_choice_of_the_open_entry_as_its_plan() {
+    let c = ctx();
+    let own = |s: &State| !batch_of(s).item(DocId(1)).expect("Eintrag").auto_plan;
+    // Feldziel
+    let mut with_field = analyzed(1, 3, None, false);
+    if let Event::Analyzed { fields, .. } = &mut with_field {
+        fields.push(field("Sig1"));
+    }
+    let s = step(open_entry_with(&c, &with_field), Event::TargetChosen(Target::Field(0)), &c).state;
+    let (overview, again) = roundtrip(s, &with_field, &c);
+    assert_eq!(plan_of(&overview, 1), Some(PositionChoice::Field(field("Sig1"))));
+    assert!(own(&overview));
+    assert_eq!(status_of(&overview, 1), BatchItemStatus::Positioned);
+    assert_eq!(edit_of(&again).target, Target::Field(0), "erneut geöffnet: wieder im Feld");
+    // „Auf neuer Seite“
+    let plain = analyzed(1, 3, None, false);
+    let s = step(open_entry_with(&c, &plain), Event::NewPageToggled, &c).state;
+    assert!(matches!(s, State::Positioning { new_page: true, .. }));
+    let (overview, again) = roundtrip(s, &plain, &c);
+    assert!(matches!(plan_of(&overview, 1), Some(PositionChoice::Manual(p)) if p.page_index == 3), "neue Seite");
+    assert!(own(&overview));
+    assert!(matches!(again, State::Positioning { new_page: true, .. }), "erneut geöffnet: wieder auf neuer Seite");
+    // eigener QR-Platzhalter (Platzhaltersuche „QR-Code-Platzhalter“: „Frei platzieren“, dann wieder der Platzhalter)
+    let qr_ctx = Context { placeholder_search: true, ..ctx() };
+    let with_qr = analyzed(1, 3, Some(pida_workflow::PlaceholderFound::Qr(qr())), false);
+    let s = open_entry_with(&qr_ctx, &with_qr);
+    assert_eq!(edit_of(&s).target, Target::Qr);
+    let s = step(s, Event::TargetChosen(Target::Free), &qr_ctx).state;
+    let s = step(s, Event::TargetChosen(Target::Qr), &qr_ctx).state;
+    let (overview, again) = roundtrip(s, &with_qr, &qr_ctx);
+    assert_eq!(plan_of(&overview, 1), Some(PositionChoice::Placeholder(qr())));
+    assert!(own(&overview));
+    assert_eq!(edit_of(&again).target, Target::Qr);
+    // eigene Lage, während des Parkens wird das Profil „unsichtbar“: die Lage bleibt Plan (das Profil erzwingt im
+    // Lauf ohnehin „unsichtbar“; zurück auf ein sichtbares Profil gilt wieder die Lage)
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(open_entry_with(&c, &plain), Event::PlacementChanged(p), &c).state;
+    let invisible = Context { invisible: true, ..ctx() };
+    let parked = step(home(s).state, Event::SettingsChanged, &invisible).state;
+    assert!(parked.parked() && edit_of(&parked).invisible_by_profile, "{:?}", edit_of(&parked));
+    let t = step(parked, Event::ParkedResumed, &invisible);
+    assert!(matches!(t.state, State::BatchOverview { .. }), "{}", t.state.name());
+    assert_eq!(plan_of(&t.state, 1), Some(PositionChoice::Manual(p)));
+    assert!(own(&t.state));
+}
+
+/// „Schließen“ bzw. „Offene schließen und neu beginnen“ bei einem geparkten Eintrag verwerfen den ganzen Stapel (wie
+/// „Öffnen“), nicht nur das Dokument; nichts startet.
+#[test]
+fn close_or_replace_of_a_parked_entry_closes_the_whole_batch() {
+    let p = Placement { page_index: 1, x: 40.0, y: 300.0, width: 230.0, height: 49.0 };
+    let s = step(opened_entry(overview(&[1, 2, 3]), 2), Event::PlacementChanged(p), &ctx()).state;
+    let parked = home(s).state;
+    let cancelled = |s: &State| {
+        let mut ids: Vec<u64> =
+            s.results().iter().filter(|o| o.result == DocResult::Cancelled).map(|o| o.doc.id.0).collect();
+        ids.sort_unstable();
+        ids
+    };
+    let t = step(parked.clone(), Event::ParkedDiscarded, &ctx());
+    let State::Idle { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert!(queue.is_empty() && queue.batch.is_none() && !queue.parked);
+    assert_eq!(cancelled(&t.state), vec![1, 2, 3]);
+    assert_eq!(t.effects.len(), 3, "alle freigegeben: {:?}", t.effects);
+    assert_eq!(opens(&t.effects), 0);
+    let t = step(parked, Event::DocumentReplaced(vec![doc(4)]), &ctx());
+    let State::Analyzing { queue } = &t.state else { panic!("{}", t.state.name()) };
+    assert_eq!(queue.current_id(), Some(DocId(4)));
+    assert!(queue.batch.is_none() && !queue.parked && queue.pending.is_empty());
+    assert_eq!(cancelled(&t.state), vec![1, 2, 3]);
+    assert_eq!(opens(&t.effects), 0);
 }
 
 #[test]

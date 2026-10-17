@@ -3,14 +3,16 @@
  * das offene Dokument (mit Platzierung) bzw. den Stapel (`ViewState::parked`).
  *
  * - Karte „In Bearbeitung“ (Stil der Karten der Startansicht): Dokumentname bzw. „Stapel · n Dokumente“,
- *   „Weiter bearbeiten“ (`resume_parked`, zurück in den Arbeitsbereich bzw. die Stapelübersicht, Platzierung
- *   unverändert) und ein kleines „Schließen“ (`discard_parked`; signierte Dateien bleiben). Verwirft „Schließen“
- *   Arbeit der Nutzerin – eigene Platzierung, Stapel mit mehreren Dokumenten, signiert und nicht gespeichert –,
- *   fragt es kurz nach (Standard „Abbrechen“).
+ *   „Weiter bearbeiten“ (`resume_parked`, zurück in den Arbeitsbereich bzw. die Stapelübersicht; die Platzierung
+ *   bleibt bzw. wird Plan des Eintrags) und ein kleines „Schließen“ (`discard_parked`; signierte Dateien bleiben).
+ *   Verwirft „Schließen“ Arbeit der Nutzerin – eigene Platzierung, Stapel mit mehreren Dokumenten, signiert und
+ *   nicht gespeichert –, fragt es kurz nach (Standard „Abbrechen“).
  * - Rückfrage beim Wählen bzw. Ablegen neuer PDFs und bei „Erneut signieren“ aus „Zuletzt signiert“
  *   (`ParkedJoinDialog`, von der Shell geöffnet): Standard „Zum Stapel hinzufügen“ (`open_files { mode: 'add' }` bzw.
  *   `sign_recent { mode: 'add' }`), „Offene schließen und neu beginnen“ (`mode: 'replace'`), Abbrechen ändert nichts.
  *   „Öffnen mit“ bzw. eine zweite Instanz fragen nicht – der Kern fügt hinzu und meldet es.
+ * - „Weiter bearbeiten“ eines Stapels führt in die Stapelübersicht (Nachtrag 13; der Kern nennt ihn dann
+ *   „Stapel · n Dokumente“, `doc_name = null`), sonst zurück ins Dokument.
  *
  * Was „hinzufügen“, „fortsetzen“ und „verwerfen“ bedeutet, entscheidet der Kern (§6.4); die Rückfrage liest nur
  * seine Angaben (`placed_by_hand`, `documents`, `unsaved`).

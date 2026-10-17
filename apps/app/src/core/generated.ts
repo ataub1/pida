@@ -2585,7 +2585,8 @@ home: boolean, };
  */
 export type ParkedWorkView = { 
 /**
- * Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“)
+ * Name des geparkten Dokuments; `None` = Stapel („Stapel · n Dokumente“): „Weiter bearbeiten“ führt dann zur
+ * Stapelübersicht (Nachtrag 13; „Fertig“ ohne Speichern eines Stapeleintrags nennt das Dokument)
  */
 doc_name: string | null, 
 /**
