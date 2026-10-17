@@ -433,4 +433,97 @@ Umsetzung und Nachweise für beide Plattformen: mobile.md §12, ADR 0004 Nachtra
   zur Datei aus den Einstellungen und zu jeder Datei in `files/…/data/keystores`) werden beim ersten Start einmalig
   entfernt (Merker `data/keystore-secrets-removed`); ein gesicherter Keystore-Vorgang für „Signatur fortsetzen“ wird
   mit Hinweis verworfen. Die Datei `data/keystores/*.p12` selbst bleibt liegen (durch ihr Passwort geschützt).
-- **Am Emulator:** nicht erneut durchgespielt (belegt durch Kern- und Oberflächentests, mobile.md §12.3).
+- **Am Emulator:** nachgeholt am 17.10.2026 mit einem echten Update von einem früheren Build – siehe §10.
+
+## 10. Gerätenachweis „Mobile nur mit ID Austria“ (17.10.2026)
+
+Stand `mob2/android`: `main` 8606b0c mit dem Merge von `826fe82` (`mob2/int`: Mobile nur mit ID Austria, Randfälle
+aus ADR 0004 Nachtrag 12, dazu von `main` „+ PDF“, „In Bearbeitung“ und die automatische Positionierung), danach die
+Behebungen aus 10.2. Emulator `pdfover_api35` wie §8 (Android 15, 411 CSS-px breit, de-AT), Debug-APK nach §8.1. <!-- rename-to-pida:keep -->
+Netz: Proxy `127.0.0.1:9` und Flugmodus („Active default network: none“) – A-Trust wurde nie erreicht (Technische
+Details: DNS-Fehler „No address associated with hostname“), keine Zugangsdaten. Startprüfung nach der Installation:
+`pida-smoke: ok step=open pdfium=true`. Der Prüfmodus wird parallel entfernt (`remove/verify`) und war nicht
+Gegenstand. Aufnahmen: `docs/integration/screenshots/android-ng2/` (432 px breit, Nummern unten in Klammern;
+„befund“ = vor der Behebung, „nachher“ = danach). Bedienung wie §8.1 über CDP und `adb shell input`; getippt wurde
+für die Tastatur-Abläufe über die Bildschirmtastatur (Tippen auf die Tasten), nicht nur per `input text`.
+
+**Update-Fall mit einem echten früheren Build:** `git archive 8606b0c` in einen Arbeitsordner, `tools/pdfium`
+dazukopiert, eigenes Ziel als APFS-Klon (`cp -cR target-android …/target-old`, sonst ein vollständiger Neubau), die
+von wry erzeugten Kotlin-Dateien (`gen/android/app/src/main/java/at/pida/generated`, nicht versioniert – sonst
+„Unresolved reference 'TauriActivity'“) aus dem Worktree kopiert, gebaut wie §8.1. Diesen Build installiert, in
+Einstellungen › Signiermittel `testdata/keystores/test-rsa2048.p12` (Passwort aus der Testdaten-Notiz) mit „Passwort
+sicher auf diesem Gerät speichern“ importiert und als Standard gewählt, danach den neuen Build per `adb install -r`
+darüber installiert.
+
+### 10.1 Ergebnisse je Ablauf
+
+| # | Ablauf | Ergebnis |
+|---|---|---|
+| 1 | Frische Installation | Nach `pm clear`: Ersteinrichtung „Schritt 1 von 1“ nur mit dem Signaturbild, keine Wahl des Signiermittels (01); „Später einrichten“ → Hinweis „Signiermittel und Signaturbild können Sie jederzeit in den Einstellungen einrichten.“ (02). `settings.toml` ohne `backend.default`; beim ersten Start Merker `data/keystore-secrets-removed` (`removed=0`). |
+| 2 | Update von einem Build mit Keystore | Vorher (06): `backend.default = "keystore"`, `[keystore]` mit `data/keystores/test-rsa2048.p12`, `password_storage = "keychain"`, zwei Einträge in `shared_prefs/pida_secure_store.xml`. Nach dem Update: Log „gespeichertes Standard-Signiermittel auf ID Austria abgebildet“ und „Keystore-Passwörter eines früheren Builds entfernt removed=2“; `pida_secure_store.xml` leer (`<map />`), Merker gesetzt, `settings.toml` beim Start unverändert, die `.p12`-Datei bleibt (wie §9). Start ohne Ersteinrichtung, ID Austria als Signiermittel (07, 08, 10). Sobald die App Einstellungen speichert (hier: Automatische Positionierung umgeschaltet), steht `default = "id_austria"` in der Datei; `[keystore]` bleibt unverändert (mobile.md §12.2). |
+| 3 | Absuche nach Keystore | Alle acht Einstellungsbereiche (Text, `aria-label`, `title`, `placeholder`, aufgeklappte Details) nach `keystore`, `zertifikatsdatei`, `passwort merken`, `pkcs`, `p12`, `schlüsselbund`, `sicherer speicher`, `alias`, `bürgerkarte`, `gültig` – frisch und nach dem Update ohne Treffer (03, 08). Suche in den Einstellungen: „keystore“, „pkcs12“, „p12“, „zertifikatsdatei“, „passwort“, „alias“, „schlüsselbund“, „sicherer speicher“, „bürgerkarte“, „chipkarte“ ohne Treffer, „zertifikat“ nur „Signaturzertifikat zwischenspeichern“, „schlüssel“ nur FIDO2 (04, 09). Befehlspalette („keystore“, „zertifikat“, „signiermittel“) ohne Treffer, Hilfe (Tastenkürzel) ohne Keystore (05). Konto-Chip-Menü in Arbeitsbereich und Stapel nur „Einstellungen …“ (10). DOM-Suche ohne Treffer in Startseite, Arbeitsbereich samt Sheet, Stapel, Startdialog, Signierkarte und Fehleransicht. |
+| 4 | PDF empfangen, Positionierung | `VIEW` in die laufende App, Block automatisch auf freier Fläche. Einstellungen › Dokument › „Automatische Positionierung“ wirkt sofort auch auf das offene Dokument: „Automatisch (laut Einstellung)“, Rolle „automatisch platzierter Signaturblock“, Ziehen ohne Wirkung (11, 12); „Diesmal selbst platzieren“ → „verschiebbarer Signaturblock“, Ziehen setzt die Lage (13). Stapel: mit Einstellung nur „Automatische Positionierung (laut Einstellung)“, ohne „Für diesen Stapel automatisch positionieren“; bei einem von Hand platzierten Eintrag Rückfrage, „Behalten“ lässt ihn „Positioniert · selbst platziert“ (17, 40); der Schalter bleibt nach Parken und Fortsetzen an. |
+| 5 | „+ PDF“, Papierkorb | „Weitere PDFs hinzufügen …“ mit Mehrfachauswahl → Stapel (14, 15); „Anderes PDF öffnen …“ ersetzt das automatisch platzierte Dokument ohne Rückfrage, nach eigener Platzierung mit Rückfrage (23); Papierkorb je Zeile entfernt sofort (18). |
+| 6 | „Zur Startseite“, „In Bearbeitung“ | Aus dem Stapel → Karte „In Bearbeitung · Stapel · 3 Dokumente“ (19); „Weiter bearbeiten“ → unverändert (Einträge, Pläne, Stapel-Option); „Schließen“ → Rückfrage wegen eigener Platzierung, danach Startseite ohne Karte (22). Teilen (`VIEW`) bei geparkter Arbeit → ohne Rückfrage dazu, Hinweis „Das Dokument wurde zur offenen Arbeit hinzugefügt.“ (20, ADR 0004 Nachtrag 10 Punkt 4); „Dokument auswählen“ bei geparkter Arbeit → „Zur offenen Arbeit hinzufügen?“ mit „Zum Stapel hinzufügen“ / „Offene schließen und neu beginnen“ / „Abbrechen“ (21). |
+| 7 | Randfälle (Nachtrag 12) | Hinweis über ausgeklapptem Sheet oben (27); Live-Region nach dem Wechsel `qr.pdf` → `Formular.pdf` ohne Lage des vorigen (erst leer, dann „Seite 3 von 3 …“); `qr.pdf` bei ausgeschalteter Suche auf neuer Seite (24), Suche eingeschaltet → „Im QR-Code-Platzhalter“, Seite 1 / 1 (25), dieselbe Datei erneut empfangen → „„qr.pdf“ ist bereits geöffnet.“, kein zweiter Eintrag, auch im Stapel (26); Bereichsleiste bei 130 % rollt den aktiven Bereich ins Bild (34); Stapeltexte für ID Austria: „einmal anmelden, dann jedes Dokument einzeln bestätigen“, „1 Anmeldung · n Bestätigungen“, Stapelkarte „Bestätigungen 0 von 2“, „Überspringen … ohne Bestätigung in der App“ (28, 41). „Sichern unter“-Hinweis: siehe 10.3. |
+| 8 | ID Austria ohne Netz, Tastatur, Darstellung | Einzeldokument und Stapel: „Verbindung wird aufgebaut …“ mit „Abbrechen“ (per `MutationObserver` aufgezeichnet, steht unter 150 ms) → „Der Signaturdienst ist gerade nicht erreichbar“ mit „Schließen“/„Erneut versuchen“ bzw. „Stapel abbrechen“/„Überspringen“/„Erneut versuchen“, Technische Details `backend-network` mit dem DNS-Fehler (28, 29); „Erneut versuchen“ verwendet die Sitzung wieder, „Stapel abbrechen“ ohne Anmeldung ohne Rückfrage. Feld „Telefonnummer oder Benutzername“ (Einstellungen): `type=text`, `autocapitalize=none`, `autocomplete=username` – Buchstaben-Tastatur (31); das Fenster schrumpft mit der Tastatur, Feld und Knöpfe bleiben sichtbar. Dunkel (32, 33), Querformat 863 × 360 mit Seitenleiste und Abstand zum Ausschnitt (36), Schrift 130 % ohne abgeschnittene Texte (34–36). AX-Baum (CDP): Einstellungen, Arbeitsbereich und Fehleransicht ohne unbenanntes Bedienelement. |
+
+### 10.2 Befunde und Behebungen
+
+1. **C1 (niedrig, Android) Fokusrahmen nach der Bildschirmtastatur.** In den Einstellungen getippt (Suche,
+   Benutzername), dann mit der Zurück-Geste geschlossen: „Einstellungen“ in der Kopfzeile zeigte einen Fokusrahmen
+   (37). Ursache: Die WebView hält nach Eingaben über die Bildschirmtastatur `:focus-visible` fest; B18 (§8.3) setzt nur
+   die Modalität von React Aria zurück (`data-focus-visible` fehlte richtig). → Bei Fingerbedienung (`pointer: coarse`)
+   zeigen React-Aria-Elemente außer Textfeldern den Rahmen nur noch mit `data-focus-visible` (`styles/base.css`;
+   `mobile-css.test.ts`). Am Gerät: nach demselben Ablauf `:focus-visible` weiter wahr, aber `outline: none` (38);
+   mit Tab (Hardware-Tastatur) erscheint der Rahmen wie bisher (`data-focus-visible`). Desktop unverändert.
+2. **C2 (niedrig, alle Plattformen) Datenschutz-Kurzhinweis im Stapel in der Einzahl:** „Das Dokument wird zum
+   Signieren an A-Trust übermittelt.“ in Übersicht, Startdialog und Stapelkarte bei mehreren Dokumenten (16, 30) →
+   ab zwei Dokumenten „Die Dokumente werden zum Signieren an A-Trust übermittelt.“ (`ng-ui-backend-leaves-device-many`,
+   `PrivacyNote count`; `batch.test.tsx`, `i18n.test.ts`; 39, 41, 42). Einzeldokument unverändert.
+3. **C3 (niedrig, alle) „Überspringen“ in der Mehrzahl bei nur einer vorhandenen Zieldatei:** „Für ein Dokument gibt
+   es die Zieldatei schon.“ und darunter „Diese Dokumente werden nicht signiert …“ (30) → Einzahl/Mehrzahl nach der
+   Zahl der vorhandenen Zieldateien (`ng-ui-batch-start-skip-desc(-local)` mit `$n`; 41).
+4. **C4 (niedrig, alle) Rückfrage zur Stapel-Option in der Mehrzahl bei einem Dokument:** „Eigene Platzierungen
+   behalten?“ / „Auch diese automatisch platzieren“ zu „Ein Dokument haben Sie selbst platziert.“ (17) → „Eigene
+   Platzierung behalten?“ / „Auch dieses automatisch platzieren“ (`ng-ui-batch-auto-confirm-title`,
+   `ng-ui-batch-auto-replace` mit `$n`; `batch.test.tsx`, `i18n.test.ts`; 40).
+
+Vertrag unverändert (nur Oberfläche und UI-Kataloge); am Gerät mit neu gebauter APK bestätigt (38–42).
+
+### 10.3 Nicht möglich bzw. offen
+
+- **Signatur mit Ergebnis, „Fertig“, „Sichern unter“-Hinweis, Teilen und Öffnen eines Ergebnisses:** ohne Keystore
+  und ohne A-Trust auf Mobile nicht erreichbar (erwartet). Belegt durch die Kern-Tests (Signatur, tatsächlicher
+  Exportname in `tests/mobile.rs`) und die Plugin-Tests (`./gradlew :tauri-plugin-pida-mobile:testDebugUnitTest`,
+  grün).
+- **Anmeldemaske von ID Austria** (Telefonnummer/Passwort in der Signierkarte): erscheint erst nach dem ersten Kontakt
+  mit A-Trust – ohne Netz nicht erreichbar; die Benutzername-Tastatur ist am gleichen Feldtyp in den Einstellungen
+  belegt (31).
+- **Warteansicht** nur unter 150 ms sichtbar (DNS-Fehler sofort) – Text aufgezeichnet, keine Aufnahme.
+- **„Signatur fortsetzen“ eines Keystore-Vorgangs** eines früheren Builds: nicht nachgestellt (der Zustand ist beim
+  Keystore nur Millisekunden gesichert); belegt durch `keystore_resume_of_an_earlier_build_is_discarded`.
+- **Bereichsleiste (§8.4) und doppelte Bildteile** in `adb screencap`: nur mit `-gpu swiftshader_indirect` (43); mit
+  `-gpu host` (Kaltstart) sauber (44, ebenso 26 und 39) – Grafikfehler des Emulators, kein Fehler der App. Für
+  künftige Aufnahmen `-gpu host` verwenden.
+- **Kopfzeile schmal:** der Dokumentname bleibt neben sieben Bedienelementen bei 1–2 Zeichen („A…“, bei 130 % „A.“);
+  mit der Entfernung des Prüfmodus wird „Signatur prüfen“ (52 px) frei – nach dem Merge von `remove/verify` erneut
+  ansehen.
+- **Datenschutztext** (Einstellungen › Datenschutz): der übernommene PDF-Over-Text nennt „Der Signaturvorgang mit der
+  Chipkarte wird lokal durchgeführt“, darunter der Mobile-Satz zu ID Austria – Bereich des parallelen Laufs, nicht
+  geändert.
+- Ein Stapel mit nur noch einem Dokument bleibt Stapel („Alle Dokumente werden in einem Durchgang signiert …“) –
+  niedrig, Wortlaut.
+- `SEND_MULTIPLE` lässt sich mit `adb` nicht auslösen (mehrere PDFs wie in §8 über die Dateiauswahl).
+- Emulator am Ende heruntergefahren (`adb emu kill`), Flugmodus, Schrift, Drehung und Dunkelmodus vorher
+  zurückgesetzt.
+
+### 10.4 Prüfungen
+
+`cargo test --workspace --no-fail-fast` 1445 bestanden, 0 fehlgeschlagen, 5 ignoriert; `cargo clippy --workspace
+--all-targets -- -D warnings` und `cargo fmt --all --check` ohne Befund; `npm ci && npm run build && npm test`
+33 Dateien, 722 Tests; `ts_bindings` und `serde_contract` unverändert grün (Vertrag unberührt, nichts neu erzeugt);
+`python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p pida-app` für `aarch64-apple-ios-sim` und
+`aarch64-linux-android` (NDK 29, `CC_/AR_/…_LINKER` gesetzt) grün; Plugin-Unit-Tests
+(`:tauri-plugin-pida-mobile:testDebugUnitTest`) grün. Nebenbei: `settings.test.tsx` („Liste leeren“) scheiterte im vollen Lauf unter Last
+gelegentlich, weil der Hinweistext zugleich in der Live-Region stand – die Prüfung sucht jetzt nur den Toast.

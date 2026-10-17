@@ -88,8 +88,9 @@ export function StartBatchDialog({ batch, backend, onClose }: { batch: BatchView
               options={[
                 { value: 'keep_both', label: t.t('ng-ui-batch-start-keep'), description: t.t('ng-ui-batch-start-keep-desc', { example }) },
                 { value: 'overwrite', label: t.t('ng-ui-batch-start-overwrite'), description: t.t('ng-ui-batch-start-overwrite-desc') },
-                // „ohne Bestätigung in der App“ nur bei ID Austria (Kern: `batch_flow` des gewählten Signiermittels)
-                { value: 'skip', label: t.t('ng-ui-batch-start-skip'), description: t.t(skipDescMsg(batchFlow(view, backend))) },
+                // „ohne Bestätigung in der App“ nur bei ID Austria (Kern: `batch_flow` des gewählten Signiermittels);
+                // Einzahl, wenn es nur für ein Dokument die Zieldatei schon gibt
+                { value: 'skip', label: t.t('ng-ui-batch-start-skip'), description: t.t(skipDescMsg(batchFlow(view, backend)), { n: existing.length }) },
               ]}
             />
           </section>

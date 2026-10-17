@@ -104,7 +104,7 @@ describe('Stapelübersicht (E2.1)', () => {
     expect(screen.getByTestId('batch-estimate')).toHaveTextContent('Voraussichtlich: 3 Dokumente · 1 Anmeldung · 3 Bestätigungen (ggf. +1 für das Zertifikat)');
     expect(screen.getByTestId('batch-output')).toHaveTextContent('Speichern: jeweils neben dem Original');
     expect(screen.getByRole('button', { name: 'Alle signieren (3)' })).toBeEnabled();
-    // Kurzhinweis Datenschutz beim Signiermittel ID Austria (nie blockierend); im Stapel in der Mehrzahl (iPhone 17e)
+    // Kurzhinweis Datenschutz beim Signiermittel ID Austria (nie blockierend); im Stapel in der Mehrzahl (iPhone 17e, Android)
     expect(screen.getByTestId('privacy-note')).toHaveTextContent('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
     // nichts startet von selbst (A1)
     expect(sessions(mock.dispatched)).toEqual([]);
@@ -455,14 +455,19 @@ describe('Start mit Ordnerwahl und vorhandenen Dateien (E2.7)', () => {
     await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
     const start = await screen.findByRole('dialog', { name: '3 Dokumente signieren' });
     expect(within(start).getByText('Für ein Dokument gibt es die Zieldatei schon.')).toBeInTheDocument();
+    // Einzahl wie der Satz darüber (Emulator-Abnahme 17.10.2026: „Diese Dokumente …“ bei nur einem); der
+    // Datenschutz-Kurzhinweis in der Mehrzahl (iPhone 17e)
+    expect(within(start).getByRole('radio', { name: /Überspringen/ }).closest('label')).toHaveTextContent('Dieses Dokument wird nicht signiert – ohne Bestätigung in der App.');
+    expect(within(start).getByTestId('privacy-note')).toHaveTextContent('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
     expect(within(start).getByRole('radio', { name: /Beide behalten/ })).toBeChecked();
     expect(within(start).getByText(/„Vertrag_signed \(2\)\.pdf“/)).toBeInTheDocument();
-    expect(within(start).getByTestId('privacy-note')).toHaveTextContent('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
     expect(mock.dispatched.some((e) => e.type === 'start_batch')).toBe(false);
     await expectNoAxeViolations();
     await user.click(within(start).getByRole('button', { name: 'Signieren starten' }));
     expect(mock.dispatched.filter((e) => e.type === 'start_batch')).toEqual([{ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: null, on_existing: 'keep_both' }]);
     const dialog = await login(user);
+    // Stapelkarte: der Kurzhinweis spricht von allen Dokumenten des Laufs
+    expect(within(dialog).getByTestId('privacy-note')).toHaveTextContent('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
     for (const [i, name] of [
       [1, 'Angebot_2026-118.pdf'],
       [2, 'Auftragsbestaetigung_4711.pdf'],
@@ -481,7 +486,7 @@ describe('Start mit Ordnerwahl und vorhandenen Dateien (E2.7)', () => {
     await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: /Keystore/ }));
     const start = await screen.findByRole('dialog', { name: '3 Dokumente signieren' });
     const skip = within(start).getByRole('radio', { name: /Überspringen/ });
-    expect(skip.closest('label')).toHaveTextContent('Diese Dokumente werden nicht signiert.');
+    expect(skip.closest('label')).toHaveTextContent('Dieses Dokument wird nicht signiert.');
     expect(start).not.toHaveTextContent('ohne Bestätigung in der App');
   });
 
@@ -673,7 +678,7 @@ describe('Automatische Positionierung im Stapel (Nachtrag 8)', () => {
     expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Positioniert')).toBeInTheDocument();
     expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Seite 2, selbst platziert')).toBeInTheDocument();
 
-    // aus und wieder an mit „Auch dieses automatisch platzieren“ (ein Dokument – Einzahl wie im Text, iPhone 17e)
+    // aus und wieder an mit „Auch dieses automatisch platzieren“ (ein Dokument – Einzahl wie im Text, iPhone 17e, Android)
     await user.click(autoToggle());
     await waitFor(() => expect(autoToggle()).not.toBeChecked());
     await user.click(autoToggle());

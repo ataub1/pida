@@ -538,8 +538,16 @@ ng-ui-batch-start-keep-desc = The new file gets a number, e.g. “{ $example }�
 ng-ui-batch-start-overwrite = Overwrite
 ng-ui-batch-start-overwrite-desc = The existing file is replaced by the signed one.
 ng-ui-batch-start-skip = Skip
-ng-ui-batch-start-skip-desc = These documents are not signed – no confirmation in the app.
-ng-ui-batch-start-skip-desc-local = These documents are not signed.
+ng-ui-batch-start-skip-desc =
+    { $n ->
+        [one] This document is not signed – no confirmation in the app.
+       *[other] These documents are not signed – no confirmation in the app.
+    }
+ng-ui-batch-start-skip-desc-local =
+    { $n ->
+        [one] This document is not signed.
+       *[other] These documents are not signed.
+    }
 ng-ui-batch-start-go = Start signing
 ng-ui-sc-batch-doc = Document { $index } of { $total } · { $name }
 ng-ui-sc-batch-confirm = Confirmation { $index } of { $total } · { $name }

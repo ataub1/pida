@@ -57,7 +57,8 @@ function PrivacyDialog({ onClose }: { onClose: () => void }) {
 /**
  * Kurzhinweis beim Signiermittel (nicht blockierend). `id` kennzeichnet den Satz, damit die Karte des
  * Signiermittels ihn als Beschreibung referenzieren kann (`aria-describedby`, ohne „Details“). `count` =
- * Dokumente (Stapel): ab zwei „Die Dokumente werden …“ statt „Das Dokument wird …“ (iPhone 17e, 17.10.2026).
+ * Dokumente (Stapel): ab zwei „Die Dokumente werden …“ statt „Das Dokument wird …“ (Gerätenachweis iPhone 17e
+ * und Android-Emulator, 17.10.2026).
  */
 export function PrivacyNote({ id, count = 1 }: { id?: string; count?: number }) {
   const { t, view, openSettings } = useApp();

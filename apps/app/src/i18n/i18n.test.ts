@@ -168,6 +168,20 @@ describe('Translator', () => {
     expect(t.code('ganz.neu')).toBe('Unerwarteter Fehler (ganz.neu).');
   });
 
+  it('Stapeltexte in Einzahl und Mehrzahl (Emulator-Abnahme 17.10.2026)', () => {
+    for (const [lang, one, other] of [
+      ['de', ['Eigene Platzierung behalten?', 'Auch dieses automatisch platzieren', 'Dieses Dokument wird nicht signiert – ohne Bestätigung in der App.', 'Dieses Dokument wird nicht signiert.'], ['Eigene Platzierungen behalten?', 'Auch diese automatisch platzieren', 'Diese Dokumente werden nicht signiert – ohne Bestätigung in der App.', 'Diese Dokumente werden nicht signiert.']],
+      ['en', ['Keep your own placement?', 'Place this one automatically too', 'This document is not signed – no confirmation in the app.', 'This document is not signed.'], ['Keep your own placements?', 'Place these automatically too', 'These documents are not signed – no confirmation in the app.', 'These documents are not signed.']],
+    ] as const) {
+      const t = translator(lang);
+      const ids = ['ng-ui-batch-auto-confirm-title', 'ng-ui-batch-auto-replace', 'ng-ui-batch-start-skip-desc', 'ng-ui-batch-start-skip-desc-local'];
+      expect(ids.map((id) => t.t(id, { n: 1 }))).toEqual(one);
+      expect(ids.map((id) => t.t(id, { n: 2 }))).toEqual(other);
+    }
+    expect(translator('de').t('ng-ui-backend-leaves-device-many')).toBe('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
+    expect(translator('en').t('ng-ui-backend-leaves-device-many')).toBe('The documents are sent to A-Trust for signing.');
+  });
+
   it('eigener Translator aus Bündeln', () => {
     const t = new Translator('en', catalogs().bundles);
     expect(t.lang).toBe('en');
