@@ -260,3 +260,17 @@ async fn many_sequential_requests_on_one_client() {
     }
     assert_eq!(counter.load(Ordering::SeqCst), 20);
 }
+
+/// Update-Check (ADR 0004 Nachtrag 21): nur `https` – eine `http`-Adresse erreicht den Server nicht, und ein Redirect
+/// von `https` nach `http` würde ebenso abgelehnt (reqwest `https_only` gilt auch für Redirects). Die anderen Zwecke
+/// sprechen weiter `http` (lokale BKU, Testserver).
+#[tokio::test]
+async fn update_check_refuses_plain_http() {
+    let server = MockServer::start(|_| MockResponse::json("[]")).await;
+    let client = HttpClient::new(&direct(), Purpose::UpdateCheck).unwrap();
+    let err = client.get(&server.url("/repos/ataub1/pida/releases"), &[]).await.unwrap_err();
+    assert!(matches!(err, NetError::Config(_)), "{err:?}");
+    assert!(server.requests().is_empty(), "kein Request über http");
+    let poll = HttpClient::new(&direct(), Purpose::AtrustPoll).unwrap();
+    assert_eq!(poll.get(&server.url("/x"), &[]).await.unwrap().status, 200);
+}

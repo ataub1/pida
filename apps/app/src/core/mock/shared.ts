@@ -96,7 +96,12 @@ export interface MockOptions {
   batchFaults?: Record<string, MockBatchFault>;
   /** Ausgabeordner, die es nicht gibt (Stapel: Ordnerwahl vor dem Start, F-82) */
   missingFolders?: string[];
+  /** Update-Prüfung („Über PIDA“, ADR 0004 Nachtrag 21; Standard `up_to_date`), siehe `mock/about.ts` */
+  update?: MockUpdateScenario;
 }
+
+/** Ergebnis der simulierten Update-Prüfung (`MockOptions::update`, Browser-Vorschau `?update=`). */
+export type MockUpdateScenario = 'up_to_date' | 'available' | 'failed' | 'offline' | 'unchecked' | 'checking';
 
 /** Störung eines Dokuments im Stapellauf (`MockOptions::batchFaults`). */
 export type MockBatchFault = 'decline' | 'network' | 'session' | 'too-large';

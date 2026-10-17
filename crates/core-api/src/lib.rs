@@ -142,6 +142,12 @@
 //! `open_files`); keines öffnet eine Sitzung. `pades::verify_document` bleibt als Bibliothek (Tests, Golden- und
 //! Interop-Tests); das Entwickler-Werkzeug `pida verify` prüft mit [`tools::verify_file`].
 //!
+//! „Über PIDA“ und Update-Prüfung (ADR 0004 Nachtrag 21, [`update`]): [`ViewState::about`] mit Version,
+//! Versionsdatum (beim Bauen eingebettet), Links und [`UpdateCheckView`]; geprüft wird nur am Desktop mit Oberfläche
+//! (GitHub-Releases über `pida-net`, beim Start höchstens einmal je 24 h im Hintergrund, beim Öffnen von „Über PIDA“
+//! bzw. auf Klick mit `check_for_updates`), nie mit Richtlinie „aus“; Transport austauschbar
+//! ([`CoreOptions::update_transport`]). Lädt und installiert nichts.
+//!
 //! Ownership: **Integration**.
 
 mod actions;
@@ -168,6 +174,7 @@ pub mod testing;
 pub mod tools;
 #[cfg(feature = "ts")]
 pub mod ts;
+pub mod update;
 mod view;
 mod workspace;
 
@@ -198,6 +205,8 @@ pub use view::OpenFilesMode;
 pub use view::ParkedWorkView;
 // Nachtrag 12 (Randfälle aus dem Mobile-Check: Stapelwortlaut je Signiermittel, Hinweis zum Teilen auf iOS)
 pub use view::{BatchFlowView, ShareHintView};
+// Nachtrag 21 („Über PIDA“ und Update-Prüfung)
+pub use view::{AboutView, UpdateCheckState, UpdateCheckView};
 
 use pida_backend_api::{Platform, SignatureBackend};
 use pida_config::{Overlay, Paths, Policy, SecretStore};
@@ -320,6 +329,10 @@ pub struct CoreOptions {
     /// nacheinander (im Arbeitsbereich über „Fertig“ → „Nächstes Dokument“). Die Startargument-Automatik
     /// (`-b … -a`, D-06) bleibt immer ohne Übersicht.
     pub batch_overview: Option<bool>,
+    /// Transport der Update-Prüfung („Über PIDA“, ADR 0004 Nachtrag 21): Standard `pida-net`
+    /// ([`update::NetTransport`], GitHub-Releases); Tests setzen einen Ersatz ein. `None` = nie prüfen
+    /// ([`CoreOptions::isolated`]: kein Netz in Tests). Geprüft wird ohnehin nur am Desktop mit Oberfläche.
+    pub update_transport: Option<Arc<dyn update::UpdateTransport>>,
 }
 
 impl Default for CoreOptions {
@@ -345,13 +358,14 @@ impl Default for CoreOptions {
             default_output_dir: None,
             workspace_ui: None,
             batch_overview: None,
+            update_transport: Some(Arc::new(update::NetTransport)),
         }
     }
 }
 
 impl CoreOptions {
     /// Für Tests: keine Systemrichtlinie, kein PDFium, kein Logging, kein Altordner, keine
-    /// TCP-Probe, Secrets nur im RAM.
+    /// TCP-Probe, Secrets nur im RAM, keine Update-Prüfung (kein Netz).
     pub fn isolated() -> CoreOptions {
         CoreOptions {
             load_system_policy: false,
@@ -360,6 +374,7 @@ impl CoreOptions {
             detect_legacy_dir: false,
             probe_local_bku: false,
             secret_store: Some(Arc::new(pida_config::MemorySecretStore::default())),
+            update_transport: None,
             ..CoreOptions::default()
         }
     }
@@ -380,6 +395,7 @@ impl std::fmt::Debug for CoreOptions {
             .field("persist_prepared", &self.persist_prepared)
             .field("workspace_ui", &self.workspace_ui)
             .field("batch_overview", &self.batch_overview)
+            .field("update_transport", &self.update_transport.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -427,6 +443,7 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         actions: actions::actions_for(&pida_workflow::State::Starting, false),
         parked: None,
         share_hint: None,
+        about: None,
     }
 }
 
@@ -543,6 +560,9 @@ impl Core {
             persist_prepared: options.persist_prepared.unwrap_or(!config.platform.is_desktop()) && !config.headless,
             default_output_dir: options.default_output_dir.clone(),
         };
+        // „Über PIDA“, Update-Prüfung (Nachtrag 21): nur am Desktop mit Oberfläche wird der Zwischenspeicher gelesen
+        let transport = options.update_transport.clone().filter(|_| config.platform.is_desktop() && !config.headless);
+        let updates = update::UpdateState::new(&config.app_version, transport, &config.paths.cache_dir);
         let task = CoreTask::new(
             shared.clone(),
             cfg,
@@ -555,6 +575,7 @@ impl Core {
             mobile,
             options.workspace_ui.unwrap_or(false),
             options.batch_overview.unwrap_or(false),
+            updates,
         );
         handle.spawn(task.run(rx));
         Ok(Core { tx, view_rx, finished_rx, shared, runtime, _log: Mutex::new(log) })

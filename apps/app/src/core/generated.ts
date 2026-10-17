@@ -1393,7 +1393,12 @@ parked?: ParkedWorkView | null,
  * und nicht mehr nach `dismiss_share_hint` (bis zum Beenden der App). Additiv, in TypeScript optional; sonst
  * `None` (Desktop, Android, Dateiauswahl).
  */
-share_hint?: ShareHintView | null, };
+share_hint?: ShareHintView | null, 
+/**
+ * „Über PIDA“ (ADR 0004 Nachtrag 21): Version, Versionsdatum, Links, Update-Prüfung. Additiv, in TypeScript
+ * optional; der Kern liefert es immer (`None` nur ohne Kern, z. B. im Fehlerschritt der Shell).
+ */
+about?: AboutView | null, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1672,7 +1677,11 @@ id: number,
 /**
  * wie [`UiEvent::OpenFiles`] (`None` = der Kern entscheidet nach dem Zustand). In TypeScript optional.
  */
-mode?: OpenFilesMode | null, };
+mode?: OpenFilesMode | null, } | { "type": "check_for_updates", 
+/**
+ * ausdrücklicher Klick („Jetzt prüfen“, „Erneut prüfen“)
+ */
+explicit: boolean, };
 
 /**
  * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).
@@ -2658,3 +2667,61 @@ export type ShareHintView = {
  * das über „Teilen“ empfangene Dokument (das offene im Arbeitsbereich)
  */
 doc: DocId, };
+
+/**
+ * „Über PIDA“ (ADR 0004 Nachtrag 21, [`ViewState::about`]): Version mit Versionsdatum, Links und die
+ * Update-Prüfung. Alles entscheidet der Kern; die Oberfläche formatiert nur (Datum in der Oberflächensprache).
+ */
+export type AboutView = { 
+/**
+ * Version der App (`0.2.0`)
+ */
+version: string, 
+/**
+ * Versionsdatum `JJJJ-MM-TT` – Commit-Datum des gebauten Stands, beim Bauen eingebettet (`SOURCE_DATE_EPOCH`,
+ * sonst Git, ohne Git das Datum des Bauens); sein Jahr steht im Urheberrechtsvermerk
+ */
+release_date: string, 
+/**
+ * Versionshinweise dieser Version (GitHub-Release `v<version>`)
+ */
+release_notes_url: string, 
+/**
+ * Quellcode (Repository)
+ */
+source_url: string, 
+/**
+ * Update-Prüfung; `None` = keine (iOS/Android: dort keine Verteilung über GitHub; ohne Oberfläche bzw. ohne
+ * Netz-Zugang des Kerns)
+ */
+update: UpdateCheckView | null, };
+
+/**
+ * Zustand der Update-Prüfung ([`UpdateCheckView::state`]).
+ */
+export type UpdateCheckState = "unchecked" | "disabled" | "policy_off" | "checking" | "up_to_date" | "available" | "failed";
+
+/**
+ * Update-Prüfung für „Über PIDA“ (ADR 0004 Nachtrag 21).
+ */
+export type UpdateCheckView = { 
+/**
+ * Zustand
+ */
+state: UpdateCheckState, 
+/**
+ * `available`: die neue Version; `up_to_date`: die neueste in Frage kommende (`None` = keine); sonst `None`
+ */
+latest_version: string | null, 
+/**
+ * Release-Seite der neuen Version (nur `available`)
+ */
+release_url: string | null, 
+/**
+ * letzte erfolgreiche Prüfung (RFC 3339 mit Offset), auch aus dem Zwischenspeicher; `None` = noch nie
+ */
+checked_at: string | null, 
+/**
+ * Grund (i18n-ID `ng-update-failed-*`), nur `failed`
+ */
+reason: string | null, };

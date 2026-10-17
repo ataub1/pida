@@ -94,6 +94,12 @@ tools/cross-clippy.sh x86_64-pc-windows-msvc        # CI-Clippy für Windows/Lin
 ```
 
 - `--locked` wie in der CI: `Cargo.lock` wird mit committet; kein `cargo update` ohne Absprache.
+- **Netz in Tests:** alle Tests laufen offline (Ersatz-Transporte, lokale Mock-Server). Einziger Online-Test ist
+  `cargo test -p pida-core-api --test about github_releases_online` gegen `api.github.com` (Update-Prüfung, ADR 0004
+  Nachtrag 21) – nur mit `PIDA_ONLINE_TESTS=1`, sonst übersprungen.
+- **Versionsdatum** („Über PIDA“): `crates/core-api/build.rs` bettet `SOURCE_DATE_EPOCH` (UTC-Datum) bzw. das
+  Commit-Datum des gebauten Stands ein (`git log -1 --format=%cs`; ohne Git das Datum des Bauens) – reproduzierbar,
+  nur das Datum.
 - FIDO2 unter Linux braucht Zugriff auf `/dev/hidraw*` (udev-Regel mit `uaccess`, Flatpak `--device=all`).
 - Die Tauri-Shell (`apps/app`, Paket I3) braucht unter Linux `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`,
   `libsoup-3.0-dev`, `libjavascriptcoregtk-4.1-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`,
@@ -291,7 +297,8 @@ Tests und Linken bleiben der nativen CI vorbehalten.
 
 Seit Welle 3 gehört die Tauri-Shell (`pida-app`) zum Workspace: Für `x86_64-pc-windows-msvc` braucht
 ihr Build-Skript den Ressourcen-Compiler `llvm-rc` (`brew install llvm` bzw. für die reine Typprüfung ein
-Platzhalter, der eine leere `.res` schreibt) – damit ist der Windows-Lauf am 15.10.2026 grün, einschließlich
+Platzhalter im `PATH`, der auf `/?` „Resource Converter“ ausgibt und für `/fo <datei>` eine leere Datei schreibt; die
+Versionsressource steht dann trotzdem lesbar in `target/cross-clippy/…/build/pida-app-*/out/resource.rc`) – damit ist der Windows-Lauf am 15.10.2026 grün, einschließlich
 des `cfg(windows)`-Codes der Shell (Elternfenster für Windows Hello). Für `x86_64-unknown-linux-gnu`
 verlangen die gtk-rs-Sys-Crates eine Linux-Sysroot mit `pkg-config`; ohne sie bricht der Lauf an
 `glib-sys` ab – Linux prüft die CI nativ.
@@ -316,6 +323,13 @@ Noch kein Release-Workflow; die Bausteine stehen fest:
 6. **Updates** (Plan §9.4): Tauri-Updater mit Ed25519-Signatur und eigenem Manifest; Linux über
    Paketquellen/Flathub.
 7. **Abnahme**: Größen-Gate ≤ 25 MB je Desktop-Installer (Plan §9.1), Smoke-Test je Paket.
+8. **Herausgeber und Urheberrecht** (ADR 0004 Nachtrag 21): `bundle.publisher = "A-SIT"`, `bundle.copyright =
+   "© 2026 A-SIT · EUPL-1.2"` und `bundle.homepage` in `apps/app/src-tauri/tauri.conf.json` (Windows `CompanyName`/
+   `LegalCopyright`, NSIS `Publisher`, MSI `Manufacturer`, macOS `NSHumanReadableCopyright`, deb/rpm/NSIS/MSI
+   Homepage), Cargo `authors = ["A-SIT"]` (deb `Maintainer`), iOS `NSHumanReadableCopyright` in `gen/apple`
+   (Info.plist und `project.yml`); geprüft von `apps/app/src-tauri/tests/bundle_metadata.rs`. Nachweis macOS:
+   `npm run bundle:mac:debug`, dann `plutil -p target/debug/bundle/macos/PIDA.app/Contents/Info.plist`; Windows:
+   die von tauri-build erzeugte `target/…/build/pida-app-*/out/resource.rc` (`CompanyName`, `LegalCopyright`).
 
 Die Tauri-Shell bündelt seit Welle 3 (`npm run bundle:mac:release` u. a., Abnahme:
 `docs/integration/app-abnahme.md`); ein `.github/workflows/release.yml` mit Signieren folgt. Signier-Secrets

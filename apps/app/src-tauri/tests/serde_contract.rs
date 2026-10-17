@@ -19,7 +19,7 @@ use pida_backend_api::{
 };
 use pida_config::{NoteSetting, Settings};
 use pida_core_api::{
-    ActionsView, BackendOptionView, BatchEstimateView, BatchFlowView, BatchItemStatusView, BatchItemView,
+    AboutView, ActionsView, BackendOptionView, BatchEstimateView, BatchFlowView, BatchItemStatusView, BatchItemView,
     BatchOutputView, BatchPauseView, BatchSummaryView, BatchView, BlockView, CertificateSource, ConfirmMethod,
     DocConstraintsView, DocInfo, DocRefView, DocumentDetectionView, DocumentPhase, DocumentView, DoneItemView,
     ErrorContextView, ErrorOrigin, ExistingSignatureView, FieldInfo, FieldTargetView, FirstRunView, GuideAxis,
@@ -28,7 +28,7 @@ use pida_core_api::{
     PauseScope, PdfaDecision, PdfaIdView, PlacementCheckView, PlacementTarget, PlatformOs, PlatformView,
     PositionSummaryView, PriorStatusView, QrInfo, QrTargetView, QueueItemView, RecentItemView, RectPt, ResumeOfferView,
     SaveDialogView, SettingsView, ShareHintView, SignedSummaryView, SignerView, SignersView, SigningProgressView,
-    SigningStage, StepView, UiEvent, ViewState,
+    SigningStage, StepView, UiEvent, UpdateCheckState, UpdateCheckView, ViewState,
 };
 use pida_i18n::Lang;
 use pida_pades::{AcceptanceClass, OutputInfo};
@@ -68,6 +68,7 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         actions: ActionsView::default(),
         parked: None,
         share_hint: None,
+        about: None,
     }
 }
 
@@ -634,6 +635,61 @@ fn samples() -> Vec<(&'static str, ViewState)> {
     });
     out.push(("keystore_imported", imported));
     out.extend(workspace_samples());
+    out.extend(about_samples());
+    out
+}
+
+// ------------------------------------------------------------------------------------------------
+// Nachtrag 21: „Über PIDA“ und Update-Prüfung – jeder Zustand, dazu Mobile ohne Prüfung
+// ------------------------------------------------------------------------------------------------
+
+fn about(update: Option<UpdateCheckView>) -> AboutView {
+    AboutView {
+        version: "0.2.0".into(),
+        release_date: "2026-10-17".into(),
+        release_notes_url: "https://github.com/ataub1/pida/releases/tag/v0.2.0".into(),
+        source_url: "https://github.com/ataub1/pida".into(),
+        update,
+    }
+}
+
+fn update_view(state: UpdateCheckState) -> UpdateCheckView {
+    let checked = matches!(state, UpdateCheckState::UpToDate | UpdateCheckState::Available | UpdateCheckState::Failed);
+    UpdateCheckView {
+        state,
+        latest_version: match state {
+            UpdateCheckState::UpToDate => Some("0.2.0".into()),
+            UpdateCheckState::Available => Some("0.3.0".into()),
+            _ => None,
+        },
+        release_url: (state == UpdateCheckState::Available)
+            .then(|| "https://github.com/ataub1/pida/releases/tag/v0.3.0".into()),
+        checked_at: checked.then(|| "2026-10-17T10:42:17+02:00".into()),
+        reason: (state == UpdateCheckState::Failed).then(|| "ng-update-failed-rate-limited".into()),
+    }
+}
+
+fn about_samples() -> Vec<(&'static str, ViewState)> {
+    let mut out = Vec::new();
+    for (name, state) in [
+        ("about_unchecked", UpdateCheckState::Unchecked),
+        ("about_disabled", UpdateCheckState::Disabled),
+        ("about_policy_off", UpdateCheckState::PolicyOff),
+        ("about_checking", UpdateCheckState::Checking),
+        ("about_up_to_date", UpdateCheckState::UpToDate),
+        ("about_available", UpdateCheckState::Available),
+        ("about_failed", UpdateCheckState::Failed),
+    ] {
+        let mut v = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+        v.about = Some(about(Some(update_view(state))));
+        out.push((name, v));
+    }
+    // iOS/Android: keine Update-Prüfung (keine Verteilung über GitHub)
+    let mut mobile = view(StepView::Open { queue: vec![] }, bar(["AE", "", "", ""], true));
+    mobile.platform = PlatformView { os: PlatformOs::Ios, mobile: true };
+    mobile.signers = mobile_signers();
+    mobile.about = Some(about(None));
+    out.push(("about_mobile", mobile));
     out
 }
 
@@ -1377,7 +1433,7 @@ fn typescript_events_deserialize_into_ui_event() {
 
 /// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
 /// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
-const UI_EVENT_VARIANTS: usize = 69;
+const UI_EVENT_VARIANTS: usize = 70;
 
 /// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
 /// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).

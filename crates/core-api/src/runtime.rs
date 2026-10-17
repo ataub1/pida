@@ -74,6 +74,12 @@ pub(crate) enum Msg {
         result: Result<pida_workflow::DocSummary, WorkflowError>,
         thumb: Option<Arc<[u8]>>,
     },
+    /// Update-Prüfung fertig („Über PIDA“, ADR 0004 Nachtrag 21; Generation, Anlass, Releases bzw. Grund)
+    UpdateChecked {
+        generation: u64,
+        kind: crate::update::CheckKind,
+        result: Result<Vec<crate::update::Release>, &'static str>,
+    },
     Shutdown,
 }
 
@@ -187,6 +193,7 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::RevealRecent { .. } => "reveal_recent",
         UiEvent::ShareRecent { .. } => "share_recent",
         UiEvent::SignRecent { .. } => "sign_recent",
+        UiEvent::CheckForUpdates { .. } => "check_for_updates",
     }
 }
 
@@ -463,6 +470,8 @@ pub(crate) struct CoreTask {
     qr_searches: QrSearches,
     /// Einstellungen › Keystore: Format, Einträge für die Alias-Auswahl (Nachtrag ADR 0004)
     pub(crate) keystore_info: crate::keystore_info::KeystoreInfo,
+    /// „Über PIDA“ und Update-Prüfung (ADR 0004 Nachtrag 21)
+    pub(crate) updates: crate::update::UpdateState,
 }
 
 /// QR-Platzhaltersuchen je Dokument (Einstellungen › Dokument, K3).
@@ -503,6 +512,7 @@ impl CoreTask {
         mobile: MobileSetup,
         workspace_ui: bool,
         batch_overview: bool,
+        updates: crate::update::UpdateState,
     ) -> CoreTask {
         let paths = cfg.paths.clone();
         let overlay = &cfg.overlay;
@@ -552,6 +562,7 @@ impl CoreTask {
             recent: crate::recent::RecentState::new(&paths),
             qr_searches: QrSearches::default(),
             keystore_info: crate::keystore_info::KeystoreInfo::default(),
+            updates,
         }
     }
 
@@ -920,6 +931,7 @@ impl CoreTask {
         self.prune_thumbnails();
         self.refresh_recent_exists(false);
         self.refresh_keystore_info();
+        self.sync_update_setting();
     }
 
     /// Nächste Voranalyse beginnen (eine zur Zeit; verworfene Einträge entfallen).
@@ -1058,6 +1070,7 @@ impl CoreTask {
             Msg::Refresh => self.on_interaction_changed(),
             Msg::BackendEvent(e) => self.on_backend_event(e),
             Msg::GridReady { doc, page, grid } => self.on_grid_ready(doc, page, grid),
+            Msg::UpdateChecked { generation, kind, result } => self.on_update_checked(generation, kind, result),
             Msg::Preanalyzed { doc, result, thumb } => {
                 self.preanalysis.finished(doc);
                 let known = self.state.queue().and_then(|q| q.batch.as_ref()).is_some_and(|b| b.item(doc).is_some());
@@ -1174,6 +1187,8 @@ impl CoreTask {
         self.load_resume_offer();
         let docs = self.input_documents(&self.cfg.overlay.input_files.clone());
         self.apply(Event::Started { documents: docs });
+        // Update-Prüfung im Hintergrund (höchstens einmal je 24 h, nie blockierend; ADR 0004 Nachtrag 21)
+        self.update_check_on_startup();
         // Schritt 3 der Ersteinrichtung zeigt die Vorschau des Signaturbilds (ohne Dokument: A4-Beispiel)
         if self.first_run_active() && lock(&self.shared.block).pdf.is_none() {
             let doc = self.preview_doc();
@@ -2600,6 +2615,8 @@ impl CoreTask {
             UiEvent::RevealRecent { id } => self.reveal_recent(id),
             UiEvent::ShareRecent { id } => self.share_recent(id),
             UiEvent::SignRecent { id, mode } => self.sign_recent(id, mode),
+            // Nachtrag 21: „Über PIDA“ – Update-Prüfung beim Öffnen bzw. auf Klick (in beiden Modi; startet nichts sonst)
+            UiEvent::CheckForUpdates { explicit } => self.check_for_updates(explicit),
             // ADR 0004 §3.12 (K4): Ersteinrichtung und erneutes Übernahmeangebot (Einstellungen › Erweitert)
             UiEvent::UpdateFirstRun { default_backend, profile, block_language } if self.ws.enabled => {
                 self.update_first_run(default_backend, profile, block_language);
@@ -3237,6 +3254,7 @@ impl CoreTask {
             first_run: self.first_run_view(),
             actions,
             parked: self.parked_view(),
+            about: Some(self.about_view()),
         }
     }
 

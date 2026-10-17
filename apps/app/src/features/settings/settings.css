@@ -420,14 +420,120 @@
   justify-content: space-between;
   gap: var(--sp-2) var(--sp-3);
 }
-.about-row {
+/* Über PIDA (Nachtrag 21, Vorlage des Auftraggebers): Symbol und Name, Statuszeile, Linkliste, Urheberrecht */
+.about {
+  display: grid;
+  gap: var(--sp-4);
   font-size: var(--fs-14);
   color: var(--c-text-2);
   overflow-wrap: anywhere;
 }
-.about-version {
+.about-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.about-logo {
+  flex: none;
+  border-radius: 14px;
+}
+.about-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.about-name {
+  margin: 0;
   color: var(--c-text);
+  font-size: var(--fs-20);
   font-weight: var(--fw-semibold);
+  line-height: 1.2;
+}
+.about-version {
+  margin: 0;
+  color: var(--c-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.about-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-4);
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+.about-update-badge {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--c-active);
+  color: var(--c-text-2);
+}
+.about-update-text {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-weight: var(--fw-medium);
+}
+.about-update-action {
+  flex: none;
+}
+.about-update.is-success {
+  border-color: var(--c-success-border);
+  background: var(--c-success-soft);
+  color: var(--c-success-on-soft);
+}
+.about-update.is-success .about-update-badge {
+  background: var(--c-success);
+  color: var(--c-surface);
+}
+.about-update.is-info {
+  border-color: var(--c-info-border);
+  background: var(--c-info-soft);
+  color: var(--c-info-on-soft);
+}
+.about-update.is-info .about-update-badge {
+  background: var(--c-info);
+  color: var(--c-surface);
+}
+.about-update.is-info .link {
+  color: var(--c-info-on-soft);
+  font-weight: var(--fw-semibold);
+}
+.about-update.is-warning {
+  border-color: var(--c-warning-border);
+  background: var(--c-warning-soft);
+  color: var(--c-warning-on-soft);
+}
+.about-update.is-warning .about-update-badge {
+  background: var(--c-warning);
+  color: var(--c-surface);
+}
+.about-links {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.about-license {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.about-based-on,
+.about-copyright {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.about-based-on {
+  margin-bottom: calc(-1 * var(--sp-3));
 }
 
 /* ------------------------------------------------------------ Schmal und Mobile: Vollbild, Bereiche waagrecht */

@@ -9,7 +9,8 @@
  * Chipkarte, `ng-ui-privacy-statement-mobile`) bzw. – per Richtlinie
  * `privacy_notice_text` – der eigene Text der Organisation, dazu der Hinweis auf das lokale Signieren mit
  * Keystore und Chipkarte (Mobilgeräte: dort wird nur mit ID Austria signiert, ADR 0004 Nachtrag 11 – der Hinweis
- * sagt das) und der Link zur Datenschutzerklärung von A-Trust.
+ * sagt das), am Desktop ein Satz zur Update-Prüfung (Abfrage bei GitHub, IP-Adresse sichtbar, keine Kennungen,
+ * abschaltbar; ADR 0004 Nachtrag 21) und der Link zur Datenschutzerklärung von A-Trust.
  */
 import { useState } from 'react';
 import { Link } from 'react-aria-components';
@@ -31,6 +32,8 @@ export function PrivacyInfo() {
         {custom ? custom : <Markup text={t.t(isMobile(view) ? 'ng-ui-privacy-statement-mobile' : 'ng-ui-privacy-statement')} targets={[{ href: url }]} />}
       </p>
       <p>{t.t(isMobile(view) ? 'ng-ui-privacy-local-mobile' : 'ng-ui-privacy-local')}</p>
+      {/* Update-Prüfung (Nachtrag 21): nur am Desktop – auf iOS/Android prüft PIDA nicht */}
+      {isMobile(view) ? null : <p>{t.t('ng-ui-privacy-update-check')}</p>}
       {custom ? (
         // Der Text aus PDF-Over nennt die Datenschutzerklärung von A-Trust selbst; ein eigener Text evtl. nicht
         <p>

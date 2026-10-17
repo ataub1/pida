@@ -1,0 +1,1190 @@
+{
+  "about_available": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": {
+        "checked_at": "2026-10-17T10:42:17+02:00",
+        "latest_version": "0.3.0",
+        "reason": null,
+        "release_url": "https://github.com/ataub1/pida/releases/tag/v0.3.0",
+        "state": "available"
+      },
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [
+      {
+        "code": "ng-update-available",
+        "id": 1,
+        "params": {
+          "version": "0.3.0"
+        }
+      }
+    ],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {},
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": true,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  },
+  "about_checking": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": {
+        "checked_at": null,
+        "latest_version": null,
+        "reason": null,
+        "release_url": null,
+        "state": "checking"
+      },
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {},
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": true,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  },
+  "about_disabled": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": {
+        "checked_at": null,
+        "latest_version": null,
+        "reason": null,
+        "release_url": null,
+        "state": "disabled"
+      },
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {},
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": false,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  },
+  "about_failed": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": {
+        "checked_at": null,
+        "latest_version": null,
+        "reason": "ng-update-failed-rate-limited",
+        "release_url": null,
+        "state": "failed"
+      },
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {},
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": true,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  },
+  "about_ios": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": true,
+      "os": "ios"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {},
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": true,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  },
+  "about_policy_off": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": {
+        "checked_at": null,
+        "latest_version": null,
+        "reason": null,
+        "release_url": null,
+        "state": "policy_off"
+      },
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {
+        "general.update_check": "ng-settings-policy"
+      },
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": true,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  },
+  "about_unchecked": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": {
+        "checked_at": null,
+        "latest_version": null,
+        "reason": null,
+        "release_url": null,
+        "state": "unchecked"
+      },
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {},
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": true,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  },
+  "about_up_to_date": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.2.0",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": {
+        "checked_at": "2026-10-17T10:42:17+02:00",
+        "latest_version": "0.2.0",
+        "reason": null,
+        "release_url": null,
+        "state": "up_to_date"
+      },
+      "version": "0.2.0"
+    },
+    "actions": {
+      "edit_placement": false,
+      "home": true,
+      "open_files": true,
+      "settings": false,
+      "show_batch": false,
+      "sign": false,
+      "start_batch": false
+    },
+    "batch": null,
+    "document": null,
+    "done": [],
+    "first_run": null,
+    "keystore_import": null,
+    "language": "de",
+    "main_bar": {
+      "settings_enabled": false,
+      "steps": [
+        {
+          "active": true,
+          "enabled": true,
+          "step": "Open"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Positioning"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Signing"
+        },
+        {
+          "active": false,
+          "enabled": false,
+          "step": "Finish"
+        }
+      ]
+    },
+    "migration": null,
+    "notices": [],
+    "parked": null,
+    "platform": {
+      "mobile": false,
+      "os": "linux"
+    },
+    "privacy_text": null,
+    "recent": [],
+    "resume": null,
+    "settings": {
+      "applied_revision": 0,
+      "examples": {
+        "output.postfix": "Vertrag_signed.pdf"
+      },
+      "fido2_available": false,
+      "keychain_available": false,
+      "keystore_entries": null,
+      "keystore_format": null,
+      "keystore_inspect_problem": null,
+      "keystore_ready": false,
+      "locked": {},
+      "preview_revision": 0,
+      "problems": {},
+      "read_only": false,
+      "settings": {
+        "backend": {
+          "default": null
+        },
+        "certificate_cache": {
+          "enabled": false
+        },
+        "general": {
+          "first_run_completed": true,
+          "last_source_directory": null,
+          "recent_documents": true,
+          "ui_language": null,
+          "update_check": true,
+          "window_size": null
+        },
+        "id_austria": {
+          "fido2_default": false,
+          "remember": false,
+          "username": null
+        },
+        "keystore": {
+          "alias": null,
+          "declared_type": null,
+          "enabled": false,
+          "file": null,
+          "password_storage": "memory",
+          "storage_chosen": true
+        },
+        "output": {
+          "folder": null,
+          "postfix": "_signed"
+        },
+        "placeholder": {
+          "kind": "marker",
+          "search": false
+        },
+        "proxy": {
+          "host": null,
+          "mode": "system",
+          "port": null,
+          "user": null
+        },
+        "schema_version": 1,
+        "signature": {
+          "auto_position": false,
+          "block_language": null,
+          "cms_profile": "pdfas_compat",
+          "emblem": null,
+          "logo_only_size_mm": 23.0,
+          "note": {
+            "mode": "default"
+          },
+          "pdfa_force": false,
+          "profile": "SIGNATURBLOCK_SMALL"
+        }
+      }
+    },
+    "share_hint": null,
+    "signers": {
+      "choice_offered": false,
+      "default": null,
+      "options": [],
+      "selected": null
+    },
+    "step": {
+      "queue": [],
+      "step": "open"
+    }
+  }
+}

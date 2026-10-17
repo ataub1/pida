@@ -41,8 +41,9 @@ async function bridge(): Promise<Bridge> {
  * bestätigt“). Ersteinrichtung (E4): `&firstrun=1` (fehlende Einstellungsdatei), `&legacy=1` (PDF-Over-
  * Einstellungen gefunden; ohne `firstrun` als eigenes Angebot), `&secrets=1` (Klartext-Passwörter darin),
  * `&emblem=1` (eigene Bildmarke in der Altkonfiguration; ohne bleibt das PIDA-Siegel), `&pick=<Name>.pdf`
- * („PDF auswählen“ öffnet dieses Beispiel, z. B. `Signaturfelder.pdf`, ADR 0004 Nachtrag 16). Nur der Mock-Kern
- * wertet das aus.
+ * („PDF auswählen“ öffnet dieses Beispiel, z. B. `Signaturfelder.pdf`, ADR 0004 Nachtrag 16), `&update=available|
+ * failed|offline|unchecked|checking` (Update-Prüfung in „Über PIDA“, Nachtrag 21; `&policy=updates` = von der
+ * Organisation deaktiviert). Nur der Mock-Kern wertet das aus.
  */
 function mockOptionsFromUrl(search: string, scenarios: readonly string[]): SettingsMockOptions & FirstRunMockOptions {
   const params = new URLSearchParams(search);
@@ -86,7 +87,13 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): Setti
     migrationOffer: params.get('legacy') === '1' ? '/Users/demo/.pdf-over/PDF-Over.config' : null,
     migrationSecrets: params.get('secrets') === '1',
     legacyEmblem: params.get('emblem') === '1' ? '/Users/demo/Bilder/eigenes-logo.png' : null,
+    update: updateFromUrl(params.get('update')),
   };
+}
+
+/** „Über PIDA“ (Nachtrag 21): `?update=up_to_date|available|failed|offline|unchecked|checking`. */
+function updateFromUrl(value: string | null): MockOptions['update'] {
+  return value === 'available' || value === 'failed' || value === 'offline' || value === 'unchecked' || value === 'checking' || value === 'up_to_date' ? value : undefined;
 }
 
 /** Richtlinie im Mock (`SettingsView::locked`): festgelegte Schalter erscheinen gesperrt mit Hinweis. */

@@ -185,6 +185,10 @@ installiert (andere Signatur), muss dieser vorher deinstalliert werden.
 - **Chipkarte und Keystore:** Signiert wird auf dem eigenen Gerät; das Dokument wird nicht hochgeladen.
 - Einstellungen, die abschaltbare Liste „Zuletzt signiert“ und Protokolle bleiben auf dem Gerät. Protokolle
   enthalten keine Passwörter, TANs oder Dokumentinhalte.
+- **Update-Prüfung (Desktop):** PIDA fragt höchstens einmal am Tag beim Start und beim Öffnen von „Über PIDA“
+  bei GitHub (`api.github.com`) nach der neuesten Version. Dabei sieht GitHub die IP-Adresse des Geräts; Kennungen
+  werden nicht übertragen, heruntergeladen wird nichts. Abschaltbar unter Einstellungen › Erweitert
+  („Automatisch nach Updates suchen“) bzw. per Richtlinie `update_check = false`.
 
 ## Signaturen prüfen
 
@@ -292,9 +296,10 @@ vertraulich melden, wie in [SECURITY.md](SECURITY.md) beschrieben (nicht als öf
 
 ## Lizenz
 
-[EUPL-1.2](LICENSE). Profile, Texte und Testdokumente stammen aus PDF-Over/PDF-AS (EUPL). Drittlizenzen:
-Allowlist in `deny.toml`; `tools/third-party-notices.sh` erzeugt die THIRD-PARTY-NOTICES, die jedem
-App-Paket beiliegen.
+Urheberrecht © 2026 A-SIT (Zentrum für sichere Informationstechnologie – Austria) · [EUPL-1.2](LICENSE).
+Profile, Texte und Testdokumente stammen aus PDF-Over/PDF-AS (EUPL). Drittlizenzen: Allowlist in `deny.toml`;
+`tools/third-party-notices.sh` erzeugt die THIRD-PARTY-NOTICES, die jedem App-Paket beiliegen. Herausgeber in
+den Installern und Paketen (Windows, macOS, Linux, iOS) ist A-SIT.
 
 ---
 
@@ -322,7 +327,11 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   checksum). Android: allow
   “Install unknown apps” for your browser or file manager.
 - **Privacy:** with ID Austria the document is sent to A-Trust for signing; with a smart card or keystore it
-  never leaves your device. On Android, PIDA signs with ID Austria only.
+  never leaves your device. On Android, PIDA signs with ID Austria only. On the desktop, the update check asks
+  GitHub (`api.github.com`) for the latest version at most once a day at startup and when “About PIDA” is
+  opened; GitHub sees the device's IP address, no identifiers are sent and nothing is downloaded. Turn it off
+  under Settings › Advanced or by policy (`update_check = false`).
+- **Copyright:** © 2026 A-SIT (Secure Information Technology Center – Austria), EUPL-1.2.
 - **Verification:** PIDA checks every new signature before saving it (document unchanged, signature
   cryptographically intact). For a full check including the certificate chain and revocation status use
   [www.signaturpruefung.gv.at](https://www.signaturpruefung.gv.at).

@@ -54,8 +54,7 @@ export type RowId =
   | 'advanced.updates'
   | 'advanced.migration'
   | 'advanced.reset'
-  | 'about.info'
-  | 'about.logs';
+  | 'about.info';
 
 /** Umstände, von denen die Sichtbarkeit einer Zeile abhängt. */
 export interface RowContext {
@@ -104,8 +103,8 @@ export const ROWS: readonly RowDef[] = [
   // PDF-Over gibt es nur am Desktop (Altkonfiguration `~/.pdf-over`)
   { id: 'advanced.migration', section: 'advanced', label: 'ng-ui-set-migration', visible: desktop },
   { id: 'advanced.reset', section: 'advanced', label: 'ng-ui-set-reset' },
+  // „Über PIDA“ ist ein Block (Nachtrag 21): Logs (Desktop) stehen in seiner Linkliste, gefunden über `.keywords`
   { id: 'about.info', section: 'about', label: 'ng-ui-set-about' },
-  { id: 'about.logs', section: 'about', label: 'ng-ui-set-logs', visible: desktop },
 ];
 
 /** Sichtbare Zeilen. */

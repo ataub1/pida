@@ -46,8 +46,11 @@ edition = "2024"
 # (lopdf 0.45, image 0.25, time 0.3.55, keyring 4); eine niedrigere MSRV wird erst nach CI-Nachweis gesenkt.
 rust-version = "1.99"
 license = "EUPL-1.2"
-authors = ["PIDA contributors"]
-repository = "https://example.invalid/pida"
+# Urheber (Entscheidung des Auftraggebers, ADR 0004 Nachtrag 21): A-SIT – Zentrum für sichere Informationstechnologie –
+# Austria. Wird u. a. zum `Maintainer` des Debian-Pakets (tauri-bundler); Herausgeber und Copyright der Installer stehen
+# in apps/app/src-tauri/tauri.conf.json (`bundle.publisher`, `bundle.copyright`).
+authors = ["A-SIT"]
+repository = "https://github.com/ataub1/pida"
 publish = false
 
 [workspace.dependencies]

@@ -695,3 +695,36 @@ ng-keystore-file-not-found-at = Die Keystore-Datei „{ $name }“ wurde nicht g
 ng-migration-item-signer-mobile = Signiermittel: ID Austria – andere Signiermittel aus PDF-Over gibt es auf diesem Gerät nicht
 ng-migrate-keystore-mobile = { $key } wird nicht übernommen (auf Mobilgeräten wird nur mit ID Austria signiert).
 ng-resume-signer-not-offered = Eine unterbrochene Signatur wurde verworfen, weil es ihr Signiermittel in dieser App nicht mehr gibt. Bitte öffnen Sie das Dokument erneut und signieren Sie mit ID Austria.
+
+## „Über PIDA“ und Update-Prüfung (ADR 0004 Nachtrag 21). `ng-update-*` liefert der Kern (`update.rs`): den Hinweis
+## nach der Prüfung beim Start und den Grund nach „Prüfung nicht möglich: “ (klein, ohne Punkt).
+
+ng-update-available = PIDA { $version } ist verfügbar. Mehr dazu unter Einstellungen › Über PIDA.
+ng-update-failed-offline = keine Verbindung zu GitHub
+ng-update-failed-timeout = GitHub antwortet nicht rechtzeitig
+ng-update-failed-proxy = Proxy-Fehler (Einstellungen › Erweitert › Proxy)
+ng-update-failed-tls = keine sichere Verbindung zu GitHub möglich
+ng-update-failed-rate-limited = zu viele Anfragen an GitHub – bitte später erneut prüfen
+ng-update-failed-server = GitHub meldet einen Fehler
+ng-update-failed-invalid = unerwartete Antwort von GitHub
+ng-ui-about-logo = PIDA-Symbol
+ng-ui-about-version-date = Version { $version } · { $date }
+ng-ui-about-update-region = Updates
+ng-ui-about-update-unchecked = Noch nicht nach Updates gesucht
+ng-ui-about-update-disabled = Automatische Prüfung ist ausgeschaltet
+ng-ui-about-update-policy = Von der Organisation deaktiviert
+ng-ui-about-update-checking = Suche nach Updates …
+ng-ui-about-update-current = PIDA ist auf dem neuesten Stand
+ng-ui-about-update-available = Version { $version } ist verfügbar
+ng-ui-about-update-failed = Prüfung nicht möglich: { $reason }
+ng-ui-about-update-check-now = Jetzt prüfen
+ng-ui-about-update-retry = Erneut prüfen
+ng-ui-about-update-download = Herunterladen
+ng-ui-about-update-download-label = Version { $version } herunterladen (Release-Seite auf GitHub)
+ng-ui-about-links = Links
+ng-ui-about-release-notes = Versionshinweise
+ng-ui-about-source = Quellcode
+ng-ui-about-privacy = Datenschutz
+ng-ui-about-based-on = Basiert auf PDF-Over von A-SIT.
+ng-ui-about-copyright = Urheberrecht © { $year } A-SIT · Lizenz EUPL-1.2
+ng-ui-privacy-update-check = Die Update-Prüfung fragt bei GitHub (api.github.com) nach der neuesten Version. Dabei sieht GitHub die IP-Adresse dieses Geräts; Kennungen werden nicht übertragen. Abschalten lässt sie sich unter Erweitert › „Automatisch nach Updates suchen“.

@@ -540,6 +540,11 @@ pub struct ViewState {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub share_hint: Option<ShareHintView>,
+    /// „Über PIDA“ (ADR 0004 Nachtrag 21): Version, Versionsdatum, Links, Update-Prüfung. Additiv, in TypeScript
+    /// optional; der Kern liefert es immer (`None` nur ohne Kern, z. B. im Fehlerschritt der Shell).
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub about: Option<AboutView>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -975,6 +980,15 @@ pub enum UiEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[cfg_attr(feature = "ts", ts(optional = nullable))]
         mode: Option<OpenFilesMode>,
+    },
+    /// „Über PIDA“ (ADR 0004 Nachtrag 21): beim Öffnen des Abschnitts (`explicit = false`) prüft der Kern, wenn die
+    /// automatische Prüfung an ist und das letzte Ergebnis älter als eine Stunde; „Jetzt prüfen“ bzw. „Erneut prüfen“
+    /// (`explicit = true`) prüft einmalig auch bei ausgeschalteter automatischer Prüfung. Nie mit Richtlinie „aus“,
+    /// auf iOS/Android und ohne Oberfläche; während einer Prüfung ohne Wirkung. Lädt und installiert nichts.
+    CheckForUpdates {
+        /// ausdrücklicher Klick („Jetzt prüfen“, „Erneut prüfen“)
+        #[serde(default)]
+        explicit: bool,
     },
 }
 
@@ -2070,6 +2084,64 @@ redacted_debug!(ParkedWorkView { documents, placed_by_hand, unsaved } redact { d
 pub struct ShareHintView {
     /// das über „Teilen“ empfangene Dokument (das offene im Arbeitsbereich)
     pub doc: DocId,
+}
+
+// --- Nachtrag 21: „Über PIDA“ und Update-Prüfung ---------------------------------------------------
+
+/// „Über PIDA“ (ADR 0004 Nachtrag 21, [`ViewState::about`]): Version mit Versionsdatum, Links und die
+/// Update-Prüfung. Alles entscheidet der Kern; die Oberfläche formatiert nur (Datum in der Oberflächensprache).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct AboutView {
+    /// Version der App (`0.2.0`)
+    pub version: String,
+    /// Versionsdatum `JJJJ-MM-TT` – Commit-Datum des gebauten Stands, beim Bauen eingebettet (`SOURCE_DATE_EPOCH`,
+    /// sonst Git, ohne Git das Datum des Bauens); sein Jahr steht im Urheberrechtsvermerk
+    pub release_date: String,
+    /// Versionshinweise dieser Version (GitHub-Release `v<version>`)
+    pub release_notes_url: String,
+    /// Quellcode (Repository)
+    pub source_url: String,
+    /// Update-Prüfung; `None` = keine (iOS/Android: dort keine Verteilung über GitHub; ohne Oberfläche bzw. ohne
+    /// Netz-Zugang des Kerns)
+    pub update: Option<UpdateCheckView>,
+}
+
+/// Zustand der Update-Prüfung ([`UpdateCheckView::state`]).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateCheckState {
+    /// automatische Prüfung an, aber noch kein Ergebnis („Jetzt prüfen“)
+    Unchecked,
+    /// automatische Prüfung ausgeschaltet (`general.update_check = false`); „Jetzt prüfen“ prüft einmalig
+    Disabled,
+    /// von der Organisation abgeschaltet (Richtlinie `update_check = false`): keine Prüfung, auch nicht auf Klick
+    PolicyOff,
+    /// Prüfung läuft
+    Checking,
+    /// keine neuere Version – nur nach einer erfolgreichen Prüfung (auch aus dem Zwischenspeicher), nie ungeprüft
+    UpToDate,
+    /// neuere Version verfügbar (`latest_version`, `release_url`); nichts wird heruntergeladen
+    Available,
+    /// Prüfung nicht möglich (`reason`); „Erneut prüfen“
+    Failed,
+}
+
+/// Update-Prüfung für „Über PIDA“ (ADR 0004 Nachtrag 21).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct UpdateCheckView {
+    /// Zustand
+    pub state: UpdateCheckState,
+    /// `available`: die neue Version; `up_to_date`: die neueste in Frage kommende (`None` = keine); sonst `None`
+    pub latest_version: Option<String>,
+    /// Release-Seite der neuen Version (nur `available`)
+    pub release_url: Option<String>,
+    /// letzte erfolgreiche Prüfung (RFC 3339 mit Offset), auch aus dem Zwischenspeicher; `None` = noch nie
+    pub checked_at: Option<String>,
+    /// Grund (i18n-ID `ng-update-failed-*`), nur `failed`
+    pub reason: Option<String>,
 }
 
 #[cfg(test)]

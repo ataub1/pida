@@ -332,6 +332,10 @@
     "replace_manual": false
   },
   {
+    "type": "check_for_updates",
+    "explicit": true
+  },
+  {
     "type": "submit_form",
     "request": 5,
     "answer": {
@@ -514,5 +518,9 @@
     "type": "sign_recent",
     "id": 3,
     "mode": "replace"
+  },
+  {
+    "type": "check_for_updates",
+    "explicit": false
   }
 ]

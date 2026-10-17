@@ -61,6 +61,8 @@ targets:
         CFBundleVersion: "0.2.0"
         # --- PIDA (M-iOS, docs/integration/mobile-ios.md) ---
         CFBundleDisplayName: PIDA
+        # Urheberrecht wie bundle.copyright in tauri.conf.json (ADR 0004 Nachtrag 21)
+        NSHumanReadableCopyright: "© 2026 A-SIT · EUPL-1.2"
         # Sprachen der App: Systemoberfläche im Prozess (Dokumentauswahl „Abbrechen“, Teilen „Kopieren/Drucken“,
         # Leiste über der Tastatur) in der Gerätesprache – ohne Angabe gilt die App als nur englisch
         CFBundleLocalizations: [de, en]

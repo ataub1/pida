@@ -34,7 +34,7 @@ describe('Bereiche und Zeilen', () => {
 
   it('Mobile ohne Proxy, Updates, Protokolle, Chipkarte, Keystore, Standardwahl und Bildmarke; Profilzeilen je Profil', () => {
     const mobile = ids(visibleRows({ mobile: true, profile: 'SIGNATURBLOCK_SMALL' }));
-    const desktopOnly = ['advanced.proxy', 'advanced.updates', 'advanced.migration', 'about.logs', 'signers.card', 'signers.keystore', 'signers.default', 'signature.emblem'];
+    const desktopOnly = ['advanced.proxy', 'advanced.updates', 'advanced.migration', 'signers.card', 'signers.keystore', 'signers.default', 'signature.emblem'];
     for (const id of desktopOnly) expect(mobile).not.toContain(id);
     for (const id of desktopOnly) expect(ids(desktop)).toContain(id);
     // Mobile nur ID Austria (ADR 0004 Nachtrag 11): Konto und FIDO2-Hinweis bleiben
@@ -69,6 +69,12 @@ describe('Suche', () => {
     expect(hit(en, 'keystore')).toEqual(['signers.default', 'signers.keystore']);
     expect(hit(de, 'aktualisierung')).toEqual(['advanced.updates']);
     expect(hit(en, 'updates')).toEqual(['advanced.updates']);
+  });
+
+  it('„Über PIDA“ ist ein Block (Nachtrag 21): Logs, Versionshinweise, Quellcode und Urheberrecht finden ihn', () => {
+    expect(ROWS.filter((r) => r.section === 'about').map((r) => r.id)).toEqual(['about.info']);
+    for (const q of ['protokolle', 'logs', 'versionshinweise', 'quellcode', 'urheberrecht', 'drittlizenzen']) expect(hit(de, q), q).toEqual(['about.info']);
+    for (const q of ['logs', 'release notes', 'source code', 'copyright', 'licenses']) expect(hit(en, q), q).toEqual(['about.info']);
   });
 
   it('Dokument: „pdf/a“, „platzhalter“, „qr“, „signaturfeld“; englisch „signature field“', () => {

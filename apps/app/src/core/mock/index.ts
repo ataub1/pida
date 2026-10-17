@@ -9,7 +9,7 @@
  * Signiersitzung beginnt nur nach `sign_with`, `choose_backend` (Rückfall), `resume_signature` oder
  * „Erneut versuchen“.
  *
- * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, settings, recent, firstrun }` mit je
+ * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, settings, recent, firstrun, about }` mit je
  * eigenem Zustandsausschnitt (`shared.ts`), verteilt jedes Ereignis an alle, leitet Signale weiter und
  * setzt die Projektionen zusammen. Der Bereich `flow` (Kern, Arbeitsbereich, Signieren, Stapel) steht hier
  * und nutzt `workspace.ts` (Dokumente, Platzierung), `signing.ts` (Signiersitzung) und `batch.ts`
@@ -39,6 +39,7 @@ import type {
   UiEvent,
   ViewState,
 } from '../types';
+import { aboutArea } from './about';
 import { MockBatch, type BatchHost, type BatchPlan } from './batch';
 import { firstRunArea } from './firstrun';
 import { recentArea } from './recent';
@@ -90,7 +91,7 @@ import {
   type MockDocSpec,
 } from './workspace';
 
-export type { MockOptions, MockScenario, MockSigningFlow } from './shared';
+export type { MockOptions, MockScenario, MockSigningFlow, MockUpdateScenario } from './shared';
 export { MOCK_SCENARIOS } from './shared';
 
 /* ================================================================ Bereich „flow“ */
@@ -1467,6 +1468,8 @@ export class MockCore implements Bridge {
       { area: settingsArea as MockArea<unknown>, state: settingsArea.init(this.opts) },
       { area: recentArea as MockArea<unknown>, state: recentArea.init(this.opts) },
       { area: firstRunArea as MockArea<unknown>, state: firstRunArea.init(this.opts) },
+      // Nachtrag 21: „Über PIDA“ und Update-Prüfung
+      { area: aboutArea as MockArea<unknown>, state: aboutArea.init(this.opts) },
     ];
     const settingsState = this.areas[1]?.state as ReturnType<typeof settingsArea.init>;
     this.ctx = {

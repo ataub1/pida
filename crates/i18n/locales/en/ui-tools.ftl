@@ -211,9 +211,7 @@ ng-ui-set-migration-search = Search …
 ## Settings › About
 
 ng-ui-set-about = PIDA
-    .keywords = about version licence license licenses third-party
-ng-ui-set-logs = Logs
-    .keywords = log logs logging troubleshooting
+    .keywords = about version licence license licenses third-party copyright release notes source code log logs logging troubleshooting
 
 ## Recently signed (start view, ADR 0004 §3.10; actions as on “Done”, addendum 15 – no verification mode)
 

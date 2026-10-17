@@ -1,5 +1,12 @@
 {
   "atrust_cancelled": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -263,6 +270,13 @@
     }
   },
   "atrust_done": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": false,
       "home": true,
@@ -514,6 +528,13 @@
     }
   },
   "atrust_editing": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -771,6 +792,13 @@
     }
   },
   "atrust_login": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": false,
       "home": false,
@@ -1038,6 +1066,13 @@
     }
   },
   "atrust_network_error": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": false,
       "home": false,
@@ -1277,6 +1312,13 @@
     }
   },
   "atrust_tan": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": false,
       "home": false,
@@ -1543,6 +1585,13 @@
     }
   },
   "doc_auto_locked": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -1818,6 +1867,13 @@
     }
   },
   "doc_field_auto": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -2194,6 +2250,13 @@
     }
   },
   "doc_parked": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": false,
       "home": true,
@@ -2334,6 +2397,13 @@
     }
   },
   "doc_pdfa_detected": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -2618,6 +2688,13 @@
     }
   },
   "doc_pdfa_forced": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -2893,6 +2970,13 @@
     }
   },
   "doc_qr_auto": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -3171,6 +3255,13 @@
     }
   },
   "keystore_done": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": false,
       "home": true,
@@ -3465,6 +3556,13 @@
     }
   },
   "keystore_editing": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -3765,6 +3863,13 @@
     }
   },
   "keystore_signing": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": false,
       "home": false,
@@ -4062,6 +4167,13 @@
     }
   },
   "settings_open": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -4408,6 +4520,13 @@
     }
   },
   "settings_partial": {
+    "about": {
+      "release_date": "2026-10-17",
+      "release_notes_url": "https://github.com/ataub1/pida/releases/tag/v0.1.0-test",
+      "source_url": "https://github.com/ataub1/pida",
+      "update": null,
+      "version": "0.1.0-test"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,

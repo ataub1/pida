@@ -695,3 +695,36 @@ ng-keystore-file-not-found-at = The keystore file “{ $name }” could not be f
 ng-migration-item-signer-mobile = Signing method: ID Austria – other signing methods from PDF-Over are not available on this device
 ng-migrate-keystore-mobile = { $key } is not imported (on mobile devices, signing uses ID Austria only).
 ng-resume-signer-not-offered = An interrupted signature was discarded because its signing method is no longer available in this app. Please open the document again and sign with ID Austria.
+
+## About PIDA and update check (ADR 0004 addendum 21). The core delivers `ng-update-*` (`update.rs`): the notice after
+## the check at startup and the reason after "Check not possible: " (lower case, no full stop).
+
+ng-update-available = PIDA { $version } is available. See Settings › About PIDA.
+ng-update-failed-offline = no connection to GitHub
+ng-update-failed-timeout = GitHub did not respond in time
+ng-update-failed-proxy = proxy error (Settings › Advanced › Proxy)
+ng-update-failed-tls = no secure connection to GitHub possible
+ng-update-failed-rate-limited = too many requests to GitHub – please check again later
+ng-update-failed-server = GitHub reported an error
+ng-update-failed-invalid = unexpected response from GitHub
+ng-ui-about-logo = PIDA symbol
+ng-ui-about-version-date = Version { $version } · { $date }
+ng-ui-about-update-region = Updates
+ng-ui-about-update-unchecked = Not checked for updates yet
+ng-ui-about-update-disabled = Automatic check is turned off
+ng-ui-about-update-policy = Disabled by your organisation
+ng-ui-about-update-checking = Checking for updates …
+ng-ui-about-update-current = PIDA is up to date
+ng-ui-about-update-available = Version { $version } is available
+ng-ui-about-update-failed = Check not possible: { $reason }
+ng-ui-about-update-check-now = Check now
+ng-ui-about-update-retry = Check again
+ng-ui-about-update-download = Download
+ng-ui-about-update-download-label = Download version { $version } (release page on GitHub)
+ng-ui-about-links = Links
+ng-ui-about-release-notes = Release notes
+ng-ui-about-source = Source code
+ng-ui-about-privacy = Privacy
+ng-ui-about-based-on = Based on PDF-Over by A-SIT.
+ng-ui-about-copyright = Copyright © { $year } A-SIT · Licence EUPL-1.2
+ng-ui-privacy-update-check = The update check asks GitHub (api.github.com) for the latest version. GitHub sees this device's IP address; no identifiers are sent. You can turn it off under Advanced › “Check for updates automatically”.

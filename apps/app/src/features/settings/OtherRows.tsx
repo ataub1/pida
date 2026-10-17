@@ -9,16 +9,16 @@
  * - Erweitert: Proxy, Update-Prüfung (Desktop), „PDF-Over-Einstellungen übernehmen“ (`offer_migration`, das
  *   Angebot erscheint direkt im Bereich; Desktop), Zurücksetzen (mit Rückfrage – das ist
  *   unumkehrbar). „Ausführliche Protokolle“ entfällt (kein Settings-Feld, `--log-level`).
- * - Über: Version, Lizenztext, Drittlizenzen, Protokollordner (Desktop).
+ * - Über PIDA: eigenes Modul `about.tsx` (Symbol, Version mit Datum, Update-Prüfung, Links, Urheberrecht; ADR 0004
+ *   Nachtrag 21).
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useApp } from '../../app/context';
 import type { Theme } from '../../app/theme';
 import type { Lang, ProxyMode } from '../../core/types';
 import { AccessButton, Button, SwitchField } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
 import { IconMonitor, IconMoon, IconSun, IconTrash } from '../../ui/Icons';
-import { Markup } from '../../ui/Markup';
 import { MigrationOfferPane } from '../onboarding';
 import { ChoiceSegments, SettingTextField } from './controls';
 import { PrivacyInfo } from './privacy';
@@ -250,50 +250,6 @@ export function ResetRow() {
           <p>{t.t('ng-ui-settings-reset-confirm')}</p>
         </ConfirmDialog>
       ) : null}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ Über */
-
-export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
-  const { t, bridge, toast } = useApp();
-  const [version, setVersion] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    bridge
-      .appInfo()
-      .then((i) => alive && setVersion(i.version))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [bridge]);
-  return (
-    <div className="stack-3 about-row">
-      <p className="about-version">{t.t('ng-ui-about-version', { version: version ?? '…' })}</p>
-      <p className="pre-line">
-        <Markup text={t.t('config-AboutText')} />
-      </p>
-      <p>
-        <Markup text={t.t('ng-ui-privacy-about')} targets={[{ onPress: onPrivacy }]} />
-      </p>
-      <p className="field-hint">{t.t('ng-ui-about-thirdparty')}</p>
-      <div className="button-row">
-        <AccessButton msg="ng-ui-about-notices" size="sm" onPress={() => bridge.openNotices().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
-      </div>
-    </div>
-  );
-}
-
-export function LogsRow() {
-  const { t, bridge, toast } = useApp();
-  return (
-    <div className="stack-2">
-      <span className="field-label">{t.t('ng-ui-set-logs')}</span>
-      <div className="button-row">
-        <AccessButton msg="config-ShowLogDirectory" size="sm" onPress={() => bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
-      </div>
     </div>
   );
 }

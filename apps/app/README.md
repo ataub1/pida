@@ -14,6 +14,7 @@ Oberfläche und Shell von PIDA: **React 19 + TypeScript (strict) + React Aria Co
 | Oberfläche „Arbeitsbereich“ (ADR 0004): Shell und Kopfzeile, Start, Arbeitsbereich, Signierkarte, Fertig, Stapel (Übersicht, Startdialog, Stapelkarte mit Pausen, Zusammenfassung); Bausteine und Design-Tokens aus dem Prototyp | `src/app/`, `src/features/`, `src/ui/`, `src/styles/` |
 | Einstellungen (bisheriger Dialog bis E3) | `src/settings/` hinter `src/features/settings/` |
 | Echte Kernzustände als UI-Probe (`RealCore.test.tsx`, erzeugt von `crates/core-api/tests/workspace.rs`) | `src/core/fixtures/real-core-views.json` |
+| „Über PIDA“: Zustände der Update-Prüfung des echten Kerns (`features/settings/about.test.tsx`, erzeugt von `crates/core-api/tests/about.rs`) | `src/core/fixtures/real-core-about-views.json` |
 | Shell (PDF-Over-Startargumente, Single-Instance, „Öffnen mit“, Drag & Drop, Fensterzustand, Dialoge, Shell-Funktionen des Kerns, Custom Protocol, Startprüfung) | `src-tauri/` |
 
 ## Befehle
@@ -28,6 +29,7 @@ npm run dev:mock       # Oberfläche mit Mock-Kern im Browser (http://localhost:
                        # Einstellungen › Dokument: &search=1&kind=fields (erstes leeres Feld),
                        # &pdfa=1 (PDF/A erzwungen), ?scenario=contract (PDF/A-Dokument);
                        # Richtlinie: &policy=recent-off|recent-on|updates
+                       # Über PIDA: &update=available|failed|offline|unchecked|checking
                        # Ersteinrichtung: ?firstrun=1 (&legacy=1 mit
                        # PDF-Over-Einstellungen, &emblem=1 eigene Bildmarke, &secrets=1 Klartext-Passwörter)
 npm run build          # tsc (strict) + Vite → dist/

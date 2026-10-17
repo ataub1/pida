@@ -597,6 +597,10 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         // Nachtrag 12
         BatchFlowView,
         ShareHintView,
+        // Nachtrag 21
+        AboutView,
+        UpdateCheckState,
+        UpdateCheckView,
     );
     (out, names)
 }

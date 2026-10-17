@@ -464,6 +464,24 @@ const viewState = obj({
   parked: optional(obj({ doc_name: nullable(str), documents: int, placed_by_hand: bool, unsaved: bool })),
   // Nachtrag 12: Hinweis zum Teilen (iOS) – in TS optional
   share_hint: optional(obj({ doc: int })),
+  // Nachtrag 21: „Über PIDA“ und Update-Prüfung – in TS optional, vom Kern immer geliefert
+  about: optional(
+    obj({
+      version: str,
+      release_date: str,
+      release_notes_url: str,
+      source_url: str,
+      update: nullable(
+        obj({
+          state: lit('unchecked', 'disabled', 'policy_off', 'checking', 'up_to_date', 'available', 'failed'),
+          latest_version: nullable(str),
+          release_url: nullable(str),
+          checked_at: nullable(str),
+          reason: nullable(str),
+        }),
+      ),
+    }),
+  ),
 });
 
 const formAnswer = tagged('kind', {
@@ -551,6 +569,8 @@ const uiEvent = tagged('type', {
   reveal_recent: { id: int },
   share_recent: { id: int },
   sign_recent: { id: int, mode: omittable(lit('add', 'replace')) },
+  // Nachtrag 21: „Über PIDA“ – beim Öffnen bzw. „Jetzt prüfen“
+  check_for_updates: { explicit: bool },
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -634,6 +654,10 @@ describe('Vertrag ViewState (Rust → TS)', () => {
     // Nachtrag 10: geparkte Arbeit (Einzeldokument von Hand platziert, Stapel)
     expect(sorted(views.map((v) => (v.parked ? (v.parked.doc_name ?? 'stapel') : null)))).toEqual(['Vertrag.pdf', 'stapel']);
     expect(views.some((v) => v.parked?.placed_by_hand === true)).toBe(true);
+    // Nachtrag 21: jeder Zustand der Update-Prüfung; Mobile ohne Prüfung
+    expect(sorted(views.map((v) => v.about?.update?.state))).toEqual(['available', 'checking', 'disabled', 'failed', 'policy_off', 'unchecked', 'up_to_date']);
+    for (const v of views.filter((x) => x.platform.mobile && x.about)) expect(v.about?.update).toBeNull();
+    expect(views.filter((v) => v.about?.update?.state === 'up_to_date').every((v) => v.about?.update?.checked_at !== null)).toBe(true);
   });
 
   it('defaultSettings() entspricht Settings::default() aus Rust (Mock-Kern, Tests, Zurücksetzen)', () => {
@@ -688,6 +712,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         },
         parked: null,
         share_hint: null,
+        about: null,
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);
@@ -701,7 +726,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
 describe('Zustände des echten Kerns passen zum Vertrag', () => {
   const load = (name: string) => Object.entries(JSON.parse(readFileSync(fixtureUrl(name), 'utf8')) as Record<string, unknown>);
 
-  it.each(['real-core-views.json', 'real-core-batch-views.json', 'real-core-tools-views.json'].flatMap((file) =>
+  it.each(['real-core-views.json', 'real-core-batch-views.json', 'real-core-tools-views.json', 'real-core-about-views.json'].flatMap((file) =>
     load(file).map(([name, view]) => [`${file} ${name}`, view] as const),
   ))('%s', (_name, view) => {
     expect(validate(viewState, view)).toEqual([]);
@@ -735,9 +760,9 @@ describe('Vertrag UiEvent (TS → Rust)', () => {
   // ohne das veraltete `acknowledge_privacy` (nicht mehr in den TS-Typen, ADR 0003); 26 davon aus ADR 0004
   // (19 aus E0 – ohne die vier des entfernten Prüfmodus –, `inspect_keystore` aus Nachtrag 7, `unlock_placement` und
   // `set_batch_auto_position` aus Nachtrag 8, `open_recent`/`reveal_recent`/`share_recent`/`sign_recent` aus
-  // Nachtrag 15)
-  it('alle 63 Varianten sind vertreten', () => {
-    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(63);
+  // Nachtrag 15; `check_for_updates` aus Nachtrag 21)
+  it('alle 64 Varianten sind vertreten', () => {
+    expect(new Set(UI_EVENT_SAMPLES.map((s) => s.type)).size).toBe(64);
   });
 
   it('enthält die Mobile-Proben (Plattform, FIDO2-Hinweis, Fortsetzen) und den Import nur am Desktop', () => {

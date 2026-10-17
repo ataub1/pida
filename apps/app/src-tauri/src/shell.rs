@@ -398,6 +398,7 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         actions: pida_core_api::ActionsView::default(),
         parked: None,
         share_hint: None,
+        about: None,
     }
 }
 

@@ -6,11 +6,11 @@
  * (Live-Editor mit Vorschau, die beim Bearbeiten oben sichtbar bleibt), Dokument (PDF/A, Platzhaltersuche,
  * automatische Positionierung),
  * Signiermittel, Speichern, Darstellung, Datenschutz, Erweitert (u. a. „PDF-Over-Einstellungen übernehmen“ mit
- * dem Angebot direkt im Bereich), Über.
+ * dem Angebot direkt im Bereich), Über PIDA (Version mit Datum, Update-Prüfung, Links, Urheberrecht; Nachtrag 21).
  *
  * Schließen (×, Escape, Klick daneben) sendet zuerst wartende Texteingaben und dann `close_settings` – es gibt
  * nichts zu verwerfen. Schreibgeschützte Einstellungen (`read_only`, `-c`) zeigen ein Banner; Änderungen
- * gelten dann bis zum Beenden von PIDA (Kern). Mobile: ohne Proxy, Ordner, Update-Prüfung und Protokolle;
+ * gelten dann bis zum Beenden von PIDA (Kern). Mobile: ohne Proxy, Ordner, Update-Prüfung und Logs;
  * Keystore nur über den PKCS#12-Import.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
@@ -21,7 +21,8 @@ import { EMBLEM_DROP_EVENT } from '../../app/events';
 import { isMobile, type SettingsView, type SignatureProfile } from '../../core/types';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconClose, IconFileText, IconFolder, IconInfo, IconPhone, IconSearch, IconSettings, IconShield, IconSignature, IconSun } from '../../ui/Icons';
-import { AboutRow, CertCacheRow, LogsRow, MigrationRow, PRIVACY_HEADING_ID, PrivacyInfoRow, ProxyRow, RecentRow, ResetRow, ThemeRow, UiLangRow, UpdatesRow } from './OtherRows';
+import { AboutRow } from './about';
+import { CertCacheRow, MigrationRow, PRIVACY_HEADING_ID, PrivacyInfoRow, ProxyRow, RecentRow, ResetRow, ThemeRow, UiLangRow, UpdatesRow } from './OtherRows';
 import { ROWS, SECTIONS, search, visibleRows, type RowDef, type RowId, type SectionId } from './rows';
 import { AutoPositionRow, BlockLangRow, BlockPreview, EmblemRow, LogoSizeRow, NoteRow, PdfaRow, PlaceholderRow, ProfileRow } from './SignatureRows';
 import { CardRow, DefaultSignerRow, Fido2Row, IdAustriaRow, KeystoreRow, PostfixRow, SaveTargetRow } from './SignerRows';
@@ -109,8 +110,6 @@ function SettingRow({ id, goto }: { id: RowId; goto: (section: SectionId, focus?
       return <ResetRow />;
     case 'about.info':
       return <AboutRow onPrivacy={() => goto('privacy', PRIVACY_HEADING_ID)} />;
-    case 'about.logs':
-      return <LogsRow />;
   }
 }
 

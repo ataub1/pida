@@ -50,6 +50,8 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 A-SIT · EUPL-1.2</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

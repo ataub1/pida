@@ -151,6 +151,12 @@ impl Purpose {
     pub fn allows_proxy(self) -> bool {
         !matches!(self, Purpose::LocalBku)
     }
+
+    /// Nur `https` – auch für Redirects (Update-Check, ADR 0004 Nachtrag 21); eine `http`-Adresse bzw. ein
+    /// Redirect dorthin ist ein Fehler ([`NetError::Config`]).
+    pub fn requires_https(self) -> bool {
+        matches!(self, Purpose::UpdateCheck)
+    }
 }
 
 /// Client-Konfiguration.
@@ -450,6 +456,7 @@ impl HttpClient {
             .connect_timeout(config.connect_timeout)
             .http1_only()
             .redirect(redirect)
+            .https_only(purpose.requires_https())
             .cookie_store(purpose.uses_cookies());
         if let Some(timeout) = config.request_timeout {
             builder = builder.timeout(timeout);
@@ -788,6 +795,12 @@ mod tests {
         assert!(Purpose::AtrustPoll.follows_redirects());
         assert!(!Purpose::LocalBku.allows_proxy());
         assert!(Purpose::AtrustSession.allows_proxy());
+        // nur der Update-Check verlangt `https` (A-Trust-Testserver und lokale BKU bleiben, wie sie sind)
+        assert!(Purpose::UpdateCheck.requires_https() && Purpose::UpdateCheck.follows_redirects());
+        assert!(Purpose::UpdateCheck.allows_proxy() && !Purpose::UpdateCheck.uses_cookies());
+        for p in [Purpose::AtrustSession, Purpose::AtrustPoll, Purpose::AtrustImage, Purpose::LocalBku] {
+            assert!(!p.requires_https(), "{p:?}");
+        }
     }
 
     #[test]

@@ -1529,6 +1529,9 @@ fn fixture_state(v: &ViewState, roots: &[(String, &str)]) -> serde_json::Value {
                 for (key, item) in map.iter_mut() {
                     if matches!(key.as_str(), "signing_time" | "occurred_at" | "signed_at") && item.is_string() {
                         *item = serde_json::Value::String("2026-10-15T10:42:17+02:00".into());
+                    } else if key == "release_date" && item.is_string() {
+                        // Versionsdatum des gebauten Stands („Über PIDA“, Nachtrag 21) – je Commit anders
+                        *item = serde_json::Value::String("2026-10-17".into());
                     } else {
                         walk(item, roots);
                     }

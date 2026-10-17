@@ -211,9 +211,7 @@ ng-ui-set-migration-search = Suchen …
 ## Einstellungen › Über
 
 ng-ui-set-about = PIDA
-    .keywords = über version lizenz lizenzen drittlizenzen
-ng-ui-set-logs = Protokolle
-    .keywords = protokoll protokolle log logs fehlersuche
+    .keywords = über version lizenz lizenzen drittlizenzen urheberrecht versionshinweise quellcode protokoll protokolle log logs fehlersuche
 
 ## Zuletzt signiert (Startansicht, ADR 0004 §3.10; Aktionen wie „Fertig“, Nachtrag 15 – kein Prüfmodus)
 

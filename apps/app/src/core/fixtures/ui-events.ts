@@ -107,6 +107,8 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   // Nachtrag 8: „Diesmal selbst platzieren“, „Für diesen Stapel automatisch positionieren“
   { type: 'unlock_placement' },
   { type: 'set_batch_auto_position', enabled: true, replace_manual: false },
+  // Nachtrag 21: „Über PIDA“ – „Jetzt prüfen“ bzw. „Erneut prüfen“
+  { type: 'check_for_updates', explicit: true },
 ];
 
 /** Weitere Antworten (alle `FormAnswerView`-Varianten, `save` ohne Pfad, Platzhalter ohne Feld). */
@@ -151,4 +153,6 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   // Nachtrag 15: „Erneut signieren“ nach der Rückfrage bei geparkter Arbeit
   { type: 'sign_recent', id: 3, mode: 'add' },
   { type: 'sign_recent', id: 3, mode: 'replace' },
+  // Nachtrag 21: beim Öffnen von „Über PIDA“ (der Kern entscheidet, ob er prüft)
+  { type: 'check_for_updates', explicit: false },
 ];

@@ -184,14 +184,22 @@ else
 fi
 
 # --- Zusammenführen --------------------------------------------------------------------------------
+# Jahr des Urheberrechtsvermerks wie „Über PIDA“: aus dem Versionsdatum (SOURCE_DATE_EPOCH, sonst Commit-Datum)
+if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
+  YEAR="$(python3 -I -c 'import datetime,sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1]), datetime.timezone.utc).year)' "$SOURCE_DATE_EPOCH")"
+else
+  YEAR="$(git -C "$ROOT" log -1 --format=%cd --date=format:%Y 2>/dev/null || date -u +%Y)"
+fi
 {
   echo "# THIRD-PARTY-NOTICES – PIDA"
   echo
-  echo "PIDA steht unter der EUPL-1.2. Es enthält bzw. nutzt die folgenden Komponenten Dritter;"
-  echo "ihre Lizenzbedingungen gelten für den jeweiligen Teil."
+  echo "PIDA – Urheberrecht © $YEAR A-SIT (Zentrum für sichere Informationstechnologie – Austria) – steht"
+  echo "unter der EUPL-1.2. Es enthält bzw. nutzt die folgenden Komponenten Dritter; ihre Lizenzbedingungen"
+  echo "gelten für den jeweiligen Teil."
   echo
-  echo "PIDA is licensed under the EUPL-1.2. It contains or uses the following third-party"
-  echo "components; their license terms apply to the respective part."
+  echo "PIDA – Copyright © $YEAR A-SIT (Secure Information Technology Center – Austria) – is licensed under"
+  echo "the EUPL-1.2. It contains or uses the following third-party components; their license terms apply to"
+  echo "the respective part."
   echo
   echo "Quelle (source): Cargo.lock sha256 $(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$ROOT/Cargo.lock")"
   echo
