@@ -489,6 +489,17 @@ async fn auto_position_locks_the_placement_until_unlocked() {
     let core = start(&fx, keystore_overlay(vec![a.clone(), b], &out), None, Some(engine.clone()), pdfium).unwrap();
     if pdfium {
         settled(&core, true).await;
+        // Die automatische Lage kommt asynchron (`auto_place` im Hintergrund, PDFium prozessweit gesperrt und von
+        // den parallel laufenden Tests geteilt): auf sie warten wie `keystore_core_path_without_screen_change`
+        // statt nur auf die feste Pause in `settled` (CI 17.10.2026, macOS und Linux: dort noch die Startlage
+        // 50 %/25 %). Kommt sie nie, scheitert das Warten nach 20 s mit dem ganzen Zustand.
+        let expected = expected_auto_position(&a);
+        wait_for(&core, "automatische Lage", |v| {
+            v.document
+                .as_ref()
+                .is_some_and(|d| (d.placement.x - expected.x).abs() < 0.5 && (d.placement.y - expected.y).abs() < 0.5)
+        })
+        .await;
     } else {
         // ohne Vorschau: keine Lage und keine Blockvorschau, die Sperre gilt trotzdem
         wait_for(&core, "Arbeitsbereich", editing).await;
@@ -499,10 +510,6 @@ async fn auto_position_locks_the_placement_until_unlocked() {
     assert_eq!((d.origin, d.target), (PlacementOrigin::Auto, PlacementTarget::Free));
     assert!(d.detection.as_ref().is_some_and(|x| x.auto_placed));
     assert!(v.actions.sign && v.actions.edit_placement);
-    if pdfium {
-        let expected = expected_auto_position(&a);
-        assert!((d.placement.x - expected.x).abs() < 0.5 && (d.placement.y - expected.y).abs() < 0.5, "{d:?}");
-    }
     // Verschieben aller Art bleibt ohne Wirkung (Lage und Revision unverändert)
     for e in [
         UiEvent::MoveBlock { page: 0, x: 40.0, y: 500.0 },
