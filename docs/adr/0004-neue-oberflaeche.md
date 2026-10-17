@@ -2656,8 +2656,22 @@ in derselben Konfiguration wie rfd, ohne Sicherheitseinstellungen zu ändern) �
 Tests mit nachgebildeter Tauri-Laufzeit (`core/bridge.tauri.test.ts`), UI-Tests aller Einstiege
 (`app/multi.test.tsx`) und den echten Kern (`crates/core-api/tests/open_files.rs`). Das Log der App und das
 System-Log des Panel-Dienstes zeigen zu den drei Auswahlen des Berichts: 20:50:32 und 20:51:00 je ein **Doppelklick**
-auf eine Datei (Doppelklick übernimmt im Panel nur die angeklickte Datei), 20:51:58 mehrere Klicks und „Öffnen“
-bei geparktem Stapel – der Kern nahm genau **ein** neues Dokument auf (`effects=1`). Die Zahl der Pfade steht
+auf eine Datei, ohne dass vorher weitere markiert waren (übernimmt nur diese Datei), 20:51:58 mehrere Klicks und
+„Öffnen“ bei geparktem Stapel – der Kern nahm jedes Mal genau **ein** neues Dokument auf. Gegenprüfung im Review
+(17.10.2026): `log show --predicate 'process CONTAINS "openAndSavePanel"'` liefert je Auswahl die AppKit-Aktionen
+des Panels – 22:50:32.036/.201 und 22:50:49.805/.991 Ortszeit (20:50:32Z bzw. 20:50:50Z, danach die Rückfrage
+„Zum Stapel hinzufügen“ um 20:51:00Z) je ein `sendAction:` und 165 bzw. 186 ms später `sendAction:` + `performClick:` ohne
+`trackMouse` (Doppelaktion der Liste, kein Klick auf „Öffnen“); 22:51:54.121, 54.749 und 55.672 drei Klicks in die
+Liste, dann „Öffnen“ per Maus (`trackMouse send action on mouseUp`). Die Effektzahlen im App-Log passen dazu nur so
+(nachgerechnet am Reducer): 20:50:32 `Analyzing effects=2` = ein Dokument (`RememberDirectory`, `Analyze`; zwei Dateien
+ergäben `BatchOverview`), 20:51:00 `BatchOverview effects=3` = „Zum Stapel hinzufügen“ mit genau einem neuen
+Dokument (`Discard` + zwei Voranalysen; zwei neue ergäben 4, „Offene schließen …“ `Analyzing` bzw. 4), 20:51:58
+`effects=1` = genau eine neue Voranalyse – mit oder ohne mitgewählte, schon offene Dokumente. Ob die drei Klicks
+um 20:51:55 ⌘-Klicks waren (dann verwarf der Kern die schon offenen still) oder einfache Klicks (dann war nur die
+letzte Datei markiert), zeigt kein Log; beide Fälle deckt dieser Nachtrag ab (Hinweis bzw. Hinweiszeile). Am
+Debug-Bundle (`at.pida.fixmulti`, leeres `PIDA_HOME`) ergibt „Öffnen mit“ mit drei PDFs `BatchOverview effects=4`
+(drei Dokumente), danach zwei davon und ein neues `BatchOverview effects=1` – dieselbe Zeile wie im Log des
+Auftraggebers um 20:51:58 – jetzt mit dem Hinweis (`count=2`). Die Zahl der Pfade steht
 nicht im Log; die einzige Stelle der Kette, die gewählte Dateien verwirft, ist der Duplikatvergleich (Pfad, F-89),
 und der verwarf **ohne jeden Hinweis** (ebenso Pfade ohne Datei). Waren unter den markierten Dateien solche, die
 schon im Stapel lagen, sieht das für die Nutzerin aus, als übernähme die Auswahl nur eine Datei. Unter iOS/Android gab es dazu das Gegenstück: jede Auswahl
@@ -2700,9 +2714,11 @@ nicht kopierbare Dateien (nicht lesbar, zu groß) verschwanden ebenfalls still.
    Simulator, Aufnahmen `docs/integration/screenshots/fix-multi/ios-*`).
 7. **Vertrag:** keine Änderung an `ViewState`/`UiEvent` (neue Meldungs-IDs, Shell-Command-Ergebnis und Bridge sind
    intern); `ts_bindings` und Fixtures unverändert. Der Mock folgt dem Kern (`reportDuplicates`).
-8. **Tests:** echter Kern `crates/core-api/tests/open_files.rs` (8: Reihenfolge, doppelt in einer Auswahl, geparkter
+8. **Tests:** echter Kern `crates/core-api/tests/open_files.rs` (10: Reihenfolge, doppelt in einer Auswahl, geparkter
    Stapel und Übersicht, Arbeitsbereich „Weitere PDFs hinzufügen“, „Offene schließen und neu beginnen“, fehlende
-   Dateien/Ordner, Mobile-Kopien iOS/Android, Desktop-Pfadvergleich) und `opening.rs` (Inhaltsvergleich); Plugin
+   Dateien/Ordner, Mobile-Kopien iOS/Android, Desktop-Pfadvergleich; aus dem Review: 25 Dateien mit einem
+   Nicht-PDF – alle in Reihenfolge, das Nicht-PDF als abgelehnter Eintrag – und „Öffnen mit“ während eines laufenden
+   Stapels – neues PDF als Eintrag mit `ng-batch-added`, das schon offene mit Hinweis) und `opening.rs` (Inhaltsvergleich); Plugin
    `import_files` (Reihenfolge, `skipped`, ältere Antwort), Swift-Logik auf dem Mac (`tests/ios_logic.rs` übersetzt
    `ios/Tests/SandboxFilesCheck.swift` mit `SandboxFiles.swift`), Kotlin `DocumentsTest.multipleSelectionKeepsOrderAndCountsFailures`;
    UI `app/multi.test.tsx` (alle Einstiege, Titel je Plattform, Hinweise, Mobile) und `core/bridge.tauri.test.ts`.

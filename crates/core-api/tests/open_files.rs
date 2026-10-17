@@ -13,18 +13,24 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use common::*;
-use pida_backend_api::Platform;
+use pida_backend_api::{BackendId, Platform, SignatureBackend};
 use pida_config::Overlay;
 use pida_core_api::{BatchItemStatusView, Core, CoreConfig, CoreOptions, OpenFilesMode, StepView, UiEvent, ViewState};
+use pida_workflow::ExistingPolicy;
 
 const PDF: &str = "pdf/generated/simple-xref-table.pdf";
 
 fn start(fx: &Fixture, platform: Platform) -> Core {
+    start_with(fx, platform, None)
+}
+
+fn start_with(fx: &Fixture, platform: Platform, backends: Option<Vec<Arc<dyn SignatureBackend>>>) -> Core {
     let overlay = Overlay { output: Some(fx.dir("out")), ..Overlay::default() };
     let config = CoreConfig { platform, ..fx.config(overlay, false) };
     let options = CoreOptions {
         workspace_ui: Some(true),
         batch_overview: Some(true),
+        backends,
         engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
         default_output_dir: (!platform.is_desktop()).then(|| fx.dir("docs")),
         ..CoreOptions::isolated()
@@ -251,4 +257,64 @@ async fn desktop_compares_paths_not_contents() {
     let v = overview(&core, 2).await;
     assert_eq!(names(&v), ["Vertrag.pdf", "Vertrag.pdf"]);
     assert!(notice(&v, DUPLICATES).is_none());
+}
+
+/// Viele Dateien in einer Auswahl (24 PDFs und eine Datei, die kein PDF ist – unter Windows/Linux über „Alle
+/// Dateien“ wählbar): alle kommen in der Reihenfolge der Auswahl in den Stapel; das Nicht-PDF bleibt als
+/// abgelehnter Eintrag sichtbar statt still zu verschwinden.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn many_files_and_a_non_pdf_all_arrive_in_selection_order() {
+    let fx = Fixture::new();
+    let dir = fx.dir("in");
+    let mut files: Vec<PathBuf> = (1..=24).map(|i| pdf(&dir, &format!("dok-{i:02}.pdf"), &i.to_string())).collect();
+    let text = dir.join("notiz.txt");
+    std::fs::write(&text, "kein PDF").unwrap();
+    files.insert(10, text);
+    let core = start(&fx, Platform::Linux);
+    wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    core.dispatch(UiEvent::OpenFiles { paths: files.clone(), mode: None });
+    let v = overview(&core, 25).await;
+    let chosen: Vec<String> = files.iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
+    assert_eq!(names(&v), chosen, "alle, Reihenfolge der Auswahl");
+    let items = &v.batch.as_ref().unwrap().items;
+    let rejected: Vec<&str> = items
+        .iter()
+        .filter(|i| matches!(i.status, BatchItemStatusView::Rejected { .. }))
+        .map(|i| i.name.as_str())
+        .collect();
+    assert_eq!(rejected, ["notiz.txt"]);
+    assert!(notice(&v, DUPLICATES).is_none() && notice(&v, MISSING).is_none(), "{:?}", v.notices);
+}
+
+/// Laufender Stapel („Alle signieren“ wartet auf die Anmeldung): „Öffnen mit“ bzw. eine zweite Instanz liefern
+/// trotzdem `open_files` (die Einstiege der Oberfläche sind gesperrt). Das neue PDF kommt als Eintrag dazu
+/// (`ng-batch-added`, nicht in den laufenden Lauf), das schon offene meldet der Kern statt es still zu verwerfen.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn running_batch_reports_already_open_documents() {
+    let fx = Fixture::new();
+    let dir = fx.dir("in");
+    let (a, b, c) = (pdf(&dir, "a.pdf", "a"), pdf(&dir, "b.pdf", "b"), pdf(&dir, "c.pdf", "c"));
+    let atrust = FakeAtrust::new();
+    let core = start_with(&fx, Platform::MacOs, Some(vec![atrust.backend()]));
+    wait_for(&core, "Öffnen", |v| matches!(v.step, StepView::Open { .. })).await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a.clone(), b], mode: None });
+    let v = overview(&core, 2).await;
+    core.dispatch(UiEvent::SelectSigner { backend: Some(BackendId::AtrustNative), make_default: false });
+    let docs = v.batch.as_ref().unwrap().items.iter().map(|i| i.doc).collect();
+    core.dispatch(UiEvent::StartBatch {
+        backend: BackendId::AtrustNative,
+        docs,
+        output_dir: Some(fx.dir("signiert")),
+        on_existing: ExistingPolicy::KeepBoth,
+    });
+    wait_for(&core, "Lauf wartet auf die Anmeldung", |v| {
+        matches!(v.step, StepView::Signing { .. }) && v.batch.as_ref().is_some_and(|b| b.running)
+    })
+    .await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![a, c], mode: None });
+    let v = wait_for(&core, "Hinweise", |v| notice(v, DUPLICATES).is_some()).await;
+    assert_eq!(notice(&v, DUPLICATES), params(&[("count", "1"), ("file", "a.pdf")]));
+    assert_eq!(notice(&v, "ng-batch-added"), params(&[("count", "1")]));
+    assert_eq!(names(&v), ["a.pdf", "b.pdf", "c.pdf"]);
+    assert!(v.batch.as_ref().unwrap().running, "der Lauf geht weiter");
 }
