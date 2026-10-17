@@ -3,7 +3,7 @@
   "productName": "PIDA",
   "identifier": "at.pida",
   "mainBinaryName": "pida",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "build": {
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist",

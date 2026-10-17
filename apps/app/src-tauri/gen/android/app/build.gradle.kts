@@ -43,10 +43,10 @@ android {
         // Plan §5.1/E-15: Android 9 (API 28)
         minSdk = 28
         targetSdk = 35
-        // tauri.properties (von der CLI aus `version` in tauri.conf.json erzeugt): 0.1.0 → versionCode
-        // 0 · 1000000 + 1 · 1000 + 0 = 1000; die Rückfallwerte entsprechen dem, falls die Datei fehlt
-        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1000").toInt()
-        versionName = tauriProperties.getProperty("tauri.android.versionName", "0.1.0")
+        // tauri.properties (von der CLI aus `version` in tauri.conf.json erzeugt): 0.2.0 → versionCode
+        // 0 · 1000000 + 2 · 1000 + 0 = 2000; die Rückfallwerte entsprechen dem, falls die Datei fehlt
+        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "2000").toInt()
+        versionName = tauriProperties.getProperty("tauri.android.versionName", "0.2.0")
     }
     sourceSets {
         getByName("main") {

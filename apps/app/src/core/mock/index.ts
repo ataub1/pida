@@ -1590,7 +1590,7 @@ export class MockCore implements Bridge {
   }
 
   async appInfo() {
-    return { version: '0.1.0', platform: mobile(this.opts) ? (this.opts.platform ?? 'mock') : 'mock', core_available: true };
+    return { version: '0.2.0', platform: mobile(this.opts) ? (this.opts.platform ?? 'mock') : 'mock', core_available: true };
   }
 
   // ------------------------------------------------------------------------------------------
