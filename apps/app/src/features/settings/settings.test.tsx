@@ -660,6 +660,8 @@ describe('Mobile (Abnahme E3 Punkt 7; nur ID Austria, ADR 0004 Nachtrag 11)', ()
     await user.click(nav(dialog, 'Datenschutz'));
     expect(within(dialog).getByText('Auf diesem Gerät wird mit ID Austria signiert; dazu wird das Dokument an A-Trust übermittelt.')).toBeInTheDocument();
     expect(within(dialog).queryByText(/Mit einem Keystore/)).toBeNull();
+    expect(within(dialog).getByText(/verarbeitet die für den Signaturvorgang benötigten Daten/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Chipkarte/)).toBeNull();
   });
 
   it('Suche findet keine Keystore-Einträge (Mobile), am Desktop schon', async () => {

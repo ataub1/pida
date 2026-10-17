@@ -5,7 +5,8 @@
  * die Einstellungen beim Abschnitt „Datenschutz“; während des Signierens (Einstellungen gesperrt wie in
  * PDF-Over) dieselben Angaben als schließbares Fenster.
  *
- * Der vollständige Text ([`PrivacyInfo`]) ist der Datenschutztext aus PDF-Over bzw. – per Richtlinie
+ * Der vollständige Text ([`PrivacyInfo`]) ist der Datenschutztext aus PDF-Over (auf Mobilgeräten ohne den Satz zur
+ * Chipkarte, `ng-ui-privacy-statement-mobile`) bzw. – per Richtlinie
  * `privacy_notice_text` – der eigene Text der Organisation, dazu der Hinweis auf das lokale Signieren mit
  * Keystore und Chipkarte (Mobilgeräte: dort wird nur mit ID Austria signiert, ADR 0004 Nachtrag 11 – der Hinweis
  * sagt das) und der Link zur Datenschutzerklärung von A-Trust.
@@ -27,7 +28,7 @@ export function PrivacyInfo() {
   return (
     <>
       <p className="pre-line">
-        {custom ? custom : <Markup text={t.t('ng-ui-privacy-statement')} targets={[{ href: url }]} />}
+        {custom ? custom : <Markup text={t.t(isMobile(view) ? 'ng-ui-privacy-statement-mobile' : 'ng-ui-privacy-statement')} targets={[{ href: url }]} />}
       </p>
       <p>{t.t(isMobile(view) ? 'ng-ui-privacy-local-mobile' : 'ng-ui-privacy-local')}</p>
       {custom ? (

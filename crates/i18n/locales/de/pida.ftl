@@ -577,9 +577,10 @@ ng-ui-position-help-mobile = Tippen Sie auf die gewünschte Stelle oder ziehen S
 
 ng-document-leaves-device = Hinweis: Das Dokument wird zum Signieren an A-Trust übermittelt (Datenschutzerklärung von A-Trust: https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
 ng-ui-privacy-statement = Die Software PIDA verarbeitet die für den Signaturvorgang benötigten Daten lokal auf dem installierten Gerät. Der Signaturvorgang mit der Chipkarte wird lokal durchgeführt. Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet. Die Speicherdauer sowie weitere Datenschutzinformationen zur ID-Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+ng-ui-privacy-statement-mobile = Die Software PIDA verarbeitet die für den Signaturvorgang benötigten Daten lokal auf dem installierten Gerät. Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet. Die Speicherdauer sowie weitere Datenschutzinformationen zur ID-Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Details zum Datenschutz
-ng-ui-privacy-local = Mit einem Keystore oder der Chipkarte (lokale BKU) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
+ng-ui-privacy-local = Mit einem Keystore oder der Chipkarte (über die Chipkarten-Software) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
 ng-ui-privacy-local-mobile = Auf diesem Gerät wird mit ID Austria signiert; dazu wird das Dokument an A-Trust übermittelt.
 ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.

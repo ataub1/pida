@@ -577,6 +577,7 @@ ng-ui-position-help-mobile = Tap the desired place or drag the signature block w
 
 ng-document-leaves-device = Note: the document is sent to A-Trust for signing (A-Trust privacy policy: https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
 ng-ui-privacy-statement = The software PIDA processes the data required for the signature process locally on the installed device. The signature process with the smart card is carried out locally. During the signature process using ID Austria, the PDF document to be signed is sent to the company A-Trust. The storage period and further data protection information for signatures using ID Austria can be found in the data protection declaration of A-Trust at <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+ng-ui-privacy-statement-mobile = The software PIDA processes the data required for the signature process locally on the installed device. During the signature process using ID Austria, the PDF document to be signed is sent to the company A-Trust. The storage period and further data protection information for signatures using ID Austria can be found in the data protection declaration of A-Trust at <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Privacy details
 ng-ui-privacy-local = With a keystore or the smart card (local smart card software) the document is signed on this device and is not uploaded.
