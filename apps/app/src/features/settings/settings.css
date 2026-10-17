@@ -465,6 +465,14 @@
   background: var(--c-surface-2);
   color: var(--c-text);
 }
+/* Fokus nach „Jetzt prüfen“ (der Knopf verschwindet während der Prüfung, about.tsx) – sichtbar wie andere Ziele */
+.about-update:focus {
+  outline: none;
+}
+.about-update:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
 .about-update-badge {
   flex: none;
   display: inline-grid;

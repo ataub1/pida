@@ -6,8 +6,9 @@
  *   auch nicht auf Klick); Schalter aus → `disabled`, bis „Jetzt prüfen“ einmalig prüft (das Ergebnis gilt, bis
  *   der Schalter wechselt).
  * - Start: das Ergebnis der Prüfung beim Start liegt wie aus dem Zwischenspeicher sofort vor (Szenario), außer bei
- *   `unchecked`/`checking`; `check_for_updates { explicit: false }` (Abschnitt geöffnet) prüft nur ohne frisches
- *   Ergebnis, `explicit: true` immer – jeweils nach der simulierten Latenz, mit `checking` dazwischen.
+ *   `unchecked`/`checking`; `check_for_updates { explicit: false }` (Abschnitt geöffnet) prüft nur ohne Ergebnis –
+ *   nach einem Fehler nicht bei jedem Öffnen erneut (der Kern wartet 15 Minuten, beim Rate-Limit eine Stunde) –,
+ *   `explicit: true` immer; jeweils nach der simulierten Latenz, mit `checking` dazwischen.
  * - Szenarien (`MockOptions::update`, Browser-Vorschau `?update=`): `up_to_date` (Standard), `available` (0.3.0),
  *   `failed` (erst Rate-Limit, „Erneut prüfen“ gelingt), `offline` (jede Prüfung ohne Verbindung), `unchecked`
  *   (noch kein Ergebnis; das Öffnen prüft), `checking` (die Prüfung endet nie – für Screenshots).
@@ -108,7 +109,8 @@ export const aboutArea: MockArea<AboutState> = {
   handle(event, s, ctx) {
     if (event.type !== 'check_for_updates') return false;
     if (s.mobile || s.policy?.update_check === false || s.running) return true;
-    if (!event.explicit && (!autoEnabled(s, ctx) || s.outcome?.kind === 'checked')) return true;
+    // der Mock kennt keine Zeit: ein Ergebnis (Erfolg oder Fehler) gilt als frisch
+    if (!event.explicit && (!autoEnabled(s, ctx) || s.outcome !== null)) return true;
     s.explicit = event.explicit;
     begin(s, ctx);
     return true;

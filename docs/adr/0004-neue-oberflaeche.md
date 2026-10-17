@@ -3504,13 +3504,18 @@ pub struct UpdateCheckView { state, latest_version, release_url, checked_at /* R
 pub enum UiEvent { /* … */ CheckForUpdates { #[serde(default)] explicit: bool } }                    // am Ende
 // CoreOptions::update_transport: Option<Arc<dyn update::UpdateTransport>> (Standard pida-net; isolated(): None)
 // Meldungs-IDs (pida.ftl): ng-update-available ($version), ng-update-failed-{offline,timeout,proxy,tls,
-//   rate-limited,server,invalid}; UI: ng-ui-about-*, ng-ui-privacy-update-check
+//   rate-limited,forbidden,server,invalid}; UI: ng-ui-about-*, ng-ui-privacy-update-check
 ```
 
-1. **Versionsdatum** (`crates/core-api/build.rs` → `update::RELEASE_DATE`): `SOURCE_DATE_EPOCH` (UTC-Datum), sonst
-   das Commit-Datum des gebauten Stands (`git log -1 --format=%cs`), ohne Git das Datum des Bauens. Nur das Datum –
-   keine Pfade, Namen oder Commit-Kennungen. Neu ausgeführt bei geändertem `SOURCE_DATE_EPOCH` bzw. wenn sich HEAD
-   bewegt (`HEAD`, `logs/HEAD`, Zweig, `packed-refs`). `pida-cli --version` bleibt unverändert.
+1. **Versionsdatum** (`crates/core-api/build.rs` → `update::RELEASE_DATE`, Auswahl in
+   `build_support/release_date.rs`): `SOURCE_DATE_EPOCH` (UTC-Datum), sonst das Commit-Datum des gebauten Stands
+   (`git log -1 --format=%cs`) – **nur** aus dem Repository, das das Crate verwaltet (`Cargo.toml` eingecheckt; ein in
+   einem fremden Repository ausgepacktes Quellarchiv bekäme sonst dessen Datum) –, ohne Git die Dateizeit von
+   `Cargo.toml` (Quellarchive von GitHub tragen die Zeit des Commits), zuletzt das Datum des Bauens (dann mit
+   `cargo:warning`). Angaben vor 2026 zählen nicht (`SOURCE_DATE_EPOCH=0`, 1980 als Vorgabe mancher Paketbauer –
+   sonst „© 1970“). Nur das Datum – keine Pfade, Namen oder Commit-Kennungen. Neu ausgeführt bei geändertem
+   `SOURCE_DATE_EPOCH` bzw. wenn sich HEAD bewegt (`HEAD`, `logs/HEAD`, Zweig, `packed-refs`), ohne Git bei
+   geänderter `Cargo.toml`. `pida-cli --version` bleibt unverändert.
 2. **Quelle und Request** (`update.rs`): `GET https://api.github.com/repos/ataub1/pida/releases` über `pida-net`
    (`Purpose::UpdateCheck`: ohne Cookies, Redirects, **nur `https`** – neu `Purpose::requires_https`, auch für
    Redirects –, Proxy der Einstellungen) mit 10 s Verbindungs-, 20 s Gesamtlimit und 2 MiB Höchstgröße; Header nur
@@ -3523,17 +3528,21 @@ pub enum UiEvent { /* … */ CheckForUpdates { #[serde(default)] explicit: bool 
    (`…/releases/tag/v<version>`) – die URL der Antwort wird nicht übernommen.
 4. **Wann:** beim Start im Hintergrund höchstens einmal je 24 h (letzter Versuch, auch erfolglos, aus
    `<cache_dir>/update-check.json`: nur `checked_at`, `attempted_at` und die gefundenen Tags); beim Öffnen von „Über
-   PIDA“ (`check_for_updates { explicit: false }`), wenn das letzte Ergebnis älter als eine Stunde ist – beides nur mit
-   eingeschalteter Prüfung (Richtlinie vor Einstellung). Ausgeschaltet prüft „Jetzt prüfen“ (`explicit: true`)
+   PIDA“ (`check_for_updates { explicit: false }`), wenn das letzte Ergebnis älter als eine Stunde ist – nach einem
+   Fehler erst nach 15 Minuten, nach einem Rate-Limit nach einer Stunde (nicht jedes Öffnen schickt eine Anfrage an ein
+   begrenzendes bzw. nicht erreichbares GitHub; „Erneut prüfen“ geht jederzeit) –, beides nur mit eingeschalteter
+   Prüfung (Richtlinie vor Einstellung). Ausgeschaltet prüft „Jetzt prüfen“ (`explicit: true`)
    einmalig; das Ergebnis gilt, bis der Schalter wechselt. Mit Richtlinie „aus“ nie, auch nicht auf Klick. Während
    einer Prüfung startet keine zweite. Der Start wartet nie (eigener Tokio-Task, Ergebnis als `Msg::UpdateChecked`).
    Findet die Prüfung **beim Start** eine neue Version, erscheint der Hinweis `ng-update-available` (Toast, kein
-   Dialog) – damit stimmt der Hinweistext des Schalters aus PDF-Over („Zeigt eine Benachrichtigung …“).
+   Dialog; nicht, wenn der Schalter inzwischen aus ist) – damit stimmt der Hinweistext des Schalters aus PDF-Over
+   („Zeigt eine Benachrichtigung …“).
 5. **Zustände:** `policy_off` (Richtlinie) › `checking` › `disabled` (Schalter aus, ohne „Jetzt prüfen“) › Ergebnis:
    `unchecked` (noch keines), `up_to_date`/`available` (nur nach erfolgreicher Prüfung, auch aus dem Zwischenspeicher),
    `failed` mit Grund – offline/keine Antwort, Zeitüberschreitung, Proxy (auch eine unbrauchbare Proxy-Angabe), TLS,
-   Rate-Limit (HTTP 403/429), anderer HTTP-Status, ungültige Antwort (kein JSON, zu groß). Nie „auf dem neuesten
-   Stand“ ohne erfolgreiche Prüfung.
+   Rate-Limit (HTTP 429 bzw. 403 mit `x-ratelimit-remaining: 0` oder `retry-after`), Zugriff verweigert (anderes 403 –
+   meist eine Sperre im Netz bzw. am Proxy, „zu viele Anfragen“ wäre dort irreführend), anderer HTTP-Status, ungültige
+   Antwort (kein JSON, zu groß). Nie „auf dem neuesten Stand“ ohne erfolgreiche Prüfung.
 6. **Wo nicht:** iOS/Android (keine Verteilung über GitHub bzw. Stores; die Zeile entfällt, Nachtrag „keine
    Store-Veröffentlichung“), ohne Oberfläche (CLI) und ohne Transport (`CoreOptions::isolated()` – kein Netz in
    Tests). `about` selbst (Version, Datum, Links) gibt es überall.
@@ -3541,7 +3550,9 @@ pub enum UiEvent { /* … */ CheckForUpdates { #[serde(default)] explicit: bool 
    · 17.10.2026“ (de-AT bzw. en-GB, `dateStyle: medium`), darunter die Statuskarte (Farben/Symbole aus dem
    Design-System: grünes Häkchen, Info-Symbol mit „Herunterladen“ → Release-Seite im Browser, Ladekreisel, Warnsymbol mit
    „Erneut prüfen“, „Jetzt prüfen“ bei ausgeschalteter bzw. noch nicht erfolgter Prüfung, Schloss bei der Richtlinie),
-   der Text als dauerhafte Live-Region (`role="status"`); die Linkliste (Versionshinweise, Quellcode, Drittlizenzen,
+   der Text als dauerhafte Live-Region (`role="status"`); verschwindet „Jetzt prüfen“/„Erneut prüfen“ während der
+   Prüfung, bekommt die Karte den Fokus (`tabIndex=-1`, sonst setzte React Aria ihn an den Anfang des Dialogs); die
+   Linkliste (Versionshinweise, Quellcode, Drittlizenzen,
    Datenschutz, am Desktop „Logs anzeigen“ – die bisherige Zeile „Protokolle“ ist darin aufgegangen, die Suche findet
    sie über `.keywords`), der Lizenztext von A-SIT aus PDF-Over, „Basiert auf PDF-Over von A-SIT.“ und als **letzte
    Zeile** „Urheberrecht © <Jahr> A-SIT · Lizenz EUPL-1.2“ (Jahr aus dem Versionsdatum). Die Oberfläche meldet nur
@@ -3555,10 +3566,15 @@ pub enum UiEvent { /* … */ CheckForUpdates { #[serde(default)] explicit: bool 
    `NSHumanReadableCopyright`), `bundle.homepage` (deb/rpm/NSIS/MSI), Cargo `authors = ["A-SIT"]` (deb `Maintainer`),
    `repository` auf GitHub; iOS `NSHumanReadableCopyright` in `gen/apple` (Info.plist, `project.yml`); THIRD-PARTY-NOTICES
    mit Urheberrechtsvermerk (Jahr wie oben); README-Abschnitt „Lizenz“. Android hat kein Copyright-Feld (Vermerk in
-   „Über PIDA“), AppStream-Metadaten gibt es nicht. Hinweis Windows: NSIS legt seine Einstellungen unter
-   `HKCU\Software\<Herausgeber>\PIDA` ab; nach dem Wechsel von „pida“ auf „A-SIT“ findet ein neues Installationsprogramm
-   den alten Schlüssel nicht mehr, installiert aber in denselben Standardordner (`%LOCALAPPDATA%\PIDA`) und denselben
-   Deinstallationseintrag (nach Produktname); der MSI-Upgrade-Code hängt am Produktnamen und bleibt.
+   „Über PIDA“), AppStream-Metadaten gibt es nicht. **Windows/NSIS:** Der Installer merkt sich den Ordner unter
+   `HKCU\Software\<Herausgeber>\PIDA`; bis 0.2.0 war das „pida“ (Tauri-Vorgabe aus der Kennung). Beim Aktualisieren
+   liest „Vor der Installation deinstallieren“ (Vorgabe) den Ordner aus dem Schlüssel des **neuen** Herausgebers und
+   ruft das alte Deinstallationsprogramm mit `_?=<Ordner>` auf – leer bräche es mit einer Fehlermeldung ab, die
+   Aktualisierung bliebe auf der Seite „Bereits installiert“ stehen. Deshalb übernimmt
+   `apps/app/src-tauri/windows/installer-hooks.nsh` (`bundle.windows.nsis.installerHooks`, über
+   `MUI_CUSTOMFUNCTION_GUIINIT` vor den Seiten) den alten Ordner in `Software\A-SIT\PIDA`, solange es diesen nicht gibt,
+   und installiert statt des Standardordners dorthin. Deinstallationseintrag (nach Produktname) und MSI-Upgrade-Code
+   (aus dem Produktnamen) bleiben gleich.
 
 **Tests:** Kern `update.rs` (SemVer-Lesen und -Rangfolge, Pre-Release-Regel, Releases der API mit Entwürfen und fremden
 Tags, Gründe je Netzfehler und Status, Release-Seiten, Request ohne Kennungen, Zwischenspeicher, Versionsdatum),
@@ -3566,10 +3582,14 @@ Tags, Gründe je Netzfehler und Status, Release-Seiten, Request ohne Kennungen, 
 Zwischenspeicher; neue Version mit einem Hinweis; 24 h beim Start, „Über PIDA“ nach einer Stunde, erfolgloser Versuch
 zählt; Schalter aus mit „Jetzt prüfen“ und Umschalten; Richtlinie aus/an; neun Fehlerarten mit „Erneut prüfen“;
 „prüft“ sichtbar, Kern bedienbar, keine zweite Prüfung; iOS, Android, CLI und `isolated` prüfen nie; Proben
-`real-core-about-views.json`; `github_releases_online` nur mit `PIDA_ONLINE_TESTS=1`), `pida-net`
+`real-core-about-views.json`; nach einem Fehler – Rate-Limit, offline – prüft das Öffnen nicht erneut, „Erneut prüfen“
+schon, ein altes Ergebnis aus dem Zwischenspeicher wird erneuert; kein Hinweis, wenn der Schalter während der Prüfung
+ausgeschaltet wurde; `github_releases_online` nur mit `PIDA_ONLINE_TESTS=1`), `tests/release_date.rs` (Kalenderdatum,
+Reihenfolge der Quellen, Angaben vor 2026, Quellarchiv in einem fremden Git-Repository), `pida-net`
 (`update_check_refuses_plain_http`, `purposes`), Shell `tests/bundle_metadata.rs` (Herausgeber, Copyright, Homepage,
-iOS, Cargo). Oberfläche `features/settings/about.test.tsx` (Kopf, Links, letzte Zeile, Englisch, Datum, iOS; jeder
-Zustand des echten Kerns mit Aktion und axe; Öffnen meldet nur „Abschnitt offen“; Hinweis ohne Dialog; Mock: Live-Region
+iOS, Cargo, NSIS-Übernahme des alten Herausgeber-Schlüssels). Oberfläche `features/settings/about.test.tsx` (Kopf, Links, letzte Zeile, Englisch, Datum, iOS; jeder
+Zustand des echten Kerns mit Aktion und axe; Öffnen meldet nur „Abschnitt offen“; Hinweis ohne Dialog; Fokus bleibt
+auf der Karte, wenn „Jetzt prüfen“ verschwindet; Mock: Live-Region
 „Suche …“ → „aktuell“ im selben Element, Schalter aus → „Jetzt prüfen“ → Fehler → „Erneut prüfen“, Richtlinie, neue
 Version, Android), `settings.test.tsx`/`units.test.ts` (Links statt Knöpfe, Logs im Block, Suche), Vertrag
 (`generated.ts`, `view-states.json` mit jedem Zustand und Mobile, `ui-events` mit `check_for_updates`, Real-Core-Proben
@@ -3585,7 +3605,8 @@ tauri-build (`resource.rc`, Fremdziel `x86_64-pc-windows-msvc`): `CompanyName` �
 
 **Angenommene Abweichungen:** PDF-Over fragte bei jedem Start `updates.a-sit.at/pdf-over/Release.txt` ab und zeigte bei
 einer neuen Version einen Dialog; PIDA fragt höchstens einmal am Tag bei GitHub und zeigt einen Hinweis ohne Dialog.
-Ein erfolgloser Versuch beim Start zählt für die 24 h mit (beim Öffnen von „Über PIDA“ wird ohnehin erneut geprüft).
+Ein erfolgloser Versuch beim Start zählt für die 24 h mit (beim Öffnen von „Über PIDA“ wird erneut geprüft, nach einem
+Fehler in derselben Sitzung frühestens nach 15 Minuten bzw. beim Rate-Limit nach einer Stunde).
 Der Hinweis erscheint nur nach der Prüfung beim Start, nicht nach „Jetzt prüfen“ (dort zeigt die Statuszeile das
 Ergebnis). Das Jahr in `bundle.copyright` ist fest (Jahr der ersten Veröffentlichung); „Über PIDA“ und die
 THIRD-PARTY-NOTICES nehmen das Jahr des Versionsdatums.

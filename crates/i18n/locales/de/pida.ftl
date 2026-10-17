@@ -705,6 +705,7 @@ ng-update-failed-timeout = GitHub antwortet nicht rechtzeitig
 ng-update-failed-proxy = Proxy-Fehler (Einstellungen › Erweitert › Proxy)
 ng-update-failed-tls = keine sichere Verbindung zu GitHub möglich
 ng-update-failed-rate-limited = zu viele Anfragen an GitHub – bitte später erneut prüfen
+ng-update-failed-forbidden = Zugriff auf GitHub verweigert (Netzwerk oder Proxy)
 ng-update-failed-server = GitHub meldet einen Fehler
 ng-update-failed-invalid = unerwartete Antwort von GitHub
 ng-ui-about-logo = PIDA-Symbol

@@ -10,11 +10,15 @@
 //!   SemVer 2.0 (mit Pre-Release-Kennungen, ohne Build-Metadaten); Tags heißen `v<semver>`, andere zählen nicht.
 //! - **Wann:** beim Start höchstens einmal je [`STARTUP_INTERVAL`] im Hintergrund (nie blockierend; Ergebnis in
 //!   [`CACHE_FILE`] im Cache-Ordner zwischengespeichert) und beim Öffnen von „Über PIDA“, wenn das letzte Ergebnis
-//!   älter als [`ABOUT_RECHECK_AFTER`] ist – jeweils nur mit `general.update_check` und wenn die Richtlinie es nicht
-//!   verbietet. Ausgeschaltet prüft „Jetzt prüfen“ einmalig auf ausdrücklichen Klick, mit Richtlinie „aus“ nie.
+//!   älter als [`ABOUT_RECHECK_AFTER`] ist – nach einem Fehler automatisch erst wieder nach
+//!   [`ABOUT_RETRY_AFTER_FAILURE`] (Rate-Limit: [`ABOUT_RECHECK_AFTER`]), damit nicht jedes Öffnen eine Anfrage an ein
+//!   begrenzendes bzw. nicht erreichbares GitHub schickt –, jeweils nur mit `general.update_check` und wenn die
+//!   Richtlinie es nicht verbietet. Ausgeschaltet prüft „Jetzt prüfen“ einmalig auf ausdrücklichen Klick, mit
+//!   Richtlinie „aus“ nie.
 //!   Findet die Prüfung beim Start eine neue Version, erscheint der Hinweis [`MSG_UPDATE_AVAILABLE`] (kein Dialog).
 //!   Auf iOS/Android (keine Verteilung über GitHub) und ohne Oberfläche (CLI) prüft der Kern nie.
-//! - **Fehler** (offline, Zeitüberschreitung, Proxy, TLS, Rate-Limit 403/429, Serverfehler, ungültige Antwort) →
+//! - **Fehler** (offline, Zeitüberschreitung, Proxy, TLS, Rate-Limit – 429 bzw. 403 mit `x-ratelimit-remaining: 0`
+//!   oder `retry-after` –, sonstiges 403 als Sperre, Serverfehler, ungültige Antwort) →
 //!   Zustand `failed` mit Grund `ng-update-failed-*`; „auf dem neuesten Stand“ nur nach einer erfolgreichen Prüfung.
 //! - **Logs** nennen nur Zustand, Version und Grund (keine Adressen, keine Personendaten).
 
@@ -43,6 +47,9 @@ pub const RELEASE_DATE: &str = env!("PIDA_RELEASE_DATE");
 pub const STARTUP_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 /// „Über PIDA“ prüft beim Öffnen erneut, wenn das letzte Ergebnis älter ist (sonst zeigt es das letzte).
 pub const ABOUT_RECHECK_AFTER: Duration = Duration::from_secs(60 * 60);
+/// Nach einer erfolglosen Prüfung prüft das Öffnen von „Über PIDA“ frühestens nach dieser Zeit erneut (das Rate-Limit
+/// von GitHub gilt je Stunde: dann erst nach [`ABOUT_RECHECK_AFTER`]); „Erneut prüfen“ geht jederzeit.
+pub const ABOUT_RETRY_AFTER_FAILURE: Duration = Duration::from_secs(15 * 60);
 /// Zwischenspeicher im Cache-Ordner (`Paths::cache_dir`): Zeitpunkte und gefundene Versionen, sonst nichts.
 pub const CACHE_FILE: &str = "update-check.json";
 /// Verbindungsaufbau.
@@ -68,8 +75,10 @@ pub const MSG_FAILED_TIMEOUT: &str = "ng-update-failed-timeout";
 pub const MSG_FAILED_PROXY: &str = "ng-update-failed-proxy";
 /// Grund: sichere Verbindung nicht möglich (TLS, Zertifikat).
 pub const MSG_FAILED_TLS: &str = "ng-update-failed-tls";
-/// Grund: GitHub begrenzt die Anfragen (HTTP 403/429).
+/// Grund: GitHub begrenzt die Anfragen (HTTP 429 bzw. 403 mit Rate-Limit-Angaben, [`reason_for_response`]).
 pub const MSG_FAILED_RATE_LIMITED: &str = "ng-update-failed-rate-limited";
+/// Grund: Zugriff verweigert (HTTP 403 ohne Rate-Limit-Angaben – meist eine Sperre im Netz bzw. am Proxy).
+pub const MSG_FAILED_FORBIDDEN: &str = "ng-update-failed-forbidden";
 /// Grund: GitHub antwortet mit einem anderen Fehler (HTTP-Status ≠ 200).
 pub const MSG_FAILED_SERVER: &str = "ng-update-failed-server";
 /// Grund: Antwort nicht lesbar (kein JSON, zu groß, unerwartetes Format).
@@ -352,12 +361,23 @@ pub fn reason_for_error(e: &NetError) -> &'static str {
     }
 }
 
-/// Grund für einen HTTP-Status ≠ 200 (403/429: Rate-Limit der GitHub-API für Anfragen ohne Anmeldung).
-pub fn reason_for_status(status: u16) -> &'static str {
-    match status {
-        403 | 429 => MSG_FAILED_RATE_LIMITED,
+/// Grund für eine Antwort mit HTTP-Status ≠ 200. GitHub begrenzt Anfragen ohne Anmeldung (60 je Stunde und
+/// IP-Adresse) mit 429 bzw. 403 samt `x-ratelimit-remaining: 0` oder `retry-after`; ein anderes 403 ist eine Sperre
+/// (oft eine Filterregel im Netz bzw. am Proxy) – „zu viele Anfragen“ wäre dann irreführend.
+pub fn reason_for_response(response: &Response) -> &'static str {
+    let rate_limited = response.header("x-ratelimit-remaining").is_some_and(|v| v.trim() == "0")
+        || response.header("retry-after").is_some();
+    match response.status {
+        429 => MSG_FAILED_RATE_LIMITED,
+        403 if rate_limited => MSG_FAILED_RATE_LIMITED,
+        403 => MSG_FAILED_FORBIDDEN,
         _ => MSG_FAILED_SERVER,
     }
+}
+
+/// Wartezeit bis zur nächsten **automatischen** Prüfung nach einem Fehler (Rate-Limit: eine Stunde).
+pub fn auto_retry_after(reason: &str) -> Duration {
+    if reason == MSG_FAILED_RATE_LIMITED { ABOUT_RECHECK_AFTER } else { ABOUT_RETRY_AFTER_FAILURE }
 }
 
 /// Fragt die Releases ab und liest sie (ohne Bewertung).
@@ -374,7 +394,7 @@ pub async fn fetch_releases(transport: &dyn UpdateTransport, proxy: ProxyConfig)
     }
     if response.status != 200 {
         tracing::info!(status = response.status, "Update-Prüfung: GitHub antwortet mit Fehler");
-        return Err(reason_for_status(response.status));
+        return Err(reason_for_response(&response));
     }
     parse_releases(&response.body)
 }
@@ -454,8 +474,8 @@ pub(crate) enum CheckKind {
 enum Outcome {
     /// erfolgreich (auch aus dem Zwischenspeicher)
     Checked { releases: Vec<Release>, at: OffsetDateTime },
-    /// nicht möglich (Grund)
-    Failed { reason: &'static str },
+    /// nicht möglich (Grund, Zeitpunkt)
+    Failed { reason: &'static str, at: OffsetDateTime },
 }
 
 /// Update-Prüfung und Angaben für „Über PIDA“.
@@ -523,9 +543,15 @@ impl UpdateState {
         }
     }
 
-    /// Ergebnis jünger als `max`?
-    fn fresh(&self, max: Duration) -> bool {
-        matches!(&self.outcome, Some(Outcome::Checked { at, .. }) if younger_than(*at, OffsetDateTime::now_utc(), max))
+    /// Automatische Prüfung beim Öffnen von „Über PIDA“ fällig? Ohne Ergebnis ja; nach einem Erfolg, wenn er älter als
+    /// [`ABOUT_RECHECK_AFTER`] ist; nach einem Fehler erst nach [`auto_retry_after`] (nicht bei jedem Öffnen).
+    fn about_recheck_due(&self) -> bool {
+        let now = OffsetDateTime::now_utc();
+        match &self.outcome {
+            None => true,
+            Some(Outcome::Checked { at, .. }) => !younger_than(*at, now, ABOUT_RECHECK_AFTER),
+            Some(Outcome::Failed { reason, at }) => !younger_than(*at, now, auto_retry_after(reason)),
+        }
     }
 
     /// Versuch (auch erfolglos) beim Start jünger als [`STARTUP_INTERVAL`]?
@@ -580,7 +606,7 @@ impl CoreTask {
         if self.updates.running.is_some() {
             return;
         }
-        if !explicit && (!self.update_auto_enabled() || self.updates.fresh(ABOUT_RECHECK_AFTER)) {
+        if !explicit && (!self.update_auto_enabled() || !self.updates.about_recheck_due()) {
             return;
         }
         self.begin_update_check(if explicit { CheckKind::Explicit } else { CheckKind::About });
@@ -627,7 +653,8 @@ impl CoreTask {
                 match &evaluation {
                     Some(Evaluation::Available { latest }) => {
                         tracing::info!(latest = %latest, "Update-Prüfung: neue Version verfügbar");
-                        if kind == CheckKind::Startup {
+                        // nur, solange die automatische Prüfung noch an ist (Schalter während der Prüfung umgelegt)
+                        if kind == CheckKind::Startup && self.update_auto_enabled() {
                             self.notify(
                                 MSG_UPDATE_AVAILABLE,
                                 BTreeMap::from([("version".to_owned(), latest.to_string())]),
@@ -644,7 +671,7 @@ impl CoreTask {
             }
             Err(reason) => {
                 tracing::warn!(reason, "Update-Prüfung nicht möglich");
-                self.updates.outcome = Some(Outcome::Failed { reason });
+                self.updates.outcome = Some(Outcome::Failed { reason, at: now });
             }
         }
         let file = self.updates.cache_file.clone();
@@ -698,7 +725,7 @@ impl CoreTask {
         let current = u.current.as_ref()?;
         Some(match &u.outcome {
             None => view(UpdateCheckState::Unchecked),
-            Some(Outcome::Failed { reason }) => {
+            Some(Outcome::Failed { reason, .. }) => {
                 UpdateCheckView { reason: Some((*reason).to_owned()), ..view(UpdateCheckState::Failed) }
             }
             Some(Outcome::Checked { releases, .. }) => match evaluate(current, releases) {
@@ -860,10 +887,31 @@ mod tests {
         assert_eq!(reason_for_error(&NetError::Proxy("407".into())), MSG_FAILED_PROXY);
         assert_eq!(reason_for_error(&NetError::Tls("cert".into())), MSG_FAILED_TLS);
         assert_eq!(reason_for_error(&NetError::Body("zu groß".into())), MSG_FAILED_INVALID);
-        assert_eq!(reason_for_status(403), MSG_FAILED_RATE_LIMITED);
-        assert_eq!(reason_for_status(429), MSG_FAILED_RATE_LIMITED);
-        assert_eq!(reason_for_status(404), MSG_FAILED_SERVER);
-        assert_eq!(reason_for_status(502), MSG_FAILED_SERVER);
+        let response = |status: u16, headers: &[(&str, &str)]| Response {
+            status,
+            reason: String::new(),
+            url: Url::parse(RELEASES_API).unwrap(),
+            headers: headers.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect(),
+            body: Vec::new(),
+        };
+        let reason = |status: u16, headers: &[(&str, &str)]| reason_for_response(&response(status, headers));
+        // Rate-Limit der GitHub-API: 429, bzw. 403 mit `x-ratelimit-remaining: 0` (primär) oder `retry-after` (sekundär)
+        assert_eq!(reason(429, &[]), MSG_FAILED_RATE_LIMITED);
+        assert_eq!(
+            reason(403, &[("x-ratelimit-remaining", "0"), ("x-ratelimit-reset", "1792224000")]),
+            MSG_FAILED_RATE_LIMITED
+        );
+        assert_eq!(reason(403, &[("retry-after", "60")]), MSG_FAILED_RATE_LIMITED);
+        // ein anderes 403 (z. B. die Sperrseite eines Proxys) ist kein Rate-Limit
+        assert_eq!(reason(403, &[]), MSG_FAILED_FORBIDDEN);
+        assert_eq!(reason(403, &[("x-ratelimit-remaining", "59")]), MSG_FAILED_FORBIDDEN);
+        assert_eq!(reason(404, &[]), MSG_FAILED_SERVER);
+        assert_eq!(reason(502, &[("retry-after", "5")]), MSG_FAILED_SERVER);
+        // automatisch erneut: nach einem Rate-Limit erst nach einer Stunde, sonst nach 15 Minuten
+        assert_eq!(auto_retry_after(MSG_FAILED_RATE_LIMITED), ABOUT_RECHECK_AFTER);
+        for r in [MSG_FAILED_OFFLINE, MSG_FAILED_TIMEOUT, MSG_FAILED_FORBIDDEN, MSG_FAILED_SERVER, MSG_FAILED_INVALID] {
+            assert_eq!(auto_retry_after(r), ABOUT_RETRY_AFTER_FAILURE, "{r}");
+        }
     }
 
     #[test]

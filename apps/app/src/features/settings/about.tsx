@@ -10,7 +10,7 @@
  * liefert der Kern keine Prüfung (`update = null`) – dort entfällt die Zeile. Ältere Kerne ohne `about`: Version aus
  * der Shell (`appInfo`), ohne Datum und Prüfung.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile, type UpdateCheckView } from '../../core/types';
@@ -49,14 +49,41 @@ function statusOf(u: UpdateCheckView, t: ReturnType<typeof useApp>['t']): { tone
   }
 }
 
-/** Statuszeile der Update-Prüfung (Karte mit Statussymbol, Text als Live-Region, ggf. Aktion). */
+/**
+ * Statuszeile der Update-Prüfung (Karte mit Statussymbol, Text als Live-Region, ggf. Aktion).
+ *
+ * Fokus: „Jetzt prüfen“/„Erneut prüfen“ verschwindet, sobald der Kern prüft („Suche nach Updates …“). Lag der Fokus
+ * darauf, ginge er verloren – React Aria setzte ihn an den Anfang des Dialogs. Deshalb bekommt die Karte selbst den
+ * Fokus (`tabIndex=-1`); den neuen Zustand sagt die Live-Region an, ein Tab weiter liegt ggf. der neue Knopf.
+ */
 export function UpdateStatus({ update }: { update: UpdateCheckView }) {
   const { t, dispatch, bridge, toast } = useApp();
   const s = statusOf(update, t);
-  const check = () => void dispatch({ type: 'check_for_updates', explicit: true });
+  const card = useRef<HTMLDivElement>(null);
+  const pressed = useRef(false);
+  const check = () => {
+    pressed.current = true;
+    void dispatch({ type: 'check_for_updates', explicit: true });
+  };
+  useLayoutEffect(() => {
+    const el = card.current;
+    if (!pressed.current || !el || el.querySelector('.about-update-action')) return;
+    pressed.current = false;
+    // nur, wenn der Fokus mit dem Knopf verschwunden ist (nie von einer anderen Stelle wegziehen)
+    const active = document.activeElement;
+    if (active === null || active === document.body) el.focus();
+  });
   const url = update.release_url;
   return (
-    <div className={`about-update is-${s.tone}`} data-testid="about-update" data-state={update.state} role="group" aria-label={t.t('ng-ui-about-update-region')}>
+    <div
+      ref={card}
+      tabIndex={-1}
+      className={`about-update is-${s.tone}`}
+      data-testid="about-update"
+      data-state={update.state}
+      role="group"
+      aria-label={t.t('ng-ui-about-update-region')}
+    >
       <span className="about-update-badge" aria-hidden="true">
         {s.icon}
       </span>

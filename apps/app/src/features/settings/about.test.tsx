@@ -189,6 +189,30 @@ describe('Über PIDA mit dem Mock-Kern: Abläufe und Live-Region', () => {
     expect(checks(mock.dispatched).map((e) => e.type === 'check_for_updates' && e.explicit)).toEqual([false, true, true]);
   });
 
+  it('Tastatur: „Jetzt prüfen“ verschwindet während der Prüfung – der Fokus bleibt in der Statuskarte (nicht am Anfang des Dialogs)', async () => {
+    const base = defaultSettings();
+    const settings = { ...base, general: { ...base.general, update_check: false } };
+    const { about, user } = await openMockAbout({ settings, update: 'failed', delayMs: 150 });
+    const card = within(about).getByRole('group', { name: 'Updates' });
+    const live = within(card).getByRole('status');
+    within(card).getByRole('button', { name: 'Jetzt prüfen' }).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(live).toHaveTextContent('Suche nach Updates …'));
+    expect(within(card).queryByRole('button')).toBeNull();
+    // React Aria hält den Fokus im Dialog; ohne Ziel spränge er an den Anfang (Schließen bzw. Suche)
+    await new Promise((r) => setTimeout(r, 50));
+    expect(document.activeElement).toBe(card);
+    // Fehler: „Erneut prüfen“ erscheint, der Fokus bleibt auf der Karte (ein Tab weiter liegt der Knopf)
+    await waitFor(() => expect(live).toHaveTextContent('Prüfung nicht möglich'));
+    expect(document.activeElement).toBe(card);
+    await user.tab();
+    expect(document.activeElement).toBe(within(card).getByRole('button', { name: 'Erneut prüfen' }));
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(live).toHaveTextContent('PIDA ist auf dem neuesten Stand'));
+    expect(document.activeElement).toBe(card);
+    await expectNoAxeViolations();
+  });
+
   it('Richtlinie: von der Organisation deaktiviert, keine Aktion; neue Version: Herunterladen', async () => {
     const { about } = await openMockAbout({ policy: { update_check: false } } as Parameters<typeof renderApp>[0]);
     expect(within(about).getByRole('status')).toHaveTextContent('Von der Organisation deaktiviert');

@@ -98,8 +98,9 @@ tools/cross-clippy.sh x86_64-pc-windows-msvc        # CI-Clippy für Windows/Lin
   `cargo test -p pida-core-api --test about github_releases_online` gegen `api.github.com` (Update-Prüfung, ADR 0004
   Nachtrag 21) – nur mit `PIDA_ONLINE_TESTS=1`, sonst übersprungen.
 - **Versionsdatum** („Über PIDA“): `crates/core-api/build.rs` bettet `SOURCE_DATE_EPOCH` (UTC-Datum) bzw. das
-  Commit-Datum des gebauten Stands ein (`git log -1 --format=%cs`; ohne Git das Datum des Bauens) – reproduzierbar,
-  nur das Datum.
+  Commit-Datum des gebauten Stands ein (`git log -1 --format=%cs`, nur aus dem Repository, das das Crate verwaltet);
+  ohne Git die Dateizeit von `Cargo.toml` (GitHub-Quellarchive: Zeit des Commits), zuletzt das Datum des Bauens. Angaben
+  vor 2026 zählen nicht; nur das Datum (`build_support/release_date.rs`, `tests/release_date.rs`).
 - FIDO2 unter Linux braucht Zugriff auf `/dev/hidraw*` (udev-Regel mit `uaccess`, Flatpak `--device=all`).
 - Die Tauri-Shell (`apps/app`, Paket I3) braucht unter Linux `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`,
   `libsoup-3.0-dev`, `libjavascriptcoregtk-4.1-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`,
@@ -327,7 +328,9 @@ Noch kein Release-Workflow; die Bausteine stehen fest:
    "© 2026 A-SIT · EUPL-1.2"` und `bundle.homepage` in `apps/app/src-tauri/tauri.conf.json` (Windows `CompanyName`/
    `LegalCopyright`, NSIS `Publisher`, MSI `Manufacturer`, macOS `NSHumanReadableCopyright`, deb/rpm/NSIS/MSI
    Homepage), Cargo `authors = ["A-SIT"]` (deb `Maintainer`), iOS `NSHumanReadableCopyright` in `gen/apple`
-   (Info.plist und `project.yml`); geprüft von `apps/app/src-tauri/tests/bundle_metadata.rs`. Nachweis macOS:
+   (Info.plist und `project.yml`); NSIS übernimmt beim Aktualisieren den Ordner aus dem Schlüssel des bisherigen
+   Herausgebers „pida“ (`apps/app/src-tauri/windows/installer-hooks.nsh`); geprüft von
+   `apps/app/src-tauri/tests/bundle_metadata.rs`. Nachweis macOS:
    `npm run bundle:mac:debug`, dann `plutil -p target/debug/bundle/macos/PIDA.app/Contents/Info.plist`; Windows:
    die von tauri-build erzeugte `target/…/build/pida-app-*/out/resource.rc` (`CompanyName`, `LegalCopyright`).
 

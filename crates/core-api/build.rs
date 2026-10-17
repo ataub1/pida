@@ -1,98 +1,47 @@
 //! Build-Skript von `pida-core-api`: bettet das **Versionsdatum** ein (`PIDA_RELEASE_DATE`, `JJJJ-MM-TT`;
-//! „Über PIDA“, ADR 0004 Nachtrag 21).
-//!
-//! Reproduzierbar – dasselbe Datum für denselben Stand, egal wann und wo gebaut wird:
-//! 1. `SOURCE_DATE_EPOCH` (Sekunden seit 1970, reproducible-builds.org), als Kalenderdatum in UTC,
-//! 2. sonst das Commit-Datum des gebauten Stands (`git log -1 --format=%cs`),
-//! 3. sonst (Quellen ohne Git) das Datum des Bauens (UTC).
+//! „Über PIDA“, ADR 0004 Nachtrag 21). Die Auswahl steht in `build_support/release_date.rs` (dort beschrieben und von
+//! `tests/release_date.rs` geprüft): `SOURCE_DATE_EPOCH`, sonst das Commit-Datum des gebauten Stands (nur aus dem
+//! Repository, das dieses Crate verwaltet), ohne Git die Dateizeit von `Cargo.toml`, zuletzt das Datum des Bauens;
+//! Angaben vor 2026 zählen nicht.
 //!
 //! Eingebettet wird **nur** das Datum – keine Pfade, Namen oder Commit-Kennungen. Cargo führt das Skript neu
-//! aus, wenn sich `SOURCE_DATE_EPOCH` oder der ausgecheckte Commit ändert (`HEAD`, Zweig, `packed-refs`).
+//! aus, wenn sich `SOURCE_DATE_EPOCH` oder der ausgecheckte Commit ändert (`HEAD`, Zweig, `packed-refs`) bzw. ohne
+//! Git `Cargo.toml`.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+#[path = "build_support/release_date.rs"]
+mod release_date;
+
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=build_support/release_date.rs");
     println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap_or_default());
-    let date = std::env::var("SOURCE_DATE_EPOCH")
-        .ok()
-        .and_then(|s| s.trim().parse::<i64>().ok())
-        .map(civil_date)
-        .or_else(|| commit_date(&manifest))
-        .unwrap_or_else(|| {
-            let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-            civil_date(i64::try_from(secs).unwrap_or(0))
-        });
-    println!("cargo:rustc-env=PIDA_RELEASE_DATE={date}");
-}
-
-/// Commit-Datum (`%cs`, Zeitzone des Commits) samt Auslösern für einen Neubau; `None` ohne Git.
-fn commit_date(dir: &Path) -> Option<String> {
-    let date = git(dir, &["log", "-1", "--format=%cs"])?;
-    if !is_iso_date(&date) {
-        return None;
-    }
-    // Neu ausführen, sobald ein anderer Commit ausgecheckt bzw. auf dem Zweig committet wird
-    if let Some(git_dir) = git(dir, &["rev-parse", "--absolute-git-dir"]) {
-        let git_dir = Path::new(&git_dir);
-        rerun_if_exists(&git_dir.join("HEAD"));
-        // jede Bewegung von HEAD (Commit, Checkout, Reset) – auch wenn der Zweig nur in `packed-refs` steht
-        rerun_if_exists(&git_dir.join("logs").join("HEAD"));
-    }
-    if let (Some(common), Some(head_ref)) =
-        (git(dir, &["rev-parse", "--git-common-dir"]), git(dir, &["rev-parse", "--symbolic-full-name", "HEAD"]))
-    {
-        let common = if Path::new(&common).is_absolute() { PathBuf::from(common) } else { dir.join(common) };
-        if head_ref.starts_with("refs/") {
-            rerun_if_exists(&common.join(&head_ref));
+    let source_date_epoch = std::env::var("SOURCE_DATE_EPOCH").ok();
+    let git = release_date::git_commit_date(&manifest);
+    let cargo_toml = manifest.join("Cargo.toml");
+    let file_time = if git.is_none() { release_date::file_time(&cargo_toml) } else { None };
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let (date, source) = release_date::select(
+        source_date_epoch.as_deref(),
+        git.as_ref().map(|(d, _)| d.as_str()),
+        file_time,
+        i64::try_from(now).unwrap_or(0),
+    );
+    match &git {
+        Some((_, rerun)) => {
+            for path in rerun {
+                println!("cargo:rerun-if-changed={}", path.display());
+            }
         }
-        rerun_if_exists(&common.join("packed-refs"));
+        None => println!("cargo:rerun-if-changed=Cargo.toml"),
     }
-    Some(date)
-}
-
-fn git(dir: &Path, args: &[&str]) -> Option<String> {
-    let out = Command::new("git").arg("-C").arg(dir).args(args).output().ok()?;
-    if !out.status.success() {
-        return None;
+    if source == release_date::Origin::BuildTime {
+        println!(
+            "cargo:warning=Versionsdatum: weder SOURCE_DATE_EPOCH noch Git noch Dateizeit – Datum des Bauens ({date})"
+        );
     }
-    let text = String::from_utf8(out.stdout).ok()?;
-    let text = text.trim();
-    (!text.is_empty()).then(|| text.to_owned())
-}
-
-/// Nur vorhandene Dateien melden: eine fehlende hielte Cargo für „geändert“ und führte das Skript jedes Mal aus.
-fn rerun_if_exists(path: &Path) {
-    if path.is_file() {
-        println!("cargo:rerun-if-changed={}", path.display());
-    }
-}
-
-/// `JJJJ-MM-TT` mit plausiblen Werten.
-fn is_iso_date(s: &str) -> bool {
-    let b = s.as_bytes();
-    b.len() == 10
-        && b[4] == b'-'
-        && b[7] == b'-'
-        && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
-        && (1..=12).contains(&s[5..7].parse::<u8>().unwrap_or(0))
-        && (1..=31).contains(&s[8..10].parse::<u8>().unwrap_or(0))
-}
-
-/// Sekunden seit 1970 → Kalenderdatum (UTC, proleptischer gregorianischer Kalender; H. Hinnant, `civil_from_days`).
-fn civil_date(secs: i64) -> String {
-    let days = secs.div_euclid(86_400);
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year:04}-{month:02}-{day:02}")
+    println!("cargo:rustc-env=PIDA_RELEASE_DATE={date}");
 }

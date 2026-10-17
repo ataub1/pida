@@ -2679,7 +2679,8 @@ export type AboutView = {
 version: string, 
 /**
  * Versionsdatum `JJJJ-MM-TT` – Commit-Datum des gebauten Stands, beim Bauen eingebettet (`SOURCE_DATE_EPOCH`,
- * sonst Git, ohne Git das Datum des Bauens); sein Jahr steht im Urheberrechtsvermerk
+ * sonst Git, ohne Git die Dateizeit von `Cargo.toml`, zuletzt das Datum des Bauens; nie vor 2026); sein Jahr steht
+ * im Urheberrechtsvermerk
  */
 release_date: string, 
 /**

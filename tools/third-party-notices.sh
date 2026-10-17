@@ -184,11 +184,22 @@ else
 fi
 
 # --- Zusammenführen --------------------------------------------------------------------------------
-# Jahr des Urheberrechtsvermerks wie „Über PIDA“: aus dem Versionsdatum (SOURCE_DATE_EPOCH, sonst Commit-Datum)
+# Jahr des Urheberrechtsvermerks wie „Über PIDA“ (Versionsdatum, crates/core-api/build_support/release_date.rs):
+# SOURCE_DATE_EPOCH, sonst das Commit-Datum – nur aus dem Repository, das PIDA selbst verwaltet (nicht aus einem fremden,
+# in dem ein Quellarchiv ausgepackt wurde) –, sonst die Dateizeit von Cargo.toml, zuletzt heute; Jahre vor 2026 zählen
+# nicht (SOURCE_DATE_EPOCH=0, Dateizeiten 1970/1980)
+YEAR=""
 if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
-  YEAR="$(python3 -I -c 'import datetime,sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1]), datetime.timezone.utc).year)' "$SOURCE_DATE_EPOCH")"
-else
-  YEAR="$(git -C "$ROOT" log -1 --format=%cd --date=format:%Y 2>/dev/null || date -u +%Y)"
+  YEAR="$(python3 -I -c 'import datetime,sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1]), datetime.timezone.utc).year)' "$SOURCE_DATE_EPOCH" 2>/dev/null || true)"
+fi
+if ! [ "${YEAR:-0}" -ge 2026 ] 2>/dev/null && git -C "$ROOT" ls-files --error-unmatch -- Cargo.toml >/dev/null 2>&1; then
+  YEAR="$(git -C "$ROOT" log -1 --format=%cd --date=format:%Y 2>/dev/null || true)"
+fi
+if ! [ "${YEAR:-0}" -ge 2026 ] 2>/dev/null; then
+  YEAR="$(python3 -I -c 'import datetime,os,sys; print(datetime.datetime.fromtimestamp(os.stat(sys.argv[1]).st_mtime, datetime.timezone.utc).year)' "$ROOT/Cargo.toml" 2>/dev/null || true)"
+fi
+if ! [ "${YEAR:-0}" -ge 2026 ] 2>/dev/null; then
+  YEAR="$(date -u +%Y)"
 fi
 {
   echo "# THIRD-PARTY-NOTICES – PIDA"

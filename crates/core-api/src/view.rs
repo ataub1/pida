@@ -982,7 +982,8 @@ pub enum UiEvent {
         mode: Option<OpenFilesMode>,
     },
     /// „Über PIDA“ (ADR 0004 Nachtrag 21): beim Öffnen des Abschnitts (`explicit = false`) prüft der Kern, wenn die
-    /// automatische Prüfung an ist und das letzte Ergebnis älter als eine Stunde; „Jetzt prüfen“ bzw. „Erneut prüfen“
+    /// automatische Prüfung an ist und das letzte Ergebnis älter als eine Stunde (nach einem Fehler frühestens nach
+    /// 15 Minuten, nach einem Rate-Limit nach einer Stunde); „Jetzt prüfen“ bzw. „Erneut prüfen“
     /// (`explicit = true`) prüft einmalig auch bei ausgeschalteter automatischer Prüfung. Nie mit Richtlinie „aus“,
     /// auf iOS/Android und ohne Oberfläche; während einer Prüfung ohne Wirkung. Lädt und installiert nichts.
     CheckForUpdates {
@@ -2096,7 +2097,8 @@ pub struct AboutView {
     /// Version der App (`0.2.0`)
     pub version: String,
     /// Versionsdatum `JJJJ-MM-TT` – Commit-Datum des gebauten Stands, beim Bauen eingebettet (`SOURCE_DATE_EPOCH`,
-    /// sonst Git, ohne Git das Datum des Bauens); sein Jahr steht im Urheberrechtsvermerk
+    /// sonst Git, ohne Git die Dateizeit von `Cargo.toml`, zuletzt das Datum des Bauens; nie vor 2026); sein Jahr steht
+    /// im Urheberrechtsvermerk
     pub release_date: String,
     /// Versionshinweise dieser Version (GitHub-Release `v<version>`)
     pub release_notes_url: String,
@@ -2124,7 +2126,7 @@ pub enum UpdateCheckState {
     UpToDate,
     /// neuere Version verfügbar (`latest_version`, `release_url`); nichts wird heruntergeladen
     Available,
-    /// Prüfung nicht möglich (`reason`); „Erneut prüfen“
+    /// Prüfung nicht möglich (`reason`); „Erneut prüfen“ (das Öffnen von „Über PIDA“ prüft nicht sofort erneut)
     Failed,
 }
 

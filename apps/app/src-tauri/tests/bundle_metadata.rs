@@ -11,6 +11,11 @@
 //! iOS: das versionierte Xcode-Projekt (`gen/apple`) trägt `NSHumanReadableCopyright` selbst (Info.plist und
 //! `project.yml` für xcodegen). Android kennt kein Copyright-Feld im Manifest; dort steht der Vermerk in „Über
 //! PIDA“.
+//!
+//! Windows/NSIS: Der Herausgeber steckt auch im Registrierungsschlüssel `Software\<Herausgeber>\<Produkt>`, unter
+//! dem sich der Installer den Ordner merkt. Bis 0.2.0 war das „pida“ (Tauri-Vorgabe aus der Kennung `at.pida`);
+//! `windows/installer-hooks.nsh` übernimmt den alten Ordner, damit „Vor der Installation deinstallieren“ die alte
+//! Installation findet.
 
 fn json(text: &str) -> serde_json::Value {
     serde_json::from_str(text).expect("JSON")
@@ -20,6 +25,7 @@ const TAURI_CONF: &str = include_str!("../tauri.conf.json");
 const IOS_INFO_PLIST: &str = include_str!("../gen/apple/pida-app_iOS/Info.plist");
 const IOS_PROJECT: &str = include_str!("../gen/apple/project.yml");
 const WORKSPACE: &str = include_str!("../../../../Cargo.toml");
+const NSIS_HOOKS: &str = include_str!("../windows/installer-hooks.nsh");
 
 #[test]
 fn installers_name_a_sit_as_publisher_and_copyright_holder() {
@@ -56,4 +62,37 @@ fn cargo_metadata_names_a_sit() {
         WORKSPACE.contains("\nrepository = \"https://github.com/ataub1/pida\"\n"),
         "[workspace.package] repository"
     );
+}
+
+/// Herausgeber-Wechsel im NSIS-Installer: Der Installer übernimmt beim Start der Oberfläche den Ordner der bis 0.2.0
+/// unter „pida“ registrierten Installation (sonst bräche „Vor der Installation deinstallieren“ ab, siehe
+/// `windows/installer-hooks.nsh`).
+#[test]
+fn nsis_installer_adopts_the_registry_key_of_the_former_publisher() {
+    let conf = json(TAURI_CONF);
+    let nsis = &conf["bundle"]["windows"]["nsis"];
+    assert_eq!(nsis["installerHooks"], "windows/installer-hooks.nsh", "bundle.windows.nsis.installerHooks");
+    // Installation für den aktuellen Benutzer (Tauri-Vorgabe): Standardordner %LOCALAPPDATA%\<Produkt>
+    assert!(nsis.get("installMode").is_none_or(|m| m == "currentUser"), "{nsis}");
+    let product = conf["productName"].as_str().expect("productName");
+    let publisher = conf["bundle"]["publisher"].as_str().expect("bundle.publisher");
+    // bisheriger Herausgeber: Tauri-Vorgabe = zweiter Teil der Kennung (at.pida → pida)
+    let identifier = conf["identifier"].as_str().expect("identifier");
+    let legacy = identifier.split('.').nth(1).expect("Kennung mit Punkt");
+    assert_eq!((legacy, publisher), ("pida", "A-SIT"));
+    let new_key = format!("\"Software\\{publisher}\\{product}\"");
+    let old_key = format!("\"Software\\{legacy}\\{product}\"");
+    assert!(NSIS_HOOKS.contains("!define MUI_CUSTOMFUNCTION_GUIINIT PidaAdoptLegacyPublisherKey"), "vor den Seiten");
+    assert!(NSIS_HOOKS.contains("Function PidaAdoptLegacyPublisherKey") && NSIS_HOOKS.contains("FunctionEnd"));
+    assert!(NSIS_HOOKS.contains(&format!("ReadRegStr $0 SHCTX {new_key} \"\"")), "neuer Schlüssel {new_key}");
+    assert!(NSIS_HOOKS.contains(&format!("ReadRegStr $0 SHCTX {old_key} \"\"")), "alter Schlüssel {old_key}");
+    assert!(NSIS_HOOKS.contains(&format!("WriteRegStr SHCTX {new_key} \"\" $0")), "Übernahme");
+    assert!(
+        NSIS_HOOKS.contains(&format!("StrCmp $INSTDIR \"$LOCALAPPDATA\\{product}\"")),
+        "nur statt des Standardordners"
+    );
+    // Code nur in ASCII (Kommentare dürfen Umlaute haben)
+    for line in NSIS_HOOKS.lines().filter(|l| !l.trim_start().starts_with(';')) {
+        assert!(line.is_ascii(), "{line}");
+    }
 }

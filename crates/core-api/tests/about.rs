@@ -32,6 +32,8 @@ enum Reply {
     Json(&'static str),
     /// anderer Status (leerer Körper)
     Status(u16),
+    /// Rate-Limit der GitHub-API: 403 mit `x-ratelimit-remaining: 0`
+    RateLimited,
     /// Netzfehler
     Error(fn() -> NetError),
 }
@@ -108,6 +110,13 @@ impl UpdateTransport for FakeGitHub {
         match reply {
             Reply::Json(body) => Ok(response(200, body.as_bytes())),
             Reply::Status(status) => Ok(response(status, b"")),
+            Reply::RateLimited => {
+                let mut r = response(403, br#"{"message":"API rate limit exceeded"}"#);
+                r.headers.push(("x-ratelimit-limit".into(), "60".into()));
+                r.headers.push(("x-ratelimit-remaining".into(), "0".into()));
+                r.headers.push(("x-ratelimit-reset".into(), "1792224000".into()));
+                Ok(r)
+            }
             Reply::Error(e) => Err(e()),
         }
     }
@@ -363,8 +372,9 @@ async fn failures_name_a_reason_and_retry_works() {
     let fx = fixture("[general]\n");
     let gh = FakeGitHub::held(&[
         Reply::Error(|| NetError::Timeout),
-        Reply::Status(403),
+        Reply::RateLimited,
         Reply::Status(429),
+        Reply::Status(403),
         Reply::Status(502),
         Reply::Json("<html>Wartung</html>"),
         Reply::Json(r#"{"message":"Not Found"}"#),
@@ -378,6 +388,7 @@ async fn failures_name_a_reason_and_retry_works() {
         update::MSG_FAILED_TIMEOUT,
         update::MSG_FAILED_RATE_LIMITED,
         update::MSG_FAILED_RATE_LIMITED,
+        update::MSG_FAILED_FORBIDDEN,
         update::MSG_FAILED_SERVER,
         update::MSG_FAILED_INVALID,
         update::MSG_FAILED_INVALID,
@@ -425,6 +436,71 @@ async fn checking_is_visible_and_never_blocks() {
     assert_eq!(gh.calls(), 1, "keine zweite Prüfung während der ersten");
     gh.release();
     wait_state(&core, UpdateCheckState::Available).await;
+}
+
+/// Nach einem Fehler prüft nicht jedes Öffnen von „Über PIDA“ erneut (Rate-Limit: weitere Anfragen verlängern die
+/// Sperre nur; offline: nichts zu gewinnen) – der Zustand „nicht möglich“ bleibt mit „Erneut prüfen“ stehen, das
+/// jederzeit prüft. Ein altes Ergebnis aus dem Zwischenspeicher wird dagegen beim Öffnen erneuert, auch wenn der
+/// letzte Versuch (in einer früheren Sitzung) erst kurz zurückliegt.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn failed_checks_are_not_repeated_on_every_open() {
+    for (first, reason) in [
+        (Reply::RateLimited, update::MSG_FAILED_RATE_LIMITED),
+        (Reply::Error(|| NetError::Connect("dns error".into())), update::MSG_FAILED_OFFLINE),
+    ] {
+        let fx = fixture("[general]\n");
+        let gh = FakeGitHub::new(&[first, Reply::Json(TODAY)]);
+        let core = start(&fx, &gh);
+        let v = wait_state(&core, UpdateCheckState::Failed).await;
+        assert_eq!(update(&v).unwrap().reason.as_deref(), Some(reason));
+        for _ in 0..3 {
+            core.dispatch(UiEvent::CheckForUpdates { explicit: false });
+        }
+        settle().await;
+        assert_eq!(gh.calls(), 1, "{reason}: Öffnen nach einem Fehler prüft nicht sofort erneut");
+        assert_eq!(state(&core.view()), Some(UpdateCheckState::Failed));
+        core.dispatch(UiEvent::CheckForUpdates { explicit: true });
+        wait_state(&core, UpdateCheckState::UpToDate).await;
+        assert_eq!(gh.calls(), 2, "{reason}: „Erneut prüfen“ prüft");
+    }
+
+    // Erfolg vor 10 Tagen, erfolgloser Versuch vor 30 Minuten (frühere Sitzung): beim Start keine Prüfung, aber das
+    // Öffnen erneuert das alte „auf dem neuesten Stand“
+    let fx = fixture("[general]\n");
+    std::fs::create_dir_all(&fx.paths.cache_dir).unwrap();
+    let ago = |minutes: i64| (OffsetDateTime::now_utc() - time::Duration::minutes(minutes)).format(&Rfc3339).unwrap();
+    let cache = serde_json::json!({
+        "checked_at": ago(10 * 24 * 60),
+        "attempted_at": ago(30),
+        "releases": [{ "tag": "v0.2.0", "prerelease": true }],
+    });
+    std::fs::write(fx.paths.cache_dir.join(update::CACHE_FILE), cache.to_string()).unwrap();
+    let gh = FakeGitHub::new(&[Reply::Json(NEWER)]);
+    let core = start(&fx, &gh);
+    wait_state(&core, UpdateCheckState::UpToDate).await;
+    settle().await;
+    assert_eq!(gh.calls(), 0, "Versuch vor 30 Minuten: beim Start keine Prüfung");
+    core.dispatch(UiEvent::CheckForUpdates { explicit: false });
+    wait_state(&core, UpdateCheckState::Available).await;
+    assert_eq!(gh.calls(), 1);
+}
+
+/// Schalter während der Prüfung beim Start ausgeschaltet: kein Hinweis auf die neue Version.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn no_startup_notice_after_the_switch_was_turned_off() {
+    let fx = fixture("[general]\n");
+    let gh = FakeGitHub::held(&[Reply::Json(NEWER)]);
+    let core = start(&fx, &gh);
+    wait_state(&core, UpdateCheckState::Checking).await;
+    core.dispatch(UiEvent::OpenSettings);
+    wait_for(&core, "Einstellungen", |v| v.settings.is_some()).await;
+    apply(&core, 1, false);
+    wait_for(&core, "aus", |v| v.settings.as_ref().is_some_and(|s| !s.settings.general.update_check)).await;
+    gh.release();
+    wait_state(&core, UpdateCheckState::Disabled).await;
+    settle().await;
+    assert_eq!(gh.calls(), 1);
+    assert_eq!(notices(&core.view(), update::MSG_UPDATE_AVAILABLE), 0, "ausgeschaltet: kein Hinweis");
 }
 
 /// iOS/Android (keine Verteilung über GitHub) und die CLI prüfen nie; ohne Transport (Tests) ebenso.
@@ -506,7 +582,7 @@ async fn real_core_about_views_for_the_ui() {
     drop(core);
 
     let fx = fixture("[general]\n");
-    let gh = FakeGitHub::new(&[Reply::Status(403)]);
+    let gh = FakeGitHub::new(&[Reply::RateLimited]);
     let core = start(&fx, &gh);
     open(&core);
     states.push((

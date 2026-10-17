@@ -57,6 +57,11 @@
         "rank": "Alternate"
       }
     ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/installer-hooks.nsh"
+      }
+    },
     "macOS": {
       "minimumSystemVersion": "11.0",
       "signingIdentity": "-",
