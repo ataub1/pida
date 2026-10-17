@@ -604,7 +604,7 @@ describe('Erweitert und Über', () => {
   it('Über: Version, Lizenz- und Supportlinks, Drittlizenzen, Protokolle, Verweis auf Datenschutz', async () => {
     const { dialog, mock, user } = await open();
     await user.click(nav(dialog, 'Über PIDA'));
-    expect(await within(dialog).findByText('Version 0.1.0')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Version 0.2.0')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('link', { name: /software@egiz\.gv\.at/ }));
     expect(mock.openedUrls).toEqual(['mailto:software@egiz.gv.at']);
     await user.click(within(dialog).getByRole('button', { name: 'Drittlizenzen anzeigen' }));

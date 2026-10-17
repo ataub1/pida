@@ -57,8 +57,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # Version wie Cargo.toml/package.json/tauri.conf.json (die CLI überschreibt sie beim Build aus `version`)
-        CFBundleShortVersionString: 0.1.0
-        CFBundleVersion: "0.1.0"
+        CFBundleShortVersionString: 0.2.0
+        CFBundleVersion: "0.2.0"
         # --- PIDA (M-iOS, docs/integration/mobile-ios.md) ---
         CFBundleDisplayName: PIDA
         # Sprachen der App: Systemoberfläche im Prozess (Dokumentauswahl „Abbrechen“, Teilen „Kopieren/Drucken“,
