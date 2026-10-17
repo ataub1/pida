@@ -144,7 +144,7 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
               <span>{t.code('ng-batch-large', { count: String(batch.estimate.documents) })}</span>
             </p>
           ) : null}
-          {leaves ? <PrivacyNote /> : null}
+          {leaves ? <PrivacyNote count={signable.length} /> : null}
           <BatchAutoPosition batch={batch} />
         </div>
       ) : null}

@@ -104,8 +104,8 @@ describe('Stapelübersicht (E2.1)', () => {
     expect(screen.getByTestId('batch-estimate')).toHaveTextContent('Voraussichtlich: 3 Dokumente · 1 Anmeldung · 3 Bestätigungen (ggf. +1 für das Zertifikat)');
     expect(screen.getByTestId('batch-output')).toHaveTextContent('Speichern: jeweils neben dem Original');
     expect(screen.getByRole('button', { name: 'Alle signieren (3)' })).toBeEnabled();
-    // Kurzhinweis Datenschutz beim Signiermittel ID Austria (nie blockierend)
-    expect(screen.getByTestId('privacy-note')).toBeInTheDocument();
+    // Kurzhinweis Datenschutz beim Signiermittel ID Austria (nie blockierend); im Stapel in der Mehrzahl (iPhone 17e)
+    expect(screen.getByTestId('privacy-note')).toHaveTextContent('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
     // nichts startet von selbst (A1)
     expect(sessions(mock.dispatched)).toEqual([]);
     await expectNoAxeViolations();
@@ -208,6 +208,7 @@ describe('Stapellauf (E2.2–E2.5)', () => {
     expect(mock.dispatched.filter((e) => e.type === 'start_batch')).toEqual([{ type: 'start_batch', backend: 'atrust_native', docs: [1, 2, 4], output_dir: null, on_existing: 'keep_both' }]);
     const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });
     expect(within(dialog).getByText('3 Dokumente')).toBeInTheDocument();
+    expect(await within(dialog).findByTestId('privacy-note')).toHaveTextContent('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
     const dialogAgain = await login(user);
     expect(dialogAgain).toBe(dialog);
     const ref1 = await confirmation(dialog, 1, 3, 'Angebot_2026-118.pdf');
@@ -456,6 +457,7 @@ describe('Start mit Ordnerwahl und vorhandenen Dateien (E2.7)', () => {
     expect(within(start).getByText('Für ein Dokument gibt es die Zieldatei schon.')).toBeInTheDocument();
     expect(within(start).getByRole('radio', { name: /Beide behalten/ })).toBeChecked();
     expect(within(start).getByText(/„Vertrag_signed \(2\)\.pdf“/)).toBeInTheDocument();
+    expect(within(start).getByTestId('privacy-note')).toHaveTextContent('Die Dokumente werden zum Signieren an A-Trust übermittelt.');
     expect(mock.dispatched.some((e) => e.type === 'start_batch')).toBe(false);
     await expectNoAxeViolations();
     await user.click(within(start).getByRole('button', { name: 'Signieren starten' }));
@@ -597,6 +599,18 @@ describe('Titel der Zusammenfassung (Nachtrag 4: BatchSummaryView::aborted)', ()
     renderApp({ view: batchOverview(batchData({ summary: summaryOf(true, 0), estimate: null })) });
     expect(await screen.findByText('Stapel abgebrochen')).toBeInTheDocument();
   });
+
+  it('Abbruch ohne signiertes Dokument: Hinweis ohne „0 Dokumente wurden bereits signiert“ (iPhone 17e)', async () => {
+    const { user } = await openBatch({ batchFaults: { 'Angebot_2026-118.pdf': 'network' } });
+    await user.click(screen.getByRole('button', { name: 'Alle signieren (3)' }));
+    const dialog = await login(user);
+    // Pause (Verbindung) beim ersten Dokument, dort „Stapel abbrechen“ (ohne Rückfrage: nichts signiert)
+    const pause = await within(dialog).findByTestId('batch-pause');
+    await user.click(within(pause).getByRole('button', { name: 'Stapel abbrechen' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await screen.findByText('Stapel abgebrochen – es wurde noch kein Dokument signiert.')).toBeInTheDocument();
+    expect(screen.queryByText(/0 Dokumente wurden bereits signiert/)).not.toBeInTheDocument();
+  });
 });
 
 describe('Automatische Positionierung im Stapel (Nachtrag 8)', () => {
@@ -628,7 +642,7 @@ describe('Automatische Positionierung im Stapel (Nachtrag 8)', () => {
     expect(within(row(list, 'Auftragsbestaetigung_4711.pdf')).getByText('Positioniert')).toBeInTheDocument();
   });
 
-  it('von Hand platziert: Rückfrage – „Behalten“ (Vorauswahl) behält den Plan, „Auch diese automatisch platzieren“ setzt ihn neu; Escape ändert nichts', async () => {
+  it('von Hand platziert: Rückfrage – „Behalten“ (Vorauswahl) behält den Plan, „Auch dieses automatisch platzieren“ setzt ihn neu; Escape ändert nichts (Einzahl bei einem Dokument)', async () => {
     const { list, user, mock } = await openBatch();
     await user.click(within(row(list, 'Angebot_2026-118.pdf')).getByRole('button', { name: '„Angebot_2026-118.pdf“ öffnen und positionieren' }));
     const sticker = await screen.findByRole('application', { name: 'Signaturblock' });
@@ -641,7 +655,7 @@ describe('Automatische Positionierung im Stapel (Nachtrag 8)', () => {
 
     // Escape: nichts geändert
     await user.click(autoToggle());
-    let ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierungen behalten?' });
+    let ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierung behalten?' });
     expect(ask).toHaveTextContent('Ein Dokument haben Sie selbst platziert. Soll es ebenfalls automatisch platziert werden?');
     expect(within(ask).getByRole('button', { name: 'Behalten' })).toHaveFocus();
     await expectNoAxeViolations();
@@ -652,19 +666,19 @@ describe('Automatische Positionierung im Stapel (Nachtrag 8)', () => {
 
     // „Behalten“: an, der eigene Plan bleibt
     await user.click(autoToggle());
-    ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierungen behalten?' });
+    ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierung behalten?' });
     await user.click(within(ask).getByRole('button', { name: 'Behalten' }));
     expect(autoEvents(mock.dispatched).at(-1)).toEqual({ type: 'set_batch_auto_position', enabled: true, replace_manual: false });
     await waitFor(() => expect(autoToggle()).toBeChecked());
     expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Positioniert')).toBeInTheDocument();
     expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Seite 2, selbst platziert')).toBeInTheDocument();
 
-    // aus und wieder an mit „Auch diese automatisch platzieren“
+    // aus und wieder an mit „Auch dieses automatisch platzieren“ (ein Dokument – Einzahl wie im Text, iPhone 17e)
     await user.click(autoToggle());
     await waitFor(() => expect(autoToggle()).not.toBeChecked());
     await user.click(autoToggle());
-    ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierungen behalten?' });
-    await user.click(within(ask).getByRole('button', { name: 'Auch diese automatisch platzieren' }));
+    ask = await screen.findByRole('alertdialog', { name: 'Eigene Platzierung behalten?' });
+    await user.click(within(ask).getByRole('button', { name: 'Auch dieses automatisch platzieren' }));
     expect(autoEvents(mock.dispatched).at(-1)).toEqual({ type: 'set_batch_auto_position', enabled: true, replace_manual: true });
     await waitFor(() => expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('Bereit')).toBeInTheDocument());
     expect(within(row(back, 'Angebot_2026-118.pdf')).getByText('automatisch platziert')).toBeInTheDocument();

@@ -157,6 +157,12 @@
     position: static;
   }
 }
+/* Ebenso mit eingeblendeter Bildschirmtastatur auf iOS (das Fenster bleibt dort gleich hoch, nur der sichtbare
+   Bereich schrumpft – `data-keyboard`, app/keyboard.ts): sonst lag das fokussierte Feld „Hinweistext“ unter der
+   Vorschau (iPhone 17e, 17.10.2026). */
+:root[data-keyboard] .settings-row[data-row='signature.preview'] {
+  position: static;
+}
 .block-preview-stage {
   display: grid;
   place-items: center;

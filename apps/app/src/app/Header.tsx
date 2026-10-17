@@ -60,7 +60,7 @@ export function Header({ theme, onTheme, onVerify }: { theme: Theme; onTheme: (t
       ) : doc && doc.phase !== 'done' ? (
         <div className="header-context">
           {nav ? (
-            <IconButton label={t.t(nav === 'back' ? 'ng-ui-batch-back' : 'ng-ui-batch-show')} onPress={() => void dispatch({ type: nav === 'back' ? 'back_to_batch' : 'show_batch' })}>
+            <IconButton label={t.t(nav === 'back' ? 'ng-ui-batch-back' : 'ng-ui-batch-show')} className="header-back" onPress={() => void dispatch({ type: nav === 'back' ? 'back_to_batch' : 'show_batch' })}>
               <IconArrowLeft size={18} />
             </IconButton>
           ) : null}

@@ -567,6 +567,8 @@ nennt einen Keystore; das Plugin bietet `pkcs12` weiter an, die Shell lehnt es a
 - **Nicht am Gerät:** Simulator und Emulator wurden für diese Änderung nicht gestartet; belegt durch die Tests aus
   12.3. Beim nächsten Gerätedurchgang prüfen: Einstellungen › Signiermittel, Konto-Chip-Menü, Ersteinrichtung und
   ein Update von einem Build mit importiertem Keystore (Keychain- bzw. Speichereinträge danach weg, Merker gesetzt).
+  **iOS am 17.10.2026 nachgeholt** (iPhone 17e, Update eines Builds mit Keystore als Standard, frische Installation,
+  alle Ansichten ohne Keystore-Begriffe; acht Befunde der Oberfläche behoben): mobile-ios.md §10.
 - **Liegengebliebene Dateien:** `data/keystores/*.p12` früherer Builds bleiben auf dem Gerät (bewusst nur ignoriert);
   ob sie später gelöscht werden sollen, entscheidet der Auftraggeber.
 - **Aufräumen im Vertrag:** `UiEvent::ImportKeystore`/`DismissKeystoreImport`, `KeystoreImportView` und der

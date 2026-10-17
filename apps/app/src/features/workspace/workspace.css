@@ -173,6 +173,8 @@
   font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
   color: var(--c-text-2);
+  /* „41 %“ nicht umbrechen – bei großer Schrift ragte die zweite Zeile aus der 48 px hohen Leiste (iPhone 17e) */
+  white-space: nowrap;
 }
 .canvas-banner {
   display: flex;

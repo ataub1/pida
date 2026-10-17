@@ -1,11 +1,12 @@
 /** Bildschirmtastatur (app/keyboard.ts): fokussiertes Feld im verkleinerten Dialog wieder in den Blick holen. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { keepFocusedFieldVisible, REVEAL_DELAY_MS } from './keyboard';
+import { KEYBOARD_MIN_PX, keepFocusedFieldVisible, REVEAL_DELAY_MS } from './keyboard';
 
 afterEach(() => {
   vi.useRealTimers();
   Reflect.deleteProperty(window, 'visualViewport');
   document.body.innerHTML = '';
+  document.documentElement.removeAttribute('data-keyboard');
 });
 
 describe('Bildschirmtastatur', () => {
@@ -50,6 +51,33 @@ describe('Bildschirmtastatur', () => {
     vv.dispatchEvent(new Event('resize'));
     vi.advanceTimersByTime(REVEAL_DELAY_MS);
     expect(reveal.pw).toHaveBeenCalledTimes(1);
+  });
+
+  it('`data-keyboard` am Wurzelelement, solange die Tastatur den sichtbaren Bereich verkleinert (nicht beim Zoomen)', () => {
+    // iPhone 17e: Fenster 844 hoch, mit Software-Tastatur sichtbar 448 – die mitlaufende Vorschau verdeckte sonst
+    // das fokussierte Feld (settings.css, signing.css)
+    const vv = Object.assign(new EventTarget(), { height: window.innerHeight, scale: 1 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: vv });
+    const root = document.documentElement;
+    const stop = keepFocusedFieldVisible(window);
+    const resize = (height: number, scale = 1) => {
+      vv.height = height;
+      vv.scale = scale;
+      vv.dispatchEvent(new Event('resize'));
+    };
+    expect(root.hasAttribute('data-keyboard')).toBe(false);
+    resize(window.innerHeight - 396);
+    expect(root.hasAttribute('data-keyboard')).toBe(true);
+    // nur die Zubehörleiste (Hardware-Tastatur): kein Platzproblem
+    resize(window.innerHeight - (KEYBOARD_MIN_PX - 1));
+    expect(root.hasAttribute('data-keyboard')).toBe(false);
+    // Pinch-Zoom: sichtbarer Ausschnitt kleiner, aber nicht verdeckt
+    resize(window.innerHeight / 2, 2);
+    expect(root.hasAttribute('data-keyboard')).toBe(false);
+    resize(window.innerHeight - 300);
+    expect(root.hasAttribute('data-keyboard')).toBe(true);
+    stop();
+    expect(root.hasAttribute('data-keyboard')).toBe(false);
   });
 
   it('ohne visualViewport (ältere WebViews): nichts zu tun', () => {

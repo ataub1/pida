@@ -56,9 +56,10 @@ function PrivacyDialog({ onClose }: { onClose: () => void }) {
 
 /**
  * Kurzhinweis beim Signiermittel (nicht blockierend). `id` kennzeichnet den Satz, damit die Karte des
- * Signiermittels ihn als Beschreibung referenzieren kann (`aria-describedby`, ohne „Details“).
+ * Signiermittels ihn als Beschreibung referenzieren kann (`aria-describedby`, ohne „Details“). `count` =
+ * Dokumente (Stapel): ab zwei „Die Dokumente werden …“ statt „Das Dokument wird …“ (iPhone 17e, 17.10.2026).
  */
-export function PrivacyNote({ id }: { id?: string }) {
+export function PrivacyNote({ id, count = 1 }: { id?: string; count?: number }) {
   const { t, view, openSettings } = useApp();
   const [open, setOpen] = useState(false);
   const details = () => {
@@ -71,7 +72,7 @@ export function PrivacyNote({ id }: { id?: string }) {
       <p className="privacy-note" data-testid="privacy-note">
         <IconShield size={16} />
         <span>
-          <span id={id}>{t.t('ng-ui-backend-leaves-device')}</span>{' '}
+          <span id={id}>{t.t(count > 1 ? 'ng-ui-backend-leaves-device-many' : 'ng-ui-backend-leaves-device')}</span>{' '}
           <Link className="link" onPress={details} aria-label={t.t('ng-ui-privacy-details-label')}>
             {t.t('ng-ui-privacy-details')}
           </Link>

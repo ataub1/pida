@@ -8,6 +8,8 @@
  * - Segmente („Passwort merken?“, Speicherart) brechen um statt angeschnitten zu scrollen;
  * - Stapel schmal: der Papierkorb bleibt sichtbar (nur der Pfeil entfällt);
  * - Schlüssel des Keystores: Name und Alias untereinander.
+ * Dazu aus dem Gerätenachweis am iPhone 17e (17.10.2026): Knöpfe der Signierkarte bleiben am unteren Rand stehen,
+ * Stapelkarte und Zoomwert bei großer Schrift, mitlaufende Teile rollen bei eingeblendeter Bildschirmtastatur mit.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -103,5 +105,39 @@ describe('Mobile-Stile', () => {
     expect(sheet).toMatch(/bottom: auto;/);
     // nach den Regeln „unten“ derselben Breite (gleiche Eigenschaft, spätere Regel gewinnt ohnehin über `bottom: auto`)
     expect(shell.indexOf(':root:has(.overlay-center) .toasts')).toBeGreaterThan(shell.indexOf('.view-workspace .toasts {\n    right: var(--gutter);'));
+  });
+
+  it('Signierkarte auf Mobile: Knöpfe bleiben am unteren Rand stehen – nicht bei Kurzansichten und nicht mit Tastatur', () => {
+    const css = read('features/signing/signing.css');
+    const sel = ':root[data-mobile] .signing-card .step-pane:not(.step-pane-center) > .step-actions';
+    const sticky = topRule(css, sel);
+    expect(sticky).toMatch(/position: sticky;/);
+    expect(sticky).toMatch(/bottom: 0;/);
+    expect(sticky).toMatch(/background: var\(--c-surface\);/);
+    // gleiche Einrückung wie der Inhalt der Karte (schmal: Bundsteg)
+    expect(sticky).toMatch(/margin-inline: calc\(-1 \* var\(--sp-5\)\);/);
+    expect(ruleInMedia(css, '(max-width: 420px)', sel)).toMatch(/margin-inline: calc\(-1 \* var\(--gutter\)\);/);
+    expect(topRule(css, sel.replace(':root[data-mobile]', ':root[data-mobile][data-keyboard]'))).toMatch(/position: static;/);
+    // nach der Grundregel `.step-actions` (gleiche Eigenschaften, spätere Regel)
+    expect(css.indexOf(sel)).toBeGreaterThan(css.indexOf('\n.step-actions {'));
+  });
+
+  it('große Schrift: Stapelkarte nicht breiter als die Karte, Zoomwert ohne Umbruch', () => {
+    expect(read('features/signing/signing.css')).toMatch(/\.sc-batch-foot \.details \{[^}]*min-width: min\(12rem, 100%\);/);
+    expect(read('features/signing/signing.css')).not.toMatch(/min-width: 12rem;/);
+    expect(topRule(read('features/workspace/workspace.css'), '.zoom-value')).toMatch(/white-space: nowrap;/);
+    // umbrochener Auslöser „Alle Dokumente des Stapels“ bzw. „Technische Details“ linksbündig
+    expect(topRule(read('styles/components.css'), '.details-trigger')).toMatch(/text-align: start;/);
+  });
+
+  it('Kopfzeile hochkant mit „Zurück zum Stapel“: nur das Logo, damit „+ PDF“ nicht über „Prüfen“ liegt', () => {
+    expect(ruleInMedia(read('app/shell.css'), '(max-width: 480px)', '.app-header:has(.header-back) .wordmark-text')).toMatch(/display: none;/);
+    expect(read('app/Header.tsx')).toMatch(/className="header-back"/);
+  });
+
+  it('Bildschirmtastatur (iOS): mitlaufende Vorschau des Signaturbilds rollt mit', () => {
+    const css = read('features/settings/settings.css');
+    expect(topRule(css, ":root[data-keyboard] .settings-row[data-row='signature.preview']")).toMatch(/position: static;/);
+    expect(css.indexOf(':root[data-keyboard]')).toBeGreaterThan(css.indexOf("\n.settings-row[data-row='signature.preview'] {"));
   });
 });

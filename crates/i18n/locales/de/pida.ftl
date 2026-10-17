@@ -275,6 +275,7 @@ ng-ui-backend-unavailable = Derzeit nicht verfügbar.
 ng-ui-backend-local-unavailable = Keine lokale Chipkarten-Software gefunden.
 ng-ui-backend-keystore-unavailable = Keystore nicht eingerichtet (Einstellungen › Keystore).
 ng-ui-backend-leaves-device = Das Dokument wird zum Signieren an A-Trust übermittelt.
+ng-ui-backend-leaves-device-many = Die Dokumente werden zum Signieren an A-Trust übermittelt.
 ng-ui-backend-qes = Qualifizierte Signatur
 ng-ui-factor-app = App
 ng-ui-factor-sms = SMS
@@ -613,6 +614,7 @@ ng-batch-nothing-to-sign = Im Stapel ist kein Dokument zum Signieren bereit.
 ng-batch-output-folder-required = Bitte wählen Sie vor dem Start einen Ordner für die signierten Dokumente.
 ng-batch-aborted =
     { $signed ->
+        [0] Stapel abgebrochen – es wurde noch kein Dokument signiert.
         [one] Stapel abgebrochen – ein Dokument wurde bereits signiert und gespeichert.
        *[other] Stapel abgebrochen – { $signed } Dokumente wurden bereits signiert und gespeichert.
     }

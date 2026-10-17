@@ -626,6 +626,8 @@
   color: var(--c-text-2);
   font-size: var(--fs-13);
   font-weight: var(--fw-semibold);
+  /* umbrochen (große Schrift) linksbündig wie der übrige Text, nicht zentriert wie ein Knopf (iPhone 17e) */
+  text-align: start;
   cursor: pointer;
 }
 .details-trigger[data-hovered] {

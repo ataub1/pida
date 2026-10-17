@@ -251,6 +251,16 @@
   }
 }
 
+/* Telefon hochkant mit „Zurück zum Stapel“ bzw. „Zum Stapel“ in der Kopfzeile: Wortmarke, Haus-Symbol, Zurück,
+   Dokument, „+ PDF“ und die Aktionen brauchen mehr als 390 px – der Dokumentkontext schrumpfte und „+ PDF“ lag
+   20 px über „Prüfen“ (iPhone 17e, 17.10.2026). Dann nur das Logo (Name der Schaltfläche bleibt „PIDA –
+   Startseite“). */
+@media (max-width: 480px) {
+  .app-header:has(.header-back) .wordmark-text {
+    display: none;
+  }
+}
+
 /* Finger: auch Wortmarke, Befehlsknopf und „+ PDF“ mindestens 44 × 44 px (WCAG 2.5.5, Apple HIG; das schmale
    Layout oben setzt Befehlsknopf und „+ PDF“ auf 36 px, base.css deckt nur die allgemeinen Bedienelemente ab) */
 @media (pointer: coarse) {

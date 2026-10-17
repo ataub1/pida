@@ -275,6 +275,7 @@ ng-ui-backend-unavailable = Currently not available.
 ng-ui-backend-local-unavailable = No local smart card software found.
 ng-ui-backend-keystore-unavailable = Keystore not configured (Settings › Keystore).
 ng-ui-backend-leaves-device = The document is sent to A-Trust for signing.
+ng-ui-backend-leaves-device-many = The documents are sent to A-Trust for signing.
 ng-ui-backend-qes = Qualified signature
 ng-ui-factor-app = App
 ng-ui-factor-sms = SMS
@@ -613,6 +614,7 @@ ng-batch-nothing-to-sign = No document in the batch is ready to be signed.
 ng-batch-output-folder-required = Please choose a folder for the signed documents before starting.
 ng-batch-aborted =
     { $signed ->
+        [0] Batch cancelled – no document had been signed yet.
         [one] Batch cancelled – one document had already been signed and saved.
        *[other] Batch cancelled – { $signed } documents had already been signed and saved.
     }

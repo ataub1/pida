@@ -40,13 +40,13 @@ export function BatchAutoPosition({ batch }: { batch: BatchView }) {
       <SwitchField label={t.t('ng-ui-batch-auto')} hint={t.t('ng-ui-batch-auto-hint')} isSelected={batch.auto_position_once} isDisabled={batch.running} onChange={onChange} />
       {asking ? (
         <ConfirmDialog
-          title={t.t('ng-ui-batch-auto-confirm-title')}
+          title={t.t('ng-ui-batch-auto-confirm-title', { n: batch.manual_plans })}
           icon={<IconTarget size={20} />}
           onCancel={() => setAsking(false)}
           actions={
             <>
               <Button variant="secondary" onPress={() => set(true, true)}>
-                {t.t('ng-ui-batch-auto-replace')}
+                {t.t('ng-ui-batch-auto-replace', { n: batch.manual_plans })}
               </Button>
               <Button variant="primary" onPress={() => set(true)} autoFocus>
                 {t.t('ng-ui-batch-auto-keep')}

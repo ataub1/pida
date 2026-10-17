@@ -94,7 +94,7 @@ export function StartBatchDialog({ batch, backend, onClose }: { batch: BatchView
             />
           </section>
         ) : null}
-        {leaves ? <PrivacyNote /> : null}
+        {leaves ? <PrivacyNote count={signable.length} /> : null}
       </div>
       <div className="dialog-actions batch-start-actions">
         <Button variant="ghost" onPress={onClose}>

@@ -449,7 +449,9 @@
 }
 .sc-batch-foot .details {
   flex: 1;
-  min-width: 12rem;
+  /* höchstens so breit wie die Karte: bei großer Schrift (iOS Dynamic Type, 32 px Grundschrift) wären 12rem
+     384 px – breiter als das Telefon, die ganze Stapelkarte ragte rechts hinaus (iPhone 17e, 17.10.2026) */
+  min-width: min(12rem, 100%);
 }
 .sc-batch-skip {
   flex: none;
@@ -526,4 +528,28 @@
   .dialog-header {
     padding-inline: var(--gutter);
   }
+}
+
+/* Mobile: Die Karte rollt in sich, wenn ihr Inhalt höher ist als das Sheet – die Knöpfe lagen dann unter dem
+   Rand, z. B. „Erneut versuchen“ in der Stapelpause ohne Netz, bei großer Schrift jede Aktion (iPhone 17e,
+   17.10.2026). Sie bleiben deshalb am unteren Rand stehen (Fuß mit Trennlinie). Nicht bei den zentrierten
+   Kurzansichten (Verbindungsaufbau, Fertig) und nicht bei eingeblendeter Bildschirmtastatur (`data-keyboard`,
+   app/keyboard.ts): dann bleibt es beim Rollen zum fokussierten Feld wie bisher. */
+:root[data-mobile] .signing-card .step-pane:not(.step-pane-center) > .step-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-inline: calc(-1 * var(--sp-5));
+  padding: var(--sp-3) var(--sp-5);
+  border-top: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+@media (max-width: 420px) {
+  :root[data-mobile] .signing-card .step-pane:not(.step-pane-center) > .step-actions {
+    margin-inline: calc(-1 * var(--gutter));
+    padding-inline: var(--gutter);
+  }
+}
+:root[data-mobile][data-keyboard] .signing-card .step-pane:not(.step-pane-center) > .step-actions {
+  position: static;
 }

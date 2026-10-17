@@ -431,14 +431,22 @@ ng-ui-batch-existing =
 ng-ui-batch-auto = Position automatically for this batch
 ng-ui-batch-auto-hint = All documents are placed automatically and ready to sign – for this batch only, the setting stays unchanged.
 ng-ui-batch-auto-setting = Automatic positioning (per setting)
-ng-ui-batch-auto-confirm-title = Keep your own placements?
+ng-ui-batch-auto-confirm-title =
+    { $n ->
+        [one] Keep your own placement?
+       *[other] Keep your own placements?
+    }
 ng-ui-batch-auto-confirm-text =
     { $n ->
         [one] You placed one document yourself. Should it be placed automatically as well?
        *[other] You placed { $n } documents yourself. Should they be placed automatically as well?
     }
 ng-ui-batch-auto-keep = Keep
-ng-ui-batch-auto-replace = Place these automatically too
+ng-ui-batch-auto-replace =
+    { $n ->
+        [one] Place this one automatically too
+       *[other] Place these automatically too
+    }
 ng-ui-batch-list = Documents in the batch
 ng-ui-batch-open = Open and position “{ $name }”
 ng-ui-batch-review = Review

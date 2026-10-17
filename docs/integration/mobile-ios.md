@@ -465,4 +465,89 @@ Umsetzung und Nachweise für beide Plattformen: mobile.md §12, ADR 0004 Nachtra
   Datei aus den Einstellungen und zu jeder Datei in `data/keystores`) werden beim ersten Start einmalig entfernt
   (Merker `data/keystore-secrets-removed`); ein gesicherter Keystore-Vorgang für „Signatur fortsetzen“ wird mit Hinweis
   verworfen. Die Datei `data/keystores/*.p12` selbst bleibt liegen (durch ihr Passwort geschützt).
-- **Am Simulator:** nicht erneut durchgespielt (belegt durch Kern- und Oberflächentests, mobile.md §12.3).
+- **Am Simulator:** am 17.10.2026 auf dem iPhone 17e nachgeholt, samt Update eines Builds mit Keystore als Standard (§10).
+
+## 10. Gerätenachweis „Mobile nur ID Austria“ und Randfälle (17.10.2026)
+
+Branch `mob2/ios` (ab `main` 8606b0c mit dem Integrationsstand `826fe82`: Mobile nur ID Austria, Randfälle aus ADR 0004
+Nachtrag 12, „+ PDF“, „In Bearbeitung“/Parken, automatische Positionierung). Gerät: Simulator **iPhone 17e** (390 × 844
+pt, Notch), iOS 27.0, Sprache de, Debug-Build nach §4/§8.1. Netz nur über Proxy `127.0.0.1:9` (abgelehnt) bzw. für die
+Warteansicht ein lokales „schwarzes Loch“ auf `127.0.0.1:9999` (nimmt an, antwortet nie, leitet nichts weiter) – keine
+Verbindung zu A-Trust, keine Zugangsdaten (ein Platzhalter-Benutzername für die Tastaturprobe wurde wieder gelöscht und
+nie gespeichert). Bedienung wie §8.5: Web-Inspektor (der Socket wird jetzt über die PID des `launchd_sim` genau dieses
+Simulators gewählt, nicht „der erste“ – zwei weitere Simulatoren liefen) und das XCUITest-Hilfsprojekt (Tippen, Ziehen,
+Tastatur, Drehen). Prüfmodus nicht geprüft (wird laut Entscheidung vom 17.10.2026 entfernt). Aufnahmen
+`docs/integration/screenshots/ios-ng2/00-…` bis `75-…` (540 px), `…-befund-…` vor, `…-nachher-…` nach der Behebung.
+
+### 10.1 Ergebnisse je Ablauf
+
+| Nr. | Ablauf | Aufnahmen | Ergebnis |
+|---|---|---|---|
+| 1 | Frische Installation (vorher deinstalliert), Ersteinrichtung | 20, 21 | ok: „Schritt 1 von 1“, nur Signaturbild (Profil, Sprache), kein Signiermittel-Schritt; „Später einrichten“ → Hinweis „Signiermittel und Signaturbild können Sie jederzeit in den Einstellungen einrichten.“, `first_run_completed = true` |
+| 2 | Update-Fall: der Review-Build vom 16.10. (Version 1.0.0, importierter `test-rsa2048.p12`) mit von Hand ergänztem `[backend] default = "keystore"` – vorher Keystore als Standard (00, 01) –, dann der neue Build als Update (neuer Container) | 00–09 | ok: Start ohne Rückfrage, Log „gespeichertes Standard-Signiermittel auf ID Austria abgebildet“, „Zuletzt signiert“ umgezogen (`entries=6`), „Keystore-Passwörter eines früheren Builds entfernt removed=0“ und Merker `data/keystore-secrets-removed`; `settings.toml` byte-gleich (Standard und `[keystore]` bleiben stehen), `data/keystores/test-rsa2048.p12` bleibt. Einstellungen › Signiermittel nur ID Austria und FIDO2-Hinweis (03), Konto-Chip „ID Austria“, Menü nur „Einstellungen …“ (08), Signierkarte „Signieren mit ID Austria“ (09). Die Keychain des 17e enthielt keine PIDA-Einträge (der Review-Build hatte „Nicht speichern“), die Bereinigung selbst belegen die Kerntests |
+| 3 | Suche nach „Keystore“, „Zertifikatsdatei“, „Passwort merken“ & Co. | 04, 06, 12–18 | ok: Textinhalt (auch verborgener) und Attribute (`aria-label`, `title`, `placeholder`, `alt`) jeder Ansicht ohne Treffer für Keystore, Zertifikatsdatei, PKCS, `.p12`, Passwort merken, Schlüsselbund, Sicherer Speicher, Datei mit Zertifikat, Schlüssel anzeigen, Alias und die beiden Wörter, die die Oberfläche nie verwendet (Begriffsregeln) – Start, alle acht Einstellungsbereiche, Einstellungssuche (Keystore, Zertifikatsdatei, PKCS, p12, Passwort merken, Passwort, Alias, Schlüsselbund, Sicherer Speicher: „Keine Treffer“; „Schlüssel“ findet nur den FIDO2-Hinweis), Befehle (Keystore: „Keine Treffer“), Hilfe (Tastenkürzel), Arbeitsbereich, Konto-Chip-Menü, Signierkarte, Fehlerkarte, Stapel, Startdialog, Stapelkarte. Die Dokumentauswahl bietet `test-rsa2048.p12` ausgegraut an (06) |
+| 4 | PDF empfangen („Teilen“ aus Dateien), Arbeitsbereich, automatische Positionierung, „Diesmal selbst platzieren“, Stapel-Option | 22–32, 34, 38–40 | ok: Hinweis zum Teilen (§8.6) erstmals am Gerät – über „Signieren“, mit „Weitere PDFs hinzufügen …“, nach × bis zum Beenden weg (23, 30). Einstellungen › Dokument „Automatische Positionierung“ an → „Automatisch (laut Einstellung) · Bereit zum Signieren“, „Diesmal selbst platzieren“ gibt den Block frei (Seite 3 · oben mittig), Ziehen per Touch (31, 32). Stapel: mit Einstellung „Automatische Positionierung (laut Einstellung)“ (34), ohne Einstellung der Schalter „Für diesen Stapel automatisch positionieren“ mit Rückfrage für den selbst platzierten Eintrag, „Behalten“ (39, 40); bleibt nach Parken/Fortsetzen an. Befund N7 |
+| 5 | „+ PDF“ und Papierkorb | 10, 11, 33–37, 51, 52 | ok: „Weitere PDFs hinzufügen …“ (Mehrfachauswahl, „Zusammen mit … als Stapel signieren“) und „Anderes PDF öffnen …“ („… wird geschlossen“); „PDF hinzufügen“ im Stapel; dieselbe Datei erneut → „„Stapel-1.pdf“ ist bereits geöffnet.“ (35); Papierkorb entfernt den Eintrag ohne Rückfrage (36, 37) |
+| 6 | „Zur Startseite“ → „In Bearbeitung“ | 41–47 | ok: ohne Rückfrage geparkt, Karte „Stapel · 3 Dokumente“, „Weiter bearbeiten“ unverändert (auch die Stapel-Option); per „Teilen“ empfangenes PDF kommt ohne Rückfrage dazu (Nachtrag 10 Punkt 4, 43); „Dokument auswählen“ bei geparkter Arbeit → „Zur offenen Arbeit hinzufügen?“ mit „Zum Stapel hinzufügen“ (44, 45); „Schließen“ der Karte fragt bei mehreren Dokumenten nach (46, 47) |
+| 7 | Randfälle (Nachtrag 12) | 35, 48–52, 54, 13/14 | ok: Hinweis oben, solange das Sheet ausgeklappt ist (50); Live-Region nach „Anderes PDF öffnen …“ ohne die Lage des vorigen Dokuments (52); `qr.pdf` (PDF-AS-Testdatei) erst „Seite 1 / 2“ (neue Seite), nach nachträglich eingeschalteter Platzhaltersuche „Seite 1 / 1“ im QR-Platzhalter (48, 49), erneut empfangen → „„qr.pdf“ ist bereits geöffnet.“, kein zweiter Eintrag (50); Bereichsleiste bei großer Schrift mit dem aktiven Bereich im Bild (54); Stapeltexte für ID Austria („einmal anmelden, dann jedes Dokument einzeln bestätigen“, „1 Anmeldung · 4 Bestätigungen“, „Überspringen – ohne Bestätigung in der App“, 12, 13). „Sichern unter“-Hinweis siehe 10.3. Befunde N1, N6, N8 |
+| 8 | ID Austria ohne Netz, Tastatur, dunkel, Querformat, große Schrift | 09, 14, 53–64, 74, 75 | Fehlerkarte „Der Signaturdienst ist gerade nicht erreichbar“ (09), über das schwarze Loch „Verbindung wird aufgebaut …“ (62) und nach der Zeitüberschreitung „Die Zeit ist abgelaufen“ mit „Erneut versuchen“ (63). Benutzername-Feld mit Buchstaben-Tastatur, kleingeschrieben, `autocomplete=username` (53); Befehle-Suche über der Tastatur (16). Dunkel (59–61), Querformat ohne Inhalt unter der Notch (61, 74), Dynamic Type 200 % ohne waagrechten Überlauf der Seite. Befunde N1–N5 |
+
+### 10.2 Befunde und Behebungen (alle Plattformen, nur Oberfläche; Vertrag unberührt)
+
+- **N1 (mittel) Knöpfe der Signierkarte unter dem Rand.** Ist der Inhalt höher als das Sheet, rollt die Karte in sich –
+  „Erneut versuchen“ der Stapelpause ohne Netz lag halb unter dem Rand (14), bei großer Schrift und im Querformat jede
+  Aktion (56). Auf Mobile bleibt der Fuß (`.step-actions`, nicht bei den zentrierten Kurzansichten) jetzt mit Trennlinie
+  am unteren Rand stehen (`signing.css`; 66, 69, 74, 75); mit eingeblendeter Bildschirmtastatur rollt er wie bisher mit,
+  damit das fokussierte Feld nicht darunter liegt.
+- **N2 (mittel) Große Schrift: Stapelkarte breiter als das Telefon.** `.sc-batch-foot .details { min-width: 12rem }` =
+  384 px bei 32 px Grundschrift – die ganze Stapelkarte ragte 28 px hinaus, „0 von 2“ abgeschnitten (58). Jetzt
+  `min(12rem, 100%)`; dazu brechen Auslöser wie „Alle Dokumente des Stapels“ linksbündig statt zentriert um (69).
+- **N3 (mittel) Große Schrift: Zoomwert „41 %“ brach um** und ragte aus der 48 px hohen Werkzeugleiste (55) – `nowrap` (70).
+- **N4 (hoch) Bildschirmtastatur verdeckte den „Hinweistext“.** In Einstellungen › Signaturbild blieb die mitlaufende
+  Vorschau stehen; im kleinen sichtbaren Rest über der Tastatur lag das fokussierte Feld darunter (64, `elementFromPoint`
+  = Vorschaubild). Das Fenster bleibt unter iOS gleich hoch (die Regel `max-height: 520px` aus §8.3 Nr. 11 greift nicht).
+  `app/keyboard.ts` setzt jetzt `data-keyboard` am Wurzelelement, solange der sichtbare Bereich mindestens 120 pt
+  kleiner als das Fenster ist (nicht beim Zoomen, nicht für die Zubehörleiste allein); die Vorschau rollt dann mit (72).
+- **N5 (mittel) Kopfzeile eines aus dem Stapel geöffneten Dokuments:** Wortmarke, Haus, „Zurück zum Stapel“, Dokument,
+  „+ PDF“ und die Aktionen brauchen mehr als 390 px – der Kontext schrumpfte, „+ PDF“ lag 20 px über „Prüfen“
+  (Fingerziele überlappten, bei jeder Schriftgröße, 71). Bis 480 px Breite zeigt die Wortmarke dann nur das Logo (Name
+  bleibt „PIDA – Startseite“, 73).
+- **N6 (niedrig) Datenschutz-Kurzhinweis im Stapel in der Einzahl** („Das Dokument wird …“ bei 4 Dokumenten, 13) – in
+  Übersicht, Startdialog und Stapelkarte jetzt „Die Dokumente werden zum Signieren an A-Trust übermittelt.“
+  (`ng-ui-backend-leaves-device-many`, 65).
+- **N7 (niedrig) Rückfrage „Eigene Platzierungen behalten?“ bei einem Dokument** mit Knopf „Auch diese automatisch
+  platzieren“ zum Text „Ein Dokument … Soll es …“ (39) – Titel und Knopf folgen der Zahl („Eigene Platzierung
+  behalten?“, „Auch dieses automatisch platzieren“, 68).
+- **N8 (niedrig) Stapelabbruch ohne signiertes Dokument:** „Stapel abgebrochen – 0 Dokumente wurden bereits signiert und
+  gespeichert.“ (60) → „Stapel abgebrochen – es wurde noch kein Dokument signiert.“ (`ng-batch-aborted` `[0]`, 67).
+
+Tests (scheitern ohne die Behebungen): `styles/mobile-css.test.ts` (N1–N5: Regeln und Reihenfolge), `app/keyboard.test.ts`
+(`data-keyboard` an/aus, Zoom, Zubehörleiste), `features/batch/batch.test.tsx` (N6 in Übersicht, Startdialog und Karte;
+N7 Einzahl; N8 Abbruch ohne Signatur).
+
+### 10.3 Nicht behoben bzw. nicht am Gerät nachweisbar
+
+- **Datenschutzinformation** (Einstellungen › Datenschutz, Text aus PDF-Over) nennt auch auf Mobile „Der Signaturvorgang
+  mit der Chipkarte wird lokal durchgeführt.“ (05) – Bereich des parallelen Laufs „Online-Prüfung/Datenschutz“, nicht
+  geändert; Vorschlag: den Satz auf Mobilgeräten weglassen.
+- Die Beschreibung des Signaturblocks für Bildschirmleser nennt auch auf dem Telefon Tastenkürzel („⌘+↵ signiert“,
+  Pfeiltasten) – mit Hardware-Tastatur (iPad) zutreffend, nicht geändert.
+- Stapel-Option ohne Einstellung: Einträge ohne eigenen Plan stehen schon vor dem Einschalten auf „Bereit · automatisch
+  platziert“ (12, 38; Kern: ohne Plan nach PDF-AS-Regel beim Signieren) – der Schalter ändert sichtbar nur Einträge mit
+  Vorschau-Plan. Wie Nachtrag 8 vorgesehen; ob der Hinweistext das klarer sagen soll, entscheidet der Auftraggeber.
+- Der Hinweis „Signaturblock automatisch … platziert“ ist bei großer Schrift oben unter der Werkzeugleiste angeschnitten
+  (kurzlebig, 70).
+- Eine frische Installation legt den leeren Ordner `data/keystores` an (Sicherungsausschluss des Plugins, R-5) und
+  schreibt `[keystore]` mit Standardwerten in `settings.toml` – unsichtbar und ohne Wirkung.
+- Ohne A-Trust bzw. ohne Signatur nicht am Gerät: „Fertig“, „Sichern unter“-Hinweis mit tatsächlichem Namen, Anmelde-
+  und TAN-Maske der Signierkarte mit Tastatur, Vergleichswert; belegt durch Kern- und Oberflächentests
+  (`signing.test.tsx`, `done.test.tsx`, `core-api/tests/mobile.rs`).
+
+### 10.4 Prüfungen
+
+`cargo test --workspace --no-fail-fast` 1445 bestanden, 0 fehlgeschlagen, 5 ignoriert; `cargo clippy --workspace
+--all-targets -- -D warnings` und `cargo fmt --all --check` ohne Befund; `npm ci && npm run build && npm test` 33 Dateien,
+726 Tests; `ts_bindings` und `serde_contract` sowie die Real-Core-Proben (`workspace`, `batch`, `verify`) mit
+`PIDA_BLESS=1` unverändert (Vertrag unberührt); `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p
+pida-app` für `aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK, eigenes `CARGO_TARGET_DIR`) grün. Simulator
+iPhone 17e danach heruntergefahren (`xcrun simctl shutdown`), kein anderer Simulator angefasst.
