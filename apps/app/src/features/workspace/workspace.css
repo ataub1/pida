@@ -439,6 +439,20 @@
   background: rgb(200 16 46 / 0.1);
   border-style: solid;
 }
+/* Feld unter dem gezogenen Block: hier landet er (proportional und mittig, ADR 0004 Nachtrag 16) */
+.field-marker.is-hit {
+  background: rgb(200 16 46 / 0.16);
+}
+/* Rahmen des Signaturfelds, in dem der Block steht bzw. landen würde – der Block füllt es nur so weit, wie er
+   proportional hineinpasst */
+.field-frame {
+  position: absolute;
+  z-index: 2;
+  border: 1.5px dashed var(--c-success);
+  border-radius: var(--r-1);
+  background: rgb(0 128 64 / 0.04);
+  pointer-events: none;
+}
 .field-marker-pill {
   display: inline-flex;
   align-items: center;

@@ -86,12 +86,13 @@ export const UI_EVENT_SAMPLES: UiEvent[] = [
   { type: 'start_batch', backend: 'atrust_native', docs: [7, 8, 10], output_dir: '/Users/demo/Signiert', on_existing: 'keep_both' },
   { type: 'skip_batch_document' },
   { type: 'abort_batch' },
-  { type: 'open_verify', path: '/Users/demo/Vertrag_signed.pdf' },
-  { type: 'verify_recent', id: 2 },
-  { type: 'close_verify' },
-  { type: 'sign_verified' },
   { type: 'remove_recent', id: 1 },
   { type: 'clear_recent' },
+  // Nachtrag 15: „Zuletzt signiert“ bietet, was „Fertig“ kann (statt des entfernten Prüfmodus)
+  { type: 'open_recent', id: 2 },
+  { type: 'reveal_recent', id: 2 },
+  { type: 'share_recent', id: 3 },
+  { type: 'sign_recent', id: 2 },
   {
     type: 'apply_settings',
     changes: { 'signature.profile': 'AMTSSIGNATURBLOCK', 'proxy.port': 3128, 'output.folder': null, 'signature.note': { mode: 'none' } },
@@ -147,4 +148,7 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'postpone_first_run' },
   { type: 'files_received', paths: ['/private/var/mobile/Containers/Data/Application/X/Library/Caches/inbox/Vertrag.pdf'] },
   { type: 'dismiss_share_hint' },
+  // Nachtrag 15: „Erneut signieren“ nach der Rückfrage bei geparkter Arbeit
+  { type: 'sign_recent', id: 3, mode: 'add' },
+  { type: 'sign_recent', id: 3, mode: 'replace' },
 ];

@@ -874,71 +874,6 @@ async fn more_pdfs_join_the_open_document_as_a_batch_and_replace_swaps_an_entry(
     assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung ohne „Alle signieren“ (F-54)");
 }
 
-/// Dieselbe Datei erneut empfangen (Mobile-Check 16.10.2026: auf Mobilgeräten legt jedes „Teilen“/„Öffnen in“ eine
-/// neue Kopie an, es entstanden zwei Stapeleinträge): gleicher Name und gleicher Inhalt bzw. gleicher Pfad kommen
-/// nicht noch einmal dazu, stattdessen der Hinweis `ng-open-duplicate`. Eine inhaltsgleiche Kopie mit anderem
-/// Namen und eine andere Datei gleichen Namens sind eigene Dokumente. Bei geparkter Arbeit erscheint sie wieder
-/// (nur schon offene Dateien, Nachtrag 10 Punkt 4); „Offene schließen und neu beginnen“ darf dieselbe Datei neu
-/// öffnen.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn the_same_file_received_again_is_not_added_twice() {
-    let fx = Fixture::new();
-    let out = fx.dir("out");
-    let files = inputs(&fx, &["a.pdf"]);
-    let again = fx.dir("inbox/2").join("a.pdf");
-    std::fs::copy(&files[0], &again).unwrap();
-    let renamed = fx.dir("in").join("a-kopie.pdf");
-    std::fs::copy(&files[0], &renamed).unwrap();
-    let other = fx.dir("inbox/3").join("a.pdf");
-    std::fs::write(&other, [std::fs::read(&files[0]).unwrap().as_slice(), b"\n%anders\n"].concat()).unwrap();
-    let atrust = Atrust::new(Vec::new());
-    let core = start(&fx, overlay(vec![files[0].clone()], &out), fake(atrust.backends())).unwrap();
-    let editing = |v: &ViewState| {
-        v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf" && d.phase == pida_core_api::DocumentPhase::Editing)
-    };
-    wait_for(&core, "Arbeitsbereich a", editing).await;
-    let duplicate = |v: &ViewState| v.notices.iter().filter(|n| n.code == "ng-open-duplicate").count();
-    // dieselbe Datei als neue Kopie (Mobile) und unter demselben Pfad: nichts kommt dazu
-    core.dispatch(UiEvent::OpenFiles { paths: vec![again.clone()], mode: None });
-    let v = wait_for(&core, "Hinweis", |v| duplicate(v) == 1).await;
-    let n = v.notices.iter().find(|n| n.code == "ng-open-duplicate").unwrap();
-    assert_eq!(n.params.get("name").map(String::as_str), Some("a.pdf"));
-    core.dispatch(UiEvent::DismissNotice { id: n.id });
-    core.dispatch(UiEvent::OpenFiles { paths: vec![files[0].clone()], mode: Some(pida_core_api::OpenFilesMode::Add) });
-    let v = wait_for(&core, "Hinweis (Pfad)", |v| duplicate(v) == 1).await;
-    assert!(editing(&v) && v.batch.is_none() && !v.actions.show_batch, "kein zweiter Eintrag");
-    let n = v.notices.iter().find(|n| n.code == "ng-open-duplicate").unwrap();
-    core.dispatch(UiEvent::DismissNotice { id: n.id });
-    // inhaltsgleiche Kopie mit anderem Namen und eine andere „a.pdf“: beide neu – doppelt in der Auswahl einmal
-    let add = Some(pida_core_api::OpenFilesMode::Add);
-    core.dispatch(UiEvent::OpenFiles {
-        paths: vec![renamed.clone(), other.clone(), again.clone(), renamed],
-        mode: add,
-    });
-    let v = overview_ready(&core, 3).await;
-    let mut names: Vec<_> = batch(&v).items.iter().map(|i| i.name.as_str()).collect();
-    names.sort_unstable();
-    assert_eq!(names, ["a-kopie.pdf", "a.pdf", "a.pdf"]);
-    assert_eq!(duplicate(&v), 2, "„a.pdf“ (Kopie der offenen) und „a-kopie.pdf“ doppelt in der Auswahl");
-    for n in v.notices.iter().filter(|n| n.code == "ng-open-duplicate") {
-        core.dispatch(UiEvent::DismissNotice { id: n.id });
-    }
-    // geparkt („Zur Startseite“): nur schon offene Dateien → die Arbeit erscheint wieder, unverändert (Nachtrag 10
-    // Punkt 4), mit dem Hinweis
-    core.dispatch(UiEvent::GoHome);
-    wait_for(&core, "geparkt", |v| v.parked.is_some() && v.batch.is_none()).await;
-    core.dispatch(UiEvent::OpenFiles { paths: vec![again.clone()], mode: None });
-    let v = wait_for(&core, "fortgesetzt", |v| v.parked.is_none() && v.batch.is_some() && duplicate(v) == 1).await;
-    assert_eq!(batch(&v).items.len(), 3, "kein weiterer Eintrag");
-    // geparkt und „Offene schließen und neu beginnen“: dieselbe Datei öffnet neu
-    core.dispatch(UiEvent::GoHome);
-    wait_for(&core, "wieder geparkt", |v| v.parked.is_some()).await;
-    core.dispatch(UiEvent::OpenFiles { paths: vec![again], mode: Some(pida_core_api::OpenFilesMode::Replace) });
-    let v = wait_for(&core, "neu begonnen", |v| editing(v) && v.batch.is_none()).await;
-    assert!(!v.actions.show_batch, "nur das neu geöffnete Dokument");
-    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
-}
-
 /// Ablauf des Stapels je Signiermittel (ADR 0004 Nachtrag 12): der Kern liefert ihn aus den Fähigkeiten –
 /// Keystore „einmal entsperren“, ID Austria „einmal anmelden, je Dokument bestätigen“; ohne Fähigkeiten keiner.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1032,7 +967,7 @@ async fn home_parks_the_document_and_resume_brings_it_back_unchanged() {
     let v = start_with_parked(&core).await;
     let p = parked(&v).unwrap();
     assert_eq!((p.doc_name.as_deref(), p.documents, p.placed_by_hand, p.unsaved), (Some("a.pdf"), 1, true, false));
-    assert!(!v.actions.sign && !v.actions.edit_placement && v.actions.open_files && v.actions.verify);
+    assert!(!v.actions.sign && !v.actions.edit_placement && v.actions.open_files);
     assert!(v.done.is_empty(), "nichts verworfen");
     // verdeckt: „Signieren“ (⌘↵ bzw. Palette) bleibt ohne Wirkung
     core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
@@ -1101,6 +1036,50 @@ async fn files_while_parked_join_the_batch_or_replace_it() {
     assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
 }
 
+/// „Erneut signieren“ aus „Zuletzt signiert“ (ADR 0004 Nachtrag 15) bei geparkter Arbeit wie „Öffnen“: nach der
+/// Rückfrage „Zum Stapel hinzufügen“ (`mode: add`) bildet die Datei mit dem geparkten Dokument den Stapel, „Offene
+/// schließen und neu beginnen“ (`mode: replace`) verwirft ihn. Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn sign_recent_while_parked_joins_or_replaces_like_open_files() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf", "Vertrag_signed.pdf"]);
+    let store = pida_config::RecentStore::new(&fx.paths);
+    let entry = store
+        .push(pida_config::RecentEntry {
+            id: 0,
+            file_name: "Vertrag_signed.pdf".into(),
+            path: files[1].clone(),
+            signed_at: "2026-10-16T10:00:00+02:00".into(),
+        })
+        .unwrap();
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(vec![files[0].clone()], &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich a", |v| v.document.as_ref().is_some_and(|d| d.doc.name == "a.pdf")).await;
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    assert!(v.recent.as_ref().is_some_and(|r| r.iter().any(|i| i.id == entry.id && i.exists)));
+    // „Zum Stapel hinzufügen“
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: Some(pida_core_api::OpenFilesMode::Add) });
+    let v = overview_ready(&core, 2).await;
+    assert!(v.parked.is_none());
+    let a = batch(&v).items.iter().find(|i| i.name == "a.pdf").unwrap();
+    assert_eq!(a.position, PositionSummaryView::Invisible, "Plan des geparkten Dokuments bleibt");
+    assert!(batch(&v).items.iter().any(|i| i.name == "Vertrag_signed.pdf"));
+    // „Offene schließen und neu beginnen“: der Stapel wird verworfen, die Datei öffnet im Arbeitsbereich
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: Some(pida_core_api::OpenFilesMode::Replace) });
+    let v =
+        wait_for(&core, "Arbeitsbereich", |v| v.document.as_ref().is_some_and(|d| d.doc.name == "Vertrag_signed.pdf"))
+            .await;
+    assert!(v.batch.is_none() && v.parked.is_none());
+    assert!(v.done.iter().any(|d| d.name == "a.pdf" && d.result == pida_workflow::DocResult::Cancelled));
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
 /// Ein geparkter Stapel bleibt vollständig: die Voranalyse läuft weiter, „Alle signieren“ wirkt erst nach „Weiter
 /// bearbeiten“, der Lauf signiert dann alle (eine Sitzung).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -1128,6 +1107,119 @@ async fn parked_batch_keeps_preanalysing_and_signs_only_after_resume() {
     let v = summary(&core).await;
     let s = batch(&v).summary.clone().unwrap();
     assert_eq!((s.total, s.signed), (3, 3));
+}
+
+/// Meldung des Auftraggebers (ADR 0004 Nachtrag 13): ein aus der Übersicht geöffnetes Dokument parken – „Weiter
+/// bearbeiten“ führt zur Stapelübersicht, nicht ins Dokument; die Platzierung ist Plan des Eintrags („Positioniert“).
+/// Die Karte nennt den Stapel. Ebenso ein Einzeldokument mit wartenden Dokumenten. Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn resume_of_a_parked_batch_document_shows_the_overview_with_its_plan() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let files = inputs(&fx, &["a.pdf", "b.pdf", "c.pdf", "d.pdf"]);
+    let atrust = Atrust::new(Vec::new());
+    // mit PDFium (Sticker, Verschieben), sonst „Unsichtbar signieren“ als eigener Plan
+    let o = Opts { backends: atrust.backends(), engine: Some(FakeEngine::new()), pdfium: pdfium_dir().is_some() };
+    let core = start(&fx, overlay(files[..3].to_vec(), &out), o).unwrap();
+    let v = overview_ready(&core, 3).await;
+    let b = doc_of(&v, "b.pdf");
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    wait_for(&core, "Arbeitsbereich b", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.id == b && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    // eigener Plan (ohne PDFium: „Unsichtbar signieren“)
+    let expected = if pdfium_dir().is_some() {
+        let v = wait_for(&core, "Sticker", |v| v.document.as_ref().is_some_and(|d| d.sticker.is_some())).await;
+        let d = v.document.unwrap();
+        core.dispatch(UiEvent::MoveBlock { page: 0, x: 60.0, y: 400.0 });
+        wait_for(&core, "verschoben", |v| {
+            v.document.as_ref().is_some_and(|x| x.revision > d.revision && x.placement.x == 60.0)
+        })
+        .await;
+        PositionSummaryView::Manual { page: 0 }
+    } else {
+        core.dispatch(UiEvent::SetInvisible { invisible: true });
+        wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+        PositionSummaryView::Invisible
+    };
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    let p = parked(&v).unwrap();
+    assert_eq!((p.doc_name.as_deref(), p.documents, p.placed_by_hand), (None, 3, pdfium_dir().is_some()));
+    // „Weiter bearbeiten“: die Übersicht mit allen Einträgen, b mit seinem Plan
+    core.dispatch(UiEvent::ResumeParked);
+    let v = wait_for(&core, "Übersicht", |v| matches!(v.step, StepView::Batch)).await;
+    assert!(v.parked.is_none() && v.document.is_none() && batch(&v).open_item.is_none());
+    assert_eq!(batch(&v).items.len(), 3);
+    let item = batch(&v).items.iter().find(|i| i.doc == b).unwrap();
+    assert_eq!((item.status.clone(), item.position.clone()), (BatchItemStatusView::Positioned, expected.clone()));
+    // erneut öffnen: der Plan gilt wieder
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    let v = wait_for(&core, "b mit Plan", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.id == b && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    if expected == PositionSummaryView::Invisible {
+        assert!(v.document.unwrap().invisible, "Plan des Eintrags");
+    }
+
+    // Einzeldokument mit einem wartenden: „Stapel · 2 Dokumente“, „Weiter bearbeiten“ → Übersicht
+    let core = start(&fx, overlay(vec![files[3].clone()], &out), fake(atrust.backends())).unwrap();
+    wait_for(&core, "Arbeitsbereich d", |v| {
+        v.document.as_ref().is_some_and(|d| d.doc.name == "d.pdf" && d.phase == pida_core_api::DocumentPhase::Editing)
+    })
+    .await;
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+    core.dispatch(UiEvent::OpenFiles { paths: vec![files[0].clone()], mode: None });
+    wait_for(&core, "wartet", |v| v.actions.show_batch).await;
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    let p = parked(&v).unwrap();
+    assert_eq!((p.doc_name.as_deref(), p.documents), (None, 2));
+    core.dispatch(UiEvent::ResumeParked);
+    let v = overview_ready(&core, 2).await;
+    let d = batch(&v).items.iter().find(|i| i.name == "d.pdf").unwrap();
+    assert_eq!(d.position, PositionSummaryView::Invisible, "Plan des geparkten Dokuments");
+    assert!(v.parked.is_none());
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
+}
+
+/// Das für einen geöffneten Eintrag gewählte Signiermittel (Konto-Chip; „Jedes Mal fragen“: gilt für dieses
+/// Dokument, §8 F12) geht auf dem Weg Dokument → Startseite → Übersicht nicht verloren: erneut geöffnet ist es
+/// wieder gewählt, „Unsichtbar signieren“ wieder Plan (Nachtrag 13). Keine Sitzung (F-54).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn signer_choice_of_a_parked_entry_survives_the_overview() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let atrust = Atrust::new(Vec::new());
+    let core = start(&fx, overlay(inputs(&fx, &["a.pdf", "b.pdf"]), &out), fake(atrust.backends())).unwrap();
+    let v = overview_ready(&core, 2).await;
+    assert_eq!(v.signers.default, None, "„Jedes Mal fragen“");
+    let b = doc_of(&v, "b.pdf");
+    let editing = move |v: &ViewState| {
+        v.document.as_ref().is_some_and(|d| d.doc.id == b && d.phase == pida_core_api::DocumentPhase::Editing)
+    };
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    wait_for(&core, "Arbeitsbereich b", editing).await;
+    select(&core, BackendId::AtrustNative);
+    core.dispatch(UiEvent::SetInvisible { invisible: true });
+    wait_for(&core, "gewählt", |v| {
+        v.signers.selected == Some(BackendId::AtrustNative) && v.document.as_ref().is_some_and(|d| d.invisible)
+    })
+    .await;
+    core.dispatch(UiEvent::GoHome);
+    start_with_parked(&core).await;
+    core.dispatch(UiEvent::ResumeParked);
+    let v = wait_for(&core, "Übersicht", |v| matches!(v.step, StepView::Batch) && v.parked.is_none()).await;
+    let item = batch(&v).items.iter().find(|i| i.doc == b).unwrap();
+    assert_eq!(item.position, PositionSummaryView::Invisible);
+    core.dispatch(UiEvent::OpenBatchItem { doc: b });
+    let v = wait_for(&core, "b erneut", editing).await;
+    assert_eq!(v.signers.selected, Some(BackendId::AtrustNative), "Wahl für dieses Dokument bleibt");
+    assert!(v.document.unwrap().invisible, "Plan des Eintrags");
+    assert_eq!(atrust.n(&atrust.opened), 0, "keine Sitzung (F-54)");
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1497,6 +1589,21 @@ async fn real_core_batch_views_for_the_ui() {
     let v = summary(&core).await;
     assert!(!batch(&v).auto_position_once, "nach dem Lauf wieder laut Einstellung");
     states.push(("batch_summary", v));
+    drop(core);
+
+    // Meldung des Auftraggebers (Nachtrag 13): ein aus der Übersicht geöffneter Eintrag, geparkt – die Karte nennt
+    // den Stapel, „Weiter bearbeiten“ führt zur Übersicht
+    let core = start(&fx, overlay(inputs(&fx, &["Angebot.pdf", "Auftrag.pdf"]), &out), fake(None)).unwrap();
+    let v = overview_ready(&core, 2).await;
+    let doc = doc_of(&v, "Auftrag.pdf");
+    core.dispatch(UiEvent::OpenBatchItem { doc });
+    wait_for(&core, "Eintrag geöffnet", |v| v.document.as_ref().is_some_and(|d| d.doc.id == doc)).await;
+    core.dispatch(UiEvent::GoHome);
+    let v = start_with_parked(&core).await;
+    assert_eq!(v.parked.as_ref().map(|p| (p.doc_name.clone(), p.documents)), Some((None, 2)));
+    states.push(("batch_entry_parked", v));
+    core.dispatch(UiEvent::ResumeParked);
+    states.push(("batch_entry_resumed", overview_ready(&core, 2).await));
     drop(core);
 
     let fixture: serde_json::Map<String, serde_json::Value> =

@@ -269,13 +269,19 @@ pub fn block_geometry(
     if pages.is_empty() {
         return Err(PlanError::NoPages);
     }
-    let page = page.min(pages.len() - 1);
+    let width = block_width(spec, pages, page)?;
+    let app = spec.build(width, 0, store, fonts)?;
+    Ok(BlockGeometry { width: app.width, height: app.height })
+}
+
+/// Blockbreite auf `page` wie für die Vorschau ([`block_geometry`]): Profil-`pos` mit manuellem `x` gemischt
+/// ([`resolve_width`], KR-F01). `pages` darf nicht leer sein.
+fn block_width(spec: &BlockSpec, pages: &[PageInfo], page: usize) -> Result<f32, PlanError> {
+    let page = page.min(pages.len().checked_sub(1).ok_or(PlanError::NoPages)?);
     let request = TablePos::manual(u32::try_from(page + 1).unwrap_or(u32::MAX), 0.0, 0.0);
     let merged = TablePos::merge(&request, &spec.profile_pos());
     let ctx = PositionContext::new(pages);
-    let width = resolve_width(&merged, &ctx)?;
-    let app = spec.build(width.width, 0, store, fonts)?;
-    Ok(BlockGeometry { width: app.width, height: app.height })
+    Ok(resolve_width(&merged, &ctx)?.width)
 }
 
 /// Startposition der UI (letzte Seite, 50 %/25 %).
@@ -405,12 +411,16 @@ pub fn build_plan(inp: PlanInput<'_>) -> Result<BuiltPlan, PlanError> {
     let (visibility, field) = if !spec.visible() || matches!(inp.position, PositionChoice::Invisible) {
         (Visibility::Invisible, FieldTarget::New { name: None })
     } else if let PositionChoice::Field(f) = inp.position {
-        // vorhandenes leeres Feld: Rect bleibt, Appearance wird hineinskaliert (Plan §6.8)
+        // vorhandenes leeres Feld (Plan §6.8, ADR 0004 Nachtrag 16): `/Rect` bleibt; der Block hat die Breite der
+        // Vorschau (nicht die Feldbreite) und steht proportional, höchstens in natürlicher Größe und mittig im Feld
+        // (KR-P10) – genau dort, wo ihn der Arbeitsbereich zeigt (`FieldTargetView::block`)
         let rect = f.rect.normalized();
         let page_index = f.page_index.unwrap_or(0);
         let page = inp.pages.get(page_index).ok_or(PlanError::NoPages)?;
         let rotation = appearance_rotation(0, page);
-        let appearance = spec.build(rect.width().max(1.0), rotation, inp.store, inp.fonts)?;
+        let width = block_width(spec, inp.pages, page_index)?;
+        let mut appearance = spec.build(width, rotation, inp.store, inp.fonts)?;
+        pida_pades::fit_into_field(&mut appearance, rect);
         let placement = BlockPlacement { appearance: Arc::new(appearance), page_index, new_page: false, rect };
         let target = FieldTarget::Existing {
             field_id: f.field_id,

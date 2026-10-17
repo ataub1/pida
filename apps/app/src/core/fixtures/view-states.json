@@ -9,8 +9,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -62,8 +61,7 @@
       },
       "step": {
         "step": "starting"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -76,8 +74,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -130,8 +127,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -144,8 +140,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -209,8 +204,7 @@
           }
         ],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -223,8 +217,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -288,8 +281,7 @@
           }
         ],
         "step": "loading"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -302,8 +294,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -375,8 +366,7 @@
           "signed": false
         },
         "step": "warning"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -389,8 +379,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -496,8 +485,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -510,8 +498,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -590,8 +577,7 @@
         ],
         "qr": null,
         "step": "placeholder"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -604,8 +590,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -678,8 +663,7 @@
           "page": 1
         },
         "step": "placeholder"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -692,8 +676,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -781,8 +764,7 @@
           "y": 210.5
         },
         "step": "position"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -795,8 +777,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -879,8 +860,7 @@
           "y": 595.5
         },
         "step": "position"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -893,8 +873,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1015,8 +994,7 @@
           }
         ],
         "step": "backend"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1029,8 +1007,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1113,8 +1090,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1127,8 +1103,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1211,8 +1186,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1225,8 +1199,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1309,8 +1282,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1323,8 +1295,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1407,8 +1378,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1421,8 +1391,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1510,8 +1479,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1524,8 +1492,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1608,8 +1575,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1622,8 +1588,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1719,8 +1684,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1733,8 +1697,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1830,8 +1793,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1844,8 +1806,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -1941,8 +1902,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -1955,8 +1915,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2052,8 +2011,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2066,8 +2024,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2165,8 +2122,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2179,8 +2135,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2281,8 +2236,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2295,8 +2249,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2391,8 +2344,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2405,8 +2357,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2501,8 +2452,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2515,8 +2465,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2611,8 +2560,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2625,8 +2573,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2721,8 +2668,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2735,8 +2681,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2841,8 +2786,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2855,8 +2799,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -2953,8 +2896,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -2967,8 +2909,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3064,8 +3005,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3078,8 +3018,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3175,8 +3114,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3189,8 +3127,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3285,8 +3222,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3299,8 +3235,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3397,8 +3332,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3411,8 +3345,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3502,8 +3435,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3516,8 +3448,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3607,8 +3538,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3621,8 +3551,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3712,8 +3641,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3726,8 +3654,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3817,8 +3744,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3831,8 +3757,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -3921,8 +3846,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -3935,8 +3859,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4025,8 +3948,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4039,8 +3961,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4129,8 +4050,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4143,8 +4063,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4233,8 +4152,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4247,8 +4165,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4341,8 +4258,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4355,8 +4271,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4445,8 +4360,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4459,8 +4373,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4549,8 +4462,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4563,8 +4475,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4653,8 +4564,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4667,8 +4577,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4757,8 +4666,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4771,8 +4679,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4861,8 +4768,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4875,8 +4781,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -4965,8 +4870,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -4979,8 +4883,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5041,8 +4944,7 @@
           "summary": null
         },
         "step": "output"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5055,8 +4957,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5132,8 +5033,7 @@
           "summary": null
         },
         "step": "output"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5146,8 +5046,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5208,8 +5107,7 @@
           "summary": null
         },
         "step": "output"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5222,8 +5120,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5287,8 +5184,7 @@
           "summary": null
         },
         "step": "output"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5301,8 +5197,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5365,8 +5260,7 @@
         },
         "retry": true,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5379,8 +5273,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5433,8 +5326,7 @@
       "step": {
         "exit_code": 4,
         "step": "finished"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5447,8 +5339,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5599,8 +5490,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5613,8 +5503,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5736,8 +5625,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5750,8 +5638,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5831,8 +5718,7 @@
           }
         ],
         "step": "backend"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5845,8 +5731,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5905,8 +5790,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5919,8 +5803,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -5978,8 +5861,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -5992,8 +5874,7 @@
         "settings": true,
         "show_batch": true,
         "sign": true,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -6081,6 +5962,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -6090,14 +5977,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -6197,6 +6087,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "editing",
         "placement": {
@@ -6358,8 +6252,7 @@
           "y": 210.5
         },
         "step": "position"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -6372,8 +6265,7 @@
         "settings": true,
         "show_batch": true,
         "sign": true,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -6461,6 +6353,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -6470,14 +6368,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -6577,6 +6478,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "editing",
         "placement": {
@@ -6722,8 +6627,7 @@
           "y": 210.5
         },
         "step": "position"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -6736,8 +6640,7 @@
         "settings": true,
         "show_batch": true,
         "sign": true,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -6825,6 +6728,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -6834,14 +6743,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -6941,6 +6853,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "editing",
         "placement": {
@@ -7102,8 +7018,7 @@
           "y": 210.5
         },
         "step": "position"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -7116,8 +7031,7 @@
         "settings": true,
         "show_batch": true,
         "sign": true,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -7202,6 +7116,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -7211,14 +7131,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -7318,6 +7241,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "field",
         "phase": "editing",
         "placement": {
@@ -7480,8 +7407,7 @@
           "y": 210.5
         },
         "step": "position"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -7494,8 +7420,7 @@
         "settings": true,
         "show_batch": true,
         "sign": true,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -7547,6 +7472,10 @@
         "invisible": true,
         "layout": [],
         "new_page": true,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "user",
         "phase": "editing",
         "placement": {
@@ -7646,8 +7575,7 @@
           "y": 210.5
         },
         "step": "position"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -7660,8 +7588,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": false,
-        "verify": true
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -7746,6 +7673,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -7755,14 +7688,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -7862,6 +7798,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "warning",
         "placement": {
@@ -7961,8 +7901,7 @@
           "signed": false
         },
         "step": "warning"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -7975,8 +7914,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -8064,6 +8002,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -8073,14 +8017,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -8180,6 +8127,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -8294,8 +8245,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -8308,8 +8258,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -8397,6 +8346,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -8406,14 +8361,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -8513,6 +8471,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -8627,8 +8589,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -8641,8 +8602,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -8730,6 +8690,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -8739,14 +8705,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -8846,6 +8815,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -8960,8 +8933,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -8974,8 +8946,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -9063,6 +9034,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -9072,14 +9049,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -9179,6 +9159,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -9293,8 +9277,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -9307,8 +9290,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -9396,6 +9378,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -9405,14 +9393,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -9512,6 +9503,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -9626,8 +9621,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -9640,8 +9634,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -9729,6 +9722,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -9738,14 +9737,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -9845,6 +9847,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -9959,8 +9965,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -9973,8 +9978,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -10062,6 +10066,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -10071,14 +10081,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -10178,6 +10191,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -10292,8 +10309,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -10306,8 +10322,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -10395,6 +10410,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -10404,14 +10425,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -10511,6 +10535,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -10625,8 +10653,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -10639,8 +10666,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -10728,6 +10754,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -10737,14 +10769,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -10844,6 +10879,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -10958,8 +10997,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -10972,8 +11010,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -11061,6 +11098,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -11070,14 +11113,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -11177,6 +11223,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -11291,8 +11341,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -11305,8 +11354,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -11394,6 +11442,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -11403,14 +11457,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -11510,6 +11567,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -11624,8 +11685,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -11638,8 +11698,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -11727,6 +11786,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -11736,14 +11801,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -11843,6 +11911,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "qr",
         "phase": "signing",
         "placement": {
@@ -11957,8 +12029,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -11971,8 +12042,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": {
         "auto_position_once": false,
@@ -12291,8 +12361,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -12305,8 +12374,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": {
         "auto_position_once": false,
@@ -12625,8 +12693,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -12639,8 +12706,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": {
         "auto_position_once": false,
@@ -12956,8 +13022,7 @@
           }
         ],
         "step": "signing"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -12970,8 +13035,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -13032,8 +13096,7 @@
         "params": {},
         "retry": false,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -13046,8 +13109,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -13108,8 +13170,7 @@
         "params": {},
         "retry": false,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -13122,8 +13183,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -13184,8 +13244,7 @@
         "params": {},
         "retry": false,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -13198,8 +13257,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -13287,6 +13345,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -13296,14 +13360,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -13403,6 +13470,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "auto",
         "phase": "signing",
         "placement": {
@@ -13495,8 +13566,7 @@
         "params": {},
         "retry": true,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -13509,8 +13579,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -13571,8 +13640,7 @@
         "params": {},
         "retry": false,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -13585,8 +13653,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -13647,8 +13714,7 @@
         "params": {},
         "retry": false,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -13661,8 +13727,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -13723,8 +13788,7 @@
         "params": {},
         "retry": false,
         "step": "error"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -13737,8 +13801,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -13826,6 +13889,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -13835,14 +13904,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -13942,6 +14014,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "user",
         "phase": "done",
         "placement": {
@@ -14055,8 +14131,7 @@
           }
         },
         "step": "output"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -14069,8 +14144,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": {
@@ -14158,6 +14232,12 @@
         ],
         "fields": [
           {
+            "block": {
+              "bottom": 100.0,
+              "left": 71.0,
+              "right": 241.0,
+              "top": 160.0
+            },
             "index": 0,
             "name": "Unterschrift.Auftraggeber",
             "page": 1,
@@ -14167,14 +14247,17 @@
               "right": 256.0,
               "top": 160.0
             },
-            "selectable": true
+            "selectable": true,
+            "suitable": true
           },
           {
+            "block": null,
             "index": 1,
             "name": "Gesperrt",
             "page": null,
             "rect": null,
-            "selectable": false
+            "selectable": false,
+            "suitable": false
           }
         ],
         "invisible": false,
@@ -14274,6 +14357,10 @@
           }
         ],
         "new_page": false,
+        "new_page_size": [
+          595.280029296875,
+          841.8900146484375
+        ],
         "origin": "user",
         "phase": "done",
         "placement": {
@@ -14387,8 +14474,7 @@
           }
         },
         "step": "output"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -14401,8 +14487,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": true,
-        "verify": true
+        "start_batch": true
       },
       "batch": {
         "auto_position_once": false,
@@ -14728,8 +14813,7 @@
       },
       "step": {
         "step": "batch"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -14742,8 +14826,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": true,
-        "verify": true
+        "start_batch": true
       },
       "batch": {
         "auto_position_once": false,
@@ -15069,8 +15152,7 @@
       },
       "step": {
         "step": "batch"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -15083,8 +15165,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": true,
-        "verify": true
+        "start_batch": true
       },
       "batch": {
         "auto_position_once": false,
@@ -15410,8 +15491,7 @@
       },
       "step": {
         "step": "batch"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -15424,8 +15504,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": true,
-        "verify": true
+        "start_batch": true
       },
       "batch": {
         "auto_position_once": false,
@@ -15733,8 +15812,7 @@
       },
       "step": {
         "step": "batch"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -15747,8 +15825,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": {
         "auto_position_once": false,
@@ -15814,8 +15891,7 @@
       },
       "step": {
         "step": "batch"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -15828,8 +15904,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": true,
-        "verify": true
+        "start_batch": true
       },
       "batch": {
         "auto_position_once": true,
@@ -16155,8 +16230,7 @@
       },
       "step": {
         "step": "batch"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -16169,8 +16243,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": true,
-        "verify": true
+        "start_batch": true
       },
       "batch": {
         "auto_position_once": false,
@@ -16496,1030 +16569,6 @@
       },
       "step": {
         "step": "batch"
-      },
-      "verify": null
-    }
-  },
-  {
-    "name": "ws_verify_loading",
-    "view": {
-      "actions": {
-        "edit_placement": false,
-        "home": false,
-        "open_files": false,
-        "settings": false,
-        "show_batch": false,
-        "sign": false,
-        "start_batch": false,
-        "verify": false
-      },
-      "batch": null,
-      "document": null,
-      "done": [],
-      "first_run": null,
-      "keystore_import": null,
-      "language": "de",
-      "main_bar": {
-        "settings_enabled": true,
-        "steps": [
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Open"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Positioning"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Signing"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Finish"
-          }
-        ]
-      },
-      "migration": null,
-      "notices": [],
-      "parked": null,
-      "platform": {
-        "mobile": false,
-        "os": "macos"
-      },
-      "privacy_text": null,
-      "recent": null,
-      "resume": null,
-      "settings": null,
-      "share_hint": null,
-      "signers": {
-        "default": null,
-        "options": [],
-        "selected": null
-      },
-      "step": {
-        "queue": [],
-        "step": "open"
-      },
-      "verify": {
-        "doc": null,
-        "file_name": "Vertrag_signed.pdf",
-        "revisions": 0,
-        "signatures": [],
-        "status": {
-          "state": "loading"
-        },
-        "summary": "no_signatures"
-      }
-    }
-  },
-  {
-    "name": "ws_verify_failed",
-    "view": {
-      "actions": {
-        "edit_placement": false,
-        "home": false,
-        "open_files": false,
-        "settings": false,
-        "show_batch": false,
-        "sign": false,
-        "start_batch": false,
-        "verify": false
-      },
-      "batch": null,
-      "document": null,
-      "done": [],
-      "first_run": null,
-      "keystore_import": null,
-      "language": "de",
-      "main_bar": {
-        "settings_enabled": true,
-        "steps": [
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Open"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Positioning"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Signing"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Finish"
-          }
-        ]
-      },
-      "migration": null,
-      "notices": [],
-      "parked": null,
-      "platform": {
-        "mobile": false,
-        "os": "macos"
-      },
-      "privacy_text": null,
-      "recent": null,
-      "resume": null,
-      "settings": null,
-      "share_hint": null,
-      "signers": {
-        "default": null,
-        "options": [],
-        "selected": null
-      },
-      "step": {
-        "queue": [],
-        "step": "open"
-      },
-      "verify": {
-        "doc": null,
-        "file_name": "Vertrag_signed.pdf",
-        "revisions": 0,
-        "signatures": [],
-        "status": {
-          "code": "ng-verify-open-failed",
-          "state": "failed"
-        },
-        "summary": "no_signatures"
-      }
-    }
-  },
-  {
-    "name": "ws_verify_intact",
-    "view": {
-      "actions": {
-        "edit_placement": false,
-        "home": false,
-        "open_files": false,
-        "settings": false,
-        "show_batch": false,
-        "sign": false,
-        "start_batch": false,
-        "verify": false
-      },
-      "batch": null,
-      "document": null,
-      "done": [],
-      "first_run": null,
-      "keystore_import": null,
-      "language": "de",
-      "main_bar": {
-        "settings_enabled": true,
-        "steps": [
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Open"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Positioning"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Signing"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Finish"
-          }
-        ]
-      },
-      "migration": null,
-      "notices": [],
-      "parked": null,
-      "platform": {
-        "mobile": false,
-        "os": "macos"
-      },
-      "privacy_text": null,
-      "recent": null,
-      "resume": null,
-      "settings": null,
-      "share_hint": null,
-      "signers": {
-        "default": null,
-        "options": [],
-        "selected": null
-      },
-      "step": {
-        "queue": [],
-        "step": "open"
-      },
-      "verify": {
-        "doc": {
-          "id": 100,
-          "name": "Vertrag.pdf",
-          "page_count": 2,
-          "page_sizes": [
-            [
-              595.5,
-              842.0
-            ],
-            [
-              842.0,
-              595.5
-            ]
-          ],
-          "signed": false
-        },
-        "file_name": "Vertrag_signed.pdf",
-        "revisions": 3,
-        "signatures": [
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": {
-              "page": 1,
-              "rect": {
-                "bottom": 128.5,
-                "left": 297.5,
-                "right": 530.0,
-                "top": 210.5
-              }
-            },
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "revision",
-              "later_revisions": 1,
-              "later_signatures": 1
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur1",
-            "format": "pades",
-            "index": 1,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": true
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur2",
-            "format": "pkcs7_detached",
-            "index": 2,
-            "integrity": {
-              "code": "pades-byte-range-mismatch",
-              "kind": "broken"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "not_qualified"
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": null,
-            "appearance": null,
-            "cert_valid_at_signing": null,
-            "cert_valid_from": null,
-            "cert_valid_to": null,
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": null,
-            "field_name": "Signatur3",
-            "format": "other",
-            "index": 3,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": null,
-            "organization": null,
-            "qualification": {
-              "kind": "unknown"
-            },
-            "serial": null,
-            "signer": null,
-            "signing_time": null,
-            "trust": "not_checked",
-            "warnings": [
-              "ng-verify-warning-sha1"
-            ]
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur4",
-            "format": "pkcs7_sha1",
-            "index": 4,
-            "integrity": {
-              "code": "pdf-signature-subfilter",
-              "kind": "not_verifiable"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": false
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          }
-        ],
-        "status": {
-          "state": "ready"
-        },
-        "summary": "all_intact"
-      }
-    }
-  },
-  {
-    "name": "ws_verify_broken",
-    "view": {
-      "actions": {
-        "edit_placement": false,
-        "home": false,
-        "open_files": false,
-        "settings": false,
-        "show_batch": false,
-        "sign": false,
-        "start_batch": false,
-        "verify": false
-      },
-      "batch": null,
-      "document": null,
-      "done": [],
-      "first_run": null,
-      "keystore_import": null,
-      "language": "de",
-      "main_bar": {
-        "settings_enabled": true,
-        "steps": [
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Open"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Positioning"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Signing"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Finish"
-          }
-        ]
-      },
-      "migration": null,
-      "notices": [],
-      "parked": null,
-      "platform": {
-        "mobile": false,
-        "os": "macos"
-      },
-      "privacy_text": null,
-      "recent": null,
-      "resume": null,
-      "settings": null,
-      "share_hint": null,
-      "signers": {
-        "default": null,
-        "options": [],
-        "selected": null
-      },
-      "step": {
-        "queue": [],
-        "step": "open"
-      },
-      "verify": {
-        "doc": {
-          "id": 100,
-          "name": "Vertrag.pdf",
-          "page_count": 2,
-          "page_sizes": [
-            [
-              595.5,
-              842.0
-            ],
-            [
-              842.0,
-              595.5
-            ]
-          ],
-          "signed": false
-        },
-        "file_name": "Vertrag_signed.pdf",
-        "revisions": 3,
-        "signatures": [
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": {
-              "page": 1,
-              "rect": {
-                "bottom": 128.5,
-                "left": 297.5,
-                "right": 530.0,
-                "top": 210.5
-              }
-            },
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "revision",
-              "later_revisions": 1,
-              "later_signatures": 1
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur1",
-            "format": "pades",
-            "index": 1,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": true
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur2",
-            "format": "pkcs7_detached",
-            "index": 2,
-            "integrity": {
-              "code": "pades-byte-range-mismatch",
-              "kind": "broken"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "not_qualified"
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": null,
-            "appearance": null,
-            "cert_valid_at_signing": null,
-            "cert_valid_from": null,
-            "cert_valid_to": null,
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": null,
-            "field_name": "Signatur3",
-            "format": "other",
-            "index": 3,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": null,
-            "organization": null,
-            "qualification": {
-              "kind": "unknown"
-            },
-            "serial": null,
-            "signer": null,
-            "signing_time": null,
-            "trust": "not_checked",
-            "warnings": [
-              "ng-verify-warning-sha1"
-            ]
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur4",
-            "format": "pkcs7_sha1",
-            "index": 4,
-            "integrity": {
-              "code": "pdf-signature-subfilter",
-              "kind": "not_verifiable"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": false
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          }
-        ],
-        "status": {
-          "state": "ready"
-        },
-        "summary": "some_broken"
-      }
-    }
-  },
-  {
-    "name": "ws_verify_not_verifiable",
-    "view": {
-      "actions": {
-        "edit_placement": false,
-        "home": false,
-        "open_files": false,
-        "settings": false,
-        "show_batch": false,
-        "sign": false,
-        "start_batch": false,
-        "verify": false
-      },
-      "batch": null,
-      "document": null,
-      "done": [],
-      "first_run": null,
-      "keystore_import": null,
-      "language": "de",
-      "main_bar": {
-        "settings_enabled": true,
-        "steps": [
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Open"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Positioning"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Signing"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Finish"
-          }
-        ]
-      },
-      "migration": null,
-      "notices": [],
-      "parked": null,
-      "platform": {
-        "mobile": false,
-        "os": "macos"
-      },
-      "privacy_text": null,
-      "recent": null,
-      "resume": null,
-      "settings": null,
-      "share_hint": null,
-      "signers": {
-        "default": null,
-        "options": [],
-        "selected": null
-      },
-      "step": {
-        "queue": [],
-        "step": "open"
-      },
-      "verify": {
-        "doc": {
-          "id": 100,
-          "name": "Vertrag.pdf",
-          "page_count": 2,
-          "page_sizes": [
-            [
-              595.5,
-              842.0
-            ],
-            [
-              842.0,
-              595.5
-            ]
-          ],
-          "signed": false
-        },
-        "file_name": "Vertrag_signed.pdf",
-        "revisions": 3,
-        "signatures": [
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": {
-              "page": 1,
-              "rect": {
-                "bottom": 128.5,
-                "left": 297.5,
-                "right": 530.0,
-                "top": 210.5
-              }
-            },
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "revision",
-              "later_revisions": 1,
-              "later_signatures": 1
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur1",
-            "format": "pades",
-            "index": 1,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": true
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur2",
-            "format": "pkcs7_detached",
-            "index": 2,
-            "integrity": {
-              "code": "pades-byte-range-mismatch",
-              "kind": "broken"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "not_qualified"
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": null,
-            "appearance": null,
-            "cert_valid_at_signing": null,
-            "cert_valid_from": null,
-            "cert_valid_to": null,
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": null,
-            "field_name": "Signatur3",
-            "format": "other",
-            "index": 3,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": null,
-            "organization": null,
-            "qualification": {
-              "kind": "unknown"
-            },
-            "serial": null,
-            "signer": null,
-            "signing_time": null,
-            "trust": "not_checked",
-            "warnings": [
-              "ng-verify-warning-sha1"
-            ]
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur4",
-            "format": "pkcs7_sha1",
-            "index": 4,
-            "integrity": {
-              "code": "pdf-signature-subfilter",
-              "kind": "not_verifiable"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": false
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          }
-        ],
-        "status": {
-          "state": "ready"
-        },
-        "summary": "some_not_verifiable"
-      }
-    }
-  },
-  {
-    "name": "ws_verify_modified",
-    "view": {
-      "actions": {
-        "edit_placement": false,
-        "home": false,
-        "open_files": false,
-        "settings": false,
-        "show_batch": false,
-        "sign": false,
-        "start_batch": false,
-        "verify": false
-      },
-      "batch": null,
-      "document": null,
-      "done": [],
-      "first_run": null,
-      "keystore_import": null,
-      "language": "de",
-      "main_bar": {
-        "settings_enabled": true,
-        "steps": [
-          {
-            "active": true,
-            "enabled": true,
-            "step": "Open"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Positioning"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Signing"
-          },
-          {
-            "active": false,
-            "enabled": false,
-            "step": "Finish"
-          }
-        ]
-      },
-      "migration": null,
-      "notices": [],
-      "parked": null,
-      "platform": {
-        "mobile": false,
-        "os": "macos"
-      },
-      "privacy_text": null,
-      "recent": null,
-      "resume": null,
-      "settings": null,
-      "share_hint": null,
-      "signers": {
-        "default": null,
-        "options": [],
-        "selected": null
-      },
-      "step": {
-        "queue": [],
-        "step": "open"
-      },
-      "verify": {
-        "doc": {
-          "id": 100,
-          "name": "Vertrag.pdf",
-          "page_count": 2,
-          "page_sizes": [
-            [
-              595.5,
-              842.0
-            ],
-            [
-              842.0,
-              595.5
-            ]
-          ],
-          "signed": false
-        },
-        "file_name": "Vertrag_signed.pdf",
-        "revisions": 3,
-        "signatures": [
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": {
-              "page": 1,
-              "rect": {
-                "bottom": 128.5,
-                "left": 297.5,
-                "right": 530.0,
-                "top": 210.5
-              }
-            },
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "revision",
-              "later_revisions": 1,
-              "later_signatures": 1
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur1",
-            "format": "pades",
-            "index": 1,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": true
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur2",
-            "format": "pkcs7_detached",
-            "index": 2,
-            "integrity": {
-              "code": "pades-byte-range-mismatch",
-              "kind": "broken"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "not_qualified"
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          },
-          {
-            "algorithm": null,
-            "appearance": null,
-            "cert_valid_at_signing": null,
-            "cert_valid_from": null,
-            "cert_valid_to": null,
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": null,
-            "field_name": "Signatur3",
-            "format": "other",
-            "index": 3,
-            "integrity": {
-              "kind": "intact"
-            },
-            "issuer": null,
-            "organization": null,
-            "qualification": {
-              "kind": "unknown"
-            },
-            "serial": null,
-            "signer": null,
-            "signing_time": null,
-            "trust": "not_checked",
-            "warnings": [
-              "ng-verify-warning-sha1"
-            ]
-          },
-          {
-            "algorithm": "ECDSA P-256",
-            "appearance": null,
-            "cert_valid_at_signing": true,
-            "cert_valid_from": "2025-01-01T00:00:00+00:00",
-            "cert_valid_to": "2030-01-01T00:00:00+00:00",
-            "coverage": {
-              "kind": "whole_document"
-            },
-            "digest": "SHA-256",
-            "field_name": "Signatur4",
-            "format": "pkcs7_sha1",
-            "index": 4,
-            "integrity": {
-              "code": "pdf-signature-subfilter",
-              "kind": "not_verifiable"
-            },
-            "issuer": "a-sign-premium-mobile-07",
-            "organization": "Beispiel GmbH",
-            "qualification": {
-              "kind": "qualified",
-              "qscd": false
-            },
-            "serial": "1234567890",
-            "signer": "Max Mustermann",
-            "signing_time": "2026-10-14T09:30:00+02:00",
-            "trust": "not_checked",
-            "warnings": []
-          }
-        ],
-        "status": {
-          "state": "ready"
-        },
-        "summary": "modified_after_last_signature"
       }
     }
   },
@@ -17533,8 +16582,7 @@
         "settings": true,
         "show_batch": true,
         "sign": false,
-        "start_batch": false,
-        "verify": true
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -17602,8 +16650,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -17616,8 +16663,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -17670,8 +16716,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -17684,8 +16729,7 @@
         "settings": true,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": true
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -17743,8 +16787,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -17757,8 +16800,7 @@
         "settings": true,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": true
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -17816,8 +16858,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -17830,8 +16871,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -17964,8 +17004,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   },
   {
@@ -17978,8 +17017,7 @@
         "settings": false,
         "show_batch": false,
         "sign": false,
-        "start_batch": false,
-        "verify": false
+        "start_batch": false
       },
       "batch": null,
       "document": null,
@@ -18038,8 +17076,7 @@
       "step": {
         "queue": [],
         "step": "open"
-      },
-      "verify": null
+      }
     }
   }
 ]

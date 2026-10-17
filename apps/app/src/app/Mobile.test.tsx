@@ -191,7 +191,8 @@ describe('Hinweis zum Teilen auf iOS (ADR 0004 Nachtrag 12)', () => {
     await expectNoAxeViolations();
     await user.click(within(hint).getByRole('button', { name: 'Weitere PDFs hinzufügen …' }));
     await waitFor(() => expect(lastEvent(mock)).toMatchObject({ type: 'open_files', mode: 'add' }));
-    expect(mock.nativeCalls).toContain('pickMobileFiles:pdf:multiple');
+    // Dokumentauswahl mit Mehrfachauswahl (seit Nachtrag 17 mit der Zahl der nicht übernommenen Dateien)
+    expect(mock.nativeCalls).toContain('pickMobileDocuments:multiple');
     await user.click(within(hint).getByRole('button', { name: 'Hinweis ausblenden' }));
     expect(lastEvent(mock)).toEqual({ type: 'dismiss_share_hint' });
   });

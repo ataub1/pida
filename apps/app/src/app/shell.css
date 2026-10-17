@@ -154,8 +154,7 @@
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
-.view-workspace .app-main,
-.view-verify .app-main {
+.view-workspace .app-main {
   overflow: hidden;
 }
 .header-theme-icon {
@@ -252,9 +251,9 @@
 }
 
 /* Telefon hochkant mit „Zurück zum Stapel“ bzw. „Zum Stapel“ in der Kopfzeile: Wortmarke, Haus-Symbol, Zurück,
-   Dokument, „+ PDF“ und die Aktionen brauchen mehr als 390 px – der Dokumentkontext schrumpfte und „+ PDF“ lag
-   20 px über „Prüfen“ (iPhone 17e, 17.10.2026). Dann nur das Logo (Name der Schaltfläche bleibt „PIDA –
-   Startseite“). */
+   Dokument, „+ PDF“ und die Aktionen passen knapp bzw. nicht – der Dokumentkontext schrumpft, dann liegt „+ PDF“
+   über den Aktionen (iPhone 17e, 17.10.2026: 20 px über „Prüfen“, vor dessen Entfernung; ohne „Prüfen“ auf 360-pt-
+   Telefonen noch 2 px Luft). Dann nur das Logo (Name der Schaltfläche bleibt „PIDA – Startseite“). */
 @media (max-width: 480px) {
   .app-header:has(.header-back) .wordmark-text {
     display: none;

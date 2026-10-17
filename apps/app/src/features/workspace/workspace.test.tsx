@@ -11,7 +11,7 @@ import type { DocumentView, UiEvent } from '../../core/types';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { emulateMedia, lastEvent, renderApp } from '../../test/render';
 import { defaultSettings } from '../../core/defaults';
-import { documentView, IOS, onMobile, settingsView, signersView, viewOf, workspaceView } from '../../test/views';
+import { documentView, fieldTarget, IOS, onMobile, settingsView, signersView, viewOf, workspaceView } from '../../test/views';
 import { layoutPages, PAGE_GAP, PAGE_PAD } from './placement';
 
 const SCALE = 1.15; // eingepasster Maßstab ohne ResizeObserver (jsdom)
@@ -202,7 +202,7 @@ describe('Überdeckung, Felder, Optionen', () => {
   });
 
   it('leeres Signaturfeld: „Hier signieren“-Markierung und Hinweisleiste → use_target (auch ohne Platzhaltersuche)', async () => {
-    const doc = documentView({ fields: [{ index: 0, name: 'Unterschrift_Antragsteller', page: 1, rect: { left: 299, right: 539, top: 300, bottom: 214 }, selectable: true }] });
+    const doc = documentView({ fields: [fieldTarget({ index: 0, name: 'Unterschrift_Antragsteller', page: 1, rect: { left: 299, right: 539, top: 300, bottom: 214 }, selectable: true })] });
     const { mock, user } = renderApp({ view: workspaceView(doc) });
     await user.click(await screen.findByRole('button', { name: 'Hier signieren: Signaturfeld „Unterschrift_Antragsteller“' }));
     expect(lastEvent(mock)).toEqual({ type: 'use_target', target: { kind: 'field', index: 0 } });
@@ -211,7 +211,7 @@ describe('Überdeckung, Felder, Optionen', () => {
   });
 
   it('Ziehen ins Feld rastet im Feld ein → use_target', async () => {
-    const doc = documentView({ fields: [{ index: 0, name: 'Feld', page: 2, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true }] });
+    const doc = documentView({ fields: [fieldTarget({ index: 0, name: 'Feld', page: 2, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true })] });
     const { mock } = renderApp({ view: workspaceView(doc) });
     await screen.findByRole('application', { name: 'Signaturblock' });
     const { s } = stubRects();
@@ -223,12 +223,90 @@ describe('Überdeckung, Felder, Optionen', () => {
     expect(mock.dispatched.filter((e) => e.type === 'use_target')).toEqual([{ type: 'use_target', target: { kind: 'field', index: 0 } }]);
   });
 
+  it.each([
+    { label: 'Desktop, Maus', narrow: false, pointerType: 'mouse' },
+    { label: 'schmal, Touch (iOS)', narrow: true, pointerType: 'touch' },
+  ])('unplausible Felder (seitengroß, 3 pt schmal): keine Markierung, kein Einrasten beim Ziehen, Hinweisleiste nennt das passende Feld – $label (Nachtrag 16)', async ({ narrow, pointerType }) => {
+    if (narrow) restore = emulateMedia({ narrow: true });
+    const page = fieldTarget({ index: 0, name: 'Seite', page: 2, rect: { left: 0, right: 595.28, top: 841.89, bottom: 0 }, selectable: true });
+    const sliver = fieldTarget({ index: 1, name: 'Schmal', page: 2, rect: { left: 350, right: 353, top: 581, bottom: 357 }, selectable: true });
+    const ok = fieldTarget({ index: 2, name: 'Unterschrift', page: 0, rect: { left: 36, right: 183, top: 766, bottom: 694 }, selectable: true });
+    expect([page.suitable, sliver.suitable, ok.suitable]).toEqual([false, false, true]);
+    const view = workspaceView(documentView({ fields: [page, sliver, ok] }));
+    const { mock } = renderApp({ view: narrow ? onMobile(view, IOS) : view });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.getAllByRole('button', { name: /^Hier signieren/ }).map((b) => b.getAttribute('aria-label'))).toEqual(['Hier signieren: Signaturfeld „Unterschrift“']);
+    expect(screen.getByText(/„Unterschrift“ auf Seite 1/)).toBeInTheDocument();
+    const { s } = stubRects();
+    fireEvent.pointerDown(s, { button: 0, pointerId: 1, pointerType, clientX: 0, clientY: 0 });
+    // Blockmitte mitten im seitengroßen Feld auf Seite 3: kein Einrasten, Block bleibt so groß wie er ist
+    fireEvent.pointerMove(s, { pointerId: 1, pointerType, ...px(2, 150, 500) });
+    expect(s).not.toHaveClass('is-in-field');
+    expect(parseFloat(s.style.width)).toBeCloseTo(230 * SCALE, 3);
+    expect(parseFloat(s.style.height)).toBeCloseTo(82 * SCALE, 3);
+    expect(screen.queryByTestId('field-frame')).not.toBeInTheDocument();
+    fireEvent.pointerUp(s, { pointerId: 1, pointerType, ...px(2, 150, 500) });
+    expect(mock.dispatched.filter((e) => e.type === 'use_target')).toEqual([]);
+    const move = mock.dispatched.find((e) => e.type === 'move_block') as Extract<UiEvent, { type: 'move_block' }>;
+    expect([move.page, move.x, move.y]).toEqual([2, expect.closeTo(150, 3), expect.closeTo(500, 3)]);
+  });
+
+  it.each([
+    { label: 'Desktop, Maus', narrow: false, pointerType: 'mouse' },
+    { label: 'schmal, Touch (iOS)', narrow: true, pointerType: 'touch' },
+  ])('Ziehen über ein passendes Feld: Block proportional und mittig im Feld (`block`), Rahmen des Felds, nicht gestreckt – $label', async ({ narrow, pointerType }) => {
+    if (narrow) restore = emulateMedia({ narrow: true });
+    // 400 × 200 pt: der Block bleibt 230 × 82 pt groß und steht mittig
+    const big = fieldTarget({ index: 0, name: 'Groß', page: 2, rect: { left: 100, right: 500, top: 400, bottom: 200 }, selectable: true });
+    expect(big.suitable).toBe(true);
+    expect(big.block).toEqual({ left: 185, right: 415, bottom: 259, top: 341 });
+    const view = workspaceView(documentView({ fields: [big] }));
+    const { mock } = renderApp({ view: narrow ? onMobile(view, IOS) : view });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const { s } = stubRects();
+    fireEvent.pointerDown(s, { button: 0, pointerId: 1, pointerType, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(s, { pointerId: 1, pointerType, ...px(2, 150, 330) });
+    expect(s).toHaveClass('is-in-field');
+    expect(parseFloat(s.style.left)).toBeCloseTo(185 * SCALE, 3);
+    expect(parseFloat(s.style.width)).toBeCloseTo(230 * SCALE, 3);
+    expect(parseFloat(s.style.height)).toBeCloseTo(82 * SCALE, 3);
+    const frame = screen.getByTestId('field-frame');
+    expect(parseFloat(frame.style.width)).toBeCloseTo(400 * SCALE, 3);
+    expect(document.querySelector('.field-marker.is-hit')).not.toBeNull();
+    fireEvent.pointerUp(s, { pointerId: 1, pointerType, ...px(2, 150, 330) });
+    expect(mock.dispatched.filter((e) => e.type === 'use_target')).toEqual([{ type: 'use_target', target: { kind: 'field', index: 0 } }]);
+  });
+
+  it('im Feld: Vorschaubild in der Darstellungsgröße neu angefordert (verkleinert, nie hochskaliert)', async () => {
+    const svgWidth = () => {
+      const src = decodeURIComponent(sticker().querySelector('img')?.getAttribute('src') ?? '');
+      return Number(/width="(\d+)"/.exec(src)?.[1]);
+    };
+    // frei: 230 pt × 1,15 px/pt → Maßstab 1,25 (aufgerundet) → 288 px
+    const { mock } = renderApp({ view: workspaceView() });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(svgWidth()).toBe(288);
+    // im halb so großen Feld: 0,575 px/pt → 0,75 → 173 px (dargestellt 132 px, nicht hochskaliert)
+    const small = fieldTarget({ index: 0, name: 'Klein', page: 2, rect: { left: 300, right: 415, top: 700, bottom: 659 }, selectable: true });
+    expect(small.block).toEqual({ left: 300, right: 415, bottom: 659, top: 700 });
+    act(() => mock.setView(workspaceView(documentView({ target: { kind: 'field', index: 0 }, origin: 'field', fields: [small], sticker: small.block }))));
+    await waitFor(() => expect(svgWidth()).toBe(173));
+    expect(parseFloat(sticker().style.width)).toBeCloseTo(115 * SCALE, 3);
+    expect(svgWidth()).toBeGreaterThanOrEqual(115 * SCALE);
+    // QR-Platzhalter (Sticker = QR-Bild 80 × 80 pt, nicht proportional): keine Achse hochskaliert – maßgeblich ist
+    // die Höhe (80/82), also wieder 1,25 → 288 px
+    const qr = { page: 2, id: '1', rect: { left: 300, right: 380, top: 700, bottom: 620 } };
+    act(() => mock.setView(workspaceView(documentView({ target: { kind: 'qr' }, origin: 'qr', qr, sticker: qr.rect }))));
+    await waitFor(() => expect(svgWidth()).toBe(288));
+  });
+
   it('im Feld: Plakette „Im Signaturfeld“, Lage „Im Signaturfeld …“ und „Frei platzieren“', async () => {
     const doc = documentView({
       target: { kind: 'field', index: 0 },
       origin: 'field',
-      fields: [{ index: 0, name: 'Feld', page: 2, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true }],
-      sticker: { left: 300, right: 540, top: 200, bottom: 114 },
+      fields: [fieldTarget({ index: 0, name: 'Feld', page: 2, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true })],
+      // Nachtrag 16: Lage des Blocks im Feld (proportional, mittig)
+      sticker: { left: 305, right: 535, top: 198, bottom: 116 },
     });
     const { mock, user } = renderApp({ view: workspaceView(doc) });
     expect(await screen.findByText('Im Signaturfeld „Feld“')).toBeInTheDocument();
@@ -239,8 +317,8 @@ describe('Überdeckung, Felder, Optionen', () => {
   });
 
   it('Hinweisleiste erscheint bzw. verschwindet (Block aus dem Feld gezogen bzw. ins Feld gesetzt): Bildlauf um ihre Höhe ausgeglichen', async () => {
-    const field = { index: 0, name: 'Feld', page: 2, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true };
-    const inField = documentView({ target: { kind: 'field', index: 0 }, origin: 'field', fields: [field], sticker: field.rect });
+    const field = fieldTarget({ index: 0, name: 'Feld', page: 2, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true });
+    const inField = documentView({ target: { kind: 'field', index: 0 }, origin: 'field', fields: [field], sticker: field.block });
     const free = documentView({ fields: [field] });
     // jsdom ohne Layout: die Leiste ist 132 px hoch (Telefon, drei Zeilen und Knopf)
     const original = Element.prototype.getBoundingClientRect;
@@ -502,7 +580,7 @@ describe('Seitenansicht, Zoom und Barrierefreiheit', () => {
 
   it('axe: Arbeitsbereich, Felder, Überdeckung, Englisch', async () => {
     const doc = documentView({
-      fields: [{ index: 0, name: 'Feld', page: 1, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true }],
+      fields: [fieldTarget({ index: 0, name: 'Feld', page: 1, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true })],
       check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false },
     });
     const { unmount } = renderApp({ view: workspaceView(doc) });
@@ -643,7 +721,7 @@ describe('Erkennung beim Öffnen: PDF/A und Platzhalter (Einstellungen › Dokum
 
 describe('Automatische Positionierung (Einstellung, ADR 0004 Nachtrag 8)', () => {
   const inspector = () => screen.getByRole('complementary', { name: 'Signatur' });
-  const FIELD = { index: 0, name: 'Unterschrift_Antragsteller', page: 1, rect: { left: 299, right: 539, top: 300, bottom: 214 }, selectable: true };
+  const FIELD = fieldTarget({ index: 0, name: 'Unterschrift_Antragsteller', page: 1, rect: { left: 299, right: 539, top: 300, bottom: 214 }, selectable: true });
   const lockedDoc = (extra: Partial<DocumentView> = {}) =>
     documentView({ placement_locked: true, detection: { pdfa: null, pdfa_decision: 'none', auto_placed: true }, ...extra });
   const SESSION: UiEvent['type'][] = ['sign_with', 'choose_backend', 'retry', 'confirm_position', 'choose_invisible', 'start_batch'];

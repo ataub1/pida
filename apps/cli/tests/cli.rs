@@ -174,8 +174,23 @@ fn verify_signed_unsigned_and_broken() {
     let o = h.cmd(EN, &["--json", "verify", &signed]);
     assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
     let v: serde_json::Value = serde_json::from_str(&stdout(&o)).unwrap();
-    assert_eq!(v["valid"], true);
+    assert_eq!((v["intact"].as_bool(), v["trust_checked"].as_bool()), (Some(true), Some(false)));
     assert!(v["signatures"].as_array().unwrap().len() >= 2);
+    assert!(v["signatures"].as_array().unwrap().iter().all(|s| s["intact"] == true && s.get("valid").is_none()));
+    // Text (Entwickler-Werkzeug, ADR 0004 Nachtrag 15): „intakt“ und der Umfang, nie „gültig“
+    for (lang, intact, scope, claim) in [
+        (DE, "Intakt (unverändert):", "Vertrauenskette und Sperrstatus nicht geprüft", "gültig"),
+        (EN, "Intact (unchanged):", "Chain of trust and revocation status not checked", "valid"),
+    ] {
+        let o = h.cmd(lang, &["verify", &signed]);
+        assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+        let text = stdout(&o);
+        assert!(text.contains(intact) && text.contains(scope), "{text}");
+        assert!(text.contains("signaturpruefung.gv.at"), "{text}");
+        let words: Vec<String> =
+            text.split(|c: char| !c.is_alphabetic()).map(str::to_lowercase).filter(|w| !w.is_empty()).collect();
+        assert!(!words.iter().any(|w| w == claim), "{text}");
+    }
     let unsigned = h.pdf("u.pdf");
     let o = h.cmd(DE, &["verify", unsigned.to_str().unwrap()]);
     assert_eq!(o.status.code(), Some(0));

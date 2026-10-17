@@ -68,8 +68,6 @@ pub(crate) enum Msg {
         page: usize,
         grid: Option<Arc<pida_placement::OccupancyGrid>>,
     },
-    /// Prüfmodus: Datei geladen und geprüft (ADR 0004 §3.9; verworfen, wenn inzwischen eine andere geprüft wird)
-    Verified(Box<crate::verify::Verified>),
     /// Voranalyse eines Stapeleintrags fertig (ADR 0004 §3.8) samt Miniatur
     Preanalyzed {
         doc: DocId,
@@ -169,10 +167,6 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::StartBatch { .. } => "start_batch",
         UiEvent::SkipBatchDocument => "skip_batch_document",
         UiEvent::AbortBatch => "abort_batch",
-        UiEvent::OpenVerify { .. } => "open_verify",
-        UiEvent::VerifyRecent { .. } => "verify_recent",
-        UiEvent::CloseVerify => "close_verify",
-        UiEvent::SignVerified => "sign_verified",
         UiEvent::RemoveRecent { .. } => "remove_recent",
         UiEvent::ClearRecent => "clear_recent",
         UiEvent::ApplySettings { .. } => "apply_settings",
@@ -189,6 +183,10 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::PostponeFirstRun => "postpone_first_run",
         UiEvent::FilesReceived { .. } => "files_received",
         UiEvent::DismissShareHint => "dismiss_share_hint",
+        UiEvent::OpenRecent { .. } => "open_recent",
+        UiEvent::RevealRecent { .. } => "reveal_recent",
+        UiEvent::ShareRecent { .. } => "share_recent",
+        UiEvent::SignRecent { .. } => "sign_recent",
     }
 }
 
@@ -320,7 +318,7 @@ impl Shared {
         let _ = self.tx.send(msg);
     }
 
-    fn shell(&self) -> Option<Arc<dyn ShellHooks>> {
+    pub(crate) fn shell(&self) -> Option<Arc<dyn ShellHooks>> {
         lock(&self.shell).clone()
     }
 
@@ -382,8 +380,6 @@ pub(crate) struct MobileSetup {
 /// Meldungs-ID: Hinweis zu ID Austria auf Mobile – FIDO2 ist auf diesem Gerät nicht verfügbar (Plan
 /// §4.7, §5.2); die Oberfläche zeigt FIDO2 ausgegraut mit diesem Text.
 pub(crate) const MSG_FIDO2_UNAVAILABLE_MOBILE: &str = "ng-fido2-unavailable-mobile";
-/// Meldungs-ID: Datei ist schon geöffnet (gleicher Pfad oder gleicher Inhalt; ADR 0004 Nachtrag 12).
-pub(crate) const MSG_OPEN_DUPLICATE: &str = "ng-open-duplicate";
 /// Meldungs-ID: PKCS#12 importiert.
 pub(crate) const MSG_KEYSTORE_IMPORTED: &str = "ng-keystore-imported";
 /// Meldungs-ID: Import gerade nicht möglich (Signiervorgang läuft).
@@ -465,8 +461,6 @@ pub(crate) struct CoreTask {
     pub(crate) recent: crate::recent::RecentState,
     /// QR-Platzhaltersuchen (Einstellungen › Dokument, K3)
     qr_searches: QrSearches,
-    /// Prüfmodus (ADR 0004 §3.9, K4)
-    pub(crate) verify: crate::verify::VerifyState,
     /// Einstellungen › Keystore: Format, Einträge für die Alias-Auswahl (Nachtrag ADR 0004)
     pub(crate) keystore_info: crate::keystore_info::KeystoreInfo,
 }
@@ -557,16 +551,8 @@ impl CoreTask {
             block_change: None,
             recent: crate::recent::RecentState::new(&paths),
             qr_searches: QrSearches::default(),
-            verify: crate::verify::VerifyState::default(),
             keystore_info: crate::keystore_info::KeystoreInfo::default(),
         }
-    }
-
-    /// Nächste freie `DocId` (Warteschlange und Prüfdokumente teilen den Zähler).
-    pub(crate) fn allocate_doc_id(&mut self) -> DocId {
-        let id = DocId(self.next_doc);
-        self.next_doc += 1;
-        id
     }
 
     /// [`Self::refresh_ctx`] für die Module des Kern-Tasks.
@@ -1007,7 +993,6 @@ impl CoreTask {
         self.settings_view = None;
         // eine abgebrochene Übernahme (`apply_settings`) darf spätere Vorschauen nicht unterdrücken
         self.block_change = None;
-        self.release_verify();
         self.cancel_session();
         let error = WorkflowError::Unexpected("Programmfehler".into());
         let mut queue = self.state.queue().cloned().unwrap_or_default();
@@ -1073,7 +1058,6 @@ impl CoreTask {
             Msg::Refresh => self.on_interaction_changed(),
             Msg::BackendEvent(e) => self.on_backend_event(e),
             Msg::GridReady { doc, page, grid } => self.on_grid_ready(doc, page, grid),
-            Msg::Verified(v) => self.on_verified(*v),
             Msg::Preanalyzed { doc, result, thumb } => {
                 self.preanalysis.finished(doc);
                 let known = self.state.queue().and_then(|q| q.batch.as_ref()).is_some_and(|b| b.item(doc).is_some());
@@ -1212,74 +1196,12 @@ impl CoreTask {
         out
     }
 
-    /// Arbeitsbereich: Dateien, die schon offen sind (aktuelles bzw. wartendes Dokument, Stapel, geparkte Arbeit),
-    /// nicht noch einmal aufnehmen – gleicher Pfad oder gleicher Name mit gleichem Inhalt, denn auf Mobilgeräten
-    /// legt jedes „Teilen“ bzw. „Öffnen in“ eine neue Kopie an (Mobile-Check 16.10.2026: dieselbe Datei zweimal
-    /// empfangen ergab zwei Stapeleinträge). Eine inhaltsgleiche Datei mit anderem Namen ist eine eigene Kopie und
-    /// kommt dazu. Je übergangener Datei der Hinweis `ng-open-duplicate`; ebenso doppelt in einer Auswahl. Der
-    /// klassische Ablauf bleibt bei F-89 (Duplikate nach Pfad still verworfen). Ein eben signiertes und gespeichertes
-    /// Dokument („Fertig“, `Output` mit `saved`) ist nicht mehr offen: eine neue Kopie derselben Datei öffnet wie
-    /// bisher als nächstes Dokument (F-89 „sofort weiter“) statt „ist bereits geöffnet“.
-    fn drop_already_open(&mut self, docs: Vec<InputDocument>) -> Vec<InputDocument> {
-        if !self.ws.enabled {
-            return docs;
-        }
-        let finished = matches!(self.state, pida_workflow::State::Output { saved: Some(_), .. });
-        let open: Vec<InputDocument> = self
-            .state
-            .queue()
-            .map(|q| q.current.iter().filter(|_| !finished).chain(q.pending.iter()).cloned().collect())
-            .unwrap_or_default();
-        let mut kept: Vec<InputDocument> = Vec::new();
-        for d in docs {
-            if open.iter().chain(kept.iter()).any(|o| same_document(o, &d)) {
-                tracing::info!("Datei schon geöffnet – nicht erneut aufgenommen");
-                self.notify(MSG_OPEN_DUPLICATE, BTreeMap::from([("name".to_owned(), d.display_name.clone())]));
-            } else {
-                kept.push(d);
-            }
-        }
-        kept
-    }
-
-    /// `OpenFiles`: Dateien öffnen bzw. zur offenen Arbeit nehmen; liefert die aufgenommenen Dokumente (ohne die
-    /// schon offenen).
-    fn open_files(&mut self, paths: &[PathBuf], mode: Option<crate::view::OpenFilesMode>) -> Vec<DocId> {
-        let docs = self.input_documents(paths);
-        let given = !docs.is_empty();
-        // „Offene schließen und neu beginnen“ darf dieselbe Datei neu öffnen
-        let replace = mode == Some(crate::view::OpenFilesMode::Replace);
-        let docs = if replace { docs } else { self.drop_already_open(docs) };
-        if given {
-            // Öffnen zeigt die Datei im Arbeitsbereich: ein offener Prüfmodus schließt (sonst läge sie
-            // verdeckt darunter) – auch wenn sie dort schon offen ist
-            self.release_verify();
-        }
-        let ids = docs.iter().map(|d| d.id).collect();
-        if docs.is_empty() {
-            // nur schon offene Dateien: geparkte Arbeit, in der sie liegen, wieder zeigen (wie bisher „nur
-            // Duplikate → fortgesetzt, unverändert“, Nachtrag 10 Punkt 4); der Hinweis kam schon
-            if given && self.ws.enabled && self.state.parked() {
-                self.apply(Event::ParkedResumed);
-            }
-        } else {
-            // „+ PDF“ (ADR 0004 Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ im Zustand bedeutet,
-            // entscheidet der Reducer; im klassischen Ablauf ohne Bedeutung
-            self.apply(match mode.filter(|_| self.ws.enabled) {
-                None => Event::FilesAdded(docs),
-                Some(crate::view::OpenFilesMode::Add) => Event::MoreFilesAdded(docs),
-                Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
-            });
-        }
-        ids
-    }
-
     /// `FilesReceived` (Shell, Mobile: „Teilen“ bzw. „Öffnen in“; ADR 0004 Nachtrag 12): wie `OpenFiles` ohne
     /// `mode`. Auf iOS übergibt die Dateien-App von mehreren geteilten PDFs nur das erste – für das empfangene
     /// Dokument danach der Hinweis zum Teilen (`ViewState::share_hint`), sofern er in diesem Lauf nicht
     /// ausgeblendet wurde. Android empfängt mehrere (`SEND_MULTIPLE`), der Desktop „Öffnen mit“: kein Hinweis.
     fn files_received(&mut self, paths: &[PathBuf]) {
-        let ids = self.open_files(paths, None);
+        let ids = self.open_selected(paths, None).1;
         if self.ws.enabled
             && self.mobile.platform == Platform::Ios
             && !self.ws.share_hint_dismissed
@@ -2261,7 +2183,8 @@ impl CoreTask {
         });
     }
 
-    fn effect_open_result(&mut self, path: &Path) {
+    /// Datei mit der Standardanwendung öffnen (Ergebnis, „Zuletzt signiert“); Fehler als Hinweis.
+    pub(crate) fn effect_open_result(&mut self, path: &Path) {
         let result = match self.shared.shell() {
             Some(shell) => shell.open_path(path),
             None => Err("keine Shell".into()),
@@ -2275,7 +2198,7 @@ impl CoreTask {
     }
 
     /// Ergebnis teilen (Mobile, Share-Sheet); im Hintergrund, Fehler als Hinweis.
-    fn effect_share(&mut self, path: PathBuf) {
+    pub(crate) fn effect_share(&mut self, path: PathBuf) {
         let Some(shell) = self.shared.shell() else {
             self.notify("ng-share-failed", BTreeMap::new());
             return;
@@ -2352,24 +2275,35 @@ impl CoreTask {
     // UI-Ereignisse
     // --------------------------------------------------------------------------------------------
 
+    /// Dateien öffnen (`open_files`, „Erneut signieren“ aus „Zuletzt signiert“): alle gewählten Dateien in der
+    /// Reihenfolge der Auswahl; was nicht dazukommt (schon offen, keine Datei – F-12), meldet `report_selection`
+    /// (ADR 0004 Nachtrag 17). Liefert, ob mindestens eine Datei übergeben wurde.
+    pub(crate) fn open_paths(&mut self, paths: &[PathBuf], mode: Option<crate::view::OpenFilesMode>) -> bool {
+        self.open_selected(paths, mode).0
+    }
+
+    /// Wie [`Self::open_paths`]; liefert dazu die Dokumente, die der Übergang tatsächlich aufgenommen hat (ohne
+    /// Duplikate) – für den Hinweis zum Teilen auf iOS (`files_received`, ADR 0004 Nachtrag 12).
+    fn open_selected(&mut self, paths: &[PathBuf], mode: Option<crate::view::OpenFilesMode>) -> (bool, Vec<DocId>) {
+        let selection = self.select_documents(paths);
+        let docs = selection.docs.clone();
+        let any = !docs.is_empty();
+        if any {
+            // „+ PDF“ (ADR 0004 Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ im Zustand bedeutet, entscheidet
+            // der Reducer; im klassischen Ablauf ohne Bedeutung
+            self.apply(match mode.filter(|_| self.ws.enabled) {
+                None => Event::FilesAdded(docs),
+                Some(crate::view::OpenFilesMode::Add) => Event::MoreFilesAdded(docs),
+                Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
+            });
+        }
+        let taken = self.taken(&selection);
+        self.report_selection(&selection);
+        (any, taken)
+    }
+
     pub(crate) fn on_ui(&mut self, event: UiEvent) {
         tracing::debug!(event = ui_event_kind(&event), "UI");
-        // Prüfmodus offen (ADR 0004 §3.9, Merge E4): das Dokument darunter ist verdeckt – „Signieren“ bzw.
-        // „Alle signieren“ wirken erst nach dem Verlassen (F-54: keine Sitzung für ein Dokument, das die
-        // Nutzerin gerade nicht sieht; die Freigaben `sign`/`start_batch` sind dann aus)
-        if self.verify_open()
-            && matches!(
-                event,
-                UiEvent::SignWith { .. }
-                    | UiEvent::StartBatch { .. }
-                    | UiEvent::ConfirmPosition
-                    | UiEvent::ChooseInvisible
-                    | UiEvent::ChooseBackend { .. }
-            )
-        {
-            tracing::debug!(event = ui_event_kind(&event), "Prüfmodus offen – ignoriert");
-            return;
-        }
         // geparkte Arbeit (ADR 0004 Nachtrag 10): die Startansicht verdeckt sie – nichts daran signieren oder
         // verschieben (F-54); der Reducer lässt diese Ereignisse ohnehin ohne Wirkung, hier bleiben auch Auswahl
         // und Klemmhinweis unberührt
@@ -2399,7 +2333,7 @@ impl CoreTask {
         }
         match event {
             UiEvent::OpenFiles { paths, mode } => {
-                self.open_files(&paths, mode);
+                self.open_paths(&paths, mode);
             }
             UiEvent::FilesReceived { paths } => self.files_received(&paths),
             UiEvent::DismissShareHint => {
@@ -2661,12 +2595,11 @@ impl CoreTask {
             // ADR 0004 §3.10 (K3): „Zuletzt signiert“
             UiEvent::RemoveRecent { id } => self.remove_recent(id),
             UiEvent::ClearRecent => self.clear_recent(),
-            UiEvent::VerifyRecent { id } => self.verify_recent(id),
-            // ADR 0004 §3.9 (K4): Prüfmodus (nur Arbeitsbereich; ändert den Workflow-Zustand nicht, außer
-            // „Dieses Dokument signieren“ = Öffnen wie `open_files`)
-            UiEvent::OpenVerify { path } if self.ws.enabled => self.open_verify(path),
-            UiEvent::CloseVerify if self.ws.enabled => self.close_verify(),
-            UiEvent::SignVerified if self.ws.enabled => self.sign_verified(),
+            // Nachtrag 15: „Zuletzt signiert“ bietet, was „Fertig“ kann (statt des entfernten Prüfmodus)
+            UiEvent::OpenRecent { id } => self.open_recent(id),
+            UiEvent::RevealRecent { id } => self.reveal_recent(id),
+            UiEvent::ShareRecent { id } => self.share_recent(id),
+            UiEvent::SignRecent { id, mode } => self.sign_recent(id, mode),
             // ADR 0004 §3.12 (K4): Ersteinrichtung und erneutes Übernahmeangebot (Einstellungen › Erweitert)
             UiEvent::UpdateFirstRun { default_backend, profile, block_language } if self.ws.enabled => {
                 self.update_first_run(default_backend, profile, block_language);
@@ -2677,12 +2610,9 @@ impl CoreTask {
             // Einstellung „Automatische Positionierung“: „Diesmal selbst platzieren“ (Nachtrag 8) – nur dieses
             // Dokument, startet nichts (A1)
             UiEvent::UnlockPlacement if self.ws.enabled => self.apply(Event::PlacementUnlocked),
-            // „Zur Startseite“ (Nachtrag 10): Prüfmodus schließen, dann parkt der Reducer offene Arbeit (im
-            // klassischen Ablauf wie `navigate{Open}`); Fortsetzen und Verwerfen nur im Arbeitsbereich-Modus
-            UiEvent::GoHome => {
-                self.release_verify();
-                self.apply(Event::WentHome);
-            }
+            // „Zur Startseite“ (Nachtrag 10): der Reducer parkt offene Arbeit (im klassischen Ablauf wie
+            // `navigate{Open}`); Fortsetzen und Verwerfen nur im Arbeitsbereich-Modus
+            UiEvent::GoHome => self.apply(Event::WentHome),
             UiEvent::ResumeParked if self.ws.enabled => self.apply(Event::ParkedResumed),
             UiEvent::DiscardParked if self.ws.enabled => self.apply(Event::ParkedDiscarded),
             // ADR 0004: im klassischen Ablauf ohne Wirkung die Ereignisse des Arbeitsbereichs, ohne
@@ -2699,9 +2629,6 @@ impl CoreTask {
             | UiEvent::StartBatch { .. }
             | UiEvent::SkipBatchDocument
             | UiEvent::AbortBatch
-            | UiEvent::OpenVerify { .. }
-            | UiEvent::CloseVerify
-            | UiEvent::SignVerified
             | UiEvent::UpdateFirstRun { .. }
             | UiEvent::FinishFirstRun
             | UiEvent::PostponeFirstRun
@@ -3241,23 +3168,12 @@ impl CoreTask {
         if self.ws.enabled {
             // Arbeitsbereich: keine Hauptleiste Positionieren/Signieren; „Signieren“ nur mit zulässiger Platzierung
             actions.sign = actions.sign && crate::actions::workspace_sign_allowed(shown);
-        } else {
-            // Prüfmodus nur in der neuen Oberfläche (ADR 0004 §3.9; klassischer Ablauf unverändert, §3.0 Regel 7)
-            actions.verify = false;
         }
         if self.ctx.batch() {
             // Stapel (ADR 0004 §3.13): „Alle signieren“ mit mindestens einem signierbaren Eintrag,
             // „Zur Stapelübersicht“ aus einem Einzeldokument mit weiteren Dokumenten
             actions.start_batch = crate::actions::batch_start_allowed(shown);
             actions.show_batch = crate::actions::batch_show_allowed(shown);
-        }
-        if self.verify_open() {
-            // Prüfmodus über dem Arbeitsbereich bzw. der Stapelübersicht (Merge E4): das Dokument darunter ist
-            // verdeckt – nichts daran signieren oder bearbeiten, bis der Prüfmodus verlassen ist
-            actions.sign = false;
-            actions.edit_placement = false;
-            actions.start_batch = false;
-            actions.show_batch = false;
         }
         let document = if parked { None } else { self.document_view() };
         let batch = if parked { None } else { self.batch_view() };
@@ -3292,12 +3208,11 @@ impl CoreTask {
             }),
             keystore_import: self.keystore_import.clone(),
             privacy_text: self.cfg.privacy_text(),
-            // ADR 0004: K1 document, signers (Arbeitsbereich), K2 batch, K3 recent, K4 verify, first_run
-            share_hint: if self.verify_open() { None } else { self.share_hint_view(document.as_ref(), batch.as_ref()) },
+            // ADR 0004: K1 document, signers (Arbeitsbereich), K2 batch, K3 recent, K4 first_run
+            share_hint: self.share_hint_view(document.as_ref(), batch.as_ref()),
             document,
             signers: if self.ws.enabled { self.signers_view() } else { SignersView::default() },
             batch,
-            verify: self.verify_view(),
             recent: self.recent_view(),
             first_run: self.first_run_view(),
             actions,
@@ -3603,49 +3518,6 @@ fn write_private_file(dir: &Path, target: &Path, bytes: &[u8]) -> std::io::Resul
         std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
     }
     std::fs::rename(&tmp, target)
-}
-
-/// Dasselbe Dokument: gleicher Pfad oder gleicher Name mit gleichem Inhalt (erst die Größe, nur bei gleicher
-/// Größe ein Vergleich in Blöcken – ohne beide Dateien ganz zu laden). Nicht lesbar = verschieden.
-fn same_document(a: &InputDocument, b: &InputDocument) -> bool {
-    if a.path == b.path {
-        return true;
-    }
-    if a.display_name != b.display_name {
-        return false;
-    }
-    match (std::fs::metadata(&a.path), std::fs::metadata(&b.path)) {
-        (Ok(ma), Ok(mb)) if ma.is_file() && mb.is_file() && ma.len() == mb.len() => {
-            same_content(&a.path, &b.path).unwrap_or(false)
-        }
-        _ => false,
-    }
-}
-
-fn same_content(a: &Path, b: &Path) -> std::io::Result<bool> {
-    use std::io::Read;
-    fn fill(r: &mut impl Read, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut n = 0;
-        while n < buf.len() {
-            match r.read(&mut buf[n..])? {
-                0 => break,
-                k => n += k,
-            }
-        }
-        Ok(n)
-    }
-    const CHUNK: usize = 64 * 1024;
-    let (mut fa, mut fb) = (std::fs::File::open(a)?, std::fs::File::open(b)?);
-    let (mut ba, mut bb) = (vec![0u8; CHUNK], vec![0u8; CHUNK]);
-    loop {
-        let (na, nb) = (fill(&mut fa, &mut ba)?, fill(&mut fb, &mut bb)?);
-        if na != nb || ba[..na] != bb[..nb] {
-            return Ok(false);
-        }
-        if na == 0 {
-            return Ok(true);
-        }
-    }
 }
 
 fn file_name(path: &Path) -> String {

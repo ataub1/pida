@@ -58,6 +58,12 @@ pub trait ShellHooks: Send + Sync {
         let _ = (path, file_name);
         Err("unsupported".into())
     }
+    /// Zeigt eine Datei im Dateimanager (Finder bzw. Explorer; „Zuletzt signiert“ › „Im Ordner zeigen“, ADR 0004
+    /// Nachtrag 15). Standard: nicht unterstützt (Mobile).
+    fn reveal_path(&self, path: &std::path::Path) -> Result<(), String> {
+        let _ = path;
+        Err("unsupported".into())
+    }
 }
 
 enum Reply {

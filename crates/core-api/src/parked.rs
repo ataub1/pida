@@ -3,6 +3,11 @@
 //! „In Bearbeitung“ ([`ParkedWorkView`]) mit „Weiter bearbeiten“ (`resume_parked`) und „Schließen“
 //! (`discard_parked`). Solange geparkt ist, projiziert der Kern Schritt, Hauptleiste und Freigaben wie in der
 //! Dokumentauswahl, ohne `document` und `batch` (`CoreTask::project`).
+//!
+//! Die Karte beschreibt, wohin „Weiter bearbeiten“ führt (Nachtrag 13): ein Stapel
+//! ([`State::resumes_to_overview`] – Übersicht, aus ihr geöffnetes Dokument, Dokument mit wartenden) heißt
+//! „Stapel · n Dokumente“ (`doc_name = None`), sonst nennt sie das Dokument – auch „Fertig“ ohne Speichern eines
+//! Stapeleintrags, denn dorthin geht es zurück (die Signatur ist erst gespeichert sicher).
 
 use pida_workflow::State;
 
@@ -25,20 +30,22 @@ impl CoreTask {
         let by_hand = edit.is_some_and(|e| !e.automatic);
         let unsaved = matches!(self.state, State::Output { saved: None, .. });
         let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        // „Weiter bearbeiten“ führt zur Stapelübersicht → „Stapel · n Dokumente“, sonst zum Dokument
+        let doc_name = if self.state.resumes_to_overview(&self.ctx) {
+            None
+        } else {
+            queue.current.as_ref().map(|d| d.display_name.clone())
+        };
         Some(match queue.batch.as_ref() {
-            // Stapelübersicht bzw. ein aus ihr geöffnetes Dokument
+            // Stapelübersicht bzw. ein aus ihr geöffnetes Dokument: Einträge des Stapels
             Some(batch) => ParkedWorkView {
-                doc_name: None,
+                doc_name,
                 documents: count(batch.items.len()),
                 placed_by_hand: by_hand || batch.manual_plans() > 0,
                 unsaved,
             },
-            None => ParkedWorkView {
-                doc_name: queue.current.as_ref().map(|d| d.display_name.clone()),
-                documents: count(queue.len()),
-                placed_by_hand: by_hand,
-                unsaved,
-            },
+            // Dokument samt wartenden
+            None => ParkedWorkView { doc_name, documents: count(queue.len()), placed_by_hand: by_hand, unsaved },
         })
     }
 }

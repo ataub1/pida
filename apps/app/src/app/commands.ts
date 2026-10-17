@@ -20,7 +20,6 @@ import {
   IconMonitor,
   IconMoon,
   IconSettings,
-  IconShieldCheck,
   IconSignature,
   IconSun,
 } from '../ui/Icons';
@@ -32,7 +31,6 @@ export type CommandId =
   | 'add'
   | 'batch'
   | 'sign'
-  | 'verify'
   | 'settings'
   | 'signature'
   | 'home'
@@ -68,7 +66,6 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: 'add', group: 'actions', label: 'ng-ui-shell-cmd-add', icon: IconFilePlus },
   { id: 'batch', group: 'actions', label: 'ng-ui-shell-cmd-batch', keys: { mod: true, key: 'B' }, icon: IconLayers },
   { id: 'sign', group: 'actions', label: 'ng-ui-shell-cmd-sign', keys: { mod: true, key: 'Enter' }, icon: IconSignature },
-  { id: 'verify', group: 'actions', label: 'ng-ui-shell-cmd-verify', icon: IconShieldCheck },
   { id: 'settings', group: 'actions', label: 'ng-ui-shell-cmd-settings', keys: { mod: true, key: ',' }, icon: IconSettings },
   { id: 'signature', group: 'actions', label: 'ng-ui-shell-cmd-signature', icon: IconSignature },
   { id: 'home', group: 'actions', label: 'ng-ui-shell-cmd-home', icon: IconHome },
@@ -93,13 +90,11 @@ export function isCommandEnabled(id: CommandId, view: ViewState): boolean {
     case 'sign':
       // im Stapel: „Alle signieren“ (ausdrückliche Aktion, A1)
       return a.sign || a.start_batch;
-    case 'verify':
-      return a.verify;
     case 'settings':
     case 'signature':
       return a.settings && view.settings === null;
     case 'home':
-      return a.home || view.verify !== null;
+      return a.home;
     default:
       return true;
   }
@@ -107,10 +102,9 @@ export function isCommandEnabled(id: CommandId, view: ViewState): boolean {
 
 /**
  * „PDF hinzufügen“ (Palette, ADR 0004 Nachtrag 9): zu einem Dokument im Arbeitsbereich (wie „Weitere PDFs
- * hinzufügen“ in der Kopfzeile) bzw. in die Stapelübersicht; nicht im Prüfmodus und nicht im Lauf.
+ * hinzufügen“ in der Kopfzeile) bzw. in die Stapelübersicht; nicht im Lauf.
  */
 function addAvailable(view: ViewState): boolean {
-  if (view.verify) return false;
   const doc = view.document;
   if (doc) return doc.phase === 'editing' || doc.phase === 'warning';
   return view.step.step === 'batch' && !!view.batch && !view.batch.running;
@@ -122,7 +116,6 @@ function addAvailable(view: ViewState): boolean {
  * (weitere Dokumente warten), sonst `null`. Was dabei mit der Platzierung geschieht, entscheidet der Kern.
  */
 export function batchNav(view: ViewState): 'back' | 'show' | null {
-  if (view.verify) return null;
   const doc = view.document;
   const batch = view.batch;
   if (doc && batch && batch.open_item === doc.doc.id && (doc.phase === 'editing' || doc.phase === 'warning')) return 'back';
@@ -130,13 +123,11 @@ export function batchNav(view: ViewState): 'back' | 'show' | null {
 }
 
 /**
- * „Zur Startseite“ (Wortmarke, Haus-Symbol, Palette): wie im Prototyp auch aus dem Prüfmodus – erst `close_verify`
- * (er liegt über dem Zustand darunter), dann `go_home`, sofern freigegeben. Der Kern parkt dabei das offene Dokument
- * bzw. den Stapel (ADR 0004 Nachtrag 10); die Startansicht zeigt es unter „In Bearbeitung“. „Fertig“ → „Nächstes
- * Dokument“ und „Neuer Stapel“ senden weiter `navigate{Open}`.
+ * „Zur Startseite“ (Wortmarke, Haus-Symbol, Palette): `go_home`, sofern freigegeben. Der Kern parkt dabei das offene
+ * Dokument bzw. den Stapel (ADR 0004 Nachtrag 10); die Startansicht zeigt es unter „In Bearbeitung“. „Fertig“ →
+ * „Nächstes Dokument“ und „Neuer Stapel“ senden weiter `navigate{Open}`.
  */
 export async function goHome(view: ViewState, dispatch: (event: UiEvent) => Promise<boolean>): Promise<void> {
-  if (view.verify) await dispatch({ type: 'close_verify' });
   if (view.actions.home) await dispatch({ type: 'go_home' });
 }
 
@@ -151,8 +142,6 @@ export interface CommandDeps {
   openSettings: (section?: SettingsSectionId) => void;
   setTheme: (theme: Theme) => void;
   setOverlay: (overlay: ShellOverlay) => void;
-  /** Prüfmodus öffnen (Dateiauswahl → `open_verify`) */
-  openVerify: () => void;
 }
 
 /** Aufbereiteter Befehl für Palette und Kürzelübersicht. */
@@ -193,8 +182,6 @@ export function buildCommands(deps: CommandDeps): CommandEntry[] {
         };
       case 'sign':
         return deps.requestSign;
-      case 'verify':
-        return deps.openVerify;
       case 'settings':
         return () => deps.openSettings();
       case 'signature':

@@ -1,15 +1,15 @@
 /**
- * Mock-Kern der Pakets UI-B (`core/mock/{settings,recent,verify,firstrun}.ts`) wie K3/K4 (ADR 0004 §3.9–§3.12):
+ * Mock-Kern der Pakets UI-B (`core/mock/{settings,recent,firstrun}.ts`) wie K3/K4 (ADR 0004 §3.10–§3.12):
  * `apply_settings` mit Teilübernahme, bleibende Feldprobleme, unbekannte Pfade, Revision, nur bei geöffnetem
- * Overlay, Richtlinie; „Zuletzt signiert“ (höchstens zehn, Abschalten löscht sofort, fehlende Datei, öffnet den
- * Prüfmodus); Prüfmodus (Laden, Freigabe, Kacheln, „Dieses Dokument signieren“); Ersteinrichtung (erfindet keine
- * Bildmarke, `update_first_run`, Migration, Neuinstallation „neben dem Original“, `finish_first_run`).
+ * Overlay, Richtlinie; „Zuletzt signiert“ (höchstens zehn, Abschalten löscht sofort, fehlende Datei, Aktionen wie
+ * „Fertig“ – Öffnen, Ordner bzw. Teilen, „Erneut signieren“; Nachtrag 15, kein Prüfmodus); Ersteinrichtung
+ * (erfindet keine Bildmarke, `update_first_run`, Migration, Neuinstallation „neben dem Original“,
+ * `finish_first_run`).
  */
 import { describe, expect, it } from 'vitest';
 import { MockCore } from '../../core/mock';
 import type { FirstRunMockOptions } from '../../core/mock/firstrun';
 import type { SettingsMockOptions } from '../../core/mock/settings';
-import { VERIFY_DOC_ID, verifyAllowed } from '../../core/mock/verify';
 import type { SettingsView, ViewState } from '../../core/types';
 
 async function core(options: SettingsMockOptions & FirstRunMockOptions = {}): Promise<MockCore> {
@@ -97,12 +97,40 @@ describe('Zuletzt signiert (Mock wie K3)', () => {
     expect((await d.view()).recent).toEqual([]);
   });
 
-  it('fehlende Datei → Hinweis `ng-recent-missing`, der Eintrag bleibt', async () => {
+  it('fehlende Datei → Hinweis `ng-recent-missing`, der Eintrag bleibt, nichts an die Shell', async () => {
     const c = await core({ examples: true });
-    await c.dispatch({ type: 'verify_recent', id: 1 });
+    for (const type of ['open_recent', 'reveal_recent', 'share_recent', 'sign_recent'] as const) await c.dispatch({ type, id: 1 });
     const v = await c.view();
     expect(v.notices.map((n) => n.code)).toContain('ng-recent-missing');
     expect(v.recent?.some((i) => i.id === 1)).toBe(true);
+    expect(c.nativeCalls).toEqual([]);
+    expect(v.document).toBeNull();
+  });
+
+  it('Aktionen wie „Fertig“ (Nachtrag 15): Desktop Öffnen und Ordner, Mobile Öffnen (Vorschau) und Teilen', async () => {
+    const desktop = await core({ examples: true });
+    for (const type of ['open_recent', 'reveal_recent', 'share_recent'] as const) await desktop.dispatch({ type, id: 3 });
+    expect(desktop.nativeCalls).toEqual(['openRecent:/Users/demo/Dokumente/Auto/Kaufvertrag_Fahrzeug_signiert.pdf', 'revealRecent:/Users/demo/Dokumente/Auto/Kaufvertrag_Fahrzeug_signiert.pdf']);
+    const phone = await core({ examples: true, platform: 'ios' });
+    for (const type of ['open_recent', 'reveal_recent', 'share_recent'] as const) await phone.dispatch({ type, id: 3 });
+    expect(phone.nativeCalls.filter((n) => !n.startsWith('pick'))).toEqual(['openRecent:/Users/demo/Dokumente/Auto/Kaufvertrag_Fahrzeug_signiert.pdf', 'shareRecent:/Users/demo/Dokumente/Auto/Kaufvertrag_Fahrzeug_signiert.pdf']);
+    expect((await desktop.view()).document).toBeNull();
+  });
+
+  it('„Erneut signieren“ öffnet die Datei wie `open_files` im Arbeitsbereich, ohne Sitzung', async () => {
+    const c = await core({ examples: true });
+    await c.dispatch({ type: 'sign_recent', id: 3 });
+    for (let i = 0; i < 20 && (await c.view()).document === null; i += 1) await new Promise((r) => setTimeout(r, 0));
+    const v = await c.view();
+    expect(v.document?.doc.name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
+    expect(v.step.step).not.toBe('signing');
+    expect('verify' in v).toBe(false);
+    // noch einmal: schon offen – Hinweis wie bei `open_files` (Nachtrag 17; Kern: `open_paths`), kein zweites Dokument
+    await c.dispatch({ type: 'sign_recent', id: 3 });
+    const again = await c.view();
+    expect(again.notices.find((n) => n.code === 'ng-open-duplicates')?.params).toEqual({ count: '1', file: 'Kaufvertrag_Fahrzeug_signiert.pdf' });
+    expect(again.document?.doc.name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
+    expect(again.batch).toBeNull();
   });
 });
 
@@ -113,45 +141,6 @@ describe('Ersteinrichtung (Beispiel)', () => {
     expect(codes.length).toBeGreaterThan(0);
     expect(codes).not.toContain('ng-migration-item-emblem');
     expect(JSON.stringify(v.first_run)).not.toMatch(/logo/i);
-  });
-});
-
-describe('Prüfmodus (Mock wie K4)', () => {
-  const tick = () => new Promise((r) => setTimeout(r, 0));
-
-  it('open_verify: zuerst „wird geprüft“, dann das Ergebnis mit eigener DocId und Kacheln; close_verify', async () => {
-    const c = await core();
-    expect((await c.view()).actions.verify).toBe(true);
-    await c.dispatch({ type: 'open_verify', path: '/Users/demo/Vertrag_manipuliert.pdf' });
-    expect((await c.view()).verify?.status).toEqual({ state: 'loading' });
-    await tick();
-    const v = (await c.view()).verify;
-    expect(v?.status).toEqual({ state: 'ready' });
-    expect(v?.summary).toBe('some_broken');
-    expect(v?.doc?.id).toBe(VERIFY_DOC_ID);
-    expect(c.pageTileUrl(VERIFY_DOC_ID, 1, 1)).toMatch(/^data:image\/svg\+xml/);
-    // der Workflow-Zustand bleibt (Prüfmodus liegt darüber)
-    expect((await c.view()).step.step).toBe('open');
-    await c.dispatch({ type: 'close_verify' });
-    expect((await c.view()).verify).toBeNull();
-  });
-
-  it('verify_recent öffnet den Prüfmodus; sign_verified öffnet die Datei im Arbeitsbereich', async () => {
-    const c = await core({ examples: true });
-    await c.dispatch({ type: 'verify_recent', id: 3 });
-    await tick();
-    expect((await c.view()).verify?.file_name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
-    await c.dispatch({ type: 'sign_verified' });
-    expect((await c.view()).verify).toBeNull();
-    for (let i = 0; i < 10 && (await c.view()).document === null; i += 1) await tick();
-    expect((await c.view()).document?.doc.name).toBe('Kaufvertrag_Fahrzeug_signiert.pdf');
-  });
-
-  it('Freigabe wie K4: Leerlauf, Positionieren, Fertig, Stapelübersicht – nicht beim Signieren', () => {
-    expect(verifyAllowed({ step: { step: 'open', queue: [] } })).toBe(true);
-    expect(verifyAllowed({ step: { step: 'batch' } })).toBe(true);
-    expect(verifyAllowed({ step: { step: 'starting' } })).toBe(false);
-    expect(verifyAllowed({ step: { step: 'finished', exit_code: 0 } })).toBe(false);
   });
 });
 

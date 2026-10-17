@@ -10,6 +10,7 @@ mod common;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use common::*;
@@ -833,14 +834,9 @@ async fn recent_documents_are_recorded_minimal_and_switch_off_deletes() {
     }
     // fehlende Datei: Hinweis, Eintrag bleibt
     let missing = recent.iter().find(|r| r.file_name == "alt9.pdf").unwrap().id;
-    core.dispatch(UiEvent::VerifyRecent { id: missing });
+    core.dispatch(UiEvent::OpenRecent { id: missing });
     let v = wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-recent-missing")).await;
     assert!(v.recent.unwrap().iter().any(|r| r.id == missing && !r.exists));
-    // vorhandene Datei: Prüfmodus (K4, ADR 0004 §3.9)
-    core.dispatch(UiEvent::VerifyRecent { id: recent[0].id });
-    let v = wait_for(&core, "Prüfmodus", |v| v.verify.is_some()).await;
-    assert_eq!(v.verify.unwrap().file_name, "Vertrag_signed.pdf");
-    core.dispatch(UiEvent::CloseVerify);
     // entfernen, leeren
     core.dispatch(UiEvent::RemoveRecent { id: missing });
     let v = wait_for(&core, "entfernt", |v| v.recent.as_ref().is_some_and(|r| r.len() == 9)).await;
@@ -863,6 +859,195 @@ async fn recent_documents_are_recorded_minimal_and_switch_off_deletes() {
     assert!(!file.exists(), "Abschalten löscht sofort");
     let v = apply(&core, 2, &[("general.recent_documents", json!(true))]).await;
     assert_eq!(v.recent, Some(Vec::new()), "wieder an: leer");
+}
+
+/// Shell der Tests: zeichnet „Öffnen“, „Im Ordner zeigen“ und „Teilen“ auf.
+#[derive(Default)]
+struct RecordingShell {
+    opened: std::sync::Mutex<Vec<PathBuf>>,
+    revealed: std::sync::Mutex<Vec<PathBuf>>,
+    shared: std::sync::Mutex<Vec<PathBuf>>,
+}
+
+impl RecordingShell {
+    fn calls(&self) -> (Vec<PathBuf>, Vec<PathBuf>, Vec<PathBuf>) {
+        let get = |m: &std::sync::Mutex<Vec<PathBuf>>| m.lock().unwrap().clone();
+        (get(&self.opened), get(&self.revealed), get(&self.shared))
+    }
+}
+
+impl pida_core_api::ShellHooks for RecordingShell {
+    fn open_path(&self, path: &Path) -> Result<(), String> {
+        self.opened.lock().unwrap().push(path.to_path_buf());
+        Ok(())
+    }
+    fn open_url(&self, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn share_path(&self, path: &Path) -> Result<(), String> {
+        self.shared.lock().unwrap().push(path.to_path_buf());
+        Ok(())
+    }
+    fn reveal_path(&self, path: &Path) -> Result<(), String> {
+        self.revealed.lock().unwrap().push(path.to_path_buf());
+        Ok(())
+    }
+}
+
+/// ADR 0004 Nachtrag 15 (Prüfmodus entfernt): Ein Eintrag aus „Zuletzt signiert“ bietet, was „Fertig“ kann –
+/// Desktop „Öffnen“ (Standardanwendung) und „Im Ordner zeigen“, Mobile „Öffnen“ (Vorschau) und „Teilen“; die jeweils
+/// andere Plattform bleibt ohne Wirkung. „Erneut signieren“ öffnet die Datei wie `open_files` im Arbeitsbereich; ist
+/// sie schon offen, meldet der Kern es wie bei `open_files` (`ng-open-duplicates`, Nachtrag 17).
+/// Fehlt die Datei: Hinweis, nichts an die Shell, der Eintrag bleibt. Keine dieser Aktionen öffnet eine Sitzung
+/// (A1), es gibt keinen Prüfmodus mehr (`ViewState` ohne `verify`).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn recent_entry_offers_what_done_offers() {
+    use pida_backend_api::Platform;
+    for platform in [Platform::MacOs, Platform::Ios] {
+        let desktop = platform == Platform::MacOs;
+        let fx = Fixture::new();
+        let out = fx.dir("out");
+        let signed = copy_pdf(TEXT_PDF, &out, "Vertrag_signed.pdf");
+        // gespeichert wie vor Nachtrag 15 (K3: `id`, `file_name`, `path`, `signed_at`, neueste zuerst) – alte Listen
+        // werden unverändert gelesen
+        let store = pida_config::RecentStore::new(&fx.paths);
+        std::fs::create_dir_all(store.file().parent().unwrap()).unwrap();
+        let old = json!([
+            { "id": 2, "file_name": "Vertrag_signed.pdf", "path": signed, "signed_at": "2026-10-16T10:00:00+02:00" },
+            { "id": 1, "file_name": "weg.pdf", "path": out.join("weg.pdf"), "signed_at": "2026-10-15T10:00:00+02:00" },
+        ]);
+        std::fs::write(store.file(), serde_json::to_vec_pretty(&old).unwrap()).unwrap();
+        let shell = Arc::new(RecordingShell::default());
+        let fake = FakeAtrust::new();
+        let backends: Vec<Arc<dyn pida_backend_api::SignatureBackend>> = vec![fake.backend()];
+        let opts = CoreOptions {
+            workspace_ui: Some(true),
+            engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
+            backends: Some(backends),
+            shell: Some(shell.clone()),
+            ..CoreOptions::isolated()
+        };
+        let cfg = pida_core_api::CoreConfig { platform, ..fx.config(Overlay::default(), false) };
+        let core = pida_core_api::Core::new_with(cfg, opts).expect("Kern startet");
+        let v = wait_for(&core, "Startansicht", |v| {
+            matches!(v.step, StepView::Open { .. }) && v.recent.as_ref().is_some_and(|r| r.len() == 2)
+        })
+        .await;
+        let recent = v.recent.unwrap();
+        let (gone, kept) = (recent[1].id, recent[0].id);
+        assert_eq!((gone, kept), (1, 2), "{platform:?}: Kennungen der alten Liste");
+        assert_eq!((recent[0].exists, recent[1].exists), (true, false), "{platform:?}");
+        let json = serde_json::to_value(core.view()).unwrap();
+        assert!(json.get("verify").is_none(), "kein Prüfmodus im Vertrag");
+        assert!(json["actions"].get("verify").is_none(), "keine Freigabe des Prüfmodus");
+
+        // fehlende Datei: für jede Aktion nur der Hinweis, der Eintrag bleibt
+        for event in [
+            UiEvent::OpenRecent { id: gone },
+            UiEvent::RevealRecent { id: gone },
+            UiEvent::ShareRecent { id: gone },
+            UiEvent::SignRecent { id: gone, mode: None },
+        ] {
+            core.dispatch(event);
+        }
+        let v = wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-recent-missing")).await;
+        assert!(v.recent.as_ref().unwrap().iter().any(|r| r.id == gone && !r.exists));
+        assert!(matches!(v.step, StepView::Open { .. }) && v.document.is_none());
+
+        // vorhandene Datei: Öffnen bzw. Vorschau, Ordner (Desktop) bzw. Teilen (Mobile); unbekannte Kennung: nichts
+        core.dispatch(UiEvent::OpenRecent { id: kept });
+        core.dispatch(UiEvent::RevealRecent { id: kept });
+        core.dispatch(UiEvent::ShareRecent { id: kept });
+        core.dispatch(UiEvent::OpenRecent { id: 999 });
+        let expected = (
+            vec![signed.clone()],
+            if desktop { vec![signed.clone()] } else { Vec::new() },
+            if desktop { Vec::new() } else { vec![signed.clone()] },
+        );
+        for _ in 0..100 {
+            if shell.calls() == expected {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(shell.calls(), expected, "{platform:?}");
+
+        // „Erneut signieren“: wie Öffnen im Arbeitsbereich, ohne Sitzung
+        core.dispatch(UiEvent::SignRecent { id: kept, mode: None });
+        let v = wait_for(&core, "Arbeitsbereich", |v| {
+            v.document.as_ref().is_some_and(|d| d.doc.name == "Vertrag_signed.pdf")
+        })
+        .await;
+        assert_eq!(v.recent.map(|r| r.len()), Some(2), "Liste unverändert");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(fake.opened.load(std::sync::atomic::Ordering::SeqCst), 0, "{platform:?}: keine Sitzung (A1)");
+
+        // noch einmal „Erneut signieren“: das Dokument ist schon offen – wie bei `open_files` ein Hinweis statt
+        // stillem Verwerfen (Nachtrag 17, `open_paths`), kein zweites Dokument
+        core.dispatch(UiEvent::SignRecent { id: kept, mode: None });
+        let v =
+            wait_for(&core, "Hinweis schon offen", |v| v.notices.iter().any(|n| n.code == "ng-open-duplicates")).await;
+        let dup = v.notices.iter().find(|n| n.code == "ng-open-duplicates").unwrap();
+        assert_eq!(dup.params.get("count").map(String::as_str), Some("1"), "{platform:?}");
+        assert_eq!(dup.params.get("file").map(String::as_str), Some("Vertrag_signed.pdf"), "{platform:?}");
+        assert!(
+            v.batch.is_none() && v.document.as_ref().is_some_and(|d| d.doc.name == "Vertrag_signed.pdf"),
+            "{platform:?}: bleibt das eine offene Dokument"
+        );
+    }
+}
+
+/// Shell, deren „Im Ordner zeigen“ hängt, bis der Test es freigibt, und dann scheitert (z. B. ein Dateimanager, der
+/// über D-Bus nicht antwortet).
+struct StuckRevealShell {
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl pida_core_api::ShellHooks for StuckRevealShell {
+    fn open_path(&self, _: &Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn open_url(&self, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn reveal_path(&self, _: &Path) -> Result<(), String> {
+        let _ = self.release.lock().unwrap().recv_timeout(Duration::from_secs(30));
+        Err("Dateimanager antwortet nicht".into())
+    }
+}
+
+/// „Zuletzt signiert“ › „Im Ordner zeigen“ (ADR 0004 Nachtrag 15) läuft im Hintergrund: hängt der Dateimanager, bleibt
+/// der Kern bedienbar; scheitert er, kommt der Hinweis `ng-ui-open-failed`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn reveal_recent_does_not_block_the_core() {
+    let fx = Fixture::new();
+    let signed = copy_pdf(TEXT_PDF, &fx.dir("out"), "Vertrag_signed.pdf");
+    let entry = pida_config::RecentStore::new(&fx.paths)
+        .push(pida_config::RecentEntry {
+            id: 0,
+            file_name: "Vertrag_signed.pdf".into(),
+            path: signed,
+            signed_at: "2026-10-16T10:00:00+02:00".into(),
+        })
+        .unwrap();
+    let (release, rx) = std::sync::mpsc::channel();
+    let shell = Arc::new(StuckRevealShell { release: std::sync::Mutex::new(rx) });
+    let opts = CoreOptions { workspace_ui: Some(true), shell: Some(shell), ..CoreOptions::isolated() };
+    let cfg = pida_core_api::CoreConfig {
+        platform: pida_backend_api::Platform::MacOs,
+        ..fx.config(Overlay::default(), false)
+    };
+    let core = pida_core_api::Core::new_with(cfg, opts).expect("Kern startet");
+    let v = wait_for(&core, "Startansicht", |v| {
+        matches!(v.step, StepView::Open { .. }) && v.recent.as_ref().is_some_and(|r| r.len() == 1)
+    })
+    .await;
+    let other = if v.language == pida_i18n::Lang::De { pida_i18n::Lang::En } else { pida_i18n::Lang::De };
+    core.dispatch(UiEvent::RevealRecent { id: entry.id });
+    core.dispatch(UiEvent::SetUiLanguage { language: Some(other) });
+    wait_for(&core, "Sprache gewechselt, während der Dateimanager hängt", |v| v.language == other).await;
+    release.send(()).unwrap();
+    wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-ui-open-failed")).await;
 }
 
 /// Abgeschaltet (Einstellung) bzw. per Richtlinie aus: nichts gespeichert, Liste `None`, vorhandene Datei

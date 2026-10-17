@@ -1,8 +1,8 @@
 // @vitest-environment node
 /**
  * Stilregeln aus der Emulator-Abnahme (Android, 16.10.2026), die jsdom nicht auswertet (`css: false`):
- * - Prüfmodus schmal: das Ergebnis unter den Seiten scrollt – die Regel in `verify.css` muss die spätere
- *   `.view-verify .app-main { overflow: hidden }` aus `shell.css` überstimmen (höhere Spezifität);
+ * - Arbeitsbereich: der Hauptbereich scrollt nicht selbst (`.view-workspace .app-main { overflow: hidden }`), die
+ *   übrigen Ansichten schon; einen Prüfmodus mit eigener Regel gibt es nicht mehr (ADR 0004 Nachtrag 15);
  * - Fingerziele ≥ 44 px auch für „Befehle“/Wortmarke in der schmalen Kopfzeile, „Hinweis schließen“,
  *   „Suche löschen“ und den kompakten Konto-Chip im Bottom-Sheet;
  * - Segmente („Passwort merken?“, Speicherart) brechen um statt angeschnitten zu scrollen;
@@ -51,9 +51,11 @@ function ruleInMedia(css: string, query: string, selector: string): string | nul
 }
 
 describe('Mobile-Stile', () => {
-  it('Prüfmodus schmal: Hauptbereich scrollt (überstimmt shell.css)', () => {
-    expect(read('app/shell.css')).toMatch(/\.view-verify \.app-main \{\s*overflow: hidden;/);
-    expect(ruleInMedia(read('features/verify/verify.css'), '(max-width: 860px)', '.app.view-verify .app-main')).toMatch(/overflow: auto/);
+  it('nur der Arbeitsbereich sperrt den Bildlauf des Hauptbereichs; kein Prüfmodus mehr', () => {
+    const shell = read('app/shell.css');
+    expect(topRule(shell, '.view-workspace .app-main')).toMatch(/overflow: hidden/);
+    expect(topRule(shell, '.app-main')).toMatch(/overflow: auto/);
+    expect(shell).not.toMatch(/view-verify/);
   });
 
   it('Fingerziele ≥ 44 px', () => {

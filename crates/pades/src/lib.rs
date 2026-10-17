@@ -1,7 +1,9 @@
 //! `pida-pades` – PAdES-Signatur-Engine (Plan §3.6, §6; docs/analyse/03).
 //!
-//! Prüfmodus (ADR 0004 §3.9): [`verify_document`] prüft alle Signaturen eines Dokuments und liefert je
-//! Signatur Integrität, Abdeckung, Zertifikat, Verfahren, Hinweise und das Widget.
+//! Prüfung vorhandener Signaturen: [`verify_document`] prüft alle Signaturen eines Dokuments und liefert je
+//! Signatur Integrität, Abdeckung, Zertifikat, Verfahren, Hinweise und das Widget – als Bibliothek für Tests,
+//! Golden- und Interop-Tests (ADR 0004 §3.17). Der Prüfmodus der App, für den sie entstand (§3.9), ist entfernt
+//! (ADR 0004 Nachtrag 15).
 //!
 //! Ablauf: [`analyze`] → Annahmeklasse K1–K5 → [`SignPlan`] (Profil, Position, Feld; bequem über
 //! [`plan_signature`]) → ggf. Zertifikat vom Backend → [`prepare`] → Backend `sign` →
@@ -19,7 +21,7 @@
 //! |---|---|
 //! | Signaturdictionary `/Type /Sig /Filter /SubFilter /M [/Location] [/Name] /Reason /Contents /ByteRange` | neu (serialisiert von `pdf-incremental`) |
 //! | Feld + Widget `/FT /Sig /Type /Annot /Subtype /Widget /F 132 /T /V /P /Rect /AP /TU [/StructParent]` | neu (Feldname `PDF-AS Signatur<n>`) |
-//! | vorhandenes leeres Feld: `/V` angehängt, Widget `/AP` ersetzt, `/F` \|= 4, `/Rect` bleibt | fortgeschrieben (Widget in `/Kids` eigenständig) |
+//! | vorhandenes leeres Feld: `/V` angehängt, Widget `/AP` ersetzt (Block proportional und mittig, KR-P10), `/F` \|= 4, `/Rect` bleibt | fortgeschrieben (Widget in `/Kids` eigenständig) |
 //! | Appearance (Holder, Inner `FRM1`, Fonts, Bilder) aus `pida-sigblock` | neu |
 //! | AcroForm: neu direkt im Katalog (`/Fields /SigFlags 3 /DR /DA`), sonst fortgeschrieben | Katalog bzw. AcroForm |
 //! | Seite: `/Annots` (direkt; indirektes Array wird selbst fortgeschrieben), ggf. `/Tabs /S` | fortgeschrieben |
@@ -40,6 +42,7 @@
 //! | KR-P07 | Struktur-/OutputIntent-Ergänzung auch bei Vorsignaturen | entfällt bei Vorsignaturen (sonst `OTHER` in der Änderungsanalyse), Hinweis |
 //! | KR-P08 | keine Längenprüfung vor dem Einpatchen | harte Prüfung, `cms-too-large` mit benötigter Größe |
 //! | KR-P09 | PDFBox-Fixup `/DR /Font /Helv /ZaDb` + `/DA` auch bei PDF/A | bei PDF/A-Eingaben entfällt der Fixup (nicht eingebettete Standard-14-Fonts; Signaturfelder brauchen sie nicht) |
+//! | KR-P10 | vorhandenes Signaturfeld: Holder-`/BBox [W+1 H+1]` im unveränderten `/Rect` (PDFBox `assignSignatureRectangle`) – ein Viewer streckt den Block nicht proportional auf das Feld (`manySignFields_signed4.pdf`: 232 × 84 pt in 3,16 × 224 pt) | `/Rect` bleibt, die Holder-`/BBox` wird so erweitert, dass der Block proportional, höchstens in natürlicher Größe und mittig im Feld steht ([`fit_into_field`], `pida_placement::field_fit`, KR-F13); `CompatMode::PdfasQuirks` wie PDF-AS |
 //!
 //! # Stabile Codes (ADR 0001 Regel 11; Texte trägt die Integration in die Kataloge ein)
 //!
@@ -92,7 +95,8 @@ pub use analyze::{
 pub use build::{NOTICE_OUTPUT_INTENT_SKIPPED, NOTICE_PDFUA_SKIPPED};
 pub use plan::{BlockPlacement, FieldTarget, Reserve, SignPlan, Visibility};
 pub use planner::{
-    PlanOptions, PlannedSignature, cert_fields, empty_fields, find_placeholder, pdfa_mode, plan_signature,
+    PlanOptions, PlannedSignature, cert_fields, empty_fields, find_placeholder, fit_into_field, pdfa_mode,
+    plan_signature,
 };
 pub use prepared::{Prepared, PreparedHandle, prepare};
 pub use signed::{

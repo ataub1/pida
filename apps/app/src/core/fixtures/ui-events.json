@@ -268,25 +268,27 @@
     "type": "abort_batch"
   },
   {
-    "type": "open_verify",
-    "path": "/Users/demo/Vertrag_signed.pdf"
-  },
-  {
-    "type": "verify_recent",
-    "id": 2
-  },
-  {
-    "type": "close_verify"
-  },
-  {
-    "type": "sign_verified"
-  },
-  {
     "type": "remove_recent",
     "id": 1
   },
   {
     "type": "clear_recent"
+  },
+  {
+    "type": "open_recent",
+    "id": 2
+  },
+  {
+    "type": "reveal_recent",
+    "id": 2
+  },
+  {
+    "type": "share_recent",
+    "id": 3
+  },
+  {
+    "type": "sign_recent",
+    "id": 2
   },
   {
     "type": "apply_settings",
@@ -502,5 +504,15 @@
   },
   {
     "type": "dismiss_share_hint"
+  },
+  {
+    "type": "sign_recent",
+    "id": 3,
+    "mode": "add"
+  },
+  {
+    "type": "sign_recent",
+    "id": 3,
+    "mode": "replace"
   }
 ]

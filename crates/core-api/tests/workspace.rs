@@ -828,7 +828,8 @@ async fn empty_fields_are_offered_and_used_only_on_request() {
     .await;
     let d = v.document.unwrap();
     assert_eq!(d.origin, PlacementOrigin::Field);
-    assert_eq!(d.sticker, f0.rect, "Sticker = Feld-Rechteck");
+    // Nachtrag 16: der Block steht proportional und mittig im Feld (nicht auf das Feld gestreckt)
+    assert_eq!(d.sticker, f0.block, "Sticker = Lage des Blocks im Feld");
     assert_eq!(d.check.overlaps_content, Some(false), "das Zielfeld ist kein Inhalt");
     assert_eq!(Some(d.placement.page_index), f0.page);
     core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
@@ -882,30 +883,31 @@ async fn automatic_placement_stays_out_of_existing_fields() {
     }
 }
 
-/// Nachtrag 12, Duplikate: Ein signiertes und gespeichertes Dokument („Fertig“) ist nicht mehr offen. Dieselbe
-/// Datei erneut empfangen (Mobile: neue Kopie in der Sandbox) öffnet sie wie vor Nachtrag 12 als nächstes Dokument
-/// (F-89 „sofort weiter“) – nicht „ist bereits geöffnet“, solange „Fertig“ zu sehen ist. Vor dem Speichern bleibt
-/// es dagegen offen (Hinweis, nichts kommt dazu).
+/// Nachtrag 12, Duplikate (mit Nachtrag 17 zusammengeführt): Vor dem Speichern ist das Dokument offen – derselbe
+/// Pfad kommt nicht noch einmal dazu (Hinweis `ng-open-duplicates`). Signiert und gespeichert („Fertig“) öffnet eine
+/// Kopie derselben Datei wie vor Nachtrag 12 als nächstes Dokument (F-89 „sofort weiter“), ohne „ist bereits
+/// geöffnet“. Desktop vergleicht Pfade; die Kopie auf Mobilgeräten prüft `mobile.rs`
+/// (`shared_copy_opens_again_after_signing_on_mobile`).
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_same_file_opens_again_after_it_was_signed() {
     let fx = Fixture::new();
     let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "doc.pdf");
     let again = copy_pdf(TEXT_PDF, &fx.dir("inbox/2"), "doc.pdf");
-    let core = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), None, None, false).expect("Kern");
-    let duplicate = |v: &ViewState| v.notices.iter().any(|n| n.code == "ng-open-duplicate");
+    let core = start(&fx, keystore_overlay(vec![a.clone()], &fx.dir("out")), None, None, false).expect("Kern");
+    let duplicate = |v: &ViewState| v.notices.iter().any(|n| n.code == "ng-open-duplicates");
     wait_for(&core, "Arbeitsbereich", editing).await;
     // offen: dieselbe Datei kommt nicht dazu
-    core.dispatch(UiEvent::FilesReceived { paths: vec![again.clone()] });
+    core.dispatch(UiEvent::FilesReceived { paths: vec![a.clone()] });
     let v = wait_for(&core, "Hinweis", duplicate).await;
     assert!(editing(&v) && !v.actions.show_batch, "kein zweites Dokument");
-    for n in v.notices.iter().filter(|n| n.code == "ng-open-duplicate") {
+    for n in v.notices.iter().filter(|n| n.code == "ng-open-duplicates") {
         core.dispatch(UiEvent::DismissNotice { id: n.id });
     }
     core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
     let v = wait_for(&core, "gespeichert", saved).await;
     let first = v.document.as_ref().map(|d| (d.doc.id, d.phase));
     assert!(matches!(first, Some((_, DocumentPhase::Done))), "{first:?}");
-    // signiert und gespeichert: dieselbe Datei öffnet erneut
+    // signiert und gespeichert: eine Kopie derselben Datei öffnet als nächstes Dokument
     core.dispatch(UiEvent::FilesReceived { paths: vec![again] });
     let v = wait_for(&core, "erneut geöffnet", |v| {
         editing(v) && v.document.as_ref().is_some_and(|d| Some(d.doc.id) != first.map(|f| f.0))
@@ -913,6 +915,595 @@ async fn the_same_file_opens_again_after_it_was_signed() {
     .await;
     assert_eq!(v.document.as_ref().map(|d| d.doc.name.as_str()), Some("doc.pdf"));
     assert!(!duplicate(&v), "nicht „ist bereits geöffnet“");
+}
+
+// ------------------------------------------------------------------------------------------------
+// Signaturfelder: Plausibilität, Block im Feld = geschriebene Signatur, neue Seite (ADR 0004 Nachtrag 16)
+// ------------------------------------------------------------------------------------------------
+
+fn pt_rect(r: pida_core_api::RectPt) -> pida_pdf_cos::Rect {
+    pida_pdf_cos::Rect::new(r.left, r.bottom, r.right, r.top)
+}
+
+fn assert_rect_close(a: pida_pdf_cos::Rect, b: pida_pdf_cos::Rect, tol: f32, what: &str) {
+    let ok = [(a.llx, b.llx), (a.lly, b.lly), (a.urx, b.urx), (a.ury, b.ury)].iter().all(|(x, y)| (x - y).abs() <= tol);
+    assert!(ok, "{what}: {a:?} ≠ {b:?} (± {tol})");
+}
+
+/// Begrenzungsrechteck von `r` unter der Matrix `m`.
+fn transform(m: [f32; 6], r: pida_pdf_cos::Rect) -> pida_pdf_cos::Rect {
+    let pts = [(r.llx, r.lly), (r.urx, r.lly), (r.llx, r.ury), (r.urx, r.ury)]
+        .map(|(x, y)| (m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]));
+    let xs = pts.map(|p| p.0);
+    let ys = pts.map(|p| p.1);
+    pida_pdf_cos::Rect::new(
+        xs.iter().copied().fold(f32::INFINITY, f32::min),
+        ys.iter().copied().fold(f32::INFINITY, f32::min),
+        xs.iter().copied().fold(f32::NEG_INFINITY, f32::max),
+        ys.iter().copied().fold(f32::NEG_INFINITY, f32::max),
+    )
+}
+
+/// Wohin ein Viewer das Inner-Form zeichnet (ISO 32000-1 §12.5.5: transformierte Holder-BBox → `/Rect`).
+fn viewer_block(
+    holder_bbox: pida_pdf_cos::Rect,
+    matrix: [f32; 6],
+    inner_bbox: pida_pdf_cos::Rect,
+    rect: pida_pdf_cos::Rect,
+) -> pida_pdf_cos::Rect {
+    let tb = transform(matrix, holder_bbox);
+    let t = transform(matrix, inner_bbox);
+    let r = rect.normalized();
+    let (sx, sy) = (r.width() / tb.width(), r.height() / tb.height());
+    pida_pdf_cos::Rect::new(
+        r.llx + (t.llx - tb.llx) * sx,
+        r.lly + (t.lly - tb.lly) * sy,
+        r.llx + (t.urx - tb.llx) * sx,
+        r.lly + (t.ury - tb.lly) * sy,
+    )
+}
+
+fn floats(o: &pida_pdf_cos::lopdf::Object) -> Vec<f32> {
+    o.as_array().map(|a| a.iter().filter_map(|v| v.as_float().ok()).collect()).unwrap_or_default()
+}
+
+fn rect_of(o: &pida_pdf_cos::lopdf::Object) -> pida_pdf_cos::Rect {
+    let v = floats(o);
+    pida_pdf_cos::Rect::new(v[0], v[1], v[2], v[3]).normalized()
+}
+
+/// Lage des Blocks im signierten Feld `name`, wie ein Viewer sie aus `/Rect`, Holder-`/BBox`/`/Matrix` und der
+/// BBox des Inner-Forms zeichnet (Benutzerraum).
+fn written_block(pdf: &pida_pdf_cos::SourcePdf, name: &str) -> (usize, pida_pdf_cos::Rect) {
+    use pida_pdf_cos::lopdf::Object;
+    let field = pdf.signature_fields().unwrap().into_iter().find(|f| f.qualified_name == name).expect("Feld");
+    assert!(field.signed, "{name} signiert");
+    let w = &field.widgets[0];
+    let wd = pdf.get_object(w.id).unwrap().as_dict().unwrap();
+    let deref = |o: &Object| -> Object {
+        match o {
+            Object::Reference(id) => pdf.get_object(*id).unwrap().clone(),
+            other => other.clone(),
+        }
+    };
+    let ap = deref(wd.get(b"AP").unwrap());
+    let holder = deref(ap.as_dict().unwrap().get(b"N").unwrap());
+    let holder = holder.as_stream().unwrap();
+    let matrix = holder.dict.get(b"Matrix").map(floats).unwrap_or_else(|_| vec![1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+    let matrix: [f32; 6] = matrix.try_into().unwrap();
+    let res = deref(holder.dict.get(b"Resources").unwrap());
+    let xobj = deref(res.as_dict().unwrap().get(b"XObject").unwrap());
+    let inner = deref(xobj.as_dict().unwrap().get(b"FRM1").unwrap());
+    let inner_bbox = rect_of(inner.as_stream().unwrap().dict.get(b"BBox").unwrap());
+    let holder_bbox = rect_of(holder.dict.get(b"BBox").unwrap());
+    (w.page_index.unwrap(), viewer_block(holder_bbox, matrix, inner_bbox, w.rect))
+}
+
+/// Begrenzungsrechteck der Bildpunkte, die sich zwischen zwei Renderings derselben Seite unterscheiden
+/// (`PAGE_ABS` in pt bei `scale` px/pt; `None` = gleich).
+fn changed_region(
+    a: &pida_render::RgbaImage,
+    b: &pida_render::RgbaImage,
+    scale: f32,
+    page_h: f32,
+) -> Option<pida_pdf_cos::Rect> {
+    assert_eq!((a.width, a.height), (b.width, b.height));
+    let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0, 0);
+    for y in 0..a.height {
+        for x in 0..a.width {
+            let i = ((y * a.width + x) * 4) as usize;
+            let d = (0..3).map(|c| (i32::from(a.data[i + c]) - i32::from(b.data[i + c])).abs()).max().unwrap_or(0);
+            if d > 24 {
+                (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x + 1), y1.max(y + 1));
+            }
+        }
+    }
+    (x0 <= x1 && y0 <= y1 && x0 != u32::MAX).then(|| {
+        pida_pdf_cos::Rect::new(
+            x0 as f32 / scale,
+            page_h - y1 as f32 / scale,
+            x1 as f32 / scale,
+            page_h - y0 as f32 / scale,
+        )
+    })
+}
+
+/// Das Dokument der Meldung (`manySignFields.pdf`, identisch mit den PDF-AS-Testdaten): angeboten werden nur
+/// plausible Felder – nicht das seitengroße `Signature_7`, nicht die 3 pt schmalen bzw. winzigen; in jedem Feld
+/// steht der Block proportional, höchstens in natürlicher Größe und mittig, und genau dort schreibt ihn der Plan.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn only_plausible_fields_are_offered_and_the_block_keeps_its_size() {
+    let fx = Fixture::new();
+    let a = copy_pdf("pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf", &fx.dir("in"), "fields.pdf");
+    let engine = FakeEngine::new();
+    let core =
+        start(&fx, keystore_overlay(vec![a.clone()], &fx.dir("out")), None, Some(engine.clone()), false).unwrap();
+    let v = wait_for(&core, "Arbeitsbereich mit Blockgröße", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    let block = pida_placement::BlockGeometry { width: d.block.width, height: d.block.height };
+    let by_name = |n: &str| d.fields.iter().find(|f| f.name == n).cloned().expect(n);
+    assert_eq!(d.fields.len(), 8);
+    for f in &d.fields {
+        let rect = pt_rect(f.rect.expect("Rechteck"));
+        let fit = pida_placement::field_fit(rect, block);
+        let page = d.doc.page_sizes[f.page.expect("Seite")];
+        assert_eq!(f.suitable, pida_placement::field_suitable(rect, block, page), "{}", f.name);
+        let b = pt_rect(f.block.expect("Lage im Feld"));
+        assert_rect_close(b, fit.rect, 1e-3, &f.name);
+        assert!(b.width() <= block.width + 1e-3 && b.height() <= block.height + 1e-3, "{}: nie größer", f.name);
+        assert!(((b.width() / b.height()) - (block.width / block.height)).abs() < 1e-3, "{}: proportional", f.name);
+    }
+    for n in ["Signature_0", "Signature_5", "Signature_6"] {
+        assert!(by_name(n).suitable, "{n}: übliches Feld (148 × 72, 171 × 150, 59 × 50 pt)");
+    }
+    for n in ["Signature_1", "Signature_2", "Signature_3", "Signature_4", "Signature_7"] {
+        assert!(!by_name(n).suitable, "{n} ist kein plausibles Ziel");
+    }
+    // ausdrücklich ins seitengroße Feld (nicht angeboten, aber über den Vertrag erreichbar): natürliche Größe,
+    // mittig auf der Seite – nicht die ganze Seite
+    let f7 = by_name("Signature_7");
+    core.dispatch(UiEvent::UseTarget { target: PlacementTarget::Field { index: f7.index } });
+    let v = wait_for(&core, "im seitengroßen Feld", |v| {
+        v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Field { index: f7.index })
+    })
+    .await;
+    let d7 = v.document.unwrap();
+    assert_eq!(d7.sticker, f7.block);
+    let s = pt_rect(d7.sticker.unwrap());
+    assert!((s.width() - block.width).abs() < 1e-3 && (s.height() - block.height).abs() < 1e-3, "Blockgröße: {s:?}");
+    assert_eq!((d7.placement.page_index, d7.placement.width, d7.placement.height), (1, s.width(), s.height()));
+    // ins übliche Feld und signieren: der Plan schreibt den Block genau dorthin, wo ihn die Ansicht zeigt
+    let f0 = by_name("Signature_0");
+    core.dispatch(UiEvent::UseTarget { target: PlacementTarget::Field { index: f0.index } });
+    wait_for(&core, "im Feld", |v| v.document.as_ref().is_some_and(|d| d.sticker == f0.block)).await;
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    wait_for(&core, "gespeichert", saved).await;
+    let plan = engine.last_plan();
+    let pida_pades::Visibility::Visible(bp) = &plan.visibility else { panic!("sichtbar") };
+    let app = &bp.appearance;
+    let drawn = viewer_block(
+        app.holder_bbox().unwrap(),
+        app.holder_matrix(),
+        pida_pdf_cos::Rect::new(0.0, 0.0, app.width + 1.0, app.height + 1.0),
+        bp.rect,
+    );
+    assert_rect_close(drawn, pt_rect(f0.block.unwrap()), 0.01, "Plan = Vorschau");
+    assert_rect_close(bp.rect.normalized(), pt_rect(f0.rect.unwrap()), 1e-3, "/Rect bleibt");
+
+    // alle Felder: Plan (`build_plan`, derselbe Code wie beim Signieren) = `FieldTargetView::block`
+    use pida_core_api::plan;
+    let src = pida_pdf_cos::SourcePdf::open_file(&a, &pida_pdf_cos::Limits::default()).unwrap();
+    let report = pida_pades::analyze(&src).unwrap();
+    let store = pida_sigblock::ProfileStore::builtin().unwrap();
+    let fonts = pida_sigblock::FontProvider::builtin();
+    let settings = pida_config::Settings::default();
+    let overlay = Overlay::default();
+    let spec = plan::block_spec(
+        &store,
+        plan::SpecInput {
+            effective: pida_config::Effective::new(&settings, &overlay, None),
+            system_language: pida_i18n::Lang::system(),
+            pdfa: report.pdfa.as_ref(),
+            cert: None,
+            signing_time: plan::local_now(),
+            emblem: None,
+        },
+    )
+    .unwrap();
+    for cand in pida_pades::empty_fields(&report) {
+        let view = by_name(&cand.qualified_name);
+        let built = plan::build_plan(plan::PlanInput {
+            report: &report,
+            pages: src.pages(),
+            position: &pida_workflow::PositionChoice::Field(cand.clone()),
+            spec: &spec,
+            chain: None,
+            reserve: pida_pades::Reserve::ModelB,
+            cms_profile: Default::default(),
+            renderer: None,
+            // wie beim Signieren im Arbeitsbereich (Nachtrag 12); für ein Feld als Ziel ohne Bedeutung
+            avoid_widgets: true,
+            store: &store,
+            fonts: &fonts,
+        })
+        .unwrap();
+        let pida_pades::Visibility::Visible(bp) = &built.plan.visibility else { panic!("sichtbar") };
+        let app = &bp.appearance;
+        assert!(
+            (app.width - block.width).abs() < 1e-3,
+            "{}: Breite der Vorschau, nicht des Felds",
+            cand.qualified_name
+        );
+        let drawn = viewer_block(
+            app.holder_bbox().unwrap(),
+            app.holder_matrix(),
+            pida_pdf_cos::Rect::new(0.0, 0.0, app.width + 1.0, app.height + 1.0),
+            bp.rect,
+        );
+        assert_rect_close(drawn, pt_rect(view.block.unwrap()), 0.01, &cand.qualified_name);
+    }
+}
+
+/// Seitengroßes Feld `Signature_7` (Meldung: „befüllt auf einmal die ganze Seite“) mit echter Engine und
+/// Keystore: geschrieben wird der Block in natürlicher Größe mittig auf Seite 2 – genau im Sticker; PDFium zeichnet
+/// ihn dort (Unterschied der Renderings), pyHanko prüft die Signatur.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn page_sized_field_is_signed_exactly_where_the_preview_shows_the_block() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf("pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf", &fx.dir("in"), "fields.pdf");
+    let pdfium = pdfium_dir().is_some();
+    let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, pdfium).expect("Kern");
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    let f7 = d.fields.iter().find(|f| f.name == "Signature_7").cloned().unwrap();
+    assert!(!f7.suitable);
+    if pdfium {
+        // frei auf Seite 2 (automatisch platziert): das seitengroße leere Feld ist kein Ziel und damit auch kein
+        // Hindernis – keine Überdeckungswarnung, die „Freie Fläche suchen“ nie beheben könnte
+        let v = wait_for(&core, "frei auf Seite 2 geprüft", |v| {
+            v.document.as_ref().is_some_and(|d| {
+                d.target == PlacementTarget::Free && d.placement.page_index == 1 && d.check.for_revision == d.revision
+            })
+        })
+        .await;
+        assert!(!v.document.unwrap().check.overlaps_widget, "seitengroßes Feld überdeckt nicht");
+        // über dem passenden leeren Feld `Signature_0` (Seite 1) warnt die Prüfung weiter
+        let f0 = d.fields.iter().find(|f| f.name == "Signature_0").cloned().unwrap();
+        let r0 = f0.rect.unwrap();
+        core.dispatch(UiEvent::MoveBlock { page: 0, x: r0.left, y: r0.top });
+        let v = wait_for(&core, "über Signature_0", |v| {
+            v.document.as_ref().is_some_and(|d| d.placement.page_index == 0 && d.check.for_revision == d.revision)
+        })
+        .await;
+        assert!(v.document.unwrap().check.overlaps_widget, "passendes leeres Feld bleibt ein Hindernis");
+    }
+    sign_into_field_like_the_preview(&core, &a, &out.join("fields_signed.pdf"), &f7).await;
+}
+
+/// Übliches, aber kleineres Feld `Signature_5` (171 × 150 pt, Block auf etwa drei Viertel verkleinert): angeboten,
+/// geschrieben proportional und mittig genau im Sticker (echte Engine, Keystore, PDFium, pyHanko).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn scaled_field_is_signed_exactly_where_the_preview_shows_the_block() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf("pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf", &fx.dir("in"), "fields.pdf");
+    let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, pdfium_dir().is_some()).expect("Kern");
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    let f5 = d.fields.iter().find(|f| f.name == "Signature_5").cloned().unwrap();
+    assert!(f5.suitable, "angeboten");
+    let b = pt_rect(f5.block.unwrap());
+    let scale = b.width() / d.block.width;
+    assert!(scale > 0.7 && scale < 0.8, "verkleinert: {scale}");
+    assert!(((b.height() / d.block.height) - scale).abs() < 1e-3, "proportional");
+    sign_into_field_like_the_preview(&core, &a, &out.join("fields_signed.pdf"), &f5).await;
+}
+
+/// Platzhalterfeld der PDF-AS-Testdaten (`placeholder_sigfield_and_qr.pdf`, `Signature_0` mit 63,7 × 61,1 pt – genau
+/// für das Signieren in ein vorhandenes Feld gebaut): angeboten, obwohl der Block darin auf gut ein Viertel
+/// verkleinert wird (Prüfung „bricht keine normalen Felder“: mit der Entwurfsschwelle ⅓ war es kein Ziel), und
+/// geschrieben genau im Sticker (echte Engine, Keystore, PDFium, pyHanko).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn pdfas_placeholder_field_is_offered_and_signed_where_the_preview_shows_the_block() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf("pdf/pdfas/pdf-as-web/data/placeholder_sigfield_and_qr.pdf", &fx.dir("in"), "fields.pdf");
+    let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, pdfium_dir().is_some()).expect("Kern");
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    let f = d.fields.iter().find(|f| f.name == "Signature_0").cloned().expect("Signature_0");
+    assert!(f.suitable, "Platzhalterfeld der PDF-AS-Testdaten angeboten");
+    let b = pt_rect(f.block.unwrap());
+    let scale = b.width() / d.block.width;
+    assert!(scale > 0.25 && scale < 1.0 / 3.0, "verkleinert: {scale}");
+    sign_into_field_like_the_preview(&core, &a, &out.join("fields_signed.pdf"), &f).await;
+}
+
+/// DocMDP-zertifiziertes Dokument (P = 2) mit nur einem vorhandenen leeren Feld (`Leer`, 230 × 50 pt): Frei platzieren
+/// ist nicht zulässig, das Feld wird angeboten und ist der einzige sichtbare Weg; signiert steht der Block genau im
+/// Sticker, und die erweiterte Holder-`/BBox` bleibt eine zulässige Änderung (pyHanko: beide Signaturen intakt, alle
+/// Änderungen „signing and form filling“, mit der DocMDP-Regel vereinbar).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn certified_document_is_signed_into_its_only_field_like_the_preview() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf("pades/certified-docmdp-p2.pdf", &fx.dir("in"), "cert.pdf");
+    let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, pdfium_dir().is_some()).expect("Kern");
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        matches!(v.step, StepView::Warning { .. })
+            || (editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0))
+    })
+    .await;
+    if matches!(v.step, StepView::Warning { .. }) {
+        core.dispatch(UiEvent::AnswerWarning { proceed: true });
+    }
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    assert!(!d.constraints.new_visible_field_allowed);
+    let f = d.fields.iter().find(|f| f.name == "Leer").cloned().expect("Feld Leer");
+    assert!(f.suitable, "einziges Feld des zertifizierten Dokuments angeboten");
+    sign_into_field_like_the_preview(&core, &a, &out.join("cert_signed.pdf"), &f).await;
+    if tool("pyhanko") {
+        let o = Command::new("pyhanko")
+            .args(["sign", "validate", "--no-strict-syntax", "--pretty-print"])
+            .arg(out.join("cert_signed.pdf"))
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&o.stdout).to_lowercase();
+        // beide Signaturen kryptografisch intakt, die Zertifizierung sieht nur Signieren und Formular ausfüllen
+        assert_eq!(text.matches("the signature is cryptographically sound").count(), 2, "pyHanko: {text}");
+        assert!(
+            text.contains("all modifications relate to signing and form filling operations")
+                && text.contains("compatible with the current document modification policy"),
+            "pyHanko: {text}"
+        );
+    }
+}
+
+/// `use_target` in das Feld, signieren (Keystore) und prüfen: Sticker = `FieldTargetView::block`, der Viewer zeichnet
+/// den Block aus `/Rect` und Holder-`/BBox` genau dort (Seite ohne CropBox und Drehung: Benutzerraum = sichtbare
+/// Seite), PDFium ebenso (Unterschied der Renderings), `/Rect` bleibt das Feld, pyHanko `INTACT`, qpdf.
+async fn sign_into_field_like_the_preview(
+    core: &pida_core_api::Core,
+    input: &std::path::Path,
+    signed: &std::path::Path,
+    field: &pida_core_api::FieldTargetView,
+) {
+    let page = field.page.expect("Seite");
+    core.dispatch(UiEvent::UseTarget { target: PlacementTarget::Field { index: field.index } });
+    let v = wait_for(core, "im Feld", |v| {
+        v.document.as_ref().is_some_and(|d| d.sticker == field.block && d.sticker.is_some())
+    })
+    .await;
+    let d = v.document.unwrap();
+    let sticker = pt_rect(d.sticker.unwrap());
+    let page_h = d.doc.page_sizes[page].1;
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    wait_for(core, "gespeichert", saved).await;
+    let bytes = std::fs::read(signed).unwrap();
+    let pdf = pida_pdf_cos::SourcePdf::open(bytes.clone(), &pida_pdf_cos::Limits::default()).unwrap();
+    let (written_page, drawn) = written_block(&pdf, &field.name);
+    assert_eq!(written_page, page);
+    assert_rect_close(drawn, sticker, 0.01, "geschrieben = Vorschau");
+    let f = pdf.signature_fields().unwrap().into_iter().find(|f| f.qualified_name == field.name).unwrap();
+    assert_rect_close(f.widgets[0].rect.normalized(), pt_rect(field.rect.unwrap()), 1e-3, "/Rect bleibt");
+    if let Some(dir) = pdfium_dir() {
+        let backend = pida_render::PdfiumBackend::bind(Some(dir.as_path())).unwrap();
+        let before = pida_render::RenderBackend::open(&backend, std::fs::read(input).unwrap().into(), None).unwrap();
+        let after = pida_render::RenderBackend::open(&backend, bytes.clone().into(), None).unwrap();
+        let scale = 2.0;
+        let region = changed_region(
+            &before.render_page(page, scale).unwrap(),
+            &after.render_page(page, scale).unwrap(),
+            scale,
+            page_h,
+        )
+        .expect("Block gezeichnet");
+        // ein Bildpunkt (0,5 pt) Rundung der Kantenglättung
+        assert_rect_close(region, sticker, 1.0, "PDFium zeichnet den Block im Sticker");
+    } else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – Renderprüfung übersprungen");
+    }
+    if tool("pyhanko") {
+        let o = Command::new("pyhanko").args(["sign", "validate", "--no-strict-syntax"]).arg(signed).output().unwrap();
+        let text = String::from_utf8_lossy(&o.stdout);
+        assert!(text.contains("INTACT") || text.contains("intact"), "pyHanko: {text}");
+    } else {
+        eprintln!("pyHanko fehlt – Orakel übersprungen");
+    }
+    if tool("qpdf") {
+        let o = Command::new("qpdf").arg("--check").arg(signed).output().unwrap();
+        assert!(o.status.success(), "qpdf: {}", String::from_utf8_lossy(&o.stdout));
+    }
+}
+
+/// Virtuelle neue Seite (Aufgabe Punkt 4): Größe = MediaBox der letzten Seite (nicht deren kleinere CropBox, wie
+/// PDF-AS `new PDPage(lastPage.getMediaBox())`), der Block behält dort seine Größe, und geschrieben wird er in der
+/// Ecke, in der ihn die Vorschau zeigt (PDFium nötig; echte Engine, pyHanko).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn new_page_has_the_media_box_size_and_the_block_keeps_its_size() {
+    use pida_pdf_cos::lopdf;
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    // letzte Seite mit kleinerer CropBox
+    let src = testdata(TEXT_PDF);
+    let mut doc = lopdf::Document::load(&src).unwrap();
+    let pages: Vec<_> = doc.get_pages().into_values().collect();
+    let last = *pages.last().unwrap();
+    let media = {
+        let page = doc.get_object(last).unwrap().as_dict().unwrap();
+        let mb = page.get(b"MediaBox").map(floats).unwrap_or_else(|_| vec![0.0, 0.0, 595.0, 842.0]);
+        pida_pdf_cos::Rect::new(mb[0], mb[1], mb[2], mb[3]).normalized()
+    };
+    let crop = [media.llx + 40.0, media.lly + 60.0, media.urx - 40.0, media.ury - 30.0];
+    doc.get_object_mut(last)
+        .unwrap()
+        .as_dict_mut()
+        .unwrap()
+        .set("CropBox", lopdf::Object::Array(crop.iter().map(|v| lopdf::Object::Real(*v)).collect()));
+    let a = fx.dir("in").join("cropped.pdf");
+    doc.save(&a).unwrap();
+    let Some(core) = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, true) else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    let v = wait_for(&core, "Arbeitsbereich mit Sticker", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.sticker.is_some() && d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    let n = d.doc.page_count;
+    let (cw, ch) = d.doc.page_sizes[n - 1];
+    assert!((cw - (crop[2] - crop[0])).abs() < 0.01 && (ch - (crop[3] - crop[1])).abs() < 0.01, "sichtbar = CropBox");
+    let (nw, nh) = d.new_page_size.expect("Größe der neuen Seite");
+    assert!(
+        (nw - media.width()).abs() < 0.01 && (nh - media.height()).abs() < 0.01,
+        "neue Seite = MediaBox: {nw} × {nh}"
+    );
+    let (bw, bh) = (d.block.width, d.block.height);
+    if !d.new_page {
+        core.dispatch(UiEvent::ToggleNewPage);
+        wait_for(&core, "neue Seite", |v| v.document.as_ref().is_some_and(|d| d.new_page)).await;
+    }
+    // rechts unten in die Ecke der neuen Seite
+    core.dispatch(UiEvent::MoveBlock { page: n, x: nw - bw, y: bh });
+    let v = wait_for(&core, "auf der neuen Seite", |v| {
+        v.document.as_ref().is_some_and(|d| d.placement.page_index == n && (d.placement.x - (nw - bw)).abs() < 0.01)
+    })
+    .await;
+    let d = v.document.unwrap();
+    let s = pt_rect(d.sticker.unwrap());
+    assert!((s.width() - bw).abs() < 1e-3 && (s.height() - bh).abs() < 1e-3, "Blockgröße bleibt: {s:?}");
+    assert_rect_close(s, pida_pdf_cos::Rect::new(nw - bw, 0.0, nw, bh), 0.01, "Ecke der neuen Seite");
+    core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+    wait_for(&core, "gespeichert", saved).await;
+    let signed = out.join("cropped_signed.pdf");
+    let pdf = pida_pdf_cos::SourcePdf::open(std::fs::read(&signed).unwrap(), &pida_pdf_cos::Limits::default()).unwrap();
+    assert_eq!(pdf.page_count(), n + 1);
+    let new_page = &pdf.pages()[n];
+    assert_rect_close(new_page.media_box.normalized(), media, 1e-3, "MediaBox der letzten Seite");
+    assert_rect_close(new_page.crop_box.normalized(), media, 1e-3, "ohne CropBox");
+    let field = pdf.signature_fields().unwrap().into_iter().find(|f| f.signed).expect("Signaturfeld");
+    assert_eq!(field.widgets[0].page_index, Some(n));
+    // neue Seite ohne CropBox und Drehung: `/Rect` = sichtbare Lage (bis auf die PDF-AS-Abbildung W × H)
+    assert_rect_close(field.widgets[0].rect.normalized(), s, 0.01, "geschrieben = Vorschau");
+    if tool("pyhanko") {
+        let o = Command::new("pyhanko").args(["sign", "validate", "--no-strict-syntax"]).arg(&signed).output().unwrap();
+        let text = String::from_utf8_lossy(&o.stdout);
+        assert!(text.contains("INTACT") || text.contains("intact"), "pyHanko: {text}");
+    }
+}
+
+/// Einseitiges Dokument (Letter) mit `/Rotate rotation`, CropBox ≠ MediaBox und einem leeren Signaturfeld `Feld`
+/// mit dem Widget-`/Rect` `rect` (Benutzerraum).
+fn rotated_field_pdf(dir: &std::path::Path, rotation: i64, rect: [f32; 4]) -> PathBuf {
+    use pida_pdf_cos::lopdf::{self, Object, dictionary};
+    let mut doc = lopdf::Document::load(testdata(PDF)).unwrap();
+    let page_id = *doc.get_pages().values().next().unwrap();
+    let field = doc.add_object(dictionary! {
+        "FT" => "Sig",
+        "T" => Object::string_literal("Feld"),
+        "Type" => "Annot",
+        "Subtype" => "Widget",
+        "F" => 4,
+        "P" => page_id,
+        "Rect" => rect.iter().map(|v| Object::Real(*v)).collect::<Vec<_>>(),
+    });
+    let page = doc.get_object_mut(page_id).unwrap().as_dict_mut().unwrap();
+    page.set("Rotate", rotation);
+    page.set("MediaBox", vec![0.into(), 0.into(), 612.into(), 792.into()]);
+    page.set("CropBox", vec![Object::Real(30.0), Object::Real(40.0), Object::Real(590.0), Object::Real(770.0)]);
+    page.set("Annots", vec![Object::Reference(field)]);
+    let acro = doc.add_object(dictionary! { "Fields" => vec![Object::Reference(field)] });
+    let root = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+    doc.get_object_mut(root).unwrap().as_dict_mut().unwrap().set("AcroForm", acro);
+    let path = dir.join(format!("feld-{rotation}.pdf"));
+    doc.save(&path).unwrap();
+    path
+}
+
+/// Gedrehte Seite mit CropBox-Ursprung (Nachtrag 16, Prüfung „gedrehte Seiten, CropBox ≠ MediaBox“): Ansicht
+/// (`FieldTargetView::rect`/`block`, Sticker im sichtbaren Raum) und Ergebnis stimmen für alle Drehungen überein –
+/// PDFium zeichnet den signierten Block genau im Sticker, `/Rect` bleibt, pyHanko `INTACT`. Ein großes Feld (Block in
+/// natürlicher Größe) und ein kleines (Block verkleinert).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rotated_cropped_field_is_signed_exactly_where_the_preview_shows_the_block() {
+    let Some(dir) = pdfium_dir() else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    let backend = pida_render::PdfiumBackend::bind(Some(dir.as_path())).unwrap();
+    for rotation in [0, 90, 180, 270] {
+        // 160 × 300 pt (bei 90°/270° sichtbar 300 × 160: Block in natürlicher Größe) bzw. 90 × 200 pt (verkleinert)
+        for rect in [[120.0, 200.0, 280.0, 500.0], [300.0, 450.0, 390.0, 650.0]] {
+            let fx = Fixture::new();
+            let out = fx.dir("out");
+            let a = rotated_field_pdf(&fx.dir("in"), rotation, rect);
+            let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, true).expect("Kern");
+            let v = wait_for(&core, "Arbeitsbereich", |v| {
+                editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+            })
+            .await;
+            let d = v.document.unwrap();
+            let what = format!("{rotation}° {rect:?}");
+            let f = d.fields.iter().find(|f| f.name == "Feld").cloned().expect("Feld");
+            let shown = pt_rect(f.rect.unwrap());
+            // sichtbarer Raum: CropBox-Ursprung abgezogen, bei 90°/270° Achsen getauscht
+            let (fw, fh) = (rect[2] - rect[0], rect[3] - rect[1]);
+            let (sw, sh) = if rotation % 180 == 0 { (fw, fh) } else { (fh, fw) };
+            assert!((shown.width() - sw).abs() < 1e-2 && (shown.height() - sh).abs() < 1e-2, "{what}: {shown:?}");
+            core.dispatch(UiEvent::UseTarget { target: PlacementTarget::Field { index: f.index } });
+            let v = wait_for(&core, "im Feld", |v| v.document.as_ref().is_some_and(|d| d.sticker == f.block)).await;
+            let d = v.document.unwrap();
+            let sticker = pt_rect(d.sticker.unwrap());
+            let page_h = d.doc.page_sizes[0].1;
+            core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+            wait_for(&core, "gespeichert", saved).await;
+            let signed = out.join(format!("feld-{rotation}_signed.pdf"));
+            let bytes = std::fs::read(&signed).unwrap();
+            let pdf = pida_pdf_cos::SourcePdf::open(bytes.clone(), &pida_pdf_cos::Limits::default()).unwrap();
+            let field = pdf.signature_fields().unwrap().into_iter().find(|f| f.qualified_name == "Feld").unwrap();
+            assert!(field.signed, "{what}");
+            let want = pida_pdf_cos::Rect::new(rect[0], rect[1], rect[2], rect[3]);
+            assert_rect_close(field.widgets[0].rect.normalized(), want, 1e-3, &format!("{what}: /Rect bleibt"));
+            let before = pida_render::RenderBackend::open(&backend, std::fs::read(&a).unwrap().into(), None).unwrap();
+            let after = pida_render::RenderBackend::open(&backend, bytes.into(), None).unwrap();
+            let scale = 2.0;
+            let region = changed_region(
+                &before.render_page(0, scale).unwrap(),
+                &after.render_page(0, scale).unwrap(),
+                scale,
+                page_h,
+            )
+            .expect("Block gezeichnet");
+            assert_rect_close(region, sticker, 1.0, &format!("{what}: PDFium zeichnet den Block im Sticker"));
+            if tool("pyhanko") {
+                let o = Command::new("pyhanko")
+                    .args(["sign", "validate", "--no-strict-syntax"])
+                    .arg(&signed)
+                    .output()
+                    .unwrap();
+                let text = String::from_utf8_lossy(&o.stdout);
+                assert!(text.contains("INTACT") || text.contains("intact"), "{what}: pyHanko: {text}");
+            }
+        }
+    }
 }
 
 /// QR-Platzhalter mit eingeschalteter Platzhaltersuche: automatisch Ziel QR (PDFium nötig).

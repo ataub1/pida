@@ -43,31 +43,6 @@ impl DocData {
         DocData { id, name, src, report, pages, renderer: Mutex::new(None) }
     }
 
-    /// Dokument des Prüfmodus (ADR 0004 §3.9): nur für Seitenkacheln, nicht in der Warteschlange. Die
-    /// Signaturen prüft `pades::verify_document`; die Annahmeanalyse (`DocReport`) entfällt – der Bericht
-    /// enthält nur die Struktur, keine Befunde und keine Signaturen.
-    pub(crate) fn for_verify(id: DocId, path: &Path, src: Arc<SourcePdf>) -> DocData {
-        let report = DocReport {
-            class: AcceptanceClass::K1Regular,
-            findings: Vec::new(),
-            page_count: src.page_count(),
-            xref_kind: src.xref_kind(),
-            tail: src.tail().kind,
-            encrypted: src.encryption().is_some(),
-            may_sign: false,
-            fields: Vec::new(),
-            signatures: Vec::new(),
-            doc_mdp: None,
-            pdfa: None,
-            tagged: false,
-            xfa: pida_pades::XfaKind::None,
-            usage_rights: false,
-            need_appearances: false,
-            next_field_number: 1,
-        };
-        DocData::new(id, path.to_path_buf(), src, report)
-    }
-
     /// Führt `f` mit dem (bei Bedarf geöffneten) Renderer aus.
     pub(crate) fn with_renderer<T>(
         &self,

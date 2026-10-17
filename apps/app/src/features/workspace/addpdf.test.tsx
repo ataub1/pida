@@ -286,11 +286,11 @@ describe('schmale Ansicht und Mobilgeräte', () => {
     await expectNoAxeViolations();
     await user.click(within(menu).getByRole('menuitem', { name: 'Weitere PDFs hinzufügen …' }));
     await waitFor(() => expect(lastEvent(mock)).toMatchObject({ type: 'open_files', mode: 'add' }));
-    expect(mock.nativeCalls).toContain('pickMobileFiles:pdf:multiple');
+    expect(mock.nativeCalls).toContain('pickMobileDocuments:multiple');
     menu = await openMenu(user);
     await user.click(within(menu).getByRole('menuitem', { name: 'Anderes PDF öffnen …' }));
     await waitFor(() => expect(lastEvent(mock)).toMatchObject({ type: 'open_files', mode: 'replace' }));
-    expect(mock.nativeCalls).toContain('pickMobileFiles:pdf:single');
+    expect(mock.nativeCalls).toContain('pickMobileDocuments:single');
     const sent = lastEvent(mock) as Extract<UiEvent, { type: 'open_files' }>;
     expect(sent.paths.every((p) => p.includes('/Library/Caches/import/'))).toBe(true);
     // Miniaturen sind schmal eingeklappt – die Kopfzeile bleibt der Weg

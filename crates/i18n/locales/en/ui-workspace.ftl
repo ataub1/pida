@@ -21,9 +21,6 @@ ng-ui-shell-pages =
         [one] { $n } page
        *[other] { $n } pages
     }
-ng-ui-shell-verify = Verify
-ng-ui-shell-verify-long = Verify a signature
-ng-ui-shell-verify-mode = Verification mode
 ng-ui-shell-commands = Commands
 ng-ui-shell-commands-long = Commands and search
 ng-ui-shell-lang = Interface language
@@ -38,8 +35,6 @@ ng-ui-shell-cmd-open = Open document …
     .keywords = open file pdf load
 ng-ui-shell-cmd-sign = Sign
     .keywords = signature
-ng-ui-shell-cmd-verify = Verify signature (verification mode)
-    .keywords = verify check prüfen
 ng-ui-shell-cmd-settings = Settings
     .keywords = options preferences configuration
 ng-ui-shell-cmd-signature = Edit signature block
@@ -85,6 +80,20 @@ ng-ui-shell-key-dblclick = Double-click
 ng-ui-shell-key-zoom = Zoom in / out
 ng-ui-shell-key-fit = Fit to width
 
+# Multiple selection (ADR 0004 addendum 17): title or message line of the system file chooser and a hint on how
+# to mark several PDFs there (macOS: a double-click takes only the clicked file; Android: a tap takes exactly one file
+# right away, several only after a long press)
+ng-ui-shell-pick-title =
+    { $os ->
+        [macos] Choose PDF documents – ⌘-click to mark several, then “Open”
+       *[other] Choose PDF documents – Ctrl-click to mark several, then “Open”
+    }
+ng-ui-shell-pick-skipped =
+    { $count ->
+        [one] One chosen file could not be added (not readable or too large).
+       *[other] { $count } chosen files could not be added (not readable or too large).
+    }
+
 ## Start
 
 ng-ui-start-title = What would you like to sign?
@@ -104,10 +113,7 @@ ng-ui-start-pick = Choose PDF
 ng-ui-start-pick-mobile = Choose document
 ng-ui-start-local = Your documents stay on this device until you sign.
 ng-ui-start-shortcut = opens the file chooser
-ng-ui-start-side = Recently signed and verification mode
-ng-ui-start-verify-title = Verify a signature?
-ng-ui-start-verify-text = Verification mode shows who signed a PDF, when, and whether it has changed since.
-ng-ui-start-verify-button = Open verification mode
+ng-ui-start-side = Recently signed
 # Parked work (“Go to start” parks the open document or batch, ADR 0004 addendum 10)
 ng-ui-start-parked-label = In progress
 ng-ui-start-parked-batch =
@@ -139,6 +145,14 @@ ng-ui-start-join-text-batch =
     }
 ng-ui-start-join-add = Add to batch
 ng-ui-start-join-replace = Close open work and start over
+# Multiple selection (ADR 0004 addendum 17): how to mark several PDFs in the file chooser
+ng-ui-start-multi-hint =
+    { $os ->
+        [macos] Several PDFs at once: ⌘-click them in the dialog, then “Open”.
+        [ios] Several PDFs at once: tap the PDFs in the file chooser (check mark), then “Open”.
+        [android] Several PDFs at once: long-press a PDF in the file chooser, tap more, then “Select”.
+       *[other] Several PDFs at once: Ctrl-click them in the dialog, then “Open”.
+    }
 
 ## Workspace: pages, sticker, live region, state cards
 

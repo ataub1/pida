@@ -9,7 +9,7 @@
  * Signiersitzung beginnt nur nach `sign_with`, `choose_backend` (Rückfall), `resume_signature` oder
  * „Erneut versuchen“.
  *
- * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, settings, verify, recent, firstrun }` mit je
+ * Aufbau: `index.ts` (UI-A) hält die Bereiche `{ flow, settings, recent, firstrun }` mit je
  * eigenem Zustandsausschnitt (`shared.ts`), verteilt jedes Ereignis an alle, leitet Signale weiter und
  * setzt die Projektionen zusammen. Der Bereich `flow` (Kern, Arbeitsbereich, Signieren, Stapel) steht hier
  * und nutzt `workspace.ts` (Dokumente, Platzierung), `signing.ts` (Signiersitzung) und `batch.ts`
@@ -17,7 +17,7 @@
  * der Warteschlange; mit `batchOverview` bei ≥ 2 Dokumenten, ADR 0004 §3.8).
  */
 import { defaultErrorContext, defaultSigners, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../defaults';
-import type { Bridge, FileDragEvent } from '../bridge';
+import type { Bridge, FileDragEvent, MobilePick } from '../bridge';
 import type {
   ActionsView,
   BackendId,
@@ -60,7 +60,6 @@ import {
   type MockSignal,
 } from './shared';
 import { SigningSession } from './signing';
-import { verifyAllowed, verifyArea, verifyPageTile, type VerifyState } from './verify';
 import {
   autoPlace,
   blockPreviewSvg,
@@ -234,6 +233,24 @@ function current(s: FlowState): MockDoc | null {
   return s.queue[0] ?? null;
 }
 
+/** offene Dokumente (Arbeitsbereich, Warteschlange, Stapel; auch geparkt) */
+function openDocs(s: FlowState): MockDoc[] {
+  const all = [...s.queue, ...(s.batch?.docs() ?? [])];
+  return all.filter((d, i) => all.findIndex((x) => x.id === d.id) === i);
+}
+
+/**
+ * Wie der Kern (`report_selection`, ADR 0004 Nachtrag 17): gewählte Dokumente, die schon offen waren bzw. doppelt in
+ * der Auswahl stehen, kommen nicht noch einmal dazu – Hinweis `ng-open-duplicates` statt stillem Verwerfen. Gilt für
+ * `open_files` und „Erneut signieren“ (`sign_recent`, Kern: `open_paths`).
+ */
+function reportDuplicates(s: FlowState, paths: string[], openBefore: Set<DocId>, ctx: MockCtx): void {
+  const after = openDocs(s);
+  const dups = paths.filter((p, i) => after.some((d) => d.path === p && openBefore.has(d.id)) || paths.indexOf(p) < i);
+  if (dups.length === 0) return;
+  ctx.notify('ng-open-duplicates', dups.length === 1 ? { count: '1', file: fileNameOf(dups[0] ?? '') } : { count: String(dups.length) });
+}
+
 function makeDoc(s: FlowState, path: string, specOverride?: MockDocSpec): MockDoc {
   const name = fileNameOf(path);
   const spec = specOverride ?? specForName(name, s.opts.placeholder ?? 'none');
@@ -357,6 +374,29 @@ function leaveSingle(s: FlowState): void {
 function fromBatch(s: FlowState): boolean {
   const d = current(s);
   return !!s.batch && !!d && s.batch.openItem === d.id;
+}
+
+/**
+ * „Zum Stapel“ (`show_batch`): Einzeldokument mit wartenden Dokumenten (Arbeitsbereich, Analysewarnung) → Übersicht;
+ * die Platzierung des offenen Dokuments wird dessen Plan, ein Dokument mit Warnung ein Eintrag.
+ */
+function showBatch(s: FlowState, ctx: MockCtx): void {
+  if ((s.stage !== 'editing' && s.stage !== 'warning') || s.batch || !batchOn(s) || s.queue.length < 2) return;
+  const [cur, ...rest] = s.queue;
+  const batch = new MockBatch(batchHost(s, ctx));
+  if (cur && s.edit && s.stage === 'editing') batch.addEdited(cur, planFromEdit(cur, s.edit), followsSettings(s.edit));
+  batch.add(s.stage === 'editing' ? rest : s.queue);
+  s.batch = batch;
+  leaveSingle(s);
+}
+
+/** „Zurück zum Stapel“ (`back_to_batch`): aus der Übersicht geöffnetes Dokument zurück, die Platzierung wird Plan. */
+function backToBatch(s: FlowState): void {
+  const b = s.batch;
+  const d = current(s);
+  if (!b || !d || !fromBatch(s)) return;
+  b.back(d.id, s.stage === 'editing' && s.edit ? planFromEdit(d, s.edit) : undefined, s.edit ? followsSettings(s.edit) : false);
+  leaveSingle(s);
 }
 
 function openFiles(s: FlowState, ctx: MockCtx, paths: string[]): void {
@@ -747,12 +787,37 @@ function discardParked(s: FlowState): void {
 }
 
 /**
+ * Führt „Weiter bearbeiten“ zur Stapelübersicht (wie `State::resumes_to_overview` im Kern, ADR 0004 Nachtrag 13)?
+ * Mit Stapelübersicht: die Übersicht selbst, ein aus ihr geöffnetes Dokument und ein Dokument mit wartenden
+ * (Arbeitsbereich, Analysewarnung) – nicht „Fertig“ ohne Speichern.
+ */
+function resumesToOverview(s: FlowState): boolean {
+  if (!batchOn(s)) return false;
+  if (s.stage === 'batch') return !!s.batch;
+  if (s.stage === 'editing' || s.stage === 'warning') return !!current(s) && (s.queue.length > 1 || fromBatch(s));
+  return false;
+}
+
+/**
+ * „Weiter bearbeiten“ (`resume_parked`) wie der Kern (`Event::ParkedResumed`, Nachtrag 13): ein Stapel kommt in die
+ * Stapelübersicht – wie „Zurück zum Stapel“ bzw. „Zum Stapel“, die Platzierung des offenen Dokuments wird dessen
+ * Plan –, sonst unverändert zurück.
+ */
+function resumeParked(s: FlowState, ctx: MockCtx): void {
+  s.parked = false;
+  if (!resumesToOverview(s) || s.stage === 'batch') return;
+  if (fromBatch(s)) backToBatch(s);
+  else showBatch(s, ctx);
+}
+
+/**
  * Neue Dateien bei geparkter Arbeit wie der Kern: „Zum Stapel hinzufügen“ (`mode: 'add'`) bzw. – `openWith` – „Öffnen
- * mit“/zweite Instanz (ohne Rückfrage, Hinweis `ng-parked-files-added`). Fortsetzen, dann hinzufügen: Arbeitsbereich wie
- * „Weitere PDFs hinzufügen“ (Platzierung bleibt Plan), Übersicht mit neuen Einträgen, Analysewarnung als Eintrag.
+ * mit“/zweite Instanz (ohne Rückfrage, Hinweis `ng-parked-files-added`). Fortsetzen wie „Weiter bearbeiten“ (ein
+ * Stapel ist danach die Übersicht), dann hinzufügen: Arbeitsbereich wie „Weitere PDFs hinzufügen“ (Platzierung bleibt
+ * Plan), Übersicht mit neuen Einträgen, Analysewarnung als Eintrag.
  */
 function joinParked(s: FlowState, ctx: MockCtx, paths: string[], openWith: boolean): void {
-  s.parked = false;
+  resumeParked(s, ctx);
   const open = () => s.queue.length + (s.batch?.size ?? 0);
   const before = open();
   const d = current(s);
@@ -779,9 +844,11 @@ function parkedView(s: FlowState): ParkedWorkView | null {
   const e = s.edit;
   const byHand = !!e && (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'output') && !e.automatic;
   const unsaved = s.stage === 'output';
+  // „Weiter bearbeiten“ führt zur Stapelübersicht → „Stapel · n Dokumente“, sonst zum Dokument (Nachtrag 13)
+  const doc_name = resumesToOverview(s) ? null : (current(s)?.name ?? null);
   const b = s.batch;
-  if (b) return { doc_name: null, documents: b.size, placed_by_hand: byHand || b.view().manual_plans > 0, unsaved };
-  return { doc_name: current(s)?.name ?? null, documents: s.queue.length, placed_by_hand: byHand, unsaved };
+  if (b) return { doc_name, documents: b.size, placed_by_hand: byHand || b.view().manual_plans > 0, unsaved };
+  return { doc_name, documents: s.queue.length, placed_by_hand: byHand, unsaved };
 }
 
 /** Platzierung zulässig (z. B. kein neues sichtbares Feld auf DocMDP-zertifizierten Dokumenten). */
@@ -988,7 +1055,7 @@ const flowArea: MockArea<FlowState> = {
     if (s.parked) {
       switch (e.type) {
         case 'resume_parked':
-          s.parked = false;
+          resumeParked(s, ctx);
           return true;
         case 'discard_parked':
           discardParked(s);
@@ -1058,23 +1125,13 @@ const flowArea: MockArea<FlowState> = {
         else openFiles(s, ctx, e.paths);
         return true;
       case 'show_batch':
-        if ((s.stage === 'editing' || s.stage === 'warning') && !b && batchOn(s) && d && s.queue.length > 1) {
-          const [cur, ...rest] = s.queue;
-          const batch = new MockBatch(batchHost(s, ctx));
-          if (cur && s.edit && s.stage === 'editing') batch.addEdited(cur, planFromEdit(cur, s.edit), followsSettings(s.edit));
-          batch.add(s.stage === 'editing' ? rest : s.queue);
-          s.batch = batch;
-          leaveSingle(s);
-        }
+        if (!b && d && s.queue.length > 1) showBatch(s, ctx);
         return true;
       case 'open_batch_item':
         if (s.stage === 'batch' && b) b.open(e.doc);
         return true;
       case 'back_to_batch':
-        if (b && d && fromBatch(s) && (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading')) {
-          b.back(d.id, s.stage === 'editing' && s.edit ? planFromEdit(d, s.edit) : undefined, s.edit ? followsSettings(s.edit) : false);
-          leaveSingle(s);
-        }
+        if (s.stage === 'editing' || s.stage === 'warning' || s.stage === 'loading') backToBatch(s);
         return true;
       case 'remove_from_batch':
         if (s.stage === 'batch' && b) {
@@ -1275,9 +1332,11 @@ const flowArea: MockArea<FlowState> = {
       if (!s.explicit) resetSelection(s, ctx);
       s.batch?.settingsChanged();
     } else if (sig.kind === 'open-files') {
-      // „Dieses Dokument signieren“ bei geparkter Arbeit: wie „Öffnen mit“ dazu (Kern: `FilesAdded`)
-      if (s.parked) joinParked(s, ctx, sig.paths, true);
-      else openFiles(s, ctx, sig.paths);
+      // „Erneut signieren“ aus „Zuletzt signiert“ (`sign_recent`, Nachtrag 15): wie `open_files` mit demselben `mode`
+      // (bei geparkter Arbeit ohne `mode` wie „Öffnen mit“ dazu, Kern: `FilesAdded`)
+      const openBefore = new Set(openDocs(s).map((d) => d.id));
+      flowArea.handle(sig.mode ? { type: 'open_files', paths: sig.paths, mode: sig.mode } : { type: 'open_files', paths: sig.paths }, s, ctx);
+      reportDuplicates(s, sig.paths, openBefore, ctx);
     }
   },
 
@@ -1333,6 +1392,8 @@ export class MockCore implements Bridge {
   readonly openedUrls: string[] = [];
   /** Aufrufe nativer Dienste (Tests) */
   readonly nativeCalls: string[] = [];
+  /** Optionen der Dateidialoge (`pickFiles`; Tests: Titel bzw. Hinweiszeile, Mehrfachauswahl) */
+  readonly pickFilesCalls: Array<{ title: string; multiple: boolean }> = [];
 
   private readonly opts: MockOptions;
   private readonly listeners = new Set<(v: ViewState) => void>();
@@ -1341,7 +1402,6 @@ export class MockCore implements Bridge {
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private readonly flow: FlowState;
   private readonly areas: Area[];
-  private readonly verifyState: VerifyState;
   private notices: NoticeView[] = [];
   private noticeId = 0;
   /** Hinweis zum Teilen (iOS, Nachtrag 12): über „Teilen“ empfangenes Dokument bzw. ausgeblendet – wie der Kern */
@@ -1352,11 +1412,9 @@ export class MockCore implements Bridge {
   constructor(options: MockOptions = {}) {
     this.opts = { ...options };
     this.flow = flowArea.init(this.opts);
-    this.verifyState = verifyArea.init(this.opts);
     this.areas = [
       { area: flowArea as MockArea<unknown>, state: this.flow },
       { area: settingsArea as MockArea<unknown>, state: settingsArea.init(this.opts) },
-      { area: verifyArea as MockArea<unknown>, state: this.verifyState },
       { area: recentArea as MockArea<unknown>, state: recentArea.init(this.opts) },
       { area: firstRunArea as MockArea<unknown>, state: firstRunArea.init(this.opts) },
     ];
@@ -1365,6 +1423,7 @@ export class MockCore implements Bridge {
       emit: (signal: MockSignal) => {
         for (const a of this.areas) a.area.signal?.(signal, a.state, this.ctx);
       },
+      native: (call) => this.nativeCalls.push(call),
       settings: () => settingsState.settings,
       platform: () => this.platformView(),
       notify: (code, params = {}) => this.notify(code, params),
@@ -1403,9 +1462,6 @@ export class MockCore implements Bridge {
   }
 
   pageTileUrl(doc: DocId, page: number, scale: number): string {
-    // Prüfdokumente (eigene `DocId`, nicht in der Warteschlange; ADR 0004 §3.9)
-    const verifyTile = verifyPageTile(this.verifyState, doc, page, scale);
-    if (verifyTile) return verifyTile;
     const d = this.doc(doc);
     const p = d?.spec.pages[page] ?? null;
     const last = d?.spec.pages[d.spec.pages.length - 1];
@@ -1430,14 +1486,13 @@ export class MockCore implements Bridge {
     this.dispatched.push(event);
     if (this.forced) return; // feste Testzustände reagieren nicht; Tests prüfen `dispatched`
     if (event.type === 'dismiss_notice') this.notices = this.notices.filter((n) => n.id !== event.id);
-    // wie K4 (Merge E4): bei offenem Prüfmodus ist das Dokument darunter verdeckt – kein Signieren (F-54)
-    const signing = ['sign_with', 'start_batch', 'confirm_position', 'choose_invisible', 'choose_backend'].includes(event.type);
-    if (this.verifyState.view && signing) return;
     // von außen übergebene Dateien (Shell, Nachtrag 12): wie `open_files` ohne `mode`; auf iOS danach der Hinweis
     // zum Teilen für das empfangene Dokument, sofern nicht ausgeblendet (wie der Kern)
     const routed: UiEvent = event.type === 'files_received' ? { type: 'open_files', paths: event.paths } : event;
+    const openBefore = routed.type === 'open_files' ? new Set(openDocs(this.flow).map((d) => d.id)) : null;
     const firstNew = this.flow.nextDocId;
     for (const a of this.areas) a.area.handle(routed, a.state, this.ctx);
+    if (routed.type === 'open_files' && openBefore) reportDuplicates(this.flow, routed.paths, openBefore, this.ctx);
     if (event.type === 'files_received' && this.platformView().os === 'ios' && !this.shareHintDismissed && this.flow.nextDocId > firstNew) this.shareHint = firstNew;
     if (event.type === 'dismiss_share_hint') {
       this.shareHint = null;
@@ -1463,6 +1518,7 @@ export class MockCore implements Bridge {
 
   async pickFiles(options: { title: string; multiple: boolean }): Promise<string[] | null> {
     this.nativeCalls.push(`pickFiles:${options.multiple ? 'multiple' : 'single'}`);
+    this.pickFilesCalls.push({ title: options.title, multiple: options.multiple });
     const result = this.opts.pickFilesResult === undefined ? ['/Users/demo/Dokumente/Vertrag.pdf', '/Users/demo/Dokumente/Angebot 2026.pdf'] : this.opts.pickFilesResult;
     if (result === null) return null;
     return options.multiple ? [...result] : result.slice(0, 1);
@@ -1486,6 +1542,14 @@ export class MockCore implements Bridge {
     const sandbox = `${SANDBOX}/Library/Caches/import/1`;
     const result = this.opts.pickMobileFilesResult ?? [`${sandbox}/Vertrag.pdf`, `${sandbox}/Angebot.pdf`];
     return options.multiple ? [...result] : result.slice(0, 1);
+  }
+
+  async pickMobileDocuments(options: { multiple: boolean }): Promise<MobilePick> {
+    this.nativeCalls.push(`pickMobileDocuments:${options.multiple ? 'multiple' : 'single'}`);
+    if (!mobile(this.opts)) throw new Error('ng-mobile-unsupported');
+    const sandbox = `${SANDBOX}/Library/Caches/import/1`;
+    const result = this.opts.pickMobileFilesResult ?? [`${sandbox}/Vertrag.pdf`, `${sandbox}/Angebot.pdf`];
+    return { paths: options.multiple ? [...result] : result.slice(0, 1), skipped: this.opts.pickMobileSkipped ?? 0 };
   }
 
   private platformView(): PlatformView {
@@ -1581,13 +1645,9 @@ export class MockCore implements Bridge {
       ...workspaceDefaults(),
     };
     const view = this.areas.reduce<ViewState>((v, a) => ({ ...v, ...a.area.project(a.state, this.ctx) }), base);
-    // Freigabe des Prüfmodus wie K4 (Leerlauf, Positionieren, Fertig, Stapelübersicht; ADR 0004 §3.9)
-    view.actions = { ...view.actions, verify: verifyAllowed(view) };
-    // Prüfmodus offen: das Dokument darunter ist verdeckt (wie K4, Merge E4)
-    if (view.verify) view.actions = { ...view.actions, sign: false, edit_placement: false, start_batch: false, show_batch: false };
     // Hinweis zum Teilen (Nachtrag 12): nur, solange das empfangene Dokument allein offen ist (wie der Kern)
     const alone = this.shareHint !== null && view.document?.doc.id === this.shareHint && !view.batch && this.flow.queue.length === 1;
-    view.share_hint = alone && !view.verify && this.shareHint !== null ? { doc: this.shareHint } : null;
+    view.share_hint = alone && this.shareHint !== null ? { doc: this.shareHint } : null;
     // Einstellungen offen: Einstellungen nicht erneut erreichbar (wie `main_bar.settings_enabled` im Kern)
     if (view.settings) {
       view.main_bar = { ...view.main_bar, settings_enabled: false };

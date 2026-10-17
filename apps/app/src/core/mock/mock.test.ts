@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings } from '../defaults';
 import type { Settings, UiEvent, ViewState } from '../types';
 import { MOCK_SCENARIOS, MockCore, type MockOptions } from './index';
+import { fieldFit } from './workspace';
 
 let cores: MockCore[] = [];
 afterEach(() => {
@@ -47,9 +48,6 @@ describe('Szenarien', () => {
           expect(v.document).toBeNull();
           expect(v.actions.open_files).toBe(true);
           expect(v.actions.sign).toBe(false);
-          break;
-        case 'verify':
-          expect(v.verify).not.toBeNull();
           break;
         case 'batch': {
           // Stapelübersicht (ADR 0004 §3.8): kein Dokument im Arbeitsbereich, Voranalyse im Hintergrund
@@ -102,6 +100,49 @@ describe('Szenarien', () => {
     expect(after.document?.check.for_revision).toBe(after.document?.revision);
   });
 
+  it('Formular wie `manySignFields.pdf` (Nachtrag 16): nur plausible Felder angeboten; im seitengroßen Feld behält der Block seine Größe', async () => {
+    const c = core();
+    await until(c, (x) => x.step.step === 'open');
+    await c.dispatch({ type: 'open_files', paths: ['/Users/demo/Dokumente/Signaturfelder.pdf'] });
+    const v = await until(c, hasDoc);
+    const d = v.document!;
+    expect(d.fields.filter((f) => f.suitable).map((f) => f.name)).toEqual(['Signature_0', 'Signature_5', 'Signature_6']);
+    expect(d.new_page_size).toEqual([612, 792]);
+    // frei auf Seite 2: das seitengroße leere Feld ist kein Hindernis (keine Überdeckungswarnung)
+    expect(d.placement.page_index).toBe(1);
+    expect(d.check.overlaps_widget).toBe(false);
+    const page = d.fields.find((f) => f.name === 'Signature_7')!;
+    await c.dispatch({ type: 'use_target', target: { kind: 'field', index: page.index } });
+    const after = await until(c, (x) => x.document?.target.kind === 'field');
+    const s = after.document!.sticker!;
+    expect(s).toEqual(page.block);
+    expect(s.right - s.left).toBeCloseTo(d.block.width, 6);
+    expect(s.top - s.bottom).toBeCloseTo(d.block.height, 6);
+    expect(after.document!.placement).toMatchObject({ page_index: 1, x: s.left, y: s.top, width: d.block.width });
+  });
+
+  it('Eignung eines Felds wie im Kern (`pida_placement::field_suitable`): übliche Felder für jedes Profil, absurde für keines', () => {
+    const r = (w: number, h: number) => ({ left: 100, bottom: 100, right: 100 + w, top: 100 + h });
+    const A4: [number, number] = [595.28, 841.89];
+    const small = { width: 230, height: 82 };
+    const amts = { width: 495, height: 120 };
+    const logo = { width: 40.51, height: 42.52 };
+    for (const block of [small, amts, logo]) {
+      for (const [w, h] of [[150, 50], [230, 50], [300, 100], [400, 150]] as const) expect(fieldFit(r(w, h), block, A4).suitable, `${block.width} in ${w}×${h}`).toBe(true);
+      for (const [w, h] of [[3.2, 224], [13.5, 245.6], [50, 800], [595.28, 841.89]] as const) expect(fieldFit(r(w, h), block, A4).suitable, `${block.width} in ${w}×${h}`).toBe(false);
+    }
+    // Platzhalterfeld der PDF-AS-Testdaten (63,7 × 61,1): Signaturblock ja (Maßstab 0,28), Amtssignatur nein (0,13)
+    expect(fieldFit(r(63.7, 61.1), small, A4).suitable).toBe(true);
+    expect(fieldFit(r(63.7, 61.1), amts, A4).suitable).toBe(false);
+    // Grenzen: Maßstab ⅕, Form ⅛, halbe Seite
+    expect(fieldFit(r(46, 16.4), small, A4).suitable).toBe(true);
+    expect(fieldFit(r(230 * 0.19, 82), small, A4).suitable).toBe(false);
+    expect(fieldFit(r(920, 41), small, [5000, 5000]).suitable).toBe(true);
+    expect(fieldFit(r(943, 41), small, [5000, 5000]).suitable).toBe(false);
+    expect(fieldFit(r(595.28, 420.9), small, A4).suitable).toBe(true);
+    expect(fieldFit(r(595.28, 430), small, A4).suitable).toBe(false);
+  });
+
   it('bereits signiert: vorhandene Signaturen mit Status, keine neue Seite', async () => {
     const v = await until(core({ scenario: 'signed' }), hasDoc);
     expect(v.document?.existing.length).toBeGreaterThan(0);
@@ -116,19 +157,18 @@ describe('Szenarien', () => {
     expect(v.actions.show_batch).toBe(false);
   });
 
-  it('Beispiele der späteren Etappen (`examples`): zuletzt signiert, Prüfbericht, Ersteinrichtung (Stapel: echter Ablauf)', async () => {
+  it('Beispiele der späteren Etappen (`examples`): zuletzt signiert, Ersteinrichtung (Stapel: echter Ablauf)', async () => {
     const v = await until(core({ examples: true, firstRun: true }), (x) => x.step.step === 'open');
     expect(v.recent?.length).toBeGreaterThan(0);
-    // Prüfmodus seit B4 nur im Szenario `verify` (er läge sonst über der Startansicht)
-    expect(v.verify).toBeNull();
-    expect((await until(core({ scenario: 'verify' }), (x) => x.step.step === 'open')).verify).not.toBeNull();
+    // kein Prüfmodus mehr (ADR 0004 Nachtrag 15): weder Szenario noch Ansicht noch Freigabe
+    expect(MOCK_SCENARIOS as readonly string[]).not.toContain('verify');
+    expect('verify' in v || 'verify' in v.actions).toBe(false);
     expect(v.first_run).not.toBeNull();
     // der Stapel kommt seit A2 aus dem Ablauf (Szenario `batch`), nicht als festes Beispiel
     expect(v.batch).toBeNull();
     expect(v.actions.show_batch).toBe(false);
     const plain = await until(core(), (x) => x.step.step === 'open');
     expect(plain.recent).toBeNull();
-    expect(plain.verify).toBeNull();
     expect(plain.first_run).toBeNull();
     expect(plain.batch).toBeNull();
   });
@@ -633,7 +673,7 @@ describe('„Zur Startseite“ parkt offene Arbeit (Nachtrag 10, Mock wie der Ke
     await c.dispatch({ type: 'go_home' });
     const v = await until(c, parkedStart);
     expect(v.parked).toEqual({ doc_name: 'Vertrag.pdf', documents: 1, placed_by_hand: true, unsaved: false });
-    expect(v.actions).toMatchObject({ sign: false, edit_placement: false, open_files: true, verify: true });
+    expect(v.actions).toMatchObject({ sign: false, edit_placement: false, open_files: true });
     // verdeckt (F-54): weder Signieren noch Verschieben wirken
     await c.dispatch({ type: 'sign_with', backend: 'atrust_native' });
     await c.dispatch({ type: 'nudge_block', dx: 1, dy: 0, fine: false, coarse: false });
@@ -693,4 +733,21 @@ describe('„Zur Startseite“ parkt offene Arbeit (Nachtrag 10, Mock wie der Ke
     v = await c.view();
     expect([v.step.step, v.parked]).toEqual(['signing', null]);
   });
+
+  it('Stapel (Nachtrag 13): ein geöffneter Eintrag kehrt mit „Weiter bearbeiten“ als Plan in die Übersicht zurück', async () => {
+    const c = core({ scenario: 'batch', settings: idAustria() });
+    let v = await until(c, ready);
+    const doc = v.batch!.items[0]!.doc;
+    await c.dispatch({ type: 'open_batch_item', doc });
+    await until(c, hasDoc);
+    await c.dispatch({ type: 'nudge_block', dx: 0, dy: 1, fine: false, coarse: false });
+    await c.dispatch({ type: 'go_home' });
+    v = await until(c, parkedStart);
+    expect(v.parked).toMatchObject({ doc_name: null, documents: 4 });
+    await c.dispatch({ type: 'resume_parked' });
+    v = await c.view();
+    expect([v.step.step, v.document, v.batch?.open_item, v.parked]).toEqual(['batch', null, null, null]);
+    expect(v.batch?.items[0]).toMatchObject({ doc, status: { state: 'positioned' }, position: { kind: 'manual' } });
+  });
+
 });

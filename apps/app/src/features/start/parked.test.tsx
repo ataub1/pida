@@ -2,7 +2,8 @@
  * Geparkte Arbeit auf der Startansicht (ADR 0004 Nachtrag 10): Karte „In Bearbeitung“ mit Dokumentname bzw.
  * „Stapel · n Dokumente“, „Weiter bearbeiten“, „Schließen“ ohne bzw. mit kurzer Rückfrage (Standard „Abbrechen“),
  * Rückfrage beim Wählen und Ablegen neuer PDFs (Standard „Zum Stapel hinzufügen“, „Offene schließen und neu
- * beginnen“, Abbrechen ändert nichts), „Öffnen mit“ ohne Rückfrage mit Hinweis, axe.
+ * beginnen“, Abbrechen ändert nichts), „Öffnen mit“ ohne Rückfrage mit Hinweis, axe. „Weiter bearbeiten“ eines Stapels
+ * führt zur Stapelübersicht – auch aus einem geöffneten Eintrag, mit dessen Platzierung (Nachtrag 13).
  */
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -18,7 +19,7 @@ function parkedStart(parked: Partial<ParkedWorkView> = {}) {
   return viewOf(
     { step: 'open', queue: [] },
     {
-      actions: { ...noActions(), open_files: true, settings: true, home: true, verify: true },
+      actions: { ...noActions(), open_files: true, settings: true, home: true },
       parked: { doc_name: 'Vertrag.pdf', documents: 1, placed_by_hand: false, unsaved: false, ...parked },
     },
   );
@@ -32,6 +33,17 @@ function settings() {
   const s = defaultSettings();
   return { ...s, backend: { default: 'id_austria' as const }, output: { ...s.output, folder: '.' } };
 }
+
+/** Zeile der Stapelliste mit diesem Dokument. */
+function row(list: HTMLElement, name: string): HTMLElement {
+  const r = within(list)
+    .getAllByRole('listitem', { hidden: true })
+    .find((x) => within(x).queryByText(name));
+  if (!r) throw new Error(`Zeile ${name} fehlt`);
+  return r;
+}
+
+const BATCH_LIST = { name: 'Dokumente im Stapel' } as const;
 
 describe('Karte „In Bearbeitung“', () => {
   it('Dokumentname, „Weiter bearbeiten“, „Schließen“ ohne Rückfrage, wenn nichts verloren geht', async () => {
@@ -176,6 +188,70 @@ describe('Mit dem Mock-Kern', () => {
     await screen.findByRole('list', { name: 'Dokumente im Stapel' });
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(await screen.findByText('Das Dokument wurde zur offenen Arbeit hinzugefügt.')).toBeInTheDocument();
+  });
+
+  it('Stapel (Nachtrag 13): Eintrag geöffnet und verschoben, „Weiter bearbeiten“ → Stapelübersicht mit seinem Plan, Fokus auf der Überschrift', async () => {
+    const { mock, user } = renderApp({ scenario: 'batch', settings: settings() });
+    const list = await screen.findByRole('list', BATCH_LIST);
+    await waitFor(() => expect(within(list).queryAllByText('Wird geprüft')).toHaveLength(0));
+    await user.click(within(row(list, 'Angebot_2026-118.pdf')).getByRole('button', { name: '„Angebot_2026-118.pdf“ öffnen und positionieren' }));
+    const sticker = await screen.findByRole('application', { name: 'Signaturblock' });
+    fireEvent.keyDown(sticker, { key: 'ArrowUp' });
+    await waitFor(async () => expect((await mock.view()).document?.origin).toBe('user'));
+    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Zur Startseite' }));
+    await screen.findByRole('heading', START);
+    // die Karte nennt den Stapel, nicht das gerade bearbeitete Dokument
+    expect(within(card()).getByRole('heading', { level: 2, name: 'Stapel · 4 Dokumente' })).toBeInTheDocument();
+    expect(card()).toHaveTextContent('Pläne und Status der Dokumente bleiben erhalten.');
+    expect(card()).not.toHaveTextContent('Angebot_2026-118.pdf');
+    await user.click(within(card()).getByRole('button', { name: 'Weiter bearbeiten' }));
+    const back = await screen.findByRole('list', BATCH_LIST);
+    expect(screen.queryByRole('application', { name: 'Signaturblock' })).toBeNull();
+    const offer = row(back, 'Angebot_2026-118.pdf');
+    expect(within(offer).getByText('Positioniert')).toBeInTheDocument();
+    expect(within(offer).getByText('Seite 2, selbst platziert')).toBeInTheDocument();
+    expect(within(back).getAllByRole('listitem')).toHaveLength(4);
+    // Fokus und Titel wie beim Öffnen der Übersicht: die Überschrift wird vorgelesen
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: '4 Dokumente' })).toHaveFocus());
+    expect(document.title).toBe('PIDA – Stapel');
+    const v = await mock.view();
+    expect([v.parked, v.document, v.batch?.open_item]).toEqual([null, null, null]);
+    await expectNoAxeViolations();
+  });
+
+  it('Einzeldokument mit wartendem Dokument (Nachtrag 13): „Stapel · 2 Dokumente“, „Weiter bearbeiten“ → Übersicht', async () => {
+    const { mock, user } = renderApp({ scenario: 'contract', settings: settings() });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    // „Öffnen mit“ im Arbeitsbereich: das Dokument wartet
+    await act(() => mock.dispatch({ type: 'open_files', paths: ['/Users/demo/Angebot.pdf'] }));
+    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Zur Startseite' }));
+    await screen.findByRole('heading', START);
+    expect(within(card()).getByRole('heading', { level: 2, name: 'Stapel · 2 Dokumente' })).toBeInTheDocument();
+    await user.click(within(card()).getByRole('button', { name: 'Weiter bearbeiten' }));
+    const list = await screen.findByRole('list', BATCH_LIST);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+    expect(row(list, 'Vertrag.pdf')).toBeInTheDocument();
+    expect(row(list, 'Angebot.pdf')).toBeInTheDocument();
+    expect(screen.queryByRole('application', { name: 'Signaturblock' })).toBeNull();
+  });
+
+  it('„Zum Stapel hinzufügen“ macht ein geparktes Einzeldokument zum Stapel: danach führt „Weiter bearbeiten“ zur Übersicht', async () => {
+    const { mock, user } = renderApp({ settings: settings(), pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    await user.click(await screen.findByRole('button', { name: 'PDF auswählen' }));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Zur Startseite' }));
+    act(() => mock.simulateFileDrag({ type: 'drop', paths: ['/Users/demo/Angebot.pdf'], x: 1, y: 1 }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Zum Stapel hinzufügen' }));
+    let list = await screen.findByRole('list', BATCH_LIST);
+    await waitFor(() => expect(within(list).queryAllByText('Wird geprüft')).toHaveLength(0));
+    await user.click(within(row(list, 'Angebot.pdf')).getByRole('button', { name: '„Angebot.pdf“ öffnen und positionieren' }));
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Zur Startseite' }));
+    expect(within(await screen.findByRole('region', { name: 'In Bearbeitung' })).getByRole('heading', { level: 2 })).toHaveTextContent('Stapel · 2 Dokumente');
+    await user.click(within(card()).getByRole('button', { name: 'Weiter bearbeiten' }));
+    list = await screen.findByRole('list', BATCH_LIST);
+    expect(within(row(list, 'Vertrag.pdf')).getByText('Positioniert')).toBeInTheDocument();
+    expect(screen.queryByRole('application', { name: 'Signaturblock' })).toBeNull();
   });
 
   it('„Schließen“ verwirft die geparkte Arbeit: leere Startansicht', async () => {

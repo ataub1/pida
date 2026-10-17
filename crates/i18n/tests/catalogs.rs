@@ -110,7 +110,7 @@ fn ui_catalogs_are_disjoint_and_use_their_own_areas() {
     const FILES: [&str; 4] = ["pdfover.ftl", "pida.ftl", "ui-workspace.ftl", "ui-tools.ftl"];
     const AREAS: [(&str, &[&str]); 2] = [
         ("ui-workspace.ftl", &["shell", "start", "ws", "insp", "sc", "fin", "batch"]),
-        ("ui-tools.ftl", &["set", "vf", "pal", "sh", "ob", "recent"]),
+        ("ui-tools.ftl", &["set", "pal", "sh", "ob", "recent"]),
     ];
     let area = |id: &str| id.strip_prefix("ng-ui-").and_then(|r| r.split('-').next()).map(str::to_owned);
     for lang in Lang::ALL {
@@ -401,15 +401,26 @@ fn words(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_alphabetic()).filter(|w| !w.is_empty()).map(str::to_lowercase).collect()
 }
 
-/// ADR 0004 §8 F3, Abnahme E4 Punkt 1: Der Prüfmodus behauptet **nie** Gültigkeit oder Rechtsgültigkeit –
-/// PIDA prüft Integrität und Zertifikatsangaben, nicht Vertrauenskette und Sperrstatus. Geprüft werden die
-/// Texte des Kerns, die der Prüfmodus zeigt (`ng-verify-*`, die Codes der Integrität `cms-*`,
-/// `pdf-signature-*`, die Übernahme-/Einrichtungstexte), ohne das Wort „gültig“ bzw. „valid“ (verneint als
+/// ADR 0004 §8 F3: PIDA behauptet **nie** Gültigkeit oder Rechtsgültigkeit – die App prüft nur die eigene neue
+/// Signatur (Selbstprüfung), einen Prüfmodus gibt es nicht mehr (Nachtrag 15), das Entwickler-Werkzeug `pida verify`
+/// sagt „intakt“ bzw. „nicht intakt“ und nennt den Umfang (Vertrauenskette und Sperrstatus nicht geprüft). Geprüft
+/// werden die Signaturtexte des Kerns (`ng-verify-*`, `ng-cli-verify-*`, die Codes der Integrität `cms-*`,
+/// `pdf-signature-*`, die Übernahme-/Einrichtungstexte) ohne das Wort „gültig“ bzw. „valid“ (verneint als
 /// „ungültig“/„invalid“ erlaubt); in allen Katalogen der Oberfläche nie „rechtsgültig“/„legally valid“.
 #[test]
 fn verify_texts_never_claim_validity() {
     let verify_ids = |id: &str| {
-        ["ng-verify-", "cms-", "pdf-signature-", "ng-firstrun-", "ng-migration-"].iter().any(|p| id.starts_with(p))
+        [
+            "ng-verify-",
+            "ng-cli-verify-",
+            "ng-cli-help-cmd-verify",
+            "cms-",
+            "pdf-signature-",
+            "ng-firstrun-",
+            "ng-migration-",
+        ]
+        .iter()
+        .any(|p| id.starts_with(p))
     };
     for lang in Lang::ALL {
         let (claim, legal) = match lang {
@@ -418,8 +429,23 @@ fn verify_texts_never_claim_validity() {
         };
         let pida = message_texts(&read(&locale_file(lang, "pida.ftl")));
         let checked: Vec<&(String, String)> = pida.iter().filter(|(id, _)| verify_ids(id)).collect();
-        assert!(checked.len() >= 30, "{lang:?}: nur {} Texte des Prüfmodus", checked.len());
-        assert!(checked.iter().any(|(id, _)| id == "ng-verify-warning-sha1"), "{lang:?}");
+        assert!(checked.len() >= 30, "{lang:?}: nur {} Signaturtexte", checked.len());
+        for id in ["ng-cli-verify-intact", "ng-cli-verify-not-intact", "ng-cli-verify-scope", "ng-verify-byte-range"] {
+            assert!(checked.iter().any(|(i, _)| i == id), "{lang:?}: {id}");
+        }
+        // Prüfmodus entfernt (Nachtrag 15): seine Texte stehen in keinem Katalog mehr
+        for file in ["pida.ftl", "ui-workspace.ftl", "ui-tools.ftl"] {
+            for (id, _) in message_texts(&read(&locale_file(lang, file))) {
+                let removed = id.starts_with("ng-ui-vf-")
+                    || id.starts_with("ng-ui-shell-verify")
+                    || id.starts_with("ng-ui-start-verify")
+                    || id == "ng-ui-shell-cmd-verify"
+                    || ["ng-verify-open-failed", "ng-verify-busy", "ng-cli-valid", "ng-cli-invalid"]
+                        .contains(&id.as_str())
+                    || id.starts_with("ng-verify-warning-");
+                assert!(!removed, "{lang:?} {file}: {id} gehört zum entfernten Prüfmodus");
+            }
+        }
         for (id, text) in checked {
             let w = words(text);
             assert!(!w.iter().any(|w| w == claim), "{lang:?} {id}: „{claim}“ in „{text}“");

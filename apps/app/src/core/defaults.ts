@@ -91,15 +91,14 @@ export function noActions(): ActionsView {
     edit_placement: false,
     start_batch: false,
     show_batch: false,
-    verify: false,
     settings: false,
     home: false,
   };
 }
 
 /** Felder der neuen Oberfläche (ADR 0004) mit den Standardwerten des Kerns bis zur Umsetzung in K1–K4. */
-export function workspaceDefaults(): Pick<ViewState, 'document' | 'signers' | 'batch' | 'verify' | 'recent' | 'first_run' | 'actions'> {
-  return { document: null, signers: defaultSigners(), batch: null, verify: null, recent: null, first_run: null, actions: noActions() };
+export function workspaceDefaults(): Pick<ViewState, 'document' | 'signers' | 'batch' | 'recent' | 'first_run' | 'actions'> {
+  return { document: null, signers: defaultSigners(), batch: null, recent: null, first_run: null, actions: noActions() };
 }
 
 /** Bekannte Abschnitte der Einstellungen (alles andere ist `Settings::unknown`). */

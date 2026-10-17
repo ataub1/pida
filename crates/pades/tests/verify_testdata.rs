@@ -1,4 +1,5 @@
-//! Prüfmodus (ADR 0004 §3.9, §3.17): Testdateien `testdata/verify/*.pdf` und ihre erwarteten Ergebnisse.
+//! Prüfung vorhandener Signaturen (`verify_document`, ADR 0004 §3.17; der Prüfmodus der App ist entfernt,
+//! Nachtrag 15): Testdateien `testdata/verify/*.pdf` und ihre erwarteten Ergebnisse.
 //!
 //! Die Dateien erzeugt dieser Test selbst (Generator des Kerns) mit den Testschlüsseln aus
 //! `testdata/keystores` und dem QES-Testzertifikat aus `testdata/verify/keys` (alle NUR TEST, keine echten
@@ -29,7 +30,8 @@ const BASE: &str = "pdf/generated/simple-xref-table.pdf";
 /// Gedrehte Seite (`/Rotate 90`, sichtbar 792 × 612 pt).
 const ROTATED: &str = "pdf/pdfas/pdf-as-cli/simple_rotated_90.pdf";
 /// Lage des Blocks auf der gedrehten Seite (sichtbarer Raum, `PAGE_ABS`: linke Kante, Oberkante von unten);
-/// `core-api/tests/verify.rs` prüft das Rechteck der `AppearanceView` dagegen.
+/// damit signiert der Generator `rotated-90.pdf` (die Prüfung der `AppearanceView` des Prüfmodus ist mit ADR 0004
+/// Nachtrag 15 entfallen).
 pub const ROTATED_POSITION: &str = "p:1;x:100;y:500";
 /// QES-Testzertifikat (qcStatements QcCompliance + QcSSCD)
 const QES_P12: &str = "verify/keys/test-qes-ecp256.p12";
@@ -341,7 +343,7 @@ fn bytes_hidden_in_the_byte_range_gap_are_broken() {
     assert_eq!(s.integrity, Integrity::Broken { code: pida_pades::CODE_SIGNATURE_BYTERANGE.into() });
     assert_eq!(cn(s).as_deref(), Some(CN_RSA), "Unterzeichner trotzdem genannt");
     // dieselbe Regel für Vorsignaturen (Merge E4): Inspektor im Arbeitsbereich (`analyze`) und I4 sagen nicht
-    // „intakt“, wo der Prüfmodus „verändert“ sagt – vor dem Gegenzeichnen folgt die Analysewarnung
+    // „intakt“, wo `verify_document` „verändert“ sagt – vor dem Gegenzeichnen folgt die Analysewarnung
     let prior = |pdf: &[u8]| {
         let report = pida_pades::analyze(&open_bytes(pdf)).unwrap();
         let [e] = report.signatures.as_slice() else { panic!("{:?}", report.signatures.len()) };

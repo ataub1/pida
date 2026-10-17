@@ -188,8 +188,8 @@ pub(crate) fn signature_check(data: &[u8], info: &SigDictInfo) -> SignatureCheck
 }
 
 /// Ergebnis von [`signature_details`]: Status wie [`signature_check`], dazu der vollständige Bericht der
-/// kryptografischen Prüfung bzw. – ohne bestandene Prüfung – die ungeprüfte Struktur des CMS (Prüfmodus,
-/// ADR 0004 §3.9). `Debug` ohne Zertifikatsinhalte (Regel 9).
+/// kryptografischen Prüfung bzw. – ohne bestandene Prüfung – die ungeprüfte Struktur des CMS
+/// ([`crate::verify_document`]). `Debug` ohne Zertifikatsinhalte (Regel 9).
 pub(crate) struct SignatureDetails {
     /// Status
     pub status: PriorStatus,
@@ -234,7 +234,7 @@ pub(crate) fn gap_is_contents(data: &[u8], info: &SigDictInfo) -> bool {
 
 /// Ist `gap` (die Bytes zwischen den beiden Abschnitten einer `/ByteRange`) genau der Hex-String `<…>` mit den
 /// Bytes `contents` (Wert von `/Contents` samt Padding), ohne weitere Zeichen? Für Prüfwerkzeuge außerhalb
-/// der Engine (CLI `pida verify`), damit sie dieselbe Regel anwenden wie Prüfmodus und Inspektor.
+/// der Engine (CLI `pida verify`), damit sie dieselbe Regel anwenden wie `verify_document` und der Inspektor.
 pub fn gap_is_hex_string(gap: &[u8], contents: &[u8]) -> bool {
     let [b'<', hex @ .., b'>'] = gap else { return false };
     let nibble = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
@@ -273,7 +273,7 @@ pub(crate) fn signature_details(data: &[u8], info: &SigDictInfo) -> SignatureDet
     };
     match verify_detached(&info.contents, &mut reader, &expect) {
         // kryptografisch passend, aber der signierte Bereich lässt Teile der Datei offen (Anfang, Ende bzw.
-        // Bytes in der Lücke neben /Contents – Signature Wrapping): verändert, wie im Prüfmodus (ADR 0004 §3.9)
+        // Bytes in der Lücke neben /Contents – Signature Wrapping): verändert, wie in `verify_document`
         Ok(report) if !(byte_range_well_formed(info, data.len() as u64) && gap_is_contents(data, info)) => {
             SignatureDetails {
                 status: PriorStatus::Invalid,

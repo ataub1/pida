@@ -1,7 +1,7 @@
-### PIDA – texts of the new interface, UI-B (Einstellungen, Prüfmodus, Befehlspalette, Kürzel, Ersteinrichtung, Zuletzt signiert), English (EUPL-1.2)
+### PIDA – texts of the new interface, UI-B (Einstellungen, Befehlspalette, Kürzel, Ersteinrichtung, Zuletzt signiert), English (EUPL-1.2)
 ###
 ### Maintained by hand (ADR 0004 §4.5). IDs: `ng-ui-<area>-<name>`, areas of this file:
-### set, vf, pal, sh, ob, recent. All catalogs of a language form one Fluent bundle: do not reuse an ID from
+### set, pal, sh, ob, recent. All catalogs of a language form one Fluent bundle: do not reuse an ID from
 ### `pida.ftl`, `pdfover.ftl` or the other `ui-*.ftl`; every ID with the same variables in `de/`
 ### and `en/` (test `crates/i18n/tests/catalogs.rs`). Plurals via selectors.
 ###
@@ -215,104 +215,15 @@ ng-ui-set-about = PIDA
 ng-ui-set-logs = Logs
     .keywords = log logs logging troubleshooting
 
-## Recently signed (start view, ADR 0004 §3.10)
+## Recently signed (start view, ADR 0004 §3.10; actions as on “Done”, addendum 15 – no verification mode)
 
 ng-ui-recent-title = Recently signed
 ng-ui-recent-empty = No signed documents yet.
-ng-ui-recent-open = Open “{ $name }” in verification mode
+ng-ui-recent-open = Open “{ $name }”
+ng-ui-recent-more = More actions for “{ $name }”
+ng-ui-recent-sign = Sign again
 ng-ui-recent-remove = Remove “{ $name }” from the list
 ng-ui-recent-missing = File no longer available
-
-## Verification mode (ADR 0004 §3.9; wording §8 F3: PIDA never says “valid” or “legally valid”)
-
-ng-ui-vf-title = Verification mode
-ng-ui-vf-preview = Pages of the verified document
-ng-ui-vf-page = Page { $n } of { $total }
-ng-ui-vf-meta = { $pages } · { $revisions }
-ng-ui-vf-pages =
-    { $n ->
-        [one] one page
-       *[other] { $n } pages
-    }
-ng-ui-vf-revisions =
-    { $n ->
-        [one] one revision
-       *[other] { $n } revisions
-    }
-ng-ui-vf-loading = Checking signatures …
-ng-ui-vf-failed = The file could not be checked
-ng-ui-vf-summary-none = This document contains no signature
-ng-ui-vf-summary-none-text = There is nothing to check. You can sign the document.
-ng-ui-vf-summary-intact =
-    { $n ->
-        [one] The signature is unchanged and cryptographically intact
-       *[other] All { $n } signatures are unchanged and cryptographically intact
-    }
-ng-ui-vf-summary-intact-text = The document has not been changed since the last signature.
-ng-ui-vf-summary-broken =
-    { $n ->
-        [one] Warning: one signature is not intact
-       *[other] Warning: { $n } signatures are not intact
-    }
-ng-ui-vf-summary-broken-text = The document was changed after signing or a signature is damaged. Use the signed original file or request a new signed version.
-ng-ui-vf-summary-unverifiable = Not all signatures could be checked
-ng-ui-vf-summary-unverifiable-text = No signature is broken, but at least one uses a method that PIDA cannot check.
-ng-ui-vf-summary-modified = Added to or changed after the last signature
-ng-ui-vf-summary-modified-text = All signatures are intact, but the file was added to or changed after the last signature. That part is not covered by any signature.
-ng-ui-vf-scope = PIDA checks on this device whether the document is unchanged since signing and shows the details of the certificates. PIDA does not check the chain of trust or revocation status.
-ng-ui-vf-full-check = Full verification at signaturpruefung.gv.at
-ng-ui-vf-signatures = Signatures
-ng-ui-vf-unknown-signer = Signature { $n } (signatory unknown)
-ng-ui-vf-status-intact = Intact
-ng-ui-vf-status-broken = Changed
-ng-ui-vf-status-unverifiable = Cannot be checked
-ng-ui-vf-time = Signed on { $time } (as stated by the signatory)
-ng-ui-vf-time-none = No signing time stated
-ng-ui-vf-qes = Qualified electronic signature according to the certificate
-ng-ui-vf-qc = Qualified certificate without a qualified signature creation device (according to the certificate)
-ng-ui-vf-not-qualified = Not qualified (according to the certificate)
-ng-ui-vf-qual-unknown = Qualification cannot be determined
-ng-ui-vf-qual-hint = Taken from the certificate, not checked against the EU trusted lists.
-ng-ui-vf-whole = Document unchanged since this signature
-ng-ui-vf-revision = Unchanged as of this signature
-ng-ui-vf-later =
-    Then { $revisions ->
-        [one] one more revision
-       *[other] { $revisions } more revisions
-    }, { $signatures ->
-        [0] without another signature
-        [one] one of them with a signature
-       *[other] { $signatures } of them with a signature
-    }
-ng-ui-vf-broken = Document changed after this signature or signature damaged
-ng-ui-vf-unverifiable = PIDA cannot check this signature
-ng-ui-vf-time-outside = The stated time is outside the validity period of the certificate.
-ng-ui-vf-details = Certificate details
-ng-ui-vf-cert-org = Organisation
-ng-ui-vf-cert-issuer = Issuer
-ng-ui-vf-cert-serial = Serial number
-ng-ui-vf-cert-validity = Validity period
-ng-ui-vf-cert-range = { $from } to { $to }
-ng-ui-vf-cert-algorithm = Method
-ng-ui-vf-cert-format = Format
-ng-ui-vf-cert-qualification = Qualification
-ng-ui-vf-cert-field = Signature field
-ng-ui-vf-cert-appearance = Signature image
-ng-ui-vf-cert-page = Page { $n }
-ng-ui-vf-cert-invisible = invisible
-ng-ui-vf-cert-trust = Chain of trust
-ng-ui-vf-cert-trust-not-checked = Not checked
-ng-ui-vf-cert-code = Technical code
-ng-ui-vf-cert-unknown = unknown
-ng-ui-vf-format-pades = PAdES (ETSI.CAdES.detached)
-ng-ui-vf-format-pkcs7 = PKCS#7 (adbe.pkcs7.detached)
-ng-ui-vf-format-pkcs7-sha1 = PKCS#7 with SHA-1 (adbe.pkcs7.sha1)
-ng-ui-vf-format-other = Other format
-ng-ui-vf-show = Show on page
-ng-ui-vf-shown = Signature image of { $name } highlighted on page { $page }.
-ng-ui-vf-sign = Sign this document
-ng-ui-vf-other = Check another document
-ng-ui-vf-exit = Leave verification mode
 
 ## Command palette (⌘/Ctrl+K; the commands are in ui-workspace.ftl, area shell)
 

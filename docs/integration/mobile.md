@@ -54,7 +54,7 @@ Rust-API (`PidaMobileExt::pida_mobile()` auf `AppHandle`):
 | `share_file(path, mime)` | `shareFile` | `{ path, mimeType }` | `{}` sobald gezeigt | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI + `FLAG_GRANT_READ_URI_PERMISSION` |
 | `open_file(path, mime)` | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | QuickLook (`QLPreviewController`, ohne Bearbeiten) / `ACTION_VIEW` mit `FileProvider`-URI an eine fremde PDF-App – Ergebnis „Öffnen“ (`ShellHooks::open_path`; nur `not-implemented` fällt auf `opener` zurück) |
 | `export_file(path, name, mime)` → `bool` | `exportFile` | `{ path, fileName, mimeType }` | `{ saved }` | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT` + Kopie |
-| `import_file(kind, multiple, dest)` → Dateien | `importFile` | `{ kind: "pdf"\|"pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; **Bytes** nach `destination` kopieren (die Shell fragt seit §12 nur noch `pdf` an) |
+| `import_file(kind, multiple, dest)` → Dateien (`import_files` mit Zahl der nicht übernommenen) | `importFile` | `{ kind: "pdf"\|"pkcs12", multiple, destination }` | `{ files: [{ name, path }], skipped }` (Reihenfolge der Auswahl; `skipped` = gewählt, aber nicht kopiert, ADR 0004 Nachtrag 17; die Shell fragt seit §12 nur noch `pdf` an) | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; **Bytes** nach `destination` kopieren |
 | `take_pending_open_documents(urls, dest)` → Dateien | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | vorgemerkte Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE`) **und** die übergebenen URLs (Security-Scoped `file://`, `content://`) nach `destination` kopieren, Warteschlange leeren |
 
 Fehler: `invoke.reject(message, code)` – `not-implemented` (Hülle), `cancelled` (Nutzerin hat
@@ -104,7 +104,8 @@ nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
   nicht lesbare URLs (Android `content://`, Security-Scoped) und Intents holt die Shell über
   `take_pending_open_documents` – beim Start und nach jeder Rückkehr in den Vordergrund. Die
   Dateiauswahl der Oberfläche läuft über den Befehl `mobile_pick_files` (`kind` `pdf`, Kopien in
-  `<app_cache_dir>/import/`; `pkcs12` lehnt die Shell seit §12 mit `ng-ui-event-invalid` ab).
+  `<app_cache_dir>/import/<n>/<Name>`; Ergebnis `{ paths, skipped }` in der Reihenfolge der Auswahl, ADR 0004
+  Nachtrag 17; `pkcs12` lehnt die Shell seit §12 mit `ng-ui-event-invalid` ab).
 - **Ausgabe:** `CoreOptions::default_output_dir` = iOS `Documents` (Tauri `document_dir`, in der Dateien-App
   sichtbar), Android `filesDir/Documents` (`mobile::ANDROID_OUTPUT_DIR`; **nicht** `getExternalFilesDir`, den unter
   Android 9/10 Apps mit Speicher-Berechtigung mitlesen), dann ohne Speichern-Dialog; vorhandene Datei → Rückfrage
@@ -200,11 +201,13 @@ A-Trust-Verbindung.
   `crates/core-api/tests/settings.rs::mobile_restrictions`, Screenshots `docs/integration/screenshots/stage3/mobil-*.png`
   (375 × 812 @2x); 375 px ohne waagrechtes Scrollen der Seite. Offen [H]: Simulator/Emulator.
 - **Seit E4 (ADR 0004 §3.9/§3.12, Nachtrag 6):** Prüfmodus mit den Seiten über dem Ergebnis (Kopfzeile
-  „Prüfmodus“), Datei über die Dokumentauswahl (`pickMobileFiles`) bzw. „Zuletzt signiert“; Ersteinrichtung als
+  „Prüfmodus“), Datei über die Dokumentauswahl (`pickMobileFiles`) bzw. „Zuletzt signiert“ – **seit Nachtrag 15
+  (17.10.2026) entfernt**: „Zuletzt signiert“ bietet auf Mobilgeräten „Öffnen“ (Vorschau, QuickLook bzw.
+  `ACTION_VIEW`), „Teilen“ (Share-Sheet) und „Erneut signieren“ wie „Fertig“; Ersteinrichtung als
   Sheet ohne Chipkarte (seit §12 ohne Signiermittel-Schritt – nur ID Austria), ohne „neben dem Original“ (Ausgabe bleibt in
   den App-Dokumenten) und ohne „PDF-Over-Einstellungen übernehmen“ in Einstellungen › Erweitert (auf Mobilgeräten
-  gibt es kein PDF-Over); Palette ohne Tastenkappen. Nachweise: `features/verify/verify.test.tsx`,
-  `features/onboarding/onboarding.test.tsx`, `features/palette/palette.test.tsx` (Mobile, schmal, axe), Kern
+  gibt es kein PDF-Over); Palette ohne Tastenkappen. Nachweise: `features/recent/recent.test.tsx` (Mobile, seit
+  Nachtrag 15), `features/onboarding/onboarding.test.tsx`, `features/palette/palette.test.tsx` (Mobile, schmal, axe), Kern
   `crates/core-api/tests/first_run.rs` (Mobile), Screenshots `docs/integration/screenshots/stage4/mobil-*.png`
   (375 × 812 @2x); 360 px ohne waagrechtes Scrollen. Offen [H]: Simulator/Emulator, App-Kill während der
   Ersteinrichtung.
@@ -348,7 +351,8 @@ nach App-Kill nur durch Kern-Tests belegt (brauchen A-Trust); `CFBundleShortVers
 ## 11. Neue Oberfläche auf Mobile (16.10.2026)
 
 Die neue Oberfläche (ADR 0004, E1–E4: Arbeitsbereich mit Bottom-Sheet, Signier-Statuskarte, Fertig mit Teilen und
-„Sichern unter“, Stapel, Einstellungen im Vollbild mit Bereich „Dokument“, Prüfmodus, Ersteinrichtung) wurde auf
+„Sichern unter“, Stapel, Einstellungen im Vollbild mit Bereich „Dokument“, Prüfmodus – seit ADR 0004 Nachtrag 15
+entfernt –, Ersteinrichtung) wurde auf
 beiden Plattformen am Gerät durchgespielt, die Befunde behoben und beide Stände in `mobile/int` mit `main`
 zusammengeführt. Einzelheiten, Aufnahmen und Befundlisten: mobile-ios.md §8 (Simulator iPhone 17 und zur
 Gegenprüfung iPhone 17e, iOS 27; `docs/integration/screenshots/ios-ng/`) und mobile-android.md §8 (Emulator
@@ -366,7 +370,7 @@ keine CLI. Netz immer gesperrt
 | Keystore-Import (entfällt seit §12), Signieren, Fertig, Teilen, „Sichern unter“, Öffnen | ok nach R2 (Tastatur verdeckte Dialoge), R4 (Systemtexte englisch); pyHanko *VALID* | ok; pyHanko *VALID* (5 Dateien, auch 120 MB) |
 | Stapel, Hintergrund/Vordergrund, App-Ende im Lauf | ok (3 von 3 nach Hintergrund); Keystore hat nach Kill nichts fortzusetzen | ok nach B19 („Fortsetzen“ behält „Beide behalten“) |
 | Einstellungen im Vollbild, Suche, Mobile-Einschränkungen | ok nach Befunden 5, 6, 11, 16 | ok nach B11, B14–B16 |
-| Prüfmodus | ok | ok nach B3 (Ergebnis scrollt) |
+| Prüfmodus (seit ADR 0004 Nachtrag 15 entfernt) | ok | ok nach B3 (Ergebnis scrollt) |
 | ID Austria ohne Netz | ok nach 13, 14 und R3 (Benutzername eingebbar) | ok nach B5, B9 |
 | Safe Areas, Tastatur, Schriftgröße, Bildschirmleser (Inspektion) | ok nach 4, 7–10, 15 (Dynamic Type bis 200 %) | ok (130 %, Zurück-Geste nach B18) |
 

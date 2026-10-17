@@ -428,6 +428,9 @@ impl ShellHooks for RecordingHooks {
         Ok(())
     }
     fn share_path(&self, path: &Path) -> Result<(), String> {
+        // das Share-Sheet braucht hier absichtlich länger als der Export: beide laufen je im Hintergrund
+        // (`spawn_blocking`), ihre Reihenfolge ist nicht festgelegt – der Test darf sich nicht darauf verlassen
+        std::thread::sleep(std::time::Duration::from_millis(150));
         self.shared.lock().unwrap().push(path.to_path_buf());
         Ok(())
     }
@@ -435,6 +438,20 @@ impl ShellHooks for RecordingHooks {
         self.exported.lock().unwrap().push((path.to_path_buf(), file_name.to_owned()));
         // wie die Dateiauswahl, wenn es den Namen am Ziel schon gibt
         Ok(Some(file_name.replace(".pdf", " (3).pdf")))
+    }
+}
+
+/// Wartet, bis die Shell mindestens `n` Aufrufe aufgezeichnet hat (Teilen und Exportieren laufen je im Hintergrund;
+/// der Hinweis „exportiert“ sagt nichts darüber, ob das Teilen schon bei der Shell angekommen ist).
+async fn recorded<T: Clone>(what: &str, calls: &Mutex<Vec<T>>, n: usize) -> Vec<T> {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        let seen = calls.lock().unwrap().clone();
+        if seen.len() >= n {
+            return seen;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "Zeitüberschreitung beim Warten auf {what}");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 }
 
@@ -468,8 +485,55 @@ async fn output_goes_to_app_documents_and_can_be_shared_and_exported() {
     let v = wait_for(&core, "exportiert", |v| v.notices.iter().any(|n| n.code == "ng-export-done")).await;
     let done = v.notices.iter().find(|n| n.code == "ng-export-done").unwrap();
     assert_eq!(done.params.get("name").map(String::as_str), Some("a_signed (3).pdf"), "tatsächlicher Name");
-    assert_eq!(*hooks.shared.lock().unwrap(), vec![out.clone()]);
-    assert_eq!(*hooks.exported.lock().unwrap(), vec![(out, "a_signed.pdf".to_owned())]);
+    // Teilen und Exportieren laufen unabhängig im Hintergrund: auf beide warten, nicht auf eine Reihenfolge
+    assert_eq!(recorded("Teilen", &hooks.shared, 1).await, vec![out.clone()]);
+    assert_eq!(recorded("Export", &hooks.exported, 1).await, vec![(out, "a_signed.pdf".to_owned())]);
+    let v = core.view();
+    assert!(!v.notices.iter().any(|n| n.code == "ng-share-failed" || n.code == "ng-export-failed"), "{:?}", v.notices);
+}
+
+/// Nachtrag 12 mit Nachtrag 17 zusammengeführt (17.10.2026): Auf Mobilgeräten legt jedes „Teilen“ eine neue Kopie an.
+/// Solange das Dokument offen ist, ist eine Kopie mit gleichem Namen und Inhalt ein Duplikat (Hinweis
+/// `ng-open-duplicates`, kein zweites Dokument); signiert und gespeichert („Fertig“) öffnet sie wie vor Nachtrag 12 als
+/// nächstes Dokument (F-89 „sofort weiter“) statt „ist bereits geöffnet“.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn shared_copy_opens_again_after_signing_on_mobile() {
+    let fx = Fixture::new();
+    fx.write_settings("[signature]\nauto_position = true\nprofile = \"INVISIBLE\"\n");
+    let docs = fx.tmp.path().join("Documents");
+    let a = copy_pdf(PDF, &fx.dir("inbox/1"), "a.pdf");
+    let second = copy_pdf(PDF, &fx.dir("inbox/2"), "a.pdf");
+    let third = copy_pdf(PDF, &fx.dir("inbox/3"), "a.pdf");
+    let fake = FakeAtrust::new();
+    let options = CoreOptions {
+        workspace_ui: Some(true),
+        ..mobile_options(&FakeEngine::new(), &docs, Some(vec![fake.backend()]))
+    };
+    let core = start(&fx, Platform::Ios, options);
+    let editing = |v: &ViewState| v.document.as_ref().is_some_and(|d| d.phase == pida_core_api::DocumentPhase::Editing);
+    let duplicates = |v: &ViewState| v.notices.iter().any(|n| n.code == "ng-open-duplicates");
+    core.dispatch(UiEvent::FilesReceived { paths: vec![a] });
+    let v = wait_for(&core, "Arbeitsbereich", editing).await;
+    let first = v.document.as_ref().map(|d| d.doc.id);
+    // offen: die Kopie kommt nicht dazu
+    core.dispatch(UiEvent::FilesReceived { paths: vec![second] });
+    let v = wait_for(&core, "Duplikat", duplicates).await;
+    assert!(editing(&v) && v.batch.is_none() && !v.actions.show_batch, "kein zweites Dokument");
+    let dup = v.notices.iter().find(|n| n.code == "ng-open-duplicates").unwrap();
+    assert_eq!(dup.params.get("file").map(String::as_str), Some("a.pdf"));
+    for n in v.notices.iter().filter(|n| n.code == "ng-open-duplicates") {
+        core.dispatch(UiEvent::DismissNotice { id: n.id });
+    }
+    // signiert und gespeichert: die nächste Kopie öffnet als nächstes Dokument
+    core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });
+    let request = wait_form(&core, "TAN", |f| matches!(f, NativeForm::SmsTan { .. })).await;
+    core.dispatch(UiEvent::SubmitForm { request, answer: FormAnswerView::Tan { tan: "123456".into() } });
+    wait_for(&core, "gespeichert", |v| matches!(&v.step, StepView::Output { result, .. } if result.path.is_some()))
+        .await;
+    core.dispatch(UiEvent::FilesReceived { paths: vec![third] });
+    let v =
+        wait_for(&core, "nächstes Dokument", |v| editing(v) && v.document.as_ref().map(|d| d.doc.id) != first).await;
+    assert!(!duplicates(&v), "nicht „ist bereits geöffnet“");
 }
 
 // ------------------------------------------------------------------------------------------------

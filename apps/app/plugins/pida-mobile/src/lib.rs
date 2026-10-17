@@ -24,7 +24,7 @@
 //! | `shareFile` | `{ path, mimeType }` | `{}` sobald das Share-Sheet gezeigt wird | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI und `FLAG_GRANT_READ_URI_PERMISSION` |
 //! | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | iOS: QuickLook (`QLPreviewController`, ohne Bearbeiten) / `ACTION_VIEW` mit `FileProvider`-URI (ohne die App selbst) |
 //! | `exportFile` | `{ path, fileName, mimeType }` | `{ saved: bool, name?: string }` nach der Wahl (`name`: tatsächlicher Dateiname) | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT`, dann Bytes kopieren |
-//! | `importFile` | `{ kind: "pdf" \| "pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; Inhalt nach `destination` kopieren (Security-Scoped bzw. `ContentResolver`) |
+//! | `importFile` | `{ kind: "pdf" \| "pkcs12", multiple, destination }` | `{ files: [{ name, path }], skipped }` (Reihenfolge der Auswahl; `skipped` = gewählt, aber nicht kopiert) | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; Inhalt nach `destination` kopieren (Security-Scoped bzw. `ContentResolver`) |
 //! | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | eingegangene Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE` `application/pdf`) **und** die übergebenen URLs (Security-Scoped `file://` bzw. `content://`) nach `destination` kopieren; die Warteschlange danach leeren |
 //!
 //! `destination` ist ein Ordner in der App-Sandbox, den die Shell vorgibt; zurückgegebene Pfade müssen
@@ -123,6 +123,19 @@ struct ExportResponse {
 struct FilesResponse {
     #[serde(default)]
     files: Vec<ImportedFile>,
+    /// gewählt, aber nicht kopiert (nicht lesbar, zu groß; ältere native Seiten ohne Feld: 0)
+    #[serde(default)]
+    skipped: usize,
+}
+
+/// Ergebnis der Dateiauswahl ([`PidaMobile::import_files`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Imported {
+    /// Kopien in der Sandbox, in der Reihenfolge der Auswahl
+    pub files: Vec<ImportedFile>,
+    /// gewählte Dateien, die nicht übernommen wurden (native Seite konnte sie nicht kopieren bzw. Kopie
+    /// außerhalb des Zielordners)
+    pub skipped: usize,
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(value: serde_json::Value) -> Result<T> {
@@ -209,10 +222,21 @@ impl PidaMobile {
     /// System-Dateiauswahl; die gewählten Dateien kopiert die native Seite nach `destination`.
     /// Abbruch = leere Liste.
     pub fn import_file(&self, kind: ImportKind, multiple: bool, destination: &Path) -> Result<Vec<ImportedFile>> {
+        Ok(self.import_files(kind, multiple, destination)?.files)
+    }
+
+    /// Wie [`Self::import_file`], dazu die Zahl der gewählten, aber nicht übernommenen Dateien (Mehrfachauswahl,
+    /// ADR 0004 Nachtrag 17: Hinweis statt stillem Verwerfen). Reihenfolge der Auswahl. Abbruch = leer.
+    pub fn import_files(&self, kind: ImportKind, multiple: bool, destination: &Path) -> Result<Imported> {
         let payload = serde_json::json!({ "kind": kind, "multiple": multiple, "destination": destination });
         match self.native.call("importFile", payload) {
-            Ok(v) => Ok(checked(parse::<FilesResponse>(v)?.files, destination)),
-            Err(Error::Cancelled) => Ok(Vec::new()),
+            Ok(v) => {
+                let r = parse::<FilesResponse>(v)?;
+                let returned = r.files.len();
+                let files = checked(r.files, destination);
+                Ok(Imported { skipped: r.skipped + (returned - files.len()), files })
+            }
+            Err(Error::Cancelled) => Ok(Imported::default()),
             Err(e) => Err(e),
         }
     }
@@ -398,6 +422,49 @@ mod tests {
         let docs = m.take_pending_open_documents(&["content://x/1".into()], &dest).unwrap();
         assert_eq!(docs.len(), 1);
         assert!(!within(&dest, &dest), "der Ordner selbst ist keine Datei darin");
+        let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    /// Mehrfachauswahl (ADR 0004 Nachtrag 17): alle Kopien in der Reihenfolge der Auswahl; was die native Seite
+    /// nicht kopieren konnte bzw. außerhalb des Zielordners liegt, zählt als nicht übernommen.
+    #[test]
+    fn multiple_import_keeps_order_and_counts_skipped_files() {
+        let tmp = std::env::temp_dir().join(format!("pida-mobile-multi-{}", std::process::id()));
+        let dest = tmp.join("import");
+        let names = ["Vertrag.pdf", "Angebot.pdf", "Rechnung.pdf"];
+        let paths: Vec<PathBuf> = names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| {
+                let p = dest.join((i + 1).to_string()).join(n);
+                std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+                std::fs::write(&p, b"%PDF-1.7").unwrap();
+                p
+            })
+            .collect();
+        let outside = tmp.join("fremd.pdf");
+        std::fs::write(&outside, b"%PDF-1.7").unwrap();
+        let (listed, o) = (paths.clone(), outside.clone());
+        let (m, f) = fake(move |_, _| {
+            let mut files: Vec<serde_json::Value> = listed
+                .iter()
+                .map(|p| serde_json::json!({ "name": p.file_name().unwrap().to_str(), "path": p }))
+                .collect();
+            files.insert(1, serde_json::json!({ "name": "fremd.pdf", "path": o }));
+            Ok(serde_json::json!({ "files": files, "skipped": 2 }))
+        });
+        let r = m.import_files(ImportKind::Pdf, true, &dest).unwrap();
+        let got: Vec<&str> = r.files.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(got, names, "Reihenfolge der Auswahl");
+        assert_eq!(r.skipped, 3, "2 nicht kopiert + 1 außerhalb des Zielordners");
+        assert_eq!(
+            f.calls.lock().unwrap()[0].1,
+            serde_json::json!({ "kind": "pdf", "multiple": true, "destination": dest })
+        );
+        // ältere native Seite ohne `skipped`
+        let p0 = paths[0].clone();
+        let (m, _) = fake(move |_, _| Ok(serde_json::json!({ "files": [{ "name": "Vertrag.pdf", "path": p0 }] })));
+        assert_eq!(m.import_files(ImportKind::Pdf, true, &dest).unwrap().skipped, 0);
         let _ = std::fs::remove_dir_all(tmp);
     }
 

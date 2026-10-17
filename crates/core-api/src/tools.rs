@@ -1,4 +1,8 @@
 //! Werkzeuge für die CLI-Subcommands `verify`, `profiles`, `render-block` (Plan §7.4).
+//!
+//! `verify` ist ein Entwickler-Werkzeug (QA, Golden- und Interop-Tests): Es prüft, ob eine Signatur unverändert
+//! und kryptografisch intakt ist, nicht Vertrauenskette und Sperrstatus. Die App hat keinen Prüfmodus mehr
+//! (ADR 0004 Nachtrag 15); wie PDF-Over verweist sie auf signaturpruefung.gv.at.
 
 use std::path::Path;
 
@@ -15,9 +19,10 @@ use crate::plan::{self, PlanError};
 pub struct SignatureCheck {
     /// Feldname
     pub field: String,
-    /// CMS gültig (message-digest, Signaturwert, signing-certificate)
-    pub valid: bool,
-    /// Fehlercode (`cms-…`, `ng-verify-…`), wenn ungültig
+    /// unverändert und kryptografisch intakt (message-digest, Signaturwert, signing-certificate, signierter
+    /// Bereich); Vertrauenskette und Sperrstatus sind **nicht** geprüft
+    pub intact: bool,
+    /// Fehlercode (`cms-…`, `ng-verify-…`), wenn nicht intakt
     pub error: Option<String>,
     /// Common Name des Signers
     pub signer: Option<String>,
@@ -31,7 +36,7 @@ impl std::fmt::Debug for SignatureCheck {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SignatureCheck")
             .field("field", &self.field)
-            .field("valid", &self.valid)
+            .field("intact", &self.intact)
             .field("error", &self.error)
             .field("signer", &self.signer.as_ref().map(|s| s.chars().count()))
             .field("covers_whole_file", &self.covers_whole_file)
@@ -68,7 +73,7 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
     for f in fields.iter().filter(|f| f.signed) {
         let mut check = SignatureCheck {
             field: f.qualified_name.clone(),
-            valid: false,
+            intact: false,
             error: None,
             signer: None,
             signing_time: None,
@@ -118,12 +123,12 @@ pub fn verify_file(path: &Path) -> Result<Vec<SignatureCheck>, CoreError> {
         };
         match pida_cades::verify_detached(cms, &mut data, &expect) {
             // der signierte Bereich lässt Teile der Datei offen (Anfang bzw. Bytes neben /Contents in der Lücke):
-            // wie Prüfmodus und Inspektor nicht intakt (`pades::gap_is_hex_string`, ADR 0004 §3.9)
+            // wie der Inspektor nicht intakt (`pades::gap_is_hex_string`)
             Ok(_) if first.start != 0 || !pida_pades::gap_is_hex_string(&bytes[first.end..second.start], &contents) => {
                 check.error = Some("ng-verify-byte-range".into());
             }
             Ok(report) => {
-                check.valid = true;
+                check.intact = true;
                 check.signer = report.signer.subject_cn();
                 check.signing_time =
                     report.signing_time.and_then(|t| t.format(&time::format_description::well_known::Rfc3339).ok());
@@ -208,16 +213,16 @@ mod tests {
         let t = tmp.path().join("t.pdf");
         std::fs::write(&t, &bytes).unwrap();
         let checks = verify_file(&t).expect("Struktur bleibt lesbar");
-        assert!(checks.iter().any(|c| !c.valid && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
+        assert!(checks.iter().any(|c| !c.intact && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
     }
 
     /// Signature Wrapping (Merge E4): Bytes neben `/Contents` in der Lücke der `/ByteRange` – kryptografisch
-    /// passt die Signatur, `pida verify` sagt aber wie Prüfmodus und Inspektor nicht „gültig“.
+    /// passt die Signatur, `pida verify` nennt sie aber wie der Inspektor nicht intakt.
     #[test]
     fn verify_rejects_bytes_hidden_in_the_gap() {
         let p = Path::new(TESTDATA).join("verify/pdfas-signed.pdf");
         let mut bytes = std::fs::read(&p).unwrap();
-        assert!(verify_file(&p).unwrap().iter().all(|c| c.valid));
+        assert!(verify_file(&p).unwrap().iter().all(|c| c.intact));
         let at = bytes.windows(10).position(|w| w == b"/ByteRange").unwrap();
         let open = at + bytes[at..].iter().position(|b| *b == b'[').unwrap() + 1;
         let close = open + bytes[open..].iter().position(|b| *b == b']').unwrap();
@@ -231,7 +236,7 @@ mod tests {
         let t = tmp.path().join("t.pdf");
         std::fs::write(&t, &bytes).unwrap();
         let checks = verify_file(&t).unwrap();
-        assert!(checks.iter().all(|c| !c.valid && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
+        assert!(checks.iter().all(|c| !c.intact && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
     }
 
     #[test]
@@ -254,7 +259,7 @@ mod tests {
         let p = Path::new(TESTDATA).join("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf");
         let checks = verify_file(&p).unwrap();
         assert!(!checks.is_empty());
-        assert!(checks.iter().all(|c| c.valid), "{checks:?}");
+        assert!(checks.iter().all(|c| c.intact), "{checks:?}");
         assert!(checks.iter().any(|c| c.covers_whole_file));
         // unsigniert: keine Signaturen
         let p = Path::new(TESTDATA).join("pdf/generated/simple-xref-table.pdf");
@@ -272,7 +277,7 @@ mod tests {
         let t = tmp.path().join("t.pdf");
         std::fs::write(&t, &bytes).unwrap();
         if let Ok(checks) = verify_file(&t) {
-            assert!(checks.iter().any(|c| !c.valid), "{checks:?}");
+            assert!(checks.iter().any(|c| !c.intact), "{checks:?}");
         }
     }
 }

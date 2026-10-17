@@ -253,7 +253,8 @@ class PidaMobilePlugin: Plugin {
     }
   }
 
-  /// `{ kind: "pdf" | "pkcs12", multiple, destination }` → `{ files: [{ name, path }] }`; Abbruch → `cancelled`
+  /// `{ kind: "pdf" | "pkcs12", multiple, destination }` → `{ files: [{ name, path }], skipped }` (Reihenfolge der
+  /// Auswahl; `skipped` = gewählt, aber nicht kopiert); Abbruch → `cancelled`
   @objc public func importFile(_ invoke: Invoke) {
     guard let a = args(invoke, ImportArgs.self) else { return }
     guard let types = Presentation.contentTypes(kind: a.kind) else { return reject(invoke, "bad-args") }
@@ -274,13 +275,13 @@ class PidaMobilePlugin: Plugin {
         onPick: { urls in
           self.activePicker = nil
           self.io.async {
-            var files: [CopiedFile] = []
+            // alle gewählten Dateien in der Reihenfolge der Auswahl; nicht kopierbare zählen als `skipped`
+            // (die Oberfläche zeigt dazu einen Hinweis, ADR 0004 Nachtrag 17)
             let tmp = FileManager.default.temporaryDirectory
-            for url in urls {
-              if let file = try? SandboxFiles.copyIn(url, to: destination) { files.append(file) }
+            let result = SandboxFiles.copyAll(urls, to: destination) { url in
               if SandboxFiles.isInside(url, tmp) { try? FileManager.default.removeItem(at: url) }
             }
-            invoke.resolve(FilesResponse(files: files))
+            invoke.resolve(result)
           }
         },
         onCancel: {

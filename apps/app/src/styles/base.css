@@ -294,6 +294,9 @@ code {
   .field-marker {
     outline: 2px solid Highlight;
   }
+  .field-frame {
+    border-color: Highlight;
+  }
   .snap-guide {
     background: Highlight;
   }

@@ -27,7 +27,8 @@
    Backend das Passwort, §1.2) und keine Sitzung neu geöffnet werden muss.
 4. **Neue Kernfunktionen:** Seitenlayout (Inhaltsrahmen, freie Flächen, Einrastlinien) und Live-Überdeckungsprüfung,
    Inline-Platzhalter (Felder/QR ohne Dialog), Signiermittel-Übersicht (Konto-Chip), Zusammenfassung „Fertig“,
-   Prüfmodus (`pades::verify_document`, `cades::qc_statements`), „Zuletzt signiert“ (`config::RecentStore`),
+   Prüfmodus (`pades::verify_document`, `cades::qc_statements`; **mit Nachtrag 15 wieder entfernt**), „Zuletzt
+   signiert“ (`config::RecentStore`),
    Einstellungen „sofort wirksam“ (`ApplySettings`), Ersteinrichtung, Freigaben (`ActionsView`).
 5. **Vertrag additiv:** neue Felder mit `#[serde(default)]`, neue Varianten am Ende; nichts Bestehendes wird
    umgedeutet. Was die neue UI nicht mehr nutzt, bleibt mit Migrationsregel (§3.15).
@@ -36,7 +37,7 @@
    Die vorhandene Mobile-Logik (Teilen/Export, PKCS#12-Import, „Signatur fortsetzen“, Lebenszyklus) bleibt. (Der
    PKCS#12-Import entfällt seit Nachtrag 11: auf Mobilgeräten wird nur mit ID Austria signiert.)
 7. **Etappen** E0 (Vertrag als Code) → E1 Arbeitsbereich + Signieren → E2 Stapel → E3 Einstellungen/Datenschutz/
-   Zuletzt signiert → E4 Prüfmodus/Palette/Ersteinrichtung. **Drei Pakete** (K, UI-A, UI-B) arbeiten parallel in
+   Zuletzt signiert → E4 Prüfmodus/Palette/Ersteinrichtung (Prüfmodus mit Nachtrag 15 entfernt). **Drei Pakete** (K, UI-A, UI-B) arbeiten parallel in
    getrennten Worktrees mit exakter Datei-Ownership; die Bridge-Typen entstehen in E0 aus Rust, die UI arbeitet
    bis zur Kern-Umsetzung gegen den Mock-Kern.
 
@@ -154,8 +155,8 @@ Legende: **✓** vorhanden · **◐** teilweise vorhanden · **✗** neu im Kern
 |---|---|---|---|
 | Ablagefläche „PDF hierher ziehen oder auswählen“, ⌘/Strg+O | ✓ `open_files`; Drop über Tauri-Fensterereignisse (`bridge.onFileDrag`, Pfade), Dialog `pickFiles`, Mobile `pickMobileFiles` | Die React-Aria-`DropZone` des Prototyps liefert **keine Pfade** – sie wird nur optisch übernommen (`dragActive`), Dateien kommen weiter aus der Shell | UI-A |
 | Mehrere Dateien → Stapel | ◐ Warteschlange (F-14, F-89) | ✗ Stapelübersicht §3.8 | K, UI-A |
-| „Zuletzt signiert“ (öffnet Prüfmodus) | ✗ | §3.10 `ViewState::recent`, `VerifyRecent`; Metazeile nur mit Zeitpunkt (das Signiermittel des Prototyps wird nicht gespeichert, Datenschutz) | K, UI-B |
-| Hinweis „Signatur prüfen“ | ✗ | §3.9 `OpenVerify` | K, UI-B |
+| „Zuletzt signiert“ (öffnet Prüfmodus; seit Nachtrag 15: Aktionen wie „Fertig“) | ✗ | §3.10 `ViewState::recent`, `VerifyRecent` (seit Nachtrag 15 `OpenRecent`/`RevealRecent`/`ShareRecent`/`SignRecent`); Metazeile nur mit Zeitpunkt (das Signiermittel des Prototyps wird nicht gespeichert, Datenschutz) | K, UI-B |
+| Hinweis „Signatur prüfen“ | ✗ | §3.9 `OpenVerify` – **entfernt (Nachtrag 15)** | K, UI-B |
 | „Beispielvertrag öffnen“ | — | entfällt (Demo); Mock-Kern behält Szenarien (§4.8) | – |
 | Nicht-PDF → Toast | ✓ Kern meldet `error-MayNotBeAPDF` | UI filtert **nicht** nach Endung; Einzeldokument → Zustandskarte, Stapel → Zeile „abgelehnt“ | UI-A |
 | Mobile: Share-Sheet/„Öffnen in“ | ✓ Shell (`ingest_urls`, `take_pending_open_documents`) | unverändert; Ablagefläche entfällt auf Mobile, Knopf „Dokument auswählen“ | UI-A |
@@ -276,7 +277,9 @@ Legende: **✓** vorhanden · **◐** teilweise vorhanden · **✗** neu im Kern
 | „PDF-Over-Einstellungen übernehmen“ | ◐ nur beim Start | ✗ `OfferMigration` | K, UI-B |
 | Im Prototyp fehlend, in der App vorhanden: PDF/A erzwingen, CMS-Profil, Logo-Größe, Keystore-Speicherart, schreibgeschützte Einstellungen (`-c`), Zurücksetzen, Über (Version, Drittlizenzen, Log-Ordner) | ✓ | bleiben: Abschnitte „Erweitert“ und „Über“; Banner bei `read_only` | UI-B |
 
-### 2.9 Prüfmodus
+### 2.9 Prüfmodus (entfernt, siehe Nachtrag 15)
+
+**Entfernt (Nachtrag 15, 17.10.2026):** Den Prüfmodus gibt es nicht mehr (Entscheidung des Auftraggebers); dieser Abschnitt ist nur noch Geschichte.
 
 | Prototyp-Element | Kern heute | Vertrag | Wer |
 |---|---|---|---|
@@ -373,7 +376,7 @@ pub struct ViewState {
     /// geöffneten Einzeldokument (`return_to_batch`); sonst `None` (§3.8)
     #[serde(default)]
     pub batch: Option<BatchView>,
-    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (§3.9)
+    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (§3.9) – entfernt mit Nachtrag 15
     #[serde(default)]
     pub verify: Option<VerifyView>,
     /// „Zuletzt signiert“; `None` = Funktion abgeschaltet (§3.10)
@@ -1197,7 +1200,11 @@ legt eine PNG-Miniatur (Breite 96 px) in einem eigenen Cache je Stapeleintrag ab
 `pida-render://thumb/<doc>` (Shell). Speicher: Voranalyse lädt jedes Dokument einzeln und gibt es danach frei (nur
 `DocSummary` und Miniatur bleiben).
 
-### 3.9 Prüfmodus
+### 3.9 Prüfmodus (entfernt, siehe Nachtrag 15)
+
+**Entfernt (Nachtrag 15, 17.10.2026):** Den Prüfmodus gibt es nicht mehr (Entscheidung des Auftraggebers); dieser Abschnitt ist nur noch Geschichte. Entfallen sind `OpenVerify`, `VerifyRecent`,
+`CloseVerify`, `SignVerified`, `ViewState::verify`, `ActionsView::verify` und alle `Verify*`-Typen; die Bibliothek
+`pades::verify_document` bleibt für Tests.
 
 ```rust
 pub enum UiEvent {
@@ -1364,7 +1371,8 @@ pub enum UiEvent { /* … */ RemoveRecent { id: u64 }, ClearRecent }
 - Richtlinie: neues Feld `Policy::recent_documents: Option<bool>` (wie `update_check`); `Some(false)` erzwingt „aus“
   (dann auch keine Datei), der Schalter erscheint gesperrt mit Hinweis.
 - `VerifyRecent` auf eine fehlende Datei → Hinweis `ng-recent-missing`, Eintrag bleibt (Entfernen ist eine
-  ausdrückliche Aktion).
+  ausdrückliche Aktion). **Seit Nachtrag 15** ohne Prüfmodus: `OpenRecent`, `RevealRecent` (Desktop), `ShareRecent`
+  (Mobile) und `SignRecent` („Erneut signieren“) – dieselbe Regel für fehlende Dateien.
 
 ### 3.11 Einstellungen „sofort wirksam“, Sprache, Abschnitte
 
@@ -1490,7 +1498,7 @@ pub struct ActionsView {
     pub edit_placement: bool,  // Sticker/Optionen bedienbar
     pub start_batch: bool,     // BatchOverview mit ≥ 1 signierbarem Dokument
     pub show_batch: bool,      // weitere Dokumente in der Warteschlange
-    pub verify: bool,          // OpenVerify erlaubt
+    pub verify: bool,          // OpenVerify erlaubt – entfernt mit Nachtrag 15
     pub settings: bool,        // = main_bar.settings_enabled
     pub home: bool,            // navigate{Open} erlaubt
 }
@@ -1498,7 +1506,8 @@ pub struct ActionsView {
 
 Der Kern berechnet die Freigaben aus dem Zustand (wie `State::main_bar`); die UI aktiviert danach Knöpfe, Palette
 und Kürzel. Sie verknüpft höchstens mit eigenem Darstellungszustand (z. B. offenes Overlay). Bei offenem Prüfmodus sind
-`sign`, `edit_placement`, `start_batch` und `show_batch` aus – das Dokument darunter ist verdeckt (Nachtrag 6).
+`sign`, `edit_placement`, `start_batch` und `show_batch` aus – das Dokument darunter ist verdeckt (Nachtrag 6; mit dem
+Prüfmodus entfallen, Nachtrag 15).
 
 ### 3.14 Shell (`apps/app/src-tauri`, Paket K)
 
@@ -1549,10 +1558,10 @@ Headless-Regeln bleiben in jedem Fall.
 `ng-signer-policy`, `ng-signing-cancelled`, `ng-constraint-signed`, `ng-constraint-certified`,
 `ng-constraint-invisible-profile`, `ng-batch-added` (`$count`), `ng-batch-item-signed` (`$file`), `ng-batch-done`
 (`$signed`, `$total`), `ng-batch-nothing-to-sign`, `ng-batch-output-folder-required`, `ng-batch-aborted`
-(`$signed`), `ng-batch-paused`, `ng-verify-open-failed`, `ng-verify-busy`, `ng-recent-missing`,
+(`$signed`), `ng-batch-paused`, `ng-verify-open-failed`, `ng-verify-busy` (beide entfernt mit Nachtrag 15), `ng-recent-missing`,
 `ng-migration-item-{block,emblem,username,output,keystore,proxy,placeholder,language}`, `ng-firstrun-done`,
 `ng-signing-declined`, `ng-batch-large` (`$count`), `ng-batch-pending-app-request`, `ng-settings-field-unknown`,
-`ng-verify-warning-{sha1,signing-certificate-v1,weak-key}`, `ng-recent-policy`; mit K4 (Nachtrag 6) `ng-migration-not-found`
+`ng-verify-warning-{sha1,signing-certificate-v1,weak-key}` (entfernt mit Nachtrag 15), `ng-recent-policy`; mit K4 (Nachtrag 6) `ng-migration-not-found`
 und `ng-migrate-emblem-default`.
 Freundliche Fehlertexte: die bestehenden Codes (`backend-network`, `backend-timeout`, `backend-cancelled`,
 `error-PDFPwdProtected`, `error-MayNotBeAPDF`, `ng-document-rejected`, `ng-cms-too-large`, `output-save_failed` …)
@@ -1576,7 +1585,7 @@ und EN mit denselben Variablen steht.
 | §3.6 Karte | `SigningProgressView`, `ErrorContextView`, Abbruch → Arbeitsbereich, Sitzung bei Wiederholen, `SigningDeclined`, `sign_one` auch für Einzeldokumente | UI-A: Karte, alle Zweige | Fake-Backend: Retry nach `Network` (nach erfolgreicher Anmeldung) zeigt **keine** zweite Login-Maske und kein zweites `certificate()`; `Cancelled` ohne eigenen Abbruch → Fehlerschritt `ng-signing-declined`, Retry ohne Login-Maske; eigener Abbruch → `Positioning` + Hinweis, `edit` unverändert; `Cancel` im Fehler → `CancelSession`; UI: jeder Zweig mit axe |
 | §3.7 Fertig | `SignedSummaryView` | UI-A: DoneView | `real_pades`: Unterzeichner = Testzertifikat-CN |
 | §3.8 Stapel | States/Events/Effects, `sign_one`, `ErrorScope`, `SignSlot` über Dokumente, Voranalyse, Miniatur | UI-A: Übersicht, Stapelkarte | Fake-Backend mit Skript: **1×** `open`, **1×** Login-Maske, **≤ 1×** `certificate()`, **n×** `sign_one`, Überspringen behält Zugangsdaten, Abbruch löscht sie; Pausenarten (Dokument, Verbindung ohne neue Sitzung, Sitzung mit neuer Sitzung); `ExistingPolicy` (`Skip` ohne `sign_one`, `KeepBoth` mit `(2)`/`(3)`); `ErrorScope` je `BackendError`-Variante; Mobile-Kill mitten im Lauf; `backend-atrust`: Mock-Server-Tests zu `sign_one` (§3.8); UI: Durchlauf 4 Dokumente (1 abgelehnt) gegen den Mock |
-| §3.9 Prüfmodus | `pades::verify_document`, `cades::qc_statements`, `VerifyView` | UI-B | `testdata/verify/` (neu, erzeugt von einem Generator des Kerns mit den Testzertifikaten aus `testdata/keystores`, nie echte Personendaten): PDF-AS-signiert, manipuliert → `Broken`, `adbe.pkcs7.sha1` → `NotVerifiable`, CAdES mit SHA-1-Digest → `Intact` + `ng-verify-warning-sha1`, zwei Signaturen + spätere Revision, später ergänzt → `ModifiedAfterLastSignature`, unsichtbar, QES-Testzertifikat mit qcStatements (QcCompliance + QcSSCD), ohne Signatur |
+| §3.9 Prüfmodus (**entfernt, Nachtrag 15** – es bleiben `pades::verify_document` und die Tests `pades/tests/verify_testdata.rs` mit `testdata/verify/`) | `pades::verify_document`, `cades::qc_statements`, `VerifyView` | UI-B | `testdata/verify/` (neu, erzeugt von einem Generator des Kerns mit den Testzertifikaten aus `testdata/keystores`, nie echte Personendaten): PDF-AS-signiert, manipuliert → `Broken`, `adbe.pkcs7.sha1` → `NotVerifiable`, CAdES mit SHA-1-Digest → `Intact` + `ng-verify-warning-sha1`, zwei Signaturen + spätere Revision, später ergänzt → `ModifiedAfterLastSignature`, unsichtbar, QES-Testzertifikat mit qcStatements (QcCompliance + QcSSCD), ohne Signatur |
 | §3.10 Zuletzt signiert | `RecentStore`, Integration nach `Saved` | UI-B: Liste (Start), Datenschutz | Datei nur mit `id/file_name/path/signed_at`; 0600; max. 10; Abschalten löscht; Headless schreibt nicht |
 | §3.11 Einstellungen | `ApplySettings` (Pfad-Änderungen, Teilübernahme), `applied_revision`, `examples`, `SetUiLanguage` | UI-B: Seitenleiste, Suche, Live-Vorschau | ungültiger Proxy-Port blockiert andere Felder nicht; unbekannter Pfad; veraltete Revision; keine verlorene Kernänderung; genau ein Vorschau-Neubau je Änderung am Signaturbild; schreibgeschützt |
 | §3.12 Ersteinrichtung | `FirstRunView`, `first_run_completed`, `items`, `UpdateFirstRun`, `FinishFirstRun`, `OfferMigration`, Neuinstallation `output.folder = "."` | UI-B: Onboarding | fehlende Datei → Ersteinrichtung und `output.folder == "."`; Bestandsdatei ohne Schlüssel → keine Ersteinrichtung, `output.folder` unverändert `None`; mit Migration der PDF-Over-Wert; Abbruch der App vor „Fertig“ → nächster Start erneut; headless setzt nichts |
@@ -1613,7 +1622,7 @@ apps/app/src/
   ui/         controls.tsx, Dialog.tsx (+ Sheet), Toasts.tsx, Icons.tsx, Logo.tsx, hooks.ts, Markup.tsx, AccessKeys.ts
   styles/     tokens.css, base.css, components.css, legacy/screens.css, legacy/dialogs.css (beide vorübergehend)
   features/   start/ workspace/ signing/ done/ batch/          (UI-A)
-              recent/ settings/ verify/ palette/ onboarding/   (UI-B; onboarding/MigrationDialog.tsx bis B4)
+              recent/ settings/ verify/ palette/ onboarding/   (UI-B; onboarding/MigrationDialog.tsx bis B4; verify/ entfernt mit Nachtrag 15)
   core/       generated.ts, types.ts, defaults.ts, fixtures/, contract.test.ts (K) · bridge.ts, mock/ (A/B, §6)
   i18n/       catalog.ts (+ ui-workspace.ftl, ui-tools.ftl), markup.ts
   test/       setup.ts, render.tsx, a11y.ts (axe-core), views.ts · schema.ts (K)
@@ -1644,7 +1653,7 @@ dass die stabilen Exporte eingebunden sind.
 | `features/workspace/{Workspace,Inspector,SignerChip,Thumbnails}.tsx` | Gestalt übernommen | Daten aus `document`/`signers`/`actions`; Miniaturen = Kacheln |
 | `features/workspace/Pages.tsx` | Interaktion übernommen | Kacheln statt `MockPage`, virtualisiert (IntersectionObserver → `InspectPages`), Einrasten an `layout.guides`, Bänder aus `layout.free`, Touch-Logik aus `PositionScreen` |
 | `features/workspace/placement.ts`, `model/geometry.ts` | nur Darstellung | `snap`, `describeZone`, `clamp` als reine Funktionen; `autoPosition`, `freeBands`, `overlaps` entfallen (Kern) |
-| `features/{batch,done,start,verify,settings,palette,onboarding}` | Gestalt übernommen | Daten aus ViewState; Start-Ablage nur optisch |
+| `features/{batch,done,start,verify,settings,palette,onboarding}` (`verify` entfernt mit Nachtrag 15) | Gestalt übernommen | Daten aus ViewState; Start-Ablage nur optisch |
 | `app/store.tsx`, `app/timing.tsx`, `model/documents.ts`, `model/format.ts`, `features/demo`, `features/sigblock`, `features/workspace/{MockPage,LockedDocument}.tsx`, `i18n/{de,en}.ts` | **entfallen** | Reducer/Simulation → Kern bzw. Mock-Kern; Formatregeln → Kern; Texte → Fluent |
 | `test/a11y.test.tsx`, `test/review.test.tsx` | als Vorlage | gleiche Prüfungen gegen den Mock-Kern (axe ohne Verstöße je Ansicht und Overlay, schmale Ansicht) |
 
@@ -1732,7 +1741,7 @@ WCAG 2.2 AA wie im Prototyp (Fokus, Live-Regionen, Zielgrößen, Ziehen-Alternat
 einschließlich Stapel mit n Bestätigungen und je Dokument eigenem Vergleichswert, Überspringen/Abbruch/Pausen
 (alle drei Arten), Ablehnung in der App, Layoutdaten (synthetische Inhaltsrahmen und freie Flächen je Seite),
 Prüfergebnissen, „Zuletzt signiert“, Ersteinrichtung, `ApplySettings` mit Teilübernahme. Szenarien wie im Prototyp
-über `?scenario=start|blank|contract|field|signed|batch|verify|error-password|error-atrust` und
+über `?scenario=start|blank|contract|field|signed|batch|verify|error-password|error-atrust` (`verify` entfernt mit Nachtrag 15) und
 `?platform=ios|android`, damit Screenshots gegen den Prototyp verglichen werden können. Der Mock ist keine zweite
 Fachlogik: Regeln nur so weit, wie Bedienung und Tests sie brauchen.
 
@@ -1756,7 +1765,7 @@ export type MockSignal =
 export interface MockCtx { emit(signal: MockSignal): void; settings(): Settings; platform(): PlatformView }
 ```
 
-`index.ts` (UI-A) hält `{ core, workspace, signing, batch, settings, verify, recent, firstrun }` je als eigenen
+`index.ts` (UI-A) hält `{ core, workspace, signing, batch, settings, verify, recent, firstrun }` (seit Nachtrag 15 ohne `verify`; `open-files` trägt dann `mode`, `verify-file` entfällt) je als eigenen
 Ausschnitt, verteilt Ereignisse und Signale und setzt die Projektionen zusammen. Jedes Paket ändert nur seine
 Bereichsdateien; neue Signalarten sind ein Nachtrag über den Orchestrator.
 
@@ -1898,6 +1907,9 @@ die Etappe abbildet (der Orchestrator trägt die Zeilen aus den Abschlussbericht
 
 ### E4 – Prüfmodus, Befehlspalette und Tastenkürzel, Ersteinrichtung
 
+> Der Prüfmodus (Punkte 1–3 und sein Anteil an 6) ist mit Nachtrag 15 (17.10.2026) wieder entfernt; Palette, Kürzel
+> und Ersteinrichtung bleiben.
+
 - **Kern K4:** §3.9, §3.12.
 - **UI-B B4:** Prüfmodus, Palette (⌘K) mit allen Befehlen aus `commands.ts`, Kürzelübersicht (?), Ersteinrichtung
   (3 Schritte, Migration), alte `MigrationDialog` gelöscht.
@@ -2022,7 +2034,8 @@ V0 (Datenschutz) → K0 → U0 ─┬─ K1 → A1            = E1
 - **Stapel und A-Trust:** Viele CreateCMS-Requests hintereinander; Ratenbegrenzung und Nutzungsbedingungen sind bei
   A-Trust offen (Plan Q2, §8 F9). Echter Stapel mit einer Freigabe bleibt CSC (Szenario C) vorbehalten.
 - **Prüfmodus ohne Vertrauenskette:** PIDA prüft Integrität und Zertifikatsangaben, **nicht** Vertrauensliste und
-  Sperrstatus; Wortlaut und Hinweis müssen das deutlich machen (§8 F3).
+  Sperrstatus; Wortlaut und Hinweis müssen das deutlich machen (§8 F3). Mit Nachtrag 15 gegenstandslos (Prüfmodus
+  entfernt); die Regel gilt weiter für „Fertig“ und `pida verify`.
 - **Datenschutz:** „Zuletzt signiert“ speichert Dateipfade lokal (abschaltbar, Richtlinie); Zugangsdaten leben im
   Stapel länger im RAM (bis Ende des Laufs) und beim Einzeldokument bis zur Entscheidung im Fehlerschritt (F10).
 - **Verhaltensänderung für Bestandsnutzer:** Wer heute Keystore bzw. lokale BKU als Standard mit automatischer
@@ -2052,7 +2065,7 @@ V0 (Datenschutz) → K0 → U0 ─┬─ K1 → A1            = E1
 | **F5** | Namenszusatz: `_signed` (PDF-Over, CLI-kompatibel) oder `_signiert` bzw. Muster mit `{datum}`? | **`_signed` beibehalten** (Kompatibilität, Skripte); Muster mit `{name}`/`{datum}` als spätere Erweiterung des Kerns. |
 | **F6** | „Zuletzt signiert“ standardmäßig ein oder aus? | **Ein** (höchstens 10 Einträge, nur Name/Pfad/Zeit, abschaltbar unter Datenschutz, per Richtlinie abschaltbar). |
 | **F7** | **Zugriffstasten** (Alt+Buchstabe aus den PDF-Over-Katalogen) neben Palette und Kürzeln beibehalten? | **Ja**, ohne dauernde Unterstreichung (sichtbar bei gedrückter Alt-Taste); Abnahme K-02 bleibt. |
-| **F8** | „Prüfbericht speichern“ im Prüfmodus? | **Nicht in v1**; bei Bedarf später als PDF/HTML-Bericht. |
+| **F8** | „Prüfbericht speichern“ im Prüfmodus? | **Nicht in v1**; bei Bedarf später als PDF/HTML-Bericht. Gegenstandslos seit Nachtrag 15 (Prüfmodus entfernt). |
 | **F9** | Obergrenze für Stapel mit ID Austria (A-Trust-Ratenbegrenzung unbekannt)? | **Keine harte Grenze**, Hinweis ab 20 Dokumenten („jedes Dokument einzeln bestätigen“); Frage an A-Trust (Plan Q2). |
 | **F10** | Beim **Überspringen** bzw. bei einer **Ablehnung in der App** (SL 6000/6001) für ein einzelnes Dokument im Stapel bleiben die Zugangsdaten bis zum Ende des Laufs im Speicher; beim Einzeldokument im Arbeitsbereich nach einer Ablehnung bis zur Entscheidung im Fehlerschritt (Abweichung von F-72: PDF-Over löscht sie auch bei 6000/6001). Einverstanden? | **Ja** – sonst wäre „eine Anmeldung“ nach jedem Überspringen verloren und „Erneut versuchen“ nach einer Ablehnung bräuchte eine neue Anmeldung; Abbruch des Stapels, „Schließen“ im Fehlerschritt und jeder Abbruch in PIDA löschen sie wie F-72. |
 | **F11** | Vorhandene Zieldateien im Stapel: Standardwahl im Startdialog? | **„Beide behalten“** (`… (2).pdf`), Alternativen „Überschreiben“, „Überspringen“ (ohne Bestätigung für dieses Dokument). |
@@ -2289,6 +2302,8 @@ wird der Block ein zweites Mal gebaut (Breite hängt von der Seite ab). [H]: Vor
 Referenzrechner; Mobile im Simulator/Emulator (Vollbild-Einstellungen, PKCS#12-Import).
 
 ### Nachtrag 6 (Merge E4, 16.10.2026): Prüfmodus und Ersteinrichtung – Regeln aus K4, Befunde im Merge
+
+> Die Regeln zum Prüfmodus gelten seit Nachtrag 15 nicht mehr (Prüfmodus entfernt); die zur Ersteinrichtung bleiben.
 
 Vertrag unverändert (alle Typen aus K0); K4 füllt `ViewState::verify`, `ViewState::first_run`,
 `MigrationOfferView::items` und `ActionsView::verify` und wertet `OpenVerify`, `CloseVerify`, `SignVerified`,
@@ -2555,6 +2570,10 @@ Palette und Kürzelübersicht.
 
 ### Nachtrag 10 (16.10.2026): „Zur Startseite“ parkt offene Arbeit – Karte „In Bearbeitung“
 
+> Seit Nachtrag 15 ohne die Bezüge zum Prüfmodus (`go_home` schließt keinen Prüfmodus mehr, keine Freigabe `verify`,
+> kein „Dieses Dokument signieren“); an seine Stelle tritt „Erneut signieren“ aus „Zuletzt signiert“ mit derselben
+> Rückfrage wie neue PDFs.
+
 Wunsch des Auftraggebers: Beim Wechsel zur Startseite darf offene Arbeit nicht verloren gehen. Bisher sandte „Zur
 Startseite“ (Haus-Symbol, Wortmarke, Palette) `navigate{Open}` und verwarf Dokument, Platzierung und Stapel; die
 Kopfzeile fragte deshalb bei Stapel bzw. eigener Platzierung nach. Jetzt **parkt** der Kern die Arbeit; die Rückfrage
@@ -2598,7 +2617,8 @@ pub enum UiEvent { /* … */ GoHome, ResumeParked, DiscardParked }   // "go_home
    `Saved`/`SaveFailed`/`BatchOutputDecided` (Schreiben nach „Stapel abbrechen“), Lebenszyklus – aber nur, wenn die
    Arbeit danach geparkt bleiben kann, sonst ohne Wirkung. `Quit` beendet wie bisher. Der Prüfmodus ist bei geparkter
    Arbeit wie in der Dokumentauswahl erlaubt; das Angebot „Signatur fortsetzen“ erscheint erst nach dem Verwerfen.
-3. **Fortsetzen** (`resume_parked` → `ParkedResumed`): Zustand unverändert wie vor dem Parken (Platzierung, Plan,
+3. **Fortsetzen** (`resume_parked` → `ParkedResumed`; seit Nachtrag 13 führt ein Stapel in die Stapelübersicht):
+   Zustand unverändert wie vor dem Parken (Platzierung, Plan,
    Sperre, Stapel samt Voranalyse und „Für diesen Stapel automatisch positionieren“). **Verwerfen** (`discard_parked` →
    `ParkedDiscarded`): wie „Öffnen“ (`discard_all`: Dokumente freigeben, in der Ergebnisliste „abgebrochen“, Stapel
    entfällt; bereits signierte Ergebnisse bleiben).
@@ -2833,3 +2853,425 @@ fortgesetzte Zeile, `ios_shows_the_share_hint_only_after_receiving_a_document`);
 der Hinweis erscheint ohnehin nur nach dem Teilen). `files_received` ersetzt in der Shell auch am Desktop `open_files`
 (gleiche Wirkung; der Kern entscheidet nach der Plattform). Duplikate erkennt der Kern nur im Arbeitsbereich-Modus und
 nur unter den offenen Dokumenten; eine inhaltsgleiche Kopie mit anderem Namen ist ein eigenes Dokument.
+### Nachtrag 13 (16.10.2026): „Weiter bearbeiten“ eines Stapels führt zur Stapelübersicht
+
+Meldung des Auftraggebers (macOS): „Wenn man am Homescreen einen Stapel hat und auf ‚Weiter bearbeiten‘ klickt,
+sollte man nicht zu einem bestimmten Dokument kommen, sondern zur Gesamtübersicht des Stapels.“ (Protokoll:
+`open_batch_item` → Arbeitsbereich, `go_home`, `resume_parked` → wieder das Einzeldokument.) Der Vertrag bleibt
+unverändert; präzisiert werden die Bedeutung von `resume_parked` und `ParkedWorkView::doc_name`.
+
+1. **Was ein Stapel ist** (`State::resumes_to_overview`, nur mit Stapelübersicht `Context::batch`): die
+   Stapelübersicht selbst, ein aus ihr geöffnetes Dokument (Arbeitsbereich, Analysewarnung; auch nach „Signatur
+   fortsetzen“ mit `return_to_batch`) und ein Dokument mit wartenden Dokumenten (Arbeitsbereich, Analysewarnung) –
+   also auch ein mit „+ PDF“ bzw. „Zum Stapel hinzufügen“ der Startansicht entstandener Stapel. Ohne Stapelübersicht
+   gibt es keinen Stapel; „Weiter bearbeiten“ setzt dann wie bisher unverändert fort.
+2. **Fortsetzen** (`ParkedResumed`, `reducer/parked.rs::resume`, `batch_run::to_overview`): ein Stapel kommt in die
+   Stapelübersicht. Der Arbeitsbereich wirkt genau wie „Zurück zum Stapel“ (aus der Übersicht geöffnet) bzw. „Zum
+   Stapel“ (mit wartenden): die Platzierung wird Plan des Eintrags (von Hand → „Positioniert“ mit Seite, „Unsichtbar
+   signieren“ der Nutzerin bleibt Plan, eine automatische Lage folgt weiter den Einstellungen); nur das offene Dokument
+   wird freigegeben (`Effect::Discard`), nichts startet. Die Analysewarnung eines geöffneten Eintrags kehrt zurück
+   (Eintrag unverändert, z. B. „Bitte prüfen“), mit wartenden Dokumenten wird sie Eintrag der Übersicht (Voranalyse).
+   Die Übersicht bleibt, wie sie ist. Was während des Parkens ankam (automatische Lage, Einstellungen, Voranalyse),
+   gilt. Ein Einzeldokument ohne wartende kehrt unverändert ins Dokument zurück.
+3. **„Fertig“ ohne Speichern** eines Stapeleintrags bzw. Dokuments mit wartenden: zurück zu „Fertig“ – die Signatur
+   ist erst gespeichert sicher; das Speichern führt wie bisher in die Übersicht. Die Karte nennt dann das Dokument
+   („Signiert, aber noch nicht gespeichert.“).
+4. **Neue Dateien bei geparkter Arbeit** (`MoreFilesAdded`, `FilesAdded`): erst fortsetzen wie 2., dann hinzufügen –
+   ein geparkter Eintrag führt damit in die Übersicht, auch wenn nur Duplikate kommen. Ein geparktes Einzeldokument
+   wird mit „Zum Stapel hinzufügen“ zum Stapel; parkt man danach einen geöffneten Eintrag, gilt 2.
+5. **Karte** (`core-api/src/parked.rs::describe`): `ParkedWorkView::doc_name = None` genau dann, wenn „Weiter
+   bearbeiten“ zur Übersicht führt („Stapel · n Dokumente“; `documents` = Einträge bzw. Dokument samt wartenden;
+   Hinweis „Pläne und Status der Dokumente bleiben erhalten.“), sonst der Dokumentname. Die Oberfläche bleibt
+   unverändert: nach dem Fortsetzen steht der Fokus wie bei jedem Ansichtswechsel auf der Überschrift der Übersicht
+   („n Dokumente“, Fenstertitel „PIDA – Stapel“). Der Mock folgt dem Kern (`resumeParked`, `resumesToOverview`,
+   `showBatch`, `backToBatch`).
+6. **Tests:** `crates/workflow/tests/parked.rs` (`resume_of_an_opened_entry_shows_the_overview_with_its_placement`,
+   `resume_with_waiting_or_added_documents_shows_the_overview`, `resume_of_a_batch_analysis_warning_shows_the_overview`,
+   `unsaved_entry_resumes_to_done_and_saving_returns_to_the_overview`,
+   `join_of_a_parked_entry_shows_the_overview_and_stays_a_batch`, `resumes_to_overview_only_for_batches`;
+   nach dem Review: `resume_keeps_every_choice_of_the_open_entry_as_its_plan` – Feldziel, eigener QR-Platzhalter,
+   „Auf neuer Seite“ und eine eigene Lage bei während des Parkens unsichtbarem Profil bleiben Plan und gelten beim
+   erneuten Öffnen wieder –, `close_or_replace_of_a_parked_entry_closes_the_whole_batch`),
+   Property-Test `props.rs` (Fortsetzen eines Stapels → Übersicht, nur `Discard`/`Preanalyze`, kein Dokument verloren;
+   sonst unverändert), echter Kern `crates/core-api/tests/batch.rs`
+   (`resume_of_a_parked_batch_document_shows_the_overview_with_its_plan`,
+   `signer_choice_of_a_parked_entry_survives_the_overview` – das für den Eintrag gewählte Signiermittel und
+   „Unsichtbar signieren“ gelten nach Übersicht und erneutem Öffnen wieder), Proben `batch_entry_parked` und
+   `batch_entry_resumed` (`real-core-batch-views.json`, `RealCoreBatch.test.tsx`), Oberfläche mit dem Mock
+   `features/start/parked.test.tsx` (geöffneter Eintrag, Dokument mit wartendem, Stapel aus „Zum Stapel hinzufügen“;
+   Fokus, axe) und `core/mock/mock.test.ts`.
+
+**Angenommene Abweichungen:** Aus „immer zur Stapelübersicht“ ist „Fertig“ ohne Speichern ausgenommen (3.), damit
+keine Signatur verloren geht. Umgestellt wird beim Fortsetzen, nicht schon beim Parken: der geparkte Zustand bleibt wie
+in Nachtrag 10, damit Ergebnisse laufender Effekte (automatische Platzierung, Blockgröße) das Dokument noch erreichen.
+
+### Nachtrag 14 – entfallen
+
+Die Nummer ist nicht belegt. Eine Ergänzung zur Rückfrage bei „Dieses Dokument signieren“ (Prüfmodus) mit geparkter
+Arbeit ist mit der Entfernung des Prüfmodus (Nachtrag 15, Entscheidung vom 17.10.2026) ersatzlos entfallen; die Nummern
+15–17 bleiben unverändert.
+
+### Nachtrag 15 (17.10.2026): Prüfmodus entfernt – „Zuletzt signiert“ bietet, was „Fertig“ kann
+
+Entscheidung des Auftraggebers (17.10.2026): Die Signaturprüfung ist zu viel Funktionalität für die App; der Prüfmodus
+(§2.9, §3.9, E4 Punkte 1–3, Nachtrag 6) wird **vollständig entfernt** – Desktop und Mobile. PDF-Over hat ebenfalls
+keine Signaturprüfung; wie dort verweist PIDA im Signaturblock und auf „Fertig“ („Vollständige Prüfung bei
+signaturpruefung.gv.at“) auf die amtliche Prüfung. Die geplante Online-Prüfung (ADR 0006, Branches `trust/*`) ist damit
+zurückgestellt; ADR 0006 kommt nicht auf `main`.
+
+1. **Vertrag – Ausnahme von §3.0 Regel 2 („additiv“).** Kern und Oberfläche werden immer gemeinsam ausgeliefert;
+   deshalb entfallen die Teile des Prüfmodus ersatzlos statt mit Migrationsregel (§3.15):
+   - `UiEvent::{OpenVerify, VerifyRecent, CloseVerify, SignVerified}` (`open_verify`, `verify_recent`, `close_verify`,
+     `sign_verified`), `ViewState::verify`, `ActionsView::verify`;
+   - die Typen `VerifyView`, `VerifyStatus`, `VerifySummaryView`, `VerifiedSignatureView`, `SignatureIntegrity`,
+     `SignatureCoverage`, `QualificationClaim`, `SignatureFormat`, `AppearanceView`, `TrustCheck` (auch in `ts.rs`,
+     `generated.ts`, `contract.test.ts`);
+   - im Kern `core-api/src/verify.rs`, `DocData::for_verify`, `Msg::Verified`, die Sperre der Freigaben bei offenem
+     Prüfmodus und das Schließen des Prüfmodus bei `open_files`/`go_home`.
+
+   Neu und additiv (Varianten am Ende von `UiEvent`, eine Methode mit Standard in `ShellHooks`):
+
+   ```rust
+   pub enum UiEvent { /* … */
+       OpenRecent { id: u64 },      // „Öffnen“: Standardanwendung, Mobile Vorschau (QuickLook bzw. ACTION_VIEW)
+       RevealRecent { id: u64 },    // „Im Ordner zeigen“ (nur Desktop)
+       ShareRecent { id: u64 },     // „Teilen“ (nur Mobile, Share-Sheet bzw. ACTION_SEND)
+       SignRecent { id: u64, #[serde(default)] #[ts(optional = nullable)] mode: Option<OpenFilesMode> },
+   }
+   pub trait ShellHooks { /* … */ fn reveal_path(&self, path: &Path) -> Result<(), String> { Err("unsupported".into()) } }
+   ```
+
+   Die Shell setzt `reveal_path` mit `opener::reveal_item_in_dir` um (wie der Command `reveal_output`); der Kern ruft
+   es im Hintergrund auf (`spawn_blocking` wie beim Teilen), damit ein hängender Dateimanager (Linux: D-Bus) ihn nicht
+   aufhält, und meldet einen Fehler als Hinweis `ng-ui-open-failed`. **Alte
+   gespeicherte Daten bleiben lesbar:** Einstellungen (keine Einstellung gehörte zum Prüfmodus), `recent.json` (Format
+   von K3 unverändert: `id`, `file_name`, `path`, `signed_at`; der Test `recent_entry_offers_what_done_offers` liest
+   eine so gespeicherte Liste), Resume-Datensätze (unberührt). Ein `ViewState` mit dem alten Feld `verify` liest serde
+   weiterhin (unbekannte Felder werden ignoriert).
+2. **„Zuletzt signiert“** bietet, was „Fertig“ schon kann – bestehende Bausteine, keine neue Funktion: Eintrag bzw.
+   „Öffnen“ → `open_recent` (derselbe Effekt wie `open_result`), Menü „Weitere Aktionen“ mit „Im Ordner zeigen“
+   (Desktop, `reveal_recent`) bzw. „Teilen“ (Mobile, `share_recent`, derselbe Effekt wie `share_result`) und „Erneut
+   signieren“ (`sign_recent`: die Datei öffnen wie `open_files` – Arbeitsbereich bzw. Warteschlange/Stapel nach dem
+   Zustand –, nur mit `actions.open_files`; bei geparkter Arbeit dieselbe Rückfrage „Zur offenen Arbeit hinzufügen?“
+   wie bei neuen PDFs, `mode: add | replace`). Den Pfad kennt nur der Kern; die Oberfläche bekommt weiter nur Name,
+   Ordner und Zeitpunkt. Fehlt die Datei: Hinweis `ng-recent-missing`, nichts an die Shell, der Eintrag bleibt;
+   „Im Ordner zeigen“ auf Mobilgeräten bzw. „Teilen“ auf dem Desktop bleibt ohne Wirkung, eine unbekannte Kennung
+   ebenso. Keines dieser Ereignisse öffnet eine Sitzung (A1, F-54) – signiert wird erst mit „Signieren“.
+3. **Oberfläche:** `features/verify` gelöscht; kein Knopf „Prüfen“ und kein Kontext „Prüfmodus“ in der Kopfzeile, kein
+   Befehl „Signatur prüfen“ in Palette und Kürzelübersicht, keine Karte „Signatur prüfen?“ auf der Startseite (ohne
+   „Zuletzt signiert“ eine Spalte), Ablegen öffnet immer (kein Prüfziel mehr), `goHome` ohne `close_verify`. Mock ohne
+   Bereich `verify` und ohne Szenario `?scenario=verify`; `MockCtx::native` protokolliert die nativen Aufrufe der Liste
+   (`openRecent:`, `revealRecent:`, `shareRecent:`), „Erneut signieren“ geht als Signal `open-files` mit `mode` an den
+   Ablauf. Texte: `ng-ui-vf-*`, `ng-ui-shell-verify*`, `ng-ui-shell-cmd-verify`, `ng-ui-start-verify-*` (Bereich `vf`
+   entfällt) sowie im Kern `ng-verify-open-failed`, `ng-verify-busy`, `ng-verify-warning-*` entfernt;
+   `ng-ui-recent-open` („„{ $name }“ öffnen“), neu `ng-ui-recent-more`, `ng-ui-recent-sign`; die Menüpunkte nutzen die
+   Texte von „Fertig“ (`ng-ui-fin-open`, `-reveal`, `-share`). Der Abschnitt Datenschutz der Einstellungen erwähnte den
+   Prüfmodus nicht und bleibt unverändert.
+4. **Bleibt:** die Erkennung vorhandener Signaturen beim Signieren (`ExistingSignatureView`, Sperren, Zertifizierung,
+   „bereits signiert“ im Arbeitsbereich, Analysewarnung) unverändert; `pades::verify_document` und
+   `cades::qc_statements` als Bibliothek (Tests mit `testdata/verify/*`, Golden- und Interop-Tests; `qc_statements` auch
+   für die Qualifikation „laut Zertifikat“ auf „Fertig“); das Entwickler-Werkzeug `pida verify` (`tools::verify_file`)
+   – ohne „gültig“: je Signatur „Intakt (unverändert)“ bzw. „Nicht intakt“ und immer „Vertrauenskette und Sperrstatus
+   nicht geprüft – vollständige Prüfung: https://www.signaturpruefung.gv.at“ (`ng-cli-verify-intact`,
+   `ng-cli-verify-not-intact`, `ng-cli-verify-scope`; `ng-cli-valid`/`ng-cli-invalid` stehen in `RETIRED_WAVE2_IDS`),
+   JSON `intact` statt `valid` und `trust_checked: false`, `SignatureCheck::intact` statt `valid`; Exit-Codes unverändert
+   (0 alle intakt bzw. keine Signatur, 6 mindestens eine nicht intakt, 3 nicht lesbar).
+5. **Tests und Proben:** `core-api/tests/verify.rs` gelöscht – die Ersteinrichtung (Proben, „keine Sitzung“) steht in
+   `first_run.rs`, die Qualifikation auf „Fertig“ in `real_pades.rs`; neu `settings.rs::recent_entry_offers_what_done_offers`
+   (Desktop und iOS, alte Liste, fehlende Datei, keine Sitzung), `settings.rs::reveal_recent_does_not_block_the_core`,
+   `batch.rs::sign_recent_while_parked_joins_or_replaces_like_open_files`,
+   `first_run.rs::recent_and_migration_events_do_nothing_while_signing` („Erneut signieren“ und erneutes
+   Übernahmeangebot beim Signieren ohne Wirkung – der zweite Teil stand bis dahin in `verify.rs`), `flow.rs`
+   (klassischer Ablauf ignoriert die neuen Ereignisse auf unbekannte Einträge). Proben neu erzeugt:
+   `view-states.json` ohne `ws_verify_*`, `real-core-tools-views.json` nur noch Ersteinrichtung,
+   `real-core-views.json`/`real-core-batch-views.json` ohne `verify`, `ui-events.json` mit den vier neuen Ereignissen
+   (weiter 63 Varianten). Gegentests „kein Einstieg in einen Prüfmodus“: Kopfzeile, Palette und Befehlsliste,
+   Startseite, „Zuletzt signiert“, Mock (kein Szenario, keine Freigabe), Vertrag (`ViewState`/`actions` ohne `verify`;
+   `view.rs::verify_mode_is_gone_from_the_contract`: die vier Ereignisse des Prüfmodus sind nicht mehr lesbar, ein
+   alter `ViewState` mit `verify` schon),
+   Katalog (keine IDs des Prüfmodus, `catalogs.rs::verify_texts_never_claim_validity` jetzt für `pida verify`); CLI
+   `cli.rs::verify_signed_unsigned_and_broken` prüft „intakt“ und den Umfang in DE/EN ohne „gültig“.
+
+### Nachtrag 16 (17.10.2026): Einrasten in Signaturfelder – nur plausible Ziele, Block proportional im Feld, neue Seite in MediaBox-Größe
+
+Meldung des Auftraggebers (iOS, Aufnahme): „Wenn ich in iOS den Block auf eine neue Seite schiebe, dann befüllt dieser
+auf einmal die ganze Seite.“ Das Dokument ist byte-gleich mit `testdata/pdf/pdfas/pdf-as-pdfbox-2/manySignFields.pdf`
+(PDF-AS-Testdaten, 2 Seiten Letter): Seite 2 trägt das leere Feld `Signature_7` mit `/Rect [0 0 612 792]` (ganze Seite),
+Seite 1 sieben weitere (`Signature_0` 148 × 72, `_1` 15 × 15, `_2` 388 × 14, `_3` 13,5 × 246, `_4` 3,2 × 224, `_5`
+171 × 150, `_6` 59 × 50 pt).
+
+**Befund**
+
+1. *Einrasten:* `targetAt` (UI) nahm jedes wählbare Feld unter der Blockmitte. Auf Seite 2 liegt die Blockmitte immer im
+   seitengroßen Feld → `use_target`, der Sticker bekam das Feld-Rechteck (612 × 792 pt). Die Markierung „Hier signieren“
+   dieses Felds bedeckte zudem die ganze Seite (Doppeltippen/Doppelklick dort = „Ins Feld setzen“).
+2. *Vorschau:* Das PNG der Blockvorschau (natürliche Blockgröße, Maßstab Zoom × Gerätepixel) wurde per CSS auf das Feld
+   gezogen – verzerrt und hochskaliert, also unscharf.
+3. *Ergebnis ≠ Vorschau:* `core-api` `plan::build_plan` baute den Block für ein Feld mit der **Feldbreite**
+   (`spec.build(rect.width())`: bei 612 pt ein breiter, flacher Block, bei 3,16 pt ein zeichenweise umgebrochener Turm),
+   und ein Viewer bildet dessen BBox nicht proportional auf das `/Rect` ab. `pida-pades` `plan_signature` nahm dagegen
+   die Profilbreite (wie PDF-AS) – zwei verschiedene Ergebnisse, keines wie die Vorschau.
+4. *PDF-AS 4.4.2 / PDF-Over:* `PADESPDFBOXSigner.signPDF` (`reference/pdf-as-4/pdf-as-pdfbox-2/…/PADESPDFBOXSigner.java`
+   Z. 144–150 `findExistingSignature(SIGNATURE_FIELD_NAME)` → `isAdobeSigForm`, Z. 223 `Positioning.
+   determineTablePositioning` mit der Profil-`pos`, Z. 227 keine Positionierung für Formularfelder, Z. 256–291 Appearance
+   aus `PDFAsVisualSignatureProperties`; `PDFAsVisualSignatureBuilder.java` Z. 542/578: `/BBox [W+1 H+1]` für Holder und
+   Inner-Form) übergibt die Appearance an PDFBox 2.0.32 (`pdf-as-pdfbox-2/build.gradle`); `PDDocument.addSignature` →
+   `prepareVisibleSignature` →
+   `assignSignatureRectangle` behält das `/Rect` („in case of an existing field keep the original rect“) und
+   `assignAppearanceDictionary` hängt die AP an. Ein Viewer streckt die BBox auf das `/Rect` (ISO 32000-1 §12.5.5,
+   Matrix A; PDFium zeichnet ebenso, siehe Renderprüfung unten). Beleg: `manySignFields_signed4.pdf` – PDF-AS schrieb in
+   `Signature_4` (3,16 × 224 pt) eine AP mit `/BBox [231.99998 84 0 0]` und Einheitsmatrix. PDF-Over
+   (`OpenState.java` Z. 127–175) listet nur die Namen (`SignatureFieldsAndPlaceHolderExtractor.findEmptySignatureFields`,
+   keine Geometrieprüfung), fragt „Platzhalter verwenden?“ und lässt per `PlaceholderSelectionGui` wählen – Ziehen und
+   Einrasten gibt es dort nicht.
+5. *Neue Seite:* `new_page_geometry` (MediaBox und `/Rotate` der letzten Seite, CropBox = MediaBox, wie
+   `new PDPage(lastPage.getMediaBox())`, Z. 233) ist richtig, und der Block behält dort seine Größe (keine Felder). Die
+   Oberfläche zeigte die virtuelle Seite aber in der **sichtbaren** Größe der letzten Seite (deren CropBox): Bei
+   CropBox ≠ MediaBox stand der Block in der Vorschau anders als im Ergebnis.
+
+**Entscheidung (Kern, Geschäftslogik)**
+
+1. *Lage im Feld* – `pida_placement::field_fit` (KR-F13) und `pida_pades::fit_into_field` (KR-P10): Der Block steht
+   **proportional, höchstens in natürlicher Größe und mittig** im Feld. `/Rect` bleibt; nur die Holder-`/BBox` wird so
+   erweitert, dass die Viewer-Abbildung BBox → `/Rect` den Block genau dorthin zeichnet (Inhalt, Inner-Form und
+   `/Matrix` unverändert, außerhalb des Blocks durchsichtig; geändert wird wie bisher nur `/AP` des Widgets – die
+   Änderungsanalyse bei DocMDP P=2 bleibt „Formular ausfüllen“). Breite = Profilbreite wie in der Vorschau
+   (`plan::block_width`, dieselbe Regel wie `block_geometry`), **nicht** die Feldbreite. `CompatMode::PdfasQuirks`
+   (nur Golden-Tests) schreibt wie PDF-AS. Begründung: PDF-AS verzerrt; „nie größer als nötig“ und Vorschau = Ergebnis
+   gehen nur mit einer Lage, die nicht von der Feldform abhängt.
+2. *Plausibilität* – `pida_placement::field_suitable` (Fassung nach der Nachprüfung, siehe unten): Der Block wird
+   höchstens auf ⅕ verkleinert (`FIELD_MIN_SCALE`; der Signaturblock passt so noch in eine Formularzeile von ≈ 16 pt,
+   die Amtssignatur 495 × 120 pt in ein 150 × 50-pt-Feld), die Form des Felds ist höchstens achtfach gestreckter als die
+   des Blocks (`FIELD_MIN_SHAPE` = ⅛, Verhältnis der Seitenverhältnisse – schließt Leisten wie 13,5 × 246 pt und
+   seitenhohe Spalten aus) und das Feld bedeckt höchstens die halbe Seite (`FIELD_MAX_PAGE_SHARE` – schließt das
+   seitengroße Feld aus, das den Block überall auf der Seite einfinge und dessen Markierung die Seite verdeckte). Der
+   Flächenanteil des Blocks am Feld zählt nicht: Ein großzügiges Feld bleibt für einen kleinen Block ein Ziel. Im
+   Dokument der Meldung (Block 230 × 82 pt) geeignet: `Signature_0` (Maßstab 0,64), `Signature_5` (0,74) und
+   `Signature_6` (59 × 50 pt, 0,26); nicht: `Signature_1` (15 × 15), `_2` (388 × 14, 0,17), `_3`/`_4` (schmal) und
+   `Signature_7` (ganze Seite).
+3. *Angeboten* (Einrasten beim Ziehen, „Hier signieren“, Hinweisleiste „Signaturfeld gefunden“) werden nur geeignete
+   Felder. Ungeeignete bleiben über den Vertrag erreichbar (`use_target`, der Kern lehnt nicht ab; die Platzhaltersuche
+   „Leere Signaturfelder“ nimmt wie PDF-Over weiter das erste leere Feld) und werden dann ebenfalls proportional
+   geschrieben; die Oberfläche bietet sie nicht an – ein seitengroßes Feld ergäbe nur einen mittig gesetzten Block, eine
+   seitengroße Markierung verdeckte die Seite, ein 3-pt-Feld einen unlesbaren Block.
+4. *Neue Seite:* Der Kern nennt die Größe einer angehängten Seite (`new_page_size`); die Oberfläche zeigt die virtuelle
+   Seite in dieser Größe.
+5. *Überdeckung:* Ein leeres Feld, das kein plausibles Ziel ist, ist auch kein Hindernis für `check.overlaps_widget`
+   (`pida_placement::obstacle_fields`; signierte und geeignete leere Felder zählen weiter). Sonst meldete im Dokument
+   der Meldung jede Lage auf Seite 2 „überdeckt ein Formular- oder Signaturfeld“, und „Freie Fläche suchen“ setzte den
+   Block wieder auf Seite 2 (Befund am Gerät). Der Hinweis `OverlapsWidget` des klassischen Ablaufs (`pida-pades`)
+   bleibt. Die Funktion liegt in `pida-placement`, damit die widget-bewusste Freiraumsuche aus Nachtrag 12 (Zweig
+   `mob2/int`, `WidgetAwareScanner`) beim Zusammenführen dieselben Hindernisse nehmen kann.
+
+**Vertrag** (additiv nach §3.0 Regel 2):
+
+```rust
+pub struct FieldTargetView {
+    // … index, name, page, rect, selectable
+    /// als Ziel angeboten (Maßstab ≥ ⅕, Form ≥ ⅛, ≤ halbe Seite für den Block in aktueller Größe)
+    #[serde(default)] pub suitable: bool,
+    /// Lage des Blocks in diesem Feld (PAGE_ABS, proportional, ≤ natürliche Größe, mittig); nach use_target = sticker
+    #[serde(default)] pub block: Option<RectPt>,
+}
+pub struct DocumentView {
+    // … wie §3.3 und Nachträge
+    /// sichtbare Größe einer neuen Seite (MediaBox der letzten Seite, `new_page_geometry`); TS optional
+    #[serde(default)] #[ts(optional = nullable)] pub new_page_size: Option<(f32, f32)>,
+}
+```
+
+`sticker` behält seine Bedeutung „tatsächliches Rechteck des Blocks“ – im Feld ist das jetzt `block` (vorher das
+Feld-Rechteck, weil der Block auf das Feld gestreckt wurde); `placement` im Feld ebenso (linke obere Ecke und Maße des
+Blocks), `announce` folgt.
+
+**Oberfläche:** `placement.ts` `offeredField` (wählbar und `suitable`), `targetAt` (Lage `block`, Rahmen = Feld),
+`previewScale` (Zoom × Gerätepixel × Verkleinerung im Feld, auf 0,25 **aufgerundet**: das Bild wird nie hochskaliert;
+maßgeblich ist die geringere Verkleinerung der beiden Achsen, damit auch der nicht proportionale Sticker eines
+QR-Platzhalters auf keiner Achse hochgezogen wird),
+`displayPages` mit `new_page_size`. `Pages.tsx`: Markierungen nur für angebotene Felder, beim Ziehen über einem Feld
+`is-hit`; Rahmen `.field-frame` des Felds, in dem der Block steht bzw. landen würde. `Workspace.tsx`: Hinweisleiste nur
+für ein angebotenes Feld. Mock wie der Kern (`fieldFit`, Dokument „Signaturfelder.pdf“ = `manyFieldsSpec`).
+
+**Tests:** `pida-placement` `field::tests` (Felder der Meldung, seitengroßes Feld, Schwellen, Benutzerraum = sichtbare
+Seite für alle Drehungen, Hindernisse `only_signed_or_plausible_fields_are_obstacles`); `pida-sigblock` `place_in_rect_*`; `pida-pades` `tests/field_fit.rs` (Beleg PDF-AS
+`manySignFields_signed4.pdf`, alle Felder korrigiert und mit `PdfasQuirks`, Keystore-Signatur ins seitengroße Feld);
+`pida-core-api` `tests/workspace.rs` `only_plausible_fields_are_offered_and_the_block_keeps_its_size` (Ansicht = Plan
+für alle acht Felder), `page_sized_field_is_signed_exactly_where_the_preview_shows_the_block` (echte Engine, Keystore,
+PDFium-Renderdifferenz = Sticker ± 1 pt, pyHanko `INTACT`, qpdf), ebenso `scaled_field_is_signed_exactly_where_the_preview_shows_the_block`
+(`Signature_5`, Block auf etwa drei Viertel verkleinert), `new_page_has_the_media_box_size_and_the_block_keeps_its_size`
+(CropBox ≠ MediaBox, neue Seite mit MediaBox, `/Rect` = Sticker, pyHanko); UI `placement.test.ts`,
+`workspace.test.tsx` (je Desktop/Maus und schmal/Touch iOS: Ziehen über das seitengroße Feld rastet nicht ein,
+passendes Feld mittig mit Rahmen → `use_target`; Vorschau in Darstellungsgröße, auch beim QR-Platzhalter), `mock.test.ts` (auch: keine Überdeckung durch das seitengroße Feld). Browser-Vorschau des Mocks:
+`?pick=Signaturfelder.pdf` („PDF auswählen“ öffnet das Formular).
+
+**Gerät (17.10.2026):** eigener temporärer Simulator „PIDA-Fix-field“ (iPhone 17e, iOS 27.0, Sprache de, danach
+heruntergefahren und gelöscht), Debug-Build dieses Stands, `manySignFields.pdf` als „Testdokument.pdf“, Ziehen mit
+Touch-Zeigerereignissen in der WKWebView (Web-Inspektor): Hinweisleiste nennt `Signature_0`, Markierungen „Hier
+signieren“ nur bei `Signature_0` und `Signature_5`; Block auf Seite 2 automatisch platziert, „Freie Fläche“, ohne
+Überdeckungswarnung; dreimal auf Seite 2 gezogen – der Block bleibt 125,5 × 44,8 px (230 × 82 pt bei 41 %), kein
+Einrasten, kein Feldrahmen (über Text: „Überdeckt Inhalt“, wie es sein soll); „Ins Feld setzen“ → proportional und mittig
+in `Signature_0` (80,5 × 28,7 px im Rahmen 80,5 × 39,2 px), Vorschaubild 287 px breit für 80,5 px; Ziehen in `Signature_5`
+rastet ein (93,1 × 33,2 px, senkrecht mittig), bei 75 % Vorschau 517 px für 170,6 px (3 Gerätepixel/px) – scharf.
+Aufnahmen `docs/integration/screenshots/ios-ng/feld-01-befund-block-fuellt-seite.jpg` (Meldung) bis
+`feld-04-signature5-gezogen-zoom75-scharf.jpg`.
+
+**Nachprüfung (17.10.2026, unabhängiger Review):** Die erste Fassung der Plausibilität (Maßstab ≥ ⅓, Flächenanteil des
+Blocks ≥ ⅕, `FieldFit::suitable`) brach übliche Felder: Das Platzhalterfeld der PDF-AS-Testdaten selbst
+(`testdata/pdf/pdfas/pdf-as-web/data/placeholder_sigfield_and_qr.pdf`, `Signature_0` 63,7 × 61,1 pt, eigens für das
+Signieren in ein Feld) war mit dem Standardblock kein Ziel (Maßstab 0,28); mit der Amtssignatur (495 × 120 pt auf A4) kein
+übliches 150 × 50-pt-Feld (0,30); mit „Nur Bildmarke“ (23 mm ≈ 62 × 65 pt) kein Feld ab etwa 250 × 100 pt (Anteil < ⅕),
+mit 15 mm nicht einmal das einzige Feld des DocMDP-Testdokuments `testdata/pades/certified-docmdp-p2.pdf` (230 × 50 pt) –
+dort bliebe nur unsichtbares Signieren. Die Lesbarkeit taugt als Begründung nicht: Der Standardblock setzt 5 pt
+(`BASE_SMALL` `font=HELVETICA,5`), schon bei ⅓ sind das 1,7 pt. Neu daher Maßstab ≥ ⅕, Formähnlichkeit ≥ ⅛ und höchstens
+die halbe Seite (Punkt 2); Kern (`field_suitable`, `obstacle_fields`), Mock (`fieldFit` mit Seitengröße) und Fixtures
+folgen. Zusätzlich belegt: gedrehte Seiten mit CropBox ≠ MediaBox (0/90/180/270°, großes und verkleinerndes Feld) –
+PDFium zeichnet den signierten Block genau im Sticker, `/Rect` bleibt, pyHanko `INTACT`
+(`rotated_cropped_field_is_signed_exactly_where_the_preview_shows_the_block`); das PDF-AS-Platzhalterfeld wird angeboten
+und genau im Sticker signiert (`pdfas_placeholder_field_is_offered_and_signed_where_the_preview_shows_the_block`); das
+DocMDP-Dokument (P = 2) wird in sein einziges Feld signiert, pyHanko sieht nur „signing and form filling“, mit der
+Regel vereinbar (`certified_document_is_signed_into_its_only_field_like_the_preview`);
+`field::tests::common_fields_are_targets_for_every_profile` und der Paritätstest des Mocks (`mock.test.ts`) prüfen übliche
+und absurde Felder für Signaturblock, Amtssignatur und Bildmarke. Gegenprobe mit Apples PDFKit (Rendering wie Vorschau/iOS):
+auf ungedrehten Seiten liegt der Block im Sticker (± 2,5 pt Kantenglättung); auf gedrehten Seiten zeichnet die
+PDFKit-Miniaturansicht eine PIDA-Signatur je nach Lage gar nicht – ebenso bei freier Platzierung, also unabhängig von
+diesem Nachtrag (nicht weiter verfolgt). Die Geräteaufnahmen oben stammen aus der ersten Fassung; seitdem trägt auch
+`Signature_6` auf Seite 1 die Markierung „Hier signieren“, Seite 2 verhält sich unverändert.
+
+*Zusammenführung mit Nachtrag 12* (`mob2/polish`, `WidgetAwareScanner`): Dort zählt die automatische Platzierung alle
+Widgets als Inhalt (`plan.rs`: `fields: &inp.report.fields`). Beim Zusammenführen dort
+`pida_placement::obstacle_fields(inp.pages, &inp.report.fields, BlockGeometry { width: width.width, height:
+measured.height })` übergeben – sonst setzt „Freie Fläche suchen“ das Dokument der Meldung auf eine neue Seite, während
+die Überdeckungsprüfung Seite 2 als frei meldet.
+
+**Angenommene Abweichungen / offen:** Die Schwellen ⅕, ⅛ und ½ sind Entwurfswerte (Auftraggeber). Die Platzhaltersuche
+„Leere Signaturfelder“ nimmt automatisch weiter das erste leere Feld, auch wenn es kein angebotenes Ziel ist (wie
+PDF-Over ohne Auswahldialog; der Block steht dann proportional darin). Ein DocMDP-zertifiziertes Dokument, dessen leere
+Felder alle unplausibel sind, lässt sich in der Oberfläche nur unsichtbar (oder über diese Platzhaltersuche) signieren. Die Blockbreite von
+Profilen ohne `w` (Amtssignatur, KR-F01) hängt von der Seitenbreite ab: Die Vorschau gilt für die Seite des
+Positionierens, die Signatur nimmt die Seite des Felds – bei Seiten unterschiedlicher Breite wie bei freier Platzierung
+über Seiten hinweg ein Unterschied. Der Sticker im QR-Platzhalter ist weiterhin das Rechteck des QR-Bildes (nicht Teil
+dieses Nachtrags).
+
+### Nachtrag 17 (17.10.2026): Mehrfachauswahl – alle gewählten PDFs, Hinweise statt stillem Verwerfen
+
+Meldung des Auftraggebers (macOS-Desktop, Release-Bundle Stand 6656e62): „Wenn ich auf der Home-Seite über den
+Datei-Dialog mehrere Dateien auswähle, übernimmt er trotzdem nur eine Datei.“ (Fehler 2 der Abnahme vom 16.10.2026.)
+
+**Befund.** Die Kette Dialog → Kern übernimmt mehrere Dateien: `browse()` öffnet den Dialog mit `multiple: true`
+(außer „Anderes PDF öffnen“), `@tauri-apps/plugin-dialog` 2.8.3 ruft dann rfd 0.16 `pick_files` (NSOpenPanel mit
+`allowsMultipleSelection`, Ergebnis `URLs` vollständig), `bridge.ts` reicht alle Pfade weiter, alle Einstiege
+(Startseite, ⌘/Strg+O, Palette, Stapel „PDF hinzufügen“, Miniaturleiste, „+ PDF“, `ParkedJoinDialog`) schicken sie
+unverändert als `open_files`, der Kern nimmt sie in der Reihenfolge der Auswahl (ab zwei als Stapel). Das
+NSOpenPanel läuft unter macOS 27 auch für nicht sandboxte Apps als entfernter Dienst (`NSRemoteView`,
+`openAndSavePanelService`); ohne Bedienungshilfen-Freigabe lässt es sich nicht fernsteuern (geprüft mit einer Probe
+in derselben Konfiguration wie rfd, ohne Sicherheitseinstellungen zu ändern) – belegt ist die Kette deshalb über
+Tests mit nachgebildeter Tauri-Laufzeit (`core/bridge.tauri.test.ts`), UI-Tests aller Einstiege
+(`app/multi.test.tsx`) und den echten Kern (`crates/core-api/tests/open_files.rs`). Das Log der App und das
+System-Log des Panel-Dienstes zeigen zu den drei Auswahlen des Berichts: 20:50:32 und 20:51:00 je ein **Doppelklick**
+auf eine Datei, ohne dass vorher weitere markiert waren (übernimmt nur diese Datei), 20:51:58 mehrere Klicks und
+„Öffnen“ bei geparktem Stapel – der Kern nahm jedes Mal genau **ein** neues Dokument auf. Gegenprüfung im Review
+(17.10.2026): `log show --predicate 'process CONTAINS "openAndSavePanel"'` liefert je Auswahl die AppKit-Aktionen
+des Panels – 22:50:32.036/.201 und 22:50:49.805/.991 Ortszeit (20:50:32Z bzw. 20:50:50Z, danach die Rückfrage
+„Zum Stapel hinzufügen“ um 20:51:00Z) je ein `sendAction:` und 165 bzw. 186 ms später `sendAction:` + `performClick:` ohne
+`trackMouse` (Doppelaktion der Liste, kein Klick auf „Öffnen“); 22:51:54.121, 54.749 und 55.672 drei Klicks in die
+Liste, dann „Öffnen“ per Maus (`trackMouse send action on mouseUp`). Die Effektzahlen im App-Log passen dazu nur so
+(nachgerechnet am Reducer): 20:50:32 `Analyzing effects=2` = ein Dokument (`RememberDirectory`, `Analyze`; zwei Dateien
+ergäben `BatchOverview`), 20:51:00 `BatchOverview effects=3` = „Zum Stapel hinzufügen“ mit genau einem neuen
+Dokument (`Discard` + zwei Voranalysen; zwei neue ergäben 4, „Offene schließen …“ `Analyzing` bzw. 4), 20:51:58
+`effects=1` = genau eine neue Voranalyse – mit oder ohne mitgewählte, schon offene Dokumente. Ob die drei Klicks
+um 20:51:55 ⌘-Klicks waren (dann verwarf der Kern die schon offenen still) oder einfache Klicks (dann war nur die
+letzte Datei markiert), zeigt kein Log; beide Fälle deckt dieser Nachtrag ab (Hinweis bzw. Hinweiszeile). Am
+Debug-Bundle (`at.pida.fixmulti`, leeres `PIDA_HOME`) ergibt „Öffnen mit“ mit drei PDFs `BatchOverview effects=4`
+(drei Dokumente), danach zwei davon und ein neues `BatchOverview effects=1` – dieselbe Zeile wie im Log des
+Auftraggebers um 20:51:58 – jetzt mit dem Hinweis (`count=2`). Die Zahl der Pfade steht
+nicht im Log; die einzige Stelle der Kette, die gewählte Dateien verwirft, ist der Duplikatvergleich (Pfad, F-89),
+und der verwarf **ohne jeden Hinweis** (ebenso Pfade ohne Datei). Waren unter den markierten Dateien solche, die
+schon im Stapel lagen, sieht das für die Nutzerin aus, als übernähme die Auswahl nur eine Datei. Unter iOS/Android gab es dazu das Gegenstück: jede Auswahl
+legt neue Sandbox-Kopien an, der Pfadvergleich erkennt dort **kein** Duplikat (dasselbe PDF zweimal im Stapel), und
+nicht kopierbare Dateien (nicht lesbar, zu groß) verschwanden ebenfalls still.
+
+**Regeln.**
+
+1. **Alle gewählten Dateien, Reihenfolge der Auswahl** – so, wie die Systemauswahl sie liefert (macOS: `URLs` des
+   NSOpenPanel; iOS 27: Anzeige-Reihenfolge des Ordners, nicht die Reihenfolge des Antippens); Bridge, Plugin und Kern
+   ändern sie nicht. Das Verhalten bleibt; neu sind Tests je Einstieg und im Kern (Startseite, geparkte Arbeit mit „Zum Stapel
+   hinzufügen“ bzw. „Offene schließen und neu beginnen“, „Weitere PDFs hinzufügen“, Stapelübersicht, Mobile).
+2. **Duplikate mit Hinweis** (core-api `opening.rs`, `select_documents`/`report_selection` um den Reducer herum):
+   Was als „schon offen“ gilt, entscheidet weiter der Reducer nach dem Zustand (Pfadvergleich der Warteschlange,
+   F-89; „Offene schließen und neu beginnen“ schließt zuerst, die gewählten sind danach kein Duplikat). Nach dem
+   Übergang zählt der Kern die neuen Dokumente, die nicht offen sind, obwohl ein offenes denselben Pfad hat, und
+   meldet `ng-open-duplicates` (`$count`, bei einem Dokument `$file`; neue Meldungs-ID in `pida.ftl`) – auch wenn
+   nichts dazukommt (bisher still). Doppelt in derselben Auswahl zählt ebenso. Seit dem Zusammenführen mit
+   Nachtrag 15 (fix/int, 17.10.2026) gilt das auch für „Erneut signieren“ aus „Zuletzt signiert“ (`sign_recent`):
+   beide gehen über `CoreTask::open_paths`; ein schon offenes Dokument meldet der Kern statt es still zu verwerfen
+   (Tests `settings.rs::recent_entry_offers_what_done_offers`, Mock `features/settings/mock.test.ts`).
+3. **Mobile: Kopien nach Inhalt.** Auf iOS/Android (`!Platform::is_desktop`) gilt eine Sandbox-Kopie mit gleichem
+   Dateinamen und byte-gleichem Inhalt wie ein offenes bzw. in derselben Auswahl früher gewähltes Dokument als
+   dasselbe Dokument: sie bekommt vor dem Reducer dessen Pfad, danach gilt 2. Auf dem Desktop bleibt es beim
+   Pfadvergleich (zwei gleiche Dateien in verschiedenen Ordnern sind zwei Dokumente).
+4. **Fehlende Dateien mit Hinweis:** Pfade ohne (vorhandene) Datei – abgelegter Ordner, inzwischen gelöschte Datei
+   (F-12) – meldet der Kern als `ng-open-missing` (`$count`); die übrigen öffnen. Vorhandene, aber nicht lesbare PDFs
+   übernimmt der Kern wie bisher; die Analyse meldet sie (Fehlerschritt bzw. Stapeleintrag „abgelehnt“).
+5. **Mobile-Auswahl zählt nicht kopierte Dateien:** native Antwort von `importFile` additiv
+   `{ files, skipped }` (Swift `SandboxFiles.copyAll`, Kotlin `Documents.copyEach`; ältere Antwort ohne Feld = 0),
+   Plugin `PidaMobile::import_files` → `Imported { files, skipped }` (Kopien außerhalb des Zielordners zählen mit),
+   Command `mobile_pick_files` → `{ paths, skipped }`. Bridge: neu `pickMobileDocuments({ multiple })` →
+   `MobilePick`; `pickMobileFiles` (Keystore-Import) liefert unverändert nur die Pfade. `browse()` zeigt bei
+   `skipped > 0` den Hinweis `ng-ui-shell-pick-skipped` (`$count`, Toast; kein Dialog).
+6. **Wie man mehrere markiert** (kein Verhalten des Kerns, nur Text): Mehrfachauswahl-Dialoge tragen statt
+   „Durchsuchen um ein Dokument zu wählen“ die Hinweiszeile `ng-ui-shell-pick-title` (`$os`; macOS:
+   „PDF-Dokumente wählen – mehrere mit ⌘-Klick markieren, dann „Öffnen““, sonst Strg-Klick; rfd setzt sie unter macOS
+   als `message`, sonst als Fenstertitel). „Anderes PDF öffnen“ bleibt Einzelauswahl mit dem bisherigen Titel. Die
+   Startseite nennt unter „PDF auswählen“ bzw. „Dokument auswählen“ den Weg je Plattform (`ng-ui-start-multi-hint`,
+   `$os`: macOS ⌘-Klick, Windows/Linux Strg-Klick, iOS PDFs antippen (Häkchen) und „Öffnen“, Android lange drücken,
+   weitere antippen, „Auswählen“) – unter Android übernimmt ein einfaches Antippen sofort genau eine Datei, unter macOS
+   ein Doppelklick. iOS 27 zeigt in der Dateiauswahl mit Mehrfachauswahl gleich Auswahlkreise (geprüft auf dem
+   Simulator, Aufnahmen `docs/integration/screenshots/fix-multi/ios-*`).
+7. **Vertrag:** keine Änderung an `ViewState`/`UiEvent` (neue Meldungs-IDs, Shell-Command-Ergebnis und Bridge sind
+   intern); `ts_bindings` und Fixtures unverändert. Der Mock folgt dem Kern (`reportDuplicates`).
+8. **Tests:** echter Kern `crates/core-api/tests/open_files.rs` (10: Reihenfolge, doppelt in einer Auswahl, geparkter
+   Stapel und Übersicht, Arbeitsbereich „Weitere PDFs hinzufügen“, „Offene schließen und neu beginnen“, fehlende
+   Dateien/Ordner, Mobile-Kopien iOS/Android, Desktop-Pfadvergleich; aus dem Review: 25 Dateien mit einem
+   Nicht-PDF – alle in Reihenfolge, das Nicht-PDF als abgelehnter Eintrag – und „Öffnen mit“ während eines laufenden
+   Stapels – neues PDF als Eintrag mit `ng-batch-added`, das schon offene mit Hinweis) und `opening.rs` (Inhaltsvergleich); Plugin
+   `import_files` (Reihenfolge, `skipped`, ältere Antwort), Swift-Logik auf dem Mac (`tests/ios_logic.rs` übersetzt
+   `ios/Tests/SandboxFilesCheck.swift` mit `SandboxFiles.swift`), Kotlin `DocumentsTest.multipleSelectionKeepsOrderAndCountsFailures`;
+   UI `app/multi.test.tsx` (alle Einstiege, Titel je Plattform, Hinweise, Mobile) und `core/bridge.tauri.test.ts`.
+
+9. **Gerätenachweis** (`docs/integration/screenshots/fix-multi/`): macOS-Debug-Bundle mit eigener Kennung
+   `at.pida.fixmulti` und leerem `PIDA_HOME` – drei PDFs über „Öffnen mit“ (`open -a`, `RunEvent::Opened` →
+   `open_files`) als Stapel in Reihenfolge, danach zwei offene und ein neues → „4 Dokumente“ und der Hinweis
+   (`mac-01` bis `mac-03`; den Systemdialog selbst kann ohne Bedienungshilfen niemand fernsteuern). iOS 27 auf einem
+   temporären Simulator (iPhone 17e, danach gelöscht), Dateiauswahl per XCUITest-Hilfsprojekt: drei PDFs markiert →
+   Stapel mit drei, dann zwei offene (neue Sandbox-Kopien) und ein neues → „4 Dokumente“ und der Hinweis (`ios-01`
+   bis `ios-05`). Android: der Emulator war von einem anderen Lauf belegt – belegt über die Kotlin-Unit-Tests
+   (Gradle `testDebugUnitTest` 6/6) und `cargo check`/`clippy` für `aarch64-linux-android`.
+
+**Nicht Teil dieses Nachtrags:** Teilen mehrerer PDFs aus der Dateien-App liefert unter iOS nur das erste (fehlende
+Share-Extension; Entscheidung: nur Hinweis, eigener Lauf). Der Filter „Alle Dateien (*)“ wirkt unter macOS nicht
+(rfd fasst alle Filter zu `allowedFileTypes = [pdf, *]` zusammen, `*` wird zu einem dynamischen Typ) – wählbar sind
+dort nur PDFs; unverändert.
+
+### Nachtrag 18 (17.10.2026): Zusammenführung der Mobile-Nachträge 11/12 mit den Nachträgen 13–17
+
+Der Mobile-Stand (`mob2/int`: Nachtrag 11 „Mobile nur ID Austria“, Nachtrag 12 „Randfälle“) und `main` (Nachträge
+13–17, darunter die Entfernung des Prüfmodus) entstanden parallel; beim Merge im Gerätenachweis-Lauf (`mob2/ios`,
+docs/integration/mobile-ios.md §10.5) gilt:
+
+1. **Prüfmodus:** vollständig entfernt wie in Nachtrag 15 (keine Prüfmodus-Sperren in `actions`, kein
+   `release_verify` beim Öffnen, `share_hint` ohne Prüfmodus-Bedingung).
+2. **Vertrag:** additiv vereint – `postpone_first_run`, `files_received`, `dismiss_share_hint` (Nachtrag 12) vor
+   `open_recent`, `reveal_recent`, `share_recent`, `sign_recent` (Nachtrag 15); TypeScript und Proben neu erzeugt.
+3. **Duplikate:** es gilt Nachtrag 17 (`open_paths` → `select_documents`/`report_selection`, Meldung
+   `ng-open-duplicates` mit `count`/`file`; Desktop vergleicht Pfade, Mobile Kopien nach Name und Inhalt). Die
+   Erkennung aus Nachtrag 12 Punkt 10 (`drop_already_open`, `ng-open-duplicate` mit `name`, Inhaltsvergleich auch am
+   Desktop) entfällt samt Text und Test (`the_same_file_received_again_is_not_added_twice`, abgedeckt durch
+   `tests/open_files.rs`). Erhalten bleibt die Nachprüfung aus Nachtrag 12: Kopien eines eben signierten und
+   gespeicherten Dokuments („Fertig“) gelten auf Mobilgeräten nicht als dasselbe Dokument (`copy_targets`) und öffnen
+   als nächstes Dokument (Test `mobile.rs::shared_copy_opens_again_after_signing_on_mobile`; ohne die Regel meldete
+   der Kern „bereits geöffnet“).
+4. **Hinweis zum Teilen:** `files_received` öffnet über dieselbe Auswahl wie `open_files` (`open_selected`) und setzt
+   `share_hint` für das erste tatsächlich aufgenommene Dokument (iOS, nicht ausgeblendet) – unverändert gegenüber
+   Nachtrag 12. Die Dokumentauswahl des Hinweises läuft wie „+ PDF“ über `pickMobileDocuments` (Nachtrag 17).
+5. **Shell:** `mobile_pick_files` nimmt weiter nur `pdf` an (Nachtrag 11) und liefert `{ paths, skipped }`
+   (Nachtrag 17); `pickMobileFiles` ist in TypeScript auf `kind: 'pdf'` beschränkt.

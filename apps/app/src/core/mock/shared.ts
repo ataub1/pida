@@ -3,7 +3,7 @@
  *
  * Jeder Bereich besitzt seinen Zustandsausschnitt; `shared.ts` kennt nur die Typen und kleine, reine
  * Hilfen. `index.ts` (UI-A) hält die Ausschnitte `{ flow (Kern, Arbeitsbereich, Signieren, Stapel),
- * settings, verify, recent, firstrun }`, verteilt **jedes** Ereignis an alle Bereiche, leitet Signale
+ * settings, recent, firstrun }`, verteilt **jedes** Ereignis an alle Bereiche, leitet Signale
  * weiter und setzt die Projektionen zum `ViewState` zusammen. Kein Bereich schreibt in den Ausschnitt eines
  * anderen; bereichsübergreifend gibt es nur Signale (`MockSignal`) und die lesenden Zugriffe in `MockCtx`.
  * Neue Signalarten sind ein Nachtrag über den Orchestrator.
@@ -11,12 +11,12 @@
  * Der Mock ist keine zweite Fachlogik: Regeln nur so weit, wie Bedienung und Tests sie brauchen. Keine
  * echten Zugangsdaten, kein Netz.
  */
-import type { BackendId, BatchFlowView, Capabilities, InteractionView, Lang, PlatformView, ResumeOfferView, Settings, UiEvent, ViewState } from '../types';
+import type { BackendId, BatchFlowView, Capabilities, InteractionView, Lang, OpenFilesMode, PlatformView, ResumeOfferView, Settings, UiEvent, ViewState } from '../types';
 
 /** Szenarien wie im Prototyp (`?scenario=`). */
-export type MockScenario = 'start' | 'blank' | 'contract' | 'field' | 'signed' | 'batch' | 'verify' | 'error-password' | 'error-atrust';
+export type MockScenario = 'start' | 'blank' | 'contract' | 'field' | 'signed' | 'batch' | 'error-password' | 'error-atrust';
 
-export const MOCK_SCENARIOS: readonly MockScenario[] = ['start', 'blank', 'contract', 'field', 'signed', 'batch', 'verify', 'error-password', 'error-atrust'];
+export const MOCK_SCENARIOS: readonly MockScenario[] = ['start', 'blank', 'contract', 'field', 'signed', 'batch', 'error-password', 'error-atrust'];
 
 /** Ablauf der ID-Austria-Freigabe nach der Anmeldung (`decline` = in der App abgelehnt, `timeout` = abgelaufen). */
 export type MockSigningFlow = 'app' | 'sms' | 'qr' | 'fido2' | 'decline' | 'timeout';
@@ -69,9 +69,11 @@ export interface MockOptions {
   resumeOffer?: ResumeOfferView | null;
   /** Antwort der Mobile-Dateiauswahl (`[]` = abgebrochen) */
   pickMobileFilesResult?: string[];
+  /** Mobile-Dateiauswahl: gewählt, aber von der nativen Seite nicht kopiert (`pickMobileDocuments`) */
+  pickMobileSkipped?: number;
   /** eigener Datenschutztext per Richtlinie (`ViewState::privacy_text`) */
   privacyText?: string | null;
-  /** Beispieldaten der späteren Etappen liefern (`recent`, `verify`, `first_run`; Abnahme E0 „je neuem Typ ein Beispiel“) */
+  /** Beispieldaten der späteren Etappen liefern (`recent`, `first_run`; Abnahme E0 „je neuem Typ ein Beispiel“) */
   examples?: boolean;
   /** Ersteinrichtung beim Start (Beispiel `FirstRunView`) */
   firstRun?: boolean;
@@ -98,9 +100,8 @@ export type MockBatchFault = 'decline' | 'network' | 'session' | 'too-large';
 export type MockSignal =
   | { kind: 'settings-changed'; settings: Settings } // settings → workspace (Blockgröße, Vorschau), signers
   | { kind: 'signed'; file_name: string; path: string } // signing/batch → recent
-  | { kind: 'open-files'; paths: string[] } // verify (SignVerified), recent → workspace/batch
-  | { kind: 'first-run-done' } // firstrun → shared
-  | { kind: 'verify-file'; path: string }; // recent (VerifyRecent) → verify (B4, Nachtrag ADR 0004 §4.8)
+  | { kind: 'open-files'; paths: string[]; mode?: OpenFilesMode } // recent (SignRecent, Nachtrag 15) → workspace/batch
+  | { kind: 'first-run-done' }; // firstrun → shared
 
 /** Lesender Zugriff und Dienste für alle Bereiche. */
 export interface MockCtx {
@@ -114,6 +115,8 @@ export interface MockCtx {
   notify(code: string, params?: Record<string, string>): void;
   /** später ausführen (simulierte Latenz × `factor`) und danach neu projizieren */
   later(fn: () => void, factor?: number): void;
+  /** Aufruf eines nativen Dienstes protokollieren (Tests: `MockCore::nativeCalls`, z. B. `openRecent:<Pfad>`) */
+  native(call: string): void;
 }
 
 /** Ein Bereich des Mock-Kerns mit eigenem Zustandsausschnitt. */

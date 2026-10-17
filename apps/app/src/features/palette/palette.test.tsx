@@ -39,9 +39,9 @@ describe('Befehlspalette', () => {
     const t = translator('de');
     const expected = COMMANDS.filter((c) => isCommandEnabled(c.id, view)).map((c) => t.t(c.label));
     expect(names(palette)).toEqual(expected);
-    // ohne Dokument: „Signieren“ gesperrt und deshalb nicht in der Liste; „Prüfen“ frei (K4)
+    // ohne Dokument: „Signieren“ gesperrt und deshalb nicht in der Liste; kein „Signatur prüfen“ mehr (Nachtrag 15)
     expect(expected).not.toContain('Signieren');
-    expect(expected).toContain('Signatur prüfen (Prüfmodus)');
+    expect(names(palette).some((n) => /prüf/i.test(n))).toBe(false);
     const actions = within(palette).getByRole('group', { name: 'Aktionen' });
     expect(within(actions).getByRole('menuitem', { name: /^Dokument öffnen …/ })).toBeInTheDocument();
     expect(within(within(palette).getByRole('group', { name: 'Ansicht' })).getByRole('menuitem', { name: 'Farbschema: Dunkel' })).toBeInTheDocument();

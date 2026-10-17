@@ -506,15 +506,32 @@ pub(super) fn more_files_added(state: State, docs: Vec<InputDocument>, ctx: &Con
 pub(super) fn join_parked(state: State, docs: Vec<InputDocument>, ctx: &Context) -> Transition {
     match state {
         State::AnalysisWarning { mut queue, warnings, doc, placeholder, fields } => {
-            if queue.append(docs).is_empty() {
-                return Transition::stay(State::AnalysisWarning { queue, warnings, doc, placeholder, fields });
-            }
-            if queue.batch.as_ref().is_some_and(|b| b.open == Some(doc.id)) {
-                return back(queue, doc.id, Back::Keep, Vec::new());
-            }
-            new_overview(queue, vec![Effect::Discard(doc.id)])
+            let added = !queue.append(docs).is_empty();
+            let s = State::AnalysisWarning { queue, warnings, doc, placeholder, fields };
+            if added { to_overview(s) } else { Transition::stay(s) }
         }
         s => more_files_added(s, docs, ctx),
+    }
+}
+
+/// Offenes Dokument eines Stapels in die Übersicht („Weiter bearbeiten“ geparkter Arbeit, ADR 0004 Nachtrag 13,
+/// Modul `parked`; [`join_parked`]): Arbeitsbereich wie „Zur Stapelübersicht“ bzw. „Zurück zum Stapel“ (die
+/// Platzierung wird Plan des Dokuments, nichts geht verloren); Analysewarnung eines aus der Übersicht geöffneten
+/// Eintrags zurück (Eintrag unverändert), sonst als Eintrag der Übersicht („Bitte prüfen“ nach der Voranalyse).
+/// Übersicht und alle anderen Zustände unverändert. Startet nichts (A1).
+pub(super) fn to_overview(state: State) -> Transition {
+    match state {
+        State::Positioning { queue, placement, new_page, doc, edit: Some(edit), .. } => {
+            back_with_plan(queue, placement, new_page, &doc, &edit)
+        }
+        State::AnalysisWarning { queue, doc, .. } => {
+            if queue.batch.as_ref().is_some_and(|b| b.open == Some(doc.id)) {
+                back(queue, doc.id, Back::Keep, Vec::new())
+            } else {
+                new_overview(queue, vec![Effect::Discard(doc.id)])
+            }
+        }
+        s => Transition::stay(s),
     }
 }
 

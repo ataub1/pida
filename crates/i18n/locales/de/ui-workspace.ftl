@@ -21,9 +21,6 @@ ng-ui-shell-pages =
         [one] { $n } Seite
        *[other] { $n } Seiten
     }
-ng-ui-shell-verify = Prüfen
-ng-ui-shell-verify-long = Signatur prüfen
-ng-ui-shell-verify-mode = Prüfmodus
 ng-ui-shell-commands = Befehle
 ng-ui-shell-commands-long = Befehle und Suche
 ng-ui-shell-lang = Sprache der Oberfläche
@@ -38,8 +35,6 @@ ng-ui-shell-cmd-open = Dokument öffnen …
     .keywords = öffnen datei pdf laden
 ng-ui-shell-cmd-sign = Signieren
     .keywords = unterschreiben signatur
-ng-ui-shell-cmd-verify = Signatur prüfen (Prüfmodus)
-    .keywords = prüfen verify kontrolle
 ng-ui-shell-cmd-settings = Einstellungen
     .keywords = optionen konfiguration
 ng-ui-shell-cmd-signature = Signaturbild bearbeiten
@@ -85,6 +80,20 @@ ng-ui-shell-key-dblclick = Doppelklick
 ng-ui-shell-key-zoom = Vergrößern / Verkleinern
 ng-ui-shell-key-fit = An Breite anpassen
 
+# Mehrfachauswahl (ADR 0004 Nachtrag 17): Titel bzw. Hinweiszeile der System-Dateiauswahl und Hinweis, wie dort
+# mehrere PDFs markiert werden (macOS: ein Doppelklick übernimmt nur die angeklickte Datei; Android: Antippen übernimmt
+# sofort genau eine Datei, mehrere erst nach langem Druck)
+ng-ui-shell-pick-title =
+    { $os ->
+        [macos] PDF-Dokumente wählen – mehrere mit ⌘-Klick markieren, dann „Öffnen“
+       *[other] PDF-Dokumente wählen – mehrere mit Strg-Klick markieren, dann „Öffnen“
+    }
+ng-ui-shell-pick-skipped =
+    { $count ->
+        [one] Eine gewählte Datei konnte nicht übernommen werden (nicht lesbar oder zu groß).
+       *[other] { $count } gewählte Dateien konnten nicht übernommen werden (nicht lesbar oder zu groß).
+    }
+
 ## Start
 
 ng-ui-start-title = Was möchten Sie signieren?
@@ -104,10 +113,7 @@ ng-ui-start-pick = PDF auswählen
 ng-ui-start-pick-mobile = Dokument auswählen
 ng-ui-start-local = Ihre Dokumente bleiben auf diesem Gerät, bis Sie signieren.
 ng-ui-start-shortcut = öffnet die Dateiauswahl
-ng-ui-start-side = Zuletzt signiert und Prüfmodus
-ng-ui-start-verify-title = Signatur prüfen?
-ng-ui-start-verify-text = Im Prüfmodus sehen Sie, wer ein PDF wann signiert hat und ob es seither verändert wurde.
-ng-ui-start-verify-button = Prüfmodus öffnen
+ng-ui-start-side = Zuletzt signiert
 # Geparkte Arbeit („Zur Startseite“ parkt das offene Dokument bzw. den Stapel, ADR 0004 Nachtrag 10)
 ng-ui-start-parked-label = In Bearbeitung
 ng-ui-start-parked-batch =
@@ -139,6 +145,14 @@ ng-ui-start-join-text-batch =
     }
 ng-ui-start-join-add = Zum Stapel hinzufügen
 ng-ui-start-join-replace = Offene schließen und neu beginnen
+# Mehrfachauswahl (ADR 0004 Nachtrag 17): wie in der Dateiauswahl mehrere PDFs markiert werden
+ng-ui-start-multi-hint =
+    { $os ->
+        [macos] Mehrere PDFs auf einmal: im Dialog mit ⌘-Klick markieren, dann „Öffnen“.
+        [ios] Mehrere PDFs auf einmal: in der Dateiauswahl die PDFs antippen (Häkchen), dann „Öffnen“.
+        [android] Mehrere PDFs auf einmal: in der Dateiauswahl ein PDF lange drücken, weitere antippen, dann „Auswählen“.
+       *[other] Mehrere PDFs auf einmal: im Dialog mit Strg-Klick markieren, dann „Öffnen“.
+    }
 
 ## Arbeitsbereich: Seiten, Sticker, Live-Region, Zustandskarten
 

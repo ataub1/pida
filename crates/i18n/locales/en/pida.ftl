@@ -431,7 +431,7 @@ ng-cli-help-kspass-env = Read the keystore password from the environment variabl
 ng-cli-help-log-level = Log level (error, warn, info, debug, trace)
 ng-cli-help-version = Show the version
 ng-cli-help-cmd-sign = Sign documents (files, folders, patterns such as *.pdf)
-ng-cli-help-cmd-verify = Verify the signatures of a PDF
+ng-cli-help-cmd-verify = Check the signatures of a PDF: unchanged and cryptographically intact (developer tool; it does not check the chain of trust or revocation status)
 ng-cli-help-cmd-profiles = List signature profiles
 ng-cli-help-cmd-migrate = Import settings from ~/.pdf-over (--from <folder>, --dry-run)
 ng-cli-help-cmd-render-block = Write the signature block as PDF/PNG (--profile <ID> <file>)
@@ -458,8 +458,9 @@ ng-cli-key-password = Key password for { $name }:{ " " }
 ng-cli-proxy-password = Proxy password for { $name }:{ " " }
 ng-cli-wrong-password = Wrong password.
 ng-cli-progress = … { $step }
-ng-cli-valid = valid: { $field } ({ $signer })
-ng-cli-invalid = invalid: { $field } ({ $error })
+ng-cli-verify-intact = Intact (unchanged): { $field } ({ $signer })
+ng-cli-verify-not-intact = Not intact: { $field } ({ $error })
+ng-cli-verify-scope = Chain of trust and revocation status not checked – full check: https://www.signaturpruefung.gv.at
 ng-cli-no-signatures = No signatures found.
 ng-cli-written = written: { $path }
 ng-cli-no-legacy = No PDF-Over configuration found ({ $path }).
@@ -480,12 +481,12 @@ ng-settings-invalid-postfix = The file name suffix must not contain path separat
 ng-settings-proxy-host-missing = A host is required for a manual proxy.
 ng-settings-invalid-logo-size = The logo size must be greater than 0 and at most 120 mm.
 
-## Prüfung vorhandener Signaturen (`verify`) – Welle 2
+## Prüfung vorhandener Signaturen (`pida verify`, Entwickler-Werkzeug; die App hat keinen Prüfmodus, ADR 0004 Nachtrag 15) – Welle 2
 
-ng-verify-failed = The file could not be verified: { $detail }
+ng-verify-failed = The file could not be checked: { $detail }
 ng-verify-no-signature-dictionary = Signature field without signature data.
 ng-verify-no-byte-range = Signature without /ByteRange or /Contents.
-ng-verify-byte-range = The signature /ByteRange is invalid.
+ng-verify-byte-range = The signed range (/ByteRange) of the signature is malformed.
 
 ## Workflow und Kern (`pida-workflow`, `pida-core-api`) – Welle 2
 
@@ -609,6 +610,16 @@ ng-parked-files-added =
         [one] The document was added to the open work.
        *[other] { $count } documents were added to the open work.
     }
+ng-open-duplicates =
+    { $count ->
+        [one] “{ $file }” is already open and was not added again.
+       *[other] { $count } of the chosen documents are already open and were not added again.
+    }
+ng-open-missing =
+    { $count ->
+        [one] One chosen item was not added – it no longer exists or is not a file.
+       *[other] { $count } chosen items were not added – they no longer exist or are not files.
+    }
 ng-batch-done = { $signed } of { $total } documents signed.
 ng-batch-nothing-to-sign = No document in the batch is ready to be signed.
 ng-batch-output-folder-required = Please choose a folder for the signed documents before starting.
@@ -621,11 +632,6 @@ ng-batch-aborted =
 ng-batch-paused = The batch is paused. Please decide how to continue.
 ng-batch-large = { $count } documents: each document is confirmed separately in the app.
 ng-batch-pending-app-request = Please decline any request still open in the app; always compare the reference value.
-ng-verify-open-failed = The file could not be opened for verification.
-ng-verify-busy = No document can be verified while signing.
-ng-verify-warning-sha1 = The signature uses the outdated hash algorithm SHA-1; it is unchanged but no longer considered secure.
-ng-verify-warning-signing-certificate-v1 = The signature binds its certificate only through the older “signing-certificate” attribute (SHA-1).
-ng-verify-warning-weak-key = The key of this signature is too short by today’s standards.
 ng-recent-missing = The file is no longer at the saved location.
 ng-recent-policy = “Recently signed” has been switched off by your organisation.
 ng-migration-item-block = Signature block (profile, language, note)
@@ -640,7 +646,6 @@ ng-migration-item-language = Language
 ng-migration-not-found = No PDF-Over settings were found on this device.
 ng-firstrun-done = Setup complete. You can change everything in the settings at any time.
 ng-firstrun-later = You can set up the signing method and signature block in the settings at any time.
-ng-open-duplicate = “{ $name }” is already open.
 ng-settings-field-unknown = Unknown setting.
 ng-settings-invalid-value = This value is not valid for the setting.
 ng-settings-invalid-port = The port must be between 1 and 65535.

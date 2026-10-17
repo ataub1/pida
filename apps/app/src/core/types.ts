@@ -19,7 +19,7 @@
  */
 export type * from './generated';
 
-import type { BatchItemStatusView, NativeForm, PlacementTarget, StepView, UiEvent, VerifyStatus, ViewState } from './generated';
+import type { BatchItemStatusView, NativeForm, PlacementTarget, StepView, UiEvent, ViewState } from './generated';
 
 /** Name eines Schritts (`StepView['step']`). */
 export type StepName = StepView['step'];
@@ -32,9 +32,6 @@ export type BatchItemState = BatchItemStatusView['state'];
 
 /** Art des Platzierungsziels (`PlacementTarget['kind']`, ADR 0004 §3.3). */
 export type PlacementTargetKind = PlacementTarget['kind'];
-
-/** Ladezustand des Prüfmodus (`VerifyStatus['state']`, ADR 0004 §3.9). */
-export type VerifyState = VerifyStatus['state'];
 
 /** Daten einer Maske (`NativeForm`) mit dem Variantennamen `K`. */
 export type FormData<K extends string> = Extract<NativeForm, Record<K, unknown>> extends Record<K, infer D> ? D : never;

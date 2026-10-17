@@ -274,7 +274,7 @@ Zustand vor der jeweiligen Behebung). 01–50 stammen aus dem ersten, wegen des 
 | 3 | Keystore per Import im neuen Stil, Signiermittel-Menü, Signieren → Statuskarte → Fertig, Teilen, „Sichern unter“, Öffnen (QuickLook) | 13–23, 49, 52, 74–78 | ok; „Passwort merken?“ bei der ersten Verwendung nach Neuinstallation (76) → `password_storage = "keychain"`, danach liest die Einstellungsansicht den Schlüssel selbst (78). pyHanko `--trust test-rsa2048.crt.pem`: *trusted, cryptographically sound, covers the entire file, VALID* (Einzeldokument erster Lauf, `Testdokument_signed.pdf` nach Neuinstallation) |
 | 4 | Stapel: mehrere PDFs (Mehrfachauswahl), Übersicht mit Miniaturen, Papierkorb je Zeile, „Alle signieren“ mit Keystore, Zusammenfassung; App in den Hintergrund und zurück; App beenden während des Laufs | 25–29, 50, 63–67 | ok: Hintergrund/Vordergrund mitten im Lauf (Passwortabfrage) → `Lebenszyklus suspended=true/false`, Karte und Lauf bleiben, danach 3 von 3 signiert (67); pyHanko *VALID* für beide Stapel (je 3 Dokumente). App-Kill: siehe 8.4 |
 | 5 | Einstellungen im Vollbild: alle Bereiche, Suche, Bereich „Dokument“ (PDF/A, Platzhaltersuche), Live-Vorschau des Signaturbilds, Datenschutz/„Zuletzt signiert“, Mobile-Einschränkungen | 30–43, 51, 54, 68, 71, 72, 78 | ok; ohne Proxy, Ausgabeordner, Update-Prüfung und Log-Ordner (38, 40), Suche „Proxy“ ohne Treffer (68). Befunde 1, 5, 6, 11, 16 |
-| 6 | Prüfmodus mit signiertem Dokument (Status, „Auf der Seite zeigen“), „Dieses Dokument signieren“ | 44–47, 70 | ok (auch aus „Zuletzt signiert“ und im Querformat) |
+| 6 | Prüfmodus mit signiertem Dokument (Status, „Auf der Seite zeigen“), „Dieses Dokument signieren“ (seit ADR 0004 Nachtrag 15 entfernt) | 44–47, 70 | ok (auch aus „Zuletzt signiert“ und im Querformat) |
 | 7 | ID Austria ohne Netz: Auswahl, Datenschutz-Kurzhinweis, Signieren → Fehler-/Warteansicht, FIDO2 | 57–62, 78 | ok: Kurzhinweis „Das Dokument wird zum Signieren an A-Trust übermittelt. Details“ in der Karte (58), App-Wechsel während des Verbindungsaufbaus ist kein Abbruch (61), Abbruch nach Zeitüberschreitung (62); FIDO2 in den Einstellungen mit Hinweis „auf diesem Gerät nicht verfügbar“ (78). Befunde 13, 14 |
 | 8 | Safe Areas (Dynamic Island, Statusleiste, Home-Indikator), Tastatur, Schriftgröße, Bildschirmleser | 53–55, 68–72, 79 | nach den Befunden 4, 7–10, 15 ok: Hochformat und Querformat ohne Inhalt in der Unsicher-Zone (Messung gegen `env(safe-area-inset-*)`: 62 px links/rechts, 20 px unten), kein Zoom beim Fokus (`visualViewport.scale = 1`), Dynamic Type bis 200 % ohne waagrechten Überlauf. Barrierefreiheit per Inspektion auf Start, Arbeitsbereich, Einstellungen, Stapel, Prüfmodus: `lang="de"`, keine Bedienelemente ohne Namen, keine Bilder ohne `alt`, keine fokussierbaren Elemente unter `aria-hidden`, keine doppelten IDs, Überschriften je Ansicht; Knöpfe ≥ 44 × 44 px (außer dem nur bei Tastaturfokus sichtbaren Sprunglink) |
 
@@ -476,8 +476,9 @@ Warteansicht ein lokales „schwarzes Loch“ auf `127.0.0.1:9999` (nimmt an, an
 Verbindung zu A-Trust, keine Zugangsdaten (ein Platzhalter-Benutzername für die Tastaturprobe wurde wieder gelöscht und
 nie gespeichert). Bedienung wie §8.5: Web-Inspektor (der Socket wird jetzt über die PID des `launchd_sim` genau dieses
 Simulators gewählt, nicht „der erste“ – zwei weitere Simulatoren liefen) und das XCUITest-Hilfsprojekt (Tippen, Ziehen,
-Tastatur, Drehen). Prüfmodus nicht geprüft (wird laut Entscheidung vom 17.10.2026 entfernt). Aufnahmen
-`docs/integration/screenshots/ios-ng2/00-…` bis `75-…` (540 px), `…-befund-…` vor, `…-nachher-…` nach der Behebung.
+Tastatur, Drehen). Prüfmodus nicht geprüft (laut Entscheidung vom 17.10.2026 entfernt; am Ende mit `main` gemergt, §10.5).
+Aufnahmen `docs/integration/screenshots/ios-ng2/00-…` bis `81-…` (540 px), `…-befund-…` vor, `…-nachher-…` nach der
+Behebung, `…-merge-…` mit dem gemergten `main`.
 
 ### 10.1 Ergebnisse je Ablauf
 
@@ -487,7 +488,7 @@ Tastatur, Drehen). Prüfmodus nicht geprüft (wird laut Entscheidung vom 17.10.2
 | 2 | Update-Fall: der Review-Build vom 16.10. (Version 1.0.0, importierter `test-rsa2048.p12`) mit von Hand ergänztem `[backend] default = "keystore"` – vorher Keystore als Standard (00, 01) –, dann der neue Build als Update (neuer Container) | 00–09 | ok: Start ohne Rückfrage, Log „gespeichertes Standard-Signiermittel auf ID Austria abgebildet“, „Zuletzt signiert“ umgezogen (`entries=6`), „Keystore-Passwörter eines früheren Builds entfernt removed=0“ und Merker `data/keystore-secrets-removed`; `settings.toml` byte-gleich (Standard und `[keystore]` bleiben stehen), `data/keystores/test-rsa2048.p12` bleibt. Einstellungen › Signiermittel nur ID Austria und FIDO2-Hinweis (03), Konto-Chip „ID Austria“, Menü nur „Einstellungen …“ (08), Signierkarte „Signieren mit ID Austria“ (09). Die Keychain des 17e enthielt keine PIDA-Einträge (der Review-Build hatte „Nicht speichern“), die Bereinigung selbst belegen die Kerntests |
 | 3 | Suche nach „Keystore“, „Zertifikatsdatei“, „Passwort merken“ & Co. | 04, 06, 12–18 | ok: Textinhalt (auch verborgener) und Attribute (`aria-label`, `title`, `placeholder`, `alt`) jeder Ansicht ohne Treffer für Keystore, Zertifikatsdatei, PKCS, `.p12`, Passwort merken, Schlüsselbund, Sicherer Speicher, Datei mit Zertifikat, Schlüssel anzeigen, Alias und die beiden Wörter, die die Oberfläche nie verwendet (Begriffsregeln) – Start, alle acht Einstellungsbereiche, Einstellungssuche (Keystore, Zertifikatsdatei, PKCS, p12, Passwort merken, Passwort, Alias, Schlüsselbund, Sicherer Speicher: „Keine Treffer“; „Schlüssel“ findet nur den FIDO2-Hinweis), Befehle (Keystore: „Keine Treffer“), Hilfe (Tastenkürzel), Arbeitsbereich, Konto-Chip-Menü, Signierkarte, Fehlerkarte, Stapel, Startdialog, Stapelkarte. Die Dokumentauswahl bietet `test-rsa2048.p12` ausgegraut an (06) |
 | 4 | PDF empfangen („Teilen“ aus Dateien), Arbeitsbereich, automatische Positionierung, „Diesmal selbst platzieren“, Stapel-Option | 22–32, 34, 38–40 | ok: Hinweis zum Teilen (§8.6) erstmals am Gerät – über „Signieren“, mit „Weitere PDFs hinzufügen …“, nach × bis zum Beenden weg (23, 30). Einstellungen › Dokument „Automatische Positionierung“ an → „Automatisch (laut Einstellung) · Bereit zum Signieren“, „Diesmal selbst platzieren“ gibt den Block frei (Seite 3 · oben mittig), Ziehen per Touch (31, 32). Stapel: mit Einstellung „Automatische Positionierung (laut Einstellung)“ (34), ohne Einstellung der Schalter „Für diesen Stapel automatisch positionieren“ mit Rückfrage für den selbst platzierten Eintrag, „Behalten“ (39, 40); bleibt nach Parken/Fortsetzen an. Befund N7 |
-| 5 | „+ PDF“ und Papierkorb | 10, 11, 33–37, 51, 52 | ok: „Weitere PDFs hinzufügen …“ (Mehrfachauswahl, „Zusammen mit … als Stapel signieren“) und „Anderes PDF öffnen …“ („… wird geschlossen“); „PDF hinzufügen“ im Stapel; dieselbe Datei erneut → „„Stapel-1.pdf“ ist bereits geöffnet.“ (35); Papierkorb entfernt den Eintrag ohne Rückfrage (36, 37) |
+| 5 | „+ PDF“ und Papierkorb | 10, 11, 33–37, 51, 52 | ok: „Weitere PDFs hinzufügen …“ (Mehrfachauswahl, „Zusammen mit … als Stapel signieren“) und „Anderes PDF öffnen …“ („… wird geschlossen“); „PDF hinzufügen“ im Stapel; dieselbe Datei erneut → „„Stapel-1.pdf“ ist bereits geöffnet.“ (35; nach dem Merge Text aus Nachtrag 17, 81); Papierkorb entfernt den Eintrag ohne Rückfrage (36, 37) |
 | 6 | „Zur Startseite“ → „In Bearbeitung“ | 41–47 | ok: ohne Rückfrage geparkt, Karte „Stapel · 3 Dokumente“, „Weiter bearbeiten“ unverändert (auch die Stapel-Option); per „Teilen“ empfangenes PDF kommt ohne Rückfrage dazu (Nachtrag 10 Punkt 4, 43); „Dokument auswählen“ bei geparkter Arbeit → „Zur offenen Arbeit hinzufügen?“ mit „Zum Stapel hinzufügen“ (44, 45); „Schließen“ der Karte fragt bei mehreren Dokumenten nach (46, 47) |
 | 7 | Randfälle (Nachtrag 12) | 35, 48–52, 54, 13/14 | ok: Hinweis oben, solange das Sheet ausgeklappt ist (50); Live-Region nach „Anderes PDF öffnen …“ ohne die Lage des vorigen Dokuments (52); `qr.pdf` (PDF-AS-Testdatei) erst „Seite 1 / 2“ (neue Seite), nach nachträglich eingeschalteter Platzhaltersuche „Seite 1 / 1“ im QR-Platzhalter (48, 49), erneut empfangen → „„qr.pdf“ ist bereits geöffnet.“, kein zweiter Eintrag (50); Bereichsleiste bei großer Schrift mit dem aktiven Bereich im Bild (54); Stapeltexte für ID Austria („einmal anmelden, dann jedes Dokument einzeln bestätigen“, „1 Anmeldung · 4 Bestätigungen“, „Überspringen – ohne Bestätigung in der App“, 12, 13). „Sichern unter“-Hinweis siehe 10.3. Befunde N1, N6, N8 |
 | 8 | ID Austria ohne Netz, Tastatur, dunkel, Querformat, große Schrift | 09, 14, 53–64, 74, 75 | Fehlerkarte „Der Signaturdienst ist gerade nicht erreichbar“ (09), über das schwarze Loch „Verbindung wird aufgebaut …“ (62) und nach der Zeitüberschreitung „Die Zeit ist abgelaufen“ mit „Erneut versuchen“ (63). Benutzername-Feld mit Buchstaben-Tastatur, kleingeschrieben, `autocomplete=username` (53); Befehle-Suche über der Tastatur (16). Dunkel (59–61), Querformat ohne Inhalt unter der Notch (61, 74), Dynamic Type 200 % ohne waagrechten Überlauf der Seite. Befunde N1–N5 |
@@ -511,7 +512,8 @@ Tastatur, Drehen). Prüfmodus nicht geprüft (wird laut Entscheidung vom 17.10.2
 - **N5 (mittel) Kopfzeile eines aus dem Stapel geöffneten Dokuments:** Wortmarke, Haus, „Zurück zum Stapel“, Dokument,
   „+ PDF“ und die Aktionen brauchen mehr als 390 px – der Kontext schrumpfte, „+ PDF“ lag 20 px über „Prüfen“
   (Fingerziele überlappten, bei jeder Schriftgröße, 71). Bis 480 px Breite zeigt die Wortmarke dann nur das Logo (Name
-  bleibt „PIDA – Startseite“, 73).
+  bleibt „PIDA – Startseite“, 73). Mit dem gemergten `main` fehlt „Prüfen“; ohne die Regel blieben auf 360-pt-Telefonen
+  nur 2 px Luft – sie bleibt deshalb (78).
 - **N6 (niedrig) Datenschutz-Kurzhinweis im Stapel in der Einzahl** („Das Dokument wird …“ bei 4 Dokumenten, 13) – in
   Übersicht, Startdialog und Stapelkarte jetzt „Die Dokumente werden zum Signieren an A-Trust übermittelt.“
   (`ng-ui-backend-leaves-device-many`, 65).
@@ -543,7 +545,7 @@ N7 Einzahl; N8 Abbruch ohne Signatur).
   und TAN-Maske der Signierkarte mit Tastatur, Vergleichswert; belegt durch Kern- und Oberflächentests
   (`signing.test.tsx`, `done.test.tsx`, `core-api/tests/mobile.rs`).
 
-### 10.4 Prüfungen
+### 10.4 Prüfungen (vor dem Merge mit `main`)
 
 `cargo test --workspace --no-fail-fast` 1445 bestanden, 0 fehlgeschlagen, 5 ignoriert; `cargo clippy --workspace
 --all-targets -- -D warnings` und `cargo fmt --all --check` ohne Befund; `npm ci && npm run build && npm test` 33 Dateien,
@@ -551,3 +553,27 @@ N7 Einzahl; N8 Abbruch ohne Signatur).
 `PIDA_BLESS=1` unverändert (Vertrag unberührt); `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check -p
 pida-app` für `aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK, eigenes `CARGO_TARGET_DIR`) grün. Simulator
 iPhone 17e danach heruntergefahren (`xcrun simctl shutdown`), kein anderer Simulator angefasst.
+
+### 10.5 Merge mit `main` (Prüfmodus entfernt, ADR 0004 Nachträge 13–17)
+
+Während des Laufs landete auf `main` die Entfernung des Prüfmodus (Nachtrag 15) zusammen mit Nachtrag 13 („Weiter
+bearbeiten“ eines Stapels), 16 (Einrasten in Signaturfelder) und 17 (Mehrfachauswahl). `git merge main` mit 22
+Konfliktdateien, aufgelöst nach ADR 0004 Nachtrag 18: Prüfmodus vollständig entfernt (auch die Prüfmodus-Sperren aus
+dem Mobile-Stand); Vertrag additiv vereint (TypeScript, `view-states.json`, `ui-events.json` und die Real-Core-Proben
+neu erzeugt); Duplikate nach Nachtrag 17 (`ng-open-duplicates`), die eigene Erkennung aus Nachtrag 12 samt
+`ng-open-duplicate` entfällt, die Ausnahme für eben signierte Dokumente bleibt für Kopien auf Mobilgeräten (neuer Test
+`mobile.rs::shared_copy_opens_again_after_signing_on_mobile`, scheitert ohne die Regel); `files_received` (Hinweis zum
+Teilen) über dieselbe Auswahl; `mobile_pick_files` nur `pdf`, Ergebnis `{ paths, skipped }`.
+
+Kurzprobe am iPhone 17e mit dem gemergten Stand (Update-Install, ohne Netz zu A-Trust): Start ohne Prüfmodus und ohne
+Keystore-Begriffe (76), Stapel mit Datenschutzhinweis in der Mehrzahl (77), Kopfzeile eines Stapeleintrags ohne
+Überlappung (78), Stapelpause mit stehenden Knöpfen (79), Abbruch ohne Signatur (80), per „Teilen“ empfangene Kopie
+eines offenen Dokuments → „„Stapel-2.pdf“ ist bereits geöffnet und wurde nicht noch einmal hinzugefügt.“ (81). Danach
+heruntergefahren.
+
+
+Prüfungen nach dem Merge: `cargo test --workspace --no-fail-fast` 1483 bestanden, 0 fehlgeschlagen, 5 ignoriert; `cargo
+clippy --workspace --all-targets -- -D warnings` und `cargo fmt --all --check` ohne Befund; `npm ci && npm run build &&
+npm test` 34 Dateien, 708 Tests; `ts_bindings`, `serde_contract` und die Real-Core-Proben (`workspace`, `batch`,
+`first_run`) mit `PIDA_BLESS=1` ohne weitere Änderung; `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo
+check -p pida-app` für `aarch64-apple-ios-sim` und `aarch64-linux-android` grün.

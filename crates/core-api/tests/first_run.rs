@@ -416,3 +416,225 @@ async fn offer_migration_still_finds_the_legacy_config_after_a_reset() {
         v.notices
     );
 }
+
+// ------------------------------------------------------------------------------------------------
+// Keine Sitzung (A1) und Zustände des echten Kerns für die Oberfläche (B4)
+// ------------------------------------------------------------------------------------------------
+
+fn editing(v: &ViewState) -> bool {
+    v.document.as_ref().is_some_and(|d| d.phase == pida_core_api::DocumentPhase::Editing)
+}
+
+/// F-54/A1: Die Ersteinrichtung (Übernahme mit `BKU=MOBILE`, Standard-Signiermittel ID Austria, automatische
+/// Position, Schritte 2/3, „Fertig“) und das erneute Angebot öffnen keine Sitzung – auch mit offenem Dokument;
+/// nur „Signieren“ tut das.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn first_run_events_never_open_a_session() {
+    use std::sync::atomic::Ordering;
+    let fx = Fixture::new();
+    let legacy = fx.dir("home/.pdf-over");
+    std::fs::write(
+        legacy.join("PDF-Over.config"),
+        "BKU=MOBILE\nMOBILE_NUMBER=+436641234567\nSIGNATURE_POSITION=auto\n",
+    )
+    .unwrap();
+    let a = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &fx.dir("in"), "Antrag.pdf");
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn pida_backend_api::SignatureBackend>> = vec![fake.backend()];
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
+        backends: Some(backends),
+        legacy_dir: Some(legacy),
+        ..CoreOptions::isolated()
+    };
+    let core =
+        pida_core_api::Core::new_with(fx.config(Overlay { input_files: vec![a], ..Overlay::default() }, false), opts)
+            .expect("Kern");
+    wait_for(&core, "Schritt 1", |v| editing(v) && v.first_run.as_ref().is_some_and(|f| f.migration.is_some())).await;
+    core.dispatch(UiEvent::AcceptMigration { store_secrets: false });
+    let v = wait_for(&core, "übernommen", |v| v.first_run.as_ref().is_some_and(|f| f.migration.is_none())).await;
+    assert_eq!(v.first_run.unwrap().default_backend, Some(BackendChoice::IdAustria));
+    core.dispatch(UiEvent::UpdateFirstRun {
+        default_backend: Some(BackendChoice::IdAustria),
+        profile: SignatureProfile::SignaturblockSmall,
+        block_language: None,
+    });
+    core.dispatch(UiEvent::FinishFirstRun);
+    wait_for(&core, "fertig", |v| v.first_run.is_none()).await;
+    core.dispatch(UiEvent::OfferMigration);
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert!(editing(&core.view()), "{:?}", core.view().step);
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "Ersteinrichtung startet nie eine Sitzung");
+}
+
+/// Während des Signierens (Anmeldung offen, `actions.open_files` aus) bleiben „Erneut signieren“ aus „Zuletzt
+/// signiert“ (ADR 0004 Nachtrag 15, auch mit `mode`) und das erneute Übernahmeangebot ohne Wirkung: kein
+/// zusätzliches Dokument in der Warteschlange, kein Angebot, das Einstellungen und Signiermittel tauschte, und
+/// nur die ausdrücklich gestartete Sitzung (A1, F-54). Bis Nachtrag 15 stand dieser Fall in `verify.rs`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn recent_and_migration_events_do_nothing_while_signing() {
+    use std::sync::atomic::Ordering;
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let legacy = fx.dir("home/.pdf-over");
+    std::fs::write(legacy.join("PDF-Over.config"), "BKU=KS\nSIGNATURE_PROFILE=AMTSSIGNATURBLOCK\n").unwrap();
+    let a = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &fx.dir("in"), "Antrag.pdf");
+    let signed = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &fx.dir("out"), "Vertrag_signed.pdf");
+    let entry = pida_config::RecentStore::new(&fx.paths)
+        .push(pida_config::RecentEntry {
+            id: 0,
+            file_name: "Vertrag_signed.pdf".into(),
+            path: signed,
+            signed_at: "2026-10-16T10:00:00+02:00".into(),
+        })
+        .unwrap();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn pida_backend_api::SignatureBackend>> = vec![fake.backend()];
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
+        backends: Some(backends),
+        legacy_dir: Some(legacy),
+        // wie die App: mit Stapelübersicht
+        batch_overview: Some(true),
+        ..CoreOptions::isolated()
+    };
+    let overlay = Overlay { input_files: vec![a], output: Some(fx.dir("out")), ..Overlay::default() };
+    let core = pida_core_api::Core::new_with(fx.config(overlay, false), opts).expect("Kern");
+    wait_for(&core, "Arbeitsbereich", editing).await;
+    core.dispatch(UiEvent::SignWith { backend: pida_backend_api::BackendId::AtrustNative });
+    let v = wait_for(&core, "Anmeldung", |v| matches!(v.step, StepView::Signing { .. })).await;
+    assert!(!v.actions.open_files, "beim Signieren nichts öffnen");
+    assert!(v.recent.as_ref().is_some_and(|r| r.iter().any(|i| i.id == entry.id && i.exists)));
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: None });
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: Some(pida_core_api::OpenFilesMode::Add) });
+    core.dispatch(UiEvent::OfferMigration);
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let v = core.view();
+    assert!(matches!(v.step, StepView::Signing { .. }), "{:?}", v.step);
+    assert!(v.migration.is_none(), "kein Übernahmeangebot mitten im Signieren");
+    assert_eq!(v.document.as_ref().map(|d| d.doc.name.as_str()), Some("Antrag.pdf"));
+    assert!(v.batch.is_none() && !v.notices.iter().any(|n| n.code == "ng-batch-added"), "{:?}", v.notices);
+    assert_eq!(core.open_document_count(), 1, "kein weiteres Dokument geladen");
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "nur die ausdrücklich gestartete Sitzung");
+    // nach dem Abbruch: dasselbe Dokument, keine weiteren in der Warteschlange („Zur Stapelübersicht“ bliebe sonst frei)
+    core.dispatch(UiEvent::Cancel);
+    let v = wait_for(&core, "Arbeitsbereich nach dem Abbruch", editing).await;
+    assert_eq!(v.document.as_ref().map(|d| d.doc.name.as_str()), Some("Antrag.pdf"));
+    assert!(!v.actions.show_batch && v.batch.is_none(), "nichts dazugekommen");
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1);
+}
+
+/// Echte `ViewState`s der Ersteinrichtung für die Oberfläche (B4, ADR 0004 §6.2 Punkt 4; eigene Datei neben
+/// `real-core-views.json` und `real-core-batch-views.json`): ohne und mit Übernahmeangebot (Liste der
+/// Übernahmen) und nach dem Übernehmen. Pfade und Zeitpunkte ersetzt. Die Zustände des Prüfmodus sind mit ihm
+/// entfallen (ADR 0004 Nachtrag 15). Neu schreiben:
+/// `PIDA_BLESS=1 cargo test -p pida-core-api --test first_run real_core_tools_views`.
+const UI_FIXTURE: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../../apps/app/src/core/fixtures/real-core-tools-views.json");
+
+fn fixture_state(v: &ViewState, roots: &[(String, &str)]) -> serde_json::Value {
+    fn walk(value: &mut serde_json::Value, roots: &[(String, &str)]) {
+        match value {
+            serde_json::Value::String(s) => {
+                for (from, to) in roots {
+                    if s.contains(from.as_str()) {
+                        *s = s.replace(from.as_str(), to);
+                    }
+                }
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(|i| walk(i, roots)),
+            serde_json::Value::Object(map) => {
+                for (key, item) in map.iter_mut() {
+                    if matches!(key.as_str(), "signing_time" | "occurred_at" | "signed_at") && item.is_string() {
+                        *item = serde_json::Value::String("2026-10-15T10:42:17+02:00".into());
+                    } else {
+                        walk(item, roots);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut value = serde_json::to_value(v).expect("ViewState serialisierbar");
+    walk(&mut value, roots);
+    value["language"] = serde_json::Value::String("de".into());
+    value
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn real_core_tools_views_for_the_ui() {
+    let mut states: Vec<(String, ViewState)> = Vec::new();
+    let mut roots: Vec<(String, &str)> = Vec::new();
+    let mut add_roots = |fx: &Fixture| {
+        let tmp = fx.tmp.path().to_path_buf();
+        for p in [tmp.clone(), tmp.canonicalize().unwrap_or(tmp)] {
+            roots.push((p.display().to_string(), "/Users/test"));
+        }
+    };
+
+    // Ersteinrichtung ohne Übernahmeangebot (Neuinstallation)
+    let fx = Fixture::new();
+    add_roots(&fx);
+    let core = start(&fx, None, |_| {});
+    let v = wait_for(&core, "Ersteinrichtung", |v| v.first_run.as_ref().is_some_and(|f| f.preview_revision > 0)).await;
+    states.push(("first_run_fresh".into(), v));
+    drop(core);
+
+    // Ersteinrichtung mit Übernahmeangebot, danach übernommen
+    let fx = Fixture::new();
+    add_roots(&fx);
+    let legacy = fx.dir("home/.pdf-over");
+    let out = fx.dir("home/Dokumente/Signiert");
+    let emblem = fx.dir("home/Bilder").join("firmenlogo.png");
+    std::fs::copy(testdata("config/legacy-home/.pdf-over/.emblem.png"), &emblem).unwrap();
+    std::fs::write(
+        legacy.join("PDF-Over.config"),
+        format!(
+            "BKU=MOBILE\nMOBILE_NUMBER=+436641234567\nOUTPUT_FOLDER={}\nSIGNATURE_PROFILE=SIGNATURBLOCK_SMALL\n\
+             SIGNLOCALE=de\nEMBLEM={}\nKEYSTORE_ENABLED=true\nKEYSTORE_FILE={}\nPROXY_HOST=proxy.example.test\n\
+             PROXY_PORT=3128\nUSE_PLACEHOLDER_SEARCH=true\nUSE_MARKER=true\nLOCALE=de\n",
+            out.display(),
+            emblem.display(),
+            fx.dir("home/Dokumente").join("test-rsa2048.p12").display()
+        ),
+    )
+    .unwrap();
+    let core = start(&fx, Some(&legacy), |_| {});
+    let v = wait_for(&core, "Schritt 1", |v| {
+        v.first_run
+            .as_ref()
+            .is_some_and(|f| f.preview_revision > 0 && f.migration.as_ref().is_some_and(|m| m.items.len() == 8))
+    })
+    .await;
+    let preview = v.first_run.as_ref().unwrap().preview_revision;
+    states.push(("first_run_migration".into(), v));
+    core.dispatch(UiEvent::AcceptMigration { store_secrets: false });
+    let v = wait_for(&core, "übernommen", |v| {
+        v.first_run.as_ref().is_some_and(|f| f.migration.is_none() && f.preview_revision > preview)
+    })
+    .await;
+    states.push(("first_run_imported".into(), v));
+    core.dispatch(UiEvent::FinishFirstRun);
+    let v = wait_for(&core, "fertig", |v| v.first_run.is_none()).await;
+    states.push(("first_run_done".into(), v));
+    drop(core);
+
+    let fixture: serde_json::Map<String, serde_json::Value> =
+        states.iter().map(|(name, v)| (name.clone(), fixture_state(v, &roots))).collect();
+    if std::env::var_os("PIDA_BLESS").is_some() {
+        let text = serde_json::to_string_pretty(&fixture).unwrap() + "\n";
+        std::fs::write(UI_FIXTURE, text).expect("Fixture schreiben");
+        return;
+    }
+    let text = std::fs::read_to_string(UI_FIXTURE).expect("Fixture lesen (PIDA_BLESS=1 erzeugt sie)");
+    let stored: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&text).unwrap();
+    for name in fixture.keys() {
+        assert!(stored.contains_key(name), "real-core-tools-views.json ohne {name}: PIDA_BLESS=1 neu erzeugen");
+    }
+    for (name, value) in stored {
+        let _: ViewState = serde_json::from_value(value)
+            .unwrap_or_else(|e| panic!("{name}: real-core-tools-views.json passt nicht mehr zum Vertrag ({e})"));
+    }
+}

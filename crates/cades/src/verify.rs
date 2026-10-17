@@ -126,8 +126,8 @@ pub struct CmsInfo {
     /// Länge des DER.
     pub der_len: usize,
     /// Signerzertifikat des ersten SignerInfo (über IssuerAndSerialNumber bzw. SubjectKeyIdentifier), falls
-    /// im CMS enthalten – **ohne** kryptografische Prüfung (Anzeige im Prüfmodus auch bei veränderter bzw.
-    /// nicht prüfbarer Signatur, ADR 0004 §3.9; additiv).
+    /// im CMS enthalten – **ohne** kryptografische Prüfung (Angaben von `pades::verify_document` auch bei
+    /// veränderter bzw. nicht prüfbarer Signatur; additiv).
     pub signer: Option<Certificate>,
     /// `signing-time` des ersten SignerInfo, falls lesbar – ungeprüfte Angabe des Signierenden (additiv).
     pub signing_time: Option<OffsetDateTime>,

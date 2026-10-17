@@ -563,8 +563,9 @@ fn cms_error_codes_are_stable_and_distinct() {
     assert!(codes.iter().all(|c| c.starts_with("cms-")));
 }
 
-/// ADR 0004 §3.9: `parse_cms` liefert Signerzertifikat und `signing-time` ohne Prüfung – auch für ein CMS,
-/// dessen Prüfung scheitert (verändertes Dokument), damit der Prüfmodus Unterzeichner und Zeitpunkt nennt.
+/// ADR 0004 §3.17: `parse_cms` liefert Signerzertifikat und `signing-time` ohne Prüfung – auch für ein CMS,
+/// dessen Prüfung scheitert (verändertes Dokument), damit `pades::verify_document` Unterzeichner und Zeitpunkt
+/// nennt.
 #[test]
 fn parse_cms_names_signer_and_time_without_verification() {
     let content = content();

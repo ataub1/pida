@@ -1,16 +1,21 @@
 /**
  * „Zuletzt signiert“ auf der Startansicht (ADR 0004 §2.1, §3.10; Gestalt aus dem Prototyp): höchstens zehn
  * Einträge aus `ViewState::recent` (neueste zuerst, vom Kern), je Eintrag Name und Zeitpunkt – kein
- * Signiermittel, kein Unterzeichner (Datenschutz). Ein Eintrag öffnet den Prüfmodus (`verify_recent`, der
- * Kern liefert danach `ViewState::verify`); fehlt die Datei, meldet das der Kern (`ng-recent-missing`), der
- * Eintrag bleibt – Entfernen ist eine ausdrückliche Aktion (`remove_recent`). `recent = null` (abgeschaltet
- * bzw. per Richtlinie aus) blendet die Karte aus.
+ * Signiermittel, kein Unterzeichner (Datenschutz). `recent = null` (abgeschaltet bzw. per Richtlinie aus) blendet
+ * die Karte aus.
+ *
+ * Ein Eintrag bietet, was „Fertig“ kann (ADR 0004 Nachtrag 15; einen Prüfmodus gibt es nicht mehr): der Eintrag
+ * selbst und „Öffnen“ öffnen die Datei mit der Standardanwendung bzw. auf Mobilgeräten als Vorschau (`open_recent`),
+ * dazu im Menü „Im Ordner zeigen“ (Desktop, `reveal_recent`) bzw. „Teilen“ (Mobile, `share_recent`) und „Erneut
+ * signieren“ – wie „Öffnen“ in den Arbeitsbereich (`sign_recent`, bei geparkter Arbeit mit der Rückfrage der Shell).
+ * Den Pfad kennt nur der Kern; fehlt die Datei, meldet er das (`ng-recent-missing`), der Eintrag bleibt – Entfernen
+ * ist eine ausdrückliche Aktion (`remove_recent`).
  */
-import { Button as AriaButton } from 'react-aria-components';
+import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, type Key } from 'react-aria-components';
 import { useApp } from '../../app/context';
-import type { RecentItemView } from '../../core/types';
+import { isMobile, type RecentItemView } from '../../core/types';
 import { IconButton } from '../../ui/controls';
-import { IconChevronRight, IconClose, IconFileText } from '../../ui/Icons';
+import { IconClose, IconFileText, IconFolder, IconMore, IconShare, IconSignature } from '../../ui/Icons';
 import './recent.css';
 
 /** Props der Liste „Zuletzt signiert“ (in E0 festgelegt). */
@@ -29,10 +34,17 @@ function formatTime(iso: string, lang: string): string {
 }
 
 export function RecentPanel({ items }: RecentPanelProps) {
-  const { t, dispatch } = useApp();
+  const { t, view, dispatch, signRecent } = useApp();
   if (items === null) return null;
-  // Prüfmodus öffnen; eine fehlende Datei meldet der Kern selbst (`ng-recent-missing`)
-  const open = (item: RecentItemView) => void dispatch({ type: 'verify_recent', id: item.id });
+  const mobile = isMobile(view);
+  // eine fehlende Datei meldet der Kern selbst (`ng-recent-missing`)
+  const open = (item: RecentItemView) => void dispatch({ type: 'open_recent', id: item.id });
+  const onAction = (item: RecentItemView, key: Key) => {
+    if (key === 'open') open(item);
+    else if (key === 'reveal') void dispatch({ type: 'reveal_recent', id: item.id });
+    else if (key === 'share') void dispatch({ type: 'share_recent', id: item.id });
+    else if (key === 'sign') signRecent(item.id);
+  };
   return (
     <section className="side-card recent-card" aria-labelledby="recent-title" data-testid="recent-panel">
       <h2 className="side-title" id="recent-title">
@@ -44,6 +56,7 @@ export function RecentPanel({ items }: RecentPanelProps) {
         <ul className="recent-list">
           {items.slice(0, RECENT_MAX).map((item) => {
             const metaId = `recent-meta-${item.id}`;
+            const more = t.t('ng-ui-recent-more', { name: item.file_name });
             return (
               <li key={item.id} className={`recent-entry${item.exists ? '' : ' is-missing'}`}>
                 <AriaButton
@@ -62,8 +75,43 @@ export function RecentPanel({ items }: RecentPanelProps) {
                       {item.exists ? null : <span className="recent-missing"> · {t.t('ng-ui-recent-missing')}</span>}
                     </span>
                   </span>
-                  <IconChevronRight size={16} className="recent-caret" />
                 </AriaButton>
+                <MenuTrigger>
+                  <IconButton label={more} size="sm" className="recent-more">
+                    <IconMore size={16} />
+                  </IconButton>
+                  <Popover className="popover" placement="bottom end" offset={4}>
+                    <Menu className="menu recent-menu" aria-label={more} onAction={(key) => onAction(item, key)} disabledKeys={view.actions.open_files ? [] : ['sign']}>
+                      <MenuItem id="open" className="menu-item" textValue={t.t('ng-ui-fin-open')}>
+                        <span className="menu-item-icon" aria-hidden="true">
+                          <IconFileText size={18} />
+                        </span>
+                        <span className="menu-item-label">{t.t('ng-ui-fin-open')}</span>
+                      </MenuItem>
+                      {mobile ? (
+                        <MenuItem id="share" className="menu-item" textValue={t.t('ng-ui-fin-share')}>
+                          <span className="menu-item-icon" aria-hidden="true">
+                            <IconShare size={18} />
+                          </span>
+                          <span className="menu-item-label">{t.t('ng-ui-fin-share')}</span>
+                        </MenuItem>
+                      ) : (
+                        <MenuItem id="reveal" className="menu-item" textValue={t.t('ng-ui-fin-reveal')}>
+                          <span className="menu-item-icon" aria-hidden="true">
+                            <IconFolder size={18} />
+                          </span>
+                          <span className="menu-item-label">{t.t('ng-ui-fin-reveal')}</span>
+                        </MenuItem>
+                      )}
+                      <MenuItem id="sign" className="menu-item" textValue={t.t('ng-ui-recent-sign')}>
+                        <span className="menu-item-icon" aria-hidden="true">
+                          <IconSignature size={18} />
+                        </span>
+                        <span className="menu-item-label">{t.t('ng-ui-recent-sign')}</span>
+                      </MenuItem>
+                    </Menu>
+                  </Popover>
+                </MenuTrigger>
                 <IconButton label={t.t('ng-ui-recent-remove', { name: item.file_name })} size="sm" className="recent-remove" onPress={() => void dispatch({ type: 'remove_recent', id: item.id })}>
                   <IconClose size={14} />
                 </IconButton>

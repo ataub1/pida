@@ -1,32 +1,33 @@
 /**
  * Start/Leerzustand (Gestalt aus dem Prototyp, ADR 0004 §2.1): große Ablagefläche, „PDF auswählen“,
- * daneben der Slot „Zuletzt signiert“ (Paket UI-B, `RecentPanel`) und der Hinweis auf den Prüfmodus (erst,
- * wenn der Kern ihn freigibt). Die Ablagefläche ist nur optisch: Dateien kommen über die
+ * daneben der Slot „Zuletzt signiert“ (Paket UI-B, `RecentPanel`; ohne Liste eine Spalte). Einen Prüfmodus gibt
+ * es nicht (ADR 0004 Nachtrag 15). Die Ablagefläche ist nur optisch: Dateien kommen über die
  * Fenster-Ereignisse der Shell (Pfade, `bridge.onFileDrag`); hervorgehoben wird sie beim Ziehen
  * (`dragActive`). Die Oberfläche filtert nicht nach Endung – der Kern meldet Nicht-PDFs.
  *
  * Mobile: keine Ablagefläche und keine Tastenkürzel, Knopf „Dokument auswählen“ (Dokument-Picker bzw.
  * SAF) und der Hinweis auf „Teilen“/„Öffnen in“.
  *
+ * Unter dem Knopf steht je Plattform, wie die Dateiauswahl mehrere PDFs auf einmal übernimmt (ADR 0004 Nachtrag 17).
+ *
  * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
  * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
  */
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
-import { AccessButton, Button, Keys, useModKey } from '../../ui/controls';
-import { IconLock, IconShieldCheck, IconUpload } from '../../ui/Icons';
+import { AccessButton, Keys, useModKey } from '../../ui/controls';
+import { IconLock, IconUpload } from '../../ui/Icons';
 import { batchFlow, dropHintMsg } from '../batch/flow';
 import { RECENT_AVAILABLE, RecentPanel } from '../recent';
 import { ParkedCard } from './ParkedCard';
 import './start.css';
 
-export function StartView({ onVerify }: { onVerify: () => void }) {
+export function StartView() {
   const { t, view, dragActive, browse } = useApp();
   const { mod } = useModKey();
   const mobile = isMobile(view);
   const showRecent = RECENT_AVAILABLE && view.recent !== null;
-  const showVerify = view.actions.verify;
-  const single = !showRecent && !showVerify;
+  const single = !showRecent;
   return (
     <div className={`start-view${single ? ' is-single' : ''}`}>
       <div className="start-main">
@@ -50,6 +51,9 @@ export function StartView({ onVerify }: { onVerify: () => void }) {
             {/* mehrere Dateien = Stapel: Wortlaut je Standard-Signiermittel (Kern: `batch_flow`), sonst neutral */}
             <p className="drop-hint">{t.t(mobile ? 'ng-ui-start-drop-hint-mobile' : dropHintMsg(batchFlow(view, view.signers.selected ?? view.signers.default)))}</p>
             <AccessButton msg={mobile ? 'ng-ui-start-pick-mobile' : 'ng-ui-start-pick'} variant="primary" size="lg" onPress={() => void browse()} isDisabled={!view.actions.open_files} />
+            {/* wie die System-Dateiauswahl mehrere PDFs übernimmt (macOS: Doppelklick nimmt nur eines; Android: Antippen
+                nimmt sofort eines; ADR 0004 Nachtrag 17) */}
+            <p className="drop-multi">{t.t('ng-ui-start-multi-hint', { os: view.platform.os })}</p>
             <p className="drop-foot">
               <span className="drop-foot-item">
                 <IconLock size={14} />
@@ -68,19 +72,7 @@ export function StartView({ onVerify }: { onVerify: () => void }) {
 
       {single ? null : (
         <aside className="start-side" aria-label={t.t('ng-ui-start-side')}>
-          {showRecent ? <RecentPanel items={view.recent} /> : null}
-          {showVerify ? (
-            <section className="side-card side-card-verify">
-              <span className="side-icon" aria-hidden="true">
-                <IconShieldCheck size={22} />
-              </span>
-              <h2 className="side-title">{t.t('ng-ui-start-verify-title')}</h2>
-              <p className="muted">{t.t('ng-ui-start-verify-text')}</p>
-              <Button variant="secondary" onPress={onVerify}>
-                {t.t('ng-ui-start-verify-button')}
-              </Button>
-            </section>
-          ) : null}
+          <RecentPanel items={view.recent} />
         </aside>
       )}
     </div>
