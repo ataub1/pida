@@ -488,7 +488,8 @@ jobs:
             macOS) HOME="$home" "target/debug/bundle/macos/PIDA.app/Contents/MacOS/pida" ;;
             Windows) APPDATA="$home" LOCALAPPDATA="$home" target/debug/pida.exe ;;
           esac | tee smoke.txt
-          grep -q '^pida-smoke: ok' smoke.txt
+          # pdfium=true: die Bibliothek aus dem Bundle ist geladen (ad hoc mit Hardened Runtime lehnte macOS sie ab)
+          grep -q '^pida-smoke: ok .*pdfium=true' smoke.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pida-debug-${{ matrix.os }}
