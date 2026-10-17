@@ -2639,3 +2639,84 @@ nicht verloren gehen; core-api projiziert ihn als Dokumentauswahl. Zusätzlich z
 Analysewarnung und „Fertig“ ohne Speichern (`ParkedWorkView::unsaved`, damit „Schließen“ die nicht gespeicherte
 Signatur nicht ohne Rückfrage verwirft). Ob „Schließen“ nachfragt, entscheidet die Oberfläche an den Angaben des Kerns
 (wie Nachtrag 9). Das Parken übersteht keinen Neustart der App (nicht persistiert).
+
+### Nachtrag 17 (17.10.2026): Mehrfachauswahl – alle gewählten PDFs, Hinweise statt stillem Verwerfen
+
+Meldung des Auftraggebers (macOS-Desktop, Release-Bundle Stand 6656e62): „Wenn ich auf der Home-Seite über den
+Datei-Dialog mehrere Dateien auswähle, übernimmt er trotzdem nur eine Datei.“ (Fehler 2 der Abnahme vom 16.10.2026.)
+
+**Befund.** Die Kette Dialog → Kern übernimmt mehrere Dateien: `browse()` öffnet den Dialog mit `multiple: true`
+(außer „Anderes PDF öffnen“), `@tauri-apps/plugin-dialog` 2.8.3 ruft dann rfd 0.16 `pick_files` (NSOpenPanel mit
+`allowsMultipleSelection`, Ergebnis `URLs` vollständig), `bridge.ts` reicht alle Pfade weiter, alle Einstiege
+(Startseite, ⌘/Strg+O, Palette, Stapel „PDF hinzufügen“, Miniaturleiste, „+ PDF“, `ParkedJoinDialog`) schicken sie
+unverändert als `open_files`, der Kern nimmt sie in der Reihenfolge der Auswahl (ab zwei als Stapel). Das
+NSOpenPanel läuft unter macOS 27 auch für nicht sandboxte Apps als entfernter Dienst (`NSRemoteView`,
+`openAndSavePanelService`); ohne Bedienungshilfen-Freigabe lässt es sich nicht fernsteuern (geprüft mit einer Probe
+in derselben Konfiguration wie rfd, ohne Sicherheitseinstellungen zu ändern) – belegt ist die Kette deshalb über
+Tests mit nachgebildeter Tauri-Laufzeit (`core/bridge.tauri.test.ts`), UI-Tests aller Einstiege
+(`app/multi.test.tsx`) und den echten Kern (`crates/core-api/tests/open_files.rs`). Das Log der App und das
+System-Log des Panel-Dienstes zeigen zu den drei Auswahlen des Berichts: 20:50:32 und 20:51:00 je ein **Doppelklick**
+auf eine Datei (Doppelklick übernimmt im Panel nur die angeklickte Datei), 20:51:58 mehrere Klicks und „Öffnen“
+bei geparktem Stapel – der Kern nahm genau **ein** neues Dokument auf (`effects=1`). Die Zahl der Pfade steht
+nicht im Log; die einzige Stelle der Kette, die gewählte Dateien verwirft, ist der Duplikatvergleich (Pfad, F-89),
+und der verwarf **ohne jeden Hinweis** (ebenso Pfade ohne Datei). Waren unter den markierten Dateien solche, die
+schon im Stapel lagen, sieht das für die Nutzerin aus, als übernähme die Auswahl nur eine Datei. Unter iOS/Android gab es dazu das Gegenstück: jede Auswahl
+legt neue Sandbox-Kopien an, der Pfadvergleich erkennt dort **kein** Duplikat (dasselbe PDF zweimal im Stapel), und
+nicht kopierbare Dateien (nicht lesbar, zu groß) verschwanden ebenfalls still.
+
+**Regeln.**
+
+1. **Alle gewählten Dateien, Reihenfolge der Auswahl** – so, wie die Systemauswahl sie liefert (macOS: `URLs` des
+   NSOpenPanel; iOS 27: Anzeige-Reihenfolge des Ordners, nicht die Reihenfolge des Antippens); Bridge, Plugin und Kern
+   ändern sie nicht. Das Verhalten bleibt; neu sind Tests je Einstieg und im Kern (Startseite, geparkte Arbeit mit „Zum Stapel
+   hinzufügen“ bzw. „Offene schließen und neu beginnen“, „Weitere PDFs hinzufügen“, Stapelübersicht, Mobile).
+2. **Duplikate mit Hinweis** (core-api `opening.rs`, `select_documents`/`report_selection` um den Reducer herum):
+   Was als „schon offen“ gilt, entscheidet weiter der Reducer nach dem Zustand (Pfadvergleich der Warteschlange,
+   F-89; „Offene schließen und neu beginnen“ schließt zuerst, die gewählten sind danach kein Duplikat). Nach dem
+   Übergang zählt der Kern die neuen Dokumente, die nicht offen sind, obwohl ein offenes denselben Pfad hat, und
+   meldet `ng-open-duplicates` (`$count`, bei einem Dokument `$file`; neue Meldungs-ID in `pida.ftl`) – auch wenn
+   nichts dazukommt (bisher still). Doppelt in derselben Auswahl zählt ebenso.
+3. **Mobile: Kopien nach Inhalt.** Auf iOS/Android (`!Platform::is_desktop`) gilt eine Sandbox-Kopie mit gleichem
+   Dateinamen und byte-gleichem Inhalt wie ein offenes bzw. in derselben Auswahl früher gewähltes Dokument als
+   dasselbe Dokument: sie bekommt vor dem Reducer dessen Pfad, danach gilt 2. Auf dem Desktop bleibt es beim
+   Pfadvergleich (zwei gleiche Dateien in verschiedenen Ordnern sind zwei Dokumente).
+4. **Fehlende Dateien mit Hinweis:** Pfade ohne (vorhandene) Datei – abgelegter Ordner, inzwischen gelöschte Datei
+   (F-12) – meldet der Kern als `ng-open-missing` (`$count`); die übrigen öffnen. Vorhandene, aber nicht lesbare PDFs
+   übernimmt der Kern wie bisher; die Analyse meldet sie (Fehlerschritt bzw. Stapeleintrag „abgelehnt“).
+5. **Mobile-Auswahl zählt nicht kopierte Dateien:** native Antwort von `importFile` additiv
+   `{ files, skipped }` (Swift `SandboxFiles.copyAll`, Kotlin `Documents.copyEach`; ältere Antwort ohne Feld = 0),
+   Plugin `PidaMobile::import_files` → `Imported { files, skipped }` (Kopien außerhalb des Zielordners zählen mit),
+   Command `mobile_pick_files` → `{ paths, skipped }`. Bridge: neu `pickMobileDocuments({ multiple })` →
+   `MobilePick`; `pickMobileFiles` (Keystore-Import, Prüfmodus) liefert unverändert nur die Pfade. `browse()` zeigt bei
+   `skipped > 0` den Hinweis `ng-ui-shell-pick-skipped` (`$count`, Toast; kein Dialog).
+6. **Wie man mehrere markiert** (kein Verhalten des Kerns, nur Text): Mehrfachauswahl-Dialoge tragen statt
+   „Durchsuchen um ein Dokument zu wählen“ die Hinweiszeile `ng-ui-shell-pick-title` (`$os`; macOS:
+   „PDF-Dokumente wählen – mehrere mit ⌘-Klick markieren, dann „Öffnen““, sonst Strg-Klick; rfd setzt sie unter macOS
+   als `message`, sonst als Fenstertitel). „Anderes PDF öffnen“ bleibt Einzelauswahl mit dem bisherigen Titel. Die
+   Startseite nennt unter „PDF auswählen“ bzw. „Dokument auswählen“ den Weg je Plattform (`ng-ui-start-multi-hint`,
+   `$os`: macOS ⌘-Klick, Windows/Linux Strg-Klick, iOS PDFs antippen (Häkchen) und „Öffnen“, Android lange drücken,
+   weitere antippen, „Auswählen“) – unter Android übernimmt ein einfaches Antippen sofort genau eine Datei, unter macOS
+   ein Doppelklick. iOS 27 zeigt in der Dateiauswahl mit Mehrfachauswahl gleich Auswahlkreise (geprüft auf dem
+   Simulator, Aufnahmen `docs/integration/screenshots/fix-multi/ios-*`).
+7. **Vertrag:** keine Änderung an `ViewState`/`UiEvent` (neue Meldungs-IDs, Shell-Command-Ergebnis und Bridge sind
+   intern); `ts_bindings` und Fixtures unverändert. Der Mock folgt dem Kern (`reportDuplicates`).
+8. **Tests:** echter Kern `crates/core-api/tests/open_files.rs` (8: Reihenfolge, doppelt in einer Auswahl, geparkter
+   Stapel und Übersicht, Arbeitsbereich „Weitere PDFs hinzufügen“, „Offene schließen und neu beginnen“, fehlende
+   Dateien/Ordner, Mobile-Kopien iOS/Android, Desktop-Pfadvergleich) und `opening.rs` (Inhaltsvergleich); Plugin
+   `import_files` (Reihenfolge, `skipped`, ältere Antwort), Swift-Logik auf dem Mac (`tests/ios_logic.rs` übersetzt
+   `ios/Tests/SandboxFilesCheck.swift` mit `SandboxFiles.swift`), Kotlin `DocumentsTest.multipleSelectionKeepsOrderAndCountsFailures`;
+   UI `app/multi.test.tsx` (alle Einstiege, Titel je Plattform, Hinweise, Mobile) und `core/bridge.tauri.test.ts`.
+
+9. **Gerätenachweis** (`docs/integration/screenshots/fix-multi/`): macOS-Debug-Bundle mit eigener Kennung
+   `at.pida.fixmulti` und leerem `PIDA_HOME` – drei PDFs über „Öffnen mit“ (`open -a`, `RunEvent::Opened` →
+   `open_files`) als Stapel in Reihenfolge, danach zwei offene und ein neues → „4 Dokumente“ und der Hinweis
+   (`mac-01` bis `mac-03`; den Systemdialog selbst kann ohne Bedienungshilfen niemand fernsteuern). iOS 27 auf einem
+   temporären Simulator (iPhone 17e, danach gelöscht), Dateiauswahl per XCUITest-Hilfsprojekt: drei PDFs markiert →
+   Stapel mit drei, dann zwei offene (neue Sandbox-Kopien) und ein neues → „4 Dokumente“ und der Hinweis (`ios-01`
+   bis `ios-05`). Android: der Emulator war von einem anderen Lauf belegt – belegt über die Kotlin-Unit-Tests
+   (Gradle `testDebugUnitTest` 6/6) und `cargo check`/`clippy` für `aarch64-linux-android`.
+
+**Nicht Teil dieses Nachtrags:** Teilen mehrerer PDFs aus der Dateien-App liefert unter iOS nur das erste (fehlende
+Share-Extension; Entscheidung: nur Hinweis, eigener Lauf). Der Filter „Alle Dateien (*)“ wirkt unter macOS nicht
+(rfd fasst alle Filter zu `allowedFileTypes = [pdf, *]` zusammen, `*` wird zu einem dynamischen Typ) – wählbar sind
+dort nur PDFs; unverändert.

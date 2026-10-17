@@ -96,6 +96,14 @@
   justify-content: center;
   gap: var(--sp-2);
 }
+/* Mehrfachauswahl: wie die Dateiauswahl mehrere PDFs übernimmt (ADR 0004 Nachtrag 17) */
+.drop-multi {
+  max-width: 46ch;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+  text-wrap: balance;
+}
 .drop-foot {
   display: flex;
   flex-wrap: wrap;

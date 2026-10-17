@@ -624,6 +624,16 @@ ng-parked-files-added =
         [one] Das Dokument wurde zur offenen Arbeit hinzugefügt.
        *[other] { $count } Dokumente wurden zur offenen Arbeit hinzugefügt.
     }
+ng-open-duplicates =
+    { $count ->
+        [one] „{ $file }“ ist bereits geöffnet und wurde nicht noch einmal hinzugefügt.
+       *[other] { $count } der gewählten Dokumente sind bereits geöffnet und wurden nicht noch einmal hinzugefügt.
+    }
+ng-open-missing =
+    { $count ->
+        [one] Eine gewählte Datei wurde nicht übernommen – sie ist nicht (mehr) vorhanden oder keine Datei.
+       *[other] { $count } gewählte Dateien wurden nicht übernommen – sie sind nicht (mehr) vorhanden oder keine Dateien.
+    }
 ng-batch-done = { $signed } von { $total } Dokumenten signiert.
 ng-batch-nothing-to-sign = Im Stapel ist kein Dokument zum Signieren bereit.
 ng-batch-output-folder-required = Bitte wählen Sie vor dem Start einen Ordner für die signierten Dokumente.

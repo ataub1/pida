@@ -221,7 +221,9 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, [current.parked]);
 
   // `mode` aus „+ PDF“ (ADR 0004 Nachtrag 9): „Anderes PDF öffnen“ wählt eine Datei, sonst Mehrfachauswahl;
-  // was daraus folgt (Stapel, Schließen), entscheidet der Kern
+  // was daraus folgt (Stapel, Schließen), entscheidet der Kern. Alle gewählten Pfade gehen in der Reihenfolge der
+  // Auswahl an den Kern; Duplikate und fehlende Dateien meldet der Kern (ADR 0004 Nachtrag 17)
+  const os = current.platform.os;
   const browse = useCallback(
     async (mode?: OpenFilesMode) => {
       const multiple = mode !== 'replace';
@@ -230,9 +232,11 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         else void dispatch(mode ? { type: 'open_files', paths, mode } : { type: 'open_files', paths });
       };
       if (mobile) {
-        // Mobile: Dokument-Picker bzw. SAF über das Plugin; Kopien in der Sandbox (keine Pfade der Quelle)
+        // Mobile: Dokument-Picker bzw. SAF über das Plugin; Kopien in der Sandbox (keine Pfade der Quelle). Nicht
+        // kopierbare Dateien (nicht lesbar, zu groß) zählt die native Seite – kurzer Hinweis statt stillem Verwerfen
         try {
-          const paths = await bridge.pickMobileFiles({ kind: 'pdf', multiple });
+          const { paths, skipped } = await bridge.pickMobileDocuments({ multiple });
+          if (skipped > 0) toast(t.t('ng-ui-shell-pick-skipped', { count: skipped }), 'error');
           if (paths.length > 0) open(paths);
         } catch (e) {
           const code = e instanceof Error ? e.message : 'ng-ui-dialog-failed';
@@ -242,7 +246,9 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       }
       try {
         const paths = await bridge.pickFiles({
-          title: t.t('dataSourceSelection-browse'),
+          // Mehrfachauswahl: die Hinweiszeile des Dialogs sagt, wie mehrere markiert werden (macOS: ein Doppelklick
+          // übernimmt nur die angeklickte Datei)
+          title: multiple ? t.t('ng-ui-shell-pick-title', { os }) : t.t('dataSourceSelection-browse'),
           multiple,
           filters: [
             { name: t.t('common-PDFExtension_Description'), extensions: ['pdf'] },
@@ -254,7 +260,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         toast(t.t('ng-ui-dialog-failed'), 'error');
       }
     },
-    [bridge, dispatch, t, toast, mobile],
+    [bridge, dispatch, t, toast, mobile, os],
   );
 
   /** Prüfmodus: Datei wählen → `open_verify` (Freigabe `actions.verify`, ab K4). */

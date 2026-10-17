@@ -17,7 +17,7 @@
  * der Warteschlange; mit `batchOverview` bei ≥ 2 Dokumenten, ADR 0004 §3.8).
  */
 import { defaultErrorContext, defaultSigners, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../defaults';
-import type { Bridge, FileDragEvent } from '../bridge';
+import type { Bridge, FileDragEvent, MobilePick } from '../bridge';
 import type {
   ActionsView,
   BackendId,
@@ -211,6 +211,12 @@ function blockLang(ctx: MockCtx): Lang {
 
 function current(s: FlowState): MockDoc | null {
   return s.queue[0] ?? null;
+}
+
+/** offene Dokumente (Arbeitsbereich, Warteschlange, Stapel; auch geparkt) */
+function openDocs(s: FlowState): MockDoc[] {
+  const all = [...s.queue, ...(s.batch?.docs() ?? [])];
+  return all.filter((d, i) => all.findIndex((x) => x.id === d.id) === i);
 }
 
 function makeDoc(s: FlowState, path: string, specOverride?: MockDocSpec): MockDoc {
@@ -1308,6 +1314,8 @@ export class MockCore implements Bridge {
   readonly openedUrls: string[] = [];
   /** Aufrufe nativer Dienste (Tests) */
   readonly nativeCalls: string[] = [];
+  /** Optionen der Dateidialoge (`pickFiles`; Tests: Titel bzw. Hinweiszeile, Mehrfachauswahl) */
+  readonly pickFilesCalls: Array<{ title: string; multiple: boolean }> = [];
 
   private readonly opts: MockOptions;
   private readonly listeners = new Set<(v: ViewState) => void>();
@@ -1398,6 +1406,17 @@ export class MockCore implements Bridge {
     return blockPreviewSvg(settings, settings.signature.block_language ?? settings.general.ui_language ?? this.opts.language ?? 'de', scale, revision);
   }
 
+  /**
+   * Wie der Kern (`report_selection`, ADR 0004 Nachtrag 17): gewählte Dokumente, die schon offen waren bzw. doppelt
+   * in der Auswahl stehen, kommen nicht noch einmal dazu – Hinweis `ng-open-duplicates` statt stillem Verwerfen.
+   */
+  private reportDuplicates(paths: string[], openBefore: Set<DocId>): void {
+    const after = openDocs(this.flow);
+    const dups = paths.filter((p, i) => after.some((d) => d.path === p && openBefore.has(d.id)) || paths.indexOf(p) < i);
+    if (dups.length === 0) return;
+    this.notify('ng-open-duplicates', dups.length === 1 ? { count: '1', file: fileNameOf(dups[0] ?? '') } : { count: String(dups.length) });
+  }
+
   async dispatch(event: UiEvent): Promise<void> {
     this.dispatched.push(event);
     if (this.forced) return; // feste Testzustände reagieren nicht; Tests prüfen `dispatched`
@@ -1405,7 +1424,9 @@ export class MockCore implements Bridge {
     // wie K4 (Merge E4): bei offenem Prüfmodus ist das Dokument darunter verdeckt – kein Signieren (F-54)
     const signing = ['sign_with', 'start_batch', 'confirm_position', 'choose_invisible', 'choose_backend'].includes(event.type);
     if (this.verifyState.view && signing) return;
+    const openBefore = event.type === 'open_files' ? new Set(openDocs(this.flow).map((d) => d.id)) : null;
     for (const a of this.areas) a.area.handle(event, a.state, this.ctx);
+    if (event.type === 'open_files' && openBefore) this.reportDuplicates(event.paths, openBefore);
     const session = this.flow.signing ?? this.flow.batch?.session() ?? null;
     if (event.type === 'open_signature_data' && session) {
       const url = session.signatureDataUrl(event.request);
@@ -1426,6 +1447,7 @@ export class MockCore implements Bridge {
 
   async pickFiles(options: { title: string; multiple: boolean }): Promise<string[] | null> {
     this.nativeCalls.push(`pickFiles:${options.multiple ? 'multiple' : 'single'}`);
+    this.pickFilesCalls.push({ title: options.title, multiple: options.multiple });
     const result = this.opts.pickFilesResult === undefined ? ['/Users/demo/Dokumente/Vertrag.pdf', '/Users/demo/Dokumente/Angebot 2026.pdf'] : this.opts.pickFilesResult;
     if (result === null) return null;
     return options.multiple ? [...result] : result.slice(0, 1);
@@ -1449,6 +1471,14 @@ export class MockCore implements Bridge {
     const sandbox = `${SANDBOX}/Library/Caches/import/1`;
     const result = this.opts.pickMobileFilesResult ?? (options.kind === 'pdf' ? [`${sandbox}/Vertrag.pdf`, `${sandbox}/Angebot.pdf`] : [`${sandbox}/test.p12`]);
     return options.multiple ? [...result] : result.slice(0, 1);
+  }
+
+  async pickMobileDocuments(options: { multiple: boolean }): Promise<MobilePick> {
+    this.nativeCalls.push(`pickMobileDocuments:${options.multiple ? 'multiple' : 'single'}`);
+    if (!mobile(this.opts)) throw new Error('ng-mobile-unsupported');
+    const sandbox = `${SANDBOX}/Library/Caches/import/1`;
+    const result = this.opts.pickMobileFilesResult ?? [`${sandbox}/Vertrag.pdf`, `${sandbox}/Angebot.pdf`];
+    return { paths: options.multiple ? [...result] : result.slice(0, 1), skipped: this.opts.pickMobileSkipped ?? 0 };
   }
 
   private platformView(): PlatformView {

@@ -15,6 +15,8 @@ struct CopiedFile: Encodable {
 
 struct FilesResponse: Encodable {
   let files: [CopiedFile]
+  /// gewählt, aber nicht kopiert (nicht lesbar, zu groß, keine Datei)
+  var skipped: Int = 0
 }
 
 enum SandboxFiles {
@@ -108,6 +110,20 @@ enum SandboxFiles {
       if !FileManager.default.fileExists(atPath: candidate.path) { return candidate }
       n += 1
     }
+  }
+
+  /// Kopiert alle `sources` in ihrer Reihenfolge nach `destination` (je Datei ein eigener Unterordner, gleiche
+  /// Namen überschreiben sich nicht); was sich nicht kopieren lässt, zählt als `skipped`. `after` läuft je Quelle
+  /// nach dem Kopieren (z. B. Aufräumen der Picker-Kopie in tmp).
+  static func copyAll(_ sources: [URL], to destination: URL, after: (URL) -> Void = { _ in }) -> FilesResponse {
+    var files: [CopiedFile] = []
+    var skipped = 0
+    for url in sources {
+      if let file = try? copyIn(url, to: destination) { files.append(file) } else { skipped += 1 }
+      after(url)
+    }
+    if skipped > 0 { NSLog("pida-mobile: %d gewählte Datei(en) nicht übernommen", skipped) }
+    return FilesResponse(files: files, skipped: skipped)
   }
 
   /// Kopiert `source` (auch Security-Scoped bzw. aus einem File Provider) nach `<destination>/<n>/<Name>`.

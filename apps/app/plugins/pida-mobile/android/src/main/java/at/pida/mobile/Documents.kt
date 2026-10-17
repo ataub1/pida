@@ -38,12 +38,34 @@ object Documents {
         }
     }
 
+    /**
+     * Mehrfachauswahl (ADR 0004 Nachtrag 17): kopiert alle `sources` in ihrer Reihenfolge; was `copy` nicht
+     * übernehmen kann (Ausnahme), zählt als nicht übernommen – die Oberfläche zeigt dazu einen Hinweis.
+     */
+    fun <S, T> copyEach(sources: List<S>, copy: (S) -> T): Copied<T> {
+        val copied = ArrayList<T>(sources.size)
+        val failures = ArrayList<Exception>()
+        for (source in sources) {
+            try {
+                copied.add(copy(source))
+            } catch (e: Exception) {
+                failures.add(e)
+            }
+        }
+        return Copied(copied, failures)
+    }
+
     /** Liegt `file` innerhalb von `dir` (nach Auflösen von `..` und Symlinks)? */
     fun within(dir: File, file: File): Boolean {
         val d = dir.canonicalFile
         val f = file.canonicalFile
         return f.path.startsWith(d.path + File.separator)
     }
+}
+
+/** Ergebnis von [Documents.copyEach]: Kopien in der Reihenfolge der Auswahl und die Fehler der nicht übernommenen. */
+data class Copied<T>(val files: List<T>, val failures: List<Exception>) {
+    val skipped: Int get() = failures.size
 }
 
 /**

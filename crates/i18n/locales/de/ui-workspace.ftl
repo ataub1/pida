@@ -85,6 +85,20 @@ ng-ui-shell-key-dblclick = Doppelklick
 ng-ui-shell-key-zoom = Vergrößern / Verkleinern
 ng-ui-shell-key-fit = An Breite anpassen
 
+# Mehrfachauswahl (ADR 0004 Nachtrag 17): Titel bzw. Hinweiszeile der System-Dateiauswahl und Hinweis, wie dort
+# mehrere PDFs markiert werden (macOS: ein Doppelklick übernimmt nur die angeklickte Datei; Android: Antippen übernimmt
+# sofort genau eine Datei, mehrere erst nach langem Druck)
+ng-ui-shell-pick-title =
+    { $os ->
+        [macos] PDF-Dokumente wählen – mehrere mit ⌘-Klick markieren, dann „Öffnen“
+       *[other] PDF-Dokumente wählen – mehrere mit Strg-Klick markieren, dann „Öffnen“
+    }
+ng-ui-shell-pick-skipped =
+    { $count ->
+        [one] Eine gewählte Datei konnte nicht übernommen werden (nicht lesbar oder zu groß).
+       *[other] { $count } gewählte Dateien konnten nicht übernommen werden (nicht lesbar oder zu groß).
+    }
+
 ## Start
 
 ng-ui-start-title = Was möchten Sie signieren?
@@ -135,6 +149,14 @@ ng-ui-start-join-text-batch =
     }
 ng-ui-start-join-add = Zum Stapel hinzufügen
 ng-ui-start-join-replace = Offene schließen und neu beginnen
+# Mehrfachauswahl (ADR 0004 Nachtrag 17): wie in der Dateiauswahl mehrere PDFs markiert werden
+ng-ui-start-multi-hint =
+    { $os ->
+        [macos] Mehrere PDFs auf einmal: im Dialog mit ⌘-Klick markieren, dann „Öffnen“.
+        [ios] Mehrere PDFs auf einmal: in der Dateiauswahl die PDFs antippen (Häkchen), dann „Öffnen“.
+        [android] Mehrere PDFs auf einmal: in der Dateiauswahl ein PDF lange drücken, weitere antippen, dann „Auswählen“.
+       *[other] Mehrere PDFs auf einmal: im Dialog mit Strg-Klick markieren, dann „Öffnen“.
+    }
 
 ## Arbeitsbereich: Seiten, Sticker, Live-Region, Zustandskarten
 

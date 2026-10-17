@@ -47,6 +47,27 @@ class DocumentsTest {
         }
     }
 
+    /** Mehrfachauswahl (ADR 0004 Nachtrag 17): Reihenfolge der Auswahl, gleiche Namen in eigenen Ordnern, Fehler gezählt. */
+    @Test
+    fun multipleSelectionKeepsOrderAndCountsFailures() {
+        val dir = Files.createTempDirectory("pida-multi").toFile()
+        try {
+            val sources = listOf("Vertrag.pdf", "kaputt", "Vertrag.pdf", "Angebot.pdf")
+            val copied = Documents.copyEach(sources) { name ->
+                if (name == "kaputt") throw IllegalStateException("unreadable")
+                val target = Documents.uniqueTarget(dir, name)
+                target.parentFile!!.mkdirs()
+                target.writeText(name)
+                target
+            }
+            assertEquals(listOf("1/Vertrag.pdf", "2/Vertrag.pdf", "3/Angebot.pdf"), copied.files.map { it.relativeTo(dir).path })
+            assertEquals(1, copied.skipped)
+            assertTrue(copied.files.all { it.isFile && Documents.within(dir, it) })
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
     @Test
     fun intentUrisArriveExactlyOnce() {
         val u = "content://com.android.providers.downloads.documents/document/42"

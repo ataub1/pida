@@ -54,6 +54,14 @@ export interface CoreBridge {
   thumbUrl(doc: DocId): string;
 }
 
+/** Ergebnis der Mobile-Dateiauswahl (Command `mobile_pick_files`): Kopien in der Sandbox und nicht übernommene. */
+export interface MobilePick {
+  /** Kopien in der App-Sandbox, Reihenfolge der Auswahl (`[]` = abgebrochen) */
+  paths: string[];
+  /** gewählt, aber nicht kopiert (nicht lesbar, zu groß) */
+  skipped: number;
+}
+
 /** Native Dienste (Dialoge, Drag & Drop, Öffnen im System). */
 export interface PlatformServices {
   /** Dateidialog mit Mehrfachauswahl (F-11); `null` = abgebrochen. */
@@ -68,6 +76,11 @@ export interface PlatformServices {
    * (`ng-mobile-not-implemented`, `ng-mobile-unsupported` …).
    */
   pickMobileFiles(options: { kind: 'pdf' | 'pkcs12'; multiple: boolean }): Promise<string[]>;
+  /**
+   * Mobile: PDF-Dokumente wählen wie `pickMobileFiles({ kind: 'pdf' })`, dazu die Zahl der gewählten Dateien, die
+   * die native Seite nicht kopieren konnte (nicht lesbar, zu groß; ADR 0004 Nachtrag 17). Reihenfolge der Auswahl.
+   */
+  pickMobileDocuments(options: { multiple: boolean }): Promise<MobilePick>;
   /** Drag & Drop von Dateien über das Fenster. */
   onFileDrag(cb: (event: FileDragEvent) => void): () => void;
   /** Öffnet eine `https:`/`mailto:`-URL im Systembrowser. */
@@ -169,6 +182,14 @@ export async function createTauriBridge(): Promise<Bridge> {
     if (value === null) return null;
     return Array.isArray(value) ? value : [value];
   };
+  const pickMobile = async (kind: 'pdf' | 'pkcs12', multiple: boolean): Promise<MobilePick> => {
+    try {
+      const r = await invoke<MobilePick>('mobile_pick_files', { kind, multiple });
+      return { paths: r.paths, skipped: r.skipped };
+    } catch (e) {
+      throw new Error(errorCode(e));
+    }
+  };
 
   return {
     kind: 'tauri',
@@ -200,11 +221,10 @@ export async function createTauriBridge(): Promise<Bridge> {
       return typeof result === 'string' ? result : null;
     },
     async pickMobileFiles({ kind, multiple }) {
-      try {
-        return await invoke<string[]>('mobile_pick_files', { kind, multiple });
-      } catch (e) {
-        throw new Error(errorCode(e));
-      }
+      return (await pickMobile(kind, multiple)).paths;
+    },
+    async pickMobileDocuments({ multiple }) {
+      return pickMobile('pdf', multiple);
     },
     onFileDrag(cb) {
       let unlisten: (() => void) | null = null;

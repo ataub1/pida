@@ -52,7 +52,7 @@ Rust-API (`PidaMobileExt::pida_mobile()` auf `AppHandle`):
 | `share_file(path, mime)` | `shareFile` | `{ path, mimeType }` | `{}` sobald gezeigt | `UIActivityViewController` / `ACTION_SEND` mit `FileProvider`-URI + `FLAG_GRANT_READ_URI_PERMISSION` |
 | `open_file(path, mime)` | `openFile` | `{ path, mimeType }` | `{}` sobald die Anzeige startet | QuickLook (`QLPreviewController`, ohne Bearbeiten) / `ACTION_VIEW` mit `FileProvider`-URI an eine fremde PDF-App – Ergebnis „Öffnen“ (`ShellHooks::open_path`; nur `not-implemented` fällt auf `opener` zurück) |
 | `export_file(path, name, mime)` → `bool` | `exportFile` | `{ path, fileName, mimeType }` | `{ saved }` | `UIDocumentPickerViewController(forExporting:asCopy:)` / SAF `ACTION_CREATE_DOCUMENT` + Kopie |
-| `import_file(kind, multiple, dest)` → Dateien | `importFile` | `{ kind: "pdf"\|"pkcs12", multiple, destination }` | `{ files: [{ name, path }] }` | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; **Bytes** nach `destination` kopieren |
+| `import_file(kind, multiple, dest)` → Dateien (`import_files` mit Zahl der nicht übernommenen) | `importFile` | `{ kind: "pdf"\|"pkcs12", multiple, destination }` | `{ files: [{ name, path }], skipped }` (Reihenfolge der Auswahl; `skipped` = gewählt, aber nicht kopiert, ADR 0004 Nachtrag 17) | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:true)` / SAF `ACTION_OPEN_DOCUMENT`; **Bytes** nach `destination` kopieren |
 | `take_pending_open_documents(urls, dest)` → Dateien | `takePendingOpenDocuments` | `{ urls: [string], destination }` | `{ files: [{ name, path }] }` | vorgemerkte Dokumente („Öffnen in“/Share bzw. Intents `VIEW`/`SEND`/`SEND_MULTIPLE`) **und** die übergebenen URLs (Security-Scoped `file://`, `content://`) nach `destination` kopieren, Warteschlange leeren |
 
 Fehler: `invoke.reject(message, code)` – `not-implemented` (Hülle), `cancelled` (Nutzerin hat
@@ -102,7 +102,8 @@ nativen Seite: Argumente, Antworten, Abbruch, Pfadprüfung, Fehlercodes).
   nicht lesbare URLs (Android `content://`, Security-Scoped) und Intents holt die Shell über
   `take_pending_open_documents` – beim Start und nach jeder Rückkehr in den Vordergrund. Die
   Dateiauswahl der Oberfläche läuft über den Befehl `mobile_pick_files` (`kind` `pdf`/`pkcs12`, Kopien in
-  `<app_cache_dir>/import/`).
+  `<app_cache_dir>/import/<n>/<Name>`; Ergebnis `{ paths, skipped }` in der Reihenfolge der Auswahl, ADR 0004
+  Nachtrag 17).
 - **Ausgabe:** `CoreOptions::default_output_dir` = iOS `Documents` (Tauri `document_dir`, in der Dateien-App
   sichtbar), Android `filesDir/Documents` (`mobile::ANDROID_OUTPUT_DIR`; **nicht** `getExternalFilesDir`, den unter
   Android 9/10 Apps mit Speicher-Berechtigung mitlesen), dann ohne Speichern-Dialog; vorhandene Datei → Rückfrage

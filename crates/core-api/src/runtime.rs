@@ -2265,7 +2265,10 @@ impl CoreTask {
         }
         match event {
             UiEvent::OpenFiles { paths, mode } => {
-                let docs = self.input_documents(&paths);
+                // alle gewählten Dateien in der Reihenfolge der Auswahl; was nicht dazukommt (schon offen, keine
+                // Datei), meldet `report_selection` (ADR 0004 Nachtrag 17)
+                let selection = self.select_documents(&paths);
+                let docs = selection.docs.clone();
                 if !docs.is_empty() {
                     // Öffnen zeigt die Datei im Arbeitsbereich: ein offener Prüfmodus schließt (sonst läge sie
                     // verdeckt darunter)
@@ -2278,6 +2281,7 @@ impl CoreTask {
                         Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
                     });
                 }
+                self.report_selection(&selection);
             }
             UiEvent::AnswerWarning { proceed } => self.apply(Event::WarningAnswered(proceed)),
             UiEvent::PlaceholderAnswer { answer, field_index } => {
