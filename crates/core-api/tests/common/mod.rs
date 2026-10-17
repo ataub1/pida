@@ -280,3 +280,16 @@ pub async fn wait_for(core: &Core, what: &str, pred: impl Fn(&ViewState) -> bool
         Err(_) => panic!("Zeitüberschreitung beim Warten auf {what}: {:#?}", core.view()),
     }
 }
+
+/// Pfad als Wert einer Java-Properties-Datei, wie PDF-Over ihn schreibt (`Properties.store` maskiert `\`, `:`,
+/// `=`, `#` und `!` – ein Windows-Pfad `C:\Users\…` steht in einer echten `PDF-Over.config` als `C\:\\Users\\…`).
+pub fn java_prop(p: &Path) -> String {
+    let mut out = String::new();
+    for c in p.display().to_string().chars() {
+        if matches!(c, '\\' | ':' | '=' | '#' | '!') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}

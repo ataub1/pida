@@ -847,7 +847,7 @@ async fn migration_on_mobile_takes_over_no_keystore() {
                 "BKU=KS\nKEYSTORE_ENABLED=true\nKEYSTORE_FILE={}\nKEYSTORE_ALIAS=max\nKEYSTORE_TYPE=PKCS12\n\
                  KEYSTORE_PASS_STORE_TYPE=disk\nKEYSTORE_STOREPASS=test\nKEYSTORE_KEYPASS=test\n\
                  MOBILE_NUMBER=+436641234567\nSIGNATURE_PROFILE=AMTSSIGNATURBLOCK\n",
-                ks.display()
+                java_prop(&ks)
             ),
         )
         .unwrap();

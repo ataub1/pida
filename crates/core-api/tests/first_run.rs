@@ -44,12 +44,6 @@ async fn current_settings(core: &pida_core_api::Core) -> Settings {
     v.settings.unwrap().settings
 }
 
-/// Pfad als Wert einer Java-Properties-Datei, wie PDF-Over ihn schreibt (`Properties.store` maskiert `\` und
-/// `:` – Windows-Pfade wie `C:\Users\…` stehen in echten `PDF-Over.config` als `C\:\\Users\\…`).
-fn prop(p: &Path) -> String {
-    p.display().to_string().replace('\\', "\\\\").replace(':', "\\:")
-}
-
 /// Altordner mit `PDF-Over.config` (Unix-Pfade im Temp-Ordner, erfundene Werte).
 fn legacy_home(fx: &Fixture, emblem: Option<&Path>) -> (PathBuf, PathBuf) {
     let dir = fx.dir("home/.pdf-over");
@@ -58,10 +52,10 @@ fn legacy_home(fx: &Fixture, emblem: Option<&Path>) -> (PathBuf, PathBuf) {
         "#Configuration file was generated!\nBKU=MOBILE\nMOBILE_NUMBER=+436641234567\nOUTPUT_FOLDER={}\n\
          SIGNATURE_PROFILE=AMTSSIGNATURBLOCK\nSIGNLOCALE=en\nPROXY_HOST=proxy.example.test\nPROXY_PORT=3128\n\
          SAVE_FILE_POSTFIX=_signed\n",
-        prop(&out)
+        java_prop(&out)
     );
     if let Some(e) = emblem {
-        config.push_str(&format!("EMBLEM={}\n", prop(e)));
+        config.push_str(&format!("EMBLEM={}\n", java_prop(e)));
     }
     std::fs::write(dir.join("PDF-Over.config"), config).unwrap();
     (dir, out)
@@ -601,9 +595,9 @@ async fn real_core_tools_views_for_the_ui() {
             "BKU=MOBILE\nMOBILE_NUMBER=+436641234567\nOUTPUT_FOLDER={}\nSIGNATURE_PROFILE=SIGNATURBLOCK_SMALL\n\
              SIGNLOCALE=de\nEMBLEM={}\nKEYSTORE_ENABLED=true\nKEYSTORE_FILE={}\nPROXY_HOST=proxy.example.test\n\
              PROXY_PORT=3128\nUSE_PLACEHOLDER_SEARCH=true\nUSE_MARKER=true\nLOCALE=de\n",
-            prop(&out),
-            prop(&emblem),
-            prop(&fx.dir("home/Dokumente").join("test-rsa2048.p12"))
+            java_prop(&out),
+            java_prop(&emblem),
+            java_prop(&fx.dir("home/Dokumente").join("test-rsa2048.p12"))
         ),
     )
     .unwrap();
