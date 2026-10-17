@@ -115,9 +115,11 @@ Hinweise zur Messung:
 - Ein Release-Build lädt PDFium **nie** aus `PIDA_PDFIUM_DIR` oder Systempfaden, nur aus dem Bundle
   (ADR 0060 §1; fehlt sie dort, nennt die Shell dem Kern den Ordner der Binary – dann ohne Vorschau,
   `apps/app/src-tauri/src/pdfium.rs::resolve`); N-07 belegt, dass die Bibliothek im Bundle gefunden wird.
-- Signieren und Codesignatur/Notarisierung sind nicht Teil dieser Abnahme (Signier-Secrets beim
-  Auftraggeber, Plan §9.3). Das ungesignierte Bundle startet lokal; nach einem Download blockiert
-  Gatekeeper es.
+- Signieren mit Identität und Notarisierung sind nicht Teil dieser Abnahme (Signier-Secrets beim
+  Auftraggeber, Plan §9.3). Seit 17.10.2026 ist das Bundle ad hoc signiert (versiegelte Ressourcen, ohne
+  Hardened Runtime; `tools/verify-macos-bundle.sh`, docs/entwicklung.md §10 „Release bauen“): Es startet
+  lokal; nach einem Download lehnt Gatekeeper es ab (`spctl` → `rejected`), bietet aber „Dennoch öffnen“
+  statt „beschädigt“ (0.2.0, nur vom Linker signiert).
 
 ## 2. Manuelle Prüfung – Checkliste
 

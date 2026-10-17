@@ -254,12 +254,12 @@ Einordnung (CI-Job `deny`).
 | Job | Inhalt | blockierend |
 |---|---|---|
 | `fmt` | `cargo fmt --all --check`, `shellcheck` der Skripte in `tools/` | ja |
-| `build` (ubuntu, macOS, Windows) | PDFium laden (Cache über `tools/pdfium.lock`), Orakel (pyHanko aus `tools/python-oracles.txt`, Java 21, qpdf/xmllint unter Linux, qpdf/OpenSSL 3 unter macOS), ggf. Frontend und Tauri-Systembibliotheken, `cargo check`, Check ohne PDFium, Clippy `--no-deps -D warnings` (außer `CLIPPY_LENIENT`), FIDO2 (`fido2-windows` unter Windows, sonst `fido2-hid`), `cargo test`, unter Linux Doc-Build mit `RUSTDOCFLAGS=-D warnings` | ja |
+| `build` (ubuntu, macOS, Windows) | PDFium laden (Cache über `tools/pdfium.lock`), Orakel (pyHanko aus `tools/python-oracles.txt`, Java 21, qpdf/xmllint unter Linux, qpdf/OpenSSL 3 unter macOS), ggf. Frontend und Tauri-Systembibliotheken, `cargo check`, Check ohne PDFium, Clippy `--no-deps -D warnings` (außer `CLIPPY_LENIENT`), FIDO2 (`fido2-windows` unter Windows, sonst `fido2-hid`), `cargo test --no-fail-fast` (alle Testbinaries, auch nach einem Fehler), unter Linux Doc-Build mit `RUSTDOCFLAGS=-D warnings` | ja |
 | `deny` | `cargo deny --locked check` (cargo-deny 0.20.2), Selbsttest `tools/npm-licenses.mjs --self-test` | ja |
 | `notices` | `tools/third-party-notices.sh`, Artefakt `THIRD-PARTY-NOTICES` (`.md` + `RUST-STD-COPYRIGHT.html`) | ja |
 | `mobile` | `cargo check` für `aarch64-apple-ios` und `aarch64-linux-android` (NDK des Runners) | verifizierte Crates ja, ganzer Workspace informativ |
 | `app` | nur wenn `apps/app/package.json` existiert: Lockfile-Pflicht, npm-Lizenzprüfung, `npm ci`, `lint`/`build`/`test` (falls vorhanden) | ja |
-| `bundle` (ubuntu, macOS, Windows) | Tauri-Debug-Bundle mit PDFium (`deb`/`app`/`nsis`), Hinweise auf Linux/macOS, Größe in der Zusammenfassung, Startprüfung `PIDA_SMOKE=1` (Linux mit `xvfb-run`), Bundle als Artefakt | ja; Startprüfung nur unter macOS blockierend |
+| `bundle` (ubuntu, macOS, Windows) | Tauri-Debug-Bundle mit PDFium (`deb`/`app`/`nsis`), Hinweise auf Linux/macOS, macOS: Codesignatur (`tools/verify-macos-bundle.sh`, §10), Größe in der Zusammenfassung, Startprüfung `PIDA_SMOKE=1` mit `pdfium=true` (Linux mit `xvfb-run`), Bundle als Artefakt | ja; Startprüfung nur unter macOS blockierend |
 
 Caching: `Swatinem/rust-cache` (Speichern nur auf `main`), PDFium, pip, npm. Actions sind auf
 Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lokal
@@ -317,3 +317,46 @@ Noch kein Release-Workflow; die Bausteine stehen fest:
 Die Tauri-Shell bündelt seit Welle 3 (`npm run bundle:mac:release` u. a., Abnahme:
 `docs/integration/app-abnahme.md`); ein `.github/workflows/release.yml` mit Signieren folgt. Signier-Secrets
 gehören dem Auftraggeber (Plan §9.3, E-13).
+
+### Release bauen
+
+**Desktop-Bundles** baut `.github/workflows/release-bundles.yml` (Tag `v*` oder manuell); lokal
+`npm run bundle:mac:release` (§4, in Terminal-Sitzungen mit `CI=true`).
+
+**macOS-Signatur (ad hoc):** `bundle.macOS.signingIdentity` ist `"-"` (`apps/app/src-tauri/tauri.conf.json`):
+Tauri signiert `Contents/Frameworks/libpdfium.dylib`, die Binary und `PIDA.app` vor dem DMG-Bau ad hoc und
+versiegelt die Ressourcen. Bis 0.2.0 war die App nur vom Linker signiert (`Sealed Resources=none`,
+`codesign --verify --strict`: „code has no resources but signature indicates they must be present“) – aus dem
+Internet geladen meldete macOS sie als **„beschädigt“**. Jetzt ist die Signatur gültig; Gatekeeper lehnt die
+nicht notarisierte App weiter ab (`spctl -a -t exec -vv` → `rejected`, `syspolicy_check distribution` nur noch
+„Adhoc Signed App“ und „Notary Ticket Missing“), bietet aber „Dennoch öffnen“ (README, Installation).
+`hardenedRuntime` ist dabei **aus**: Die Library Validation der Hardened Runtime lehnt die ad hoc signierte
+`libpdfium.dylib` ab („mapping process and mapped file (non-platform) have different Team IDs“), PIDA liefe
+ohne Vorschau. Mit einer echten Identität (`APPLE_SIGNING_IDENTITY`, Notarisierung) schaltet
+`scripts/bundle-config.mjs` sie wieder ein. Prüfen:
+
+```sh
+tools/verify-macos-bundle.sh target/release/bundle   # App + App in der DMG: codesign --verify --deep --strict,
+                                                    # versiegelte Ressourcen, ad hoc ohne Hardened Runtime
+```
+
+CI (`bundle`, macOS) und Release-Workflow führen denselben Schritt aus; die Startprüfung verlangt
+`pdfium=true`.
+
+**Lokale Release-Builds ohne Benutzerpfade** (`pida-cli`, Android-Bibliothek): Panik-Orte und Debug-Infos
+enthalten sonst absolute Pfade wie `/Users/<name>/.cargo/registry/src/…`. In einer **eigenen Shell** nur für
+Release-Builds:
+
+```sh
+PIDA_RELEASE_REMAP=1 source tools/env.sh   # CARGO_ENCODED_RUSTFLAGS mit --remap-path-prefix für
+                                           # $CARGO_HOME/registry, $CARGO_HOME/git, $RUSTUP_HOME, Repository
+cargo build --release --locked -p pida-cli
+strings -a target/release/pida-cli | grep -c "$HOME"   # 0
+```
+
+Nachweis 17.10.2026 (macOS arm64): `pida-cli` 0.2.0 enthielt 708 Fundstellen von `/Users/`, mit
+`PIDA_RELEASE_REMAP=1` 0 (die Orte heißen `/cargo/registry/src/index.crates.io-…/tokio-1.53.3/src/…`); die
+Android-Bibliothek 814 → 0 (docs/integration/mobile-android.md §4.1). `CARGO_ENCODED_RUSTFLAGS` (Trenner 0x1f)
+statt `RUSTFLAGS`, weil der Repo-Pfad Leerzeichen enthalten kann; vorhandene `RUSTFLAGS` werden übernommen.
+Ohne `PIDA_RELEASE_REMAP` bleibt alles wie bisher; Debug-Builds und Tests in einer Shell mit der Variable würden
+mit den anderen Flags neu übersetzt.

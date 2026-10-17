@@ -11,8 +11,8 @@
 #   mobile   cargo check für iOS und Android (blockierend für die lokal verifizierten Crates)
 #   app      Tauri-Frontend apps/app (npm ci, Lizenzprüfung, build, test) – nur wenn apps/app/package.json existiert
 #   bundle   Matrix ubuntu/macOS/Windows: Tauri-Debug-Bundle mit PDFium (und Drittlizenz-Hinweisen auf
-#            Linux/macOS), Größe in der Zusammenfassung, Startprüfung PIDA_SMOKE=1 (Kern + WebView),
-#            Bundle als Artefakt
+#            Linux/macOS), macOS: Codesignatur (ad hoc, tools/verify-macos-bundle.sh), Größe in der
+#            Zusammenfassung, Startprüfung PIDA_SMOKE=1 (Kern + WebView), Bundle als Artefakt
 #
 # Actions sind auf Commit-SHAs gepinnt (Kommentar = Release-Tag); Toolchain und Werkzeuge exakt versioniert.
 
@@ -67,7 +67,7 @@ jobs:
       - name: shellcheck (tools/*.sh ohne env.sh, das auch zsh bedient)
         run: |
           command -v shellcheck >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends shellcheck; }
-          shellcheck tools/fetch-pdfium.sh tools/third-party-notices.sh tools/cross-clippy.sh
+          shellcheck tools/fetch-pdfium.sh tools/third-party-notices.sh tools/cross-clippy.sh tools/verify-macos-bundle.sh
 
   build:
     name: Build/Test (${{ matrix.os }})
@@ -205,7 +205,9 @@ jobs:
       - name: FIDO2 (${{ matrix.fido2 }}) – test
         run: cargo test -p pida-backend-atrust --features ${{ matrix.fido2 }} --locked
       - name: cargo test
-        run: cargo test --workspace --locked
+        # --no-fail-fast: alle Testbinaries laufen, auch nach einem Fehler (Windows-CI zeigte sonst je Lauf
+        # nur den ersten fehlschlagenden Test; die Crates danach blieben ungeprüft)
+        run: cargo test --workspace --locked --no-fail-fast
       - name: Doc-Build (rustdoc -D warnings)
         if: runner.os == 'Linux'
         env:
@@ -462,6 +464,9 @@ jobs:
           # shellcheck disable=SC2086 # REQUIRE ist leer oder genau ein Schalter
           node scripts/bundle-config.mjs --require-pdfium $REQUIRE --out src-tauri/bundle.conf.json
           npm run tauri -- build --debug --bundles ${{ matrix.bundles }} --config src-tauri/bundle.conf.json
+      - name: Codesignatur prüfen (macOS, ad hoc mit versiegelten Ressourcen)
+        if: runner.os == 'macOS'
+        run: tools/verify-macos-bundle.sh target/debug/bundle
       - name: Größe
         run: |
           {

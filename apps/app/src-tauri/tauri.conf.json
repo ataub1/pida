@@ -56,7 +56,9 @@
       }
     ],
     "macOS": {
-      "minimumSystemVersion": "11.0"
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-",
+      "hardenedRuntime": false
     },
     "iOS": {
       "minimumSystemVersion": "16.0"

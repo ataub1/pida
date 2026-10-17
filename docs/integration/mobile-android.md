@@ -158,7 +158,7 @@ Release-Schlüssel seit v0.2.0 (17.10.2026): `CN=PIDA, O=PIDA, C=AT`, RSA 4096, 
 Ein früher installierter Debug-Build (Debug-Schlüssel) muss vor der Installation deinstalliert werden.
 
 ```sh
-source tools/env.sh
+PIDA_RELEASE_REMAP=1 source tools/env.sh                # ohne Benutzerpfade (docs/entwicklung.md §10)
 tools/fetch-pdfium.sh --jnilibs
 cd apps/app && npm ci
 export CARGO_TARGET_DIR="$PWD/../../target-android"
@@ -167,7 +167,15 @@ npm run tauri android build -- --apk --target aarch64
 #  → src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk (nur arm64-v8a)
 apksigner verify --verbose --print-certs <apk>          # SHA-256 = LIESMICH.txt
 aapt dump badging <apk> | head -1                       # package at.pida, versionName
+strings -a "$CARGO_TARGET_DIR/aarch64-linux-android/release/libpida_app_lib.so" | grep -c "$HOME"   # 0
 ```
+
+`PIDA_RELEASE_REMAP=1` setzt `CARGO_ENCODED_RUSTFLAGS` (`--remap-path-prefix`); die Link-Argumente, die Tauri für
+Android über `CARGO_TARGET_<triple>_RUSTFLAGS` setzt, treten dahinter zurück. Nachweis 17.10.2026 (ohne
+`PIDA_ANDROID_KEYSTORE_PROPERTIES`, also `app-universal-release-unsigned.apk` wie bisher): dieselben
+benötigten Systembibliotheken wie 0.2.0 (`libandroid`, `libdl`, `liblog`, `libm`, `libc`), 0 statt 814
+Fundstellen von `/Users/` in `libpida_app_lib.so`. Gradle bricht mit relativem Pfad bzw. unvollständiger Datei ab
+(„keine Datei unter diesem absoluten Pfad“, „es fehlt storePassword, keyPassword“).
 
 ## 5. Nachweise (15.10.2026, Emulator `pida_api35`, Android 15, arm64, Sprache de-AT)
 

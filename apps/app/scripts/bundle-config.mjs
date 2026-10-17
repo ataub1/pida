@@ -3,6 +3,11 @@
 //
 // - PDFium aus $PIDA_PDFIUM_DIR (macOS: Contents/Frameworks, sonst Ressourcen/pdfium/); die Shell
 //   findet sie dort (apps/app/src-tauri/src/pdfium.rs),
+// - macOS-Signatur: tauri.conf.json signiert PIDA.app samt Frameworks ad hoc ("-", versiegelte Ressourcen;
+//   nur vom Linker signiert meldete macOS die heruntergeladene App als „beschädigt“) und ohne Hardened Runtime:
+//   Deren Library Validation lehnt die ad hoc signierte libpdfium.dylib ab („different Team IDs“), die App
+//   liefe dann ohne Vorschau. Mit APPLE_SIGNING_IDENTITY (Developer ID, Notarisierung) schaltet dieses Skript
+//   die Hardened Runtime wieder ein (Pflicht für notarytool),
 // - Drittlizenz-Hinweise aus $PIDA_NOTICES_DIR (Standard: <repo>/target/notices, erzeugt mit
 //   tools/third-party-notices.sh bzw. `npm run notices`): THIRD-PARTY-NOTICES.md und
 //   RUST-STD-COPYRIGHT.html als Ressourcen (Plan §2.5: Hinweise je Build ins Paket).
@@ -26,10 +31,14 @@ const bundle = {};
 let missing = false;
 
 const pdfiumDir = process.env.PIDA_PDFIUM_DIR;
+if (process.platform === 'darwin' && process.env.APPLE_SIGNING_IDENTITY) {
+  bundle.macOS = { hardenedRuntime: true };
+}
+
 if (pdfiumDir && existsSync(path.join(pdfiumDir, lib))) {
   const file = path.resolve(pdfiumDir, lib);
   if (process.platform === 'darwin') {
-    bundle.macOS = { frameworks: [file] };
+    bundle.macOS = { ...bundle.macOS, frameworks: [file] };
   } else {
     resources[file] = `pdfium/${lib}`;
   }

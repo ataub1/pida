@@ -69,3 +69,30 @@ fi
 if [ -n "${ANDROID_HOME:-}" ]; then
   export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
 fi
+
+# Release-Builds ohne Benutzerpfade (docs/entwicklung.md §10 „Release bauen“), nur auf Wunsch:
+#   PIDA_RELEASE_REMAP=1 source tools/env.sh
+# setzt CARGO_ENCODED_RUSTFLAGS mit --remap-path-prefix für Cargo-Registry/-Git, rustup und dieses Repository:
+# Panik-Orte und Debug-Infos nennen dann /cargo/registry/…, /rustup/…, /pida/… statt /Users/<name>/….
+# CARGO_ENCODED_RUSTFLAGS (Trenner 0x1f) statt RUSTFLAGS, weil der Repo-Pfad Leerzeichen enthalten kann;
+# vorhandene RUSTFLAGS werden übernommen. Für eine eigene Shell nur mit Release-Builds gedacht (geänderte Flags
+# bauen neu); ohne die Variable bleiben Debug-Builds und Tests unverändert.
+if [ "${PIDA_RELEASE_REMAP:-}" = 1 ]; then
+  _pida_us="$(printf '\037')"
+  _pida_flags="${CARGO_ENCODED_RUSTFLAGS:-}"
+  if [ -z "$_pida_flags" ] && [ -n "${RUSTFLAGS:-}" ]; then
+    _pida_flags="$(printf '%s' "$RUSTFLAGS" | tr -s ' \t' '\037\037')"
+    _pida_flags="${_pida_flags#"$_pida_us"}"
+    _pida_flags="${_pida_flags%"$_pida_us"}"
+  fi
+  _pida_cargo="${CARGO_HOME:-$HOME/.cargo}"
+  for _pida_map in "$_pida_cargo/registry=/cargo/registry" "$_pida_cargo/git=/cargo/git" \
+    "${RUSTUP_HOME:-$HOME/.rustup}=/rustup" "$PIDA_ROOT=/pida"; do
+    case "$_pida_us$_pida_flags$_pida_us" in
+      *"$_pida_us--remap-path-prefix=$_pida_map$_pida_us"*) ;; # schon gesetzt (env.sh erneut eingelesen)
+      *) _pida_flags="${_pida_flags:+$_pida_flags$_pida_us}--remap-path-prefix=$_pida_map" ;;
+    esac
+  done
+  export CARGO_ENCODED_RUSTFLAGS="$_pida_flags"
+  unset _pida_us _pida_flags _pida_cargo _pida_map
+fi

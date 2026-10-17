@@ -1,8 +1,9 @@
-# Release-Bundles (unsigniert) für Windows, Linux und macOS – manuell auslösbar.
+# Release-Bundles für Windows, Linux und macOS – manuell auslösbar.
 #
 # Baut die optimierten Installer mit PDFium und Drittlizenz-Hinweisen (Plan §9.1) und legt sie als
-# Artefakte ab. Code-Signierung, Notarisierung und Updater fehlen noch (Signier-Identitäten beim
-# Auftraggeber, Plan E-13); die Bundles sind zum Testen gedacht.
+# Artefakte ab. Code-Signierung mit Identität, Notarisierung und Updater fehlen noch (Signier-Identitäten
+# beim Auftraggeber, Plan E-13); die Bundles sind zum Testen gedacht. macOS: PIDA.app ist ad hoc signiert
+# (versiegelte Ressourcen, `codesign --verify --deep --strict` wird geprüft), aber nicht notarisiert.
 name: Release-Bundles
 
 on:
@@ -106,6 +107,12 @@ jobs:
           # shellcheck disable=SC2086 # REQUIRE ist leer oder genau ein Schalter
           node scripts/bundle-config.mjs --require-pdfium $REQUIRE --out src-tauri/bundle.conf.json
           npm run tauri -- build --bundles ${{ matrix.bundles }} --config src-tauri/bundle.conf.json
+      # Tauri signiert PIDA.app samt Frameworks (libpdfium.dylib) vor dem DMG-Bau ad hoc
+      # (bundle.macOS.signingIdentity "-"). Nur vom Linker signiert („Sealed Resources=none“) meldete macOS
+      # die heruntergeladene App als „beschädigt“ (0.2.0); geprüft werden die App und die App in der DMG.
+      - name: Codesignatur prüfen (macOS, codesign --verify --deep --strict)
+        if: runner.os == 'macOS'
+        run: tools/verify-macos-bundle.sh target/release/bundle
       - name: Größe
         run: |
           {
