@@ -1999,7 +1999,7 @@
             "top": 758.135009765625
           },
           "selectable": true,
-          "suitable": false
+          "suitable": true
         },
         {
           "block": {

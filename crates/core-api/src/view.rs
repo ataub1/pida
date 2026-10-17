@@ -1119,10 +1119,10 @@ pub struct FieldTargetView {
     pub rect: Option<RectPt>,
     /// wählbar (`false` bei gesperrten Feldern: `/Lock`, FieldMDP)
     pub selectable: bool,
-    /// als Ziel angeboten (ADR 0004 Nachtrag 16, `pida_placement::field_fit`): Der Block in aktueller Größe bleibt
-    /// im Feld lesbar (höchstens auf ein Drittel verkleinert) und füllt mindestens ein Fünftel davon. Nur dann
-    /// rastet der Block beim Ziehen ein, zeigt die Oberfläche „Hier signieren“ und nennt die Hinweisleiste das
-    /// Feld; ein seitengroßes oder 3 pt schmales Feld wird nicht angeboten.
+    /// als Ziel angeboten (ADR 0004 Nachtrag 16, `pida_placement::field_suitable`): Das Feld nimmt den Block in
+    /// aktueller Größe plausibel auf (höchstens auf ein Fünftel verkleinert, Form nicht mehr als achtfach gestreckt,
+    /// höchstens die halbe Seite). Nur dann rastet der Block beim Ziehen ein, zeigt die Oberfläche „Hier signieren“
+    /// und nennt die Hinweisleiste das Feld; ein seitengroßes, winziges oder 3 pt schmales Feld wird nicht angeboten.
     #[serde(default)]
     pub suitable: bool,
     /// Rechteck, in dem der Block in **diesem** Feld stünde (`PAGE_ABS`): proportional, höchstens in natürlicher

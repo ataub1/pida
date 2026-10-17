@@ -17,8 +17,8 @@ use pida_pades::PriorStatus;
 use pida_pdf_cos::{PageInfo, Rect};
 use pida_placement::{
     BlockGeometry, GuideAxis as PGuideAxis, GuideKind as PGuideKind, LayoutOptions, OccupancyGrid, PageLayout,
-    Placement, ResolvedPosition, field_fit, matrix_unit_rect, new_page_geometry, obstacle_fields, page_layout,
-    user_rect_to_visible, widget_overlaps,
+    Placement, ResolvedPosition, field_fit, field_suitable, matrix_unit_rect, new_page_geometry, obstacle_fields,
+    page_layout, user_rect_to_visible, widget_overlaps,
 };
 use pida_workflow::{
     BackendOption, DocFacts, DocId, PlacementOrigin, PositionChoice, SignFlow, SigningPhase, State, Target,
@@ -510,21 +510,20 @@ impl crate::runtime::CoreTask {
             .iter()
             .enumerate()
             .map(|(i, f)| {
-                let rect = data.as_deref().and_then(|d| {
+                let shown = data.as_deref().and_then(|d| {
                     let info = d.pages.get(f.page_index?)?;
                     let r = f.rect.normalized();
-                    (!r.is_empty()).then(|| user_rect_to_visible(info, r))
+                    (!r.is_empty()).then(|| (user_rect_to_visible(info, r), info.visible_size()))
                 });
                 // Lage und Eignung für den Block in aktueller Größe (Nachtrag 16): nur plausible Felder anbieten
-                let fit = rect.map(|r| field_fit(r, block_geom));
                 FieldTargetView {
                     index: u32::try_from(i).unwrap_or(u32::MAX),
                     name: f.qualified_name.clone(),
                     page: f.page_index,
-                    rect: rect.map(rect_pt),
+                    rect: shown.map(|(r, _)| rect_pt(r)),
                     selectable: true,
-                    suitable: fit.is_some_and(|f| f.suitable),
-                    block: fit.map(|f| rect_pt(f.rect)),
+                    suitable: shown.is_some_and(|(r, page)| field_suitable(r, block_geom, page)),
+                    block: shown.map(|(r, _)| rect_pt(field_fit(r, block_geom).rect)),
                 }
             })
             .collect();

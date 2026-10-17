@@ -965,14 +965,17 @@ async fn only_plausible_fields_are_offered_and_the_block_keeps_its_size() {
     for f in &d.fields {
         let rect = pt_rect(f.rect.expect("Rechteck"));
         let fit = pida_placement::field_fit(rect, block);
-        assert_eq!(f.suitable, fit.suitable, "{}", f.name);
+        let page = d.doc.page_sizes[f.page.expect("Seite")];
+        assert_eq!(f.suitable, pida_placement::field_suitable(rect, block, page), "{}", f.name);
         let b = pt_rect(f.block.expect("Lage im Feld"));
         assert_rect_close(b, fit.rect, 1e-3, &f.name);
         assert!(b.width() <= block.width + 1e-3 && b.height() <= block.height + 1e-3, "{}: nie größer", f.name);
         assert!(((b.width() / b.height()) - (block.width / block.height)).abs() < 1e-3, "{}: proportional", f.name);
     }
-    assert!(by_name("Signature_0").suitable, "übliches Feld 148 × 72 pt");
-    for n in ["Signature_1", "Signature_2", "Signature_3", "Signature_4", "Signature_6", "Signature_7"] {
+    for n in ["Signature_0", "Signature_5", "Signature_6"] {
+        assert!(by_name(n).suitable, "{n}: übliches Feld (148 × 72, 171 × 150, 59 × 50 pt)");
+    }
+    for n in ["Signature_1", "Signature_2", "Signature_3", "Signature_4", "Signature_7"] {
         assert!(!by_name(n).suitable, "{n} ist kein plausibles Ziel");
     }
     // ausdrücklich ins seitengroße Feld (nicht angeboten, aber über den Vertrag erreichbar): natürliche Größe,
@@ -1120,6 +1123,73 @@ async fn scaled_field_is_signed_exactly_where_the_preview_shows_the_block() {
     sign_into_field_like_the_preview(&core, &a, &out.join("fields_signed.pdf"), &f5).await;
 }
 
+/// Platzhalterfeld der PDF-AS-Testdaten (`placeholder_sigfield_and_qr.pdf`, `Signature_0` mit 63,7 × 61,1 pt – genau
+/// für das Signieren in ein vorhandenes Feld gebaut): angeboten, obwohl der Block darin auf gut ein Viertel
+/// verkleinert wird (Prüfung „bricht keine normalen Felder“: mit der Entwurfsschwelle ⅓ war es kein Ziel), und
+/// geschrieben genau im Sticker (echte Engine, Keystore, PDFium, pyHanko).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn pdfas_placeholder_field_is_offered_and_signed_where_the_preview_shows_the_block() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf("pdf/pdfas/pdf-as-web/data/placeholder_sigfield_and_qr.pdf", &fx.dir("in"), "fields.pdf");
+    let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, pdfium_dir().is_some()).expect("Kern");
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    let f = d.fields.iter().find(|f| f.name == "Signature_0").cloned().expect("Signature_0");
+    assert!(f.suitable, "Platzhalterfeld der PDF-AS-Testdaten angeboten");
+    let b = pt_rect(f.block.unwrap());
+    let scale = b.width() / d.block.width;
+    assert!(scale > 0.25 && scale < 1.0 / 3.0, "verkleinert: {scale}");
+    sign_into_field_like_the_preview(&core, &a, &out.join("fields_signed.pdf"), &f).await;
+}
+
+/// DocMDP-zertifiziertes Dokument (P = 2) mit nur einem vorhandenen leeren Feld (`Leer`, 230 × 50 pt): Frei platzieren
+/// ist nicht zulässig, das Feld wird angeboten und ist der einzige sichtbare Weg; signiert steht der Block genau im
+/// Sticker, und die erweiterte Holder-`/BBox` bleibt eine zulässige Änderung (pyHanko: beide Signaturen intakt, alle
+/// Änderungen „signing and form filling“, mit der DocMDP-Regel vereinbar).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn certified_document_is_signed_into_its_only_field_like_the_preview() {
+    let fx = Fixture::new();
+    let out = fx.dir("out");
+    let a = copy_pdf("pades/certified-docmdp-p2.pdf", &fx.dir("in"), "cert.pdf");
+    let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, pdfium_dir().is_some()).expect("Kern");
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        matches!(v.step, StepView::Warning { .. })
+            || (editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0))
+    })
+    .await;
+    if matches!(v.step, StepView::Warning { .. }) {
+        core.dispatch(UiEvent::AnswerWarning { proceed: true });
+    }
+    let v = wait_for(&core, "Arbeitsbereich", |v| {
+        editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    assert!(!d.constraints.new_visible_field_allowed);
+    let f = d.fields.iter().find(|f| f.name == "Leer").cloned().expect("Feld Leer");
+    assert!(f.suitable, "einziges Feld des zertifizierten Dokuments angeboten");
+    sign_into_field_like_the_preview(&core, &a, &out.join("cert_signed.pdf"), &f).await;
+    if tool("pyhanko") {
+        let o = Command::new("pyhanko")
+            .args(["sign", "validate", "--no-strict-syntax", "--pretty-print"])
+            .arg(out.join("cert_signed.pdf"))
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&o.stdout).to_lowercase();
+        // beide Signaturen kryptografisch intakt, die Zertifizierung sieht nur Signieren und Formular ausfüllen
+        assert_eq!(text.matches("the signature is cryptographically sound").count(), 2, "pyHanko: {text}");
+        assert!(
+            text.contains("all modifications relate to signing and form filling operations")
+                && text.contains("compatible with the current document modification policy"),
+            "pyHanko: {text}"
+        );
+    }
+}
+
 /// `use_target` in das Feld, signieren (Keystore) und prüfen: Sticker = `FieldTargetView::block`, der Viewer zeichnet
 /// den Block aus `/Rect` und Holder-`/BBox` genau dort (Seite ohne CropBox und Drehung: Benutzerraum = sichtbare
 /// Seite), PDFium ebenso (Unterschied der Renderings), `/Rect` bleibt das Feld, pyHanko `INTACT`, qpdf.
@@ -1251,6 +1321,102 @@ async fn new_page_has_the_media_box_size_and_the_block_keeps_its_size() {
         let o = Command::new("pyhanko").args(["sign", "validate", "--no-strict-syntax"]).arg(&signed).output().unwrap();
         let text = String::from_utf8_lossy(&o.stdout);
         assert!(text.contains("INTACT") || text.contains("intact"), "pyHanko: {text}");
+    }
+}
+
+/// Einseitiges Dokument (Letter) mit `/Rotate rotation`, CropBox ≠ MediaBox und einem leeren Signaturfeld `Feld`
+/// mit dem Widget-`/Rect` `rect` (Benutzerraum).
+fn rotated_field_pdf(dir: &std::path::Path, rotation: i64, rect: [f32; 4]) -> PathBuf {
+    use pida_pdf_cos::lopdf::{self, Object, dictionary};
+    let mut doc = lopdf::Document::load(testdata(PDF)).unwrap();
+    let page_id = *doc.get_pages().values().next().unwrap();
+    let field = doc.add_object(dictionary! {
+        "FT" => "Sig",
+        "T" => Object::string_literal("Feld"),
+        "Type" => "Annot",
+        "Subtype" => "Widget",
+        "F" => 4,
+        "P" => page_id,
+        "Rect" => rect.iter().map(|v| Object::Real(*v)).collect::<Vec<_>>(),
+    });
+    let page = doc.get_object_mut(page_id).unwrap().as_dict_mut().unwrap();
+    page.set("Rotate", rotation);
+    page.set("MediaBox", vec![0.into(), 0.into(), 612.into(), 792.into()]);
+    page.set("CropBox", vec![Object::Real(30.0), Object::Real(40.0), Object::Real(590.0), Object::Real(770.0)]);
+    page.set("Annots", vec![Object::Reference(field)]);
+    let acro = doc.add_object(dictionary! { "Fields" => vec![Object::Reference(field)] });
+    let root = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+    doc.get_object_mut(root).unwrap().as_dict_mut().unwrap().set("AcroForm", acro);
+    let path = dir.join(format!("feld-{rotation}.pdf"));
+    doc.save(&path).unwrap();
+    path
+}
+
+/// Gedrehte Seite mit CropBox-Ursprung (Nachtrag 16, Prüfung „gedrehte Seiten, CropBox ≠ MediaBox“): Ansicht
+/// (`FieldTargetView::rect`/`block`, Sticker im sichtbaren Raum) und Ergebnis stimmen für alle Drehungen überein –
+/// PDFium zeichnet den signierten Block genau im Sticker, `/Rect` bleibt, pyHanko `INTACT`. Ein großes Feld (Block in
+/// natürlicher Größe) und ein kleines (Block verkleinert).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn rotated_cropped_field_is_signed_exactly_where_the_preview_shows_the_block() {
+    let Some(dir) = pdfium_dir() else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    let backend = pida_render::PdfiumBackend::bind(Some(dir.as_path())).unwrap();
+    for rotation in [0, 90, 180, 270] {
+        // 160 × 300 pt (bei 90°/270° sichtbar 300 × 160: Block in natürlicher Größe) bzw. 90 × 200 pt (verkleinert)
+        for rect in [[120.0, 200.0, 280.0, 500.0], [300.0, 450.0, 390.0, 650.0]] {
+            let fx = Fixture::new();
+            let out = fx.dir("out");
+            let a = rotated_field_pdf(&fx.dir("in"), rotation, rect);
+            let core = start(&fx, keystore_overlay(vec![a.clone()], &out), None, None, true).expect("Kern");
+            let v = wait_for(&core, "Arbeitsbereich", |v| {
+                editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+            })
+            .await;
+            let d = v.document.unwrap();
+            let what = format!("{rotation}° {rect:?}");
+            let f = d.fields.iter().find(|f| f.name == "Feld").cloned().expect("Feld");
+            let shown = pt_rect(f.rect.unwrap());
+            // sichtbarer Raum: CropBox-Ursprung abgezogen, bei 90°/270° Achsen getauscht
+            let (fw, fh) = (rect[2] - rect[0], rect[3] - rect[1]);
+            let (sw, sh) = if rotation % 180 == 0 { (fw, fh) } else { (fh, fw) };
+            assert!((shown.width() - sw).abs() < 1e-2 && (shown.height() - sh).abs() < 1e-2, "{what}: {shown:?}");
+            core.dispatch(UiEvent::UseTarget { target: PlacementTarget::Field { index: f.index } });
+            let v = wait_for(&core, "im Feld", |v| v.document.as_ref().is_some_and(|d| d.sticker == f.block)).await;
+            let d = v.document.unwrap();
+            let sticker = pt_rect(d.sticker.unwrap());
+            let page_h = d.doc.page_sizes[0].1;
+            core.dispatch(UiEvent::SignWith { backend: BackendId::Keystore });
+            wait_for(&core, "gespeichert", saved).await;
+            let signed = out.join(format!("feld-{rotation}_signed.pdf"));
+            let bytes = std::fs::read(&signed).unwrap();
+            let pdf = pida_pdf_cos::SourcePdf::open(bytes.clone(), &pida_pdf_cos::Limits::default()).unwrap();
+            let field = pdf.signature_fields().unwrap().into_iter().find(|f| f.qualified_name == "Feld").unwrap();
+            assert!(field.signed, "{what}");
+            let want = pida_pdf_cos::Rect::new(rect[0], rect[1], rect[2], rect[3]);
+            assert_rect_close(field.widgets[0].rect.normalized(), want, 1e-3, &format!("{what}: /Rect bleibt"));
+            let before = pida_render::RenderBackend::open(&backend, std::fs::read(&a).unwrap().into(), None).unwrap();
+            let after = pida_render::RenderBackend::open(&backend, bytes.into(), None).unwrap();
+            let scale = 2.0;
+            let region = changed_region(
+                &before.render_page(0, scale).unwrap(),
+                &after.render_page(0, scale).unwrap(),
+                scale,
+                page_h,
+            )
+            .expect("Block gezeichnet");
+            assert_rect_close(region, sticker, 1.0, &format!("{what}: PDFium zeichnet den Block im Sticker"));
+            if tool("pyhanko") {
+                let o = Command::new("pyhanko")
+                    .args(["sign", "validate", "--no-strict-syntax"])
+                    .arg(&signed)
+                    .output()
+                    .unwrap();
+                let text = String::from_utf8_lossy(&o.stdout);
+                assert!(text.contains("INTACT") || text.contains("intact"), "{what}: pyHanko: {text}");
+            }
+        }
     }
 }
 

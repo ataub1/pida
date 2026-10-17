@@ -2687,10 +2687,16 @@ Seite 1 sieben weitere (`Signature_0` 148 × 72, `_1` 15 × 15, `_2` 388 × 14, 
    (`plan::block_width`, dieselbe Regel wie `block_geometry`), **nicht** die Feldbreite. `CompatMode::PdfasQuirks`
    (nur Golden-Tests) schreibt wie PDF-AS. Begründung: PDF-AS verzerrt; „nie größer als nötig“ und Vorschau = Ergebnis
    gehen nur mit einer Lage, die nicht von der Feldform abhängt.
-2. *Plausibilität* – `FieldFit::suitable`: Maßstab ≥ ⅓ (`FIELD_MIN_SCALE`, darunter ist die Schrift kaum lesbar) und
-   Anteil des Blocks an der Feldfläche ≥ ⅕ (`FIELD_MIN_FILL`, ein Feld mehr als fünfmal so groß wie der Block ist kein
-   Signaturfeld). Im Dokument der Meldung (Block 230 × 82 pt) geeignet: `Signature_0` (Maßstab 0,64) und `Signature_5`
-   (0,74); nicht: die winzigen, die schmalen und das seitengroße Feld.
+2. *Plausibilität* – `pida_placement::field_suitable` (Fassung nach der Nachprüfung, siehe unten): Der Block wird
+   höchstens auf ⅕ verkleinert (`FIELD_MIN_SCALE`; der Signaturblock passt so noch in eine Formularzeile von ≈ 16 pt,
+   die Amtssignatur 495 × 120 pt in ein 150 × 50-pt-Feld), die Form des Felds ist höchstens achtfach gestreckter als die
+   des Blocks (`FIELD_MIN_SHAPE` = ⅛, Verhältnis der Seitenverhältnisse – schließt Leisten wie 13,5 × 246 pt und
+   seitenhohe Spalten aus) und das Feld bedeckt höchstens die halbe Seite (`FIELD_MAX_PAGE_SHARE` – schließt das
+   seitengroße Feld aus, das den Block überall auf der Seite einfinge und dessen Markierung die Seite verdeckte). Der
+   Flächenanteil des Blocks am Feld zählt nicht: Ein großzügiges Feld bleibt für einen kleinen Block ein Ziel. Im
+   Dokument der Meldung (Block 230 × 82 pt) geeignet: `Signature_0` (Maßstab 0,64), `Signature_5` (0,74) und
+   `Signature_6` (59 × 50 pt, 0,26); nicht: `Signature_1` (15 × 15), `_2` (388 × 14, 0,17), `_3`/`_4` (schmal) und
+   `Signature_7` (ganze Seite).
 3. *Angeboten* (Einrasten beim Ziehen, „Hier signieren“, Hinweisleiste „Signaturfeld gefunden“) werden nur geeignete
    Felder. Ungeeignete bleiben über den Vertrag erreichbar (`use_target`, der Kern lehnt nicht ab; die Platzhaltersuche
    „Leere Signaturfelder“ nimmt wie PDF-Over weiter das erste leere Feld) und werden dann ebenfalls proportional
@@ -2710,7 +2716,7 @@ Seite 1 sieben weitere (`Signature_0` 148 × 72, `_1` 15 × 15, `_2` 388 × 14, 
 ```rust
 pub struct FieldTargetView {
     // … index, name, page, rect, selectable
-    /// als Ziel angeboten (Maßstab ≥ ⅓, Anteil ≥ ⅕ für den Block in aktueller Größe)
+    /// als Ziel angeboten (Maßstab ≥ ⅕, Form ≥ ⅛, ≤ halbe Seite für den Block in aktueller Größe)
     #[serde(default)] pub suitable: bool,
     /// Lage des Blocks in diesem Feld (PAGE_ABS, proportional, ≤ natürliche Größe, mittig); nach use_target = sticker
     #[serde(default)] pub block: Option<RectPt>,
@@ -2757,7 +2763,38 @@ rastet ein (93,1 × 33,2 px, senkrecht mittig), bei 75 % Vorschau 517 px für 17
 Aufnahmen `docs/integration/screenshots/ios-ng/feld-01-befund-block-fuellt-seite.jpg` (Meldung) bis
 `feld-04-signature5-gezogen-zoom75-scharf.jpg`.
 
-**Angenommene Abweichungen / offen:** Die Schwellen ⅓ und ⅕ sind Entwurfswerte (Auftraggeber). Die Blockbreite von
+**Nachprüfung (17.10.2026, unabhängiger Review):** Die erste Fassung der Plausibilität (Maßstab ≥ ⅓, Flächenanteil des
+Blocks ≥ ⅕, `FieldFit::suitable`) brach übliche Felder: Das Platzhalterfeld der PDF-AS-Testdaten selbst
+(`testdata/pdf/pdfas/pdf-as-web/data/placeholder_sigfield_and_qr.pdf`, `Signature_0` 63,7 × 61,1 pt, eigens für das
+Signieren in ein Feld) war mit dem Standardblock kein Ziel (Maßstab 0,28); mit der Amtssignatur (495 × 120 pt auf A4) kein
+übliches 150 × 50-pt-Feld (0,30); mit „Nur Bildmarke“ (23 mm ≈ 62 × 65 pt) kein Feld ab etwa 250 × 100 pt (Anteil < ⅕),
+mit 15 mm nicht einmal das einzige Feld des DocMDP-Testdokuments `testdata/pades/certified-docmdp-p2.pdf` (230 × 50 pt) –
+dort bliebe nur unsichtbares Signieren. Die Lesbarkeit taugt als Begründung nicht: Der Standardblock setzt 5 pt
+(`BASE_SMALL` `font=HELVETICA,5`), schon bei ⅓ sind das 1,7 pt. Neu daher Maßstab ≥ ⅕, Formähnlichkeit ≥ ⅛ und höchstens
+die halbe Seite (Punkt 2); Kern (`field_suitable`, `obstacle_fields`), Mock (`fieldFit` mit Seitengröße) und Fixtures
+folgen. Zusätzlich belegt: gedrehte Seiten mit CropBox ≠ MediaBox (0/90/180/270°, großes und verkleinerndes Feld) –
+PDFium zeichnet den signierten Block genau im Sticker, `/Rect` bleibt, pyHanko `INTACT`
+(`rotated_cropped_field_is_signed_exactly_where_the_preview_shows_the_block`); das PDF-AS-Platzhalterfeld wird angeboten
+und genau im Sticker signiert (`pdfas_placeholder_field_is_offered_and_signed_where_the_preview_shows_the_block`); das
+DocMDP-Dokument (P = 2) wird in sein einziges Feld signiert, pyHanko sieht nur „signing and form filling“, mit der
+Regel vereinbar (`certified_document_is_signed_into_its_only_field_like_the_preview`);
+`field::tests::common_fields_are_targets_for_every_profile` und der Paritätstest des Mocks (`mock.test.ts`) prüfen übliche
+und absurde Felder für Signaturblock, Amtssignatur und Bildmarke. Gegenprobe mit Apples PDFKit (Rendering wie Vorschau/iOS):
+auf ungedrehten Seiten liegt der Block im Sticker (± 2,5 pt Kantenglättung); auf gedrehten Seiten zeichnet die
+PDFKit-Miniaturansicht eine PIDA-Signatur je nach Lage gar nicht – ebenso bei freier Platzierung, also unabhängig von
+diesem Nachtrag (nicht weiter verfolgt). Die Geräteaufnahmen oben stammen aus der ersten Fassung; seitdem trägt auch
+`Signature_6` auf Seite 1 die Markierung „Hier signieren“, Seite 2 verhält sich unverändert.
+
+*Zusammenführung mit Nachtrag 12* (`mob2/polish`, `WidgetAwareScanner`): Dort zählt die automatische Platzierung alle
+Widgets als Inhalt (`plan.rs`: `fields: &inp.report.fields`). Beim Zusammenführen dort
+`pida_placement::obstacle_fields(inp.pages, &inp.report.fields, BlockGeometry { width: width.width, height:
+measured.height })` übergeben – sonst setzt „Freie Fläche suchen“ das Dokument der Meldung auf eine neue Seite, während
+die Überdeckungsprüfung Seite 2 als frei meldet.
+
+**Angenommene Abweichungen / offen:** Die Schwellen ⅕, ⅛ und ½ sind Entwurfswerte (Auftraggeber). Die Platzhaltersuche
+„Leere Signaturfelder“ nimmt automatisch weiter das erste leere Feld, auch wenn es kein angebotenes Ziel ist (wie
+PDF-Over ohne Auswahldialog; der Block steht dann proportional darin). Ein DocMDP-zertifiziertes Dokument, dessen leere
+Felder alle unplausibel sind, lässt sich in der Oberfläche nur unsichtbar (oder über diese Platzhaltersuche) signieren. Die Blockbreite von
 Profilen ohne `w` (Amtssignatur, KR-F01) hängt von der Seitenbreite ab: Die Vorschau gilt für die Seite des
 Positionierens, die Signatur nimmt die Seite des Felds – bei Seiten unterschiedlicher Breite wie bei freier Platzierung
 über Seiten hinweg ein Unterschied. Der Sticker im QR-Platzhalter ist weiterhin das Rechteck des QR-Bildes (nicht Teil

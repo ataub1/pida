@@ -841,15 +841,20 @@ export function toRectPt(r: Rect, pageHeight: number): RectPt {
   return { left: r.x, right: r.x + r.w, top: pageHeight - r.y, bottom: pageHeight - r.y - r.h };
 }
 
-/** Mindestmaßstab und Mindestanteil eines angebotenen Felds (Kern: `pida_placement::FIELD_MIN_SCALE`/`FIELD_MIN_FILL`). */
-const FIELD_MIN_SCALE = 1 / 3;
-const FIELD_MIN_FILL = 0.2;
+/**
+ * Schwellen eines angebotenen Felds (Kern: `pida_placement::FIELD_MIN_SCALE`, `FIELD_MIN_SHAPE`,
+ * `FIELD_MAX_PAGE_SHARE`).
+ */
+const FIELD_MIN_SCALE = 0.2;
+const FIELD_MIN_SHAPE = 0.125;
+const FIELD_MAX_PAGE_SHARE = 0.5;
 
 /**
- * Block im Signaturfeld wie im Kern (`pida_placement::field_fit`, ADR 0004 Nachtrag 16): proportional, höchstens
- * natürliche Größe, mittig; geeignet mit Maßstab ≥ ⅓ und Anteil ≥ ⅕.
+ * Block im Signaturfeld wie im Kern (`pida_placement::field_fit`/`field_suitable`, ADR 0004 Nachtrag 16):
+ * proportional, höchstens natürliche Größe, mittig; geeignet mit Maßstab ≥ ⅕, Formähnlichkeit ≥ ⅛ und höchstens der
+ * halben Seite (`page` = Breite × Höhe der Seite des Felds).
  */
-export function fieldFit(field: RectPt, block: { width: number; height: number }): { rect: RectPt; scale: number; suitable: boolean } {
+export function fieldFit(field: RectPt, block: { width: number; height: number }, page: [number, number] = A4): { rect: RectPt; scale: number; suitable: boolean } {
   const fw = field.right - field.left;
   const fh = field.top - field.bottom;
   if (!(fw > 0 && fh > 0 && block.width > 0 && block.height > 0)) return { rect: field, scale: 0, suitable: false };
@@ -858,8 +863,12 @@ export function fieldFit(field: RectPt, block: { width: number; height: number }
   const h = block.height * scale;
   const left = field.left + (fw - w) / 2;
   const bottom = field.bottom + (fh - h) / 2;
-  const fill = Math.min(1, (w * h) / (fw * fh));
-  return { rect: { left, right: left + w, bottom, top: bottom + h }, scale, suitable: scale + 1e-4 >= FIELD_MIN_SCALE && fill + 1e-4 >= FIELD_MIN_FILL };
+  const ratio = fw / fh / (block.width / block.height);
+  const shape = Math.min(ratio, 1 / ratio);
+  const pageArea = page[0] * page[1];
+  const shareOk = !(pageArea > 0) || fw * fh <= pageArea * (FIELD_MAX_PAGE_SHARE + 1e-4);
+  const suitable = scale + 1e-4 >= FIELD_MIN_SCALE && shape + 1e-4 >= FIELD_MIN_SHAPE && shareOk;
+  return { rect: { left, right: left + w, bottom, top: bottom + h }, scale, suitable };
 }
 
 function placementRect(p: Placement): RectPt {
@@ -1107,7 +1116,7 @@ function check(doc: MockDoc, edit: EditState, sticker: RectPt | null, block: { w
   const widgets = doc.spec.fields
     .filter((f, i) => f.page === page && !(edit.target.kind === 'field' && edit.target.index === i))
     .map((f) => toRectPt(f.rect, ph))
-    .filter((r) => fieldFit(r, block).suitable)
+    .filter((r) => fieldFit(r, block, pageSize(doc, page)).suitable)
     .concat(doc.spec.existing.filter((e) => e.page === page && e.rect).map((e) => toRectPt(e.rect as Rect, ph)));
   return { for_revision: edit.revision, overlaps_content: overlapsContent, overlaps_widget: widgets.some((r) => intersects(sticker, r)), clamped: edit.clamped };
 }
@@ -1139,7 +1148,7 @@ export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPh
   }
   const fields: FieldTargetView[] = doc.spec.fields.map((f, index) => {
     const rect = toRectPt(f.rect, pageSize(doc, f.page)[1]);
-    const fit = fieldFit(rect, size);
+    const fit = fieldFit(rect, size, pageSize(doc, f.page));
     return { index, name: f.name, page: f.page, rect, selectable: !f.locked, suitable: fit.suitable, block: fit.rect };
   });
   const qrSpec = doc.spec.qr;

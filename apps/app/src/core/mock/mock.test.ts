@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { defaultSettings } from '../defaults';
 import type { Settings, UiEvent, ViewState } from '../types';
 import { MOCK_SCENARIOS, MockCore, type MockOptions } from './index';
+import { fieldFit } from './workspace';
 
 let cores: MockCore[] = [];
 afterEach(() => {
@@ -108,7 +109,7 @@ describe('Szenarien', () => {
     await c.dispatch({ type: 'open_files', paths: ['/Users/demo/Dokumente/Signaturfelder.pdf'] });
     const v = await until(c, hasDoc);
     const d = v.document!;
-    expect(d.fields.filter((f) => f.suitable).map((f) => f.name)).toEqual(['Signature_0', 'Signature_5']);
+    expect(d.fields.filter((f) => f.suitable).map((f) => f.name)).toEqual(['Signature_0', 'Signature_5', 'Signature_6']);
     expect(d.new_page_size).toEqual([612, 792]);
     // frei auf Seite 2: das seitengroße leere Feld ist kein Hindernis (keine Überdeckungswarnung)
     expect(d.placement.page_index).toBe(1);
@@ -121,6 +122,28 @@ describe('Szenarien', () => {
     expect(s.right - s.left).toBeCloseTo(d.block.width, 6);
     expect(s.top - s.bottom).toBeCloseTo(d.block.height, 6);
     expect(after.document!.placement).toMatchObject({ page_index: 1, x: s.left, y: s.top, width: d.block.width });
+  });
+
+  it('Eignung eines Felds wie im Kern (`pida_placement::field_suitable`): übliche Felder für jedes Profil, absurde für keines', () => {
+    const r = (w: number, h: number) => ({ left: 100, bottom: 100, right: 100 + w, top: 100 + h });
+    const A4: [number, number] = [595.28, 841.89];
+    const small = { width: 230, height: 82 };
+    const amts = { width: 495, height: 120 };
+    const logo = { width: 40.51, height: 42.52 };
+    for (const block of [small, amts, logo]) {
+      for (const [w, h] of [[150, 50], [230, 50], [300, 100], [400, 150]] as const) expect(fieldFit(r(w, h), block, A4).suitable, `${block.width} in ${w}×${h}`).toBe(true);
+      for (const [w, h] of [[3.2, 224], [13.5, 245.6], [50, 800], [595.28, 841.89]] as const) expect(fieldFit(r(w, h), block, A4).suitable, `${block.width} in ${w}×${h}`).toBe(false);
+    }
+    // Platzhalterfeld der PDF-AS-Testdaten (63,7 × 61,1): Signaturblock ja (Maßstab 0,28), Amtssignatur nein (0,13)
+    expect(fieldFit(r(63.7, 61.1), small, A4).suitable).toBe(true);
+    expect(fieldFit(r(63.7, 61.1), amts, A4).suitable).toBe(false);
+    // Grenzen: Maßstab ⅕, Form ⅛, halbe Seite
+    expect(fieldFit(r(46, 16.4), small, A4).suitable).toBe(true);
+    expect(fieldFit(r(230 * 0.19, 82), small, A4).suitable).toBe(false);
+    expect(fieldFit(r(920, 41), small, [5000, 5000]).suitable).toBe(true);
+    expect(fieldFit(r(943, 41), small, [5000, 5000]).suitable).toBe(false);
+    expect(fieldFit(r(595.28, 420.9), small, A4).suitable).toBe(true);
+    expect(fieldFit(r(595.28, 430), small, A4).suitable).toBe(false);
   });
 
   it('bereits signiert: vorhandene Signaturen mit Status, keine neue Seite', async () => {
