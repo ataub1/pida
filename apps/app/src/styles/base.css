@@ -241,6 +241,13 @@ code {
   .kbd {
     display: none !important;
   }
+  /* Fokusrahmen der React-Aria-Bedienelemente nur nach deren Modalität (`data-focus-visible`, Tastatur bzw.
+     angeschlossene Hardware-Tastatur): Nach Eingaben über die Bildschirmtastatur hält die WebView `:focus-visible`
+     fest – schloss danach die Zurück-Geste einen Dialog, zeigte der Auslöser (z. B. „Einstellungen“) einen
+     Rahmen, obwohl nur getippt wurde (Emulator-Abnahme 17.10.2026). Textfelder behalten ihren Rahmen. */
+  [data-rac]:not(input, textarea):focus-visible:not([data-focus-visible]) {
+    outline: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

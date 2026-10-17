@@ -431,14 +431,22 @@ ng-ui-batch-existing =
 ng-ui-batch-auto = Für diesen Stapel automatisch positionieren
 ng-ui-batch-auto-hint = Alle Dokumente werden automatisch platziert und sind bereit zum Signieren – nur für diesen Stapel, die Einstellung bleibt unverändert.
 ng-ui-batch-auto-setting = Automatische Positionierung (laut Einstellung)
-ng-ui-batch-auto-confirm-title = Eigene Platzierungen behalten?
+ng-ui-batch-auto-confirm-title =
+    { $n ->
+        [one] Eigene Platzierung behalten?
+       *[other] Eigene Platzierungen behalten?
+    }
 ng-ui-batch-auto-confirm-text =
     { $n ->
         [one] Ein Dokument haben Sie selbst platziert. Soll es ebenfalls automatisch platziert werden?
        *[other] { $n } Dokumente haben Sie selbst platziert. Sollen sie ebenfalls automatisch platziert werden?
     }
 ng-ui-batch-auto-keep = Behalten
-ng-ui-batch-auto-replace = Auch diese automatisch platzieren
+ng-ui-batch-auto-replace =
+    { $n ->
+        [one] Auch dieses automatisch platzieren
+       *[other] Auch diese automatisch platzieren
+    }
 ng-ui-batch-list = Dokumente im Stapel
 ng-ui-batch-open = „{ $name }“ öffnen und positionieren
 ng-ui-batch-review = Prüfen
@@ -516,8 +524,16 @@ ng-ui-batch-start-keep-desc = Die neue Datei bekommt eine Nummer, z. B. „{ $ex
 ng-ui-batch-start-overwrite = Überschreiben
 ng-ui-batch-start-overwrite-desc = Die vorhandene Datei wird durch die signierte ersetzt.
 ng-ui-batch-start-skip = Überspringen
-ng-ui-batch-start-skip-desc = Diese Dokumente werden nicht signiert – ohne Bestätigung in der App.
-ng-ui-batch-start-skip-desc-local = Diese Dokumente werden nicht signiert.
+ng-ui-batch-start-skip-desc =
+    { $n ->
+        [one] Dieses Dokument wird nicht signiert – ohne Bestätigung in der App.
+       *[other] Diese Dokumente werden nicht signiert – ohne Bestätigung in der App.
+    }
+ng-ui-batch-start-skip-desc-local =
+    { $n ->
+        [one] Dieses Dokument wird nicht signiert.
+       *[other] Diese Dokumente werden nicht signiert.
+    }
 ng-ui-batch-start-go = Signieren starten
 ng-ui-sc-batch-doc = Dokument { $index } von { $total } · { $name }
 ng-ui-sc-batch-confirm = Bestätigung { $index } von { $total } · { $name }

@@ -542,7 +542,8 @@ describe('Datenschutz (Abnahme E3 Punkt 4)', () => {
     expect(lastEvent(mock)).toEqual({ type: 'clear_recent' });
     expect(await within(dialog).findByText('Die Liste ist leer.')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Liste leeren' })).toBeDisabled();
-    expect(await screen.findByText('Die Liste „Zuletzt signiert“ ist geleert.')).toBeInTheDocument();
+    // der Hinweis (Toast); unter Last steht derselbe Text schon in der Live-Region – nur den Toast suchen
+    expect(await screen.findByText('Die Liste „Zuletzt signiert“ ist geleert.', { selector: '.toast-title' })).toBeInTheDocument();
 
     // Abschalten löscht sofort (Kern), die Startansicht zeigt die Karte nicht mehr
     await user.click(remember);

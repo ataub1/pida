@@ -275,6 +275,7 @@ ng-ui-backend-unavailable = Derzeit nicht verfügbar.
 ng-ui-backend-local-unavailable = Keine lokale Chipkarten-Software gefunden.
 ng-ui-backend-keystore-unavailable = Keystore nicht eingerichtet (Einstellungen › Keystore).
 ng-ui-backend-leaves-device = Das Dokument wird zum Signieren an A-Trust übermittelt.
+ng-ui-backend-leaves-device-many = Die Dokumente werden zum Signieren an A-Trust übermittelt.
 ng-ui-backend-qes = Qualifizierte Signatur
 ng-ui-factor-app = App
 ng-ui-factor-sms = SMS

@@ -277,7 +277,7 @@ function SigningDialog({
           </BatchCard.Provider>
           {leaves && !finishing ? (
             <div className="sc-privacy">
-              <PrivacyNote />
+              <PrivacyNote count={batch?.total ?? 1} />
             </div>
           ) : null}
         </div>

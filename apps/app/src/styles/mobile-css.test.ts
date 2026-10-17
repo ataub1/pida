@@ -7,7 +7,8 @@
  *   „Suche löschen“ und den kompakten Konto-Chip im Bottom-Sheet;
  * - Segmente („Passwort merken?“, Speicherart) brechen um statt angeschnitten zu scrollen;
  * - Stapel schmal: der Papierkorb bleibt sichtbar (nur der Pfeil entfällt);
- * - Schlüssel des Keystores: Name und Alias untereinander.
+ * - Schlüssel des Keystores: Name und Alias untereinander;
+ * - Fingerbedienung: Fokusrahmen von React-Aria-Elementen nur nach deren Modalität (Abnahme 17.10.2026).
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -89,6 +90,17 @@ describe('Mobile-Stile', () => {
 
   it('Schlüssel des Keystores: Name und Alias untereinander', () => {
     expect(topRule(read('features/settings/settings.css'), '.keystore-key')).toMatch(/display: grid/);
+  });
+
+  it('Finger: Fokusrahmen der React-Aria-Bedienelemente nur mit `data-focus-visible` (nach Bildschirmtastatur und Zurück-Geste)', () => {
+    const base = read('styles/base.css');
+    // überall: natives `:focus-visible` und die Modalität von React Aria zeigen den Rahmen
+    expect(base).toMatch(/^:focus-visible,\n\[data-focus-visible\] \{\n {2}outline: 2px solid var\(--c-focus\);/m);
+    // bei Fingerbedienung entscheidet für React-Aria-Elemente (außer Textfeldern) nur `data-focus-visible`
+    const rule = ruleInMedia(base, '(pointer: coarse)', '[data-rac]:not(input, textarea):focus-visible:not([data-focus-visible])');
+    expect(rule).toMatch(/outline: none;/);
+    // spätere Regel mit höherer Spezifität: gewinnt über `:focus-visible` (0,1,0), nicht über `[data-focus-visible]`
+    expect(base.indexOf('[data-rac]:not(input, textarea):focus-visible')).toBeGreaterThan(base.indexOf(':focus-visible,\n[data-focus-visible] {'));
   });
 
   it('Telefon: Hinweise oben, solange ein Bottom-Sheet unten steht (Dialog, ausgeklappte Seitenleiste)', () => {
