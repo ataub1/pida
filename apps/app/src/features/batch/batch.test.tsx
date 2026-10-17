@@ -360,6 +360,10 @@ describe('Stapellauf (E2.2–E2.5)', () => {
     const failed = row(list, 'Auftragsbestaetigung_4711.pdf');
     expect(within(failed).getByText('Fehler')).toBeInTheDocument();
     expect(within(failed).getByText('Das Dokument überschreitet die Größengrenze des Signaturdienstes.')).toBeInTheDocument();
+    // Code und Ursache unter „Technische Details“ der Zeile (auf die der Alltagstext verweist, Nachtrag 19); die Liste
+    // liegt gerade hinter der Signierkarte
+    expect(within(failed).getByRole('button', { name: 'Technische Details', hidden: true })).toBeInTheDocument();
+    expect(within(failed).getByText('backend-document-too-large')).toBeInTheDocument();
     act(() => mock.completeConfirmation());
     expect(await screen.findByText('2 von 4 signiert, 1 abgelehnt, 1 fehlgeschlagen')).toBeInTheDocument();
   });

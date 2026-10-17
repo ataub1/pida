@@ -70,10 +70,15 @@ struct LoginState {
     auto_skips: u32,
     /// Vom Long-Poll ausgelöste Neuladungen (R7) in dieser A-Trust-Sitzung.
     poll_reloads: u32,
-    /// Die zuletzt gesendeten Zugangsdaten hat die Nutzerin in dieser A-Trust-Sitzung in der Maske
-    /// eingegeben (ausdrückliches Absenden; Voraussetzung der Erneuerung nach `SessionClosed.aspx`,
-    /// Nachtrag 19) – nicht bei der automatischen Anmeldung.
+    /// Der zuletzt gesendete Request war das **ausdrückliche** Absenden der Anmeldedaten aus der Maske
+    /// (Voraussetzung der Erneuerung nach `SessionClosed.aspx`, Nachtrag 19) – nicht bei der automatischen
+    /// Anmeldung. Gilt nur für die **unmittelbar** folgende Seite (samt Weiterleitungen): `present` setzt es
+    /// bei jeder Seite zurück, damit z. B. „Wiederholen“ bzw. „Abbrechen“ auf einer Fehlerseite oder der
+    /// Abbruch einer erneut gezeigten Maske nie eine neue Sitzung startet.
     entered: bool,
+    /// In dieser A-Trust-Sitzung wurde der Abbruch an A-Trust gemeldet (`Button_Cancel` aus Maske oder
+    /// Fehlerseite): eine danach beendete Sitzung ist der Abbruch der Nutzerin, keine Erneuerung (F-54).
+    cancel_sent: bool,
 }
 
 /// Höchstzahl automatisch verfolgter Weiterleitungen (301/302, `Refresh`, `<meta refresh>`) für
@@ -545,6 +550,8 @@ impl Dialog {
         login: &mut LoginState,
         renewal: &mut Renewal,
     ) -> Result<Next, BackendError> {
+        // Antwort auf das ausdrückliche Absenden der Anmeldedaten? Nur diese eine Seite (Nachtrag 19)
+        let reply_to_entered = std::mem::take(&mut login.entered);
         // 1. weder Fehler- noch Login-Block (noch beendete Sitzung) bei gesetzten Credentials = Anmeldung
         //    erfolgreich
         if !matches!(
@@ -580,8 +587,8 @@ impl Dialog {
                     )
                     .await;
             }
-            PageBlock::SessionClosed { closed_page, message, diagnostic } => {
-                return self.session_closed(credentials, login, renewal, closed_page, message.is_some(), diagnostic);
+            PageBlock::SessionClosed { closed_page, diagnostic, .. } => {
+                return self.session_closed(credentials, login, renewal, closed_page, reply_to_entered, diagnostic);
             }
             PageBlock::AutoSkip { submit } => {
                 login.auto_skips += 1;
@@ -617,7 +624,10 @@ impl Dialog {
                     // `#Button_Cancel` kein absendbarer Button, liefe ein Senden ohne Button nur zur selben
                     // Seite zurück – dann direkt abbrechen.
                     match cancel {
-                        Some(cancel) if requires_response => form_submit(&page, Some(&cancel)),
+                        Some(cancel) if requires_response => {
+                            login.cancel_sent = true;
+                            form_submit(&page, Some(&cancel))
+                        }
                         _ => return Err(BackendError::Cancelled),
                     }
                 }
@@ -655,26 +665,32 @@ impl Dialog {
         Ok(Next::Request(request))
     }
 
-    /// Beendete bzw. abgelaufene A-Trust-Sitzung (Nachtrag 19). Kam `SessionClosed.aspx` als Antwort auf ein
-    /// **ausdrückliches** Absenden der Anmeldedaten (vor bestätigter Anmeldung), wird die Sitzung einmal je
-    /// SL-Request erneuert (die Zugangsdaten bleiben dafür im RAM). Sonst – zweites Mal, Fehlerseite ohne
-    /// Meldung, automatische Anmeldung, nach SMS-TAN oder App-Bestätigung – [`BackendError::SessionClosed`]
-    /// ohne Meldung („Erneut versuchen“ = neue Sitzung). Nicht bestätigte Zugangsdaten werden dann wie nach
-    /// einer Fehlerseite gelöscht; nach bestätigter Anmeldung bleiben sie (das Passwort war richtig).
+    /// Beendete bzw. abgelaufene A-Trust-Sitzung (Nachtrag 19). Kam `SessionClosed.aspx` als **unmittelbare**
+    /// Antwort auf ein **ausdrückliches** Absenden der Anmeldedaten (`reply_to_entered`, vor bestätigter
+    /// Anmeldung), wird die Sitzung einmal je SL-Request erneuert (die Zugangsdaten bleiben dafür im RAM). Nach
+    /// einem an A-Trust gemeldeten Abbruch ist es der Abbruch der Nutzerin ([`BackendError::Cancelled`]). Sonst
+    /// – zweites Mal, Fehlerseite ohne Meldung, „Wiederholen“ auf einer Fehlerseite, automatische Anmeldung,
+    /// nach SMS-TAN oder App-Bestätigung – [`BackendError::SessionClosed`] ohne Meldung („Erneut versuchen“ =
+    /// neue Sitzung). Nicht bestätigte Zugangsdaten werden dann wie nach einer Fehlerseite gelöscht; nach
+    /// bestätigter Anmeldung bleiben sie (das Passwort war richtig).
     fn session_closed(
         &mut self,
         credentials: &mut Credentials,
         login: &LoginState,
         renewal: &mut Renewal,
         closed_page: bool,
-        has_message: bool,
+        reply_to_entered: bool,
         diagnostic: String,
     ) -> Result<Next, BackendError> {
         let after_login = login.submitted && !login.confirmed;
-        if closed_page && after_login && login.entered && renewal.take() {
+        if login.cancel_sent {
+            tracing::info!(closed_page, %diagnostic, "A-Trust-Sitzung nach dem gemeldeten Abbruch beendet");
+            return Err(BackendError::Cancelled);
+        }
+        if closed_page && after_login && reply_to_entered && renewal.take() {
             return Ok(Next::Renew("Sitzung nach dem Absenden der Anmeldedaten beendet"));
         }
-        tracing::warn!(closed_page, has_message, after_login, %diagnostic, "A-Trust-Sitzung beendet bzw. abgelaufen");
+        tracing::warn!(closed_page, after_login, reply_to_entered, %diagnostic, "A-Trust-Sitzung beendet bzw. abgelaufen");
         if after_login {
             self.clear_password(credentials);
         }
@@ -753,7 +769,10 @@ impl Dialog {
                     // – dann direkt abbrechen.
                     Err(BackendError::Cancelled) if !self.ctx.cancel.is_cancelled() => {
                         return match cancel.as_ref() {
-                            Some(button) => Ok(Next::Request(form_submit(page, Some(button)))),
+                            Some(button) => {
+                                login.cancel_sent = true;
+                                Ok(Next::Request(form_submit(page, Some(button))))
+                            }
                             None => Err(BackendError::Cancelled),
                         };
                     }

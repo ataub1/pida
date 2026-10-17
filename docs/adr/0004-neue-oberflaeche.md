@@ -3317,8 +3317,9 @@ PDF-Over nur beim Long-Poll („a-trust timeout is 5 minutes“, `MobileBKUConne
    Aktion „Erneut versuchen“; die Diagnose (Pfad ohne Abfrage, Formularzahl, Element-IDs) steht nur unter
    „Technische Details“.
 3. **Einmalige Erneuerung nach dem ausdrücklichen Absenden** (`dialog.rs`, `Next::Renew`, `Renewal`): Kommt
-   `SessionClosed.aspx` als Antwort auf ein Absenden der Anmeldedaten, die die Nutzerin **in dieser A-Trust-Sitzung in
-   der Maske eingegeben** hat (vor bestätigter Anmeldung), beginnt der Dialog den SL-Request einmal neu – neuer
+   `SessionClosed.aspx` als **unmittelbare** Antwort (samt Weiterleitungen) auf ein Absenden der Anmeldedaten, die die
+   Nutzerin **in dieser A-Trust-Sitzung in der Maske eingegeben** hat (vor bestätigter Anmeldung), beginnt der Dialog
+   den SL-Request einmal neu – neuer
    Client, leerer Cookie-Jar, `POST default.aspx` mit demselben SL-Request (bei CreateCMS mit demselben Dokument, das
    dafür bis zum Ende des SL-Requests im RAM bleibt) – und die Login-Seite der neuen Sitzung sendet dieselben
    Zugangsdaten **automatisch**, genau wie die vorhandene automatische Anmeldung im zweiten SL-Request
@@ -3326,7 +3327,12 @@ PDF-Over nur beim Long-Poll („a-trust timeout is 5 minutes“, `MobileBKUConne
    **Höchstens eine** Erneuerung je SL-Request (damit auch je Absenden); ein zweites `SessionClosed.aspx` ergibt
    `backend-session-closed` – die Zugangsdaten gingen dann genau zweimal hinaus, nie öfter. Keine Erneuerung nach
    einer automatischen Anmeldung (gemerktes Passwort, zweiter SL-Request), nach einer Fehlerseite ohne Meldung
-   (`closed_page = false`) und nach bestätigter Anmeldung.
+   (`closed_page = false`) und nach bestätigter Anmeldung. Ebenso keine Erneuerung, wenn zwischen dem Absenden und
+   `SessionClosed.aspx` eine andere Seite lag (Review 17.10.2026): nach „Wiederholen“ auf einer A-Trust-Fehlerseite
+   folgt `backend-session-closed`; nach einem an A-Trust gemeldeten Abbruch (`#Button_Cancel` aus der Fehlerseite
+   oder der – auch erneut gezeigten – Anmeldemaske) ist die beendete Sitzung der Abbruch der Nutzerin
+   (`BackendError::Cancelled`, still zurück wie nach SL 6001). Sonst startete nach „Abbrechen“ eine neue Sitzung mit
+   neuer Anmeldemaske (F-54).
 4. **Vorbeugend: alte Anmeldeseite** (`SelectorSet::login_page_max_age_secs`, Standard **240 s**, `0` = aus): Stand
    die Anmeldemaske länger als das Höchstalter (gemessen vom Empfang der Login-Seite bis zur Antwort in der Maske,
    Zeit aus `AtrustConfig::clock`, in Tests eingespeist), holt der Dialog **vor** dem Absenden eine neue Sitzung und
@@ -3354,7 +3360,9 @@ PDF-Over nur beim Long-Poll („a-trust timeout is 5 minutes“, `MobileBKUConne
 7. **Diagnose App-Link** (nur Debug-Log, kein Verhalten): Auf Seiten `WaitingForApp2Fa` protokolliert der Dialog die
    verschiedenen Link-Ziele (`page::link_targets`: `<a>`, `<area>`, Formular-`action`, `<iframe>`, `<script src>`,
    `data-*` mit URL-Wert, Zeichenketten im Inline-Skript wie `location.href = …`, `window.open(…)`, `intent:`) –
-   nur Schema, Host und Pfad, **ohne** Abfrage und Fragment, ohne `mailto:`/`tel:`/`sms:`, höchstens 40. Damit lässt
+   nur Schema, Host und Pfad, **ohne** Abfrage und Fragment, ohne `mailto:`/`tel:`/`sms:`, höchstens 40; Pfadsegmente,
+   die Personendaten oder Kennungen sein könnten (mit `@`, mit sechs oder mehr Ziffern in Folge, länger als 32
+   Zeichen), erscheinen als `…`. Damit lässt
    sich am echten Konto prüfen, ob A-Trust auf `signature.aspx` einen Link zum Öffnen der ID-Austria-App mitliefert.
 8. **Vertrag:** nur additiv – neue Variante `BackendError::SessionClosed` (nicht im TypeScript-Vertrag; der Code ist
    ein String), neue Felder der Selektor-Datei mit Standardwerten, `AtrustConfig::clock`, zusätzliche Schlüssel in
@@ -3367,7 +3375,11 @@ PDF-Over nur beim Long-Poll („a-trust timeout is 5 minutes“, `MobileBKUConne
    Schleife (genau zwei Sitzungen, genau zwei Anmeldungen, keine Meldung, kein `Button_Back`); „Erneut versuchen“ als
    neue ausdrückliche Anmeldung; alte Anmeldeseite (eingespeiste Zeit, 300 s) → neue Sitzung vor dem Absenden (genau
    ein Absenden), danach kein zweites Mal; junge Seite bzw. Prüfung aus → dieselbe Sitzung; automatische Anmeldung,
-   SMS-TAN und App-Warteseite → Fehler ohne Erneuerung. Ein eigener `tracing`-Subscriber prüft, dass Benutzername und
+   SMS-TAN und App-Warteseite → Fehler ohne Erneuerung; Review: „Abbrechen“ auf Fehlerseite bzw. in der erneut
+   gezeigten Maske → `Cancelled` ohne neue Sitzung, „Wiederholen“ → Fehler ohne Erneuerung, zweites ausdrückliches
+   Absenden in der erneuerten Sitzung → keine zweite Erneuerung, Fehlerseite ohne Meldung → keine Erneuerung,
+   Abbruch während der Erneuerung → sofort `Cancelled`, Umleitung der Erneuerung auf einen fremden Host → keine
+   Zugangsdaten dorthin, CreateCMS-Erneuerung sendet das Dokument erneut. Ein eigener `tracing`-Subscriber prüft, dass Benutzername und
    Passwort in keinem Log-Ereignis (alle Stufen) stehen. `unrecoverable_error_without_response_is_a_silent_cancel`
    nutzt statt `SessionClosed.aspx` jetzt `errorPage.aspx` (das Verhalten der Fehlerseite ist unverändert). Der
    Property-Test F-54 (`props.rs::id_austria_session_only_after_explicit_user_action`) erzeugt zusätzlich

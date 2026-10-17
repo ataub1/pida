@@ -193,6 +193,9 @@ fn link_targets_of_the_app_page_without_query_fragment_or_personal_data() {
         <a href="mailto:max.mustermann@example.com">Mail</a><a href="tel:+436641234567">Anruf</a>
         <a href="javascript:void(0)">x</a><a href="#oben">oben</a>
         <div data-applink="https://app.example.at/open/sign?user=max.mustermann" data-user="max.mustermann"></div>
+        <a href="https://x.example/u/0664123456/sign">Nummer</a><a href="intent://436641234567/open">Host</a>
+        <a href="/p/max.mustermann@example.com/x">Mail im Pfad</a><a href="/q/max%40example.com/y">kodiert</a>
+        <a href="/t/QWERTYUIOPASDFGHJKLZXCVBNM1234abc/z">Token</a><a href="/mobile/v2/sign/42.aspx">kurz</a>
         <script>if (mobile) { window.location.href = "idaustria://sign?token=GEHEIM2"; }
           var fallback = 'https://www.a-trust.at/handy-signatur/app?sid=GEHEIM3';</script>"##;
     let html = app.replace("</form>", &format!("</form>{extra}"));
@@ -206,6 +209,13 @@ fn link_targets_of_the_app_page_without_query_fragment_or_personal_data() {
         "data-applink https://app.example.at/open/sign",
         "script idaustria://sign",
         "script https://www.a-trust.at/handy-signatur/app",
+        // Segmente mit Personendaten bzw. Kennungen nur als „…“, die Struktur bleibt
+        "a https://x.example/u/…/sign",
+        "a intent://…/open",
+        "a https://service.a-trust.at/p/…/x",
+        "a https://service.a-trust.at/q/…/y",
+        "a https://service.a-trust.at/t/…/z",
+        "a https://service.a-trust.at/mobile/v2/sign/42.aspx",
     ];
     for e in expected {
         assert!(targets.iter().any(|t| t == e), "{e} fehlt in {targets:?}");
@@ -213,7 +223,22 @@ fn link_targets_of_the_app_page_without_query_fragment_or_personal_data() {
     // relative Zeichenketten außerhalb einer Navigation (z. B. der Poll-Pfad in `qrpoll("…")`) zählen nicht
     assert!(!targets.iter().any(|t| t.contains("LongPoll")), "{targets:?}");
     let all = targets.join(" ");
-    for secret in ["GEHEIM", "TOK", "mustermann", "6641234567", "mailto", "tel:", "javascript", "Intent;", "?", "#"] {
+    for secret in [
+        "GEHEIM",
+        "TOK",
+        "mustermann",
+        "6641234567",
+        "0664",
+        "QWERTY",
+        "%40",
+        "@",
+        "mailto",
+        "tel:",
+        "javascript",
+        "Intent;",
+        "?",
+        "#",
+    ] {
         assert!(!all.contains(secret), "{secret} in {all}");
     }
     // verschieden: der doppelte SMS-Link erscheint einmal

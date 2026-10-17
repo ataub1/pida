@@ -698,7 +698,9 @@ const MAX_LINK_TARGETS: usize = 40;
 /// `intent:`) und Zeichenketten im Inline-Skript (absolute URLs und `intent:` bzw. Ziele von `location = …`,
 /// `location.href = …`, `location.replace(…)`, `location.assign(…)`, `window.open(…)`). Ohne `mailto:`, `tel:`,
 /// `sms:` (Personendaten) und ohne `javascript:`, `data:`, `blob:`, `about:`; Ziele ohne Host nur mit dem Schema
-/// (`idaustria:`). Höchstens 40 Einträge, Pfade auf 120 Zeichen gekürzt.
+/// (`idaustria:`). Host und Pfadsegmente, die Personendaten oder Kennungen sein könnten (`@`, sechs oder mehr
+/// Ziffern in Folge, Segment länger als 32 Zeichen), erscheinen als `…`. Höchstens 40 Einträge, Pfade auf 120
+/// Zeichen gekürzt.
 pub fn link_targets(base_url: &Url, html: &str) -> Vec<String> {
     let doc = Html::parse_document(html);
     let base = effective_base(&doc, base_url);
@@ -761,13 +763,32 @@ fn link_target(base: &Url, raw: &str) -> Option<String> {
         return None;
     }
     let Some(host) = url.host_str() else { return Some(format!("{}:", url.scheme())) };
+    let host = if looks_personal(host) { "…" } else { host };
     let mut target = format!("{}://{host}", url.scheme());
     if let Some(port) = url.port() {
         target.push_str(&format!(":{port}"));
     }
-    let path: String = url.path().chars().take(120).collect();
-    target.push_str(&path);
+    let path = url
+        .path()
+        .split('/')
+        .map(|segment| if segment.chars().count() > 32 || looks_personal(segment) { "…" } else { segment })
+        .collect::<Vec<_>>()
+        .join("/");
+    target.extend(path.chars().take(120));
     Some(target)
+}
+
+/// Kann Personendaten oder eine Kennung tragen (E-Mail-Adresse, Telefonnummer, Konto- bzw. Vorgangsnummer):
+/// enthält `@` (auch `%40`) oder sechs bzw. mehr Ziffern in Folge – dann nur `…` in [`link_targets`].
+fn looks_personal(text: &str) -> bool {
+    let mut digits = 0;
+    for c in text.chars() {
+        digits = if c.is_ascii_digit() { digits + 1 } else { 0 };
+        if digits >= 6 {
+            return true;
+        }
+    }
+    text.contains('@') || text.to_ascii_lowercase().contains("%40")
 }
 
 /// URL-artiger Attributwert (absolut, Wurzel- bzw. relativer Pfad, `intent:`).

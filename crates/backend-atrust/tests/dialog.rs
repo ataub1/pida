@@ -2148,3 +2148,291 @@ async fn session_closed_on_sms_and_app_pages_is_an_error_without_renewal() {
     assert!(!line.contains("sid=") && !line.contains('?'), "{line}");
     assert_no_credentials_in(&log);
 }
+
+// Nachtrag 19, Review: die Erneuerung gilt nur für die **unmittelbare** Antwort auf das ausdrückliche Absenden der
+// Anmeldedaten – nie nach „Abbrechen“ bzw. „Wiederholen“ auf einer Fehlerseite oder dem Abbruch einer erneut
+// gezeigten Maske (F-54: nichts startet ohne ausdrückliche Aktion).
+
+/// Mock: neue Sitzung `S<n>` je Initial-Request. Falsches Passwort → Fehlerseite (`error.aspx`, `#Label1`,
+/// Zurück/Abbrechen); jede Antwort darauf (Zurück bzw. Abbrechen) endet auf `SessionClosed.aspx`, ebenso der
+/// Abbruch in der Anmeldemaske; Passwort `nochmal` → erneut die Login-Seite (abgelehnt).
+fn closed_after_error_flow(
+    sessions: Arc<Counter>,
+) -> impl Fn(&RecordedRequest) -> MockResponse + Send + Sync + 'static {
+    move |req| {
+        if is(req, "POST", "default.aspx") {
+            return start_session(sessions.next());
+        }
+        if is(req, "GET", "Login.aspx") {
+            return page("login.html", &[("SID", &sid(req))]);
+        }
+        if is(req, "POST", "Login.aspx") {
+            let s = sid(req);
+            if req.part("ctl00$Main$Button_Cancel").is_some() {
+                return MockResponse::redirect(302, &format!("SessionClosed.aspx?sid={s}"));
+            }
+            if req.part("ctl00$Main$signaturpasswort").is_some_and(|p| p.text() == "nochmal") {
+                return MockResponse::redirect(302, &format!("Login.aspx?sid={s}"));
+            }
+            if credentials_ok(req) {
+                return MockResponse::redirect(302, &format!("UsernameInfo.aspx?sid={s}"));
+            }
+            return MockResponse::redirect(302, &format!("error.aspx?sid={s}"));
+        }
+        if is(req, "GET", "error.aspx") {
+            return page(
+                "error.html",
+                &[("ACTION", &format!("error.aspx?sid={}", sid(req))), ("BUTTONS", &error_buttons(true, true))],
+            );
+        }
+        if is(req, "POST", "error.aspx") {
+            return MockResponse::redirect(302, &format!("SessionClosed.aspx?sid={}", sid(req)));
+        }
+        if is(req, "GET", "SessionClosed.aspx") {
+            return page("session-closed.html", &[]);
+        }
+        if is(req, "GET", "UsernameInfo.aspx") {
+            return page("usernameinfo.html", &[("ACTION", &format!("UsernameInfo.aspx?sid={}", sid(req)))]);
+        }
+        if is(req, "POST", "UsernameInfo.aspx") {
+            return infobox_xml();
+        }
+        MockResponse::status(404)
+    }
+}
+
+/// „Abbrechen“ auf der A-Trust-Fehlerseite bzw. in der erneut gezeigten Anmeldemaske wird an A-Trust gemeldet;
+/// endet die Sitzung darauf, ist das der Abbruch der Nutzerin – keine neue Sitzung, keine weitere Maske.
+#[tokio::test]
+async fn session_closed_after_a_reported_cancel_is_the_users_cancel_without_renewal() {
+    // Fehlerseite → „Abbrechen“ → SessionClosed.aspx
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(closed_after_error_flow(sessions.clone())).await;
+    let backend = backend(&server, |_| {});
+    let broker =
+        Arc::new(ScriptedBroker::new([login_reply("falsch-1", false), ScriptedReply::Notice(NoticeAnswer::Cancel)]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    assert_eq!(sessions.get(), 1, "Abbrechen startet keine neue Sitzung");
+    assert_eq!(login_posts(&server).len(), 1);
+    assert_eq!(forms(&broker).len(), 1);
+    assert_eq!(count(&server, "POST", "error.aspx"), 1, "Abbruch an A-Trust gemeldet");
+
+    // abgelehnte Anmeldung → Maske erneut → „Abbrechen“ (Button_Cancel) → SessionClosed.aspx
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(closed_after_error_flow(sessions.clone())).await;
+    let backend = support::backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply("nochmal", false), ScriptedReply::Cancel]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    assert_eq!(sessions.get(), 1, "Abbrechen startet keine neue Sitzung");
+    assert_eq!(forms(&broker).len(), 2, "keine weitere Maske nach dem Abbruch");
+    let posts = login_posts(&server);
+    assert_eq!(posts.len(), 2);
+    assert!(posts[1].part("ctl00$Main$Button_Cancel").is_some());
+    assert!(posts[1].part("ctl00$Main$signaturpasswort").is_none_or(|p| p.text().is_empty()));
+}
+
+/// „Wiederholen“ auf der Fehlerseite nach einer Anmeldung, dann `SessionClosed.aspx`: keine automatische neue
+/// Sitzung (das war keine Antwort auf abgesendete Anmeldedaten), sondern „abgelaufen – erneut versuchen“; das
+/// (falsche) Passwort wird nie erneut gesendet.
+#[tokio::test]
+async fn error_page_retry_then_session_closed_is_an_error_without_renewal() {
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(closed_after_error_flow(sessions.clone())).await;
+    let backend = backend(&server, |_| {});
+    let broker =
+        Arc::new(ScriptedBroker::new([login_reply("falsch-1", false), ScriptedReply::Notice(NoticeAnswer::Retry)]));
+    let mut session = open(&backend, &broker).await;
+    let err = session.certificate().await.unwrap_err();
+    assert!(matches!(err, BackendError::SessionClosed { .. }), "{err:?}");
+    assert_eq!(sessions.get(), 1, "keine neue Sitzung");
+    assert_eq!(login_posts(&server).len(), 1, "Passwort nie automatisch erneut");
+    assert_eq!(forms(&broker).len(), 1);
+    assert_eq!(broker.remaining(), 0);
+}
+
+/// Höchstens **eine** Erneuerung je SL-Request, auch wenn in der neuen Sitzung erneut ausdrücklich angemeldet wird
+/// (dort abgelehnt → Maske → Absenden → wieder `SessionClosed.aspx`).
+#[tokio::test]
+async fn second_explicit_login_in_the_renewed_session_does_not_renew_again() {
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start({
+        let sessions = sessions.clone();
+        move |req| {
+            if is(req, "POST", "default.aspx") {
+                return start_session(sessions.next());
+            }
+            if is(req, "GET", "Login.aspx") {
+                return page("login.html", &[("SID", &sid(req))]);
+            }
+            if is(req, "POST", "Login.aspx") {
+                let s = sid(req);
+                let pw = req.part("ctl00$Main$signaturpasswort").map(|p| p.text()).unwrap_or_default();
+                // S1: das automatisch gesendete Passwort wird abgelehnt (Login-Seite erneut)
+                return if s == "S1" && pw == "erstes-pw" {
+                    MockResponse::redirect(302, &format!("Login.aspx?sid={s}"))
+                } else {
+                    MockResponse::redirect(302, &format!("SessionClosed.aspx?sid={s}"))
+                };
+            }
+            if is(req, "GET", "SessionClosed.aspx") {
+                return page("session-closed.html", &[]);
+            }
+            MockResponse::status(404)
+        }
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply("erstes-pw", false), login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    let err = session.certificate().await.unwrap_err();
+    assert!(matches!(err, BackendError::SessionClosed { .. }), "{err:?}");
+    assert_eq!(sessions.get(), 2, "genau eine Erneuerung je SL-Request");
+    assert_eq!(login_posts(&server).len(), 3);
+    assert_eq!(forms(&broker).len(), 2);
+}
+
+/// Fehlerseite ohne Meldung (`error*.aspx` ohne Formular) nach dem ausdrücklichen Absenden: beendet, aber keine
+/// sichere `SessionClosed`-Seite – keine Erneuerung.
+#[tokio::test]
+async fn error_page_without_message_after_login_is_an_error_without_renewal() {
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start({
+        let sessions = sessions.clone();
+        move |req| {
+            if is(req, "POST", "default.aspx") {
+                return start_session(sessions.next());
+            }
+            if is(req, "GET", "Login.aspx") {
+                return page("login.html", &[("SID", &sid(req))]);
+            }
+            if is(req, "POST", "Login.aspx") {
+                return MockResponse::redirect(302, &format!("errorTimeout.aspx?sid={}", sid(req)));
+            }
+            if is(req, "GET", "errorTimeout.aspx") {
+                return page("session-closed.html", &[]);
+            }
+            MockResponse::status(404)
+        }
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    let BackendError::SessionClosed { diagnostic } = session.certificate().await.unwrap_err() else { panic!() };
+    assert!(diagnostic.contains("errorTimeout.aspx") && !diagnostic.contains("sid"), "{diagnostic}");
+    assert_eq!(sessions.get(), 1);
+    assert_eq!(login_posts(&server).len(), 1);
+}
+
+/// „Schließen“ bzw. Abbruch während der Erneuerung (neuer Initial-Request läuft): sofort `Cancelled`, die
+/// Zugangsdaten gehen nicht ein zweites Mal hinaus.
+#[tokio::test]
+async fn cancel_during_renewal_stops_without_a_second_login() {
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start({
+        let sessions = sessions.clone();
+        let inner = session_flow(sessions.clone(), &["S0"], "session-closed.html");
+        move |req| {
+            if is(req, "POST", "default.aspx") && sessions.get() == 1 {
+                return start_session(sessions.next()).with_delay(Duration::from_secs(3));
+            }
+            inner(req)
+        }
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let context = ctx();
+    let cancel = context.cancel.clone();
+    let mut session = backend.open(context, broker.clone()).await.unwrap();
+    let canceller = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        cancel.cancel();
+    });
+    let started = std::time::Instant::now();
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    assert!(started.elapsed() < Duration::from_secs(2), "{:?}", started.elapsed());
+    canceller.await.unwrap();
+    assert_eq!(login_posts(&server).len(), 1);
+    assert_eq!(forms(&broker).len(), 1);
+}
+
+/// Die Erneuerung beginnt am konfigurierten Endpunkt; leitet der auf einen fremden Host um, gehen die
+/// Zugangsdaten dort nicht hin (Abbruch vor dem Senden).
+#[tokio::test]
+async fn renewal_redirected_to_a_foreign_host_sends_no_credentials() {
+    let foreign = foreign_host().await;
+    let location = foreign.url(&p("Login.aspx?sid=F")).to_string();
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start({
+        let sessions = sessions.clone();
+        let inner = session_flow(sessions.clone(), &["S0"], "session-closed.html");
+        move |req| {
+            if is(req, "POST", "default.aspx") && sessions.get() == 1 {
+                sessions.next();
+                return MockResponse::redirect(302, &location);
+            }
+            inner(req)
+        }
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    let err = session.certificate().await.unwrap_err();
+    assert!(matches!(err, BackendError::Protocol(_)), "{err:?}");
+    assert!(!foreign.requests().is_empty(), "Umleitung verfolgt");
+    assert!(foreign.requests().iter().all(|r| r.method == "GET" && r.body.is_empty()), "nie Zugangsdaten");
+    assert_eq!(login_posts(&server).len(), 1);
+}
+
+/// CreateCMS mit ausdrücklicher Anmeldung (kein gemerktes Passwort): die Erneuerung sendet dasselbe Dokument im
+/// neuen Initial-Request erneut (die alte Sitzung hat es verworfen).
+#[tokio::test]
+async fn renewal_in_create_cms_uploads_the_document_again() {
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start({
+        let sessions = sessions.clone();
+        move |req| {
+            if is(req, "POST", "default.aspx") {
+                return start_session(sessions.next());
+            }
+            if is(req, "GET", "Login.aspx") {
+                return page("login.html", &[("SID", &sid(req))]);
+            }
+            if is(req, "POST", "Login.aspx") {
+                let s = sid(req);
+                return if s == "S0" {
+                    MockResponse::redirect(302, &format!("SessionClosed.aspx?sid={s}"))
+                } else {
+                    MockResponse::redirect(302, &format!("sms.aspx?sid={s}"))
+                };
+            }
+            if is(req, "GET", "SessionClosed.aspx") {
+                return page("session-closed.html", &[]);
+            }
+            if is(req, "GET", "sms.aspx") {
+                return page("sms.html", &[("SID", &sid(req)), ("REF", "AB12")]);
+            }
+            if is(req, "POST", "sms.aspx") {
+                return cms_xml();
+            }
+            MockResponse::status(404)
+        }
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false), tan("x7k2q1")]));
+    let mut session = open(&backend, &broker).await;
+    let (pdf, job) = document();
+    assert_eq!(session.sign(vec![job]).await.unwrap(), vec![SignResult::Cms(FAKE_CMS.to_vec())]);
+    let starts: Vec<_> = server.requests().into_iter().filter(|r| is(r, "POST", "default.aspx")).collect();
+    assert_eq!(starts.len(), 2);
+    for start in &starts {
+        assert!(start.multipart().iter().any(|part| part.data == pdf), "Dokument in jedem Initial-Request");
+    }
+    assert_eq!(login_posts(&server).len(), 2);
+    assert_eq!(forms(&broker).len(), 2, "eine Anmeldemaske, eine TAN-Maske");
+}

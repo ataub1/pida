@@ -15,7 +15,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile, type BackendId, type BatchFlowView, type BatchItemView, type BatchView as BatchViewData } from '../../core/types';
-import { AccessButton, Badge, Button, IconButton, Progress, Spinner } from '../../ui/controls';
+import { AccessButton, Badge, Button, Details, IconButton, Progress, Spinner } from '../../ui/controls';
 import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconFolder, IconInfo, IconLayers, IconLock, IconPlus, IconSignature, IconTarget, IconTrash } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { formatSize } from '../workspace/placement';
@@ -251,6 +251,13 @@ function BatchRow({ item, running, flow }: { item: BatchItemView; running: boole
           {label}
         </Badge>
         {detail ? <span className="batch-row-detail">{detail}</span> : null}
+        {/* der Alltagstext verweist auf „Technische Details“ (Nachtrag 19): Code und Ursache wie in der Fehlerkarte */}
+        {s.state === 'failed' ? (
+          <Details label={t.t('ng-ui-sc-details')} level={2}>
+            <p className="mono-small">{s.code}</p>
+            {s.params.detail ? <p className="mono-small pre-line">{s.params.detail}</p> : null}
+          </Details>
+        ) : null}
       </span>
       <span className={`batch-row-action${openable && s.state !== 'needs_review' ? ' has-caret' : ''}`}>
         {/* Entfernen für jedes noch nicht signierte Dokument, solange kein Lauf aktiv ist (abgelehnte zeigen es als Hauptaktion) */}
