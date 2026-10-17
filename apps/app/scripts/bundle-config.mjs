@@ -6,8 +6,10 @@
 // - macOS-Signatur: tauri.conf.json signiert PIDA.app samt Frameworks ad hoc ("-", versiegelte Ressourcen;
 //   nur vom Linker signiert meldete macOS die heruntergeladene App als „beschädigt“) und ohne Hardened Runtime:
 //   Deren Library Validation lehnt die ad hoc signierte libpdfium.dylib ab („different Team IDs“), die App
-//   liefe dann ohne Vorschau. Mit APPLE_SIGNING_IDENTITY (Developer ID, Notarisierung) schaltet dieses Skript
-//   die Hardened Runtime wieder ein (Pflicht für notarytool),
+//   liefe dann ohne Vorschau. Mit APPLE_SIGNING_IDENTITY (Developer ID, Notarisierung; ersetzt bei Tauri das
+//   "-") schaltet dieses Skript die Hardened Runtime wieder ein (Pflicht für notarytool). APPLE_CERTIFICATE
+//   allein genügt nicht: Tauri vergliche das Zertifikat mit dem "-" aus tauri.conf.json (Abbruch oder – bei
+//   einem Namen mit „-“ – Developer ID ohne Hardened Runtime); das Skript bricht dann ab,
 // - Drittlizenz-Hinweise aus $PIDA_NOTICES_DIR (Standard: <repo>/target/notices, erzeugt mit
 //   tools/third-party-notices.sh bzw. `npm run notices`): THIRD-PARTY-NOTICES.md und
 //   RUST-STD-COPYRIGHT.html als Ressourcen (Plan §2.5: Hinweise je Build ins Paket).
@@ -31,8 +33,15 @@ const bundle = {};
 let missing = false;
 
 const pdfiumDir = process.env.PIDA_PDFIUM_DIR;
-if (process.platform === 'darwin' && process.env.APPLE_SIGNING_IDENTITY) {
-  bundle.macOS = { hardenedRuntime: true };
+if (process.platform === 'darwin') {
+  const identity = (process.env.APPLE_SIGNING_IDENTITY ?? '').trim();
+  if (process.env.APPLE_CERTIFICATE && !identity) {
+    console.error('bundle-config: APPLE_CERTIFICATE ohne APPLE_SIGNING_IDENTITY – Identität mit angeben (sonst gilt "-").');
+    process.exit(1);
+  }
+  if (identity && identity !== '-') {
+    bundle.macOS = { hardenedRuntime: true };
+  }
 }
 
 if (pdfiumDir && existsSync(path.join(pdfiumDir, lib))) {

@@ -332,12 +332,15 @@ nicht notarisierte App weiter ab (`spctl -a -t exec -vv` → `rejected`, `syspol
 „Adhoc Signed App“ und „Notary Ticket Missing“), bietet aber „Dennoch öffnen“ (README, Installation).
 `hardenedRuntime` ist dabei **aus**: Die Library Validation der Hardened Runtime lehnt die ad hoc signierte
 `libpdfium.dylib` ab („mapping process and mapped file (non-platform) have different Team IDs“), PIDA liefe
-ohne Vorschau. Mit einer echten Identität (`APPLE_SIGNING_IDENTITY`, Notarisierung) schaltet
-`scripts/bundle-config.mjs` sie wieder ein. Prüfen:
+ohne Vorschau. Mit einer echten Identität (`APPLE_SIGNING_IDENTITY`, ersetzt bei Tauri das `"-"`; Notarisierung)
+schaltet `scripts/bundle-config.mjs` sie wieder ein. `APPLE_CERTIFICATE` (Zertifikat-Import in CI) braucht
+zusätzlich `APPLE_SIGNING_IDENTITY`, sonst bricht `bundle-config.mjs` ab: Tauri verglich das Zertifikat sonst mit
+dem `"-"` und signierte – bei einem Namen mit „-“ – mit Developer ID, aber ohne Hardened Runtime. Prüfen:
 
 ```sh
 tools/verify-macos-bundle.sh target/release/bundle   # App + App in der DMG: codesign --verify --deep --strict,
-                                                    # versiegelte Ressourcen, ad hoc ohne Hardened Runtime
+                                                    # versiegelte Ressourcen, jede Mach-O-Datei signiert mit der
+                                                    # Team-ID der App; ad hoc ohne, Identität mit Hardened Runtime
 ```
 
 CI (`bundle`, macOS) und Release-Workflow führen denselben Schritt aus; die Startprüfung verlangt

@@ -139,12 +139,18 @@ Der Release-Schlüssel liegt **nie im Repository**. `app/build.gradle.kts` liest
 `PIDA_ANDROID_KEYSTORE_PROPERTIES` den **absoluten** Pfad einer Properties-Datei außerhalb nennt:
 
 ```properties
-storeFile=/Users/<name>/.pida-release/pida-release.jks   # absolut oder relativ zu dieser Datei
+# storeFile absolut oder relativ zu dieser Datei
+storeFile=/Users/<name>/.pida-release/pida-release.jks
 storePassword=…
 keyAlias=pida
-keyPassword=…                                            # bei PKCS#12 gleich storePassword
-# storeType=pkcs12                                       # optional
+# bei PKCS#12 gleich storePassword
+keyPassword=…
+# optional:
+# storeType=pkcs12
 ```
+
+Kommentare nur in eigenen Zeilen (`#` am Zeilenanfang): Java-Properties kennen keinen Kommentar hinter einem
+Wert, `storeFile=… # …` gehörte samt Kommentar zum Wert.
 
 Ohne Variable bleibt alles wie bisher: Release unsigniert (`app-universal-release-unsigned.apk`), Debug mit dem
 Debug-Schlüssel. Fehlt die Datei, ein Eintrag oder der Keystore, bricht Gradle ab; die Meldung nennt nur
@@ -171,11 +177,19 @@ strings -a "$CARGO_TARGET_DIR/aarch64-linux-android/release/libpida_app_lib.so" 
 ```
 
 `PIDA_RELEASE_REMAP=1` setzt `CARGO_ENCODED_RUSTFLAGS` (`--remap-path-prefix`); die Link-Argumente, die Tauri für
-Android über `CARGO_TARGET_<triple>_RUSTFLAGS` setzt, treten dahinter zurück. Nachweis 17.10.2026 (ohne
+Android über `CARGO_TARGET_<triple>_RUSTFLAGS` setzt (`-Clink-arg=-landroid`, `-llog`, `-lOpenSLES`), entfallen
+dann ganz – Cargo nimmt nur die erste vorhandene Quelle. Die Crates binden `libandroid`/`liblog` selbst ein,
+OpenSLES braucht PIDA nicht; nach einem Tauri-Update die `NEEDED`-Einträge (`llvm-readelf -d`) und die
+16-KB-Ausrichtung der `LOAD`-Segmente (`llvm-readelf -l`, `0x4000`) erneut mit einem Build ohne Remap
+vergleichen. Nachweis 17.10.2026 (ohne
 `PIDA_ANDROID_KEYSTORE_PROPERTIES`, also `app-universal-release-unsigned.apk` wie bisher): dieselben
 benötigten Systembibliotheken wie 0.2.0 (`libandroid`, `libdl`, `liblog`, `libm`, `libc`), 0 statt 814
-Fundstellen von `/Users/` in `libpida_app_lib.so`. Gradle bricht mit relativem Pfad bzw. unvollständiger Datei ab
-(„keine Datei unter diesem absoluten Pfad“, „es fehlt storePassword, keyPassword“).
+Fundstellen von `/Users/` in `libpida_app_lib.so`, `LOAD`-Ausrichtung `0x4000` wie 0.2.0. Gradle bricht mit
+relativem Pfad bzw. unvollständiger Datei ab („keine Datei unter diesem absoluten Pfad“, „es fehlt storePassword,
+keyPassword“). Mit einem Test-Keystore (Review 17.10.2026, `assembleArm64Release --info`): signiert, Passwörter
+weder in der Gradle-Ausgabe noch im Klartext unter `build/`, `app/build/` oder `.gradle/` (der Configuration
+Cache ist verschlüsselt; `signing-config-versions.json` nennt nur die Schemata); eine geänderte Properties-Datei
+oder Variable verwirft den Configuration Cache, ohne Variable entsteht wieder `…-release-unsigned.apk`.
 
 ## 5. Nachweise (15.10.2026, Emulator `pida_api35`, Android 15, arm64, Sprache de-AT)
 
