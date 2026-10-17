@@ -160,12 +160,20 @@ fn open_notices(app: AppHandle) -> Result<(), String> {
     app.opener().open_path(file.to_string_lossy(), None::<&str>).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
+/// Ergebnis von [`mobile_pick_files`]: Pfade der Kopien (Reihenfolge der Auswahl) und die Zahl der gewählten, aber
+/// nicht übernommenen Dateien (ADR 0004 Nachtrag 17).
+#[derive(Debug, serde::Serialize)]
+struct MobilePick {
+    paths: Vec<String>,
+    skipped: usize,
+}
+
 /// Mobile: System-Dateiauswahl über das Plugin (`kind` = `pdf` bzw. `pkcs12`); die gewählten Dateien liegen
 /// danach als Kopien im Import-Ordner der Sandbox (die Oberfläche sendet ihre Pfade als `open_files` bzw.
 /// `import_keystore`). Desktop: `ng-mobile-unsupported` (dort gilt der Dateidialog). Läuft im
 /// Hintergrund (die native Seite darf nicht vom Hauptthread aus blockierend gerufen werden).
 #[tauri::command]
-async fn mobile_pick_files(app: AppHandle, kind: String, multiple: bool) -> Result<Vec<String>, String> {
+async fn mobile_pick_files(app: AppHandle, kind: String, multiple: bool) -> Result<MobilePick, String> {
     use tauri_plugin_pida_mobile::{ImportKind, PidaMobileExt};
     let kind = match kind.as_str() {
         "pdf" => ImportKind::Pdf,
@@ -175,11 +183,15 @@ async fn mobile_pick_files(app: AppHandle, kind: String, multiple: bool) -> Resu
     let dest = app.path().app_cache_dir().map_err(|_| "ng-ui-open-failed".to_owned())?.join(mobile::IMPORT_DIR);
     std::fs::create_dir_all(&dest).map_err(|_| "ng-ui-open-failed".to_owned())?;
     let plugin = app.pida_mobile();
-    let files = tauri::async_runtime::spawn_blocking(move || plugin.import_file(kind, multiple, &dest))
+    let imported = tauri::async_runtime::spawn_blocking(move || plugin.import_files(kind, multiple, &dest))
         .await
         .map_err(|_| "ng-ui-open-failed".to_owned())?
         .map_err(|e| e.code().to_owned())?;
-    Ok(files.into_iter().map(|f| f.path.to_string_lossy().into_owned()).collect())
+    if imported.skipped > 0 {
+        tracing::info!(count = imported.skipped, "Dateiauswahl: Dateien nicht übernommen");
+    }
+    let paths = imported.files.into_iter().map(|f| f.path.to_string_lossy().into_owned()).collect();
+    Ok(MobilePick { paths, skipped: imported.skipped })
 }
 
 /// Startet den Kern (bzw. erneut nach „Wiederholen“) und abonniert den ViewState.

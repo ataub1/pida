@@ -2214,21 +2214,24 @@ impl CoreTask {
     // UI-Ereignisse
     // --------------------------------------------------------------------------------------------
 
-    /// Dateien öffnen (`open_files`, „Erneut signieren“ aus „Zuletzt signiert“): nicht vorhandene Pfade fallen weg
-    /// (F-12). Liefert, ob mindestens eine Datei übergeben wurde.
+    /// Dateien öffnen (`open_files`, „Erneut signieren“ aus „Zuletzt signiert“): alle gewählten Dateien in der
+    /// Reihenfolge der Auswahl; was nicht dazukommt (schon offen, keine Datei – F-12), meldet `report_selection`
+    /// (ADR 0004 Nachtrag 17). Liefert, ob mindestens eine Datei übergeben wurde.
     pub(crate) fn open_paths(&mut self, paths: &[PathBuf], mode: Option<crate::view::OpenFilesMode>) -> bool {
-        let docs = self.input_documents(paths);
-        if docs.is_empty() {
-            return false;
+        let selection = self.select_documents(paths);
+        let docs = selection.docs.clone();
+        let any = !docs.is_empty();
+        if any {
+            // „+ PDF“ (ADR 0004 Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ im Zustand bedeutet, entscheidet
+            // der Reducer; im klassischen Ablauf ohne Bedeutung
+            self.apply(match mode.filter(|_| self.ws.enabled) {
+                None => Event::FilesAdded(docs),
+                Some(crate::view::OpenFilesMode::Add) => Event::MoreFilesAdded(docs),
+                Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
+            });
         }
-        // „+ PDF“ (ADR 0004 Nachtrag 9): was „hinzufügen“ bzw. „anderes öffnen“ im Zustand bedeutet, entscheidet der
-        // Reducer; im klassischen Ablauf ohne Bedeutung
-        self.apply(match mode.filter(|_| self.ws.enabled) {
-            None => Event::FilesAdded(docs),
-            Some(crate::view::OpenFilesMode::Add) => Event::MoreFilesAdded(docs),
-            Some(crate::view::OpenFilesMode::Replace) => Event::DocumentReplaced(docs),
-        });
-        true
+        self.report_selection(&selection);
+        any
     }
 
     pub(crate) fn on_ui(&mut self, event: UiEvent) {

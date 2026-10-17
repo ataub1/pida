@@ -69,6 +69,8 @@ export interface MockOptions {
   resumeOffer?: ResumeOfferView | null;
   /** Antwort der Mobile-Dateiauswahl (`[]` = abgebrochen) */
   pickMobileFilesResult?: string[];
+  /** Mobile-Dateiauswahl: gewählt, aber von der nativen Seite nicht kopiert (`pickMobileDocuments`) */
+  pickMobileSkipped?: number;
   /** eigener Datenschutztext per Richtlinie (`ViewState::privacy_text`) */
   privacyText?: string | null;
   /** Beispieldaten der späteren Etappen liefern (`recent`, `first_run`; Abnahme E0 „je neuem Typ ein Beispiel“) */

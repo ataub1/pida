@@ -275,7 +275,7 @@ class PidaMobilePlugin(private val activity: Activity) : Plugin(activity) {
 
     // --- Import (Dateiauswahl) --------------------------------------------------------------------
 
-    /** `{ kind: "pdf" | "pkcs12", multiple, destination }` → `{ files: [{ name, path }] }` */
+    /** `{ kind: "pdf" | "pkcs12", multiple, destination }` → `{ files: [{ name, path }], skipped }` (Reihenfolge der Auswahl) */
     @Command
     fun importFile(invoke: Invoke) {
         val args = invoke.parseArgs(ImportArgs::class.java)
@@ -317,8 +317,10 @@ class PidaMobilePlugin(private val activity: Activity) : Plugin(activity) {
         val limited = if (request.multiple) uris else uris.take(1)
         val isPdf = request.kind == "pdf"
         background(invoke) {
-            val files = copyAll(limited, File(request.destination), isPdf)
-            invoke.resolve(JSObject().put("files", files))
+            // alle gewählten Dateien in der Reihenfolge der Auswahl; nicht kopierbare zählen als `skipped` (die
+            // Oberfläche zeigt dazu einen Hinweis, ADR 0004 Nachtrag 17)
+            val copied = copyAll(limited, File(request.destination), isPdf)
+            invoke.resolve(JSObject().put("files", copied.first).put("skipped", copied.second))
         }
     }
 
@@ -337,8 +339,8 @@ class PidaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             return
         }
         background(invoke) {
-            val files = copyAll(uris, File(args.destination), pdf = true)
-            invoke.resolve(JSObject().put("files", files))
+            val copied = copyAll(uris, File(args.destination), pdf = true)
+            invoke.resolve(JSObject().put("files", copied.first).put("skipped", copied.second))
         }
     }
 
@@ -353,19 +355,19 @@ class PidaMobilePlugin(private val activity: Activity) : Plugin(activity) {
         return uri.scheme == ContentResolver.SCHEME_CONTENT && !authority.startsWith(app.packageName)
     }
 
-    /** Kopiert alle lesbaren URIs nach `dest/<n>/<Name>`; nicht lesbare werden übersprungen. */
-    private fun copyAll(uris: List<Uri>, dest: File, pdf: Boolean): JSArray {
-        val files = JSArray()
+    /**
+     * Kopiert alle lesbaren URIs in ihrer Reihenfolge nach `dest/<n>/<Name>` (je Datei ein eigener Unterordner, gleiche
+     * Namen überschreiben sich nicht); nicht lesbare werden übersprungen und gezählt. → (Dateien, Zahl übersprungen)
+     */
+    private fun copyAll(uris: List<Uri>, dest: File, pdf: Boolean): Pair<JSArray, Int> {
         if (!dest.isDirectory && !dest.mkdirs()) throw CodedException("destination")
-        for (uri in uris) {
-            try {
-                val copy = copyIn(uri, dest, pdf)
-                files.put(JSObject().put("name", copy.name).put("path", copy.absolutePath))
-            } catch (e: Exception) {
-                Log.w(TAG, "Dokument nicht übernommen (${(e as? CodedException)?.code ?: e.javaClass.simpleName})")
-            }
+        val copied = Documents.copyEach(uris) { uri -> copyIn(uri, dest, pdf) }
+        for (e in copied.failures) {
+            Log.w(TAG, "Dokument nicht übernommen (${(e as? CodedException)?.code ?: e.javaClass.simpleName})")
         }
-        return files
+        val files = JSArray()
+        for (copy in copied.files) files.put(JSObject().put("name", copy.name).put("path", copy.absolutePath))
+        return Pair(files, copied.skipped)
     }
 
     private fun copyIn(uri: Uri, dest: File, pdf: Boolean): File {

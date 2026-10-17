@@ -625,6 +625,16 @@ ng-parked-files-added =
         [one] The document was added to the open work.
        *[other] { $count } documents were added to the open work.
     }
+ng-open-duplicates =
+    { $count ->
+        [one] “{ $file }” is already open and was not added again.
+       *[other] { $count } of the chosen documents are already open and were not added again.
+    }
+ng-open-missing =
+    { $count ->
+        [one] One chosen item was not added – it no longer exists or is not a file.
+       *[other] { $count } chosen items were not added – they no longer exist or are not files.
+    }
 ng-batch-done = { $signed } of { $total } documents signed.
 ng-batch-nothing-to-sign = No document in the batch is ready to be signed.
 ng-batch-output-folder-required = Please choose a folder for the signed documents before starting.

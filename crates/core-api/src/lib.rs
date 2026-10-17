@@ -151,6 +151,7 @@ mod first_run;
 mod keystore_info;
 pub mod logging;
 pub mod messages;
+mod opening;
 mod parked;
 pub mod plan;
 mod recent;

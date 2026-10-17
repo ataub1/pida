@@ -8,6 +8,8 @@
  * Mobile: keine Ablagefläche und keine Tastenkürzel, Knopf „Dokument auswählen“ (Dokument-Picker bzw.
  * SAF) und der Hinweis auf „Teilen“/„Öffnen in“.
  *
+ * Unter dem Knopf steht je Plattform, wie die Dateiauswahl mehrere PDFs auf einmal übernimmt (ADR 0004 Nachtrag 17).
+ *
  * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
  * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
  */
@@ -47,6 +49,9 @@ export function StartView() {
             )}
             <p className="drop-hint">{t.t(mobile ? 'ng-ui-start-drop-hint-mobile' : 'ng-ui-start-drop-hint')}</p>
             <AccessButton msg={mobile ? 'ng-ui-start-pick-mobile' : 'ng-ui-start-pick'} variant="primary" size="lg" onPress={() => void browse()} isDisabled={!view.actions.open_files} />
+            {/* wie die System-Dateiauswahl mehrere PDFs übernimmt (macOS: Doppelklick nimmt nur eines; Android: Antippen
+                nimmt sofort eines; ADR 0004 Nachtrag 17) */}
+            <p className="drop-multi">{t.t('ng-ui-start-multi-hint', { os: view.platform.os })}</p>
             <p className="drop-foot">
               <span className="drop-foot-item">
                 <IconLock size={14} />

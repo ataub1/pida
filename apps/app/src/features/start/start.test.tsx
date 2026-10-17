@@ -54,7 +54,7 @@ describe('Start', () => {
     expect(screen.queryByText('öffnet die Dateiauswahl')).not.toBeInTheDocument();
     await user.click(button);
     await waitFor(() => expect(mock.dispatched[0]).toMatchObject({ type: 'open_files' }));
-    expect(mock.nativeCalls).toEqual(['pickMobileFiles:pdf:multiple']);
+    expect(mock.nativeCalls).toEqual(['pickMobileDocuments:multiple']);
     await expectNoAxeViolations();
   });
 
