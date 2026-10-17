@@ -101,16 +101,20 @@ Dokumente).</sub>
 Alle Pakete stehen auf der Release-Seite: **[PIDA 0.2.0](https://github.com/ataub1/pida/releases/tag/v0.2.0)**
 (ältere Versionen: [Releases](https://github.com/ataub1/pida/releases)).
 
-| System | Paket | Voraussetzung |
-|---|---|---|
-| Windows | Installer `…-setup.exe` (empfohlen) oder `.msi` | Windows 10 oder 11, x64 |
-| macOS | `.dmg` | macOS 11 oder neuer, Apple Silicon |
-| Linux | `.deb` (Debian, Ubuntu) bzw. `.rpm` (Fedora, RHEL) | x86_64 |
-| Android | `.apk` | Android 9 oder neuer, arm64 |
+| System | Paket (direkter Download) | Größe | Voraussetzung |
+|---|---|---|---|
+| Windows | [`PIDA_0.2.0_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_windows_x64-setup.exe) (empfohlen) | 10,6 MiB | Windows 10 oder 11, x64 |
+| Windows | [`PIDA_0.2.0_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_windows_x64.msi) | 14,6 MiB | Windows 10 oder 11, x64 |
+| macOS | [`PIDA_0.2.0_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_macos_arm64.dmg) | 12,9 MiB | macOS 11 oder neuer, Apple Silicon |
+| Linux (Debian, Ubuntu) | [`PIDA_0.2.0_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_linux_amd64.deb) | 15,2 MiB | x86_64 |
+| Linux (Fedora, RHEL) | [`PIDA_0.2.0_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_linux_x86_64.rpm) | 15,2 MiB | x86_64 |
+| Android | [`PIDA_0.2.0_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_android_arm64.apk) | 26,7 MiB | Android 9 oder neuer, arm64 |
+| Kommandozeile (macOS) | [`pida-cli_0.2.0_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.0/pida-cli_0.2.0_macos_arm64) | 14,9 MiB | macOS 11 oder neuer, Apple Silicon |
 
-Prüfsummen stehen in `SHA256SUMS.txt` (vergleichen mit `shasum -a 256 <Datei>` unter macOS,
-`sha256sum <Datei>` unter Linux bzw. `Get-FileHash <Datei>` in der Windows PowerShell). Eine iOS-Version ist
-nicht Teil des Releases.
+Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.2.0/SHA256SUMS.txt)
+(prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter macOS, `sha256sum -c SHA256SUMS.txt` unter Linux bzw.
+`Get-FileHash <Datei> -Algorithm SHA256` in der Windows PowerShell). Eine iOS-Version ist nicht Teil des
+Releases.
 
 ## Installation
 
@@ -199,8 +203,11 @@ pida-cli migrate --dry-run                      # Übernahme der PDF-Over-Einste
 pida-cli --help                                 # alle Optionen und Exit-Codes
 ```
 
-Liegt dem Release keine `pida-cli`-Datei für Ihr System bei, lässt sie sich aus dem Quellcode bauen
-(`cargo build --release -p pida-cli`, siehe [Entwicklung](#entwicklung)).
+Für macOS (Apple Silicon) liegt dem Release die fertige Datei
+[`pida-cli_0.2.0_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.0/pida-cli_0.2.0_macos_arm64)
+bei: ausführbar machen mit `chmod +x pida-cli_0.2.0_macos_arm64`, gegebenenfalls zuerst
+`xattr -d com.apple.quarantine pida-cli_0.2.0_macos_arm64`. Für andere Systeme lässt sich `pida-cli` aus dem
+Quellcode bauen (`cargo build --release -p pida-cli`, siehe [Entwicklung](#entwicklung)).
 
 ## Entwicklung
 
@@ -302,7 +309,8 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   settings can be imported on first start; PDF-Over command-line arguments keep working (`pida-cli`).
 - **Download:** [PIDA 0.2.0](https://github.com/ataub1/pida/releases/tag/v0.2.0) (pre-release) – Windows 10/11
   x64 (`-setup.exe` or `.msi`), macOS 11+ on Apple Silicon (`.dmg`), Linux x86_64 (`.deb`/`.rpm`), Android 9+
-  arm64 (`.apk`). iOS is not included.
+  arm64 (`.apk`), plus the command-line tool `pida-cli` for macOS on Apple Silicon. Checksums are in
+  `SHA256SUMS.txt`. iOS is not included.
 - **Installation:** packages are not code-signed or notarised and do not update themselves. Windows SmartScreen:
   “More info” › “Run anyway”. macOS: right-click › “Open” (macOS 15 and later: System Settings › Privacy &
   Security › “Open Anyway”). Android: allow “Install unknown apps” for your browser or file manager.
