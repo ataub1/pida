@@ -527,3 +527,11 @@ Vertrag unverändert (nur Oberfläche und UI-Kataloge); am Gerät mit neu gebaut
 `aarch64-linux-android` (NDK 29, `CC_/AR_/…_LINKER` gesetzt) grün; Plugin-Unit-Tests
 (`:tauri-plugin-pida-mobile:testDebugUnitTest`) grün. Nebenbei: `settings.test.tsx` („Liste leeren“) scheiterte im vollen Lauf unter Last
 gelegentlich, weil der Hinweistext zugleich in der Live-Region stand – die Prüfung sucht jetzt nur den Toast.
+
+### 10.5 Zusammenführung (17.10.2026)
+
+In `mob2/int` mit dem iOS-Nachweis (`mob2/ios`, mobile-ios.md §10) und damit mit `main` samt Entfernung des
+Prüfmodus (ADR 0004 Nachträge 15 und 18) vereint; Einzelheiten in mobile.md §12.5/§12.6. C2 und C4 hatte der
+iOS-Durchgang gleich behoben (N6, N7) – Code und Kataloge blieben gleich, die Tests beider Durchgänge sind vereint.
+Die schmale Kopfzeile (10.3) hat nach dem Merge keinen Knopf „Signatur prüfen“ mehr; für Stapeleinträge zeigt die
+Wortmarke bis 480 px zudem nur das Logo (iOS N5). Am Emulator ist das noch nicht wieder angesehen.

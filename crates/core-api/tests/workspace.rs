@@ -753,6 +753,14 @@ async fn declined_in_the_app_offers_retry_in_the_same_session() {
     assert_eq!(backend.logins.load(Ordering::SeqCst), 1, "keine neue Anmeldung");
     core.dispatch(UiEvent::Cancel);
     wait_for(&core, "Arbeitsbereich", editing).await;
+    // `CancelSession` räumt die Sitzung asynchron auf (wie oben): unter Last stand der Arbeitsbereich schon,
+    // bevor das Backend den Abbruch zählte (Integration mob2/int, 1 von 5 Läufen)
+    for _ in 0..50 {
+        if backend.cancelled.load(Ordering::SeqCst) >= 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
     assert_eq!(backend.cancelled.load(Ordering::SeqCst), 1, "Schließen verwirft die Sitzung (F-72)");
     // neuer Versuch: neue Sitzung, neue Anmeldung, Erfolg
     core.dispatch(UiEvent::SignWith { backend: BackendId::AtrustNative });

@@ -576,3 +576,96 @@ nennt einen Keystore; das Plugin bietet `pkcs12` weiter an, die Shell lehnt es a
 - **Aufräumen im Vertrag:** `UiEvent::ImportKeystore`/`DismissKeystoreImport`, `KeystoreImportView` und der
   Import im Kern werden von keiner Oberfläche mehr genutzt (der Desktop wählt die Datei direkt); sie bleiben, bis der
   Vertrag einmal bereinigt wird (§3.0: nur additiv).
+
+### 12.5 Am Gerät (17.10.2026): Ergebnis je Plattform
+
+Zwei Gerätedurchgänge auf dem Integrationsstand `826fe82` (Mobile nur ID Austria, Randfälle aus ADR 0004 Nachtrag 12,
+„+ PDF“, „In Bearbeitung“, automatische Positionierung): iOS auf dem Simulator **iPhone 17e** (iOS 27, Branch
+`mob2/ios`, mobile-ios.md §10, Aufnahmen `screenshots/ios-ng2/`) und Android auf dem Emulator `pdfover_api35` <!-- rename-to-pida:keep -->
+(Android 15, Branch `mob2/android`, mobile-android.md §10, Aufnahmen `screenshots/android-ng2/`).
+Beide ohne Verbindung zu A-Trust (Proxy `127.0.0.1:9`, Flugmodus bzw. lokales „schwarzes Loch“) und ohne
+Zugangsdaten; Simulator und Emulator danach heruntergefahren. Der Prüfmodus war nicht Gegenstand (Entscheidung vom
+17.10.2026, ADR 0004 Nachtrag 15).
+
+| Nr. | Ablauf | iOS (iPhone 17e) | Android (Emulator) |
+|---|---|---|---|
+| 1 | Frische Installation, Ersteinrichtung | ok: „Schritt 1 von 1“ nur mit dem Signaturbild, kein Signiermittel-Schritt; „Später einrichten“ mit Hinweis auf die Einstellungen | ok: ebenso nach `pm clear`; Merker `keystore-secrets-removed` gesetzt (`removed=0`) |
+| 2 | Update von einem Build mit Keystore als Standard | ok: Review-Build 1.0.0 mit importiertem `.p12` und `default = "keystore"` → Start mit ID Austria, „Zuletzt signiert“ übernommen, `removed=0` (die Keychain hatte keine PIDA-Einträge), Merker gesetzt, `settings.toml` byte-gleich, `.p12` bleibt liegen | ok: echtes Update von Build 8606b0c mit importiertem `.p12`, Passwort im sicheren Speicher und Keystore als Standard → `removed=2`, `pida_secure_store.xml` leer, Merker gesetzt, `settings.toml` beim Start unverändert (erst beim nächsten Speichern `default = "id_austria"`, `[keystore]` bleibt), `.p12` bleibt liegen |
+| 3 | Absuche nach Keystore, Zertifikatsdatei, „Passwort merken?“ | ok: Text und Attribute aller Ansichten (Start, acht Einstellungsbereiche, Suche, Befehle, Hilfe, Arbeitsbereich, Konto-Chip, Signier-, Fehler- und Stapelkarte, Startdialog) ohne Treffer; die Dokumentauswahl zeigt das `.p12` ausgegraut | ok: ebenso frisch und nach dem Update; Einstellungssuche und Befehlspalette ohne Treffer, Konto-Chip-Menü nur „Einstellungen …“ |
+| 4 | PDF empfangen, automatische Positionierung, „Diesmal selbst platzieren“, Stapel-Option | behoben (N7): Teilen aus „Dateien“ mit Hinweis zum Teilen erstmals am Gerät; Automatik, Freigabe und Ziehen per Touch, Stapel-Option mit Rückfrage | behoben (C4): `VIEW`-Intent, die Einstellung wirkt sofort auf das offene Dokument, „Diesmal selbst platzieren“, Stapel-Option mit Rückfrage |
+| 5 | „+ PDF“ (weitere hinzufügen, anderes öffnen), Papierkorb | ok | ok |
+| 6 | „Zur Startseite“ → „In Bearbeitung“, neues PDF bei offener Arbeit | ok: Parken ohne Rückfrage, „Weiter bearbeiten“ unverändert, Teilen fügt ohne Rückfrage hinzu (Nachtrag 10 Pkt. 4), „Dokument auswählen“ fragt „Zur offenen Arbeit hinzufügen?“ | ok: ebenso, „Schließen“ fragt bei eigener Platzierung nach |
+| 7 | Randfälle (Nachtrag 12) | behoben (N1, N6, N8): Hinweis über dem Sheet oben, Live-Region ohne alte Lage, `qr.pdf` im QR-Platzhalter und kein zweiter Eintrag, Bereichsleiste bei großer Schrift | behoben (C2, C3): ebenso bei 130 % Schrift |
+| 8 | ID Austria ohne Netz, Tastatur, dunkel, Querformat, große Schrift | behoben (N1–N5): „Verbindung wird aufgebaut …“ und „Die Zeit ist abgelaufen“ mit „Erneut versuchen“, Buchstaben-Tastatur im Benutzernamen-Feld, dunkel, Querformat, 200 % Schrift | behoben (C1): „Der Signaturdienst ist gerade nicht erreichbar“ (DNS-Fehler, A-Trust nie erreicht), Buchstaben-Tastatur, dunkel, Querformat 863 × 360, 130 % Schrift, AX-Baum ohne unbenanntes Bedienelement |
+
+**Behobene Befunde** (nur Oberfläche und UI-Kataloge, Vertrag unberührt; wirken auf allen Plattformen, wo nicht anders
+genannt):
+
+- **Gleich auf beiden Geräten gefunden und gleich behoben:** Datenschutz-Kurzhinweis im Stapel in der Einzahl (iOS N6
+  = Android C2) – Übersicht, Startdialog und Stapelkarte ab zwei Dokumenten „Die Dokumente werden zum Signieren an
+  A-Trust übermittelt.“ (`ng-ui-backend-leaves-device-many`, `PrivacyNote count`); Rückfrage zur Stapel-Option bei
+  einem Dokument in der Mehrzahl (N7 = C4) – „Eigene Platzierung behalten?“ / „Auch dieses automatisch platzieren“
+  (`ng-ui-batch-auto-confirm-title`/`-replace` mit `$n`). Beim Zusammenführen blieben Code und Kataloge gleich; die
+  Tests beider Durchgänge sind vereint (`batch.test.tsx`, `i18n.test.ts`).
+- **iOS:** N1 Knöpfe der Signierkarte bleiben auf Mobile am unteren Rand stehen (`signing.css`); N2 Stapelkarte bei
+  großer Schrift nicht breiter als das Telefon (`components.css`); N3 Zoomwert ohne Umbruch (`workspace.css`); N4
+  `data-keyboard` bei eingeblendeter Bildschirmtastatur, die Signaturbild-Vorschau rollt mit (`app/keyboard.ts`,
+  `settings.css`); N5 bis 480 px Breite nur das Logo, wenn die Kopfzeile „Zurück zum Stapel“ trägt (`shell.css`); N8
+  Stapelabbruch ohne Signatur: „Stapel abgebrochen – es wurde noch kein Dokument signiert.“ (`ng-batch-aborted` `[0]`).
+- **Android:** C1 bei Fingerbedienung zeigen React-Aria-Elemente außer Textfeldern den Fokusrahmen nur mit
+  `data-focus-visible` – nach Bildschirmtastatur und Zurück-Geste kein Rahmen mehr, mit Hardware-Tastatur weiter
+  (`base.css`); C3 „Überspringen“ im Startdialog in Einzahl/Mehrzahl nach der Zahl der vorhandenen Zieldateien
+  (`ng-ui-batch-start-skip-desc(-local)` mit `$n`); `settings.test.tsx` („Liste leeren“) sucht nur den Toast (unter
+  Last stand derselbe Text in der Live-Region).
+
+**Nicht am Gerät belegbar** (ohne Keystore und ohne A-Trust kommt auf Mobile keine Signatur zustande): „Fertig“, der
+„Sichern unter“-Hinweis mit dem tatsächlichen Namen, Teilen und Öffnen eines Ergebnisses, Anmelde- und TAN-Maske der
+Signierkarte mit Tastatur, Vergleichswert, „Signatur fortsetzen“ eines Keystore-Vorgangs; die Keychain-Bereinigung lief
+unter iOS nur ohne vorhandene Einträge (`removed=0`, unter Android mit `removed=2`). Belegt durch Kern- und
+Oberflächentests (12.3, `core-api/tests/mobile.rs`, `signing.test.tsx`, `done.test.tsx`) und die Plugin-Unit-Tests.
+
+### 12.6 Zusammenführung (`mob2/int`, 17.10.2026)
+
+`mob2/ios` (a820da7, enthält schon `main` a04de88 mit der Entfernung des Prüfmodus, aufgelöst nach ADR 0004
+Nachtrag 18; mobile-ios.md §10.5) per Fast-Forward, danach `mob2/android` (f6f57f4, ab `826fe82`): vier
+Konfliktdateien (`batch.test.tsx`, `privacy.tsx`, `mobile-css.test.ts`, dieses Dokument) – nur Kommentare und eine
+doppelte Prüfung, der Code beider Behebungen war gleich; `git merge main` danach ohne Änderung. Vertrag unberührt:
+`ts_bindings`, `serde_contract` und die Real-Core-Proben (`workspace`, `batch`, `first_run`) mit `PIDA_BLESS=1` ohne
+Änderung.
+
+Nebenbei: `core-api/tests/workspace.rs::declined_in_the_app_offers_retry_in_the_same_session` scheiterte unter Last
+gelegentlich (1 von 5 Einzelläufen; Test und Kern wie auf `main`): „Schließen“ verwirft die Sitzung asynchron, die
+Prüfung erwartete den Abbruch schon, sobald der Arbeitsbereich stand. Sie wartet jetzt wie der Test darüber bis zu 1 s
+auf den Abbruch (danach 15 von 15 Läufen grün).
+
+**Prüfungen (Stand `mob2/int` nach beiden Merges):** `cargo test --workspace --no-fail-fast` 1483 bestanden,
+0 fehlgeschlagen, 5 ignoriert; `cargo clippy --workspace --all-targets -- -D warnings` und `cargo fmt --all --check`
+ohne Befund; `npm ci && npm run build && npm test` 34 Dateien, 710 Tests; `ts_bindings`, `serde_contract` und die
+Real-Core-Proben mit `PIDA_BLESS=1` ohne Änderung; `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo check
+-p pida-app` für `aarch64-apple-ios-sim` und `aarch64-linux-android` (NDK, je eigenes `CARGO_TARGET_DIR`) grün.
+macOS-Debug-Bundle mit `--config '{"identifier":"at.pida.smoketest"}'` (übergibt nicht an eine laufende PIDA),
+Startprüfung `PIDA_SMOKE=1` mit leerem `PIDA_HOME`/`HOME` dreimal `pida-smoke: ok step=open pdfium=true`
+(445/448/452 ms). Für die Zusammenführung kein Simulator bzw. Emulator gestartet.
+
+**Offen bzw. zur Entscheidung des Auftraggebers** (Einzelheiten in mobile-ios.md §10.3 und mobile-android.md §10.3):
+
+- **Datenschutzinformation auf Mobile:** Der übernommene PDF-Over-Text in Einstellungen › Datenschutz nennt auch auf
+  iOS/Android „Der Signaturvorgang mit der Chipkarte wird lokal durchgeführt.“ – Bereich des parallelen Laufs
+  (Online-Prüfung/Datenschutz), nicht geändert; Vorschlag: den Satz auf Mobilgeräten weglassen.
+- **Duplikate nach Nachtrag 17 (Merge-Entscheidung, Nachtrag 18 Pkt. 3):** Am Desktop sind inhaltsgleiche Dateien in
+  verschiedenen Ordnern zwei Dokumente (der Inhaltsvergleich aus Nachtrag 12 entfiel); eine eben signierte Datei mit
+  demselben Pfad bleibt am Desktop in „Fertig“ und wird als Duplikat gemeldet, nur Kopien auf Mobilgeräten öffnen als
+  nächstes Dokument. Zur Bestätigung.
+- **Stapel-Option ohne Einstellung:** Einträge ohne eigenen Plan stehen schon vor dem Einschalten auf „Bereit ·
+  automatisch platziert“; der Schalter ändert sichtbar nur Einträge mit Vorschau-Plan – ob der Hinweistext das klarer
+  sagen soll.
+- **Stapel mit nur noch einem Dokument** bleibt Stapel („Alle Dokumente werden in einem Durchgang …“) – Wortlaut,
+  niedrig.
+- **Liegengebliebene Dateien:** `data/keystores/*.p12` früherer Builds (siehe 12.4); eine frische Installation legt
+  zudem einen leeren `data/keystores` an und schreibt `[keystore]` mit Standardwerten – unsichtbar, ohne Wirkung.
+- Klein, nicht geändert: Die Beschreibung des Signaturblocks für Bildschirmleser nennt auch auf dem Telefon
+  Tastenkürzel; der Hinweis „Signaturblock automatisch … platziert“ ist bei großer Schrift oben angeschnitten
+  (kurzlebig); in der schmalen Android-Kopfzeile war der Dokumentname neben „Signatur prüfen“ auf 1–2 Zeichen gekürzt –
+  mit der Entfernung des Prüfmodus frei geworden, am Gerät noch nicht wieder angesehen.
+- Aufnahmen mit dem Android-Emulator künftig mit `-gpu host` (mit `swiftshader_indirect` doppelte Bildteile in
+  `adb screencap`, kein Fehler der App).
