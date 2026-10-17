@@ -718,3 +718,137 @@ fn wave2_message_ids_are_in_catalog() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+// --- Alltagstexte der Fehlercodes (ADR 0004 Nachtrag 19) ---------------------------------------------
+
+/// Familien der Fehlercodes, die als Fehlerschritt, Stapelpause, Stapelzeile oder Maskenhinweis erscheinen
+/// (`BackendError::code`, `FormProblem::Fido2Error`, `SigBlockError::code`, `CmsError::code`, `PlacementError`
+/// über `PlanError`, `RenderError::code`, Befunde `pdf-…`).
+const ERROR_FAMILIES: &[&str] =
+    &["backend-", "atrust-", "fido2-", "keystore-", "cms-", "sigblock-", "render-", "placement-", "pdf-"];
+
+/// Hinweise (keine Fehler) in diesen Familien: eigene Parameter, eigener Weg (Toast/Zeile).
+const NOT_ERRORS: &[&str] = &["sigblock-chars-replaced", "placement-notice-"];
+
+/// Fehlercodes des Ablaufs außerhalb der Familien (`WorkflowError::code`, `MSG_*`, Ablehnungen, Vorbereitung).
+const WORKFLOW_ERRORS: &[&str] = &[
+    "ng-invariant-violated",
+    "ng-cms-too-large",
+    "ng-signing-declined",
+    "ng-signing-cancelled",
+    "ng-no-backend-available",
+    "ng-default-backend-unavailable",
+    "ng-backend-choice-required",
+    "ng-certificate-not-valid",
+    "ng-certcache-mismatch",
+    "ng-document-rejected",
+    "ng-pdf-no-sign-rights",
+    "ng-field-locked",
+    "ng-field-already-signed",
+    "ng-constraint-certified",
+    "ng-constraint-signed",
+    "error-PrepareDocument",
+    "error-Unexpected",
+    "error-Initialization",
+    "error-IOError",
+    "error-PDFProtected",
+    "error-PDFPwdProtected",
+    "error-MayNotBeAPDF",
+    "output-save_failed",
+];
+
+/// Ersatztexte der Oberfläche für Codes des erzeugten PDF-Over-Katalogs (dort keine Attribute;
+/// `UI_FALLBACK` in `apps/app/src/features/signing/texts.ts`).
+const UI_TEXTS: &[(&str, &str)] = &[("output-save_failed", "ng-ui-fin-save-failed-text")];
+
+/// Variablen genau des Musters, das als Alltagstext erscheint: `.text`, sonst der Wert.
+fn everyday_variables(lang: Lang, id: &str) -> Option<BTreeSet<String>> {
+    for (l, _, source) in BUILTIN_SOURCES {
+        if *l != lang {
+            continue;
+        }
+        let resource = fluent_syntax::parser::parse(*source).expect("gültiges FTL");
+        for entry in &resource.body {
+            let ast::Entry::Message(m) = entry else { continue };
+            if m.id.name != id {
+                continue;
+            }
+            let mut vars = BTreeSet::new();
+            match m.attributes.iter().find(|a| a.id.name == "text") {
+                Some(text) => pattern_vars(&text.value, &mut vars),
+                None => pattern_vars(m.value.as_ref()?, &mut vars),
+            }
+            return Some(vars);
+        }
+    }
+    None
+}
+
+/// Kein Alltagstext eines Fehlercodes enthält Variablen (Nachtrag 19): Was der Kern als Diagnose liefert
+/// (`detail`, `diagnostic`, …), steht nur unter „Technische Details“, und kein Text zeigt einen rohen Platzhalter
+/// (`{$diagnostic}` im Befund vom 17.10.2026). Hat die Meldung Variablen, braucht sie dafür ein `.text` ohne
+/// Variablen (bzw. einen Ersatztext der Oberfläche).
+#[test]
+fn error_codes_have_an_everyday_text_without_variables() {
+    let catalog = Catalog::builtin().unwrap();
+    let mut codes: BTreeSet<String> = catalog
+        .message_ids(Lang::De)
+        .filter(|id| ERROR_FAMILIES.iter().any(|f| id.starts_with(f)))
+        .filter(|id| !NOT_ERRORS.iter().any(|n| id.starts_with(n)))
+        .map(str::to_owned)
+        .collect();
+    // auch alle Codes dieser Familien aus dem Quelltext (Codes mit Punkt wie Java-Keys)
+    for code in codes_in_sources().keys() {
+        let id = fluent_id_for_java_key(code);
+        if ERROR_FAMILIES.iter().any(|f| id.starts_with(f)) && !NOT_ERRORS.iter().any(|n| id.starts_with(n)) {
+            codes.insert(id);
+        }
+    }
+    codes.extend(WORKFLOW_ERRORS.iter().map(|s| (*s).to_owned()));
+    for sample in ["backend-unknown-page", "backend-session-closed", "backend-http", "sigblock-font", "fido2-device"] {
+        assert!(codes.contains(sample), "{sample}");
+    }
+    assert!(codes.len() >= 80, "nur {} Fehlercodes", codes.len());
+
+    // die Werte, die der Kern liefert (`WorkflowError::params`), als Marker
+    let marker = "MARKER-DIAGNOSE";
+    let arg_names = ["detail", "diagnostic", "status", "reason", "code", "info", "format", "invariant", "needed"];
+    let args: Vec<(&str, ArgValue)> = arg_names
+        .iter()
+        .chain(
+            ["reserve", "arg1", "arg2", "class", "profile", "expr", "pattern", "char", "details", "page", "count"]
+                .iter(),
+        )
+        .map(|n| (*n, ArgValue::Str(marker.into())))
+        .collect();
+    let mut problems = Vec::new();
+    for code in &codes {
+        for lang in Lang::ALL {
+            if !catalog.has(lang, code) {
+                problems.push(format!("{code} fehlt in {}", lang.tag()));
+                continue;
+            }
+            let ui = UI_TEXTS.iter().find(|(c, _)| c == code).map(|(_, ui)| *ui);
+            let (id, text) = match ui {
+                Some(ui) => (ui, catalog.format(lang, ui, &args).into_owned()),
+                None => (
+                    code.as_str(),
+                    catalog.attribute(lang, code, "text").unwrap_or_else(|| {
+                        catalog.format(lang, code, &[("detail", ArgValue::Str(marker.into()))]).into_owned()
+                    }),
+                ),
+            };
+            let vars = everyday_variables(lang, id).unwrap_or_default();
+            if !vars.is_empty() {
+                problems.push(format!(
+                    "{code} ({}): Alltagstext mit Variablen {vars:?} – `.text` ohne Variablen ergänzen",
+                    lang.tag()
+                ));
+            }
+            if text.contains("{$") || text.contains("{ $") || text.contains(marker) {
+                problems.push(format!("{code} ({}): {text:?}", lang.tag()));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

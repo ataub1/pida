@@ -98,12 +98,15 @@ keystore-no-key-entry = The keystore contains no key with a certificate.
 keystore-alias-required = The keystore contains several keys – please specify an alias.
 keystore-key-mismatch = The key and certificate in the keystore do not match.
 
-## Signature backends (`pida_backend_api::BackendError::code`); variables = fields of the variant
+## Signature backends (`pida_backend_api::BackendError::code`); variables = fields of the variant (the core
+## delivers them, `WorkflowError::params`). `.text` is the everyday text of the UI **without** variables – the cause
+## is shown under “Technical details” (ADR 0004 addendum 19; test `error_codes_have_an_everyday_text_without_variables`).
 
 backend-cancelled = The operation was cancelled.
     .title = Operation cancelled
     .action = Try again
 backend-unavailable = The signing method is not available: { $detail }
+    .text = The signing method is not available right now. The exact cause is shown under “Technical details”.
 backend-network = The connection to the signature service failed: { $detail }
     .title = The signature service cannot be reached right now
     .text = The connection to the signature service failed. Check your internet connection and try again; the exact cause is shown under “Technical details”.
@@ -111,19 +114,30 @@ backend-network = The connection to the signature service failed: { $detail }
 backend-proxy-auth = The proxy server requires authentication.
 backend-document-too-large = The document exceeds the size limit of the signature service.
 backend-http = The signature service rejected the request: HTTP { $status } { $reason }
+    .text = The signature service rejected the request. Please try again later; the exact cause is shown under “Technical details”.
 backend-security-layer = Operation aborted by the signature server ({ $code }): { $info }
+    .text = The signature service aborted the operation. The exact cause is shown under “Technical details”.
 backend-unknown-page = Unknown page of the signature service ({ $diagnostic }). The operation was cancelled.
+    .text = Unknown page of the signature service – the operation was cancelled. The exact cause is shown under “Technical details”.
 backend-loop = The signature service is responding in an endless loop; the operation was cancelled.
 backend-protocol = Unexpected response from the signature service: { $detail }
+    .text = The signature service responded unexpectedly; the operation was cancelled. The exact cause is shown under “Technical details”.
 backend-wrong-password = The password is wrong.
 backend-keystore = Keystore error: { $detail }
+    .text = The keystore could not be used. The exact cause is shown under “Technical details”.
 backend-keystore-format = The keystore format { $format } is not supported – please convert it to PKCS#12.
+    .text = The format of this keystore is not supported – please convert it to PKCS#12.
 backend-certificate-mismatch = The signature was created with a certificate other than the expected one.
 backend-fido2 = FIDO2 error: { $detail }
+    .text = An error occurred with the security key. The exact cause is shown under “Technical details”.
 backend-timeout = Timeout: the signature service did not respond in time.
     .title = Time has run out
     .action = Request a new confirmation
 backend-internal = Internal error: { $detail }
+    .text = An internal error occurred in PIDA. The exact cause is shown under “Technical details”.
+backend-session-closed = The session at A-Trust has expired or was closed. Please try again – this starts a new session.
+    .title = The session at A-Trust has expired
+    .action = Try again
 
 ## Backend notices and forms without a PDF-Over key (`NoticeCode::AtrustInterstitial` as title,
 ## `FormProblem::LoginRejected`); mapping of all variants: crates/i18n/tests/code_catalog.rs
@@ -134,6 +148,7 @@ ng-form-login-rejected = The login was not accepted. Please enter the password a
 ## ID Austria via A-Trust, scenario A (`pida_backend_atrust`)
 
 atrust-unknown-page = Unknown page of the signature service ({ $diagnostic }). The operation was cancelled.
+    .text = Unknown page of the signature service – the operation was cancelled. The exact cause is shown under “Technical details”.
 atrust-signature-data-link-rejected = The “show signature data” link does not lead to A-Trust and is not opened.
 
 ## FIDO2 (`pida_backend_atrust::Fido2Error::code` and detail codes of the providers)
@@ -142,6 +157,7 @@ fido2-unavailable = FIDO2 is not available on this device.
 fido2-cancelled = The operation was cancelled at the security key.
 fido2-invalid-options = The FIDO2 request from the signature service could not be read.
 fido2-device = Security key error: { $detail }
+    .text = The security key reported an error. Please try again or use the app or SMS.
 fido2-pin-unsupported = This security key requires a PIN; PIN entry is not yet available on this system – please use the app or SMS.
 fido2-no-credential = This security key does not hold an ID Austria registration.
 fido2-timeout = Timeout: the security key was not touched.
@@ -155,13 +171,20 @@ fido2-no-device = No FIDO2 security key found. Please plug in your security key 
 ## Signature block (`pida_sigblock::SigBlockError::code`, `NOTICE_CHARS_REPLACED`)
 
 sigblock-unknown-profile = The signature profile “{ $profile }” does not exist.
+    .text = The selected signature profile does not exist. Details are shown under “Technical details”.
 sigblock-profile = The signature profile is invalid: { $detail }
+    .text = The signature profile contains errors. Details are shown under “Technical details”.
 sigblock-unsupported-expression = The expression { $expr } in the signature profile is not supported.
+    .text = The signature profile contains an expression that is not supported. Details are shown under “Technical details”.
 sigblock-unsupported-date-pattern = The date format “{ $pattern }” in the signature profile is not supported.
+    .text = The date format in the signature profile is not supported. Details are shown under “Technical details”.
 sigblock-font = The signature block font could not be loaded: { $detail }
+    .text = The signature block font could not be loaded. Details are shown under “Technical details”.
 sigblock-missing-glyph = The character “{ $char }” is not available in the signature block font.
+    .text = A character is not available in the signature block font. Details are shown under “Technical details”.
 sigblock-image = The signature logo could not be read (supported: PNG, JPEG, GIF).
 sigblock-missing-resource = A resource of the signature profile is missing: { $detail }
+    .text = A resource of the signature profile is missing. Details are shown under “Technical details”.
 sigblock-pdf = The signature appearance could not be created.
 sigblock-io = Error reading the signature block configuration.
 sigblock-chars-replaced = Some characters are not available in the signature block font and were replaced by “?”: { $chars }
@@ -169,15 +192,21 @@ sigblock-chars-replaced = Some characters are not available in the signature blo
 ## Rendering (`pida_render::RenderError::code`, code `render.…` → ID `render-…`)
 
 render-library_not_found = The PDF rendering library (PDFium) could not be found: { $details }
+    .text = The PDF rendering library (PDFium) could not be found. Details are shown under “Technical details”.
 render-load_failed = The document could not be loaded: { $details }
+    .text = The document could not be loaded. Details are shown under “Technical details”.
 render-password_required = The document is password protected.
 render-page_out_of_range = Page { $page } does not exist (the document has { $count } pages).
+    .text = This page does not exist in the document.
 render-failed = The page could not be rendered: { $details }
+    .text = The page could not be rendered. Details are shown under “Technical details”.
 
 ## Placement (`pida_placement::PlacementError::code`, `PlacementNotice::code`; `placement.…` → `placement-…`)
 
 placement-invalid_position = Invalid position specification: { $position }
+    .text = The position specification cannot be used. Details are shown under “Technical details”.
 placement-no_such_page = Page { $page } does not exist.
+    .text = This page does not exist in the document.
 placement-placeholder_not_found = No matching signature placeholder was found.
 placement-not_enough_space = There is not enough space for the signature block, and no new page may be added to an already signed document.
 placement-notice-new_page_not_allowed = The document is already signed – the signature block was placed on the last page instead of a new page.
@@ -491,12 +520,16 @@ ng-verify-byte-range = The signed range (/ByteRange) of the signature is malform
 ## Workflow und Kern (`pida-workflow`, `pida-core-api`) – Welle 2
 
 ng-invariant-violated = The signature self-check failed ({ $invariant }: { $detail }). Nothing was saved.
+    .text = The signature self-check failed. Nothing was saved. Details are shown under “Technical details”.
 ng-cms-too-large = The signature is larger than the reserved space ({ $needed } instead of { $reserve } bytes). “Retry” prepares the document again with more space; this needs another confirmation.
     .title = The signature needs more space
+    .text = The signature is larger than the reserved space. “Try again” prepares the document again with more space; this needs another confirmation.
     .action = Try again
 ng-backend-choice-required = Several signing devices are available ({ $detail }) – please choose one with -b.
+    .text = Several signing devices are available – please choose one.
 ng-no-backend-available = No signing device is available.
 ng-default-backend-unavailable = The chosen signing device ({ $detail }) is not available.
+    .text = The chosen signing device is not available.
 ng-document-rejected = The document cannot be signed.
     .title = This document cannot be signed
     .action = Open another document

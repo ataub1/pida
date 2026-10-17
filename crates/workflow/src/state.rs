@@ -503,12 +503,15 @@ pub const MSG_NO_BACKEND: &str = "ng-no-backend-available";
 pub const MSG_DEFAULT_BACKEND_UNAVAILABLE: &str = "ng-default-backend-unavailable";
 
 impl WorkflowError {
-    /// Aus einem Backend-Fehler (Code `backend-…`, Detail = Fehlertext ohne Secrets).
+    /// Aus einem Backend-Fehler (Code `backend-…`, Detail = Fehlertext ohne Secrets). Die Diagnose einer
+    /// unbekannten Seite bzw. beendeten Sitzung steht ohne Präfix im Detail (technische Details, ADR 0004
+    /// Nachtrag 19); [`WorkflowError::params`] liefert die Felder der Variante zusätzlich unter ihren Namen.
     pub fn from_backend(e: &BackendError) -> WorkflowError {
         let detail = match e {
             BackendError::UnsupportedKeystoreFormat { format } => format.clone(),
             BackendError::SecurityLayer { code, info } => format!("{code}: {info}"),
             BackendError::Http { status, reason } => format!("{status} {reason}"),
+            BackendError::UnknownPage { diagnostic } | BackendError::SessionClosed { diagnostic } => diagnostic.clone(),
             other => other.to_string(),
         };
         WorkflowError::Backend { code: e.code().to_owned(), detail }
@@ -535,7 +538,11 @@ impl WorkflowError {
             WorkflowError::Rejected { class, .. } => {
                 m.insert("class".into(), format!("{class:?}"));
             }
-            WorkflowError::Backend { detail, .. } | WorkflowError::Prepare { detail, .. } => {
+            WorkflowError::Backend { code, detail } => {
+                m.insert("detail".into(), detail.clone());
+                backend_message_args(code, detail, &mut m);
+            }
+            WorkflowError::Prepare { detail, .. } => {
                 m.insert("detail".into(), detail.clone());
             }
             WorkflowError::Invariant(v) => {
@@ -570,6 +577,32 @@ impl WorkflowError {
                 ExitCode::General
             }
         }
+    }
+}
+
+/// Variablen der Hauptmeldung eines Backend-Codes (ADR 0004 Nachtrag 19): Die Kataloge nennen sie wie die Felder
+/// der Variante (`backend-unknown-page` `{ $diagnostic }`, `backend-http` `{ $status } { $reason }`,
+/// `backend-security-layer` `{ $code }: { $info }`, `backend-keystore-format` `{ $format }`); ohne sie stünde in
+/// CLI-Ausgabe, Log und Stapelzeile der rohe Platzhalter. `detail` bildet [`WorkflowError::from_backend`]
+/// eindeutig. Die Oberfläche zeigt statt der Hauptmeldung den Alltagstext (`.text`) ohne Variablen.
+fn backend_message_args(code: &str, detail: &str, m: &mut BTreeMap<String, String>) {
+    let mut put = |k: &str, v: &str| {
+        m.insert(k.to_owned(), v.to_owned());
+    };
+    match code {
+        "backend-unknown-page" => put("diagnostic", detail),
+        "backend-keystore-format" => put("format", detail),
+        "backend-http" => {
+            let (status, reason) = detail.split_once(' ').unwrap_or((detail, ""));
+            put("status", status);
+            put("reason", reason);
+        }
+        "backend-security-layer" => {
+            let (code, info) = detail.split_once(": ").unwrap_or((detail, ""));
+            put("code", code);
+            put("info", info);
+        }
+        _ => {}
     }
 }
 

@@ -1,5 +1,5 @@
 {
-  "_kommentar": "Selektoren und URL-Muster des A-Trust-Dialogs (Szenario A), Stand PDF-Over 4.4.x (ATrustParser.java, MobileBKUConnector.java; docs/analyse/02 §3.5, §8). Werte unter 'ids' sind CSS-Selektoren (scraper/selectors), URL-Muster sind Teilzeichenfolgen der Dokument-Basis-URL. 'trusted_hosts' sind die Domains (samt Subdomains, nur https), an die Zugangsdaten, TAN und FIDO2-Assertion gehen dürfen (zusätzlich die Origin des konfigurierten Endpunkts). Bei Seitenänderungen von A-Trust: neue Datei mit erhöhter Version ausliefern (signiert, Update-Manifest), kein Code-Release nötig.",
+  "_kommentar": "Selektoren und URL-Muster des A-Trust-Dialogs (Szenario A), Stand PDF-Over 4.4.x (ATrustParser.java, MobileBKUConnector.java; docs/analyse/02 §3.5, §8). Werte unter 'ids' sind CSS-Selektoren (scraper/selectors), URL-Muster sind Teilzeichenfolgen der Dokument-Basis-URL. 'trusted_hosts' sind die Domains (samt Subdomains, nur https), an die Zugangsdaten, TAN und FIDO2-Assertion gehen dürfen (zusätzlich die Origin des konfigurierten Endpunkts). 'session_closed_pages' sind letzte Pfadsegmente einer beendeten bzw. abgelaufenen Sitzung (mit oder ohne Formular, ADR 0004 Nachtrag 19); 'login_page_max_age_secs' ist das Höchstalter der angezeigten Anmeldeseite, bevor vor dem Absenden eine neue Sitzung geholt wird (A-Trust beendet Sitzungen nach etwa 5 Minuten; 0 = aus). Bei Seitenänderungen von A-Trust: neue Datei mit erhöhter Version ausliefern (signiert, Update-Manifest), kein Code-Release nötig.",
   "version": 1,
   "autoskip_urls": ["/tanAppInfo.aspx", "/UsernameInfo.aspx"],
   "interstitial_urls": ["/ExpiresInfo.aspx"],
@@ -8,6 +8,8 @@
   "poll_function": "qrpoll",
   "login_error": "",
   "trusted_hosts": ["a-trust.at", "handy-signatur.at"],
+  "session_closed_pages": ["/SessionClosed.aspx"],
+  "login_page_max_age_secs": 240,
   "ids": {
     "username": "#handynummer",
     "password": "#signaturpasswort",

@@ -16,6 +16,7 @@
 //! | FIDO2 (`MobileBKUFido2Composite`) | [`NativeForm::Fido2`] + `Fido2Provider` in `pida-backend-atrust` |
 //! | Interstitial (`ExpiresInfo.aspx`) | [`InteractionBroker::notice`] mit [`NoticeCode::AtrustInterstitial`] |
 //! | A-Trust-Fehler (`error*.aspx`) | [`InteractionBroker::notice`] mit [`NoticeCode::AtrustError`], Retry/Cancel bzw. OK |
+//! | Sitzung beendet (`SessionClosed.aspx`, Fehlerseite ohne Meldung) | [`BackendError::SessionClosed`] ohne Meldung (Nachtrag 19) |
 //! | HTTP 407/413/sonstige, Verbindungsfehler | [`InteractionBroker::notice`] (OK → Abbruch) |
 //! | „Signaturdaten anzeigen“ (F-68) | [`FormContext::signature_data_url`] + [`InteractionBroker::open_external`] |
 //! | Keystore-Passwörter (`KSState`) | [`InteractionBroker::secret`] mit [`SecretKind`] |

@@ -98,12 +98,15 @@ keystore-no-key-entry = Der Keystore enthält keinen Schlüssel mit Zertifikat.
 keystore-alias-required = Der Keystore enthält mehrere Schlüssel – bitte einen Alias angeben.
 keystore-key-mismatch = Schlüssel und Zertifikat im Keystore passen nicht zusammen.
 
-## Signatur-Backends (`pida_backend_api::BackendError::code`); Variablen = Felder der Variante
+## Signatur-Backends (`pida_backend_api::BackendError::code`); Variablen = Felder der Variante (der Kern liefert sie
+## mit, `WorkflowError::params`). `.text` ist der Alltagstext der Oberfläche **ohne** Variablen – die Ursache steht
+## unter „Technische Details“ (ADR 0004 Nachtrag 19; Test `error_codes_have_an_everyday_text_without_variables`).
 
 backend-cancelled = Der Vorgang wurde abgebrochen.
     .title = Vorgang abgebrochen
     .action = Erneut versuchen
 backend-unavailable = Das Signiermittel ist nicht verfügbar: { $detail }
+    .text = Das Signiermittel ist gerade nicht verfügbar. Die genaue Ursache steht unter „Technische Details“.
 backend-network = Die Verbindung zum Signaturdienst ist fehlgeschlagen: { $detail }
     .title = Der Signaturdienst ist gerade nicht erreichbar
     .text = Die Verbindung zum Signaturdienst ist fehlgeschlagen. Prüfen Sie die Internetverbindung und versuchen Sie es erneut; die genaue Ursache steht unter „Technische Details“.
@@ -111,19 +114,30 @@ backend-network = Die Verbindung zum Signaturdienst ist fehlgeschlagen: { $detai
 backend-proxy-auth = Der Proxy-Server verlangt eine Anmeldung.
 backend-document-too-large = Das Dokument überschreitet die Größengrenze des Signaturdienstes.
 backend-http = Der Signaturdienst hat die Anfrage abgelehnt: HTTP { $status } { $reason }
+    .text = Der Signaturdienst hat die Anfrage abgelehnt. Bitte versuchen Sie es später erneut; die genaue Ursache steht unter „Technische Details“.
 backend-security-layer = Vorgang vom Signaturserver abgebrochen ({ $code }): { $info }
+    .text = Der Signaturdienst hat den Vorgang abgebrochen. Die genaue Ursache steht unter „Technische Details“.
 backend-unknown-page = Unbekannte Seite des Signaturdienstes ({ $diagnostic }). Der Vorgang wurde abgebrochen.
+    .text = Unbekannte Seite des Signaturdienstes – der Vorgang wurde abgebrochen. Die genaue Ursache steht unter „Technische Details“.
 backend-loop = Der Signaturdienst antwortet in einer Endlosschleife; der Vorgang wurde abgebrochen.
 backend-protocol = Unerwartete Antwort des Signaturdienstes: { $detail }
+    .text = Der Signaturdienst hat unerwartet geantwortet; der Vorgang wurde abgebrochen. Die genaue Ursache steht unter „Technische Details“.
 backend-wrong-password = Das Passwort ist falsch.
 backend-keystore = Fehler beim Keystore: { $detail }
+    .text = Der Keystore konnte nicht verwendet werden. Die genaue Ursache steht unter „Technische Details“.
 backend-keystore-format = Das Keystore-Format { $format } wird nicht unterstützt – bitte nach PKCS#12 konvertieren.
+    .text = Das Format dieses Keystores wird nicht unterstützt – bitte nach PKCS#12 konvertieren.
 backend-certificate-mismatch = Die Signatur wurde mit einem anderen als dem erwarteten Zertifikat erstellt.
 backend-fido2 = FIDO2-Fehler: { $detail }
+    .text = Beim Sicherheitsschlüssel ist ein Fehler aufgetreten. Die genaue Ursache steht unter „Technische Details“.
 backend-timeout = Zeitüberschreitung: Der Signaturdienst hat nicht rechtzeitig geantwortet.
     .title = Die Zeit ist abgelaufen
     .action = Neue Bestätigung anfordern
 backend-internal = Interner Fehler: { $detail }
+    .text = In PIDA ist ein interner Fehler aufgetreten. Die genaue Ursache steht unter „Technische Details“.
+backend-session-closed = Die Sitzung bei A-Trust ist abgelaufen oder wurde beendet. Bitte erneut versuchen – dabei beginnt eine neue Sitzung.
+    .title = Die Sitzung bei A-Trust ist abgelaufen
+    .action = Erneut versuchen
 
 ## Meldungen und Masken der Backends ohne PDF-Over-Key (`NoticeCode::AtrustInterstitial` als Titel,
 ## `FormProblem::LoginRejected`); Zuordnung aller Varianten: crates/i18n/tests/code_catalog.rs
@@ -134,6 +148,7 @@ ng-form-login-rejected = Die Anmeldung wurde nicht angenommen. Bitte das Passwor
 ## ID Austria über A-Trust, Szenario A (`pida_backend_atrust`)
 
 atrust-unknown-page = Unbekannte Seite des Signaturdienstes ({ $diagnostic }). Der Vorgang wurde abgebrochen.
+    .text = Unbekannte Seite des Signaturdienstes – der Vorgang wurde abgebrochen. Die genaue Ursache steht unter „Technische Details“.
 atrust-signature-data-link-rejected = Der Link „Signaturdaten anzeigen“ führt nicht zu A-Trust und wird nicht geöffnet.
 
 ## FIDO2 (`pida_backend_atrust::Fido2Error::code` und Detailcodes der Provider)
@@ -142,6 +157,7 @@ fido2-unavailable = FIDO2 ist auf diesem Gerät nicht verfügbar.
 fido2-cancelled = Vorgang am Sicherheitsschlüssel abgebrochen.
 fido2-invalid-options = Die FIDO2-Anfrage des Signaturdienstes ist nicht lesbar.
 fido2-device = Fehler am Sicherheitsschlüssel: { $detail }
+    .text = Am Sicherheitsschlüssel ist ein Fehler aufgetreten. Bitte erneut versuchen oder App bzw. SMS verwenden.
 fido2-pin-unsupported = Dieser Sicherheitsschlüssel verlangt eine PIN; die PIN-Eingabe ist auf diesem System noch nicht verfügbar – bitte App oder SMS verwenden.
 fido2-no-credential = Auf diesem Sicherheitsschlüssel ist keine ID-Austria-Registrierung vorhanden.
 fido2-timeout = Zeitüberschreitung: Der Sicherheitsschlüssel wurde nicht berührt.
@@ -155,13 +171,20 @@ fido2-no-device = Kein FIDO2-Sicherheitsschlüssel gefunden. Bitte stecken Sie I
 ## Signaturblock (`pida_sigblock::SigBlockError::code`, `NOTICE_CHARS_REPLACED`)
 
 sigblock-unknown-profile = Das Signaturprofil „{ $profile }“ existiert nicht.
+    .text = Das gewählte Signaturprofil existiert nicht. Einzelheiten stehen unter „Technische Details“.
 sigblock-profile = Das Signaturprofil ist fehlerhaft: { $detail }
+    .text = Das Signaturprofil ist fehlerhaft. Einzelheiten stehen unter „Technische Details“.
 sigblock-unsupported-expression = Der Ausdruck { $expr } im Signaturprofil wird nicht unterstützt.
+    .text = Das Signaturprofil enthält einen Ausdruck, der nicht unterstützt wird. Einzelheiten stehen unter „Technische Details“.
 sigblock-unsupported-date-pattern = Das Datumsformat „{ $pattern }“ im Signaturprofil wird nicht unterstützt.
+    .text = Das Datumsformat im Signaturprofil wird nicht unterstützt. Einzelheiten stehen unter „Technische Details“.
 sigblock-font = Die Schrift für den Signaturblock konnte nicht geladen werden: { $detail }
+    .text = Die Schrift für den Signaturblock konnte nicht geladen werden. Einzelheiten stehen unter „Technische Details“.
 sigblock-missing-glyph = Das Zeichen „{ $char }“ ist in der Schrift des Signaturblocks nicht verfügbar.
+    .text = Ein Zeichen ist in der Schrift des Signaturblocks nicht verfügbar. Einzelheiten stehen unter „Technische Details“.
 sigblock-image = Die Bildmarke konnte nicht gelesen werden (unterstützt: PNG, JPEG, GIF).
 sigblock-missing-resource = Eine Ressource des Signaturprofils fehlt: { $detail }
+    .text = Eine Ressource des Signaturprofils fehlt. Einzelheiten stehen unter „Technische Details“.
 sigblock-pdf = Das Erscheinungsbild der Signatur konnte nicht erzeugt werden.
 sigblock-io = Fehler beim Lesen der Signaturblock-Konfiguration.
 sigblock-chars-replaced = Einige Zeichen sind in der Schrift des Signaturblocks nicht verfügbar und wurden durch „?“ ersetzt: { $chars }
@@ -169,15 +192,21 @@ sigblock-chars-replaced = Einige Zeichen sind in der Schrift des Signaturblocks 
 ## Darstellung (`pida_render::RenderError::code`, Code `render.…` → ID `render-…`)
 
 render-library_not_found = Die PDF-Darstellungsbibliothek (PDFium) wurde nicht gefunden: { $details }
+    .text = Die PDF-Darstellungsbibliothek (PDFium) wurde nicht gefunden. Einzelheiten stehen unter „Technische Details“.
 render-load_failed = Das Dokument konnte nicht geladen werden: { $details }
+    .text = Das Dokument konnte nicht geladen werden. Einzelheiten stehen unter „Technische Details“.
 render-password_required = Das Dokument ist durch ein Passwort geschützt.
 render-page_out_of_range = Seite { $page } existiert nicht (das Dokument hat { $count } Seiten).
+    .text = Diese Seite gibt es im Dokument nicht.
 render-failed = Die Seite konnte nicht dargestellt werden: { $details }
+    .text = Die Seite konnte nicht dargestellt werden. Einzelheiten stehen unter „Technische Details“.
 
 ## Positionierung (`pida_placement::PlacementError::code`, `PlacementNotice::code`; `placement.…` → `placement-…`)
 
 placement-invalid_position = Ungültige Positionsangabe: { $position }
+    .text = Die Positionsangabe kann nicht verwendet werden. Einzelheiten stehen unter „Technische Details“.
 placement-no_such_page = Seite { $page } existiert nicht.
+    .text = Diese Seite gibt es im Dokument nicht.
 placement-placeholder_not_found = Es wurde kein passender Signaturplatzhalter gefunden.
 placement-not_enough_space = Für den Signaturblock ist nicht genug Platz, und auf bereits signierten Dokumenten darf keine neue Seite angefügt werden.
 placement-notice-new_page_not_allowed = Das Dokument ist bereits signiert – der Signaturblock wurde auf der letzten Seite statt auf einer neuen Seite platziert.
@@ -491,12 +520,16 @@ ng-verify-byte-range = Der signierte Bereich (/ByteRange) der Signatur ist fehle
 ## Workflow und Kern (`pida-workflow`, `pida-core-api`) – Welle 2
 
 ng-invariant-violated = Die Selbstprüfung der Signatur ist fehlgeschlagen ({ $invariant }: { $detail }). Es wurde nichts gespeichert.
+    .text = Die Selbstprüfung der Signatur ist fehlgeschlagen. Es wurde nichts gespeichert. Einzelheiten stehen unter „Technische Details“.
 ng-cms-too-large = Die Signatur ist größer als der reservierte Platz ({ $needed } statt { $reserve } Bytes). „Wiederholen“ bereitet das Dokument mit mehr Platz neu vor; dafür ist eine erneute Bestätigung nötig.
     .title = Die Signatur braucht mehr Platz
+    .text = Die Signatur ist größer als der reservierte Platz. „Erneut versuchen“ bereitet das Dokument mit mehr Platz neu vor; dafür ist eine erneute Bestätigung nötig.
     .action = Erneut versuchen
 ng-backend-choice-required = Mehrere Signiermittel verfügbar ({ $detail }) – bitte mit -b wählen.
+    .text = Mehrere Signiermittel sind verfügbar – bitte eines wählen.
 ng-no-backend-available = Kein Signiermittel verfügbar.
 ng-default-backend-unavailable = Das gewählte Signiermittel ({ $detail }) ist nicht verfügbar.
+    .text = Das gewählte Signiermittel ist nicht verfügbar.
 ng-document-rejected = Das Dokument kann nicht signiert werden.
     .title = Dieses Dokument kann nicht signiert werden
     .action = Anderes Dokument öffnen

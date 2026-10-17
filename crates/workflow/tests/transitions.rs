@@ -1181,6 +1181,40 @@ fn error_codes_and_params() {
     assert_eq!(WorkflowError::from_backend(&BackendError::Cancelled).exit_code(), ExitCode::Cancelled);
 }
 
+/// Nachtrag 19: Die Variablen der Hauptmeldungen (CLI, Log) kommen mit; die Diagnose steht ohne Präfix im Detail.
+#[test]
+fn backend_params_fill_the_variables_of_the_main_message() {
+    let p = |e: BackendError| WorkflowError::from_backend(&e).params();
+    let diag = "0 Formulare statt genau einem; path=/m/x.aspx forms=0 ids=[]";
+    let unknown = p(BackendError::UnknownPage { diagnostic: diag.into() });
+    assert_eq!((unknown["detail"].as_str(), unknown["diagnostic"].as_str()), (diag, diag));
+    let closed =
+        WorkflowError::from_backend(&BackendError::SessionClosed { diagnostic: "path=/m/SessionClosed.aspx".into() });
+    assert_eq!(closed.code(), "backend-session-closed");
+    assert_eq!(closed.params()["detail"], "path=/m/SessionClosed.aspx");
+    let http = p(BackendError::Http { status: 503, reason: "Service Unavailable".into() });
+    assert_eq!((http["status"].as_str(), http["reason"].as_str()), ("503", "Service Unavailable"));
+    let sl = p(BackendError::SecurityLayer { code: 6002, info: "a: b".into() });
+    assert_eq!((sl["code"].as_str(), sl["info"].as_str()), ("6002", "a: b"));
+    assert_eq!(p(BackendError::UnsupportedKeystoreFormat { format: "JKS".into() })["format"], "JKS");
+    assert_eq!(p(BackendError::Network("x".into())).len(), 1, "sonst nur detail");
+}
+
+/// Nachtrag 19: „Sitzung beendet“ im Einzeldokument → Fehlerschritt mit „Erneut versuchen“; die Sitzung wird
+/// geschlossen, „Erneut versuchen“ öffnet eine neue (Nutzeraktion, A1/F-54).
+#[test]
+fn session_closed_offers_retry_with_a_new_session() {
+    let s = signing(&[1], SigningPhase::ReadingCertificate, BackendId::AtrustNative, PositionChoice::Auto);
+    let t = step(s, Event::BackendFailed(BackendError::SessionClosed { diagnostic: "x".into() }), &gui());
+    let State::Error { error, retry, .. } = &t.state else { panic!("{:?}", t.state) };
+    assert_eq!(error.code(), "backend-session-closed");
+    assert!(retry.is_some());
+    assert!(t.effects.contains(&Effect::CloseSession), "{:?}", t.effects);
+    assert!(!t.effects.iter().any(|e| matches!(e, Effect::OpenSession(_))), "keine Sitzung ohne Nutzeraktion");
+    let r = step(t.state.clone(), Event::Retry, &gui());
+    assert!(r.effects.iter().any(|e| matches!(e, Effect::OpenSession(BackendId::AtrustNative))), "{:?}", r.effects);
+}
+
 #[test]
 fn state_is_serializable() {
     let s = step(

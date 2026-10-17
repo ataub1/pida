@@ -4,6 +4,16 @@
 //! Client und leerem Cookie-Jar, folgt 301/302 (R2), `Refresh` (R3) und `<meta refresh>` (R4),
 //! klassifiziert jede HTML-Seite und bestimmt mit `present` den nächsten Request (R5–R7), bis eine
 //! Antwort mit MIME `…/xml` kommt (die SL-Antwort).
+//!
+//! **Erneuerung der Sitzung** (ADR 0004 Nachtrag 19): Statt eines Requests kann `present` eine neue
+//! A-Trust-Sitzung verlangen ([`Next::Renew`]) – dann beginnt der SL-Request mit neuem Client und leerem
+//! Cookie-Jar von vorn (Initial-Request an den Endpunkt), und die Login-Seite der neuen Sitzung sendet die
+//! Zugangsdaten aus dem RAM automatisch wie im zweiten SL-Request. Das geschieht höchstens **einmal** je
+//! SL-Request ([`Renewal`]) und nur nach einem **ausdrücklichen** Absenden der Anmeldedaten in der Maske:
+//! `SessionClosed.aspx` als Antwort darauf, oder die Maske stand länger als
+//! [`crate::selectors::SelectorSet::login_page_max_age_secs`] (dann vor dem Absenden). Nach SMS-TAN,
+//! App-/QR-Bestätigung oder FIDO2 nie (dort wäre eine neue Bestätigung nötig): dann
+//! [`BackendError::SessionClosed`].
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -22,10 +32,31 @@ use crate::poll::{self, PollInfo, PollOutcome};
 use crate::{AtrustConfig, Credentials, Fido2Error, Fido2Request, LoopGuard, WEBAUTHN_ORIGIN, fido2, validate};
 
 /// Antwort von `send`: SL-Antwort oder klassifizierte Seite (mit der URL, von der sie geladen wurde –
-/// anders als [`ParsedPage::base_url`] nicht durch `<base href>` beeinflussbar).
+/// anders als [`ParsedPage::base_url`] nicht durch `<base href>` beeinflussbar – und dem Zeitpunkt des
+/// Empfangs nach [`crate::AtrustConfig::clock`]).
 enum Reply {
     Xml(Response),
-    Page(Box<ParsedPage>, Url),
+    Page(Box<ParsedPage>, Url, Instant),
+}
+
+/// Nächster Schritt nach einer Seite: Request in derselben A-Trust-Sitzung oder eine neue Sitzung
+/// (Nachtrag 19, mit Grund fürs Log).
+enum Next {
+    Request(Request),
+    Renew(&'static str),
+}
+
+/// Automatische Erneuerung der A-Trust-Sitzung (Nachtrag 19): höchstens **eine** je SL-Request.
+#[derive(Debug, Default)]
+struct Renewal {
+    used: bool,
+}
+
+impl Renewal {
+    /// Beansprucht die Erneuerung – `true` nur beim ersten Aufruf je SL-Request.
+    fn take(&mut self) -> bool {
+        !std::mem::replace(&mut self.used, true)
+    }
 }
 
 /// Login-Zustand innerhalb eines SL-Requests (eine A-Trust-Sitzung).
@@ -39,6 +70,10 @@ struct LoginState {
     auto_skips: u32,
     /// Vom Long-Poll ausgelöste Neuladungen (R7) in dieser A-Trust-Sitzung.
     poll_reloads: u32,
+    /// Die zuletzt gesendeten Zugangsdaten hat die Nutzerin in dieser A-Trust-Sitzung in der Maske
+    /// eingegeben (ausdrückliches Absenden; Voraussetzung der Erneuerung nach `SessionClosed.aspx`,
+    /// Nachtrag 19) – nicht bei der automatischen Anmeldung.
+    entered: bool,
 }
 
 /// Höchstzahl automatisch verfolgter Weiterleitungen (301/302, `Refresh`, `<meta refresh>`) für
@@ -290,6 +325,9 @@ impl Dialog {
         }
     }
 
+    /// Ein SL-Request. Je A-Trust-Sitzung ein neuer Client mit leerem Cookie-Jar; verlangt `present` eine
+    /// neue Sitzung ([`Next::Renew`], höchstens einmal, [`Renewal`]), beginnt der Request mit dem
+    /// Initial-Request von vorn. Das Dokument bleibt dafür bis zum Ende des SL-Requests im RAM.
     async fn handle_sl_request(
         &mut self,
         credentials: &mut Credentials,
@@ -297,27 +335,33 @@ impl Dialog {
         request: &SlRequest,
         upload: Option<Vec<u8>>,
     ) -> Result<SlResponse, BackendError> {
-        self.ui.progress(Progress::Connecting);
-        let client = HttpClient::new(&self.config.net, Purpose::AtrustSession).map_err(net_to_backend)?;
-        let body = pida_sl12::http_body(request, upload.as_deref(), PartOrder::FileFirst);
-        drop(upload);
-        let mut next = Request::post(self.config.endpoint.clone(), to_net_body(body));
-        let mut login = LoginState::default();
+        let mut renewal = Renewal::default();
         loop {
-            match self.send(&client, guard, next).await? {
-                Reply::Xml(response) => {
-                    if let Some(date) = response.date() {
-                        self.ui.event(BackendEvent::ServerTime(date));
+            self.ui.progress(Progress::Connecting);
+            let client = HttpClient::new(&self.config.net, Purpose::AtrustSession).map_err(net_to_backend)?;
+            let body = pida_sl12::http_body(request, upload.as_deref(), PartOrder::FileFirst);
+            let mut next = Request::post(self.config.endpoint.clone(), to_net_body(body));
+            let mut login = LoginState::default();
+            let reason = loop {
+                match self.send(&client, guard, next).await? {
+                    Reply::Xml(response) => {
+                        if let Some(date) = response.date() {
+                            self.ui.event(BackendEvent::ServerTime(date));
+                        }
+                        let text = response.text();
+                        return pida_sl12::parse_response(text.as_bytes())
+                            .map_err(|e| BackendError::Protocol(format!("SL-Antwort nicht lesbar: {e}")));
                     }
-                    let text = response.text();
-                    return pida_sl12::parse_response(text.as_bytes())
-                        .map_err(|e| BackendError::Protocol(format!("SL-Antwort nicht lesbar: {e}")));
+                    Reply::Page(page, page_url, received) => {
+                        match self.present(credentials, *page, &page_url, received, &mut login, &mut renewal).await? {
+                            Next::Request(request) => next = request,
+                            Next::Renew(reason) => break reason,
+                        }
+                        self.ui.progress(Progress::WaitingForServer);
+                    }
                 }
-                Reply::Page(page, page_url) => {
-                    next = self.present(credentials, *page, &page_url, &mut login).await?;
-                    self.ui.progress(Progress::WaitingForServer);
-                }
-            }
+            };
+            tracing::info!(reason, "A-Trust-Sitzung wird einmalig erneuert (neuer Initial-Request)");
         }
     }
 
@@ -393,7 +437,18 @@ impl Dialog {
                 return match page::classify(&url, &html, &self.config.selectors) {
                     Ok(page) => {
                         tracing::debug!(block = page.block.kind(), path = page.base_url.path(), "A-Trust-Seite");
-                        Ok(Reply::Page(Box::new(page), url))
+                        if matches!(page.block, PageBlock::WaitingForApp2Fa { .. })
+                            && tracing::enabled!(tracing::Level::DEBUG)
+                        {
+                            // Diagnose (Nachtrag 19 Punkt 4): liefert A-Trust einen Link zum Öffnen der App mit?
+                            // Nur Schema, Host und Pfad – ohne Abfrage und Fragment, ohne mailto/tel/sms.
+                            tracing::debug!(
+                                path = page.base_url.path(),
+                                targets = ?page::link_targets(&url, &html),
+                                "App-Warteseite: Link-Ziele"
+                            );
+                        }
+                        Ok(Reply::Page(Box::new(page), url, self.config.clock.now()))
                     }
                     Err(e) => {
                         Err(BackendError::UnknownPage { diagnostic: format!("{e}; {}", page::diagnostic(&url, &html)) })
@@ -486,10 +541,16 @@ impl Dialog {
         credentials: &mut Credentials,
         mut page: ParsedPage,
         page_url: &Url,
+        received: Instant,
         login: &mut LoginState,
-    ) -> Result<Request, BackendError> {
-        // 1. weder Fehler- noch Login-Block bei gesetzten Credentials = Anmeldung erfolgreich
-        if !matches!(page.block, PageBlock::Error { .. } | PageBlock::UsernamePassword { .. }) {
+        renewal: &mut Renewal,
+    ) -> Result<Next, BackendError> {
+        // 1. weder Fehler- noch Login-Block (noch beendete Sitzung) bei gesetzten Credentials = Anmeldung
+        //    erfolgreich
+        if !matches!(
+            page.block,
+            PageBlock::Error { .. } | PageBlock::UsernamePassword { .. } | PageBlock::SessionClosed { .. }
+        ) {
             if login.submitted {
                 login.confirmed = true;
             }
@@ -502,17 +563,33 @@ impl Dialog {
             && let Some(link) = &page.fido2_link
         {
             self.fido2_default_pending = false;
-            return Ok(Request::get(link.clone()));
+            return Ok(Next::Request(Request::get(link.clone())));
         }
         // 3. Blöcke
-        match page.block.clone() {
+        let request = match page.block.clone() {
+            PageBlock::UsernamePassword { username_field, password_field, submit, cancel, error_message } => {
+                self.ensure_trusted(page_url, &page, "Anmeldung")?;
+                return self
+                    .login(
+                        credentials,
+                        &mut page,
+                        (login, renewal, received),
+                        (&username_field, &password_field),
+                        (submit, cancel),
+                        error_message,
+                    )
+                    .await;
+            }
+            PageBlock::SessionClosed { closed_page, message, diagnostic } => {
+                return self.session_closed(credentials, login, renewal, closed_page, message.is_some(), diagnostic);
+            }
             PageBlock::AutoSkip { submit } => {
                 login.auto_skips += 1;
                 if login.auto_skips > MAX_AUTO_SKIPS {
                     tracing::warn!(path = page.base_url.path(), "AutoSkip-Seite wiederholt sich – Abbruch");
                     return Err(BackendError::LoopDetected);
                 }
-                Ok(form_submit(&page, submit.as_ref()))
+                form_submit(&page, submit.as_ref())
             }
             PageBlock::Interstitial { message, next } => {
                 let notice = Notice {
@@ -523,8 +600,8 @@ impl Dialog {
                 };
                 // Schließen des Hinweises (SWT.CANCEL) = Nutzerabbruch, wie `MobileBKUState.showInformationMessage`
                 match self.cancellable(self.ui.notice(notice)).await? {
-                    Ok(NoticeAnswer::Cancel) | Err(InteractionError::Cancelled) => Err(BackendError::Cancelled),
-                    Ok(_) | Err(InteractionError::Unsupported) => Ok(form_submit(&page, next.as_ref())),
+                    Ok(NoticeAnswer::Cancel) | Err(InteractionError::Cancelled) => return Err(BackendError::Cancelled),
+                    Ok(_) | Err(InteractionError::Unsupported) => form_submit(&page, next.as_ref()),
                 }
             }
             PageBlock::Error { message, back, cancel, recoverable, requires_response } => {
@@ -534,31 +611,20 @@ impl Dialog {
                     Notice { kind: NoticeKind::Error, code: NoticeCode::AtrustError, text: Some(message), buttons };
                 let answer = self.ask(notice).await?;
                 if recoverable && matches!(answer, NoticeAnswer::Retry | NoticeAnswer::Ok) {
-                    return Ok(form_submit(&page, back.as_ref()));
+                    form_submit(&page, back.as_ref())
+                } else {
+                    // Abbruch an A-Trust melden (A-Trust antwortet mit SL-`ErrorResponse`). Ist
+                    // `#Button_Cancel` kein absendbarer Button, liefe ein Senden ohne Button nur zur selben
+                    // Seite zurück – dann direkt abbrechen.
+                    match cancel {
+                        Some(cancel) if requires_response => form_submit(&page, Some(&cancel)),
+                        _ => return Err(BackendError::Cancelled),
+                    }
                 }
-                // Abbruch an A-Trust melden (A-Trust antwortet mit SL-`ErrorResponse`). Ist
-                // `#Button_Cancel` kein absendbarer Button, liefe ein Senden ohne Button nur zur selben
-                // Seite zurück – dann direkt abbrechen.
-                match cancel {
-                    Some(cancel) if requires_response => Ok(form_submit(&page, Some(&cancel))),
-                    _ => Err(BackendError::Cancelled),
-                }
-            }
-            PageBlock::UsernamePassword { username_field, password_field, submit, cancel, error_message } => {
-                self.ensure_trusted(page_url, &page, "Anmeldung")?;
-                self.login(
-                    credentials,
-                    &mut page,
-                    login,
-                    (&username_field, &password_field),
-                    (submit, cancel),
-                    error_message,
-                )
-                .await
             }
             PageBlock::SmsTan { tan_field, reference_value, submit } => {
                 self.ensure_trusted(page_url, &page, "SMS-TAN")?;
-                self.sms_tan(&mut page, &tan_field, &reference_value, submit.as_ref()).await
+                self.sms_tan(&mut page, &tan_field, &reference_value, submit.as_ref()).await?
             }
             PageBlock::QrCode { reference_value, image_url, poll } => {
                 let (image, problem) = match self.load_qr_image(&image_url).await? {
@@ -571,7 +637,7 @@ impl Dialog {
                     timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
                     ctx: self.context(&page, problem),
                 };
-                self.wait_with_poll(credentials, &page, form, poll, login).await
+                self.wait_with_poll(credentials, &page, form, poll, login).await?
             }
             PageBlock::WaitingForApp2Fa { reference_value, poll } => {
                 let form = NativeForm::WaitForApp {
@@ -579,13 +645,40 @@ impl Dialog {
                     timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
                     ctx: self.context(&page, None),
                 };
-                self.wait_with_poll(credentials, &page, form, poll, login).await
+                self.wait_with_poll(credentials, &page, form, poll, login).await?
             }
             PageBlock::Fido2 { options_json, result_field, submit } => {
                 self.ensure_trusted(page_url, &page, "FIDO2")?;
-                self.fido2(&mut page, &options_json, &result_field, submit.as_ref()).await
+                self.fido2(&mut page, &options_json, &result_field, submit.as_ref()).await?
             }
+        };
+        Ok(Next::Request(request))
+    }
+
+    /// Beendete bzw. abgelaufene A-Trust-Sitzung (Nachtrag 19). Kam `SessionClosed.aspx` als Antwort auf ein
+    /// **ausdrückliches** Absenden der Anmeldedaten (vor bestätigter Anmeldung), wird die Sitzung einmal je
+    /// SL-Request erneuert (die Zugangsdaten bleiben dafür im RAM). Sonst – zweites Mal, Fehlerseite ohne
+    /// Meldung, automatische Anmeldung, nach SMS-TAN oder App-Bestätigung – [`BackendError::SessionClosed`]
+    /// ohne Meldung („Erneut versuchen“ = neue Sitzung). Nicht bestätigte Zugangsdaten werden dann wie nach
+    /// einer Fehlerseite gelöscht; nach bestätigter Anmeldung bleiben sie (das Passwort war richtig).
+    fn session_closed(
+        &mut self,
+        credentials: &mut Credentials,
+        login: &LoginState,
+        renewal: &mut Renewal,
+        closed_page: bool,
+        has_message: bool,
+        diagnostic: String,
+    ) -> Result<Next, BackendError> {
+        let after_login = login.submitted && !login.confirmed;
+        if closed_page && after_login && login.entered && renewal.take() {
+            return Ok(Next::Renew("Sitzung nach dem Absenden der Anmeldedaten beendet"));
         }
+        tracing::warn!(closed_page, has_message, after_login, %diagnostic, "A-Trust-Sitzung beendet bzw. abgelaufen");
+        if after_login {
+            self.clear_password(credentials);
+        }
+        Err(BackendError::SessionClosed { diagnostic })
     }
 
     fn login_succeeded(&mut self, username: String, password: Zeroizing<String>) {
@@ -610,22 +703,28 @@ impl Dialog {
         }
     }
 
+    /// Anmeldung. Fehlen Zugangsdaten, fragt die Maske (ausdrückliches Absenden); sonst wird automatisch
+    /// angemeldet. Stand die Maske länger als die übliche A-Trust-Sitzung
+    /// ([`crate::selectors::SelectorSet::login_page_max_age`], Zeit aus [`crate::AtrustConfig::clock`]), wird vor
+    /// dem Absenden einmal eine neue Sitzung geholt ([`Next::Renew`]); deren Login-Seite sendet dieselben
+    /// Zugangsdaten automatisch.
     async fn login(
         &mut self,
         credentials: &mut Credentials,
         page: &mut ParsedPage,
-        login: &mut LoginState,
+        (login, renewal, received): (&mut LoginState, &mut Renewal, Instant),
         (username_field, password_field): (&str, &str),
         (submit, cancel): (Option<SubmitButton>, Option<SubmitButton>),
         error_message: Option<String>,
-    ) -> Result<Request, BackendError> {
+    ) -> Result<Next, BackendError> {
         // Erneute Login-Seite nach dem Senden (ohne zwischenzeitlich erfolgreiche Anmeldung) oder
         // Fehlermeldung auf der Login-Seite: nie automatisch erneut senden (Kontosperre).
         let rejected = login.submitted && !login.confirmed;
         if rejected || error_message.is_some() {
             self.clear_password(credentials);
         }
-        if credentials.username.is_none() || credentials.password.is_none() {
+        let entered = credentials.username.is_none() || credentials.password.is_none();
+        if entered {
             let mut problem = error_message.map(FormProblem::Atrust).or(rejected.then_some(FormProblem::LoginRejected));
             loop {
                 let form = NativeForm::Login {
@@ -654,7 +753,7 @@ impl Dialog {
                     // – dann direkt abbrechen.
                     Err(BackendError::Cancelled) if !self.ctx.cancel.is_cancelled() => {
                         return match cancel.as_ref() {
-                            Some(button) => Ok(form_submit(page, Some(button))),
+                            Some(button) => Ok(Next::Request(form_submit(page, Some(button)))),
                             None => Err(BackendError::Cancelled),
                         };
                     }
@@ -665,11 +764,19 @@ impl Dialog {
         let (Some(user), Some(password)) = (&credentials.username, &credentials.password) else {
             return Err(BackendError::Internal("Zugangsdaten fehlen".into()));
         };
+        if entered
+            && let Some(max_age) = self.config.selectors.login_page_max_age()
+            && self.config.clock.now().saturating_duration_since(received) > max_age
+            && renewal.take()
+        {
+            return Ok(Next::Renew("Anmeldeseite älter als die übliche A-Trust-Sitzung"));
+        }
         page.set_field(username_field, user.as_str());
         page.set_field(password_field, password.as_str());
         login.submitted = true;
         login.confirmed = false;
-        Ok(form_submit(page, submit.as_ref()))
+        login.entered = entered;
+        Ok(Next::Request(form_submit(page, submit.as_ref())))
     }
 
     async fn sms_tan(

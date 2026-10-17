@@ -10,6 +10,7 @@
 import type { BatchEstimateView, BatchFlowView, BatchItemStatusView, BatchItemView, BatchOutputView, BatchSummaryView, SigningStage } from '../../core/types';
 import type { Translator } from '../../i18n/catalog';
 import type { Tone } from '../../ui/controls';
+import { everydayText } from '../signing/texts';
 import { confirmsEach } from './flow';
 
 type State = BatchItemStatusView['state'];
@@ -117,7 +118,8 @@ export function statusDetail(t: Translator, item: BatchItemView, flow: BatchFlow
     case 'signed':
       return t.t('ng-ui-batch-detail-signed', { file: baseName(s.path) });
     case 'failed':
-      return t.code(s.code, s.params);
+      // Alltagstext ohne technische Ursache (Nachtrag 19); die steht in der Pause bzw. im Log
+      return everydayText(t, s.code, s.params);
     case 'skipped':
       return t.t(s.existing ? 'ng-ui-batch-detail-skipped-existing' : 'ng-ui-batch-detail-skipped');
     case 'cancelled':

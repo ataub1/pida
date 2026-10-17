@@ -233,3 +233,123 @@ impl Fido2Provider for FakeFido2 {
         self.cancels.fetch_add(1, Ordering::SeqCst);
     }
 }
+
+/// Eingespeiste Zeit (ADR 0004 Nachtrag 19): Startzeitpunkt plus verstellbarer Versatz.
+#[derive(Debug)]
+pub struct FakeClock {
+    start: std::time::Instant,
+    offset_ms: std::sync::atomic::AtomicU64,
+}
+
+impl FakeClock {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self { start: std::time::Instant::now(), offset_ms: std::sync::atomic::AtomicU64::new(0) })
+    }
+
+    /// Zeit vorstellen (z. B. „die Nutzerin lässt die Anmeldemaske fünf Minuten offen“).
+    pub fn advance(&self, by: Duration) {
+        self.offset_ms.fetch_add(by.as_millis() as u64, Ordering::SeqCst);
+    }
+}
+
+impl pida_backend_atrust::Clock for FakeClock {
+    fn now(&self) -> std::time::Instant {
+        self.start + Duration::from_millis(self.offset_ms.load(Ordering::SeqCst))
+    }
+}
+
+/// Broker, der vor jeder Antwort auf die **Anmeldemaske** die eingespeiste Zeit um `login_delay` vorstellt.
+pub struct ClockBroker {
+    pub inner: pida_backend_api::testing::ScriptedBroker,
+    pub clock: Arc<FakeClock>,
+    pub login_delay: Duration,
+}
+
+#[async_trait::async_trait]
+impl pida_backend_api::InteractionBroker for ClockBroker {
+    async fn native_form(
+        &self,
+        form: pida_backend_api::NativeForm,
+    ) -> Result<pida_backend_api::FormAnswer, pida_backend_api::InteractionError> {
+        if matches!(form, pida_backend_api::NativeForm::Login { .. }) {
+            self.clock.advance(self.login_delay);
+        }
+        self.inner.native_form(form).await
+    }
+    async fn secret(
+        &self,
+        prompt: pida_backend_api::SecretPrompt,
+    ) -> Result<zeroize::Zeroizing<String>, pida_backend_api::InteractionError> {
+        self.inner.secret(prompt).await
+    }
+    async fn notice(
+        &self,
+        notice: pida_backend_api::Notice,
+    ) -> Result<pida_backend_api::NoticeAnswer, pida_backend_api::InteractionError> {
+        self.inner.notice(notice).await
+    }
+    fn progress(&self, progress: pida_backend_api::Progress) {
+        self.inner.progress(progress)
+    }
+    fn event(&self, event: pida_backend_api::BackendEvent) {
+        self.inner.event(event)
+    }
+    fn open_external(&self, url: &str) -> Result<(), pida_backend_api::InteractionError> {
+        self.inner.open_external(url)
+    }
+}
+
+/// Fängt alle Log-Ereignisse und Span-Felder (alle Stufen) als Text, um zu prüfen, dass Zugangsdaten nie im Log
+/// stehen (ADR 0001 §4 Regel 9). Nur mit `tracing` selbst, ohne weitere Abhängigkeit.
+#[derive(Debug, Clone, Default)]
+pub struct LogCapture(pub Arc<Mutex<Vec<String>>>);
+
+impl LogCapture {
+    /// Für den aktuellen Thread einschalten (der Test läuft auf der Laufzeit des aktuellen Threads).
+    pub fn install() -> (Self, tracing::subscriber::DefaultGuard) {
+        let capture = LogCapture::default();
+        let guard = tracing::subscriber::set_default(capture.clone());
+        (capture, guard)
+    }
+
+    pub fn text(&self) -> String {
+        self.0.lock().unwrap().join("\n")
+    }
+
+    fn push(&self, line: String) {
+        self.0.lock().unwrap().push(line);
+    }
+}
+
+struct FieldText<'a>(&'a mut String);
+
+impl tracing::field::Visit for FieldText<'_> {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        self.0.push_str(&format!(" {}={value:?}", field.name()));
+    }
+}
+
+impl tracing::Subscriber for LogCapture {
+    fn enabled(&self, _: &tracing::Metadata<'_>) -> bool {
+        true
+    }
+    fn new_span(&self, span: &tracing::span::Attributes<'_>) -> tracing::span::Id {
+        let mut line = format!("span {}", span.metadata().name());
+        span.record(&mut FieldText(&mut line));
+        self.push(line);
+        tracing::span::Id::from_u64(1)
+    }
+    fn record(&self, _: &tracing::span::Id, values: &tracing::span::Record<'_>) {
+        let mut line = String::from("record");
+        values.record(&mut FieldText(&mut line));
+        self.push(line);
+    }
+    fn record_follows_from(&self, _: &tracing::span::Id, _: &tracing::span::Id) {}
+    fn event(&self, event: &tracing::Event<'_>) {
+        let mut line = format!("{} {}", event.metadata().level(), event.metadata().target());
+        event.record(&mut FieldText(&mut line));
+        self.push(line);
+    }
+    fn enter(&self, _: &tracing::span::Id) {}
+    fn exit(&self, _: &tracing::span::Id) {}
+}

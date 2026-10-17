@@ -259,6 +259,34 @@ describe('Signierkarte: Fehler, Rückfall, Fertigstellen', () => {
     expect(lastEvent(mock)).toEqual({ type: 'retry' });
   });
 
+  it('Sitzung bei A-Trust abgelaufen (Nachtrag 19): Alltagstext ohne Platzhalter, Diagnose nur in den Details, Erneut versuchen', async () => {
+    const diagnostic = 'path=/mobile/https-security-layer-request/SessionClosed.aspx forms=0 ids=[]';
+    const { mock, user } = renderApp({ view: cardErrorView('backend-session-closed', { detail: diagnostic }) });
+    const dialog = await card();
+    expect(within(dialog).getByRole('heading', { name: 'Die Sitzung bei A-Trust ist abgelaufen' })).toBeInTheDocument();
+    const alert = within(dialog).getByRole('alert');
+    expect(alert).toHaveTextContent('Die Sitzung bei A-Trust ist abgelaufen oder wurde beendet.');
+    expect(alert).not.toHaveTextContent('SessionClosed.aspx');
+    expect(alert.textContent).not.toMatch(/\{ ?\$/);
+    await user.click(within(dialog).getByRole('button', { name: 'Technische Details' }));
+    expect(dialog).toHaveTextContent('backend-session-closed · ID Austria');
+    expect(dialog).toHaveTextContent(diagnostic);
+    await expectNoAxeViolations();
+    await user.click(within(dialog).getByRole('button', { name: 'Erneut versuchen' }));
+    expect(lastEvent(mock)).toEqual({ type: 'retry' });
+  });
+
+  it('Unbekannte Seite (Befund 17.10.2026): kein roher Platzhalter „{$diagnostic}“, Diagnose unter „Technische Details“', async () => {
+    const detail = '0 Formulare statt genau einem; path=/mobile/https-security-layer-request/Neu.aspx forms=0 ids=[]';
+    const { user } = renderApp({ view: cardErrorView('backend-unknown-page', { detail, diagnostic: detail }, false) });
+    const dialog = await card();
+    const alert = within(dialog).getByRole('alert');
+    expect(alert).toHaveTextContent('Unbekannte Seite des Signaturdienstes – der Vorgang wurde abgebrochen.');
+    expect(alert.textContent).not.toMatch(/\{ ?\$|Neu\.aspx/);
+    await user.click(within(dialog).getByRole('button', { name: 'Technische Details' }));
+    expect(dialog).toHaveTextContent(detail);
+  });
+
   it('Zeitüberschreitung: vor der Bestätigung „Erneut versuchen“, beim Warten auf die App „Neue Bestätigung anfordern“', async () => {
     const { mock, unmount } = renderApp({ view: cardErrorView('backend-timeout') });
     let dialog = await card();

@@ -18,6 +18,13 @@
 //! - unbekannte Seite → Abbruch mit Diagnosecode, nie raten,
 //! - **kein automatisches Neusenden von Zugangsdaten** bei erneuter Login-Seite bzw. Fehlermeldung
 //!   auf der Login-Seite (Plan §4.4, Schutz vor Kontosperre),
+//! - **Sitzung beendet** (ADR 0004 Nachtrag 19): `SessionClosed.aspx` bzw. eine Fehlerseite ohne Meldung
+//!   ergibt [`BackendError::SessionClosed`] ohne Meldung („Erneut versuchen“ = neue Sitzung). Führt das
+//!   ausdrückliche Absenden der Anmeldedaten zu `SessionClosed.aspx` oder ist die angezeigte Anmeldeseite
+//!   älter als [`selectors::SelectorSet::login_page_max_age_secs`], beginnt der Dialog den SL-Request
+//!   **einmal** neu (neue Sitzung, dieselben Zugangsdaten aus dem RAM, wie die automatische Anmeldung im
+//!   zweiten SL-Request); höchstens eine Erneuerung je SL-Request, nie nach SMS-TAN oder App-Bestätigung
+//!   (dort wäre eine neue Bestätigung nötig) und nie nach einer automatischen Anmeldung,
 //! - Batch mit **einer** Anmeldung (Credentials nur als `Zeroizing` im RAM der Sitzung; das
 //!   Passwort wird nie persistiert); im zweiten SL-Request wird automatisch angemeldet,
 //! - FIDO2 nativ nur auf dem Desktop über [`fido2::Fido2Provider`] (Origin
@@ -36,8 +43,8 @@
 //! **Ein Dokument je Aufruf** (`BackendSession::sign_one`, ADR 0004 §3.8; Arbeitsbereich und Stapel): HTTP
 //! 407/413/sonstige ohne eigene Meldung als spezifischer Fehler; weder der Job-Abbruch („Dokument
 //! überspringen“) noch SL 6000/6001 löschen die Zugangsdaten der Sitzung (§8 F10) – gelöscht werden sie
-//! bei `cancel`, nach einer A-Trust-Fehlerseite, nach abgelehnter Anmeldung und beim Abbruch in der
-//! QR-/App-Maske.
+//! bei `cancel`, nach einer A-Trust-Fehlerseite, nach abgelehnter Anmeldung, nach einer beendeten Sitzung
+//! vor bestätigter Anmeldung (Nachtrag 19) und beim Abbruch in der QR-/App-Maske.
 //!
 //! Ownership: Paket **D**.
 
@@ -49,7 +56,7 @@ pub mod selectors;
 pub mod validate;
 
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use pida_backend_api::{
@@ -85,6 +92,23 @@ pub fn open_signature_data(ui: &dyn InteractionBroker, url: &str, endpoint: &Url
             BackendError::Unavailable("Systembrowser nicht verfügbar".into())
         }
     })
+}
+
+/// Zeitquelle für das Alter der angezeigten Anmeldeseite (ADR 0004 Nachtrag 19); Tests speisen eine eigene
+/// Zeit ein. Der Loop-Guard nutzt weiter die Systemzeit.
+pub trait Clock: Send + Sync + std::fmt::Debug {
+    /// Jetzt (monoton).
+    fn now(&self) -> Instant;
+}
+
+/// Systemuhr ([`Instant::now`]).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SystemClock;
+
+impl Clock for SystemClock {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
 }
 
 /// Endlosschleifen-Schutz (docs/analyse/02 §3.4 Schritt 1).
@@ -163,6 +187,8 @@ pub struct AtrustConfig {
     pub loop_guard: LoopGuardConfig,
     /// Long-Poll.
     pub poll: poll::PollConfig,
+    /// Zeitquelle für das Alter der Anmeldeseite ([`SystemClock`]; Tests: eingespeiste Zeit).
+    pub clock: Arc<dyn Clock>,
 }
 
 impl AtrustConfig {
@@ -180,6 +206,7 @@ impl AtrustConfig {
             selectors: selectors::SelectorSet::builtin(),
             loop_guard: LoopGuardConfig::default(),
             poll: poll::PollConfig::default(),
+            clock: Arc::new(SystemClock),
         }
     }
 
@@ -202,6 +229,7 @@ impl std::fmt::Debug for AtrustConfig {
             .field("selectors_version", &self.selectors.version)
             .field("loop_guard", &self.loop_guard)
             .field("poll", &self.poll)
+            .field("clock", &self.clock)
             .finish()
     }
 }

@@ -3275,3 +3275,102 @@ docs/integration/mobile-ios.md §10.5) gilt:
    Nachtrag 12. Die Dokumentauswahl des Hinweises läuft wie „+ PDF“ über `pickMobileDocuments` (Nachtrag 17).
 5. **Shell:** `mobile_pick_files` nimmt weiter nur `pdf` an (Nachtrag 11) und liefert `{ paths, skipped }`
    (Nachtrag 17); `pickMobileFiles` ist in TypeScript auf `kind: 'pdf'` beschränkt.
+
+### Nachtrag 19 (17.10.2026): A-Trust-Sitzung abgelaufen – `SessionClosed.aspx`, einmalige Erneuerung, Alltagstexte ohne Platzhalter
+
+**Befund des Auftraggebers** (iOS-Simulator, echtes ID-Austria-Konto, Aufnahme `user-sessionclosed.png`): Nach der
+Eingabe von Benutzername und Passwort zeigte die Signierkarte „Das hat nicht geklappt – Unbekannte Seite des
+Signaturdienstes ({$diagnostic}). Der Vorgang wurde abgebrochen.“, unter „Technische Details“
+`backend-unknown-page` · „unbekannte Seite des Signaturdienstes (0 Formulare statt genau einem;
+path=/mobile/https-security-layer-request/SessionClosed.aspx forms=0 ids=[])“. Ein zweiter Versuch kurz danach lief
+vollständig durch (InfoboxRead mit Anmeldung, CreateCMS mit automatischer Anmeldung und App-Bestätigung). Ursache:
+Die A-Trust-Sitzung war beim Absenden schon beendet (Zeit zwischen dem Öffnen der Signierkarte und der Eingabe);
+A-Trust leitet dann auf `SessionClosed.aspx` **ohne Formular und ohne `#Label1`** um. Drei Fehler: (1) die Seite galt
+als „unbekannt“ statt als „Sitzung beendet“, (2) es gab keine Selbstheilung, (3) der Alltagstext zeigte den rohen
+Platzhalter `{$diagnostic}` – der Kern liefert zu Backend-Fehlern nur `detail`, und die Karte zeigte die
+Hauptmeldung, weil `backend-unknown-page` kein `.text` hatte.
+
+**PDF-Over** (`ATrustParser.ErrorBlock`, `ATrustParser.java:104-136`; `MobileBKUConnector.java:350-366`): Fehlerblock
+für das letzte Pfadsegment `/error*.aspx` oder genau `/SessionClosed.aspx`, aber nur mit **genau einem Formular**
+(`HTMLResult`, Zeile 298-302) und `#Label1` (`getElementEnsureNotNull`). Sonst „Failed to parse A-Trust response
+page“ bzw. „Unknown A-Trust page reached?“ → `SignatureException`. Mit `#Label1` zeigt PDF-Over den Text
+(„a-trust.at meldet: …“), löscht das Passwort und bietet über `#Button_Back` „Wiederholen“ in **derselben**
+Sitzung an. Eine Erneuerung der Sitzung oder eine Prüfung des Seitenalters gibt es nicht; die A-Trust-Frist nennt
+PDF-Over nur beim Long-Poll („a-trust timeout is 5 minutes“, `MobileBKUConnector.java:255`).
+
+**Regeln (Abweichung von PDF-Over, begründet):**
+
+1. **Bekannte Seite „Sitzung beendet“** (`crates/backend-atrust/src/page.rs`, `PageBlock::SessionClosed`): Eine
+   Seite unter `session_closed_pages` der Selektor-Datei (Standard `/SessionClosed.aspx`, exakt wie `error_pages`)
+   ist immer eine beendete Sitzung – **vor** der Formularprüfung, mit oder ohne Formular und `#Label1`. Ebenso eine
+   Fehlerseite `/error*.aspx`, die keinen Fehlerblock ergibt (≠ 1 Formular bzw. ohne `#Label1`) und auf der auch kein
+   anderer Block greift (dann `closed_page = false`). Eine Fehlerseite mit genau einem Formular und `#Label1` bleibt
+   der Fehlerblock wie in PDF-Over. Begründung: In einer geschlossenen Sitzung führt `#Button_Back` nicht weiter;
+   nur ein neuer Initial-Request hilft. `#Label1` von `SessionClosed.aspx` wird nur zur Diagnose (Länge) gelesen,
+   nie geloggt.
+2. **Neue Fehlerart** `BackendError::SessionClosed { diagnostic }` (am Ende, additiv), Code
+   `backend-session-closed`, Wirkungsbereich Sitzung, `is_retryable`: Der Fehlerschritt bietet „Erneut versuchen“;
+   der Kern schließt die Sitzung, „Erneut versuchen“ öffnet eine **neue** (ausdrückliche Nutzeraktion, A1/F-54 –
+   Test `transitions.rs::session_closed_offers_retry_with_a_new_session`); im Stapel Pause „neue Sitzung“. Keine
+   Meldung (kein blockierender Dialog). Texte DE/EN: „Die Sitzung bei A-Trust ist abgelaufen oder wurde beendet.
+   Bitte erneut versuchen – dabei beginnt eine neue Sitzung.“, Titel „Die Sitzung bei A-Trust ist abgelaufen“,
+   Aktion „Erneut versuchen“; die Diagnose (Pfad ohne Abfrage, Formularzahl, Element-IDs) steht nur unter
+   „Technische Details“.
+3. **Einmalige Erneuerung nach dem ausdrücklichen Absenden** (`dialog.rs`, `Next::Renew`, `Renewal`): Kommt
+   `SessionClosed.aspx` als Antwort auf ein Absenden der Anmeldedaten, die die Nutzerin **in dieser A-Trust-Sitzung in
+   der Maske eingegeben** hat (vor bestätigter Anmeldung), beginnt der Dialog den SL-Request einmal neu – neuer
+   Client, leerer Cookie-Jar, `POST default.aspx` mit demselben SL-Request (bei CreateCMS mit demselben Dokument, das
+   dafür bis zum Ende des SL-Requests im RAM bleibt) – und die Login-Seite der neuen Sitzung sendet dieselben
+   Zugangsdaten **automatisch**, genau wie die vorhandene automatische Anmeldung im zweiten SL-Request
+   (`login` mit Zugangsdaten im RAM). Die Zugangsdaten bleiben dafür als `Zeroizing` im RAM, sie werden nie geloggt.
+   **Höchstens eine** Erneuerung je SL-Request (damit auch je Absenden); ein zweites `SessionClosed.aspx` ergibt
+   `backend-session-closed` – die Zugangsdaten gingen dann genau zweimal hinaus, nie öfter. Keine Erneuerung nach
+   einer automatischen Anmeldung (gemerktes Passwort, zweiter SL-Request), nach einer Fehlerseite ohne Meldung
+   (`closed_page = false`) und nach bestätigter Anmeldung.
+4. **Vorbeugend: alte Anmeldeseite** (`SelectorSet::login_page_max_age_secs`, Standard **240 s**, `0` = aus): Stand
+   die Anmeldemaske länger als das Höchstalter (gemessen vom Empfang der Login-Seite bis zur Antwort in der Maske,
+   Zeit aus `AtrustConfig::clock`, in Tests eingespeist), holt der Dialog **vor** dem Absenden eine neue Sitzung und
+   meldet dort automatisch an; die alte Sitzung bekommt die Zugangsdaten nicht. Das ist die eine Erneuerung dieses
+   SL-Requests (endet auch die neue Sitzung, folgt der Fehler aus 2). Wert: A-Trust beendet Sitzungen nach etwa
+   fünf Minuten (PDF-Over `MobileBKUConnector.java:255`, dieselbe Frist wie Long-Poll und App-Bestätigung,
+   docs/analyse/02 §3.6); 240 s lassen eine Minute Reserve für Netz und Serveruhr (konservativ: lieber eine Sitzung
+   zu früh erneuern als die Eingabe verlieren). Der Wert steht in der Selektor-Datei, damit er sich mit einer
+   signierten Aktualisierung ohne Code-Release anpassen lässt (ältere Dateien ohne das Feld: Standard).
+5. **SMS-TAN und App-Warteseite:** Endet die Sitzung dort (TAN abgesendet, Neuladen nach dem Long-Poll), erscheint
+   `backend-session-closed` („abgelaufen – erneut versuchen“) **ohne** automatische Erneuerung, weil eine neue
+   Bestätigung nötig wäre; die bestätigte Anmeldung bleibt (gemerktes Passwort bleibt gemerkt). Nicht bestätigte
+   Zugangsdaten werden wie nach einer A-Trust-Fehlerseite gelöscht.
+6. **Alltagstexte ohne Platzhalter:** Jeder Fehlercode, dessen Meldung Variablen enthält, hat ein `.text` **ohne**
+   Variablen (Backend-Codes, `atrust-unknown-page`, `fido2-device`, Signaturblock-, Darstellungs- und
+   Positionierungsfehler, `ng-invariant-violated`, `ng-cms-too-large`, `ng-default-backend-unavailable`,
+   `ng-backend-choice-required`; für `output-save_failed` aus dem erzeugten PDF-Over-Katalog der Ersatztext
+   `ng-ui-fin-save-failed-text`). `friendlyError` liefert `.text` jetzt auch ohne `.title`; `everydayText` (Karte,
+   Stapelpause, Stapelzeile) und der FIDO2-Hinweis der Maske nutzen es. Für CLI und Log liefert
+   `WorkflowError::params` zusätzlich die Variablen der Hauptmeldung (`diagnostic`, `status`/`reason`,
+   `code`/`info`, `format`); die Diagnose einer unbekannten Seite bzw. beendeten Sitzung steht ohne Präfix in
+   `detail` (technische Details). Tests über **alle** Fehlercodes: `code_catalog.rs::error_codes_have_an_everyday_text_without_variables`
+   (Rust, DE/EN, Parameter des Kerns als Marker) und `features/signing/errors.test.ts` (UI über `friendlyError`):
+   kein Alltagstext enthält nach der Auflösung `{$`/`{ $` oder die Diagnose.
+7. **Diagnose App-Link** (nur Debug-Log, kein Verhalten): Auf Seiten `WaitingForApp2Fa` protokolliert der Dialog die
+   verschiedenen Link-Ziele (`page::link_targets`: `<a>`, `<area>`, Formular-`action`, `<iframe>`, `<script src>`,
+   `data-*` mit URL-Wert, Zeichenketten im Inline-Skript wie `location.href = …`, `window.open(…)`, `intent:`) –
+   nur Schema, Host und Pfad, **ohne** Abfrage und Fragment, ohne `mailto:`/`tel:`/`sms:`, höchstens 40. Damit lässt
+   sich am echten Konto prüfen, ob A-Trust auf `signature.aspx` einen Link zum Öffnen der ID-Austria-App mitliefert.
+8. **Vertrag:** nur additiv – neue Variante `BackendError::SessionClosed` (nicht im TypeScript-Vertrag; der Code ist
+   ein String), neue Felder der Selektor-Datei mit Standardwerten, `AtrustConfig::clock`, zusätzliche Schlüssel in
+   `params`. `ViewState`/`UiEvent` unverändert; `ts_bindings` und die Fixtures bleiben gleich.
+9. **Tests:** Fixtures `testdata/backend-atrust/session-closed.html` (ohne Formular, ohne `#Label1`) und
+   `session-closed-label.html` (mit Formular, `#Label1`, `#Button_Back`); `tests/page.rs` (Klassifikation, Diagnose
+   ohne Abfrage, erweiterbare Selektoren, Link-Ziele ohne Abfrage/Fragment/Personendaten), `tests/dialog.rs` gegen
+   den Mock-Server: `SessionClosed` nach der Anmeldung → eine Erneuerung → Erfolg (Zugangsdaten genau zweimal, neuer
+   Cookie-Jar, dieselbe SL-Anfrage); zweimal `SessionClosed` (beide Fixtures) → `backend-session-closed` ohne
+   Schleife (genau zwei Sitzungen, genau zwei Anmeldungen, keine Meldung, kein `Button_Back`); „Erneut versuchen“ als
+   neue ausdrückliche Anmeldung; alte Anmeldeseite (eingespeiste Zeit, 300 s) → neue Sitzung vor dem Absenden (genau
+   ein Absenden), danach kein zweites Mal; junge Seite bzw. Prüfung aus → dieselbe Sitzung; automatische Anmeldung,
+   SMS-TAN und App-Warteseite → Fehler ohne Erneuerung. Ein eigener `tracing`-Subscriber prüft, dass Benutzername und
+   Passwort in keinem Log-Ereignis (alle Stufen) stehen. `unrecoverable_error_without_response_is_a_silent_cancel`
+   nutzt statt `SessionClosed.aspx` jetzt `errorPage.aspx` (das Verhalten der Fehlerseite ist unverändert). Der
+   Property-Test F-54 (`props.rs::id_austria_session_only_after_explicit_user_action`) erzeugt zusätzlich
+   `BackendFailed(SessionClosed)` und bleibt grün: eine neue Sitzung des Kerns gibt es nur nach „Erneut versuchen“;
+   die Erneuerung aus 3./4. liegt im Backend innerhalb einer schon ausdrücklich begonnenen Signatur, nach dem
+   ausdrücklichen Absenden der Anmeldedaten, höchstens einmal.

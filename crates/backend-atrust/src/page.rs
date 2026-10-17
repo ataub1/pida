@@ -10,6 +10,14 @@
 //! 4. optionale Links (`absUrl("href")`): Signaturdaten, SMS, FIDO2,
 //! 5. alle acht Block-Parser; **genau einer** muss greifen ([`PageError::BlockCount`]).
 //!
+//! **Sitzung beendet** (ADR 0004 Nachtrag 19, Abweichung von PDF-Over): Eine Seite unter
+//! [`SelectorSet::session_closed_pages`] (`/SessionClosed.aspx`) ist **vor** Regel 1 eine
+//! [`PageBlock::SessionClosed`] – mit oder ohne Formular und `#Label1`. Ebenso eine Fehlerseite
+//! (`/error*.aspx`), die keinen Fehlerblock ergibt (≠ 1 Formular bzw. ohne `#Label1`) und auf der auch sonst
+//! kein Block greift. PDF-Over (`ATrustParser.ErrorBlock`) verlangt genau ein Formular und `#Label1` und bricht
+//! sonst mit „Unknown A-Trust page reached?“ ab; mit `#Label1` zeigt es den Text und bietet über
+//! `#Button_Back` „Wiederholen“ – in einer geschlossenen Sitzung führt das nicht weiter, nur eine neue.
+//!
 //! Die Dokument-Basis ist die Request-URL bzw. – wie bei jsoup – das erste `<base href>`.
 //! Element-Texte folgen jsoup `ownText()` (direkte Textknoten, Leerraum zusammengefasst, `<br>` als
 //! Leerzeichen, getrimmt).
@@ -35,7 +43,8 @@ pub enum PageBlock {
         /// Weiter-Button
         next: Option<SubmitButton>,
     },
-    /// `/error*.aspx`, `/SessionClosed.aspx`.
+    /// `/error*.aspx` mit genau einem Formular und `#Label1` (`/SessionClosed.aspx` ist seit Nachtrag 19 immer
+    /// [`PageBlock::SessionClosed`]).
     Error {
         /// `#Label1` + optional `\n#LabelDetail`
         message: String,
@@ -99,6 +108,19 @@ pub enum PageBlock {
         /// `#FidoContinue`
         submit: Option<SubmitButton>,
     },
+    /// Sitzung beendet bzw. abgelaufen (Nachtrag 19): [`SelectorSet::session_closed_pages`] (`/SessionClosed.aspx`,
+    /// mit oder ohne Formular und `#Label1`) oder eine Fehlerseite (`/error*.aspx`) ohne Fehlerblock. Weiter geht
+    /// es nur mit einer neuen Sitzung.
+    SessionClosed {
+        /// `true` für [`SelectorSet::session_closed_pages`] (die Sitzung ist sicher beendet – nach dem Absenden
+        /// der Anmeldedaten darf der Dialog sie einmal automatisch erneuern), `false` für eine Fehlerseite ohne
+        /// Meldung
+        closed_page: bool,
+        /// `#Label1` (+ `\n#LabelDetail`), falls vorhanden – Text von A-Trust, nie im Log
+        message: Option<String>,
+        /// Diagnose ohne Personendaten ([`diagnostic`]: Pfad, Formularzahl, Element-IDs)
+        diagnostic: String,
+    },
 }
 
 impl std::fmt::Debug for PageBlock {
@@ -132,6 +154,10 @@ impl std::fmt::Debug for PageBlock {
             PageBlock::Fido2 { options_json, result_field, submit } => {
                 d.field("options_len", &options_json.len()).field("result_field", result_field).field("submit", submit)
             }
+            PageBlock::SessionClosed { closed_page, message, diagnostic } => d
+                .field("closed_page", closed_page)
+                .field("message_len", &message.as_ref().map(String::len))
+                .field("diagnostic", diagnostic),
         };
         d.finish()
     }
@@ -149,6 +175,7 @@ impl PageBlock {
             PageBlock::QrCode { .. } => "QrCode",
             PageBlock::WaitingForApp2Fa { .. } => "WaitingForApp2Fa",
             PageBlock::Fido2 { .. } => "Fido2",
+            PageBlock::SessionClosed { .. } => "SessionClosed",
         }
     }
 }
@@ -419,21 +446,51 @@ impl<'a> Ctx<'a> {
         Ok(Some(PageBlock::Interstitial { message: own_text(label), next: self.submit_button(&ids.button_next)? }))
     }
 
-    fn error(&self) -> Result<Option<PageBlock>, PageError> {
-        let set = self.c.set;
+    /// Letztes Pfadsegment der Dokument-Basis (mit `/`, Prozentkodierung aufgelöst).
+    fn last_segment(&self) -> String {
         let path = self.base.path();
-        let last = percent_decode(&path[path.rfind('/').unwrap_or(0)..]);
-        let is_error =
-            (last.starts_with(set.error_prefix.as_str()) && last.ends_with(".aspx")) || set.error_pages.contains(&last);
-        if !is_error {
-            return Ok(None);
-        }
+        percent_decode(&path[path.rfind('/').unwrap_or(0)..])
+    }
+
+    /// `/error*.aspx` bzw. exakte Fehlerseite (`ATrustParser.ErrorBlock`).
+    fn is_error_page(&self) -> bool {
+        let set = self.c.set;
+        let last = self.last_segment();
+        (last.starts_with(set.error_prefix.as_str()) && last.ends_with(".aspx")) || set.error_pages.contains(&last)
+    }
+
+    /// Seite einer beendeten Sitzung ([`SelectorSet::session_closed_pages`], exakt wie `error_pages`).
+    fn is_session_closed_page(&self) -> bool {
+        let last = self.last_segment();
+        self.c.set.session_closed_pages.contains(&last)
+    }
+
+    /// `#Label1` + optional `\n#LabelDetail` (jsoup `ownText().trim()`).
+    fn error_text(&self) -> Result<Option<String>, PageError> {
+        let set = self.c.set;
         let Some(label1) = self.first(&set.ids.label1)? else { return Ok(None) };
         let mut message = java_trim(&own_text(label1)).to_owned();
         if let Some(detail) = self.first(&set.ids.label_detail)? {
             message.push('\n');
             message.push_str(java_trim(&own_text(detail)));
         }
+        Ok(Some(message))
+    }
+
+    fn session_closed(&self, closed_page: bool) -> Result<PageBlock, PageError> {
+        Ok(PageBlock::SessionClosed {
+            closed_page,
+            message: self.error_text()?.filter(|m| !m.trim().is_empty()),
+            diagnostic: diagnostic_of(self.doc, &self.base),
+        })
+    }
+
+    fn error(&self) -> Result<Option<PageBlock>, PageError> {
+        let set = self.c.set;
+        if !self.is_error_page() {
+            return Ok(None);
+        }
+        let Some(message) = self.error_text()? else { return Ok(None) };
         Ok(Some(PageBlock::Error {
             message,
             back: self.submit_button(&set.ids.button_back)?,
@@ -531,6 +588,17 @@ pub fn classify(base_url: &Url, html: &str, selectors: &SelectorSet) -> Result<P
 
     let form_sel = ctx.c.sel("form")?;
     let forms: Vec<ElementRef<'_>> = doc.select(&form_sel).collect();
+    // Nachtrag 19: beendete Sitzung vor der Formularprüfung (`SessionClosed.aspx` ohne Formular)
+    let ended = if ctx.is_session_closed_page() {
+        Some(ctx.session_closed(true)?)
+    } else if forms.len() != 1 && ctx.is_error_page() {
+        Some(ctx.session_closed(false)?)
+    } else {
+        None
+    };
+    if let Some(block) = ended {
+        return Ok(ended_page(base, block));
+    }
     if forms.len() != 1 {
         return Err(PageError::FormCount(forms.len()));
     }
@@ -565,6 +633,10 @@ pub fn classify(base_url: &Url, html: &str, selectors: &SelectorSet) -> Result<P
         ctx.fido2()?,
     ];
     let mut found: Vec<PageBlock> = candidates.into_iter().flatten().collect();
+    if found.is_empty() && ctx.is_error_page() {
+        // Fehlerseite ohne `#Label1` (und ohne anderen Block): Sitzung beendet (Nachtrag 19)
+        found.push(ctx.session_closed(false)?);
+    }
     if found.len() != 1 {
         tracing::error!(
             blocks = ?found.iter().map(PageBlock::kind).collect::<Vec<_>>(),
@@ -577,9 +649,25 @@ pub fn classify(base_url: &Url, html: &str, selectors: &SelectorSet) -> Result<P
     Ok(ParsedPage { base_url: base, form_action, form_fields, signature_data_link, sms_link, fido2_link, block })
 }
 
+/// Seite einer beendeten Sitzung: ohne Formularfelder und Links (nichts davon führt weiter).
+fn ended_page(base: Url, block: PageBlock) -> ParsedPage {
+    ParsedPage {
+        form_action: base.clone(),
+        base_url: base,
+        form_fields: Vec::new(),
+        signature_data_link: None,
+        sms_link: None,
+        fido2_link: None,
+        block,
+    }
+}
+
 /// Diagnosecode ohne Personendaten (Pfad ohne Abfrage, Formularzahl, gefundene Element-IDs).
 pub fn diagnostic(base_url: &Url, html: &str) -> String {
-    let doc = Html::parse_document(html);
+    diagnostic_of(&Html::parse_document(html), base_url)
+}
+
+fn diagnostic_of(doc: &Html, base_url: &Url) -> String {
     let forms = Selector::parse("form").map(|s| doc.select(&s).count()).unwrap_or(0);
     let mut ids: Vec<String> = Vec::new();
     if let Ok(all) = Selector::parse("[id]") {
@@ -600,9 +688,177 @@ pub fn diagnostic(base_url: &Url, html: &str) -> String {
     format!("path={} forms={} ids=[{}]", base_url.path(), forms, ids.join(","))
 }
 
+/// Höchstzahl der Einträge von [`link_targets`].
+const MAX_LINK_TARGETS: usize = 40;
+
+/// Diagnose für einen möglichen App-Link (ADR 0004 Nachtrag 19 Punkt 4; nur fürs Debug-Log der
+/// App-Warteseite, kein Verhalten): die **verschiedenen** Link-Ziele einer Seite als `quelle ziel`, das Ziel nur
+/// als Schema, Host (mit Port) und Pfad – **ohne** Abfrage und Fragment. Quellen: `<a href>`, `<area href>`,
+/// Formular-`action`, `<iframe src>`, `<script src>`, `data-*`-Attribute mit URL-Wert (`://`, `/…`, `./…`,
+/// `intent:`) und Zeichenketten im Inline-Skript (absolute URLs und `intent:` bzw. Ziele von `location = …`,
+/// `location.href = …`, `location.replace(…)`, `location.assign(…)`, `window.open(…)`). Ohne `mailto:`, `tel:`,
+/// `sms:` (Personendaten) und ohne `javascript:`, `data:`, `blob:`, `about:`; Ziele ohne Host nur mit dem Schema
+/// (`idaustria:`). Höchstens 40 Einträge, Pfade auf 120 Zeichen gekürzt.
+pub fn link_targets(base_url: &Url, html: &str) -> Vec<String> {
+    let doc = Html::parse_document(html);
+    let base = effective_base(&doc, base_url);
+    let mut out: Vec<String> = Vec::new();
+    let mut add = |source: &str, raw: &str| {
+        if out.len() >= MAX_LINK_TARGETS {
+            return;
+        }
+        if let Some(target) = link_target(&base, raw) {
+            let entry = format!("{source} {target}");
+            if !out.contains(&entry) {
+                out.push(entry);
+            }
+        }
+    };
+    for (css, attr, source) in [
+        ("a[href]", "href", "a"),
+        ("area[href]", "href", "area"),
+        ("form[action]", "action", "form"),
+        ("iframe[src]", "src", "iframe"),
+        ("script[src]", "src", "script-src"),
+    ] {
+        let Ok(sel) = Selector::parse(css) else { continue };
+        for el in doc.select(&sel) {
+            if let Some(value) = el.attr(attr) {
+                add(source, value);
+            }
+        }
+    }
+    if let Ok(all) = Selector::parse("*") {
+        for el in doc.select(&all) {
+            for (name, value) in el.value().attrs() {
+                let safe_name = name.len() <= 40 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+                if name.starts_with("data-") && safe_name && looks_like_url(value) {
+                    add(name, value);
+                }
+            }
+        }
+    }
+    if let Ok(sel) = Selector::parse("script") {
+        for el in doc.select(&sel) {
+            for literal in script_urls(&script_data(el)) {
+                add("script", &literal);
+            }
+        }
+    }
+    out
+}
+
+/// Ziel ohne Abfrage und Fragment (`scheme://host[:port]/pfad`); `None` für Personendaten und Nicht-Ziele.
+fn link_target(base: &Url, raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    let lower = raw.to_ascii_lowercase();
+    const SKIP: &[&str] = &["javascript:", "data:", "blob:", "about:", "mailto:", "tel:", "sms:", "#"];
+    if raw.is_empty() || SKIP.iter().any(|p| lower.starts_with(p)) {
+        return None;
+    }
+    let url = pida_net::resolve(base, raw).ok()?;
+    if matches!(url.scheme(), "mailto" | "tel" | "sms" | "javascript" | "data" | "blob" | "about") {
+        return None;
+    }
+    let Some(host) = url.host_str() else { return Some(format!("{}:", url.scheme())) };
+    let mut target = format!("{}://{host}", url.scheme());
+    if let Some(port) = url.port() {
+        target.push_str(&format!(":{port}"));
+    }
+    let path: String = url.path().chars().take(120).collect();
+    target.push_str(&path);
+    Some(target)
+}
+
+/// URL-artiger Attributwert (absolut, Wurzel- bzw. relativer Pfad, `intent:`).
+fn looks_like_url(value: &str) -> bool {
+    let v = value.trim();
+    v.contains("://")
+        || v.starts_with('/')
+        || v.starts_with("./")
+        || v.starts_with("../")
+        || v.get(..7).is_some_and(|p| p.eq_ignore_ascii_case("intent:"))
+}
+
+/// Zeichenketten eines Inline-Skripts, die ein Ziel sein können: URL-artig (`://`, `intent:`) oder Ziel einer
+/// Navigation (`location = "…"`, `location.href = "…"`, `location.replace("…")`, `location.assign("…")`,
+/// `window.open("…")`). Einfache Lexik ohne Kommentare – reicht für die Diagnose.
+fn script_urls(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() && out.len() < MAX_LINK_TARGETS {
+        let quote = bytes[i];
+        if !matches!(quote, b'"' | b'\'' | b'`') {
+            i += 1;
+            continue;
+        }
+        let start = i + 1;
+        let mut j = start;
+        while j < bytes.len() && bytes[j] != quote && bytes[j] != b'\n' {
+            if bytes[j] == b'\\' {
+                j += 1;
+            }
+            j += 1;
+        }
+        if j >= bytes.len() {
+            break;
+        }
+        if bytes[j] == quote {
+            // `start` folgt einem ASCII-Anführungszeichen, `j` steht auf einem: beides Zeichengrenzen
+            let literal = &text[start..j];
+            let lower = literal.trim().to_ascii_lowercase();
+            if lower.contains("://") || lower.starts_with("intent:") || navigates(&text[..i]) {
+                out.push(literal.to_owned());
+            }
+        }
+        i = j + 1;
+    }
+    out
+}
+
+/// Steht vor der Zeichenkette eine Navigation (`location =`, `.href =`, `location.replace(`, `location.assign(`,
+/// `window.open(`)?
+fn navigates(before: &str) -> bool {
+    let b = before.trim_end();
+    if let Some(lhs) = b.strip_suffix('=') {
+        let lhs = lhs.trim_end();
+        return !lhs.ends_with(['=', '!', '<', '>']) && (lhs.ends_with("location") || lhs.ends_with(".href"));
+    }
+    if let Some(callee) = b.strip_suffix('(') {
+        let c = callee.trim_end();
+        return c.ends_with("location.replace") || c.ends_with("location.assign") || c.ends_with("window.open");
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn script_literals_for_link_diagnostics() {
+        let js = r#"var a = "x"; if (y == "/no") {} window.location.href = "/mobile/next.aspx?sid=1";
+            location.replace('idaustria://sign?t=GEHEIM'); var u = `intent://open#Intent;end`; var s = 'unterminated
+            window.open("https://www.a-trust.at/app"); var esc = "a\"b://c";"#;
+        let found = script_urls(js);
+        assert_eq!(
+            found,
+            [
+                "/mobile/next.aspx?sid=1",
+                "idaustria://sign?t=GEHEIM",
+                "intent://open#Intent;end",
+                "https://www.a-trust.at/app",
+                "a\\\"b://c"
+            ]
+        );
+        assert!(navigates("x.location ="));
+        assert!(!navigates("if (x.location =="));
+        assert!(!navigates("var a ="));
+        // Mehrbyte-Zeichen und Escapes vor dem Ende
+        assert_eq!(script_urls("\"ä\\€://x\""), ["ä\\€://x"]);
+        assert!(script_urls("\"offen").is_empty());
+    }
 
     fn el_text(html: &str) -> String {
         let doc = Html::parse_document(html);

@@ -379,6 +379,7 @@ ng-ui-fin-saving = Saving the signed document …
 ng-ui-fin-not-saved = The signed document has not been saved yet.
 ng-ui-fin-save = Save as …
 ng-ui-fin-save-failed-title = The document could not be saved
+ng-ui-fin-save-failed-text = Please choose another location or try again; the exact cause is shown under “Technical details”.
 ng-ui-fin-saved-in = Saved in { $folder }
 ng-ui-fin-saved-mobile = Saved in this app’s documents
 ng-ui-fin-signed-by = Signed by { $name } · { $time }

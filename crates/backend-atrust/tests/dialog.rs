@@ -742,7 +742,8 @@ async fn error_page_cancel_reports_to_atrust_and_ends_with_sl_cancel() {
 
 #[tokio::test]
 async fn unrecoverable_error_without_response_is_a_silent_cancel() {
-    let server = MockServer::start(error_flow((false, false), "SessionClosed.aspx")).await;
+    // (bis Nachtrag 19 mit `SessionClosed.aspx`; die gilt jetzt immer als beendete Sitzung, siehe unten)
+    let server = MockServer::start(error_flow((false, false), "errorPage.aspx")).await;
     let backend = backend(&server, |_| {});
     let broker =
         Arc::new(ScriptedBroker::new([login_reply("falsch-1", false), ScriptedReply::Notice(NoticeAnswer::Ok)]));
@@ -750,7 +751,7 @@ async fn unrecoverable_error_without_response_is_a_silent_cancel() {
     assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
     let n = notices(&broker);
     assert_eq!(n[0].buttons, NoticeButtons::Ok);
-    assert!(!server.requests().iter().any(|r| is(r, "POST", "SessionClosed.aspx")));
+    assert!(!server.requests().iter().any(|r| is(r, "POST", "errorPage.aspx")));
     // unrecoverable mit Button_Cancel: Abbruch wird an A-Trust gemeldet
     let server = MockServer::start(error_flow((false, true), "error.aspx")).await;
     let backend = support::backend(&server, |_| {});
@@ -1849,4 +1850,301 @@ async fn sign_one_http_errors_without_notice() {
     let before = server.requests().len();
     assert_eq!(session.sign_one(document().1, cancelled).await, Err(BackendError::Cancelled));
     assert_eq!(server.requests().len(), before);
+}
+
+// ------------------------------------------------------------------------------------------------
+// ADR 0004 Nachtrag 19: A-Trust-Sitzung abgelaufen bzw. beendet (`SessionClosed.aspx`)
+
+/// Mock: neue Sitzung `S<n>` je Initial-Request; die Anmeldung in den Sitzungen aus `closed` endet auf
+/// `SessionClosed.aspx` (Fixture `closed_page`), sonst `UsernameInfo` → InfoboxRead.
+fn session_flow(
+    sessions: Arc<Counter>,
+    closed: &'static [&'static str],
+    closed_page: &'static str,
+) -> impl Fn(&RecordedRequest) -> MockResponse + Send + Sync + 'static {
+    move |req| {
+        if is(req, "POST", "default.aspx") {
+            return start_session(sessions.next());
+        }
+        if is(req, "GET", "Login.aspx") {
+            return page("login.html", &[("SID", &sid(req))]);
+        }
+        if is(req, "POST", "Login.aspx") {
+            assert!(credentials_ok(req), "nur vollständige Zugangsdaten");
+            let s = sid(req);
+            return if closed.contains(&s.as_str()) {
+                MockResponse::redirect(302, &format!("SessionClosed.aspx?sid={s}"))
+            } else {
+                MockResponse::redirect(302, &format!("UsernameInfo.aspx?sid={s}"))
+            };
+        }
+        if is(req, "GET", "SessionClosed.aspx") {
+            return page(closed_page, &[("SID", &sid(req))]);
+        }
+        if is(req, "GET", "UsernameInfo.aspx") {
+            return page("usernameinfo.html", &[("ACTION", &format!("UsernameInfo.aspx?sid={}", sid(req)))]);
+        }
+        if is(req, "POST", "UsernameInfo.aspx") {
+            return infobox_xml();
+        }
+        MockResponse::status(404)
+    }
+}
+
+fn count(server: &MockServer, method: &str, path: &str) -> usize {
+    server.requests().iter().filter(|r| is(r, method, path)).count()
+}
+
+fn login_posts(server: &MockServer) -> Vec<RecordedRequest> {
+    server.requests().into_iter().filter(|r| is(r, "POST", "Login.aspx")).collect()
+}
+
+/// Zugangsdaten stehen in keinem Log-Ereignis (alle Stufen, inkl. Debug).
+fn assert_no_credentials_in(log: &LogCapture) {
+    let text = log.text();
+    assert!(!text.is_empty(), "Log-Erfassung aktiv");
+    assert!(!text.contains(PASSWORD), "Passwort im Log:\n{text}");
+    assert!(!text.contains(USER), "Benutzername im Log:\n{text}");
+}
+
+#[tokio::test]
+async fn session_closed_after_login_renews_the_session_once_and_succeeds() {
+    let (log, _guard) = LogCapture::install();
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(session_flow(sessions.clone(), &["S0"], "session-closed.html")).await;
+    let backend = backend(&server, |c| c.remember = true);
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, true)]));
+    let mut session = open(&backend, &broker).await;
+
+    let chain = session.certificate().await.unwrap();
+    assert_eq!(chain.signer.as_der(), cert_der().as_slice());
+    // eine Maske, keine Meldung; zweite Sitzung mit leerem Cookie-Jar, dieselben Zugangsdaten automatisch
+    assert_eq!(forms(&broker).len(), 1, "{:?}", forms(&broker));
+    assert!(notices(&broker).is_empty());
+    assert_eq!(sessions.get(), 2);
+    assert_eq!(count(&server, "POST", "default.aspx"), 2);
+    let posts = login_posts(&server);
+    assert_eq!(posts.len(), 2, "Zugangsdaten genau zweimal gesendet");
+    assert!(posts.iter().all(credentials_ok));
+    assert_eq!((sid(&posts[0]), sid(&posts[1])), ("S0".to_owned(), "S1".to_owned()));
+    assert_eq!(posts[1].header("cookie"), Some("ASP.NET_SessionId=sess1"), "neue Sitzung, neuer Cookie-Jar");
+    let second_start = server.requests().into_iter().filter(|r| is(r, "POST", "default.aspx")).nth(1).unwrap();
+    assert_eq!(second_start.header("cookie"), None);
+    assert!(second_start.form_field("XMLRequest").unwrap().contains("<InfoboxReadRequest"), "derselbe SL-Request");
+    assert_eq!(
+        events(&broker).iter().filter(|e| matches!(e, BackendEvent::LoginSucceeded { .. })).count(),
+        1,
+        "Anmeldung einmal gemeldet"
+    );
+    assert!(backend.has_remembered_password(), "bestätigte Anmeldung wird gemerkt");
+    assert_no_credentials_in(&log);
+}
+
+#[tokio::test]
+async fn session_closed_twice_ends_with_backend_session_closed_without_a_loop() {
+    for fixture_name in ["session-closed.html", "session-closed-label.html"] {
+        let (log, _guard) = LogCapture::install();
+        let sessions = Arc::new(Counter::default());
+        let server = MockServer::start(session_flow(sessions.clone(), &["S0", "S1", "S2", "S3"], fixture_name)).await;
+        let backend = backend(&server, |c| c.remember = true);
+        let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, true)]));
+        let mut session = open(&backend, &broker).await;
+
+        let err = session.certificate().await.unwrap_err();
+        let BackendError::SessionClosed { diagnostic } = &err else { panic!("{fixture_name}: {err:?}") };
+        assert!(diagnostic.contains("path=/mobile/https-security-layer-request/SessionClosed.aspx"), "{diagnostic}");
+        assert!(!diagnostic.contains("S1") && !diagnostic.contains("sid"), "ohne Abfrage: {diagnostic}");
+        assert_eq!(err.code(), "backend-session-closed");
+        assert!(err.is_retryable());
+        // genau eine Erneuerung, Zugangsdaten genau zweimal, keine Meldung (kein blockierender Dialog), kein
+        // „Zurück“ in die geschlossene Sitzung
+        assert_eq!(sessions.get(), 2, "{fixture_name}");
+        assert_eq!(login_posts(&server).len(), 2, "{fixture_name}: Zugangsdaten nie öfter als zweimal");
+        assert!(notices(&broker).is_empty(), "{fixture_name}");
+        assert_eq!(forms(&broker).len(), 1);
+        assert_eq!(count(&server, "POST", "SessionClosed.aspx"), 0);
+        // nicht bestätigte Zugangsdaten werden wie nach einer Fehlerseite verworfen
+        assert!(!backend.has_remembered_password());
+        assert_no_credentials_in(&log);
+        assert!(log.text().contains("A-Trust-Sitzung wird einmalig erneuert"), "{}", log.text());
+    }
+}
+
+/// „Erneut versuchen“ nach `backend-session-closed` öffnet eine neue Sitzung und fragt wieder nach dem Passwort
+/// (es war nicht bestätigt); erst diese ausdrückliche Anmeldung darf wieder einmal erneuern.
+#[tokio::test]
+async fn retry_after_session_closed_is_a_new_explicit_login() {
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(session_flow(sessions.clone(), &["S0", "S1"], "session-closed.html")).await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    assert!(matches!(session.certificate().await.unwrap_err(), BackendError::SessionClosed { .. }));
+    // neue Sitzung (wie der Kern nach „Erneut versuchen“): Maske mit Benutzername, ohne Passwort
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false)]));
+    let mut session = open(&backend, &broker).await;
+    session.certificate().await.unwrap();
+    assert!(matches!(&forms(&broker)[0], NativeForm::Login { .. }));
+    assert_eq!(sessions.get(), 3);
+    assert_eq!(login_posts(&server).len(), 3);
+}
+
+#[tokio::test]
+async fn login_page_older_than_the_session_gets_a_new_session_before_submitting() {
+    let (log, _guard) = LogCapture::install();
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(session_flow(sessions.clone(), &[], "session-closed.html")).await;
+    let clock = FakeClock::new();
+    let backend = backend(&server, |c| c.clock = clock.clone());
+    // die Nutzerin lässt die Anmeldemaske fünf Minuten offen
+    let broker = Arc::new(ClockBroker {
+        inner: ScriptedBroker::new([login_reply(PASSWORD, false)]),
+        clock: clock.clone(),
+        login_delay: Duration::from_secs(300),
+    });
+    let mut session = backend.open(ctx(), broker.clone()).await.unwrap();
+    session.certificate().await.unwrap();
+    // erst neue Sitzung, dann absenden: die alte Sitzung bekommt die Zugangsdaten nie
+    assert_eq!(sessions.get(), 2);
+    let posts = login_posts(&server);
+    assert_eq!(posts.len(), 1, "Zugangsdaten genau einmal gesendet");
+    assert_eq!(sid(&posts[0]), "S1");
+    assert!(credentials_ok(&posts[0]));
+    assert_eq!(forms(&broker.inner).len(), 1);
+    assert_no_credentials_in(&log);
+
+    // die neue Sitzung endet trotzdem: das war die eine Erneuerung → Fehler, keine dritte Sitzung
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(session_flow(sessions.clone(), &["S1"], "session-closed.html")).await;
+    let backend = support::backend(&server, |c| c.clock = clock.clone());
+    let broker = Arc::new(ClockBroker {
+        inner: ScriptedBroker::new([login_reply(PASSWORD, false)]),
+        clock: clock.clone(),
+        login_delay: Duration::from_secs(300),
+    });
+    let mut session = backend.open(ctx(), broker.clone()).await.unwrap();
+    assert!(matches!(session.certificate().await.unwrap_err(), BackendError::SessionClosed { .. }));
+    assert_eq!(sessions.get(), 2);
+    assert_eq!(login_posts(&server).len(), 1);
+}
+
+#[tokio::test]
+async fn young_login_page_or_switched_off_check_submits_in_the_same_session() {
+    for (delay, max_age) in [(Duration::from_secs(200), 240), (Duration::from_secs(3_600), 0)] {
+        let sessions = Arc::new(Counter::default());
+        let server = MockServer::start(session_flow(sessions.clone(), &[], "session-closed.html")).await;
+        let clock = FakeClock::new();
+        let backend = backend(&server, |c| {
+            c.clock = clock.clone();
+            c.selectors.login_page_max_age_secs = max_age;
+        });
+        let broker = Arc::new(ClockBroker {
+            inner: ScriptedBroker::new([login_reply(PASSWORD, false)]),
+            clock: clock.clone(),
+            login_delay: delay,
+        });
+        let mut session = backend.open(ctx(), broker.clone()).await.unwrap();
+        session.certificate().await.unwrap();
+        assert_eq!(sessions.get(), 1, "{delay:?} / {max_age}");
+        assert_eq!(login_posts(&server).len(), 1);
+    }
+}
+
+/// Automatische Anmeldung (gemerktes Passwort bzw. zweiter SL-Request): keine Erneuerung, das Passwort war nicht
+/// ausdrücklich abgesendet; der Fehler erlaubt „Erneut versuchen“.
+#[tokio::test]
+async fn session_closed_after_automatic_login_is_an_error_without_renewal() {
+    let sessions = Arc::new(Counter::default());
+    let server = MockServer::start(session_flow(sessions.clone(), &["S0"], "session-closed.html")).await;
+    let backend = backend(&server, |c| {
+        c.prefill_username = Some(USER.into());
+        c.prefill_password = Some(Zeroizing::new(PASSWORD.into()));
+    });
+    let broker = Arc::new(ScriptedBroker::new([]));
+    let mut session = open(&backend, &broker).await;
+    assert!(matches!(session.certificate().await.unwrap_err(), BackendError::SessionClosed { .. }));
+    assert!(forms(&broker).is_empty());
+    assert_eq!(sessions.get(), 1);
+    assert_eq!(login_posts(&server).len(), 1);
+    assert!(!backend.has_remembered_password(), "nicht bestätigt → gelöscht");
+}
+
+/// SMS-TAN und App-Bestätigung: eine danach beendete Sitzung erscheint als „abgelaufen – erneut versuchen“
+/// (`backend-session-closed`), ohne automatische Erneuerung (eine neue Bestätigung wäre nötig); die bestätigte
+/// Anmeldung bleibt gemerkt.
+#[tokio::test]
+async fn session_closed_on_sms_and_app_pages_is_an_error_without_renewal() {
+    let (log, _guard) = LogCapture::install();
+    let sessions = Arc::new(Counter::default());
+    let app_loads = Arc::new(Counter::default());
+    let server = MockServer::start({
+        let sessions = sessions.clone();
+        let app_loads = app_loads.clone();
+        move |req| {
+            if is(req, "POST", "default.aspx") {
+                return start_session(sessions.next());
+            }
+            if is(req, "GET", "Login.aspx") {
+                return page("login.html", &[("SID", &sid(req))]);
+            }
+            if is(req, "POST", "Login.aspx") {
+                let target = if req.part("ctl00$Main$handynummer").unwrap().text() == "app" { "app" } else { "sms" };
+                return MockResponse::redirect(302, &format!("{target}.aspx?sid={}", sid(req)));
+            }
+            if is(req, "GET", "sms.aspx") {
+                return page("sms.html", &[("SID", &sid(req)), ("REF", "AB12")]);
+            }
+            if is(req, "POST", "sms.aspx") {
+                return MockResponse::redirect(302, "SessionClosed.aspx");
+            }
+            if is(req, "GET", "app.aspx") {
+                // erstes Laden: Warteseite; das Neuladen nach „fertig“ (R7) zeigt die beendete Sitzung
+                if app_loads.next() > 0 {
+                    return MockResponse::redirect(302, "SessionClosed.aspx");
+                }
+                return page("app.html", &[("SID", &sid(req)), ("REF", "R"), ("POLLID", "1"), ("TOKEN", "t")]);
+            }
+            if req.path() == "/mobile/poll/LongPoll.ashx" {
+                return MockResponse::json(r#"{"Fin":true,"Wait":false,"Error":false}"#);
+            }
+            if is(req, "GET", "SessionClosed.aspx") {
+                return page("session-closed.html", &[]);
+            }
+            MockResponse::status(404)
+        }
+    })
+    .await;
+    let backend = backend(&server, |c| c.remember = true);
+    // SMS: TAN abgesendet → Sitzung beendet
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, true), tan("x7k2q1")]));
+    let mut session = open(&backend, &broker).await;
+    let err = session.certificate().await.unwrap_err();
+    assert!(matches!(err, BackendError::SessionClosed { .. }), "{err:?}");
+    assert_eq!(sessions.get(), 1, "keine Erneuerung nach der TAN");
+    assert!(notices(&broker).is_empty());
+    assert!(backend.has_remembered_password(), "bestätigte Anmeldung bleibt");
+    // App: Warten → Neuladen zeigt die beendete Sitzung
+    backend.forget_credentials();
+    let broker = Arc::new(ScriptedBroker::new([
+        ScriptedReply::Form(FormAnswer::Login {
+            username: "app".into(),
+            password: Zeroizing::new(PASSWORD.into()),
+            remember: false,
+        }),
+        ScriptedReply::Pending,
+    ]));
+    let mut session = open(&backend, &broker).await;
+    let err = session.certificate().await.unwrap_err();
+    assert!(matches!(err, BackendError::SessionClosed { .. }), "{err:?}");
+    assert_eq!(sessions.get(), 2, "keine Erneuerung beim Warten auf die App");
+    assert_eq!(app_loads.get(), 2);
+    assert!(notices(&broker).is_empty());
+    assert_eq!(broker.calls().iter().filter(|c| matches!(c, BrokerCall::FormClosed)).count(), 1, "Maske geschlossen");
+    // Diagnose App-Link (Nachtrag 19 Punkt 4): Link-Ziele der Warteseite im Debug-Log, ohne Abfrage
+    let text = log.text();
+    let line = text.lines().find(|l| l.contains("App-Warteseite: Link-Ziele")).unwrap_or_else(|| panic!("{text}"));
+    assert!(line.contains("/mobile/https-security-layer-request/sms.aspx"), "{line}");
+    assert!(line.contains("/mobile/https-security-layer-request/fido.aspx"), "{line}");
+    assert!(!line.contains("sid=") && !line.contains('?'), "{line}");
+    assert_no_credentials_in(&log);
 }

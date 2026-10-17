@@ -24,7 +24,9 @@ Platzhalter `{{NAME}}` ersetzt der Mock-Server der Tests (`crates/backend-atrust
 | `app-biometric.html` | App-Warten (`#biometricimage`) | – | Vergleichswert und Poll-Skript (beide Pflicht wie in PDF-Over; ohne sie ist die Seite unbekannt) |
 | `app-signtype.html` | App-Warten (`.ida-signtype #SignType`) | – | – |
 | `fido2.html` | FIDO2 | `SID`, `OPTIONS` (HTML-escaped JSON) | `#SmsButton` |
-| `error.html` | Error (`/error*.aspx`, `/SessionClosed.aspx`) | `ACTION`, `BUTTONS` | `#Label1` + `#LabelDetail`; Buttons je Test |
+| `error.html` | Error (`/error*.aspx`) | `ACTION`, `BUTTONS` | `#Label1` + `#LabelDetail`; Buttons je Test; ohne `#Label1` bzw. ohne Formular eine beendete Sitzung (ADR 0004 Nachtrag 19) |
+| `session-closed.html` | SessionClosed (`/SessionClosed.aspx`) | – | **ohne** Formular und **ohne** `#Label1` (Befund 17.10.2026: `forms=0 ids=[]`), Link mit Abfrage |
+| `session-closed-label.html` | SessionClosed (`/SessionClosed.aspx`) | `SID` | mit Formular, `#Label1`, `#LabelDetail` und `#Button_Back` (PDF-Over: Fehlerblock; PIDA: beendete Sitzung) |
 | `meta-refresh.html` | – | `TARGET` | `<meta http-equiv="Refresh">` |
 | `unknown.html`, `two-forms.html`, `two-blocks.html` | Fehlerfälle | – | unbekannte Seite, zwei Formulare, zwei Blöcke |
 

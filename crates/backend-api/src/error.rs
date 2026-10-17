@@ -83,6 +83,14 @@ pub enum BackendError {
     /// Interner Fehler.
     #[error("interner Fehler: {0}")]
     Internal(String),
+    /// Die Sitzung beim Signaturdienst ist beendet oder abgelaufen (A-Trust `SessionClosed.aspx` bzw. eine
+    /// Fehlerseite ohne Meldung, ADR 0004 Nachtrag 19). „Erneut versuchen“ beginnt eine **neue** Sitzung
+    /// ([`ErrorScope::Session`], [`BackendError::is_retryable`]); additiv am Ende.
+    #[error("Sitzung beim Signaturdienst beendet oder abgelaufen ({diagnostic})")]
+    SessionClosed {
+        /// Diagnose ohne Personendaten (URL-Pfad, Formularzahl, erkannte IDs)
+        diagnostic: String,
+    },
 }
 
 /// Wirkungsbereich eines Backend-Fehlers für Stapel und „Erneut versuchen“ (ADR 0004 §3.6, §3.8):
@@ -121,7 +129,8 @@ impl BackendError {
             | BackendError::UnsupportedKeystoreFormat { .. }
             | BackendError::CertificateMismatch
             | BackendError::Fido2(_)
-            | BackendError::Internal(_) => ErrorScope::Session,
+            | BackendError::Internal(_)
+            | BackendError::SessionClosed { .. } => ErrorScope::Session,
         }
     }
 
@@ -130,7 +139,8 @@ impl BackendError {
         matches!(self, BackendError::Cancelled)
     }
 
-    /// Lohnt ein „Wiederholen“ (neue Vorbereitung, F-71)?
+    /// Lohnt ein „Wiederholen“ (neue Vorbereitung, F-71)? [`BackendError::SessionClosed`]: ja – mit neuer
+    /// Sitzung, weil der Wirkungsbereich [`ErrorScope::Session`] ist (Nachtrag 19).
     pub fn is_retryable(&self) -> bool {
         matches!(
             self,
@@ -139,6 +149,7 @@ impl BackendError {
                 | BackendError::SecurityLayer { .. }
                 | BackendError::Http { .. }
                 | BackendError::WrongPassword
+                | BackendError::SessionClosed { .. }
         )
     }
 
@@ -162,6 +173,7 @@ impl BackendError {
             BackendError::Fido2(_) => "backend-fido2",
             BackendError::Timeout => "backend-timeout",
             BackendError::Internal(_) => "backend-internal",
+            BackendError::SessionClosed { .. } => "backend-session-closed",
         }
     }
 
@@ -193,6 +205,16 @@ mod tests {
         assert_eq!(BackendError::Keystore("x".into()).detail_code(), None);
     }
 
+    /// Nachtrag 19: „Sitzung beendet“ lohnt „Erneut versuchen“ – mit neuer Sitzung (Wirkungsbereich Sitzung).
+    #[test]
+    fn session_closed_is_retried_with_a_new_session() {
+        let e = BackendError::SessionClosed { diagnostic: "path=/x/SessionClosed.aspx forms=0 ids=[]".into() };
+        assert_eq!(e.code(), "backend-session-closed");
+        assert!(e.is_retryable() && !e.is_user_cancel());
+        assert_eq!(e.scope(), ErrorScope::Session);
+        assert!(e.to_string().contains("SessionClosed.aspx"), "Diagnose im Fehlertext (technische Details)");
+    }
+
     /// ADR 0004 §3.8: Tabelle Fehler → Wirkungsbereich, je Variante.
     #[test]
     fn scope_of_every_variant() {
@@ -217,6 +239,7 @@ mod tests {
             (BackendError::Fido2(s("x")), Session),
             (BackendError::Timeout, Transient),
             (BackendError::Internal(s("x")), Session),
+            (BackendError::SessionClosed { diagnostic: s("x") }, Session),
         ];
         // jede Variante genau einmal (über den stabilen Code; `Keystore`/`KeystoreDetail` teilen ihn)
         let codes: std::collections::BTreeSet<&str> = table.iter().map(|(e, _)| e.code()).collect();

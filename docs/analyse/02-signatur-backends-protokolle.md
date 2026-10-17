@@ -586,7 +586,7 @@ flowchart TD
 | Redirect ohne `Location` | 301/302 ohne Header | `IOException` (wie oben) | `MobileBKUConnector.java:117-119` |
 | Unerwartete Seite | ≠ 1 Formular, 0 oder > 1 Block, unbekannter Content-Type | `IllegalArgumentException` → `SignatureException` | `ATrustParser.java:298-302, 253-258, 368-369` |
 | Endlosschleife | > 50 Requests im 2-s-Fenster | `IOException("Infinite loop protection triggered")` | `MobileBKUConnector.java:103-110, 172` |
-| A-Trust-Fehlerseite | `/error*.aspx`, `/SessionClosed.aspx` | Text `#Label1` (+ `#LabelDetail`) als `atrusterror.message` ("a-trust.at meldet: …"); Retry über `Button_Back` | `ATrustParser.java:104-136`; `MobileBKUConnector.java:350-366`; `messages_de.properties:271` |
+| A-Trust-Fehlerseite | `/error*.aspx`, `/SessionClosed.aspx` | Text `#Label1` (+ `#LabelDetail`) als `atrusterror.message` ("a-trust.at meldet: …"); Retry über `Button_Back`. Ohne Formular bzw. ohne `#Label1`: unbekannte Seite. **PIDA** (ADR 0004 Nachtrag 19): `SessionClosed.aspx` immer, `/error*.aspx` ohne Fehlerblock als „Sitzung beendet“ (`backend-session-closed`, neue Sitzung; nach ausdrücklicher Anmeldung einmal automatisch) | `ATrustParser.java:104-136`; `MobileBKUConnector.java:350-366`; `messages_de.properties:271` |
 | Zertifikat läuft ab | `/ExpiresInfo.aspx` | Info-Dialog mit `#Label2`, dann weiter | `ATrustParser.java:97-99` |
 | SL-Fehler | `ErrorResponse` | `error.SLError` (Code, Info); 6000/6001 als Benutzerabbruch | Abschnitt 2.6 |
 | Poll-Fehler oder Timeout | `Error:true`, Exception, 300 s | Seite neu laden; der Fehler erscheint dann als A-Trust-Fehlerseite | Abschnitt 3.6 |

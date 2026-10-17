@@ -112,7 +112,12 @@ function isAbsolute(path: string): boolean {
 
 const FAULTS = {
   network: { code: 'backend-network', params: { detail: 'service.a-trust.at:443 – Zeitüberschreitung nach 30 s' }, retry: true },
-  session: { code: 'backend-unknown-page', params: { diagnostic: 'Seite „/mobile/Unbekannt.aspx“' }, retry: true },
+  // wie der Kern (`WorkflowError::params`, Nachtrag 19): Diagnose als `detail` (technische Details) und `diagnostic`
+  session: {
+    code: 'backend-unknown-page',
+    params: { detail: '0 Blöcke erkannt; path=/mobile/Unbekannt.aspx forms=1 ids=[]', diagnostic: '0 Blöcke erkannt; path=/mobile/Unbekannt.aspx forms=1 ids=[]' },
+    retry: true,
+  },
   'too-large': { code: 'backend-document-too-large', params: {}, retry: false },
 } as const;
 

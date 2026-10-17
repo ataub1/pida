@@ -2,7 +2,7 @@
 
 mod support;
 
-use pida_backend_atrust::page::{PageBlock, PageError, SubmitButton, classify, diagnostic};
+use pida_backend_atrust::page::{PageBlock, PageError, SubmitButton, classify, diagnostic, link_targets};
 use pida_backend_atrust::selectors::SelectorSet;
 use pida_net::Url;
 use support::{error_buttons, fixture};
@@ -114,21 +114,115 @@ fn error_pages() {
             requires_response: true,
         }
     );
-    for path in ["errorPage.aspx", "error_42.aspx", "SessionClosed.aspx", "sub/error.aspx", "error%5Fx.aspx"] {
+    for path in ["errorPage.aspx", "error_42.aspx", "sub/error.aspx", "error%5Fx.aspx"] {
         let p = classify(&url(path), &html(false, false), &s).unwrap();
         assert!(matches!(p.block, PageBlock::Error { recoverable: false, requires_response: false, .. }), "{path}");
     }
+    // `SessionClosed.aspx` ist seit Nachtrag 19 immer eine beendete Sitzung (auch mit #Label1 und Formular)
+    let p = classify(&url("SessionClosed.aspx"), &html(true, true), &s).unwrap();
+    assert!(matches!(p.block, PageBlock::SessionClosed { closed_page: true, message: Some(_), .. }), "{:?}", p.block);
     // kein Fehler: falsche Endung, Großschreibung, Präfix nicht im letzten Segment
     for path in ["error.html", "Error.aspx", "error/x.aspx", "SessionClosed.aspx.bak", "sessionclosed.aspx"] {
         assert_eq!(classify(&url(path), &html(true, true), &s).unwrap_err(), PageError::BlockCount(0), "{path}");
     }
-    // ohne #Label1 kein Fehlerblock
+    // ohne #Label1 kein Fehlerblock, sondern eine beendete Sitzung (Nachtrag 19; PDF-Over: unbekannte Seite)
     let no_label = html(true, true).replace("id=\"Label1\"", "id=\"Label9\"");
-    assert_eq!(classify(&url("error.aspx"), &no_label, &s).unwrap_err(), PageError::BlockCount(0));
+    let p = classify(&url("error.aspx"), &no_label, &s).unwrap();
+    assert!(matches!(p.block, PageBlock::SessionClosed { closed_page: false, message: None, .. }), "{:?}", p.block);
     // ohne #LabelDetail nur Label1
     let no_detail = html(false, true).replace("id=\"LabelDetail\"", "id=\"x\"");
     let p = classify(&url("error.aspx"), &no_detail, &s).unwrap();
     assert!(matches!(p.block, PageBlock::Error { ref message, .. } if message == "Die Anmeldung ist fehlgeschlagen."));
+}
+
+/// Nachtrag 19: `SessionClosed.aspx` ohne Formular und ohne `#Label1` (Befund vom 17.10.2026) ist eine bekannte
+/// Seite – beendete Sitzung –, keine „unbekannte Seite“.
+#[test]
+fn session_closed_page_without_form_and_label() {
+    let s = SelectorSet::builtin();
+    let html = fixture("session-closed.html", &[]);
+    let p = classify(&url("SessionClosed.aspx?sid=GEHEIM"), &html, &s).unwrap();
+    let PageBlock::SessionClosed { closed_page, message, diagnostic } = &p.block else { panic!("{:?}", p.block) };
+    assert!(*closed_page);
+    assert_eq!(*message, None);
+    assert_eq!(diagnostic, "path=/mobile/https-security-layer-request/SessionClosed.aspx forms=0 ids=[]");
+    assert!(p.form_fields.is_empty() && p.signature_data_link.is_none() && p.sms_link.is_none());
+    assert_eq!(p.block.kind(), "SessionClosed");
+    assert!(!format!("{p:?}").contains("GEHEIM"));
+
+    // Variante mit Formular, #Label1, #LabelDetail und Button_Back: ebenfalls beendet (Text nur zur Diagnose)
+    let html = fixture("session-closed-label.html", &[("SID", "S1")]);
+    let p = classify(&url("SessionClosed.aspx?sid=S1"), &html, &s).unwrap();
+    let PageBlock::SessionClosed { closed_page: true, message: Some(message), diagnostic } = &p.block else {
+        panic!("{:?}", p.block)
+    };
+    assert_eq!(message, "Die Sitzung wurde beendet.\nBitte starten Sie den Vorgang erneut.");
+    assert!(diagnostic.contains("forms=1") && diagnostic.contains("Label1"), "{diagnostic}");
+    // Debug ohne den Text von A-Trust
+    assert!(!format!("{:?}", p.block).contains("beendet"), "{:?}", p.block);
+
+    // Fehlerseite ohne Formular: beendet, aber keine sichere SessionClosed-Seite (keine Erneuerung)
+    let p = classify(&url("error.aspx?code=7"), "<html><body><p>Fehler</p></body></html>", &s).unwrap();
+    assert!(matches!(p.block, PageBlock::SessionClosed { closed_page: false, message: None, .. }));
+    let two = fixture("two-forms.html", &[]);
+    let p = classify(&url("errorTimeout.aspx"), &two, &s).unwrap();
+    assert!(matches!(p.block, PageBlock::SessionClosed { closed_page: false, .. }));
+
+    // sonst bleibt eine Seite ohne Formular unbekannt (Groß-/Kleinschreibung zählt wie in PDF-Over)
+    for path in ["sessionclosed.aspx", "SessionClosed.aspx.bak", "Closed.aspx", "Error.aspx"] {
+        assert_eq!(
+            classify(&url(path), &fixture("session-closed.html", &[]), &s).unwrap_err(),
+            PageError::FormCount(0),
+            "{path}"
+        );
+    }
+    // per Selektor-Datei erweiterbar, ohne Code-Release
+    let mut custom = SelectorSet::builtin();
+    custom.session_closed_pages.push("/Abgelaufen.aspx".into());
+    assert!(custom.validate().is_ok());
+    let p = classify(&url("Abgelaufen.aspx"), &fixture("session-closed.html", &[]), &custom).unwrap();
+    assert!(matches!(p.block, PageBlock::SessionClosed { closed_page: true, .. }));
+}
+
+/// Nachtrag 19 Punkt 4: Diagnose der Link-Ziele einer App-Warteseite – Schema, Host, Pfad; ohne Abfrage,
+/// Fragment und Personendaten.
+#[test]
+fn link_targets_of_the_app_page_without_query_fragment_or_personal_data() {
+    let app = fixture("app.html", &[("SID", "GEHEIM-SID"), ("REF", "R1"), ("POLLID", "9"), ("TOKEN", "TOK-GEHEIM")]);
+    let extra = r##"<a href="intent://sign/ida#Intent;scheme=idaustria;package=at.example.app;end">App öffnen</a>
+        <a href="mailto:max.mustermann@example.com">Mail</a><a href="tel:+436641234567">Anruf</a>
+        <a href="javascript:void(0)">x</a><a href="#oben">oben</a>
+        <div data-applink="https://app.example.at/open/sign?user=max.mustermann" data-user="max.mustermann"></div>
+        <script>if (mobile) { window.location.href = "idaustria://sign?token=GEHEIM2"; }
+          var fallback = 'https://www.a-trust.at/handy-signatur/app?sid=GEHEIM3';</script>"##;
+    let html = app.replace("</form>", &format!("</form>{extra}"));
+    let base = url("app.aspx?sid=GEHEIM-SID");
+    let targets = link_targets(&base, &html);
+    let expected = [
+        "a https://service.a-trust.at/mobile/https-security-layer-request/sms.aspx",
+        "a https://service.a-trust.at/mobile/https-security-layer-request/fido.aspx",
+        "a intent://sign/ida",
+        "form https://service.a-trust.at/mobile/https-security-layer-request/app.aspx",
+        "data-applink https://app.example.at/open/sign",
+        "script idaustria://sign",
+        "script https://www.a-trust.at/handy-signatur/app",
+    ];
+    for e in expected {
+        assert!(targets.iter().any(|t| t == e), "{e} fehlt in {targets:?}");
+    }
+    // relative Zeichenketten außerhalb einer Navigation (z. B. der Poll-Pfad in `qrpoll("…")`) zählen nicht
+    assert!(!targets.iter().any(|t| t.contains("LongPoll")), "{targets:?}");
+    let all = targets.join(" ");
+    for secret in ["GEHEIM", "TOK", "mustermann", "6641234567", "mailto", "tel:", "javascript", "Intent;", "?", "#"] {
+        assert!(!all.contains(secret), "{secret} in {all}");
+    }
+    // verschieden: der doppelte SMS-Link erscheint einmal
+    let doubled = html.replace("</form>", "<a href=\"sms.aspx?sid=anders\">SMS</a></form>");
+    let targets = link_targets(&base, &doubled);
+    assert_eq!(targets.iter().filter(|t| t.ends_with("/sms.aspx")).count(), 1, "{targets:?}");
+    // begrenzt
+    let many: String = (0..100).map(|i| format!("<a href=\"/p{i}.aspx\">{i}</a>")).collect();
+    assert_eq!(link_targets(&base, &many).len(), 40);
 }
 
 #[test]

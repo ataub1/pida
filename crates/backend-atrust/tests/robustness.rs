@@ -4,7 +4,7 @@
 mod support;
 
 use pida_backend_atrust::fido2::{AssertionOptions, result_json};
-use pida_backend_atrust::page::{PageBlock, classify, diagnostic};
+use pida_backend_atrust::page::{PageBlock, classify, diagnostic, link_targets};
 use pida_backend_atrust::poll::{parse_poll_response, parse_poll_script};
 use pida_backend_atrust::selectors::SelectorSet;
 use pida_backend_atrust::validate::{normalize_phone_number, validate_password, validate_tan};
@@ -96,6 +96,7 @@ fn classify_never_panics_on_random_markup() {
         let html = rng.text(80);
         let _ = classify(&base(), &html, &s);
         let _ = diagnostic(&base(), &html);
+        assert!(link_targets(&base(), &html).iter().all(|t| !t.contains('?') && !t.contains('#')), "{html}");
     }
 }
 
@@ -118,6 +119,7 @@ fn classify_mutated_fixtures_never_panics() {
             let cut = (0..=cut).rev().find(|i| page.is_char_boundary(*i)).unwrap_or(0);
             let mutated = format!("{}{}{}", &page[..cut], rng.text(6), &page[cut..]);
             let _ = classify(&base(), &mutated, &s);
+            let _ = link_targets(&base(), &mutated);
             let truncated = &page[..cut];
             let _ = classify(&base(), truncated, &s);
         }
@@ -130,7 +132,13 @@ fn large_and_deep_documents_are_handled() {
     // tiefe Schachtelung (html5ever arbeitet iterativ, ego_tree gibt iterativ frei; der Aufwand des
     // Tree-Builders wächst quadratisch mit der Tiefe – 3 000 Ebenen bleiben unter einer Sekunde)
     let deep = format!("{}<form><input id=input_tan name=t></form>{}", "<div>".repeat(3_000), "</div>".repeat(3_000));
-    assert!(classify(&base(), &deep, &s).is_err(), "ohne Vergleichswert kein SMS-Block");
+    // (auf `error.aspx` ohne Block seit Nachtrag 19 eine beendete Sitzung – jedenfalls kein SMS-Block)
+    let deep_page = classify(&base(), &deep, &s);
+    assert!(
+        !matches!(deep_page, Ok(ref p) if matches!(p.block, PageBlock::SmsTan { .. })),
+        "ohne Vergleichswert kein SMS-Block"
+    );
+    let _ = link_targets(&base(), &deep);
     // viele Felder: 2 000 Inputs mit 500 verschiedenen Namen (gleiche Namen überschreiben)
     let many: String = (0..2_000).map(|i| format!("<input name=f{} value=v>", i % 500)).collect();
     let html = format!("<form action=n>{many}<input type=submit id=NextBtn name=n></form>");

@@ -194,7 +194,7 @@ proptest! {
     /// Wahl nach „Signieren“ bzw. „Unsichtbar signieren“.
     #[test]
     fn id_austria_session_only_after_explicit_user_action(
-        events in prop::collection::vec(0u8..36, 0..80),
+        events in prop::collection::vec(0u8..37, 0..80),
         auto_position in any::<bool>(),
         invisible in any::<bool>(),
         default in 0u8..4,
@@ -254,6 +254,8 @@ proptest! {
                     Event::Analyzed { doc, class, placeholder, signed, page_count, start, warnings: vec!["pdf-usage-rights".into()], fields: Vec::new(), new_visible_field_allowed: true }
                 }
                 34 => Event::Backgrounded,
+                // Nachtrag 19: „Sitzung beendet“ ist wiederholbar – eine neue Sitzung erst nach „Erneut versuchen“
+                35 => Event::BackendFailed(BackendError::SessionClosed { diagnostic: "x".into() }),
                 _ => Event::Foregrounded,
             };
             let before = state.clone();

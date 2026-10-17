@@ -4,7 +4,7 @@
  * die freundlichen Fehlertexte (Fluent-Attribute `.title`/`.action` der stabilen Codes, ADR 0004 §3.16).
  */
 import type { BackendId, FormProblem, Notice, Progress, QrImage } from '../../core/types';
-import type { Translator } from '../../i18n/catalog';
+import type { Args, Translator } from '../../i18n/catalog';
 
 /** Text eines `FormProblem` (Katalog-IDs aus PDF-Over, sonst eigene `ng-ui-*`). */
 export function problemText(t: Translator, problem: FormProblem): string {
@@ -27,13 +27,14 @@ export function problemText(t: Translator, problem: FormProblem): string {
     }
   }
   if ('Fido2Error' in problem) {
-    // stabiler Code (`fido2-…`, FormProblem::code), Detail nur zur Diagnose
+    // stabiler Code (`fido2-…`, FormProblem::code), Detail nur zur Diagnose; Alltagstext `.text` ohne Variablen
+    // (z. B. `fido2-device`, ADR 0004 Nachtrag 19)
     const { code, detail } = problem.Fido2Error;
-    return t.has(code) ? t.t(code) : t.t('ng-ui-fido2-failed', { detail: detail || code });
+    return t.attr(code, 'text') ?? (t.has(code) ? t.t(code, { detail }) : t.t('ng-ui-fido2-failed', { detail: detail || code }));
   }
   if ('Fido2Failed' in problem) {
     const code = problem.Fido2Failed;
-    return t.has(code) ? t.t(code) : t.t('ng-ui-fido2-failed', { detail: code });
+    return t.attr(code, 'text') ?? (t.has(code) ? t.t(code, { detail: code }) : t.t('ng-ui-fido2-failed', { detail: code }));
   }
   return `${t.t('mobileBKU-notice')} ${problem.Atrust}`;
 }
@@ -116,23 +117,33 @@ export function qrDataUrl(image: QrImage): string {
 /**
  * Freundliche Fehlertexte (ADR 0004 §3.16): Titel und Aktion aus den Fluent-Attributen `.title`/`.action`
  * des Codes; für die Codes des erzeugten PDF-Over-Katalogs (ohne Attribute) eigene IDs der Oberfläche.
- * `.text` (optional) ersetzt in der Karte die Meldung mit technischer Ursache (`{ $detail }`, z. B. die
- * Fehlerkette der Verbindung auf Englisch) – die Ursache steht dann nur unter „Technische Details“; CLI und
- * Log behalten die vollständige Meldung.
+ * `.text` ist der Alltagstext **ohne Variablen** und ersetzt in Karte, Stapelpause und Stapelzeile die Meldung mit
+ * technischer Ursache (`{ $detail }`, `{ $diagnostic }` …) – die Ursache steht nur unter „Technische Details“; CLI
+ * und Log behalten die vollständige Meldung. Seit Nachtrag 19 gilt `.text` auch ohne `.title` (dann allgemeiner
+ * Titel); jeder Fehlercode mit Variablen hat eines (Tests `errors.test.ts`, `code_catalog.rs`).
  */
-const UI_FALLBACK: Record<string, { title: string; action: string | null }> = {
+const UI_FALLBACK: Record<string, { title: string; action: string | null; text?: string }> = {
   'error-PDFPwdProtected': { title: 'ng-ui-ws-locked-title', action: 'ng-ui-ws-locked-other' },
   'pdf-user-password': { title: 'ng-ui-ws-locked-title', action: 'ng-ui-ws-locked-other' },
   'error-MayNotBeAPDF': { title: 'ng-ui-ws-notpdf-title', action: 'ng-ui-ws-retry' },
-  'output-save_failed': { title: 'ng-ui-fin-save-failed-title', action: 'ng-ui-ws-retry' },
+  'output-save_failed': { title: 'ng-ui-fin-save-failed-title', action: 'ng-ui-ws-retry', text: 'ng-ui-fin-save-failed-text' },
 };
 
 export function friendlyError(t: Translator, code: string): { title: string; action: string | null; text: string | null } {
   const dashed = code.replace(/\./g, '-');
   const id = t.has(code) ? code : dashed;
-  const title = t.attr(id, 'title');
-  if (title) return { title, action: t.attr(id, 'action'), text: t.attr(id, 'text') };
   const fallback = UI_FALLBACK[id];
-  if (fallback) return { title: t.t(fallback.title), action: fallback.action ? t.t(fallback.action) : null, text: null };
-  return { title: t.t('ng-ui-sc-error-title'), action: null, text: null };
+  const text = t.attr(id, 'text') ?? (fallback?.text ? t.t(fallback.text) : null);
+  const title = t.attr(id, 'title');
+  if (title) return { title, action: t.attr(id, 'action'), text };
+  if (fallback) return { title: t.t(fallback.title), action: fallback.action ? t.t(fallback.action) : null, text };
+  return { title: t.t('ng-ui-sc-error-title'), action: null, text };
+}
+
+/**
+ * Alltagstext eines Fehlercodes (Karte, Stapelpause, Stapelzeile): `.text` bzw. Ersatztext der Oberfläche, sonst
+ * die Meldung mit den Parametern des Kerns. Enthält nie einen rohen Platzhalter (Nachtrag 19).
+ */
+export function everydayText(t: Translator, code: string, params: Args = {}): string {
+  return friendlyError(t, code).text ?? t.code(code, params);
 }

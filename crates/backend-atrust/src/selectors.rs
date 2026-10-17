@@ -15,6 +15,20 @@ fn default_trusted_hosts() -> Vec<String> {
     vec!["a-trust.at".into(), "handy-signatur.at".into()]
 }
 
+fn default_session_closed_pages() -> Vec<String> {
+    vec!["/SessionClosed.aspx".into()]
+}
+
+/// Höchstalter der angezeigten Anmeldeseite in Sekunden (ADR 0004 Nachtrag 19): A-Trust beendet eine Sitzung
+/// nach etwa fünf Minuten ohne Request (PDF-Over `MobileBKUConnector.java:255` „a-trust timeout is 5 minutes“,
+/// dieselbe Frist wie der Long-Poll, docs/analyse/02 §3.6). 240 s lassen eine Minute Reserve für Netz und
+/// Serveruhr; wer länger in der Anmeldemaske bleibt, bekommt vor dem Absenden eine neue Sitzung.
+pub const DEFAULT_LOGIN_PAGE_MAX_AGE_SECS: u64 = 240;
+
+fn default_login_page_max_age_secs() -> u64 {
+    DEFAULT_LOGIN_PAGE_MAX_AGE_SECS
+}
+
 /// Selektoren und URL-Muster.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SelectorSet {
@@ -42,6 +56,17 @@ pub struct SelectorSet {
     /// ohne das Feld: `a-trust.at`, `handy-signatur.at`.
     #[serde(default = "default_trusted_hosts")]
     pub trusted_hosts: Vec<String>,
+    /// Letzte Pfadsegmente, die eine **beendete bzw. abgelaufene** A-Trust-Sitzung anzeigen (exakt wie
+    /// `error_pages`; Standard `/SessionClosed.aspx`). Sie gelten mit oder ohne Formular und `#Label1` als
+    /// [`crate::page::PageBlock::SessionClosed`] (ADR 0004 Nachtrag 19; PDF-Over erwartet dort einen
+    /// Fehlerblock mit `#Label1`). Ältere Dateien ohne das Feld: Standard.
+    #[serde(default = "default_session_closed_pages")]
+    pub session_closed_pages: Vec<String>,
+    /// Höchstalter der angezeigten Anmeldeseite in Sekunden, bevor PIDA vor dem Absenden eine neue Sitzung
+    /// holt ([`DEFAULT_LOGIN_PAGE_MAX_AGE_SECS`]; `0` = nie vorbeugend erneuern). Ältere Dateien ohne das Feld:
+    /// Standard.
+    #[serde(default = "default_login_page_max_age_secs")]
+    pub login_page_max_age_secs: u64,
 }
 
 /// Element-Selektoren. Alle Werte sind CSS-Selektoren außer `signature_data_href` (Teil des
@@ -167,6 +192,14 @@ impl SelectorSet {
                 });
             }
         }
+        for page in &self.session_closed_pages {
+            if !page.starts_with('/') || page.len() < 2 || page[1..].contains('/') {
+                return Err(SelectorError::Invalid {
+                    field: "session_closed_pages",
+                    reason: format!("kein letztes Pfadsegment: {page}"),
+                });
+            }
+        }
         let non_empty = [
             ("error_prefix", self.error_prefix.as_str()),
             ("poll_function", self.poll_function.as_str()),
@@ -178,6 +211,12 @@ impl SelectorSet {
             }
         }
         Ok(())
+    }
+
+    /// Höchstalter der Anmeldeseite ([`SelectorSet::login_page_max_age_secs`]); `None` = nie vorbeugend
+    /// erneuern.
+    pub fn login_page_max_age(&self) -> Option<std::time::Duration> {
+        (self.login_page_max_age_secs > 0).then(|| std::time::Duration::from_secs(self.login_page_max_age_secs))
     }
 
     /// `true`, wenn `host` eine der [`SelectorSet::trusted_hosts`] oder eine Subdomain davon ist.
@@ -215,6 +254,9 @@ mod tests {
         assert_eq!(s.interstitial_urls, ["/ExpiresInfo.aspx"]);
         assert_eq!(s.error_prefix, "/error");
         assert_eq!(s.error_pages, ["/SessionClosed.aspx"]);
+        assert_eq!(s.session_closed_pages, ["/SessionClosed.aspx"]);
+        assert_eq!(s.login_page_max_age_secs, 240);
+        assert_eq!(s.login_page_max_age(), Some(std::time::Duration::from_secs(240)));
         assert_eq!(s.poll_function, "qrpoll");
         assert_eq!(s.login_error, "");
         assert_eq!(s.trusted_hosts, ["a-trust.at", "handy-signatur.at"]);
@@ -267,10 +309,17 @@ mod tests {
         v.as_object_mut().unwrap().remove("poll_function");
         v.as_object_mut().unwrap().remove("login_error");
         v.as_object_mut().unwrap().remove("trusted_hosts");
+        v.as_object_mut().unwrap().remove("session_closed_pages");
+        v.as_object_mut().unwrap().remove("login_page_max_age_secs");
         let old = SelectorSet::from_json(&v.to_string()).unwrap();
         assert_eq!(old.poll_function, "qrpoll");
         assert_eq!(old.login_error, "");
         assert_eq!(old.trusted_hosts, ["a-trust.at", "handy-signatur.at"]);
+        assert_eq!(old.session_closed_pages, ["/SessionClosed.aspx"]);
+        assert_eq!(old.login_page_max_age_secs, DEFAULT_LOGIN_PAGE_MAX_AGE_SECS);
+        let mut off = SelectorSet::builtin();
+        off.login_page_max_age_secs = 0;
+        assert_eq!(off.login_page_max_age(), None);
     }
 
     #[test]
@@ -288,6 +337,11 @@ mod tests {
             let mut s = SelectorSet::builtin();
             s.trusted_hosts = bad;
             assert!(matches!(s.validate(), Err(SelectorError::Invalid { field: "trusted_hosts", .. })));
+        }
+        for bad in [vec!["SessionClosed.aspx".to_owned()], vec!["/".to_owned()], vec!["/a/b.aspx".to_owned()]] {
+            let mut s = SelectorSet::builtin();
+            s.session_closed_pages = bad;
+            assert!(matches!(s.validate(), Err(SelectorError::Invalid { field: "session_closed_pages", .. })));
         }
         assert!(matches!(SelectorSet::from_json_validated("{"), Err(SelectorError::Json(_))));
         assert!(SelectorSet::from_json_validated(BUILTIN_JSON).is_ok());
