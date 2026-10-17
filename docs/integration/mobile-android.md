@@ -133,6 +133,42 @@ adb emu kill
 Die WebView ist in Debug-Builds über `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`
 (Chrome DevTools Protocol) erreichbar; so lassen sich Bedienelemente finden und antippen (`adb shell input`).
 
+### 4.1 Release-Build (signiert)
+
+Der Release-Schlüssel liegt **nie im Repository**. `app/build.gradle.kts` liest ihn nur, wenn
+`PIDA_ANDROID_KEYSTORE_PROPERTIES` den **absoluten** Pfad einer Properties-Datei außerhalb nennt:
+
+```properties
+storeFile=/Users/<name>/.pida-release/pida-release.jks   # absolut oder relativ zu dieser Datei
+storePassword=…
+keyAlias=pida
+keyPassword=…                                            # bei PKCS#12 gleich storePassword
+# storeType=pkcs12                                       # optional
+```
+
+Ohne Variable bleibt alles wie bisher: Release unsigniert (`app-universal-release-unsigned.apk`), Debug mit dem
+Debug-Schlüssel. Fehlt die Datei, ein Eintrag oder der Keystore, bricht Gradle ab; die Meldung nennt nur
+Schlüsselnamen, nie Werte. Ordner `~/.pida-release` mit 0700, Dateien mit 0600; dort liegt auch eine
+`LIESMICH.txt` mit dem Fingerabdruck. Künftige Updates lassen sich nur mit demselben Schlüssel installieren –
+Keystore und Passwort getrennt sichern.
+
+Release-Schlüssel seit v0.2.0 (17.10.2026): `CN=PIDA, O=PIDA, C=AT`, RSA 4096, selbstsigniert, gültig bis
+04.03.2054; Zertifikat SHA-256
+`E6:8B:35:B1:CF:4D:65:4C:14:9F:FD:C8:92:11:5B:FC:00:60:FC:8B:4B:AC:9A:3B:C4:48:A3:3E:29:83:D2:47`.
+Ein früher installierter Debug-Build (Debug-Schlüssel) muss vor der Installation deinstalliert werden.
+
+```sh
+source tools/env.sh
+tools/fetch-pdfium.sh --jnilibs
+cd apps/app && npm ci
+export CARGO_TARGET_DIR="$PWD/../../target-android"
+export PIDA_ANDROID_KEYSTORE_PROPERTIES="$HOME/.pida-release/keystore.properties"
+npm run tauri android build -- --apk --target aarch64
+#  → src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk (nur arm64-v8a)
+apksigner verify --verbose --print-certs <apk>          # SHA-256 = LIESMICH.txt
+aapt dump badging <apk> | head -1                       # package at.pida, versionName
+```
+
 ## 5. Nachweise (15.10.2026, Emulator `pida_api35`, Android 15, arm64, Sprache de-AT)
 
 - **Start:** `pida-smoke: ok step=open pdfium=true webview_ms=1003 core_ms=1003` (erster Lauf), im
