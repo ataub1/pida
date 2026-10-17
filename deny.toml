@@ -35,8 +35,8 @@ feature-depth = 1
 # ---------------------------------------------------------------------------------------------
 [advisories]
 # Sicherheitslücken, zurückgezogene Versionen (yanked), „unmaintained“ und „unsound“ brechen den
-# Build – auch für transitive Abhängigkeiten. Stand 15.10.2026 ohne Befund außer der begründeten
-# Ausnahme unten. Ein neuer transitiver Fund ist zu bewerten: Update, Ersatz oder begründete Ausnahme.
+# Build – auch für transitive Abhängigkeiten. Stand 17.10.2026 ohne Befund außer den begründeten
+# Ausnahmen unten. Ein neuer transitiver Fund ist zu bewerten: Update, Ersatz oder begründete Ausnahme.
 yanked = "deny"
 unmaintained = "all"
 unsound = "all"
@@ -51,6 +51,13 @@ ignore = [
     # glib 0.18 `VariantStrIter` unsound: Tauri (wry/tao/muda) zieht gtk-rs 0.18 unter Linux; weder
     # PIDA noch Tauri iterieren GVariant-String-Arrays. Fix erst ab glib 0.20 (Tauri-Update).
     { id = "RUSTSEC-2024-0429", reason = "gtk-rs 0.18 über Tauri, nur Linux, VariantStrIter ungenutzt" },
+    # zvariant, zbus_names, zvariant_derive „unmaintained“ (17.10.2026): seit zbus 6.0 als Module in zbus
+    # aufgegangen, keine Lücke. zbus 5 kommt nur unter Linux (D-Bus) über keyring 4.2 → secret-service
+    # 5.2 (Secret Service) und tauri-plugin-opener 2.7 / tauri-plugin-single-instance 2.5; deren stabile
+    # Versionen hängen alle noch an zbus 5. Wird mit dem zbus-6-Wechsel dieser Abhängigkeiten gehoben.
+    { id = "RUSTSEC-2026-0370", reason = "zvariant: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
 ]
 
 # ---------------------------------------------------------------------------------------------

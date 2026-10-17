@@ -188,7 +188,10 @@ cargo deny --locked check          # advisories bans licenses sources
 - *Advisories*: Lücken, `yanked`, `unmaintained` und `unsound` brechen den Build (auch transitiv);
   begründete Ausnahmen: RUSTSEC-2023-0071 (rsa/Marvin, nur Entschlüsseln betroffen, Plan §2.1),
   RUSTSEC-2024-0370 (proc-macro-error „unmaintained“, nur Build-Zeit über glib-macros 0.18/Tauri, Linux)
-  und RUSTSEC-2024-0429 (glib 0.18 `VariantStrIter` unsound, gtk-rs 0.18 über Tauri unter Linux, ungenutzt).
+  RUSTSEC-2024-0429 (glib 0.18 `VariantStrIter` unsound, gtk-rs 0.18 über Tauri unter Linux, ungenutzt)
+  und seit 17.10.2026 RUSTSEC-2026-0370/-0371/-0372 (`zvariant`, `zbus_names`, `zvariant_derive`
+  „unmaintained“, in zbus 6 aufgegangen; zbus 5 nur unter Linux über keyring/secret-service und die
+  Tauri-Plugins opener/single-instance, deren stabile Versionen noch an zbus 5 hängen).
 - *Bans*: doppelte Versionen = Fehler; die bekannten Duplikate stehen mit Begründung in `skip`
   (die zweite RustCrypto-Generation über p12-keystore/lopdf/secret-service, ADR 0001 §5.2, und seit
   Welle 3 die Tauri-Plattformschichten: gtk-rs 0.18, jni 0.21, ico/schemars, windows-sys 0.45/0.60).
