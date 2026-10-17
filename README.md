@@ -132,6 +132,9 @@ Releases.
 2. Die App ist nicht notarisiert, deshalb blockiert macOS den ersten Start. Bis macOS 14: **Rechtsklick (bzw.
    Ctrl-Klick) auf PIDA › „Öffnen“** und im Dialog nochmals „Öffnen“. Ab macOS 15: PIDA einmal starten,
    dann **Systemeinstellungen › Datenschutz & Sicherheit › „Dennoch öffnen“** und bestätigen.
+3. Meldet macOS stattdessen, „PIDA“ sei **beschädigt** und könne nicht geöffnet werden, liegt das an der
+   fehlenden Signatur der Testversion: nach Kontrolle der Prüfsumme im Terminal
+   `xattr -dr com.apple.quarantine /Applications/PIDA.app` ausführen und PIDA erneut öffnen.
 
 ### Linux
 
@@ -313,7 +316,9 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   `SHA256SUMS.txt`. iOS is not included.
 - **Installation:** packages are not code-signed or notarised and do not update themselves. Windows SmartScreen:
   “More info” › “Run anyway”. macOS: right-click › “Open” (macOS 15 and later: System Settings › Privacy &
-  Security › “Open Anyway”). Android: allow “Install unknown apps” for your browser or file manager.
+  Security › “Open Anyway”; if macOS reports PIDA as “damaged”, run
+  `xattr -dr com.apple.quarantine /Applications/PIDA.app` after checking the checksum). Android: allow
+  “Install unknown apps” for your browser or file manager.
 - **Privacy:** with ID Austria the document is sent to A-Trust for signing; with a smart card or keystore it
   never leaves your device. On Android, PIDA signs with ID Austria only.
 - **Verification:** PIDA checks every new signature before saving it (document unchanged, signature
