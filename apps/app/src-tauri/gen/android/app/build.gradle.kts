@@ -32,6 +32,37 @@ if (!pdfiumJniLibs.resolve("arm64-v8a/libpdfium.so").isFile) {
 // im LAN) mit PIDA_ANDROID_DEV_CLEARTEXT=1.
 val devCleartext = System.getenv("PIDA_ANDROID_DEV_CLEARTEXT") == "1"
 
+// Release-Signatur (docs/integration/mobile-android.md §4.1): Der Schlüssel liegt nie im Repository.
+// PIDA_ANDROID_KEYSTORE_PROPERTIES=<absoluter Pfad> nennt eine Properties-Datei außerhalb mit storeFile
+// (absolut oder relativ zu dieser Datei), storePassword, keyAlias, keyPassword und optional storeType;
+// damit wird der Release-Build signiert. Ohne Variable bleibt alles wie bisher (Release unsigniert, Debug
+// mit dem Debug-Schlüssel). Fehlermeldungen nennen nur Schlüsselnamen, nie Werte.
+val releaseSigning: Properties? = System.getenv("PIDA_ANDROID_KEYSTORE_PROPERTIES")
+    ?.takeIf { it.isNotBlank() }
+    ?.let { path ->
+        val propsFile = File(path)
+        if (!propsFile.isAbsolute || !propsFile.isFile) {
+            throw GradleException(
+                "PIDA_ANDROID_KEYSTORE_PROPERTIES: keine Datei unter diesem absoluten Pfad"
+            )
+        }
+        val props = Properties().apply { propsFile.inputStream().use { load(it) } }
+        val missing = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+            .filter { props.getProperty(it).isNullOrBlank() }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "PIDA_ANDROID_KEYSTORE_PROPERTIES: es fehlt ${missing.joinToString()}"
+            )
+        }
+        val store = File(props.getProperty("storeFile").trim())
+            .let { if (it.isAbsolute) it else propsFile.absoluteFile.parentFile.resolve(it) }
+        if (!store.isFile) {
+            throw GradleException("PIDA_ANDROID_KEYSTORE_PROPERTIES: storeFile nicht gefunden")
+        }
+        props.setProperty("storeFile", store.absolutePath)
+        props
+    }
+
 android {
     // compileSdk 36: die Tauri-API-Bibliothek (.tauri/tauri-api) verlangt 36; Zielplattform bleibt 35.
     compileSdk = 36
@@ -53,6 +84,17 @@ android {
             jniLibs.srcDir(pdfiumJniLibs)
         }
     }
+    signingConfigs {
+        releaseSigning?.let { props ->
+            create("release") {
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+                props.getProperty("storeType")?.takeIf { it.isNotBlank() }?.let { storeType = it }
+            }
+        }
+    }
     buildTypes {
         getByName("debug") {
             manifestPlaceholders["usesCleartextTraffic"] = if (devCleartext) "true" else "false"
@@ -67,6 +109,9 @@ android {
             }
         }
         getByName("release") {
+            if (releaseSigning != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                enable = true
             }
