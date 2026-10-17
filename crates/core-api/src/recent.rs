@@ -162,21 +162,27 @@ impl CoreTask {
         }
     }
 
-    /// `RevealRecent`: im Finder bzw. Explorer zeigen (nur Desktop; Fehler als Hinweis `ng-ui-open-failed`).
+    /// `RevealRecent`: im Finder bzw. Explorer zeigen (nur Desktop; Fehler als Hinweis `ng-ui-open-failed`). Im
+    /// Hintergrund wie `effect_share`: der Dateimanager antwortet unter Linux über D-Bus (bzw. Windows über die Shell)
+    /// und darf den Kern nicht aufhalten.
     pub(crate) fn reveal_recent(&mut self, id: u64) {
         if !self.mobile.platform.is_desktop() {
             tracing::debug!("reveal_recent nur auf dem Desktop");
             return;
         }
         let Some(path) = self.recent_file(id, "reveal_recent") else { return };
-        let result = match self.shared.shell() {
-            Some(shell) => shell.reveal_path(&path),
-            None => Err("keine Shell".into()),
-        };
-        if let Err(e) = result {
-            tracing::warn!(error = %e, "Datei konnte nicht im Ordner gezeigt werden");
+        let Some(shell) = self.shared.shell() else {
+            tracing::warn!("Datei konnte nicht im Ordner gezeigt werden: keine Shell");
             self.notify(MSG_OPEN_FAILED, BTreeMap::new());
-        }
+            return;
+        };
+        let shared = self.shared.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Err(e) = shell.reveal_path(&path) {
+                tracing::warn!(error = %e, "Datei konnte nicht im Ordner gezeigt werden");
+                shared.send(crate::runtime::Msg::Notices(vec![(MSG_OPEN_FAILED.to_owned(), BTreeMap::new())]));
+            }
+        });
     }
 
     /// `ShareRecent`: teilen (nur Mobile, Share-Sheet) – wie `share_result`.

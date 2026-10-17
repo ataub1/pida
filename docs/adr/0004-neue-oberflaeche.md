@@ -154,8 +154,8 @@ Legende: **✓** vorhanden · **◐** teilweise vorhanden · **✗** neu im Kern
 |---|---|---|---|
 | Ablagefläche „PDF hierher ziehen oder auswählen“, ⌘/Strg+O | ✓ `open_files`; Drop über Tauri-Fensterereignisse (`bridge.onFileDrag`, Pfade), Dialog `pickFiles`, Mobile `pickMobileFiles` | Die React-Aria-`DropZone` des Prototyps liefert **keine Pfade** – sie wird nur optisch übernommen (`dragActive`), Dateien kommen weiter aus der Shell | UI-A |
 | Mehrere Dateien → Stapel | ◐ Warteschlange (F-14, F-89) | ✗ Stapelübersicht §3.8 | K, UI-A |
-| „Zuletzt signiert“ (öffnet Prüfmodus) | ✗ | §3.10 `ViewState::recent`, `VerifyRecent`; Metazeile nur mit Zeitpunkt (das Signiermittel des Prototyps wird nicht gespeichert, Datenschutz) | K, UI-B |
-| Hinweis „Signatur prüfen“ | ✗ | §3.9 `OpenVerify` | K, UI-B |
+| „Zuletzt signiert“ (öffnet Prüfmodus; seit Nachtrag 15: Aktionen wie „Fertig“) | ✗ | §3.10 `ViewState::recent`, `VerifyRecent` (seit Nachtrag 15 `OpenRecent`/`RevealRecent`/`ShareRecent`/`SignRecent`); Metazeile nur mit Zeitpunkt (das Signiermittel des Prototyps wird nicht gespeichert, Datenschutz) | K, UI-B |
+| Hinweis „Signatur prüfen“ | ✗ | §3.9 `OpenVerify` – **entfernt (Nachtrag 15)** | K, UI-B |
 | „Beispielvertrag öffnen“ | — | entfällt (Demo); Mock-Kern behält Szenarien (§4.8) | – |
 | Nicht-PDF → Toast | ✓ Kern meldet `error-MayNotBeAPDF` | UI filtert **nicht** nach Endung; Einzeldokument → Zustandskarte, Stapel → Zeile „abgelehnt“ | UI-A |
 | Mobile: Share-Sheet/„Öffnen in“ | ✓ Shell (`ingest_urls`, `take_pending_open_documents`) | unverändert; Ablagefläche entfällt auf Mobile, Knopf „Dokument auswählen“ | UI-A |
@@ -375,7 +375,7 @@ pub struct ViewState {
     /// geöffneten Einzeldokument (`return_to_batch`); sonst `None` (§3.8)
     #[serde(default)]
     pub batch: Option<BatchView>,
-    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (§3.9)
+    /// Prüfmodus – liegt über dem Workflow-Zustand, ändert ihn nicht (§3.9) – entfernt mit Nachtrag 15
     #[serde(default)]
     pub verify: Option<VerifyView>,
     /// „Zuletzt signiert“; `None` = Funktion abgeschaltet (§3.10)
@@ -1557,10 +1557,10 @@ Headless-Regeln bleiben in jedem Fall.
 `ng-signer-policy`, `ng-signing-cancelled`, `ng-constraint-signed`, `ng-constraint-certified`,
 `ng-constraint-invisible-profile`, `ng-batch-added` (`$count`), `ng-batch-item-signed` (`$file`), `ng-batch-done`
 (`$signed`, `$total`), `ng-batch-nothing-to-sign`, `ng-batch-output-folder-required`, `ng-batch-aborted`
-(`$signed`), `ng-batch-paused`, `ng-verify-open-failed`, `ng-verify-busy`, `ng-recent-missing`,
+(`$signed`), `ng-batch-paused`, `ng-verify-open-failed`, `ng-verify-busy` (beide entfernt mit Nachtrag 15), `ng-recent-missing`,
 `ng-migration-item-{block,emblem,username,output,keystore,proxy,placeholder,language}`, `ng-firstrun-done`,
 `ng-signing-declined`, `ng-batch-large` (`$count`), `ng-batch-pending-app-request`, `ng-settings-field-unknown`,
-`ng-verify-warning-{sha1,signing-certificate-v1,weak-key}`, `ng-recent-policy`; mit K4 (Nachtrag 6) `ng-migration-not-found`
+`ng-verify-warning-{sha1,signing-certificate-v1,weak-key}` (entfernt mit Nachtrag 15), `ng-recent-policy`; mit K4 (Nachtrag 6) `ng-migration-not-found`
 und `ng-migrate-emblem-default`.
 Freundliche Fehlertexte: die bestehenden Codes (`backend-network`, `backend-timeout`, `backend-cancelled`,
 `error-PDFPwdProtected`, `error-MayNotBeAPDF`, `ng-document-rejected`, `ng-cms-too-large`, `output-save_failed` …)
@@ -1621,7 +1621,7 @@ apps/app/src/
   ui/         controls.tsx, Dialog.tsx (+ Sheet), Toasts.tsx, Icons.tsx, Logo.tsx, hooks.ts, Markup.tsx, AccessKeys.ts
   styles/     tokens.css, base.css, components.css, legacy/screens.css, legacy/dialogs.css (beide vorübergehend)
   features/   start/ workspace/ signing/ done/ batch/          (UI-A)
-              recent/ settings/ verify/ palette/ onboarding/   (UI-B; onboarding/MigrationDialog.tsx bis B4)
+              recent/ settings/ verify/ palette/ onboarding/   (UI-B; onboarding/MigrationDialog.tsx bis B4; verify/ entfernt mit Nachtrag 15)
   core/       generated.ts, types.ts, defaults.ts, fixtures/, contract.test.ts (K) · bridge.ts, mock/ (A/B, §6)
   i18n/       catalog.ts (+ ui-workspace.ftl, ui-tools.ftl), markup.ts
   test/       setup.ts, render.tsx, a11y.ts (axe-core), views.ts · schema.ts (K)
@@ -1652,7 +1652,7 @@ dass die stabilen Exporte eingebunden sind.
 | `features/workspace/{Workspace,Inspector,SignerChip,Thumbnails}.tsx` | Gestalt übernommen | Daten aus `document`/`signers`/`actions`; Miniaturen = Kacheln |
 | `features/workspace/Pages.tsx` | Interaktion übernommen | Kacheln statt `MockPage`, virtualisiert (IntersectionObserver → `InspectPages`), Einrasten an `layout.guides`, Bänder aus `layout.free`, Touch-Logik aus `PositionScreen` |
 | `features/workspace/placement.ts`, `model/geometry.ts` | nur Darstellung | `snap`, `describeZone`, `clamp` als reine Funktionen; `autoPosition`, `freeBands`, `overlaps` entfallen (Kern) |
-| `features/{batch,done,start,verify,settings,palette,onboarding}` | Gestalt übernommen | Daten aus ViewState; Start-Ablage nur optisch |
+| `features/{batch,done,start,verify,settings,palette,onboarding}` (`verify` entfernt mit Nachtrag 15) | Gestalt übernommen | Daten aus ViewState; Start-Ablage nur optisch |
 | `app/store.tsx`, `app/timing.tsx`, `model/documents.ts`, `model/format.ts`, `features/demo`, `features/sigblock`, `features/workspace/{MockPage,LockedDocument}.tsx`, `i18n/{de,en}.ts` | **entfallen** | Reducer/Simulation → Kern bzw. Mock-Kern; Formatregeln → Kern; Texte → Fluent |
 | `test/a11y.test.tsx`, `test/review.test.tsx` | als Vorlage | gleiche Prüfungen gegen den Mock-Kern (axe ohne Verstöße je Ansicht und Overlay, schmale Ansicht) |
 
@@ -1739,7 +1739,7 @@ WCAG 2.2 AA wie im Prototyp (Fokus, Live-Regionen, Zielgrößen, Ziehen-Alternat
 einschließlich Stapel mit n Bestätigungen und je Dokument eigenem Vergleichswert, Überspringen/Abbruch/Pausen
 (alle drei Arten), Ablehnung in der App, Layoutdaten (synthetische Inhaltsrahmen und freie Flächen je Seite),
 Prüfergebnissen, „Zuletzt signiert“, Ersteinrichtung, `ApplySettings` mit Teilübernahme. Szenarien wie im Prototyp
-über `?scenario=start|blank|contract|field|signed|batch|verify|error-password|error-atrust` und
+über `?scenario=start|blank|contract|field|signed|batch|verify|error-password|error-atrust` (`verify` entfernt mit Nachtrag 15) und
 `?platform=ios|android`, damit Screenshots gegen den Prototyp verglichen werden können. Der Mock ist keine zweite
 Fachlogik: Regeln nur so weit, wie Bedienung und Tests sie brauchen.
 
@@ -1763,7 +1763,7 @@ export type MockSignal =
 export interface MockCtx { emit(signal: MockSignal): void; settings(): Settings; platform(): PlatformView }
 ```
 
-`index.ts` (UI-A) hält `{ core, workspace, signing, batch, settings, verify, recent, firstrun }` je als eigenen
+`index.ts` (UI-A) hält `{ core, workspace, signing, batch, settings, verify, recent, firstrun }` (seit Nachtrag 15 ohne `verify`; `open-files` trägt dann `mode`, `verify-file` entfällt) je als eigenen
 Ausschnitt, verteilt Ereignisse und Signale und setzt die Projektionen zusammen. Jedes Paket ändert nur seine
 Bereichsdateien; neue Signalarten sind ein Nachtrag über den Orchestrator.
 
@@ -2032,7 +2032,8 @@ V0 (Datenschutz) → K0 → U0 ─┬─ K1 → A1            = E1
 - **Stapel und A-Trust:** Viele CreateCMS-Requests hintereinander; Ratenbegrenzung und Nutzungsbedingungen sind bei
   A-Trust offen (Plan Q2, §8 F9). Echter Stapel mit einer Freigabe bleibt CSC (Szenario C) vorbehalten.
 - **Prüfmodus ohne Vertrauenskette:** PIDA prüft Integrität und Zertifikatsangaben, **nicht** Vertrauensliste und
-  Sperrstatus; Wortlaut und Hinweis müssen das deutlich machen (§8 F3).
+  Sperrstatus; Wortlaut und Hinweis müssen das deutlich machen (§8 F3). Mit Nachtrag 15 gegenstandslos (Prüfmodus
+  entfernt); die Regel gilt weiter für „Fertig“ und `pida verify`.
 - **Datenschutz:** „Zuletzt signiert“ speichert Dateipfade lokal (abschaltbar, Richtlinie); Zugangsdaten leben im
   Stapel länger im RAM (bis Ende des Laufs) und beim Einzeldokument bis zur Entscheidung im Fehlerschritt (F10).
 - **Verhaltensänderung für Bestandsnutzer:** Wer heute Keystore bzw. lokale BKU als Standard mit automatischer
@@ -2062,7 +2063,7 @@ V0 (Datenschutz) → K0 → U0 ─┬─ K1 → A1            = E1
 | **F5** | Namenszusatz: `_signed` (PDF-Over, CLI-kompatibel) oder `_signiert` bzw. Muster mit `{datum}`? | **`_signed` beibehalten** (Kompatibilität, Skripte); Muster mit `{name}`/`{datum}` als spätere Erweiterung des Kerns. |
 | **F6** | „Zuletzt signiert“ standardmäßig ein oder aus? | **Ein** (höchstens 10 Einträge, nur Name/Pfad/Zeit, abschaltbar unter Datenschutz, per Richtlinie abschaltbar). |
 | **F7** | **Zugriffstasten** (Alt+Buchstabe aus den PDF-Over-Katalogen) neben Palette und Kürzeln beibehalten? | **Ja**, ohne dauernde Unterstreichung (sichtbar bei gedrückter Alt-Taste); Abnahme K-02 bleibt. |
-| **F8** | „Prüfbericht speichern“ im Prüfmodus? | **Nicht in v1**; bei Bedarf später als PDF/HTML-Bericht. |
+| **F8** | „Prüfbericht speichern“ im Prüfmodus? | **Nicht in v1**; bei Bedarf später als PDF/HTML-Bericht. Gegenstandslos seit Nachtrag 15 (Prüfmodus entfernt). |
 | **F9** | Obergrenze für Stapel mit ID Austria (A-Trust-Ratenbegrenzung unbekannt)? | **Keine harte Grenze**, Hinweis ab 20 Dokumenten („jedes Dokument einzeln bestätigen“); Frage an A-Trust (Plan Q2). |
 | **F10** | Beim **Überspringen** bzw. bei einer **Ablehnung in der App** (SL 6000/6001) für ein einzelnes Dokument im Stapel bleiben die Zugangsdaten bis zum Ende des Laufs im Speicher; beim Einzeldokument im Arbeitsbereich nach einer Ablehnung bis zur Entscheidung im Fehlerschritt (Abweichung von F-72: PDF-Over löscht sie auch bei 6000/6001). Einverstanden? | **Ja** – sonst wäre „eine Anmeldung“ nach jedem Überspringen verloren und „Erneut versuchen“ nach einer Ablehnung bräuchte eine neue Anmeldung; Abbruch des Stapels, „Schließen“ im Fehlerschritt und jeder Abbruch in PIDA löschen sie wie F-72. |
 | **F11** | Vorhandene Zieldateien im Stapel: Standardwahl im Startdialog? | **„Beide behalten“** (`… (2).pdf`), Alternativen „Überschreiben“, „Überspringen“ (ohne Bestätigung für dieses Dokument). |
@@ -2688,7 +2689,9 @@ zurückgestellt; ADR 0006 kommt nicht auf `main`.
    pub trait ShellHooks { /* … */ fn reveal_path(&self, path: &Path) -> Result<(), String> { Err("unsupported".into()) } }
    ```
 
-   Die Shell setzt `reveal_path` mit `opener::reveal_item_in_dir` um (wie der Command `reveal_output`). **Alte
+   Die Shell setzt `reveal_path` mit `opener::reveal_item_in_dir` um (wie der Command `reveal_output`); der Kern ruft
+   es im Hintergrund auf (`spawn_blocking` wie beim Teilen), damit ein hängender Dateimanager (Linux: D-Bus) ihn nicht
+   aufhält, und meldet einen Fehler als Hinweis `ng-ui-open-failed`. **Alte
    gespeicherte Daten bleiben lesbar:** Einstellungen (keine Einstellung gehörte zum Prüfmodus), `recent.json` (Format
    von K3 unverändert: `id`, `file_name`, `path`, `signed_at`; der Test `recent_entry_offers_what_done_offers` liest
    eine so gespeicherte Liste), Resume-Datensätze (unberührt). Ein `ViewState` mit dem alten Feld `verify` liest serde
@@ -2723,11 +2726,16 @@ zurückgestellt; ADR 0006 kommt nicht auf `main`.
    (0 alle intakt bzw. keine Signatur, 6 mindestens eine nicht intakt, 3 nicht lesbar).
 5. **Tests und Proben:** `core-api/tests/verify.rs` gelöscht – die Ersteinrichtung (Proben, „keine Sitzung“) steht in
    `first_run.rs`, die Qualifikation auf „Fertig“ in `real_pades.rs`; neu `settings.rs::recent_entry_offers_what_done_offers`
-   (Desktop und iOS, alte Liste, fehlende Datei, keine Sitzung), `batch.rs::sign_recent_while_parked_joins_or_replaces_like_open_files`,
-   `flow.rs` (klassischer Ablauf ignoriert die neuen Ereignisse auf unbekannte Einträge). Proben neu erzeugt:
+   (Desktop und iOS, alte Liste, fehlende Datei, keine Sitzung), `settings.rs::reveal_recent_does_not_block_the_core`,
+   `batch.rs::sign_recent_while_parked_joins_or_replaces_like_open_files`,
+   `first_run.rs::recent_and_migration_events_do_nothing_while_signing` („Erneut signieren“ und erneutes
+   Übernahmeangebot beim Signieren ohne Wirkung – der zweite Teil stand bis dahin in `verify.rs`), `flow.rs`
+   (klassischer Ablauf ignoriert die neuen Ereignisse auf unbekannte Einträge). Proben neu erzeugt:
    `view-states.json` ohne `ws_verify_*`, `real-core-tools-views.json` nur noch Ersteinrichtung,
    `real-core-views.json`/`real-core-batch-views.json` ohne `verify`, `ui-events.json` mit den vier neuen Ereignissen
    (weiter 63 Varianten). Gegentests „kein Einstieg in einen Prüfmodus“: Kopfzeile, Palette und Befehlsliste,
-   Startseite, „Zuletzt signiert“, Mock (kein Szenario, keine Freigabe), Vertrag (`ViewState`/`actions` ohne `verify`),
+   Startseite, „Zuletzt signiert“, Mock (kein Szenario, keine Freigabe), Vertrag (`ViewState`/`actions` ohne `verify`;
+   `view.rs::verify_mode_is_gone_from_the_contract`: die vier Ereignisse des Prüfmodus sind nicht mehr lesbar, ein
+   alter `ViewState` mit `verify` schon),
    Katalog (keine IDs des Prüfmodus, `catalogs.rs::verify_texts_never_claim_validity` jetzt für `pida verify`); CLI
    `cli.rs::verify_signed_unsigned_and_broken` prüft „intakt“ und den Umfang in DE/EN ohne „gültig“.

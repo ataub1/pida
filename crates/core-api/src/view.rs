@@ -2058,4 +2058,40 @@ mod tests {
         assert_redacted(apply.clone());
         assert!(apply.contains("id_austria.username"), "Pfade der Felder bleiben sichtbar: {apply}");
     }
+
+    /// ADR 0004 Nachtrag 15 (Prüfmodus entfernt): Die vier Ereignisse des Prüfmodus kennt der Vertrag nicht mehr –
+    /// kein Einstieg in einen Prüfmodus über die Bridge; die Ereignisse von „Zuletzt signiert“ (wie „Fertig“) schon.
+    /// Ein `ViewState` mit den alten Feldern `verify` bzw. `actions.verify` liest serde weiterhin (ignoriert).
+    #[test]
+    fn verify_mode_is_gone_from_the_contract() {
+        for json in [
+            r#"{"type":"open_verify","path":"/tmp/Vertrag_signed.pdf"}"#,
+            r#"{"type":"verify_recent","id":1}"#,
+            r#"{"type":"close_verify"}"#,
+            r#"{"type":"sign_verified"}"#,
+        ] {
+            assert!(serde_json::from_str::<UiEvent>(json).is_err(), "Prüfmodus-Ereignis noch im Vertrag: {json}");
+        }
+        for (json, expected) in [
+            (r#"{"type":"open_recent","id":2}"#, UiEvent::OpenRecent { id: 2 }),
+            (r#"{"type":"reveal_recent","id":2}"#, UiEvent::RevealRecent { id: 2 }),
+            (r#"{"type":"share_recent","id":2}"#, UiEvent::ShareRecent { id: 2 }),
+            (r#"{"type":"sign_recent","id":2}"#, UiEvent::SignRecent { id: 2, mode: None }),
+            (r#"{"type":"sign_recent","id":2,"mode":null}"#, UiEvent::SignRecent { id: 2, mode: None }),
+            (
+                r#"{"type":"sign_recent","id":2,"mode":"add"}"#,
+                UiEvent::SignRecent { id: 2, mode: Some(OpenFilesMode::Add) },
+            ),
+        ] {
+            let event: UiEvent = serde_json::from_str(json).unwrap_or_else(|e| panic!("{json}: {e}"));
+            assert_eq!(format!("{event:?}"), format!("{expected:?}"), "{json}");
+        }
+        let view = crate::initial_view(pida_i18n::Lang::De, pida_backend_api::Platform::MacOs);
+        let mut old = serde_json::to_value(&view).unwrap();
+        assert!(old.get("verify").is_none() && old["actions"].get("verify").is_none());
+        old["verify"] = serde_json::json!({ "file_name": "Vertrag_signed.pdf", "status": { "state": "loading" } });
+        old["actions"]["verify"] = serde_json::json!(true);
+        let read: ViewState = serde_json::from_value(old).expect("alte Felder werden ignoriert");
+        assert_eq!(read, view);
+    }
 }

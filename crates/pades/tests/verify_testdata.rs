@@ -30,7 +30,8 @@ const BASE: &str = "pdf/generated/simple-xref-table.pdf";
 /// Gedrehte Seite (`/Rotate 90`, sichtbar 792 × 612 pt).
 const ROTATED: &str = "pdf/pdfas/pdf-as-cli/simple_rotated_90.pdf";
 /// Lage des Blocks auf der gedrehten Seite (sichtbarer Raum, `PAGE_ABS`: linke Kante, Oberkante von unten);
-/// `core-api/tests/verify.rs` prüft das Rechteck der `AppearanceView` dagegen.
+/// damit signiert der Generator `rotated-90.pdf` (die Prüfung der `AppearanceView` des Prüfmodus ist mit ADR 0004
+/// Nachtrag 15 entfallen).
 pub const ROTATED_POSITION: &str = "p:1;x:100;y:500";
 /// QES-Testzertifikat (qcStatements QcCompliance + QcSSCD)
 const QES_P12: &str = "verify/keys/test-qes-ecp256.p12";

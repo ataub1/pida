@@ -340,7 +340,8 @@ nach App-Kill nur durch Kern-Tests belegt (brauchen A-Trust); `CFBundleShortVers
 ## 11. Neue Oberfläche auf Mobile (16.10.2026)
 
 Die neue Oberfläche (ADR 0004, E1–E4: Arbeitsbereich mit Bottom-Sheet, Signier-Statuskarte, Fertig mit Teilen und
-„Sichern unter“, Stapel, Einstellungen im Vollbild mit Bereich „Dokument“, Prüfmodus, Ersteinrichtung) wurde auf
+„Sichern unter“, Stapel, Einstellungen im Vollbild mit Bereich „Dokument“, Prüfmodus – seit ADR 0004 Nachtrag 15
+entfernt –, Ersteinrichtung) wurde auf
 beiden Plattformen am Gerät durchgespielt, die Befunde behoben und beide Stände in `mobile/int` mit `main`
 zusammengeführt. Einzelheiten, Aufnahmen und Befundlisten: mobile-ios.md §8 (Simulator iPhone 17 und zur
 Gegenprüfung iPhone 17e, iOS 27; `docs/integration/screenshots/ios-ng/`) und mobile-android.md §8 (Emulator

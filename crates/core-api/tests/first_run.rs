@@ -465,6 +465,64 @@ async fn first_run_events_never_open_a_session() {
     assert_eq!(fake.opened.load(Ordering::SeqCst), 0, "Ersteinrichtung startet nie eine Sitzung");
 }
 
+/// Während des Signierens (Anmeldung offen, `actions.open_files` aus) bleiben „Erneut signieren“ aus „Zuletzt
+/// signiert“ (ADR 0004 Nachtrag 15, auch mit `mode`) und das erneute Übernahmeangebot ohne Wirkung: kein
+/// zusätzliches Dokument in der Warteschlange, kein Angebot, das Einstellungen und Signiermittel tauschte, und
+/// nur die ausdrücklich gestartete Sitzung (A1, F-54). Bis Nachtrag 15 stand dieser Fall in `verify.rs`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn recent_and_migration_events_do_nothing_while_signing() {
+    use std::sync::atomic::Ordering;
+    let fx = Fixture::new();
+    fx.write_settings("[general]\n");
+    let legacy = fx.dir("home/.pdf-over");
+    std::fs::write(legacy.join("PDF-Over.config"), "BKU=KS\nSIGNATURE_PROFILE=AMTSSIGNATURBLOCK\n").unwrap();
+    let a = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &fx.dir("in"), "Antrag.pdf");
+    let signed = copy_pdf("pdf/pdfas/pdf-as-legacy/simple.pdf", &fx.dir("out"), "Vertrag_signed.pdf");
+    let entry = pida_config::RecentStore::new(&fx.paths)
+        .push(pida_config::RecentEntry {
+            id: 0,
+            file_name: "Vertrag_signed.pdf".into(),
+            path: signed,
+            signed_at: "2026-10-16T10:00:00+02:00".into(),
+        })
+        .unwrap();
+    let fake = FakeAtrust::new();
+    let backends: Vec<Arc<dyn pida_backend_api::SignatureBackend>> = vec![fake.backend()];
+    let opts = CoreOptions {
+        workspace_ui: Some(true),
+        engine: Some(FakeEngine::new() as Arc<dyn pida_core_api::engine::PadesEngine>),
+        backends: Some(backends),
+        legacy_dir: Some(legacy),
+        // wie die App: mit Stapelübersicht
+        batch_overview: Some(true),
+        ..CoreOptions::isolated()
+    };
+    let overlay = Overlay { input_files: vec![a], output: Some(fx.dir("out")), ..Overlay::default() };
+    let core = pida_core_api::Core::new_with(fx.config(overlay, false), opts).expect("Kern");
+    wait_for(&core, "Arbeitsbereich", editing).await;
+    core.dispatch(UiEvent::SignWith { backend: pida_backend_api::BackendId::AtrustNative });
+    let v = wait_for(&core, "Anmeldung", |v| matches!(v.step, StepView::Signing { .. })).await;
+    assert!(!v.actions.open_files, "beim Signieren nichts öffnen");
+    assert!(v.recent.as_ref().is_some_and(|r| r.iter().any(|i| i.id == entry.id && i.exists)));
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: None });
+    core.dispatch(UiEvent::SignRecent { id: entry.id, mode: Some(pida_core_api::OpenFilesMode::Add) });
+    core.dispatch(UiEvent::OfferMigration);
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let v = core.view();
+    assert!(matches!(v.step, StepView::Signing { .. }), "{:?}", v.step);
+    assert!(v.migration.is_none(), "kein Übernahmeangebot mitten im Signieren");
+    assert_eq!(v.document.as_ref().map(|d| d.doc.name.as_str()), Some("Antrag.pdf"));
+    assert!(v.batch.is_none() && !v.notices.iter().any(|n| n.code == "ng-batch-added"), "{:?}", v.notices);
+    assert_eq!(core.open_document_count(), 1, "kein weiteres Dokument geladen");
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1, "nur die ausdrücklich gestartete Sitzung");
+    // nach dem Abbruch: dasselbe Dokument, keine weiteren in der Warteschlange („Zur Stapelübersicht“ bliebe sonst frei)
+    core.dispatch(UiEvent::Cancel);
+    let v = wait_for(&core, "Arbeitsbereich nach dem Abbruch", editing).await;
+    assert_eq!(v.document.as_ref().map(|d| d.doc.name.as_str()), Some("Antrag.pdf"));
+    assert!(!v.actions.show_batch && v.batch.is_none(), "nichts dazugekommen");
+    assert_eq!(fake.opened.load(Ordering::SeqCst), 1);
+}
+
 /// Echte `ViewState`s der Ersteinrichtung für die Oberfläche (B4, ADR 0004 §6.2 Punkt 4; eigene Datei neben
 /// `real-core-views.json` und `real-core-batch-views.json`): ohne und mit Übernahmeangebot (Liste der
 /// Übernahmen) und nach dem Übernehmen. Pfade und Zeitpunkte ersetzt. Die Zustände des Prüfmodus sind mit ihm

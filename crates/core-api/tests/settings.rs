@@ -951,6 +951,59 @@ async fn recent_entry_offers_what_done_offers() {
     }
 }
 
+/// Shell, deren „Im Ordner zeigen“ hängt, bis der Test es freigibt, und dann scheitert (z. B. ein Dateimanager, der
+/// über D-Bus nicht antwortet).
+struct StuckRevealShell {
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl pida_core_api::ShellHooks for StuckRevealShell {
+    fn open_path(&self, _: &Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn open_url(&self, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    fn reveal_path(&self, _: &Path) -> Result<(), String> {
+        let _ = self.release.lock().unwrap().recv_timeout(Duration::from_secs(30));
+        Err("Dateimanager antwortet nicht".into())
+    }
+}
+
+/// „Zuletzt signiert“ › „Im Ordner zeigen“ (ADR 0004 Nachtrag 15) läuft im Hintergrund: hängt der Dateimanager, bleibt
+/// der Kern bedienbar; scheitert er, kommt der Hinweis `ng-ui-open-failed`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn reveal_recent_does_not_block_the_core() {
+    let fx = Fixture::new();
+    let signed = copy_pdf(TEXT_PDF, &fx.dir("out"), "Vertrag_signed.pdf");
+    let entry = pida_config::RecentStore::new(&fx.paths)
+        .push(pida_config::RecentEntry {
+            id: 0,
+            file_name: "Vertrag_signed.pdf".into(),
+            path: signed,
+            signed_at: "2026-10-16T10:00:00+02:00".into(),
+        })
+        .unwrap();
+    let (release, rx) = std::sync::mpsc::channel();
+    let shell = Arc::new(StuckRevealShell { release: std::sync::Mutex::new(rx) });
+    let opts = CoreOptions { workspace_ui: Some(true), shell: Some(shell), ..CoreOptions::isolated() };
+    let cfg = pida_core_api::CoreConfig {
+        platform: pida_backend_api::Platform::MacOs,
+        ..fx.config(Overlay::default(), false)
+    };
+    let core = pida_core_api::Core::new_with(cfg, opts).expect("Kern startet");
+    let v = wait_for(&core, "Startansicht", |v| {
+        matches!(v.step, StepView::Open { .. }) && v.recent.as_ref().is_some_and(|r| r.len() == 1)
+    })
+    .await;
+    let other = if v.language == pida_i18n::Lang::De { pida_i18n::Lang::En } else { pida_i18n::Lang::De };
+    core.dispatch(UiEvent::RevealRecent { id: entry.id });
+    core.dispatch(UiEvent::SetUiLanguage { language: Some(other) });
+    wait_for(&core, "Sprache gewechselt, während der Dateimanager hängt", |v| v.language == other).await;
+    release.send(()).unwrap();
+    wait_for(&core, "Hinweis", |v| v.notices.iter().any(|n| n.code == "ng-ui-open-failed")).await;
+}
+
 /// Abgeschaltet (Einstellung) bzw. per Richtlinie aus: nichts gespeichert, Liste `None`, vorhandene Datei
 /// beim Start gelöscht; die Richtlinie sperrt den Schalter (`locked`) und lehnt Änderungen ab.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
