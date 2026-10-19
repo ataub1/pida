@@ -666,6 +666,7 @@ ng-batch-aborted =
 ng-batch-paused = The batch is paused. Please decide how to continue.
 ng-batch-large = { $count } documents: each document is confirmed separately in the app.
 ng-batch-pending-app-request = Please decline any request still open in the app; always compare the reference value.
+ng-mobile-keystore-copies-removed = Keystore copies that are no longer needed were removed from PIDA. On this device, documents are signed with ID Austria only.
 ng-recent-missing = The file is no longer at the saved location.
 ng-recent-policy = “Recently signed” has been switched off by your organisation.
 ng-migration-item-block = Signature block (profile, language, note)

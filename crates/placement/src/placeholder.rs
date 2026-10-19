@@ -134,6 +134,15 @@ pub struct EmptyFieldCandidate {
     pub page_index: Option<usize>,
     /// vorhandenes Rect (der Block steht darin proportional und mittig, [`crate::field_fit`])
     pub rect: Rect,
+    /// für die **automatische** Wahl geeignet (Platzhaltersuche „Leere Signaturfelder“, Stapel): Der Kern setzt
+    /// das nach der Einrastregel ([`crate::field_suitable`], ADR 0004 Nachtrag 16) für den aktuellen Block; ohne
+    /// Bewertung `true` (Verhalten vor Nachtrag 22). Angeboten wird ein Feld davon unabhängig.
+    #[serde(default = "auto_ok_default")]
+    pub auto_ok: bool,
+}
+
+fn auto_ok_default() -> bool {
+    true
 }
 
 /// Parst den QR-Text (`startsWith("PDF-AS-POS")`, Paare an `;` und `=`, Schlüssel ohne
@@ -506,6 +515,7 @@ pub fn find_empty_sig_fields(fields: &[SigField]) -> Vec<EmptyFieldCandidate> {
                 widget_id: w.id,
                 page_index: w.page_index,
                 rect: w.rect,
+                auto_ok: true,
             })
         })
         .collect()

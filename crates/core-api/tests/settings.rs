@@ -486,7 +486,8 @@ async fn field_search_places_into_the_first_empty_field_immediately() {
     let d = v.document.unwrap();
     assert_eq!(d.origin, PlacementOrigin::Field);
     assert!(d.detection.as_ref().is_some_and(|x| x.auto_placed), "Hinweis „Signaturfeld gefunden …“");
-    assert_eq!(d.sticker, d.fields[0].rect);
+    // der Block steht proportional im Feld (Nachtrag 16) – solange seine Größe unbekannt ist, füllt er das Feld
+    assert_eq!(d.sticker, d.fields[0].block);
     // Suche aus: wieder frei
     apply(&core, 2, &[("placeholder.search", json!(false))]).await;
     wait_for(&core, "frei", |v| v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Free)).await;

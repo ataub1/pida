@@ -17,7 +17,7 @@ use pida_cades::{Expect, ExpectedSigner, SignedAttrs, SignedAttrsBuilder, Signin
 use pida_config::{CertCacheKey, CertificateCache, Effective, Overlay, Policy, Settings};
 use pida_i18n::Lang;
 use pida_pades::{CheckContext, FinishError, Invariant, InvariantViolation, OutputTarget, PadesError, Reserve};
-use pida_placement::{PageTransform, Placement, Point, ScreenGeometry};
+use pida_placement::{EmptyFieldCandidate, PageTransform, Placement, Point, ScreenGeometry};
 use pida_render::RenderBackend;
 use pida_sigblock::{FontProvider, ProfileStore};
 use pida_workflow::{
@@ -958,10 +958,13 @@ impl CoreTask {
             _ => input.path.clone(),
         };
         let shared = self.shared.clone();
+        let snap = self.snapshot();
         let search_qr = self.ctx.placeholder_search && !self.ctx.placeholder_fields;
         tokio::task::spawn_blocking(move || {
+            let mark =
+                |data: &DocData, fields: &mut [EmptyFieldCandidate]| mark_auto_fields(&shared, &snap, data, fields);
             let (result, thumb) = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                crate::batch::preanalyze(doc, &path, shared.engine.as_ref(), search_qr, shared.render.as_deref())
+                crate::batch::preanalyze(doc, &path, shared.engine.as_ref(), search_qr, shared.render.as_deref(), &mark)
             })) {
                 Ok(r) => r,
                 Err(_) => {
@@ -1172,8 +1175,10 @@ impl CoreTask {
         // Ersteinrichtung bei Neuinstallation (ADR 0004 §3.12)
         self.begin_first_run();
         self.relocate_sandbox_files();
-        // Mobile nur mit ID Austria (ADR 0004 Nachtrag 11): Keystore-Passwörter früherer Builds einmalig entfernen
+        // Mobile nur mit ID Austria (ADR 0004 Nachtrag 11): Keystore-Passwörter früherer Builds einmalig entfernen,
+        // danach deren Dateien im App-Speicher (Nachtrag 22)
         self.remove_former_keystore_secrets();
+        self.remove_former_keystore_files();
         self.registry.configure(&self.cfg);
         self.refresh_signers();
         // Schlüsselbund für Keystore-Passwörter gewünscht, aber nicht verfügbar (z. B. Linux ohne Secret
@@ -1454,18 +1459,22 @@ impl CoreTask {
         tokio::spawn(async move {
             let work = {
                 let shared = shared.clone();
-                move || -> Result<(Loaded, Option<Placement>), WorkflowError> {
+                move || -> Result<(Loaded, Option<Placement>, Vec<EmptyFieldCandidate>), WorkflowError> {
                     let render = shared.render.as_deref();
                     let loaded = crate::docs::load(id, &input.path, shared.engine.as_ref(), search, fields, render)?;
                     let start = match (render, shared.profiles.as_deref()) {
                         (Some(_), Some(store)) => start_placement(&shared, &snap, &loaded.data, store),
                         _ => None,
                     };
-                    Ok((loaded, start))
+                    // Arbeitsbereich: leere Felder immer anbieten, unabhängig von `placeholder.*` (§3.3); die
+                    // Automatik nimmt nur geeignete (Nachtrag 22)
+                    let mut candidates = pida_placement::find_empty_sig_fields(&loaded.data.report.fields);
+                    mark_auto_fields(&shared, &snap, &loaded.data, &mut candidates);
+                    Ok((loaded, start, candidates))
                 }
             };
             let msg = match tokio::task::spawn_blocking(work).await {
-                Ok(Ok((loaded, start))) => {
+                Ok(Ok((loaded, start, candidates))) => {
                     let report = &loaded.data.report;
                     let event = Event::Analyzed {
                         doc: id,
@@ -1475,8 +1484,7 @@ impl CoreTask {
                         page_count: loaded.data.pages.len(),
                         start,
                         warnings: loaded.warnings.clone(),
-                        // Arbeitsbereich: leere Felder immer anbieten, unabhängig von `placeholder.*` (§3.3)
-                        fields: pida_placement::find_empty_sig_fields(&report.fields),
+                        fields: candidates,
                         new_visible_field_allowed: report.allows_new_visible_field(),
                     };
                     Msg::Loaded(Box::new(loaded), event)
@@ -3621,6 +3629,37 @@ fn digest_job(
 }
 
 /// Startposition der Positionierung (letzte Seite, 50 %/25 %) mit der Blockgröße des Profils.
+/// Eignung der leeren Signaturfelder für die **automatische** Wahl (Platzhaltersuche „Leere Signaturfelder“, Stapel;
+/// ADR 0004 Nachtrag 22): Einrastregel [`pida_placement::field_suitable`] für den Block nach den aktuellen
+/// Einstellungen – wie die Markierungen im Arbeitsbereich (Nachtrag 16). Ohne Profile bzw. ohne sichtbaren Block
+/// bleiben alle Felder `auto_ok` (bisheriges Verhalten).
+pub(crate) fn mark_auto_fields(shared: &Shared, snap: &Snapshot, data: &DocData, fields: &mut [EmptyFieldCandidate]) {
+    let Some(store) = shared.profiles.as_deref() else { return };
+    let input = SpecInput {
+        effective: snap.effective(),
+        system_language: Lang::system(),
+        pdfa: data.report.pdfa.as_ref(),
+        cert: None,
+        signing_time: plan::local_now(),
+        emblem: None,
+    };
+    let Ok(spec) = plan::block_spec(store, input) else { return };
+    if !spec.visible() {
+        return;
+    }
+    // Blockgröße je Seite nur einmal bauen (Dokumente mit vielen Feldern)
+    let mut blocks: std::collections::HashMap<usize, Option<pida_placement::BlockGeometry>> = Default::default();
+    for f in fields.iter_mut() {
+        let Some((page, info)) = f.page_index.and_then(|p| data.pages.get(p).map(|i| (p, i))) else { continue };
+        let block = *blocks
+            .entry(page)
+            .or_insert_with(|| plan::block_geometry(&spec, &data.pages, page, store, &shared.fonts).ok());
+        let Some(block) = block else { continue };
+        let rect = pida_placement::user_rect_to_visible(info, f.rect.normalized());
+        f.auto_ok = pida_placement::field_suitable(rect, block, info.visible_size());
+    }
+}
+
 fn start_placement(shared: &Shared, snap: &Snapshot, data: &DocData, store: &ProfileStore) -> Option<Placement> {
     let spec: BlockSpec = plan::block_spec(
         store,

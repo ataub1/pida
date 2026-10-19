@@ -150,6 +150,7 @@ mod tests {
             widget_id: (5, 0),
             page_index: Some(0),
             rect: pida_pdf_cos::Rect { llx: 0.0, lly: 0.0, urx: 100.0, ury: 40.0 },
+            auto_ok: true,
         };
         let state = |certified: bool, target: Target, invisible: bool| {
             let mut edit = WorkspaceEdit::new(vec![field.clone()], None, invisible);

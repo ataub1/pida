@@ -50,6 +50,9 @@ pub(crate) const MSG_RESUME_SIGNER_NOT_OFFERED: &str = "ng-resume-signer-not-off
 /// Merker im Datenordner: die Keystore-Passwörter eines früheren Mobile-Builds sind entfernt.
 pub(crate) const SECRETS_REMOVED_MARKER: &str = "keystore-secrets-removed";
 
+/// Meldungs-ID: nicht mehr benötigte Keystore-Kopien eines früheren Mobile-Builds gelöscht (ADR 0004 Nachtrag 22).
+pub(crate) const MSG_KEYSTORE_COPIES_REMOVED: &str = "ng-mobile-keystore-copies-removed";
+
 /// Schlüssel des Keystores in `PDF-Over.config`.
 const KEYSTORE_KEYS: [LegacyKey; 7] = [
     LegacyKey::KeystoreEnabled,
@@ -248,6 +251,32 @@ impl CoreTask {
             .and_then(|()| std::fs::write(&marker, b"ADR 0004 Nachtrag 11\n"));
         if let Err(e) = written {
             tracing::warn!(kind = ?e.kind(), "Merker der entfernten Keystore-Passwörter nicht geschrieben");
+        }
+    }
+
+    /// Mobile (ADR 0004 Nachtrag 22): die von einem früheren Build in den App-Speicher importierten Keystore-Dateien
+    /// (`data_dir/keystores`) löschen – erst, wenn ihre Passwörter entfernt sind (Merker [`SECRETS_REMOVED_MARKER`]),
+    /// denn [`Self::remove_former_keystore_secrets`] liest aus den Dateien die Schlüssel-Aliase. Nur Dateien in diesem
+    /// PIDA-eigenen Ordner (keine Verknüpfungen, keine Unterordner); Originale an anderer Stelle bleiben unberührt.
+    /// Wurde etwas gelöscht, einmal der Hinweis [`MSG_KEYSTORE_COPIES_REMOVED`]. Keine Pfade im Log (Regel 9).
+    pub(crate) fn remove_former_keystore_files(&mut self) {
+        if self.cfg.keystore_offered || !self.cfg.paths.data_dir.join(SECRETS_REMOVED_MARKER).exists() {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(self.cfg.paths.data_dir.join(KEYSTORE_DIR)) else { return };
+        let mut removed = 0usize;
+        for entry in entries.flatten() {
+            if !entry.file_type().is_ok_and(|t| t.is_file()) {
+                continue;
+            }
+            match std::fs::remove_file(entry.path()) {
+                Ok(()) => removed += 1,
+                Err(e) => tracing::warn!(kind = ?e.kind(), "Keystore-Kopie eines früheren Builds nicht gelöscht"),
+            }
+        }
+        if removed > 0 {
+            tracing::info!(removed, "Mobile nur mit ID Austria: Keystore-Kopien eines früheren Builds gelöscht");
+            self.notify(MSG_KEYSTORE_COPIES_REMOVED, Default::default());
         }
     }
 }

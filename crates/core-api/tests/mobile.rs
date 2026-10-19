@@ -646,7 +646,9 @@ async fn keystore_of_an_earlier_mobile_build_is_ignored_and_its_passwords_remove
     let proxy = secrets.get(&SecretId::proxy("proxy.example.test", "u")).unwrap();
     assert_eq!(proxy.as_deref().map(String::as_str), Some("proxy-geheim"));
     assert!(fx.paths.data_dir.join("keystore-secrets-removed").is_file());
-    assert!(ks.is_file(), "die Datei selbst bleibt");
+    // Nachtrag 22: danach auch die Kopie im App-Speicher – mit einmaligem Hinweis
+    assert!(!ks.exists(), "die Keystore-Kopie im App-Speicher ist gelöscht");
+    assert!(v.notices.iter().any(|n| n.code == "ng-mobile-keystore-copies-removed"), "{:?}", v.notices);
 
     // Einstellungen: Standard ID Austria, `[keystore]` unverändert, keine Keystore-Angaben
     core.dispatch(UiEvent::OpenSettings);

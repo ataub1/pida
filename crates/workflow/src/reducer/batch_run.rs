@@ -970,7 +970,8 @@ impl Lauf<'_> {
         let ctx = self.ctx;
         // automatisch nach den aktuellen Einstellungen › Dokument: QR-Platzhalter bzw. erstes leeres
         // Signaturfeld (nur mit Platzhaltersuche), sonst PDF-AS-Regel
-        let first_field = fields.into_iter().next();
+        // nur ein für den Block geeignetes Feld (Einrastregel, ADR 0004 Nachtrag 22)
+        let first_field = fields.into_iter().find(|f| f.auto_ok);
         let automatic = match (placeholder, first_field) {
             _ if ctx.invisible => PositionChoice::Invisible,
             (_, Some(f)) if ctx.placeholder_search && ctx.placeholder_fields => PositionChoice::Field(f),

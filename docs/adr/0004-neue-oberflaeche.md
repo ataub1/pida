@@ -3610,3 +3610,27 @@ Fehler in derselben Sitzung frühestens nach 15 Minuten bzw. beim Rate-Limit nac
 Der Hinweis erscheint nur nach der Prüfung beim Start, nicht nach „Jetzt prüfen“ (dort zeigt die Statuszeile das
 Ergebnis). Das Jahr in `bundle.copyright` ist fest (Jahr der ersten Veröffentlichung); „Über PIDA“ und die
 THIRD-PARTY-NOTICES nehmen das Jahr des Versionsdatums.
+
+### Nachtrag 22 (19.10.2026): Automatik nur in geeignete Signaturfelder; alte Keystore-Kopien auf Mobile löschen
+
+Entscheidungen des Auftraggebers vom 19.10.2026.
+
+1. **Einrastregel bestätigt** (Nachtrag 16): Ein leeres Signaturfeld ist Ziel, wenn der Block mindestens mit 1/5
+   seiner natürlichen Größe hineinpasst, die Seitenverhältnisse höchstens um den Faktor 8 abweichen und das Feld
+   höchstens die halbe Seite bedeckt (`pida_placement::field_suitable`).
+2. **Automatik folgt derselben Regel.** Mit der Platzhaltersuche „Leere Signaturfelder“ (Arbeitsbereich,
+   `WorkspaceEdit::follow_settings`) und im Stapel (Plan der Voranalyse `DocSummary::first_field`, Lauf
+   `batch_run`) nimmt PIDA das **erste geeignete** Feld; ungeeignete (seitengroß, 3 pt schmal, winzig) bleiben
+   angeboten, werden aber übersprungen. Gibt es kein geeignetes Feld, gilt die automatische Position wie ohne Feld.
+   Der Kern bewertet die Felder beim Analysieren bzw. bei der Voranalyse mit dem Block nach den aktuellen
+   Einstellungen und setzt `EmptyFieldCandidate::auto_ok` (neu, Serde-Standard `true` = bisheriges Verhalten);
+   die Blockgröße wird je Seite einmal gebaut. Ein späterer Profilwechsel bewertet bereits analysierte Felder
+   nicht neu – die Markierungen im Arbeitsbereich folgen ihm sofort, die Automatik ab der nächsten Analyse.
+3. **Alte Keystore-Kopien auf Mobile löschen** (Nachtrag 11): Sobald die Keystore-Passwörter eines früheren
+   Mobile-Builds entfernt sind (Merker `keystore-secrets-removed`), löscht der Kern beim Start die Dateien im
+   PIDA-eigenen Ordner `data_dir/keystores` (nur Dateien, keine Verknüpfungen oder Unterordner) und zeigt einmal
+   den Hinweis `ng-mobile-keystore-copies-removed`. Originale an anderer Stelle bleiben unberührt.
+
+Tests: `workflow/tests/workspace.rs::field_search_skips_fields_unsuitable_for_the_block`, `core-api/tests/mobile.rs`
+(Keystore-Kopie gelöscht, Hinweis), `core-api/tests/settings.rs::field_search_places_into_the_first_empty_field_immediately`
+(Block steht proportional im Feld).

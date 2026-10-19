@@ -666,6 +666,7 @@ ng-batch-aborted =
 ng-batch-paused = Der Stapel ist angehalten. Bitte entscheiden Sie, wie es weitergeht.
 ng-batch-large = { $count } Dokumente: Jedes Dokument wird einzeln in der App bestätigt.
 ng-batch-pending-app-request = Eine noch offene Anfrage in der App lehnen Sie bitte ab; vergleichen Sie immer den Vergleichswert.
+ng-mobile-keystore-copies-removed = Nicht mehr benötigte Keystore-Kopien wurden aus PIDA entfernt. Auf diesem Gerät wird nur mit ID Austria signiert.
 ng-recent-missing = Die Datei ist nicht mehr am gespeicherten Ort.
 ng-recent-policy = „Zuletzt signiert“ ist von Ihrer Organisation abgeschaltet.
 ng-migration-item-block = Signaturbild (Profil, Sprache, Hinweistext)

@@ -58,6 +58,7 @@ pub fn field(name: &str) -> EmptyFieldCandidate {
         widget_id: (10, 0),
         page_index: Some(0),
         rect: Rect { llx: 10.0, lly: 10.0, urx: 210.0, ury: 60.0 },
+        auto_ok: true,
     }
 }
 

@@ -304,8 +304,10 @@ impl WorkspaceEdit {
         if !self.automatic {
             return Follow { auto_place: false, search_qr };
         }
-        let (target, origin) = if want_field && !self.fields.is_empty() {
-            (Target::Field(0), PlacementOrigin::Field)
+        // Platzhaltersuche „Leere Signaturfelder“: das erste für den Block geeignete Feld (Nachtrag 22)
+        let auto_field = self.fields.iter().position(|f| f.auto_ok);
+        let (target, origin) = if let (true, Some(i)) = (want_field, auto_field) {
+            (Target::Field(i), PlacementOrigin::Field)
         } else if want_qr && self.qr.is_some() {
             (Target::Qr, PlacementOrigin::Qr)
         } else {

@@ -6,7 +6,7 @@ mod common;
 
 use common::*;
 use pida_backend_api::{BackendError, BackendId};
-use pida_placement::Placement;
+use pida_placement::{EmptyFieldCandidate, Placement};
 use pida_workflow::{
     Context, DocFacts, DocId, Effect, Event, PlaceholderFound, PlacementLock, PlacementOrigin, PositionChoice,
     RetryTarget, SigningPhase, State, Step, Target, WorkflowError, WorkspaceEdit,
@@ -709,6 +709,61 @@ fn field_search_uses_the_first_empty_field_automatically() {
         "{:?}",
         t.state
     );
+}
+
+/// ADR 0004 Nachtrag 22: Die Automatik nimmt nur Felder, die der Kern nach der Einrastregel als geeignet markiert
+/// (`auto_ok`); ungeeignete (seitengroß, 3 pt schmal) bleiben angeboten, werden aber übersprungen. Ohne geeignetes
+/// Feld gilt die automatische Position.
+#[test]
+fn field_search_skips_fields_unsuitable_for_the_block() {
+    let analyzed = |flags: &[bool]| {
+        let Event::Analyzed {
+            doc,
+            class,
+            placeholder,
+            signed,
+            page_count,
+            start,
+            warnings,
+            new_visible_field_allowed,
+            ..
+        } = analyzed_with(1, 3, None, 0, true)
+        else {
+            unreachable!()
+        };
+        let fields = flags
+            .iter()
+            .enumerate()
+            .map(|(i, ok)| EmptyFieldCandidate { auto_ok: *ok, ..field(&format!("Sig{i}")) })
+            .collect();
+        Event::Analyzed {
+            doc,
+            class,
+            placeholder,
+            signed,
+            page_count,
+            start,
+            warnings,
+            fields,
+            new_visible_field_allowed,
+        }
+    };
+    // erstes Feld ungeeignet, zweites geeignet: Ziel ist das zweite
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed(&[false, true]), &fields_search());
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.origin, e.automatic), (Target::Field(1), PlacementOrigin::Field, true));
+    assert_eq!(e.fields.len(), 2, "beide Felder bleiben angeboten");
+    let t = step(t.state, sign_with(BackendId::Keystore), &fields_search());
+    assert!(
+        matches!(&t.state, State::Signing { position: PositionChoice::Field(f), .. } if f.qualified_name == "Sig1"),
+        "{:?}",
+        t.state
+    );
+    // kein Feld geeignet: frei mit automatischer Platzierung
+    let t = step(State::Analyzing { queue: queue(&[1]) }, analyzed(&[false, false]), &fields_search());
+    let e = edit_of(&t.state);
+    assert_eq!((e.target, e.origin, e.automatic), (Target::Free, PlacementOrigin::Auto, true));
+    assert!(t.effects.contains(&Effect::AutoPlace(DocId(1))));
 }
 
 /// Geänderte Einstellungen › Dokument wirken sofort auf ein automatisch platziertes Dokument: Feld ↔ QR ↔

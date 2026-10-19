@@ -85,6 +85,7 @@ pub(crate) fn preanalyze(
     engine: &dyn PadesEngine,
     search_qr: bool,
     render: Option<&dyn RenderBackend>,
+    mark_auto_fields: &dyn Fn(&crate::docs::DocData, &mut [pida_placement::EmptyFieldCandidate]),
 ) -> (Result<DocSummary, WorkflowError>, Option<Arc<[u8]>>) {
     let loaded = match crate::docs::load(id, path, engine, search_qr, false, render) {
         Ok(l) => l,
@@ -105,7 +106,12 @@ pub(crate) fn preanalyze(
         warnings: loaded.warnings.clone(),
         placeholder,
         new_visible_field_allowed: data.report.allows_new_visible_field(),
-        first_field: pida_placement::find_empty_sig_fields(&data.report.fields).into_iter().next(),
+        // für die Automatik nur ein geeignetes Feld (Einrastregel, ADR 0004 Nachtrag 22)
+        first_field: {
+            let mut fields = pida_placement::find_empty_sig_fields(&data.report.fields);
+            mark_auto_fields(data, &mut fields);
+            fields.into_iter().find(|f| f.auto_ok)
+        },
         qr_searched: loaded.qr_searched,
     };
     let thumb = render.and_then(|backend| {
