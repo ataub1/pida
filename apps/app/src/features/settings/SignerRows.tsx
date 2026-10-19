@@ -13,7 +13,7 @@
  */
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useApp } from '../../app/context';
-import type { BackendChoice, KeystoreEntryView, KeystoreFormatView, PasswordStorage, UiEvent } from '../../core/types';
+import type { BackendChoice, BackendId, KeystoreEntryView, KeystoreFormatView, PasswordStorage, UiEvent } from '../../core/types';
 import { Badge, Button, SwitchField, TextInput } from '../../ui/controls';
 import { IconCard, IconFileKey, IconFolder, IconPhone } from '../../ui/Icons';
 import { AccountCard, ChoiceCards, ChoiceSegments, PathRow, SettingSelect, SettingTextField } from './controls';
@@ -22,33 +22,45 @@ import { useSettings, useTextSetting } from './state';
 
 type DefaultChoice = BackendChoice | 'ask';
 
-/** Standard-Signiermittel (nur Desktop; auf iOS/Android gibt es nur ID Austria, ADR 0004 Nachtrag 11). */
+/** Einstellung `backend.default` → Signiermittel des Kerns. */
+const BACKEND_OF: Record<BackendChoice, BackendId> = { id_austria: 'atrust_native', keystore: 'keystore', local_bku: 'local_bku' };
+
+/**
+ * Standard-Signiermittel (nur Desktop; auf iOS/Android gibt es nur ID Austria, ADR 0004 Nachtrag 11). Was die
+ * Richtlinie ausschließt (`ViewState::signers`, Grund `ng-signer-policy`), entfällt; kommt nur ein Signiermittel in
+ * Frage (`choice_offered = false`, Nachtrag 20), steht nur dieses gesperrt da – ohne „Jedes Mal fragen“.
+ */
 export function DefaultSignerRow() {
-  const { t } = useApp();
+  const { t, view } = useApp();
   const s = useSettings();
   const current = s.get<BackendChoice | null>('backend.default');
   // Keystore erst als Standard wählbar, wenn er eingerichtet ist (aktiviert, Datei vorhanden; Kern)
   const keystore = s.view.keystore_ready;
   const locked = s.locked('backend.default');
+  const signers = view.signers;
+  const single = signers.choice_offered ? null : signers.selected;
+  const shown = (c: BackendChoice) =>
+    single ? BACKEND_OF[c] === single : !signers.options.some((o) => o.backend === BACKEND_OF[c] && o.unavailable_reason === 'ng-signer-policy');
   const options: { value: DefaultChoice; label: string; description: string; icon?: ReactNode; isDisabled?: boolean }[] = [
-    { value: 'id_austria', label: t.t('ng-ui-set-signer-ida'), description: t.t('ng-ui-set-signer-ida-desc'), icon: <IconPhone size={18} /> },
+    { value: 'id_austria' as const, label: t.t('ng-ui-set-signer-ida'), description: t.t('ng-ui-set-signer-ida-desc'), icon: <IconPhone size={18} /> },
     {
-      value: 'keystore',
+      value: 'keystore' as const,
       label: t.t('ng-ui-set-signer-keystore'),
       description: t.t(keystore ? 'ng-ui-set-signer-keystore-desc' : 'ng-ui-set-signer-keystore-off'),
       icon: <IconFileKey size={18} />,
       isDisabled: !keystore && current !== 'keystore',
     },
-    { value: 'local_bku', label: t.t('ng-ui-set-signer-card'), description: t.t('ng-ui-set-signer-card-desc'), icon: <IconCard size={18} /> },
-    { value: 'ask', label: t.t('ng-ui-set-signer-ask'), description: t.t('ng-ui-set-signer-ask-desc') },
-  ];
+    { value: 'local_bku' as const, label: t.t('ng-ui-set-signer-card'), description: t.t('ng-ui-set-signer-card-desc'), icon: <IconCard size={18} /> },
+  ].filter((o) => shown(o.value));
+  if (signers.choice_offered) options.push({ value: 'ask', label: t.t('ng-ui-set-signer-ask'), description: t.t('ng-ui-set-signer-ask-desc') });
+  const only = single ? (Object.keys(BACKEND_OF) as BackendChoice[]).find((c) => BACKEND_OF[c] === single) : undefined;
   return (
     <ChoiceCards<DefaultChoice>
       label={t.t('ng-ui-set-default')}
-      value={current ?? 'ask'}
+      value={only ?? current ?? 'ask'}
       columns={2}
-      isDisabled={!!locked}
-      description={locked}
+      isDisabled={!!locked || !!only}
+      description={locked ?? (only ? t.t('ng-ui-set-default-single') : null)}
       onChange={(v) => s.apply({ 'backend.default': v === 'ask' ? null : v })}
       options={options}
     />

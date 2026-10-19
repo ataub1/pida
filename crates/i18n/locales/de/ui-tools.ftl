@@ -92,6 +92,7 @@ ng-ui-set-auto-position-hint = Der Signaturblock wird beim Öffnen automatisch p
 
 ng-ui-set-default = Standard-Signiermittel
     .keywords = standard signiermittel voreinstellung vorauswahl id austria keystore chipkarte bürgerkarte fragen
+ng-ui-set-default-single = Die Richtlinie lässt nur dieses Signiermittel zu.
 ng-ui-set-signer-ida = ID Austria
 ng-ui-set-signer-ida-desc = Bestätigung in der App, mit FIDO2-Schlüssel oder per SMS-TAN
 ng-ui-set-signer-keystore = Keystore

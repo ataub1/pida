@@ -77,6 +77,33 @@ describe('Desktop mit nur einem Signiermittel (Richtlinie): keine Auswahl', () =
     await expectNoAxeViolations();
   });
 
+  it('Einstellungen › Signiermittel: Standard nur ID Austria, gesperrt mit Hinweis, ohne „Jedes Mal fragen“', async () => {
+    const { user } = renderApp(ONLY_IDA);
+    await user.click(await screen.findByRole('button', { name: 'Einstellungen' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    await user.click(within(within(dialog).getByRole('navigation', { name: 'Bereiche' })).getByRole('button', { name: 'Signiermittel' }));
+    const group = within(dialog).getByRole('radiogroup', { name: 'Standard-Signiermittel' });
+    const radios = within(group).getAllByRole('radio');
+    expect(radios).toHaveLength(1);
+    expect(radios[0]).toHaveAccessibleName(/ID Austria/);
+    expect(radios[0]).toBeChecked();
+    expect(radios[0]).toBeDisabled();
+    expect(within(group).queryByText('Jedes Mal fragen')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Die Richtlinie lässt nur dieses Signiermittel zu.')).toBeInTheDocument();
+    await expectNoAxeViolations();
+  });
+
+  it('Einstellungen › Signiermittel: Richtlinie mit zwei Signiermitteln – die ausgeschlossenen entfallen, „Jedes Mal fragen“ bleibt', async () => {
+    const { user } = renderApp({ allowedBackends: ['atrust_native', 'local_bku'], settings: { ...ASK, keystore: { ...ASK.keystore, enabled: true, file: '/Users/demo/max.p12' } } });
+    await user.click(await screen.findByRole('button', { name: 'Einstellungen' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
+    await user.click(within(within(dialog).getByRole('navigation', { name: 'Bereiche' })).getByRole('button', { name: 'Signiermittel' }));
+    const group = within(dialog).getByRole('radiogroup', { name: 'Standard-Signiermittel' });
+    expect(within(group).getAllByRole('radio').map((r) => r.getAttribute('value'))).toEqual(['id_austria', 'local_bku', 'ask']);
+    expect(within(group).getByRole('radio', { name: /Jedes Mal fragen/ })).toBeChecked();
+    expect(within(group).getByRole('radio', { name: /ID Austria/ })).toBeEnabled();
+  });
+
   it('nur die Chipkarte, Chipkarten-Software läuft nicht: „Signieren“ nennt den Grund statt „Bitte wählen Sie ein anderes“', async () => {
     const { user } = renderApp({ scenario: 'contract', allowedBackends: ['local_bku'], localBkuAvailable: false, settings: ASK });
     await screen.findByRole('application', { name: 'Signaturblock' });

@@ -3448,6 +3448,16 @@ pub struct SignersView {
    Stapelübersicht und im schmalen Fuß, Ersteinrichtung mit Schritt „Standard-Signiermittel“.
 6. **Mock-Kern** folgt dem Kern (`signersProjection`, `eligibleSigners`, Grund statt „wählen Sie ein anderes“); neue
    Option `allowedBackends` (Richtlinie `allowed_backends`), in der Browser-Vorschau `?policy=only-ida`.
+7. **Ergänzung (19.10.2026) – Einstellungen und Fortsetzen:** Einstellungen › Signiermittel „Standard-Signiermittel“
+   (`settings/SignerRows.tsx::DefaultSignerRow`) zeigt nur, was die Richtlinie nicht ausschließt (Optionen von
+   `ViewState::signers` mit Grund `ng-signer-policy` entfallen; ein nicht eingerichteter Keystore bleibt wie bisher
+   gesperrt sichtbar). Ohne Auswahl (`choice_offered = false`) steht nur das eine Signiermittel da, gewählt und gesperrt,
+   mit dem Hinweis `ng-ui-set-default-single` („Die Richtlinie lässt nur dieses Signiermittel zu.“), und ohne „Jedes
+   Mal fragen“; mit Auswahl bleibt „Jedes Mal fragen“. Die Meldung beim Fortsetzen einer unterbrochenen Signatur mit
+   einem nicht mehr verfügbaren Signiermittel (`ng-resume-backend-unavailable`) sagt statt „Bitte wählen Sie ein
+   anderes.“ jetzt „Bitte signieren Sie erneut.“ – ohne Auswahl gäbe es nichts zu wählen. Tests:
+   `app/SingleSigner.test.tsx` (nur ID Austria: eine gesperrte Option mit Hinweis, axe; zwei freigegebene: Keystore
+   entfällt trotz Einrichtung, „Jedes Mal fragen“ bleibt).
 
 **Tests:** Kern `workspace.rs` (`eligible_signers_follow_policy_not_availability`, `choice_offered_defaults`),
 `tests/mobile.rs::only_id_austria_on_mobile_offers_no_signer_choice` (iOS, Android: keine Auswahl, ID Austria gewählt

@@ -92,6 +92,7 @@ ng-ui-set-auto-position-hint = When a document is opened, the signature block is
 
 ng-ui-set-default = Default signing method
     .keywords = default signing method preselection id austria keystore smart card citizen ask
+ng-ui-set-default-single = The policy allows only this signing method.
 ng-ui-set-signer-ida = ID Austria
 ng-ui-set-signer-ida-desc = Confirm in the app, with a FIDO2 key or by SMS TAN
 ng-ui-set-signer-keystore = Keystore
