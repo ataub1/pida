@@ -4,7 +4,7 @@
 
 **PDF-Signatur mit ID Austria** · PDF · ID · Austria
 
-[**Download 0.2.0**](https://github.com/ataub1/pida/releases/tag/v0.2.0) ·
+[**Download 0.2.1**](https://github.com/ataub1/pida/releases/tag/v0.2.1) ·
 [Alle Versionen](https://github.com/ataub1/pida/releases) ·
 [Installation](#installation) ·
 [In English](#in-english)
@@ -19,7 +19,7 @@ PIDA ist freie Software unter der **EUPL-1.2**.
 ![Arbeitsbereich von PIDA: links die Seitenminiaturen, in der Mitte die letzte Seite eines Vertrags mit dem automatisch platzierten Signaturblock, rechts der Inspektor mit „Signieren mit ID Austria“, Vorschau des Signaturbilds, Optionen und der Schaltfläche „Signieren“](docs/screenshots/02-arbeitsbereich.png)
 
 > [!NOTE]
-> **Testversion.** 0.2.0 ist ein Pre-Release. Die Pakete sind nicht code-signiert bzw. notarisiert und
+> **Testversion.** 0.2.1 ist ein Pre-Release. Die Pakete sind nicht code-signiert bzw. notarisiert und
 > aktualisieren sich nicht selbst. Windows und macOS warnen deshalb beim ersten Start, Android verlangt die
 > Installation aus unbekannten Quellen – siehe [Installation](#installation).
 
@@ -98,20 +98,20 @@ Dokumente).</sub>
 
 ## Download
 
-Alle Pakete stehen auf der Release-Seite: **[PIDA 0.2.0](https://github.com/ataub1/pida/releases/tag/v0.2.0)**
+Alle Pakete stehen auf der Release-Seite: **[PIDA 0.2.1](https://github.com/ataub1/pida/releases/tag/v0.2.1)**
 (ältere Versionen: [Releases](https://github.com/ataub1/pida/releases)).
 
 | System | Paket (direkter Download) | Größe | Voraussetzung |
 |---|---|---|---|
-| Windows | [`PIDA_0.2.0_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_windows_x64-setup.exe) (empfohlen) | 10,6 MiB | Windows 10 oder 11, x64 |
-| Windows | [`PIDA_0.2.0_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_windows_x64.msi) | 14,6 MiB | Windows 10 oder 11, x64 |
-| macOS | [`PIDA_0.2.0_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_macos_arm64.dmg) | 12,9 MiB | macOS 11 oder neuer, Apple Silicon |
-| Linux (Debian, Ubuntu) | [`PIDA_0.2.0_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_linux_amd64.deb) | 15,2 MiB | x86_64 |
-| Linux (Fedora, RHEL) | [`PIDA_0.2.0_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_linux_x86_64.rpm) | 15,2 MiB | x86_64 |
-| Android | [`PIDA_0.2.0_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.2.0/PIDA_0.2.0_android_arm64.apk) | 26,7 MiB | Android 9 oder neuer, arm64 |
-| Kommandozeile (macOS) | [`pida-cli_0.2.0_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.0/pida-cli_0.2.0_macos_arm64) | 14,9 MiB | macOS 11 oder neuer, Apple Silicon |
+| Windows | [`PIDA_0.2.1_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.2.1/PIDA_0.2.1_windows_x64-setup.exe) (empfohlen) | 10,7 MiB | Windows 10 oder 11, x64 |
+| Windows | [`PIDA_0.2.1_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.2.1/PIDA_0.2.1_windows_x64.msi) | 14,6 MiB | Windows 10 oder 11, x64 |
+| macOS | [`PIDA_0.2.1_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.2.1/PIDA_0.2.1_macos_arm64.dmg) | 12,8 MiB | macOS 11 oder neuer, Apple Silicon |
+| Linux (Debian, Ubuntu) | [`PIDA_0.2.1_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.2.1/PIDA_0.2.1_linux_amd64.deb) | 15,2 MiB | x86_64 |
+| Linux (Fedora, RHEL) | [`PIDA_0.2.1_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.2.1/PIDA_0.2.1_linux_x86_64.rpm) | 15,2 MiB | x86_64 |
+| Android | [`PIDA_0.2.1_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.2.1/PIDA_0.2.1_android_arm64.apk) | 26,8 MiB | Android 9 oder neuer, arm64 |
+| Kommandozeile (macOS) | [`pida-cli_0.2.1_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.1/pida-cli_0.2.1_macos_arm64) | 15,0 MiB | macOS 11 oder neuer, Apple Silicon |
 
-Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.2.0/SHA256SUMS.txt)
+Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.2.1/SHA256SUMS.txt)
 (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter macOS, `sha256sum -c SHA256SUMS.txt` unter Linux bzw.
 `Get-FileHash <Datei> -Algorithm SHA256` in der Windows PowerShell). Eine iOS-Version ist nicht Teil des
 Releases.
@@ -132,10 +132,9 @@ Releases.
 2. Die App ist nicht notarisiert, deshalb blockiert macOS den ersten Start. Bis macOS 14: **Rechtsklick (bzw.
    Ctrl-Klick) auf PIDA › „Öffnen“** und im Dialog nochmals „Öffnen“. Ab macOS 15: PIDA einmal starten,
    dann **Systemeinstellungen › Datenschutz & Sicherheit › „Dennoch öffnen“** und bestätigen.
-3. Meldet macOS stattdessen, „PIDA“ sei **beschädigt** und könne nicht geöffnet werden, liegt das an der
-   unvollständigen Signatur von PIDA 0.2.0 (künftige Versionen sind ad hoc signiert, dann genügt Schritt 2):
-   nach Kontrolle der Prüfsumme im Terminal `xattr -dr com.apple.quarantine /Applications/PIDA.app`
-   ausführen und PIDA erneut öffnen.
+3. Nur bei der älteren Version 0.2.0: Meldet macOS, „PIDA“ sei **beschädigt**, nach Kontrolle der Prüfsumme
+   im Terminal `xattr -dr com.apple.quarantine /Applications/PIDA.app` ausführen. Ab 0.2.1 ist die App ad hoc
+   signiert, dann genügt Schritt 2.
 
 ### Linux
 
@@ -212,9 +211,9 @@ pida-cli --help                                 # alle Optionen und Exit-Codes
 ```
 
 Für macOS (Apple Silicon) liegt dem Release die fertige Datei
-[`pida-cli_0.2.0_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.0/pida-cli_0.2.0_macos_arm64)
-bei: ausführbar machen mit `chmod +x pida-cli_0.2.0_macos_arm64`, gegebenenfalls zuerst
-`xattr -d com.apple.quarantine pida-cli_0.2.0_macos_arm64`. Für andere Systeme lässt sich `pida-cli` aus dem
+[`pida-cli_0.2.1_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.1/pida-cli_0.2.1_macos_arm64)
+bei: ausführbar machen mit `chmod +x pida-cli_0.2.1_macos_arm64`, gegebenenfalls zuerst
+`xattr -d com.apple.quarantine pida-cli_0.2.1_macos_arm64`. Für andere Systeme lässt sich `pida-cli` aus dem
 Quellcode bauen (`cargo build --release -p pida-cli`, siehe [Entwicklung](#entwicklung)).
 
 ## Entwicklung
@@ -316,15 +315,14 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   status card with the comparison value, a “Done” view and “Recently signed”, customisable signature block
   with preview, PDF/A support, German and English, light and dark mode, command palette (⌘K / Ctrl+K). PDF-Over
   settings can be imported on first start; PDF-Over command-line arguments keep working (`pida-cli`).
-- **Download:** [PIDA 0.2.0](https://github.com/ataub1/pida/releases/tag/v0.2.0) (pre-release) – Windows 10/11
+- **Download:** [PIDA 0.2.1](https://github.com/ataub1/pida/releases/tag/v0.2.1) (pre-release) – Windows 10/11
   x64 (`-setup.exe` or `.msi`), macOS 11+ on Apple Silicon (`.dmg`), Linux x86_64 (`.deb`/`.rpm`), Android 9+
   arm64 (`.apk`), plus the command-line tool `pida-cli` for macOS on Apple Silicon. Checksums are in
   `SHA256SUMS.txt`. iOS is not included.
 - **Installation:** packages are not code-signed or notarised and do not update themselves. Windows SmartScreen:
   “More info” › “Run anyway”. macOS: right-click › “Open” (macOS 15 and later: System Settings › Privacy &
-  Security › “Open Anyway”; if macOS reports PIDA 0.2.0 as “damaged” – its signature is incomplete, later
-  versions are ad-hoc signed – run `xattr -dr com.apple.quarantine /Applications/PIDA.app` after checking the
-  checksum). Android: allow
+  Security › “Open Anyway”; only for the older 0.2.0, if macOS reports PIDA as “damaged”, run
+  `xattr -dr com.apple.quarantine /Applications/PIDA.app` after checking the checksum – 0.2.1 is ad-hoc signed). Android: allow
   “Install unknown apps” for your browser or file manager.
 - **Privacy:** with ID Austria the document is sent to A-Trust for signing; with a smart card or keystore it
   never leaves your device. On Android, PIDA signs with ID Austria only. On the desktop, the update check asks
