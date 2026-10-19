@@ -10,6 +10,7 @@
 //   "-") schaltet dieses Skript die Hardened Runtime wieder ein (Pflicht für notarytool). APPLE_CERTIFICATE
 //   allein genügt nicht: Tauri vergliche das Zertifikat mit dem "-" aus tauri.conf.json (Abbruch oder – bei
 //   einem Namen mit „-“ – Developer ID ohne Hardened Runtime); das Skript bricht dann ab,
+// - EUPL-1.2-Text (<repo>/LICENSE → Ressource LICENSE.txt)
 // - Drittlizenz-Hinweise aus $PIDA_NOTICES_DIR (Standard: <repo>/target/notices, erzeugt mit
 //   tools/third-party-notices.sh bzw. `npm run notices`): THIRD-PARTY-NOTICES.md und
 //   RUST-STD-COPYRIGHT.html als Ressourcen (Plan §2.5: Hinweise je Build ins Paket).
@@ -54,6 +55,15 @@ if (pdfiumDir && existsSync(path.join(pdfiumDir, lib))) {
 } else {
   console.error(`bundle-config: PIDA_PDFIUM_DIR nicht gesetzt oder ohne ${lib}: Bundle ohne PDFium.`);
   missing ||= requirePdfium;
+}
+
+// EUPL-1.2-Text des Werks (Art. 5: jeder Kopie die Lizenz beilegen) – in allen Desktop-Paketen
+const license = path.join(repo, 'LICENSE');
+if (existsSync(license)) {
+  resources[path.resolve(license)] = 'LICENSE.txt';
+} else {
+  console.error('bundle-config: LICENSE (EUPL-1.2) fehlt: Bundle ohne Lizenztext.');
+  missing ||= requireNotices;
 }
 
 const noticesDir = process.env.PIDA_NOTICES_DIR || path.join(repo, 'target', 'notices');

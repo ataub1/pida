@@ -79,7 +79,14 @@ PDFIUM_DIR="$(dirname "$pdfium_lib")"
 {
   echo "## PDFium ($(awk -F= '$1=="MAJOR"{ma=$2} $1=="MINOR"{mi=$2} $1=="BUILD"{b=$2} $1=="PATCH"{p=$2} END{print ma"."mi"."b"."p}' "$PDFIUM_DIR/VERSION"), bblanchon/pdfium-binaries)"
   echo
-  echo "### PDFium – BSD-3-Clause"
+  # Nennungen, die FreeType-Lizenz (FTL) und IJG-Lizenz bei Binärweitergabe in der Dokumentation verlangen
+  echo "Portions of this software are copyright © The FreeType Project (www.freetype.org). All rights reserved."
+  echo "This software is based in part on the work of the Independent JPEG Group."
+  echo
+  echo "PDFium selbst steht unter BSD-3-Clause bzw. Apache-2.0 (pdfium.txt); die übrigen Abschnitte nennen die"
+  echo "Lizenzen der mitgebauten Bibliotheken."
+  echo
+  echo "### pdfium-binaries (Packaging und Patches) – MIT"
   echo
   echo '~~~~text'
   emit_text "$PDFIUM_DIR/LICENSE"

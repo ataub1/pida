@@ -14,6 +14,8 @@ accepted = [
     "BSL-1.0",
     "OFL-1.1",
     "Bitstream-Vera",
+    # nur über die Klarstellung für regex-syntax (Unicode-Tabellen, siehe unten)
+    "Unicode-DFS-2016",
 ]
 
 # Ausgelieferte Ziele (wie deny.toml [graph] targets).
@@ -49,3 +51,25 @@ workarounds = ["ring", "rustls"]
 # Apache-2.0 mit LLVM-Ausnahme (permissiver als Apache-2.0). Wie die Ausnahme in deny.toml.
 [target-lexicon]
 accepted = ["Apache-2.0 WITH LLVM-exception"]
+
+# regex-syntax: Das Lizenzfeld nennt nur „MIT OR Apache-2.0“, die eingebetteten Unicode-Tabellen stehen aber unter
+# der Unicode-Lizenz von 2016 (src/unicode_tables/LICENSE-UNICODE, „Unicode, Inc. License Agreement – Data Files
+# and Software“); sie muss den Hinweisen beiliegen. Prüfsummen gelten für 0.8.11 – bei einem Update neu setzen
+# (cargo-about bricht sonst ab).
+[regex-syntax.clarify]
+license = "(MIT OR Apache-2.0) AND Unicode-DFS-2016"
+
+[[regex-syntax.clarify.files]]
+path = "LICENSE-MIT"
+license = "MIT"
+checksum = "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+
+[[regex-syntax.clarify.files]]
+path = "LICENSE-APACHE"
+license = "Apache-2.0"
+checksum = "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+
+[[regex-syntax.clarify.files]]
+path = "src/unicode_tables/LICENSE-UNICODE"
+license = "Unicode-DFS-2016"
+checksum = "74db5baf44a41b1000312c673544b3374e4198af5605c7f9080a402cec42cfa3"

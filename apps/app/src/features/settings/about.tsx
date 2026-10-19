@@ -174,7 +174,7 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
         {mobile ? null : <AboutLink label={t.t('config-ShowLogDirectory')} onPress={() => void bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />}
       </ul>
       <p className="about-license pre-line">
-        <Markup text={t.t('config-AboutText')} />
+        <Markup text={t.t('ng-ui-about-license')} />
       </p>
       <p className="about-based-on">{t.t('ng-ui-about-based-on')}</p>
       <p className="about-copyright">{t.t('ng-ui-about-copyright', { year })}</p>

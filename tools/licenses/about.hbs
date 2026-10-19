@@ -1,6 +1,7 @@
 ## Rust-Abhängigkeiten (Rust dependencies)
 
-Erzeugt mit cargo-about aus `Cargo.lock` (tools/licenses/about.toml). Übersicht der Lizenzen:
+Erzeugt mit cargo-about aus `Cargo.lock` (tools/licenses/about.toml). Die Crates sind unverändert eingebunden; den
+Quelltext jeder Version gibt es auf crates.io (für MPL-2.0-Dateien nach MPL-2.0 §3.2 a). Übersicht der Lizenzen:
 
 {{#each overview}}
 - {{{name}}} ({{count}})
@@ -11,7 +12,7 @@ Erzeugt mit cargo-about aus `Cargo.lock` (tools/licenses/about.toml). Übersicht
 
 Verwendet von (used by):
 {{#each used_by}}
-- {{crate.name}} {{crate.version}}{{#if crate.repository}} – <{{crate.repository}}>{{/if}}
+- {{crate.name}} {{crate.version}}{{#if crate.repository}} – <{{crate.repository}}>{{/if}} · Quelltext dieser Version: <https://crates.io/crates/{{crate.name}}/{{crate.version}}>
 {{/each}}
 
 ~~~~text

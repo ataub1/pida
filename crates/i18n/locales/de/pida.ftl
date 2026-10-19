@@ -727,6 +727,10 @@ ng-ui-about-links = Links
 ng-ui-about-release-notes = Versionshinweise
 ng-ui-about-source = Quellcode
 ng-ui-about-privacy = Datenschutz
+ng-ui-about-license =
+    Diese Software wird von A-SIT unter den Bedingungen der EUPL-1.2 frei zur Verfügung gestellt; der Lizenztext liegt dem Programm bei. Lizenzbedingungen unter <a>https://technology.a-sit.at/lizenzbedingungen/</a>. Technischer Support unter <a href="mailto:software@egiz.gv.at">software@egiz.gv.at</a>.
+
+    Enthaltene Drittkomponenten stehen unter eigenen Lizenzen, die mit der EUPL vereinbar sind – siehe „Drittlizenzen anzeigen“.
 ng-ui-about-based-on = Basiert auf PDF-Over von A-SIT.
 ng-ui-about-copyright = Urheberrecht © { $year } A-SIT · Lizenz EUPL-1.2
 ng-ui-privacy-update-check = Die Update-Prüfung fragt bei GitHub (api.github.com) nach der neuesten Version. Dabei sieht GitHub die IP-Adresse dieses Geräts; Kennungen werden nicht übertragen. Abschalten lässt sie sich unter Erweitert › „Automatisch nach Updates suchen“.
