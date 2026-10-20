@@ -26,3 +26,11 @@ node design/brand/tools/build.mjs          # alles ohne Vorschaubogen
 
 `build.mjs` nutzt für `icon.icns`/`icon.ico` die Tauri-CLI aus `apps/app/node_modules` (sonst `--tauri <tauri.js>`).
 `tauri icon` nicht direkt auf die App anwenden – es ersetzt die Android- und iOS-Fassungen durch Tauri-Vorgaben.
+
+**Platzhalter-Bildmarke der Amtssignatur** (Backlog Nr. 10): Master `amtssignatur-platzhalter.svg` (gestrichelter
+Rahmen mit Bildsymbol, ohne Text und Hoheitszeichen), daraus `crates/sigblock/assets/images/amtssignatur-platzhalter.png`
+in 472 × 470 px (= 2 × `amtsignatur-logo_demo.png`, gleiche Blockmaße):
+
+```sh
+node design/brand/tools/amts-placeholder.mjs
+```

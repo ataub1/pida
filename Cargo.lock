@@ -4184,6 +4184,7 @@ dependencies = [
  "pdfium-render",
  "pida-java-properties",
  "pida-pdf-cos",
+ "pida-sigblock",
  "png 0.18.1",
  "proptest",
  "serde",

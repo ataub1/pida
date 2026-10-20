@@ -1100,6 +1100,9 @@ fn apply_pida_defaults(merged: &mut Properties) {
     for id in assets::PIDA_SEAL_PROFILES {
         merged.insert(format!("sig_obj.{id}.value.SIG_LABEL"), assets::PIDA_SEAL);
     }
+    for id in assets::AMTS_PLACEHOLDER_PROFILES {
+        merged.insert(format!("sig_obj.{id}.value.SIG_LABEL"), assets::AMTS_PLACEHOLDER);
+    }
 }
 
 /// Eingebettete Konfiguration laden, mit oder ohne PIDA-Vorgaben.
@@ -1120,16 +1123,19 @@ impl ProfileStore {
     /// Eingebettete Konfiguration (schreibgeschützt, Plan §6.5): PDF-AS-Profile mit den
     /// PIDA-Vorgaben (ADR 0005) – Standard-Bildmarke der Profile `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]`
     /// und `BASE_LOGO` ist das PIDA-Siegel ([`crate::assets::PIDA_SEAL`]) statt `signatur-logo_de/en.png`.
-    /// Die Amtssignatur ist unverändert; eine eigene Bildmarke
+    /// Die Amtssignatur zeigt statt der Demo-Bildmarke der Behörde die neutrale Platzhalter-Bildmarke
+    /// ([`crate::assets::AMTS_PLACEHOLDER`], Backlog Nr. 10); eine eigene Bildmarke
     /// ([`ProfileOverrides::sig_label`], [`crate::SigBlockInput::emblem`]) geht weiterhin vor.
-    /// Die PDF-AS-Konfiguration ohne diese Vorgaben liefert [`ProfileStore::builtin_pdfas`].
+    /// Die PDF-AS-Konfiguration ohne diese Vorgaben liefert `ProfileStore::builtin_pdfas` (Feature `pdfas-reference`).
     pub fn builtin() -> Result<ProfileStore> {
         static BUILTIN: OnceLock<std::result::Result<ProfileStore, String>> = OnceLock::new();
         BUILTIN.get_or_init(|| load_builtin(true)).clone().map_err(SigBlockError::Profile)
     }
 
     /// Eingebettete PDF-AS-Konfiguration **ohne** PIDA-Vorgaben (Bildmarken wie PDF-AS 4,
-    /// `signatur-logo_de/en.png`) – für den Abgleich mit PDF-AS-Referenzen (Golden-Tests).
+    /// `signatur-logo_de/en.png`, Demo-Bildmarke der Amtssignatur) – für den Abgleich mit PDF-AS-Referenzen
+    /// (Golden-Tests). Nur mit dem Feature `pdfas-reference`: ohne es liegt die Demo-Bildmarke nicht bei.
+    #[cfg(any(test, feature = "pdfas-reference"))]
     pub fn builtin_pdfas() -> Result<ProfileStore> {
         static BUILTIN_PDFAS: OnceLock<std::result::Result<ProfileStore, String>> = OnceLock::new();
         BUILTIN_PDFAS.get_or_init(|| load_builtin(false)).clone().map_err(SigBlockError::Profile)

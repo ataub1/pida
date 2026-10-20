@@ -237,6 +237,17 @@ pub(crate) struct WorkspaceRuntime {
     pub share_hint: Option<DocId>,
     /// Hinweis zum Teilen in diesem Lauf ausgeblendet (`DismissShareHint`)
     pub share_hint_dismissed: bool,
+    /// Höhe des Blocks am QR-Platzhalter (Schlüssel: Dokument, Breite, Revision der Blockvorschau) – das Layout
+    /// läuft so nur nach einer Änderung, nicht bei jeder Ansicht
+    pub qr_block_height: Mutex<Option<(QrHeightKey, Option<f32>)>>,
+}
+
+/// Schlüssel für [`WorkspaceRuntime::qr_block_height`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct QrHeightKey {
+    doc: DocId,
+    width_bits: u32,
+    block_revision: u64,
 }
 
 /// Lokale Zeit als RFC 3339 mit Offset.
@@ -603,7 +614,12 @@ impl crate::runtime::CoreTask {
             size_bytes: data.as_deref().map_or(0, |d| d.src.len()),
             phase: s.phase,
             revision: self.ws.revision,
-            block: BlockView { width: bw, height: bh, preview_revision: block.revision },
+            block: BlockView {
+                width: bw,
+                height: bh,
+                preview_revision: block.revision,
+                emblem_placeholder: !edit.invisible && self.emblem_placeholder(),
+            },
             placement,
             origin: edit.origin,
             target: match edit.target {
@@ -655,6 +671,74 @@ impl crate::runtime::CoreTask {
         }
     }
 
+    /// Amtssignatur ohne eigene Bildmarke (Backlog Nr. 10)? Dann zeigt der Block die neutrale Platzhalter-Bildmarke
+    /// ([`pida_sigblock::assets::AMTS_PLACEHOLDER`]); eine eigene Bildmarke (Einstellung, `-e`) geht vor.
+    pub(crate) fn emblem_placeholder(&self) -> bool {
+        let eff = self.cfg.effective();
+        eff.profile() == pida_config::SignatureProfile::Amtssignaturblock && eff.emblem().is_none()
+    }
+
+    /// Bedeckt der Block, der am QR-Platzhalter `q` signiert wird, dessen Bild nicht ganz (Backlog Nr. 32)? Lage und
+    /// Breite aus `q.pos` (wie beim Signieren, KR-F14), Höhe aus dem Layout bei dieser Breite und mit dem Profil des
+    /// Platzhalters (`profile=…`, wie `placeholder_block_spec` beim Signieren). Toleranz 0,5 pt; ohne Profile bzw.
+    /// Layout `false` (kein Hinweis statt eines falschen).
+    fn qr_uncovered(&self, data: &DocData, q: &pida_placement::QrPlaceholder, doc: DocId) -> bool {
+        use pida_placement::Coord;
+        let (Some(Coord::Value(x)), Some(Coord::Value(top)), Some(Coord::Value(width))) = (q.pos.x, q.pos.y, q.pos.w)
+        else {
+            return false;
+        };
+        let Some(info) = data.pages.get(q.page_index) else { return false };
+        let Some(height) = self.qr_block_height(data, q, doc, width) else { return false };
+        let image = user_rect_to_visible(info, matrix_unit_rect(&q.ctm)).normalized();
+        const TOLERANCE: f32 = 0.5;
+        image.lly < top - height - TOLERANCE
+            || image.urx > x + width + TOLERANCE
+            || image.llx < x - TOLERANCE
+            || image.ury > top + TOLERANCE
+    }
+
+    /// Höhe des Blocks bei `width` für den QR-Platzhalter `q` (mit Cache, [`WorkspaceRuntime::qr_block_height`]).
+    fn qr_block_height(
+        &self,
+        data: &DocData,
+        q: &pida_placement::QrPlaceholder,
+        doc: DocId,
+        width: f32,
+    ) -> Option<f32> {
+        let key = QrHeightKey { doc, width_bits: width.to_bits(), block_revision: lock(&self.shared.block).revision };
+        let mut cache = self.ws.qr_block_height.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((k, h)) = *cache
+            && k == key
+        {
+            return h;
+        }
+        let height = (|| {
+            let store = self.shared.profiles.as_deref()?;
+            let eff = self.cfg.effective();
+            let emblem = eff.emblem().and_then(crate::plan::load_emblem);
+            let (spec, _) = crate::plan::placeholder_block_spec(
+                store,
+                crate::plan::SpecInput {
+                    effective: eff,
+                    system_language: pida_i18n::Lang::system(),
+                    pdfa: data.report.pdfa.as_ref(),
+                    cert: None,
+                    signing_time: crate::plan::local_now(),
+                    emblem: emblem.as_ref(),
+                },
+                q.payload.profile.as_deref(),
+            )
+            .ok()?;
+            if !spec.visible() {
+                return None;
+            }
+            spec.build(width, 0, store, &self.shared.fonts).ok().map(|app| app.height)
+        })();
+        *cache = Some((key, height));
+        height
+    }
+
     /// Live-Prüfung (§3.3): liest nur das Belegungsraster und die Felder der Analyse.
     fn placement_check(
         &self,
@@ -669,6 +753,7 @@ impl crate::runtime::CoreTask {
             overlaps_content: None,
             overlaps_widget: false,
             clamped: self.ws.clamped && s.edit.origin == PlacementOrigin::User,
+            placeholder_uncovered: false,
         };
         let (Some(data), Some(rect)) = (data, sticker) else {
             // unsichtbar: nichts kann überdecken
@@ -692,6 +777,7 @@ impl crate::runtime::CoreTask {
                 if let Some(q) = &s.edit.qr {
                     check.overlaps_widget =
                         other_widgets_overlap(&obstacles, Some(q.page_index), matrix_unit_rect(&q.ctm), None);
+                    check.placeholder_uncovered = !s.edit.invisible && self.qr_uncovered(data, q, s.doc.id);
                 }
             }
             Target::Free => {

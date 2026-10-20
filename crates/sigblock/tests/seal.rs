@@ -130,7 +130,16 @@ fn seal_is_the_default_of_exactly_the_small_profiles_and_base_logo() {
             ours.values.insert("SIG_LABEL".into(), theirs.values["SIG_LABEL"].clone());
             ours.raw.insert("value.SIG_LABEL".into(), theirs.raw["value.SIG_LABEL"].clone());
         }
-        // sonst alles gleich (Amtssignatur, Basisprofile)
+        // Amtssignatur: Platzhalter statt Demo-Bildmarke (Backlog Nr. 10); `_RECOMMENDED` erbt ihn
+        if id.starts_with("AMTSSIGNATURBLOCK") {
+            assert_eq!(ours.values["SIG_LABEL"], pida_sigblock::assets::AMTS_PLACEHOLDER, "{id}");
+            ours.values.insert("SIG_LABEL".into(), theirs.values["SIG_LABEL"].clone());
+            if let Some(raw) = theirs.raw.get("value.SIG_LABEL") {
+                assert_eq!(ours.raw["value.SIG_LABEL"], pida_sigblock::assets::AMTS_PLACEHOLDER, "{id}");
+                ours.raw.insert("value.SIG_LABEL".into(), raw.clone());
+            }
+        }
+        // sonst alles gleich (Basisprofile)
         assert_eq!(&ours, theirs, "{id}");
     }
     assert_eq!(PIDA_SEAL_PROFILES.len(), 9);
@@ -139,14 +148,11 @@ fn seal_is_the_default_of_exactly_the_small_profiles_and_base_logo() {
         let theirs = &p.get(id).unwrap().values["SIG_LABEL"];
         assert!(theirs.starts_with("./images/signatur-logo_"), "{id}: PDF-AS {theirs}");
     }
-    assert_eq!(
-        b.get("AMTSSIGNATURBLOCK_DE_RECOMMENDED").unwrap().values["SIG_LABEL"],
-        "./images/amtsignatur-logo_demo.png"
-    );
-    assert_eq!(
-        b.get("AMTSSIGNATURBLOCK_EN_RECOMMENDED").unwrap().values["SIG_LABEL"],
-        "./images/amtsignatur-logo_demo.png"
-    );
+    // Amtssignatur: neutrale Platzhalter-Bildmarke statt der Demo-Bildmarke der Behörde (Backlog Nr. 10)
+    for id in ["AMTSSIGNATURBLOCK_DE_RECOMMENDED", "AMTSSIGNATURBLOCK_EN_RECOMMENDED"] {
+        assert_eq!(b.get(id).unwrap().values["SIG_LABEL"], pida_sigblock::assets::AMTS_PLACEHOLDER, "{id}");
+        assert_eq!(p.get(id).unwrap().values["SIG_LABEL"], "./images/amtsignatur-logo_demo.png", "{id}: PDF-AS");
+    }
     assert_eq!(b.get("BASE_LOGO").unwrap().values["SIG_LABEL"], PIDA_SEAL);
     assert_eq!(p.get("BASE_LOGO").unwrap().values["SIG_LABEL"], "./images/signatur-logo_de.png");
     // Ressource auflösbar (auch über DirResources-Rückfall)
@@ -248,11 +254,15 @@ fn own_emblem_takes_precedence_over_seal() {
     let logo = build_with(&b, "BASE_LOGO", 230.0, PdfaMode::None, &input("Max"));
     assert_eq!(dims(images(&logo)[0]), (i64::from(SEAL_PX.0), i64::from(SEAL_PX.1)));
     assert!(images(&logo)[0].get(b"SMask").is_ok(), "BASE_LOGO: Siegel mit SMask");
-    // Amtssignatur behält die Demo-Bildmarke der Behörde
-    let amts = build_with(&b, "AMTSSIGNATURBLOCK_DE_RECOMMENDED", 400.0, PdfaMode::None, &input("Max"));
-    assert_eq!(dims(images(&amts)[0]), (236, 235));
-    let amts_en = build_with(&b, "AMTSSIGNATURBLOCK_EN_RECOMMENDED", 400.0, PdfaMode::None, &input("Max"));
-    assert_eq!(dims(images(&amts_en)[0]), (236, 235));
+    // Amtssignatur: Platzhalter in doppelter Auflösung der Demo-Bildmarke (472 × 470 = 2 × 236 × 235) – gleiche
+    // Blockmaße wie mit der Demo-Bildmarke von PDF-AS
+    for id in ["AMTSSIGNATURBLOCK_DE_RECOMMENDED", "AMTSSIGNATURBLOCK_EN_RECOMMENDED"] {
+        let amts = build_with(&b, id, 400.0, PdfaMode::None, &input("Max"));
+        assert_eq!(dims(images(&amts)[0]), (472, 470), "{id}");
+        let theirs = build_with(&pdfas(), id, 400.0, PdfaMode::None, &input("Max"));
+        assert_eq!(dims(images(&theirs)[0]), (236, 235), "{id}: PDF-AS");
+        assert_eq!((amts.width, amts.height), (theirs.width, theirs.height), "{id}: gleiche Blockmaße");
+    }
 }
 
 /// Auch wenn ein Programm die Transparenz verwirft (PDF-AS `removeAlphaChannel`, hier mit

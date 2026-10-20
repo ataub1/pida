@@ -3360,6 +3360,7 @@ impl CoreTask {
                         width: if block.doc == Some(doc.id) { block.width } else { placement.width },
                         height: if block.doc == Some(doc.id) { block.height } else { placement.height },
                         preview_revision: block.revision,
+                        emblem_placeholder: self.emblem_placeholder(),
                     },
                     placement,
                     new_page: *new_page,

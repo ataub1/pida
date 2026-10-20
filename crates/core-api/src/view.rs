@@ -120,6 +120,10 @@ pub struct BlockView {
     pub height: f32,
     /// Vorschau-Revision (Cache-Busting für `blockPreviewUrl`)
     pub preview_revision: u64,
+    /// Profil Amtssignatur ohne eigene Bildmarke: der Block zeigt die neutrale Platzhalter-Bildmarke statt der
+    /// Bildmarke der Behörde (Backlog Nr. 10) – die Oberfläche weist inline darauf hin. Additiv.
+    #[serde(default)]
+    pub emblem_placeholder: bool,
 }
 
 /// Backend-Option.
@@ -1343,6 +1347,11 @@ pub struct PlacementCheckView {
     pub overlaps_widget: bool,
     /// vom Kern an die Seite geklemmt
     pub clamped: bool,
+    /// Ziel QR-Platzhalter: der Block, der dort signiert wird (Breite KR-F14, Höhe aus dem Layout bei dieser
+    /// Breite), bedeckt das Platzhalterbild nicht ganz – es schaut unten bzw. rechts hervor (Entscheidung
+    /// 20.10.2026, Backlog Nr. 32: Block bleibt PDF-AS-gleich, die Oberfläche weist inline darauf hin). Additiv.
+    #[serde(default)]
+    pub placeholder_uncovered: bool,
 }
 
 /// Aktuelles Dokument im Arbeitsbereich (§3.3) – einzige Inhaltsquelle der neuen Oberfläche;

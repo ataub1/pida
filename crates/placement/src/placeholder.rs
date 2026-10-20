@@ -550,7 +550,7 @@ mod tests {
     }
 
     fn a4() -> PageInfo {
-        let m = Rect::new(0.0, 0.0, 595.303_95, 841.889_77);
+        let m = Rect::new(0.0, 0.0, 595.304, 841.89);
         PageInfo {
             index: 0,
             object_id: (1, 0),

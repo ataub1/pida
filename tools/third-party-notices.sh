@@ -100,10 +100,11 @@ sys.stdout.write(text.replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n")
   list=""
   for f in "${profiles[@]}"; do list="$list, \`cfg/profiles/$(basename "$f")\`"; done
   echo "- ${list#, } (${#profiles[@]} Profile)"
-  echo "- \`images/signatur-logo_de.png\`, \`images/signatur-logo_en.png\`, \`images/amtsignatur-logo_demo.png\`"
+  echo "- \`images/signatur-logo_de.png\`, \`images/signatur-logo_en.png\`"
   echo
-  echo "Beim Laden setzt PIDA in den kleinen Standardprofilen und \`BASE_LOGO\` das PIDA-Siegel als Bildmarke ein;"
-  echo "die Dateien selbst bleiben unverändert."
+  echo "Beim Laden setzt PIDA in den kleinen Standardprofilen und \`BASE_LOGO\` das PIDA-Siegel und in der Amtssignatur"
+  echo "eine neutrale Platzhalter-Bildmarke als Bildmarke ein (beide eigene Werke von PIDA); die Dateien selbst bleiben"
+  echo "unverändert. Die Demo-Bildmarke der Amtssignatur aus PDF-AS liegt PIDA nicht bei."
   echo
   echo "### PDF-Over – Textkataloge (message catalogs)"
   echo
@@ -295,6 +296,22 @@ case "$(basename "$PDFIUM_DIR")" in
       echo '~~~~text'
       emit_text "$WIN/Microsoft.Web.WebView2-LICENSE.txt"
       echo '~~~~'
+      echo
+      echo "### Microsoft Visual C++-Laufzeit (vcruntime) – Visual Studio \"Distributable Code\""
+      echo
+      echo "\`pida.exe\` enthält statisch gelinkte Teile der Microsoft-Visual-C++-Laufzeit (vcruntime; © Microsoft"
+      echo "Corporation), gebaut mit Microsoft Visual Studio. Für diese Teile gilt nicht die EUPL, sondern die Bedingungen"
+      echo "von Microsoft für \"Distributable Code\": Sie werden nur als Bestandteil von PIDA weitergegeben, ihre Urheber-,"
+      echo "Marken- und Patenthinweise dürfen nicht entfernt werden, und soweit gesetzlich zulässig dürfen sie nicht"
+      echo "zurückentwickelt, dekompiliert oder disassembliert werden. Microsoft übernimmt für sie keine Gewährleistung."
+      echo "Die Universal C Runtime (UCRT) ist Teil von Windows und liegt PIDA nicht bei."
+      echo
+      echo "\`pida.exe\` contains statically linked parts of the Microsoft Visual C++ runtime (vcruntime; © Microsoft"
+      echo "Corporation), built with Microsoft Visual Studio. These parts are not covered by the EUPL but by Microsoft's"
+      echo "terms for \"Distributable Code\": they are distributed only as part of PIDA, their copyright, trademark and patent"
+      echo "notices must not be removed, and to the extent permitted by law they must not be reverse engineered, decompiled"
+      echo "or disassembled. Microsoft provides no warranty for them. The Universal C Runtime (UCRT) is part of Windows and"
+      echo "is not included with PIDA."
       echo
       echo "### NSIS 3.13 – Installerlaufzeit des Setups (zlib/libpng; LZMA-Modul CPL-1.0; Modern UI 2)"
       echo

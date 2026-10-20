@@ -242,7 +242,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
             StepView::Position {
                 doc: doc(),
                 page: 1,
-                block: BlockView { width: 232.5, height: 82.0, preview_revision: 3 },
+                block: BlockView { width: 232.5, height: 82.0, preview_revision: 3, emblem_placeholder: false },
                 placement: Placement { page_index: 1, x: 297.5, y: 210.5, width: 232.5, height: 82.0 },
                 new_page: false,
                 announce,
@@ -256,7 +256,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
             StepView::Position {
                 doc: DocInfo { signed: true, ..doc() },
                 page: 2,
-                block: BlockView { width: 100.0, height: 40.0, preview_revision: 1 },
+                block: BlockView { width: 100.0, height: 40.0, preview_revision: 1, emblem_placeholder: false },
                 placement: Placement { page_index: 2, x: 0.0, y: 595.5, width: 100.0, height: 40.0 },
                 new_page: true,
                 announce: BTreeMap::new(),
@@ -806,7 +806,7 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
         size_bytes: 248_512,
         phase,
         revision: 4,
-        block: BlockView { width: 232.5, height: 82.0, preview_revision: 3 },
+        block: BlockView { width: 232.5, height: 82.0, preview_revision: 3, emblem_placeholder: false },
         placement: Placement { page_index: 1, x: 297.5, y: 210.5, width: 232.5, height: 82.0 },
         origin,
         target,
@@ -881,6 +881,7 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
             overlaps_content: Some(true),
             overlaps_widget: false,
             clamped: true,
+            placeholder_uncovered: false,
         },
         announce,
         // Nachtrag K3 (Einstellungen › Dokument)
@@ -1021,7 +1022,7 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         StepView::Position {
             doc: doc(),
             page: 1,
-            block: BlockView { width: 232.5, height: 82.0, preview_revision: 3 },
+            block: BlockView { width: 232.5, height: 82.0, preview_revision: 3, emblem_placeholder: false },
             placement: Placement { page_index: 1, x: 297.5, y: 210.5, width: 232.5, height: 82.0 },
             new_page: false,
             announce,
@@ -1046,8 +1047,13 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
     let mut locked = view(position_step(), position_bar());
     let mut d = document(DocumentPhase::Editing, PlacementOrigin::Auto, PlacementTarget::Free);
     d.placement_locked = true;
-    d.check =
-        PlacementCheckView { for_revision: 4, overlaps_content: Some(false), overlaps_widget: false, clamped: false };
+    d.check = PlacementCheckView {
+        for_revision: 4,
+        overlaps_content: Some(false),
+        overlaps_widget: false,
+        clamped: false,
+        placeholder_uncovered: false,
+    };
     locked.document = Some(d);
     locked.signers = signers();
     locked.actions = ws_actions(true);
@@ -1055,7 +1061,13 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
 
     let mut field = view(position_step(), position_bar());
     let mut d = document(DocumentPhase::Editing, PlacementOrigin::Field, PlacementTarget::Field { index: 0 });
-    d.check = PlacementCheckView { for_revision: 3, overlaps_content: None, overlaps_widget: true, clamped: false };
+    d.check = PlacementCheckView {
+        for_revision: 3,
+        overlaps_content: None,
+        overlaps_widget: true,
+        clamped: false,
+        placeholder_uncovered: false,
+    };
     // Platzhaltersuche „Leere Signaturfelder“: automatisch im ersten Feld; PDF/A erzwungen (ohne Kennung)
     d.detection = Some(DocumentDetectionView { pdfa: None, pdfa_decision: PdfaDecision::Forced, auto_placed: true });
     field.document = Some(d);

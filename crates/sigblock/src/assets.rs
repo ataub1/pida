@@ -73,13 +73,28 @@ const FONTS: &[(&str, &[u8])] = &[
     ("DejaVuSansCondensed.ttf", include_bytes!("../assets/fonts/DejaVuSansCondensed.ttf")),
 ];
 
-/// `images/` – die drei PDF-AS-Bildmarken (EUPL) und das PIDA-Siegel ([`PIDA_SEAL`], eigenes Werk
-/// des Projekts, EUPL-1.2; Master `design/brand/pida-seal.svg`, ADR 0005).
+/// `images/` – die PDF-AS-Bildmarken `signatur-logo_de/en.png` (EUPL), das PIDA-Siegel ([`PIDA_SEAL`], eigenes
+/// Werk des Projekts, EUPL-1.2; Master `design/brand/pida-seal.svg`, ADR 0005) und die neutrale Platzhalter-Bildmarke
+/// der Amtssignatur ([`AMTS_PLACEHOLDER`], eigenes Werk, Master `design/brand/amtssignatur-platzhalter.svg`). Die
+/// Demo-Bildmarke der Behörde aus PDF-AS (`amtsignatur-logo_demo.png`: Bundesadler, „Republik Österreich“, „BPD
+/// Bundespolizeidirektion Wien“) wird nicht ausgeliefert (Entscheidung 20.10.2026, Backlog Nr. 10) – nur mit dem
+/// Feature `pdfas-reference` für den Abgleich mit PDF-AS (`ProfileStore::builtin_pdfas`, Tests).
+#[cfg(not(any(test, feature = "pdfas-reference")))]
+pub(crate) const IMAGES: &[(&str, &[u8])] = &[
+    ("signatur-logo_de.png", include_bytes!("../assets/images/signatur-logo_de.png")),
+    ("signatur-logo_en.png", include_bytes!("../assets/images/signatur-logo_en.png")),
+    ("pida-seal.png", include_bytes!("../assets/images/pida-seal.png")),
+    ("amtssignatur-platzhalter.png", include_bytes!("../assets/images/amtssignatur-platzhalter.png")),
+];
+
+/// Wie oben, dazu die Demo-Bildmarke der Behörde aus PDF-AS (Abgleich mit PDF-AS, Tests).
+#[cfg(any(test, feature = "pdfas-reference"))]
 pub(crate) const IMAGES: &[(&str, &[u8])] = &[
     ("signatur-logo_de.png", include_bytes!("../assets/images/signatur-logo_de.png")),
     ("signatur-logo_en.png", include_bytes!("../assets/images/signatur-logo_en.png")),
     ("amtsignatur-logo_demo.png", include_bytes!("../assets/images/amtsignatur-logo_demo.png")),
     ("pida-seal.png", include_bytes!("../assets/images/pida-seal.png")),
+    ("amtssignatur-platzhalter.png", include_bytes!("../assets/images/amtssignatur-platzhalter.png")),
 ];
 
 /// Profilreferenz des PIDA-Siegels (Standard-Bildmarke der Profile [`PIDA_SEAL_PROFILES`], ADR 0005).
@@ -94,8 +109,8 @@ pub const PIDA_SEAL: &str = "./images/pida-seal.png";
 /// Profile, deren Standard-Bildmarke in [`crate::ProfileStore::builtin`] das PIDA-Siegel ist
 /// (`value.SIG_LABEL` = [`PIDA_SEAL`]): die acht kleinen Standardblöcke (in PDF-AS
 /// `./images/signatur-logo_de|en.png`) und `BASE_LOGO` („nur Bildmarke“ ohne eigene Bildmarke, in
-/// PDF-AS `./images/signatur-logo_de.png`). Die Amtssignatur (`AMTSSIGNATURBLOCK_*`) behält die
-/// Demo-Bildmarke der Behörde (`amtsignatur-logo_demo.png`).
+/// PDF-AS `./images/signatur-logo_de.png`). Die Amtssignatur (`AMTSSIGNATURBLOCK_*`) bekommt statt der
+/// Demo-Bildmarke der Behörde die neutrale Platzhalter-Bildmarke ([`AMTS_PLACEHOLDER_PROFILES`]).
 pub const PIDA_SEAL_PROFILES: [&str; 9] = [
     "SIGNATURBLOCK_SMALL_DE",
     "SIGNATURBLOCK_SMALL_DE_NOTE",
@@ -107,6 +122,16 @@ pub const PIDA_SEAL_PROFILES: [&str; 9] = [
     "SIGNATURBLOCK_SMALL_EN_NOTE_PDFA",
     "BASE_LOGO",
 ];
+
+/// Neutrale Platzhalter-Bildmarke der Amtssignatur (Backlog Nr. 10): gestrichelter Rahmen mit Bildsymbol, ohne Text
+/// und Hoheitszeichen. 472 × 470 px RGBA = 2 × `amtsignatur-logo_demo.png` (236 × 235): gleiches Seitenverhältnis,
+/// damit Zeilenhöhen und Blockmaße unverändert bleiben (wie beim PIDA-Siegel).
+pub const AMTS_PLACEHOLDER: &str = "./images/amtssignatur-platzhalter.png";
+
+/// Profile, die in PDF-AS die Demo-Bildmarke der Behörde festlegen (`value.SIG_LABEL`) und in
+/// [`crate::ProfileStore::builtin`] stattdessen [`AMTS_PLACEHOLDER`] bekommen; `AMTSSIGNATURBLOCK_{DE,EN}_RECOMMENDED`
+/// erben sie.
+pub const AMTS_PLACEHOLDER_PROFILES: [&str; 2] = ["AMTSSIGNATURBLOCK_BASE", "AMTSSIGNATURBLOCK_BASE_EN"];
 
 /// Datei aus `cfg/` (Pfad relativ zu `cfg/`, `/`-getrennt).
 pub(crate) fn cfg(path: &str) -> Option<&'static [u8]> {

@@ -89,6 +89,7 @@ import {
   type EditState,
   type MockDoc,
   type MockDocSpec,
+  emblemPlaceholder,
 } from './workspace';
 
 export type { MockOptions, MockScenario, MockSigningFlow, MockUpdateScenario } from './shared';
@@ -982,7 +983,7 @@ function stepView(s: FlowState, ctx: MockCtx): StepView {
         step: 'position',
         doc: docInfo(d),
         page: p.page_index,
-        block: { width: size.width, height: size.height, preview_revision: s.preview },
+        block: { width: size.width, height: size.height, preview_revision: s.preview, emblem_placeholder: emblemPlaceholder(ctx.settings()) },
         placement: { ...p },
         new_page: s.edit.newPage,
         announce: {

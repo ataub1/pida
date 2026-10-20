@@ -1738,6 +1738,58 @@ async fn qr_placeholder_is_used_automatically_with_search() {
     assert!(!matches!(v.step, StepView::Placeholder { .. }), "keine Platzhalterfrage");
 }
 
+/// Amtssignatur ohne eigene Bildmarke (Backlog Nr. 10): `block.emblem_placeholder` meldet die neutrale
+/// Platzhalter-Bildmarke; mit eigener Bildmarke, mit einem anderen Profil oder unsichtbar nicht.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn official_signature_without_emblem_reports_the_placeholder() {
+    let emblem = concat!(env!("CARGO_MANIFEST_DIR"), "/../sigblock/assets/images/pida-seal.png");
+    for (settings, expected) in [
+        ("[signature]\nprofile = \"AMTSSIGNATURBLOCK\"\n".to_owned(), true),
+        (format!("[signature]\nprofile = \"AMTSSIGNATURBLOCK\"\nemblem = {emblem:?}\n"), false),
+        ("[signature]\nprofile = \"SIGNATURBLOCK_SMALL\"\n".to_owned(), false),
+    ] {
+        let fx = Fixture::new();
+        let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "a.pdf");
+        fx.write_settings(&settings);
+        let core = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), None, None, false).unwrap();
+        let v = wait_for(&core, "Arbeitsbereich", editing).await;
+        assert_eq!(v.document.unwrap().block.emblem_placeholder, expected, "{settings}");
+        if expected {
+            core.dispatch(UiEvent::SetInvisible { invisible: true });
+            let v = wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+            assert!(!v.document.unwrap().block.emblem_placeholder, "unsichtbar ohne Hinweis");
+        }
+    }
+}
+
+/// QR-Platzhalter höher als der Block (Backlog Nr. 32): `check.placeholder_uncovered` meldet es, der Block bleibt
+/// PDF-AS-gleich. Gegenprobe: der Platzhalter aus den PDF-AS-Testdaten (225 × 45 pt, Block 225 × 49 pt) ist bedeckt;
+/// unsichtbar signiert gibt es keinen Hinweis.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn tall_qr_placeholder_is_reported_as_uncovered() {
+    for (file, uncovered) in
+        [("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2-2.pdf", false), ("pdf/generated/qr-tall-placeholder.pdf", true)]
+    {
+        let fx = Fixture::new();
+        let a = copy_pdf(file, &fx.dir("in"), "qr.pdf");
+        fx.write_settings("[placeholder]\nsearch = true\n");
+        let Some(core) = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), None, Some(FakeEngine::new()), true)
+        else {
+            eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+            return;
+        };
+        let v = wait_for(&core, "QR-Ziel geprüft", |v| {
+            v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Qr && d.check.for_revision == d.revision)
+        })
+        .await;
+        let d = v.document.unwrap();
+        assert_eq!(d.check.placeholder_uncovered, uncovered, "{file}: {:?}", d.check);
+        core.dispatch(UiEvent::SetInvisible { invisible: true });
+        let v = wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
+        assert!(!v.document.unwrap().check.placeholder_uncovered, "{file}: unsichtbar ohne Hinweis");
+    }
+}
+
 /// Bereits signiertes bzw. DocMDP-zertifiziertes Dokument (echte Analyse): Einschränkungen mit Begründung,
 /// vorhandene Signaturen; „Signieren“ frei platziert ist auf dem zertifizierten Dokument nicht freigegeben.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

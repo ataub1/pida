@@ -140,6 +140,18 @@ if [[ -f "$SIMPLE" ]]; then
   gen "$GEN/simple-aes256-owner-xref-stream.pdf" "$SIMPLE" --static-aes-iv --object-streams=generate --encrypt --user-password= --owner-password=test-owner --bits=256 --
 fi
 
+# QR-Platzhalter höher als der Signaturblock (Backlog Nr. 32): new_qr_2-2.pdf mit Image5 auf 225 × 120 pt gestreckt
+# (statt 225 × 45; Oberkante bleibt 720). qdf-Form bearbeiten, fix-qdf setzt Längen und xref neu.
+QR22="$TD/pdf/pdfas/pdf-as-pdfbox-2/new_qr_2-2.pdf"
+if [[ -f "$QR22" ]] && command -v fix-qdf >/dev/null && [[ $FORCE -eq 1 || ! -f "$GEN/qr-tall-placeholder.pdf" ]]; then
+  tmp="$(mktemp -d)"
+  qpdf --static-id --qdf --object-streams=disable "$QR22" "$tmp/qdf.pdf"
+  LC_ALL=C sed 's/^225 0 0 45 72 675 cm$/225 0 0 120 72 600 cm/' "$tmp/qdf.pdf" >"$tmp/edit.pdf"
+  fix-qdf "$tmp/edit.pdf" >"$tmp/fixed.pdf"
+  qpdf --static-id --deterministic-id "$tmp/fixed.pdf" "$GEN/qr-tall-placeholder.pdf"
+  rm -rf "$tmp"
+fi
+
 # Hybrid-Querverweis (Tabelle + /XRefStm): qpdf schreibt so etwas nicht, daher ein eigenes,
 # deterministisches Skript (nur Python-Standardbibliothek).
 if command -v python3 >/dev/null; then

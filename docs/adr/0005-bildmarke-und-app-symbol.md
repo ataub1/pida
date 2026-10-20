@@ -14,8 +14,10 @@
    Profile“, ADR 0004) ist ohne eigene Bildmarke das PIDA-Siegel (`crates/sigblock/assets/images/pida-seal.png`)
    die Bildmarke – statt `signatur-logo_de/en.png`. Wie im Prototyp (`SignatureBlock.tsx`: ohne eigenes Logo
    `DefaultEmblem`) zeigt PIDA damit ohne eigene Bildmarke überall dasselbe Zeichen.
-   - **Unverändert:** Amtssignatur (`AMTSSIGNATURBLOCK_*`, `amtsignatur-logo_demo.png` – eine Behörde setzt dort
-     ohnehin ihre eigene Bildmarke) und alle Basisprofile.
+   - **Amtssignatur** (`AMTSSIGNATURBLOCK_*`): seit 20.10.2026 (Backlog Nr. 10) statt der PDF-AS-Demo-Bildmarke
+     `amtsignatur-logo_demo.png` (Bundesadler, „BPD Wien“) eine neutrale Platzhalter-Bildmarke
+     (`amtssignatur-platzhalter.png`, kein PIDA-Siegel); der Arbeitsbereich weist darauf hin, die Bildmarke der
+     Behörde zu wählen. Die Demo-Bildmarke wird nicht mehr ausgeliefert. Basisprofile unverändert.
    - **Vorrang wie bisher:** Eine eigene Bildmarke (Einstellung `signature.emblem`, CLI `-e`, PDF-Over-Overlay
      `value.SIG_LABEL`) geht vor (`SigBlockInput::emblem` → `ProfileOverrides::sig_label` → Profilwert).
    - **Eigene PDF-AS-Konfiguration** (`ProfileStore::load_dir`, z. B. migrierte Profile aus `~/.pdf-over/cfg`)
@@ -131,8 +133,8 @@ mittig (Abstand Häkchen–Ring oben = Akzent–Ring unten ≈ 82 px).
 - **Keine fremden Marken:** keine Zeichen von ID Austria, A-Trust, A-SIT, PDF-Over, PDF-AS oder Bund
   (`gv.at`); keine Anlehnung an das Logo „ID Austria“. Ring und Häkchen sind allgemeine Formen.
 - **Kein Prüfsiegel:** Das Zeichen bescheinigt nichts (keine Zertifizierung, kein „geprüft“); siehe §3.1.
-- Die bisherigen PDF-AS-Bildmarken bleiben nur in der Amtssignatur-Demo (die Behörde setzt ihre eigene
-  Bildmarke) und in `builtin_pdfas()` für den Golden-Abgleich.
+- Die bisherigen PDF-AS-Bildmarken bleiben nur in `builtin_pdfas()` für den Golden-Abgleich (Feature
+  `pdfas-reference`, nicht in den Paketen); die Amtssignatur zeigt ohne eigene Bildmarke den neutralen Platzhalter.
 
 ## 5. Offene Punkte
 

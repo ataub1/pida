@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 236 235" width="236" height="235">
+  <!-- Neutrale Platzhalter-Bildmarke der Amtssignatur (Entscheidung 20.10.2026, Backlog Nr. 10): ersetzt die
+       PDF-AS-Demo-Bildmarke mit Bundesadler und „BPD Wien“. Bewusst ohne Text und Hoheitszeichen: gestrichelter
+       Rahmen mit Bildsymbol – „hier gehört die Bildmarke der Behörde hin“. Gleiche Maße wie
+       amtsignatur-logo_demo.png (236 × 235), damit Blockmaße und Zeilenhöhen unverändert bleiben. -->
+  <title>Platzhalter für die Bildmarke der Behörde</title>
+  <rect x="10" y="10" width="216" height="215" rx="22" fill="#f4f5f7" stroke="#8a919c" stroke-width="6" stroke-dasharray="18 12"/>
+  <g fill="none" stroke="#8a919c" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="58" y="70" width="120" height="95" rx="10"/>
+    <path d="M66 155 L102 115 L126 138 L142 122 L170 155"/>
+  </g>
+  <circle cx="148" cy="96" r="11" fill="#8a919c"/>
+</svg>

@@ -29,9 +29,9 @@ import { defaultDocumentDetection } from '../../core/defaults';
 import type { DocumentView, StepView } from '../../core/types';
 import { AccessButton, Badge, Button, Keys, SwitchField, useModKey } from '../../ui/controls';
 import { useFitScale, useNarrow } from '../../ui/hooks';
-import { IconAlert, IconChevronDown, IconFileText, IconGrip, IconLock, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
+import { IconAlert, IconChevronDown, IconFileText, IconGrip, IconInfo, IconLock, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
-import { displayPages, overlapState, zoneText } from './placement';
+import { displayPages, overlapState, placeholderUncovered, zoneText } from './placement';
 import { ShareHint } from './ShareHint';
 import { SignerChip } from './SignerChip';
 import { signerChoice } from './signers';
@@ -180,6 +180,18 @@ export function Inspector({
               ) : null}
             </div>
           </div>
+          {/* Amtssignatur ohne eigene Bildmarke (Backlog Nr. 10): neutraler Platzhalter statt der Bildmarke der Behörde */}
+          {doc.block.emblem_placeholder ? (
+            <div className="callout callout-info" data-testid="emblem-placeholder-hint">
+              <IconInfo size={18} />
+              <div>
+                <p>{t.t('ng-ui-insp-emblem-placeholder')}</p>
+                <Button variant="secondary" size="sm" onPress={() => openSettings('signature')} isDisabled={!view.actions.settings}>
+                  {t.t('ng-ui-insp-emblem-placeholder-choose')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         {!warning ? (
@@ -305,6 +317,16 @@ export function Inspector({
                 {t.t('ng-ui-insp-overlap-fix')}
               </Button>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {/* QR-Platzhalter höher bzw. breiter als der Block (Backlog Nr. 32): Block bleibt PDF-AS-gleich, nur ein Hinweis */}
+      {placeholderUncovered(doc) && !warning ? (
+        <div className="callout callout-info inspector-warn" data-testid="qr-uncovered-hint">
+          <IconInfo size={18} />
+          <div>
+            <p>{t.t('ng-ui-insp-qr-uncovered')}</p>
           </div>
         </div>
       ) : null}

@@ -40,7 +40,8 @@
 //!
 //! | Thema | PDF-AS | hier |
 //! |---|---|---|
-//! | Standard-Bildmarke `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]`, `BASE_LOGO` | `signatur-logo_de/en.png` | PIDA-Siegel ([`assets::PIDA_SEAL`], ADR 0005; doppelte Pixelmaße, gleiches Seitenverhältnis ⇒ gleiche Blockmaße); [`ProfileStore::builtin_pdfas`] liefert die PDF-AS-Konfiguration unverändert (gilt auch mit `pdfas_quirks`) |
+//! | Standard-Bildmarke `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]`, `BASE_LOGO` | `signatur-logo_de/en.png` | PIDA-Siegel ([`assets::PIDA_SEAL`], ADR 0005; doppelte Pixelmaße, gleiches Seitenverhältnis ⇒ gleiche Blockmaße); `ProfileStore::builtin_pdfas` (Feature `pdfas-reference`) liefert die PDF-AS-Konfiguration unverändert (gilt auch mit `pdfas_quirks`) |
+//! | Standard-Bildmarke `AMTSSIGNATURBLOCK_*` | `amtsignatur-logo_demo.png` (Bundesadler, „BPD Wien“) | neutrale Platzhalter-Bildmarke ([`assets::AMTS_PLACEHOLDER`], Backlog Nr. 10; doppelte Pixelmaße ⇒ gleiche Blockmaße); die Demo-Bildmarke nur mit Feature `pdfas-reference` (`ProfileStore::builtin_pdfas`) |
 //! | `/TU` (Q10) | nur Texte der äußersten Tabelle (SMALL ohne Hinweis: leer) | alle Texte in Leserichtung |
 //! | Nicht darstellbare Zeichen (Q11) | `URLEncoder.encode` des ganzen Werts | Zeichen → `?`, gemeldet in [`Layout::replaced_chars`] |
 //! | `\n` am Wortende | Messfehler, Signatur bricht ab | wird als Umbruch behandelt |

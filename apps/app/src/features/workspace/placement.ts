@@ -246,12 +246,22 @@ export function announceText(t: Translator, doc: DocumentView, snapped: GuideKin
   else if (doc.target.kind === 'qr') parts.push(t.t('ng-ui-ws-announce-qr'));
   if (snapped.length > 0) parts.push(t.t('ng-ui-ws-announce-snap', { where: snapWord(t, snapped) }));
   const c = doc.check;
+  if (placeholderUncovered(doc)) parts.push(t.t('ng-ui-ws-announce-qr-uncovered'));
   if (c.for_revision === doc.revision && doc.target.kind === 'free') {
     if (c.overlaps_content === true) parts.push(t.t('ng-ui-ws-announce-overlap'));
     else if (c.overlaps_widget) parts.push(t.t('ng-ui-ws-announce-widget'));
     else if (c.overlaps_content === false) parts.push(t.t('ng-ui-ws-announce-free'));
   }
   return parts.join(' ');
+}
+
+/**
+ * Bedeckt der Block den QR-Platzhalter nicht ganz (Backlog Nr. 32)? Der Kern entscheidet
+ * (`check.placeholder_uncovered`); nur für die aktuelle Revision und sichtbare Signaturen.
+ */
+export function placeholderUncovered(doc: DocumentView): boolean {
+  const c = doc.check;
+  return !doc.invisible && doc.target.kind === 'qr' && c.for_revision === doc.revision && c.placeholder_uncovered === true;
 }
 
 /** Überdeckung gilt nur, wenn die Prüfung zur aktuellen Revision gehört (§4.3). */

@@ -146,6 +146,21 @@ jobs:
         with:
           name: notices-windows
           path: target/notices
+      # Lizenzgrundlage der statisch gelinkten MSVC-Laufzeit festhalten (Backlog Nr. 8): Visual-Studio-Version und
+      # MSVC-Toolsets des Runners, mit denen pida.exe gelinkt wird
+      - name: MSVC-Version (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vswhere="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+          vs="$("$vswhere" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)"
+          {
+            echo "### MSVC-Laufzeit (statisch gelinkt)"
+            echo '```'
+            "$vswhere" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property displayName
+            "$vswhere" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationVersion
+            ls "$(cygpath -u "$vs")/VC/Tools/MSVC" 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Release-Bundle (${{ matrix.bundles }}) mit PDFium
         working-directory: apps/app
         env:

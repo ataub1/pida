@@ -914,7 +914,12 @@ height: number,
 /**
  * Vorschau-Revision (Cache-Busting für `blockPreviewUrl`)
  */
-preview_revision: number, };
+preview_revision: number, 
+/**
+ * Profil Amtssignatur ohne eigene Bildmarke: der Block zeigt die neutrale Platzhalter-Bildmarke statt der
+ * Bildmarke der Behörde (Backlog Nr. 10) – die Oberfläche weist inline darauf hin. Additiv.
+ */
+emblem_placeholder: boolean, };
 
 /**
  * Backend-Option.
@@ -1913,7 +1918,13 @@ overlaps_widget: boolean,
 /**
  * vom Kern an die Seite geklemmt
  */
-clamped: boolean, };
+clamped: boolean, 
+/**
+ * Ziel QR-Platzhalter: der Block, der dort signiert wird (Breite KR-F14, Höhe aus dem Layout bei dieser
+ * Breite), bedeckt das Platzhalterbild nicht ganz – es schaut unten bzw. rechts hervor (Entscheidung
+ * 20.10.2026, Backlog Nr. 32: Block bleibt PDF-AS-gleich, die Oberfläche weist inline darauf hin). Additiv.
+ */
+placeholder_uncovered: boolean, };
 
 /**
  * PDF/A-Kennung eines Dokuments (XMP `pdfaid:part`, `pdfaid:conformance`).

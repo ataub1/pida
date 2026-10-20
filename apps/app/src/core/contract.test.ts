@@ -146,7 +146,7 @@ const documentView = obj({
   size_bytes: int,
   phase: lit('warning', 'editing', 'signing', 'done'),
   revision: int,
-  block: obj({ width: num, height: num, preview_revision: int }),
+  block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool }),
   placement: obj({ page_index: int, x: num, y: num, width: num, height: num }),
   origin: lit('auto', 'user', 'field', 'qr'),
   target: placementTarget,
@@ -175,7 +175,7 @@ const documentView = obj({
       guides: arr(obj({ axis: lit('x', 'y'), at: num, kind: guideKind })),
     }),
   ),
-  check: obj({ for_revision: int, overlaps_content: nullable(bool), overlaps_widget: bool, clamped: bool }),
+  check: obj({ for_revision: int, overlaps_content: nullable(bool), overlaps_widget: bool, clamped: bool, placeholder_uncovered: bool }),
   announce: record(str),
   // Nachtrag K3 (Einstellungen › Dokument): in TS optional, vom Kern immer geliefert
   detection: optional(
@@ -343,7 +343,7 @@ const stepView = tagged('step', {
   position: {
     doc: docInfo,
     page: int,
-    block: obj({ width: num, height: num, preview_revision: int }),
+    block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool }),
     placement: obj({ page_index: int, x: num, y: num, width: num, height: num }),
     new_page: bool,
     announce: record(str),

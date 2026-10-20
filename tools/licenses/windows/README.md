@@ -9,6 +9,7 @@ Bei einem Wechsel von Tauri-CLI, NSIS, WiX oder `webview2-com-sys` Version und T
 
 | Datei | Bestandteil | Version | Quelle (abgerufen 20.10.2026) |
 |---|---|---|---|
+| – (Text im Skript) | Microsoft-Visual-C++-Laufzeit (vcruntime), statisch in `pida.exe` (`build.windows.staticVCRuntime: true` in `tauri.conf.json`, Entscheidung 20.10.2026, Backlog Nr. 8) – Visual Studio „Distributable Code“ | Visual Studio Enterprise 2026 des Runners `windows-latest` (Version und MSVC-Toolset je Release im Schritt „MSVC-Version“ des Release-Workflows) | Lizenz: <https://visualstudio.microsoft.com/license-terms/>; Lizenzgrundlage auf den GitHub-Runnern: <https://github.com/actions/runner-images/issues/12945> |
 | `Microsoft.Web.WebView2-LICENSE.txt` | WebView2-SDK: `WebView2LoaderStatic.lib` (statisch in `pida.exe`) und die daraus erzeugten Bindings von `webview2-com-sys` 0.39.1 – BSD-3-Clause | 1.0.3800.47 | <https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.3800.47/License> (Text gleich wie bei 1.0.3650.58) |
 | `NSIS-COPYING.txt` | NSIS-Installerlaufzeit (exehead, Plugins, MUI2-Grafik) in Setup und Uninstaller – zlib/libpng, LZMA-Modul CPL-1.0 (vollständiger Text enthalten) | 3.13 | <https://github.com/kichik/nsis/blob/v313/COPYING> |
 | `NSIS-ModernUI2-License.txt` | NSIS Modern UI 2 (`MUI2.nsh`, `Pages/*.nsh`: Seiten und Dialoge von Setup und Uninstaller) – zlib/libpng-Variante, Vermerk bei jeder Weitergabe erhalten | 3.13 | <https://github.com/kichik/nsis/blob/v313/Contrib/Modern%20UI%202/License.txt> |

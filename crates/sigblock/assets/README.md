@@ -8,7 +8,9 @@
 | `cfg/config.properties`, `cfg/advancedconfig.properties` | Einstieg und Includes (`include.01 = profiles/*.properties`) | EUPL | inhaltlich nein (Zeilenenden LF) |
 | `cfg/profiles/*.properties` | 20 Profildateien (Basisprofile + die 12 PDF-Over-Profil-IDs) | EUPL | inhaltlich nein (Zeilenenden LF) |
 | `fonts/DejaVuSansMono.ttf`, `fonts/DejaVuSansCondensed-Bold.ttf`, `fonts/DejaVuSansCondensed.ttf` | Wertefont, PDF/A-Captionfont, PDF/A-Ersatz für Helvetica | Bitstream Vera / DejaVu (`licenses/DejaVu-LICENSE.txt`) | nein (Subsets entstehen erst beim Einbetten) |
-| `images/signatur-logo_de.png`, `images/signatur-logo_en.png` (326×342 px), `images/amtsignatur-logo_demo.png` (236×235 px) | Standard-Bildmarken | EUPL | nein |
+| `images/signatur-logo_de.png`, `images/signatur-logo_en.png` (326×342 px) | Standard-Bildmarken | EUPL | nein |
+| `images/amtsignatur-logo_demo.png` (236×235 px) | Demo-Bildmarke der Amtssignatur (Bundesadler, „Republik Österreich“, „BPD Bundespolizeidirektion Wien“) – **nicht ausgeliefert**, nur mit dem Feature `pdfas-reference` eingebettet (Golden-Abgleich mit PDF-AS, Tests; Entscheidung 20.10.2026, Backlog Nr. 10) | EUPL | nein |
+| `images/amtssignatur-platzhalter.png` (472×470 px, RGBA) | Neutrale Platzhalter-Bildmarke der Amtssignatur (gestrichelter Rahmen mit Bildsymbol, ohne Text) | **eigenes Werk des Projekts, EUPL-1.2** | – (erzeugt aus `design/brand/amtssignatur-platzhalter.svg` mit `design/brand/tools/amts-placeholder.mjs`) |
 | `licenses/Adobe-Core14-AFM-License.html` | Lizenzhinweis der Adobe Core 14 AFM Files | Adobe | nein |
 | `images/pida-seal.png` (652×684 px, RGBA) | PIDA-Siegel: Standard-Bildmarke von `SIGNATURBLOCK_SMALL_{DE,EN}[_NOTE][_PDFA]` und `BASE_LOGO` (ADR 0005) | **eigenes Werk des Projekts, EUPL-1.2** (kein PDF-AS-Bestandteil) | – (erzeugt aus `design/brand/pida-seal.svg` mit `design/brand/tools/build.mjs`) |
 
@@ -20,8 +22,10 @@ Die Profildateien bleiben inhaltlich gleich zu PDF-AS (17 der 22 Dateien in `cfg
 CRLF-Zeilenenden, hier LF; die Bildmarken sind byte-gleich). `ProfileStore::builtin()` setzt beim Laden für die
 acht kleinen Standardprofile und `BASE_LOGO` („nur Bildmarke“) `value.SIG_LABEL = ./images/pida-seal.png`
 (eigener Schlüssel des Profils, ersetzt den aus `BASE_NORMAL[_EN]` geerbten bzw. den eigenen Wert
-`signatur-logo_de.png` von `BASE_LOGO`); die Amtssignatur (`AMTSSIGNATURBLOCK_*`,
-`amtsignatur-logo_demo.png`) bleibt unverändert. Eine eigene Bildmarke (Einstellung, CLI `-e`,
+`signatur-logo_de.png` von `BASE_LOGO`); die Amtssignatur (`AMTSSIGNATURBLOCK_BASE[_EN]`, geerbt von
+`AMTSSIGNATURBLOCK_{DE,EN}_RECOMMENDED`) bekommt statt `amtsignatur-logo_demo.png` die neutrale Platzhalter-Bildmarke
+`./images/amtssignatur-platzhalter.png` (doppelte Pixelmaße, gleiches Seitenverhältnis ⇒ gleiche Blockmaße); der
+Arbeitsbereich weist dann darauf hin, die Bildmarke der Behörde zu wählen. Eine eigene Bildmarke (Einstellung, CLI `-e`,
 PDF-Over-Overlay) geht weiterhin vor. `ProfileStore::builtin_pdfas()` liefert die
 Konfiguration ohne diese Vorgabe (Golden-Abgleich mit PDF-AS); eigene Konfigurationsordner
 (`ProfileStore::load_dir`) verwenden ihre eigenen Bildmarken.

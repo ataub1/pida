@@ -26,7 +26,14 @@ jiff = { workspace = true }
 # SHA-256 der Bildmarke (Cache-Schlüssel `Emblem::source_sha256`)
 sha2 = { workspace = true }
 
+[features]
+# Demo-Bildmarke der Amtssignatur aus PDF-AS und `ProfileStore::builtin_pdfas` – nur für den Abgleich mit PDF-AS
+# (Golden-Tests); die Pakete liefern sie nicht aus (Backlog Nr. 10)
+pdfas-reference = []
+
 [dev-dependencies]
+# eigene Integrationstests (tests/) mit der PDF-AS-Referenz
+pida-sigblock = { path = ".", features = ["pdfas-reference"] }
 time = { workspace = true }
 tempfile = { workspace = true }
 # Pixelvergleich (tests/render.rs, nur mit PIDA_PDFIUM_DIR)

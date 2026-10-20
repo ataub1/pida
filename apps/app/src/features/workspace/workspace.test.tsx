@@ -156,7 +156,7 @@ describe('Sticker und Seiten', () => {
       revision: 2,
       placement: { page_index: 2, x: 309, y: 322, width: 230, height: 82 },
       sticker: { left: 309, right: 539, top: 322, bottom: 240 },
-      check: { for_revision: 2, overlaps_content: false, overlaps_widget: false, clamped: false },
+      check: { for_revision: 2, overlaps_content: false, overlaps_widget: false, clamped: false, placeholder_uncovered: false },
       announce: { page: '3', pages: '3', left: '109', top: '114', bottom: '85' },
     });
     act(() => mock.setView(workspaceView(next)));
@@ -165,7 +165,7 @@ describe('Sticker und Seiten', () => {
 });
 
 describe('Überdeckung, Felder, Optionen', () => {
-  const overlap = (extra: Partial<DocumentView> = {}) => documentView({ check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false }, ...extra });
+  const overlap = (extra: Partial<DocumentView> = {}) => documentView({ check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false, placeholder_uncovered: false }, ...extra });
 
   it('Überdeckung: Rahmen und Warnung direkt über „Signieren“ mit „Freie Fläche suchen“ → auto_place', async () => {
     const { mock, user } = renderApp({ view: workspaceView(overlap()) });
@@ -347,6 +347,40 @@ describe('Überdeckung, Felder, Optionen', () => {
     renderApp({ view: workspaceView(doc) });
     expect(await screen.findByText('Positioniert im QR-Code-Platzhalter des Dokuments.')).toBeInTheDocument();
     expect(screen.getByText('Im QR-Code-Platzhalter')).toBeInTheDocument();
+  });
+
+  it('Amtssignatur ohne eigene Bildmarke (Backlog Nr. 10): Hinweis unter der Vorschau, „Bildmarke wählen“ öffnet die Einstellungen', async () => {
+    const base = documentView();
+    const { mock, user } = renderApp({ view: workspaceView({ ...base, block: { ...base.block, emblem_placeholder: true } }) });
+    const hint = await screen.findByTestId('emblem-placeholder-hint');
+    expect(hint).toHaveTextContent('Für die Amtssignatur fehlt die Bildmarke Ihrer Behörde – der Signaturblock zeigt einen Platzhalter.');
+    await expectNoAxeViolations();
+    await user.click(within(hint).getByRole('button', { name: 'Bildmarke wählen' }));
+    expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
+  });
+
+  it('ohne Platzhalter-Bildmarke kein Hinweis', async () => {
+    renderApp({ view: workspaceView(documentView()) });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.queryByTestId('emblem-placeholder-hint')).not.toBeInTheDocument();
+  });
+
+  it('QR-Platzhalter nicht ganz bedeckt (Backlog Nr. 32): Inline-Hinweis und Ansage, nur zur aktuellen Revision und sichtbar', async () => {
+    const qr = { page: 2, id: '1', rect: { left: 309, right: 539, top: 300, bottom: 118 } };
+    const base = documentView({ target: { kind: 'qr' }, origin: 'qr', qr });
+    const check = { ...base.check, for_revision: base.revision, placeholder_uncovered: true };
+    // veraltete Prüfung (andere Revision): noch kein Hinweis
+    const { mock } = renderApp({ view: workspaceView({ ...base, check: { ...check, for_revision: base.revision - 1 } }) });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    expect(screen.queryByTestId('qr-uncovered-hint')).not.toBeInTheDocument();
+    act(() => mock.setView(workspaceView({ ...base, check })));
+    expect(await screen.findByTestId('qr-uncovered-hint')).toHaveTextContent(
+      'Der Signaturblock bedeckt den QR-Platzhalter nicht ganz – ein Teil des Platzhalterbilds bleibt sichtbar.',
+    );
+    await waitFor(() => expect(screen.getByTestId('live-region')).toHaveTextContent('Der QR-Platzhalter wird nicht ganz bedeckt.'));
+    await expectNoAxeViolations();
+    act(() => mock.setView(workspaceView({ ...base, invisible: true, check })));
+    await waitFor(() => expect(screen.queryByTestId('qr-uncovered-hint')).not.toBeInTheDocument());
   });
 
   it('Optionen: „Unsichtbar“ als Schalter (set_invisible), „Auf neuer Seite“ (toggle_new_page)', async () => {
@@ -554,7 +588,7 @@ describe('Seitenansicht, Zoom und Barrierefreiheit', () => {
       revision: 2,
       placement: { page_index: 2, x: 309, y: 322, width: 230, height: 82 },
       sticker: { left: 309, right: 539, top: 322, bottom: 240 },
-      check: { for_revision: 2, overlaps_content: false, overlaps_widget: false, clamped: false },
+      check: { for_revision: 2, overlaps_content: false, overlaps_widget: false, clamped: false, placeholder_uncovered: false },
       announce: { page: '3', pages: '3', left: '109', top: '114', bottom: '85' },
     });
     act(() => mock.setView(workspaceView(moved)));
@@ -581,7 +615,7 @@ describe('Seitenansicht, Zoom und Barrierefreiheit', () => {
   it('axe: Arbeitsbereich, Felder, Überdeckung, Englisch', async () => {
     const doc = documentView({
       fields: [fieldTarget({ index: 0, name: 'Feld', page: 1, rect: { left: 300, right: 540, top: 200, bottom: 114 }, selectable: true })],
-      check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false },
+      check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false, placeholder_uncovered: false },
     });
     const { unmount } = renderApp({ view: workspaceView(doc) });
     await screen.findByRole('application', { name: 'Signaturblock' });
@@ -770,7 +804,7 @@ describe('Automatische Positionierung (Einstellung, ADR 0004 Nachtrag 8)', () =>
   });
 
   it('Überdeckung bei gesperrtem Block: „Diesmal selbst platzieren“ statt „Freie Fläche suchen“', async () => {
-    const doc = lockedDoc({ check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false } });
+    const doc = lockedDoc({ check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false, placeholder_uncovered: false } });
     const { mock, user } = renderApp({ view: workspaceView(doc) });
     await screen.findByRole('application', { name: 'Signaturblock' });
     const warn = screen.getByTestId('overlap-warning');

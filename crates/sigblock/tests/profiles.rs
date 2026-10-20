@@ -102,7 +102,12 @@ fn amts_and_logo_and_invisible() {
         let st = main.style.as_ref().unwrap();
         assert_eq!(st.halign, Some(HAlign::Center));
         assert_eq!(st.font, Some(FontSpec::Standard { face: Std14::HelveticaBold, size: 8.0 }));
-        assert_eq!(p.values["SIG_LABEL"], "./images/amtsignatur-logo_demo.png");
+        // statt der Demo-Bildmarke der Behörde (PDF-AS) die neutrale Platzhalter-Bildmarke (Backlog Nr. 10)
+        assert_eq!(p.values["SIG_LABEL"], pida_sigblock::assets::AMTS_PLACEHOLDER);
+        assert_eq!(
+            ProfileStore::builtin_pdfas().unwrap().get(id).unwrap().values["SIG_LABEL"],
+            "./images/amtsignatur-logo_demo.png"
+        );
         let subj = &p.captions["SIG_SUBJECT"];
         assert!(subj.contains('\n'), "echter Zeilenumbruch in der Caption: {subj:?}");
     }

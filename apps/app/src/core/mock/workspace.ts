@@ -1101,7 +1101,7 @@ export function pageLayout(doc: MockDoc, page: number, block: { width: number; h
 function check(doc: MockDoc, edit: EditState, sticker: RectPt | null, block: { width: number; height: number }): PlacementCheckView {
   const page = edit.placement?.page_index ?? 0;
   const known = edit.ready.includes(page) && page < doc.spec.pages.length;
-  if (!sticker || edit.invisible) return { for_revision: edit.revision, overlaps_content: known ? false : null, overlaps_widget: false, clamped: edit.clamped };
+  if (!sticker || edit.invisible) return { for_revision: edit.revision, overlaps_content: known ? false : null, overlaps_widget: false, clamped: edit.clamped, placeholder_uncovered: false };
   const [, ph] = pageSize(doc, page);
   const targetRect =
     edit.target.kind === 'field'
@@ -1118,7 +1118,7 @@ function check(doc: MockDoc, edit: EditState, sticker: RectPt | null, block: { w
     .map((f) => toRectPt(f.rect, ph))
     .filter((r) => fieldFit(r, block, pageSize(doc, page)).suitable)
     .concat(doc.spec.existing.filter((e) => e.page === page && e.rect).map((e) => toRectPt(e.rect as Rect, ph)));
-  return { for_revision: edit.revision, overlaps_content: overlapsContent, overlaps_widget: widgets.some((r) => intersects(sticker, r)), clamped: edit.clamped };
+  return { for_revision: edit.revision, overlaps_content: overlapsContent, overlaps_widget: widgets.some((r) => intersects(sticker, r)), clamped: edit.clamped, placeholder_uncovered: false };
 }
 
 function mm(pt: number): string {
@@ -1129,10 +1129,16 @@ export function docInfo(doc: MockDoc): DocInfo {
   return { id: doc.id, name: doc.name, page_count: doc.spec.pages.length, page_sizes: doc.spec.pages.map((p) => [p.w, p.h] as [number, number]), signed: doc.signed };
 }
 
+/** Amtssignatur ohne eigene Bildmarke? (wie `CoreTask::emblem_placeholder`) */
+export function emblemPlaceholder(settings: Settings): boolean {
+  return settings.signature.profile === 'AMTSSIGNATURBLOCK' && !settings.signature.emblem;
+}
+
 /** Projektion des aktuellen Dokuments (`ViewState::document`). */
 export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPhase, settings: Settings, lang: Lang, previewRevision: number): DocumentView {
   const size = blockSize(settings, lang);
-  const block: BlockView = { width: size.width, height: size.height, preview_revision: previewRevision };
+  // Amtssignatur ohne eigene Bildmarke: neutrale Platzhalter-Bildmarke (wie `emblem_placeholder` im Kern, Backlog Nr. 10)
+  const block: BlockView = { width: size.width, height: size.height, preview_revision: previewRevision, emblem_placeholder: emblemPlaceholder(settings) && !edit.invisible };
   const p = edit.placement;
   let sticker: RectPt | null = null;
   if (p && !edit.invisible) {

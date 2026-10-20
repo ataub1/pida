@@ -8,7 +8,10 @@
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "npm run build",
+    "windows": {
+      "staticVCRuntime": true
+    }
   },
   "app": {
     "withGlobalTauri": false,

@@ -200,6 +200,7 @@ ng-ui-ws-announce-widget = Warning: covers a form field.
 ng-ui-ws-announce-free = Free area.
 ng-ui-ws-announce-field = In signature field “{ $name }”.
 ng-ui-ws-announce-qr = In the QR code placeholder.
+ng-ui-ws-announce-qr-uncovered = The QR placeholder is not fully covered.
 ng-ui-ws-announce-invisible = Invisible signature, no signature block.
 ng-ui-ws-snap-left = left margin
 ng-ui-ws-snap-right = right margin
@@ -280,6 +281,9 @@ ng-ui-insp-status-unknown = cannot be checked
 ng-ui-insp-overlap = The signature block covers page content.
 ng-ui-insp-overlap-widget = The signature block covers a form or signature field.
 ng-ui-insp-overlap-fix = Find free space
+ng-ui-insp-qr-uncovered = The signature block does not fully cover the QR placeholder – part of the placeholder image remains visible.
+ng-ui-insp-emblem-placeholder = The official signature has no emblem of your authority yet – the signature block shows a placeholder.
+ng-ui-insp-emblem-placeholder-choose = Choose emblem
 # Sharing hint on iOS (core: `ViewState::share_hint`, ADR 0004 addendum 12)
 ng-ui-ws-share-hint = Shared several PDFs? iOS only passes on the first one. For a batch, choose the others with “Add more PDFs …” – you can select several there.
 ng-ui-ws-share-hint-dismiss = Hide hint

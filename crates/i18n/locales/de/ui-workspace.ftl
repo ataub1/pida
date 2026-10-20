@@ -200,6 +200,7 @@ ng-ui-ws-announce-widget = Achtung: überdeckt ein Formularfeld.
 ng-ui-ws-announce-free = Freie Fläche.
 ng-ui-ws-announce-field = Im Signaturfeld „{ $name }“.
 ng-ui-ws-announce-qr = Im QR-Code-Platzhalter.
+ng-ui-ws-announce-qr-uncovered = Der QR-Platzhalter wird nicht ganz bedeckt.
 ng-ui-ws-announce-invisible = Unsichtbare Signatur, kein Signaturbild.
 ng-ui-ws-snap-left = linker Rand
 ng-ui-ws-snap-right = rechter Rand
@@ -280,6 +281,9 @@ ng-ui-insp-status-unknown = nicht prüfbar
 ng-ui-insp-overlap = Der Signaturblock überdeckt Inhalt der Seite.
 ng-ui-insp-overlap-widget = Der Signaturblock überdeckt ein Formular- oder Signaturfeld.
 ng-ui-insp-overlap-fix = Freie Fläche suchen
+ng-ui-insp-qr-uncovered = Der Signaturblock bedeckt den QR-Platzhalter nicht ganz – ein Teil des Platzhalterbilds bleibt sichtbar.
+ng-ui-insp-emblem-placeholder = Für die Amtssignatur fehlt die Bildmarke Ihrer Behörde – der Signaturblock zeigt einen Platzhalter.
+ng-ui-insp-emblem-placeholder-choose = Bildmarke wählen
 # Hinweis zum Teilen auf iOS (Kern: `ViewState::share_hint`, ADR 0004 Nachtrag 12)
 ng-ui-ws-share-hint = Mehrere PDFs geteilt? iOS übergibt beim Teilen nur das erste. Für einen Stapel wählen Sie die übrigen über „Weitere PDFs hinzufügen …“ – dort ist Mehrfachauswahl möglich.
 ng-ui-ws-share-hint-dismiss = Hinweis ausblenden
