@@ -207,6 +207,7 @@ pida-cli sign ./rechnungen -b KS -ks zertifikat.p12 --kspass-env PIDA_KSPASS -a 
 pida-cli verify vertrag_signed.pdf              # Selbstprüfung (ohne Vertrauenskette und Sperrstatus)
 pida-cli profiles                               # Signaturprofile auflisten
 pida-cli migrate --dry-run                      # Übernahme der PDF-Over-Einstellungen nur anzeigen
+pida-cli licenses -o ./lizenzen                 # EUPL-Lizenztext und Drittlizenz-Hinweise als Dateien
 pida-cli --help                                 # alle Optionen und Exit-Codes
 ```
 

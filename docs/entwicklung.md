@@ -373,9 +373,14 @@ Release-Builds:
 ```sh
 PIDA_RELEASE_REMAP=1 source tools/env.sh   # CARGO_ENCODED_RUSTFLAGS mit --remap-path-prefix für
                                            # $CARGO_HOME/registry, $CARGO_HOME/git, $RUSTUP_HOME, Repository
-cargo build --release --locked -p pida-cli
+tools/third-party-notices.sh                # target/notices: Drittlizenz-Hinweise für `pida-cli licenses`
+PIDA_REQUIRE_NOTICES=1 cargo build --release --locked -p pida-cli
 strings -a target/release/pida-cli | grep -c "$HOME"   # 0
 ```
+
+`PIDA_REQUIRE_NOTICES=1` lässt den Build abbrechen, wenn die Hinweise fehlen (`apps/cli/build.rs` bettet
+`THIRD-PARTY-NOTICES.md` und `RUST-STD-COPYRIGHT.html` aus `$PIDA_NOTICES_DIR` bzw. `target/notices` komprimiert
+ein). Ohne die Variable entsteht ein Entwicklungs-Build, dessen `pida-cli licenses` nur den EUPL-Text ausgibt.
 
 Nachweis 17.10.2026 (macOS arm64): `pida-cli` 0.2.0 enthielt 708 Fundstellen von `/Users/`, mit
 `PIDA_RELEASE_REMAP=1` 0 (die Orte heißen `/cargo/registry/src/index.crates.io-…/tokio-1.53.3/src/…`); die

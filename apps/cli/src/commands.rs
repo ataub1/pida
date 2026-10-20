@@ -1,4 +1,4 @@
-//! Subcommands `profiles`, `verify`, `migrate`, `render-block` (Plan §7.4).
+//! Subcommands `profiles`, `verify`, `migrate`, `render-block`, `licenses` (Plan §7.4).
 
 use std::path::{Path, PathBuf};
 
@@ -164,6 +164,63 @@ pub fn migrate(
             Some(p) => term.out(&tr(lang, "ng-cli-written", &[("path", p.display().to_string())])),
             None => term.out(&tr(lang, "ng-cli-migrate-dry-run", &[])),
         }
+    }
+    ExitCode::Success
+}
+
+/// EUPL-1.2-Text des Werks (Art. 5: jeder Kopie beilegen).
+const EUPL: &str = include_str!("../../../LICENSE");
+
+/// Drittlizenz-Hinweise (Dateiname, mit Deflate gepackter Inhalt aus `build.rs`; leer = nicht eingebettet).
+const NOTICES: [(&str, &[u8]); 2] = [
+    ("THIRD-PARTY-NOTICES.md", include_bytes!(concat!(env!("OUT_DIR"), "/THIRD-PARTY-NOTICES.md.deflate"))),
+    ("RUST-STD-COPYRIGHT.html", include_bytes!(concat!(env!("OUT_DIR"), "/RUST-STD-COPYRIGHT.html.deflate"))),
+];
+
+/// Eingebettete Datei entpacken (`None`, wenn der Build ohne Hinweise lief).
+fn notice(packed: &[u8]) -> Option<Vec<u8>> {
+    if packed.is_empty() {
+        return None;
+    }
+    let mut out = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::DeflateDecoder::new(packed), &mut out).ok()?;
+    Some(out)
+}
+
+/// `licenses [-o <ordner>]` (Lizenzbericht Befunde 3, 4): ohne `-o` den EUPL-1.2-Text und die Drittlizenz-Hinweise auf
+/// stdout (die HTML-Hinweise der Rust-Standardbibliothek nur mit `-o`), mit `-o` `LICENSE.txt`,
+/// `THIRD-PARTY-NOTICES.md` und `RUST-STD-COPYRIGHT.html` in den Ordner schreiben – wie in den Desktop-Paketen.
+pub fn licenses(term: &dyn Terminal, lang: Lang, output: Option<&Path>) -> ExitCode {
+    let notices: Vec<(&str, Option<Vec<u8>>)> = NOTICES.iter().map(|(name, packed)| (*name, notice(packed))).collect();
+    let embedded = notices.iter().all(|(_, data)| data.is_some());
+    let Some(dir) = output else {
+        term.out(EUPL.trim_end());
+        match &notices[0].1 {
+            Some(md) => {
+                term.out("");
+                term.out(String::from_utf8_lossy(md).trim_end());
+                term.info(&tr(lang, "ng-cli-licenses-rust-std", &[]));
+            }
+            None => term.info(&tr(lang, "ng-cli-licenses-missing", &[])),
+        }
+        return ExitCode::Success;
+    };
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        term.info(&tr(lang, "output-save_failed", &[("arg1", dir.display().to_string()), ("arg2", e.to_string())]));
+        return ExitCode::Write;
+    }
+    let mut files: Vec<(&str, Vec<u8>)> = vec![("LICENSE.txt", EUPL.as_bytes().to_vec())];
+    files.extend(notices.into_iter().filter_map(|(name, data)| data.map(|d| (name, d))));
+    for (name, data) in files {
+        let path = dir.join(name);
+        if let Err(e) = std::fs::write(&path, data) {
+            term.info(&tr(lang, "output-save_failed", &[("arg1", path.display().to_string()), ("arg2", e.to_string())]));
+            return ExitCode::Write;
+        }
+        term.out(&tr(lang, "ng-cli-written", &[("path", path.display().to_string())]));
+    }
+    if !embedded {
+        term.info(&tr(lang, "ng-cli-licenses-missing", &[]));
     }
     ExitCode::Success
 }

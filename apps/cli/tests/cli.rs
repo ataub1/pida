@@ -136,6 +136,37 @@ fn profiles_text_and_json() {
     assert_eq!(v.as_array().unwrap().len(), 12);
 }
 
+/// `licenses` (Lizenzbericht Befunde 3, 4): EUPL-Text auf stdout, mit `-o` als Dateien; die Drittlizenz-Hinweise nur,
+/// wenn der Build sie eingebettet hat (`build.rs`, Release mit `PIDA_REQUIRE_NOTICES=1`), sonst ein Hinweis auf stderr.
+#[test]
+fn licenses_text_and_files() {
+    let eupl = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE")).unwrap();
+    let h = Home::new();
+    let o = h.cmd(DE, &["licenses"]);
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    let out = stdout(&o);
+    assert!(out.starts_with(eupl.trim_end()), "EUPL-Text zuerst");
+    let embedded = out.contains("# THIRD-PARTY-NOTICES – PIDA");
+    if embedded {
+        assert!(out.contains("## Übernommene EUPL-Bestandteile"), "Herkunft des PDF-AS-Materials");
+        assert!(stderr(&o).contains("RUST-STD-COPYRIGHT.html"), "{}", stderr(&o));
+    } else {
+        assert!(stderr(&o).contains("keine Drittlizenz-Hinweise"), "{}", stderr(&o));
+    }
+
+    let dir = h.path().join("lizenzen");
+    let o = h.cmd(EN, &["licenses", "-o", dir.to_str().unwrap()]);
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    assert_eq!(std::fs::read_to_string(dir.join("LICENSE.txt")).unwrap(), eupl);
+    for name in ["THIRD-PARTY-NOTICES.md", "RUST-STD-COPYRIGHT.html"] {
+        assert_eq!(dir.join(name).is_file(), embedded, "{name}");
+    }
+    assert_eq!(stdout(&o).lines().filter(|l| l.starts_with("written: ")).count(), if embedded { 3 } else { 1 });
+    if !embedded {
+        assert!(stderr(&o).contains("no third-party notices"), "{}", stderr(&o));
+    }
+}
+
 fn tool(name: &str) -> bool {
     Command::new(name).arg("--version").output().is_ok_and(|o| o.status.success())
 }

@@ -16,7 +16,9 @@
 //   Lizenzen für Daten und Werkzeuge (CC0, CC-BY, 0BSD, BlueOak, Python-2.0 …). Copyleft (GPL,
 //   AGPL, LGPL, SSPL, EUPL fremder Pakete …) bricht auch hier ab.
 // - Was der Bundler in die App übernimmt (auch Framework-Laufzeit), gehört in `dependencies`,
-//   nicht in `devDependencies` – sonst fehlt es in den Hinweisen.
+//   nicht in `devDependencies` – sonst fehlt es in den Hinweisen. Ausnahme: Code, den ein
+//   Build-Werkzeug selbst erzeugt (`BUNDLED_TOOL_CODE`, z. B. Preload-Helfer von vite); diese
+//   Werkzeuge brauchen eine Laufzeit-Lizenz und stehen in den Hinweisen in einem eigenen Abschnitt.
 // - Eigene Workspace-Pakete (Lockfile-Einträge außerhalb von `node_modules/`) sind kein
 //   Drittcode und werden übersprungen.
 // Ohne Abhängigkeiten außer Node ≥ 18.
@@ -42,6 +44,33 @@ const RUNTIME_EXCEPTIONS = new Map([
   // gemeinfrei-nah (keine Bedingungen, nicht einmal Namensnennung) – permissiver als MIT.
   ["tslib", new Set(["0BSD"])],
 ]);
+
+// Build-Werkzeuge (devDependencies), die eigenen Laufzeitcode ins App-Bundle schreiben (Lizenzbericht Befund 10). Ihre
+// Lizenz muss für die Laufzeit zulässig sein; die Hinweise nennen ihren Text in einem eigenen Abschnitt. `cut` kürzt
+// den Lizenztext vor einer Überschrift (vite: Lizenzen der in vite selbst gebündelten Pakete – die laufen nur beim
+// Bauen), `extra` sind weitere Dateien des Pakets (rolldown: Herkunft der Laufzeit-Helfer aus rollup und esbuild).
+// Neue Einträge nur per Review.
+const BUNDLED_TOOL_CODE = [
+  { name: "vite", parts: "modulepreload-polyfill, preload-helper", cut: /^#\s*Licenses of bundled dependencies/m },
+  { name: "rolldown", parts: "runtime", extra: ["THIRD-PARTY-LICENSE"] },
+];
+
+/** Lockfile-Einträge der Werkzeuge aus `BUNDLED_TOOL_CODE` (oberste Ebene von node_modules) und ihre Befunde. */
+function bundledTools(pkgs, tools = BUNDLED_TOOL_CODE) {
+  const found = [];
+  const problems = [];
+  for (const tool of tools) {
+    const pkg = pkgs.find((p) => p.key === `node_modules/${tool.name}`);
+    if (!pkg) {
+      problems.push(`${tool.name} (Build-Werkzeug mit Laufzeitcode): nicht im Lockfile – BUNDLED_TOOL_CODE prüfen`);
+    } else if (!licenseOk(pkg.license, ALLOW_RUNTIME)) {
+      problems.push(`${pkg.name}@${pkg.version} (Build-Werkzeug mit Laufzeitcode): ${pkg.license ?? "keine Lizenzangabe"}`);
+    } else {
+      found.push({ tool, pkg });
+    }
+  }
+  return { found, problems };
+}
 
 function usage(code) {
   console.error("Aufruf: node tools/npm-licenses.mjs <package-lock.json> [--notices <datei.md>]");
@@ -146,6 +175,12 @@ function licenseFiles(dir) {
   }
 }
 
+/** Lizenztext vor der Überschrift `cut` abschneiden (ohne `cut` unverändert), ohne Leerraum am Ende. */
+function cutText(text, cut) {
+  const m = cut ? cut.exec(text) : null;
+  return (m ? text.slice(0, m.index) : text).replace(/\s+$/, "");
+}
+
 function checkPackages(pkgs) {
   const problems = [];
   for (const p of pkgs) {
@@ -201,6 +236,8 @@ function selfTest() {
         "node_modules/legacy": { version: "0.1.0", licenses: [{ type: "MIT" }, { type: "Apache-2.0" }] },
         "node_modules/tslib": { version: "2.8.1", license: "0BSD" },
         "node_modules/other-0bsd": { version: "1.0.0", license: "0BSD" },
+        "node_modules/tool-mit": { version: "3.0.0", license: "MIT", dev: true },
+        "node_modules/tool-cc": { version: "1.0.0", license: "CC-BY-4.0", dev: true },
       },
     };
     const lockPath = path.join(dir, "package-lock.json");
@@ -212,6 +249,11 @@ function selfTest() {
     expect("Name verschachtelter Pakete", pkgs.some((p) => p.name === "nested-gpl"), true);
     const problems = checkPackages(pkgs).map((p) => p.split("@")[0]).sort().join(",");
     expect("Befunde", problems, "nested-gpl,optional-cc,other-0bsd");
+    // Build-Werkzeuge mit Laufzeitcode: Laufzeit-Lizenz verlangt, fehlender Eintrag ist ein Befund
+    const tools = bundledTools(pkgs, [{ name: "tool-mit" }, { name: "tool-cc" }, { name: "tool-missing" }]);
+    expect("Werkzeug mit MIT gefunden", tools.found.map((t) => t.pkg.name).join(","), "tool-mit");
+    expect("Werkzeug-Befunde", tools.problems.map((p) => p.split(/[@ ]/)[0]).join(","), "tool-cc,tool-missing");
+    expect("vite-Lizenz gekürzt", cutText("A\n\n# Licenses of bundled dependencies\nB", BUNDLED_TOOL_CODE[0].cut), "A");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -244,7 +286,8 @@ function main() {
   if (!lockPath) usage(2);
 
   const pkgs = readPackages(lockPath);
-  const problems = checkPackages(pkgs);
+  const tools = bundledTools(pkgs);
+  const problems = [...checkPackages(pkgs), ...tools.problems];
   const runtime = pkgs.filter((p) => !p.dev);
   console.error(`npm-licenses: ${pkgs.length} Pakete, davon ${runtime.length} zur Laufzeit`);
 
@@ -286,6 +329,26 @@ function main() {
       }
       for (const f of files) {
         lines.push("~~~~text", fs.readFileSync(f, "utf8").replace(/\s+$/, ""), "~~~~", "");
+      }
+    }
+    if (tools.found.length > 0) {
+      lines.push("### Von Build-Werkzeugen erzeugter Code (code generated by build tools)", "");
+      lines.push(
+        "Diese Werkzeuge laufen nur beim Bauen, schreiben aber eigenen Hilfscode in das Bundle der Oberfläche.",
+        "These tools only run at build time but write their own helper code into the UI bundle.",
+        "",
+      );
+      for (const { tool, pkg } of tools.found) {
+        lines.push(`#### ${pkg.name} ${pkg.version} – ${pkg.license} (${tool.parts})`, "");
+        const dir = path.resolve(root, pkg.key);
+        const files = [...licenseFiles(dir), ...(tool.extra ?? []).map((f) => path.join(dir, f)).filter((f) => fs.existsSync(f))];
+        if (files.length === 0) {
+          withoutText += 1;
+          lines.push("_(Lizenztext nicht installiert – `npm ci` ausführen)_", "");
+        }
+        for (const f of files) {
+          lines.push("~~~~text", cutText(fs.readFileSync(f, "utf8"), tool.cut), "~~~~", "");
+        }
       }
     }
     fs.writeFileSync(noticesOut, lines.join("\n") + "\n");

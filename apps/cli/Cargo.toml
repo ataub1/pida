@@ -31,6 +31,7 @@ run = [
     "dep:tracing-subscriber",
     "dep:serde_json",
     "dep:rpassword",
+    "dep:flate2",
 ]
 
 [dependencies]
@@ -49,6 +50,11 @@ tracing-subscriber = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 # Verdeckte Eingabe von Passwort/TAN im Terminal (Unix: termios, Windows: Console-API). Apache-2.0.
 rpassword = { workspace = true, optional = true }
+# Entpacken der eingebetteten Drittlizenz-Hinweise (`pida-cli licenses`, build.rs)
+flate2 = { workspace = true, optional = true }
+
+[build-dependencies]
+flate2 = { workspace = true }
 
 [dev-dependencies]
 async-trait = { workspace = true }

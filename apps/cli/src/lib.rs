@@ -64,7 +64,7 @@ pub const MODERN_WITH_VALUE: [&str; 2] = ["--kspass-env", "--log-level"];
 pub const MODERN_FLAGS: [&str; 5] = ["--headless", "--json", "--kspass-stdin", "--help", "--version"];
 
 /// Subcommands.
-pub const SUBCOMMANDS: [&str; 5] = ["sign", "verify", "profiles", "migrate", "render-block"];
+pub const SUBCOMMANDS: [&str; 6] = ["sign", "verify", "profiles", "migrate", "render-block", "licenses"];
 
 /// Optionen der Subcommands mit Wert (`migrate --from`, `render-block --profile`).
 pub const SUBCOMMAND_WITH_VALUE: [&str; 2] = ["--from", "--profile"];
@@ -225,6 +225,8 @@ pub enum Command {
         #[arg(long = "dry-run")]
         dry_run: bool,
     },
+    /// EUPL-1.2-Text und Drittlizenz-Hinweise ausgeben (mit `-o <ordner>` als Dateien)
+    Licenses,
     /// Signaturblock als PDF/PNG rendern
     RenderBlock {
         /// Profil-ID
@@ -392,6 +394,7 @@ pub fn run_with(config_file: Option<PathBuf>, cli: Cli, env: session::RunEnv) ->
         Some(Command::Migrate { from, dry_run }) => {
             commands::migrate(env.term.as_ref(), lang, from.clone(), *dry_run, env.paths.clone(), json)
         }
+        Some(Command::Licenses) => commands::licenses(env.term.as_ref(), lang, cli.legacy.output.as_deref()),
         Some(Command::Sign { .. }) | None => session::sign(config_file, &cli, env),
     }
 }
@@ -453,6 +456,10 @@ mod tests {
         assert_eq!(cli.command, Some(Command::Sign { inputs: vec![PathBuf::from("a.pdf"), PathBuf::from("b.pdf")] }));
         assert!(cli.modern.headless);
         assert_eq!(cli.legacy.keystore, Some(PathBuf::from("k.p12")));
+        // `licenses -o <ordner>`: Zielordner über das PDF-Over-Argument -o
+        let cli = p(&["licenses", "-o", "lizenzen"]);
+        assert_eq!(cli.command, Some(Command::Licenses));
+        assert_eq!(cli.legacy.output, Some(PathBuf::from("lizenzen")));
     }
 
     #[test]

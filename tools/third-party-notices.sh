@@ -8,6 +8,8 @@
 #   tools/third-party-notices.sh --pdfium win-x64      # PDFium-Lizenzen dieser Plattform
 #
 # Inhalt (in dieser Reihenfolge):
+#   0. Übernommene EUPL-Bestandteile: PDF-AS-4-Konfiguration und -Bildmarken (© EGIZ, EUPL-1.1+),
+#      Herkunft der PDF-Over-Textkataloge (© A-SIT)
 #   1. PDFium (BSD-3-Clause) samt Lizenzen der mitgebauten Bibliotheken aus dem PDFium-Paket
 #      (FreeType, ICU, libjpeg-turbo, lcms, OpenJPEG, zlib …; tools/fetch-pdfium.sh lädt es bei Bedarf)
 #   2. Schriften und Metriken aus crates/sigblock/assets/licenses (DejaVu/Bitstream Vera, Adobe AFM)
@@ -34,7 +36,7 @@ while [ $# -gt 0 ]; do
       fi
       if [ "$1" = --out ]; then OUT="$2"; else PDFIUM_PLATFORM="$2"; fi
       shift ;;
-    -h | --help) sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "third-party-notices: unbekanntes Argument $1" >&2; exit 2 ;;
   esac
   shift
@@ -67,6 +69,46 @@ except UnicodeDecodeError:
 sys.stdout.write(text.replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n")
 ' "$1"
 }
+
+# --- 0. Übernommene EUPL-Bestandteile --------------------------------------------------------------
+# EUPL Art. 5: Urheber- und Lizenzhinweise des übernommenen PDF-AS-Materials erhalten (Vermerk aus dem Kopf der
+# PDF-AS-Quellen); die Liste der Dateien folgt crates/sigblock/assets/README.md. Der EUPL-1.2-Text liegt den Paketen
+# als LICENSE.txt bei (bundle-config.mjs), der CLI über `pida-cli licenses`.
+{
+  echo "## Übernommene EUPL-Bestandteile (EUPL components taken over)"
+  echo
+  echo "### PDF-AS 4 – Konfiguration und Bildmarken (configuration and logos)"
+  echo
+  echo "Copyright 2014 by E-Government Innovation Center EGIZ, Graz, Austria. PDF-AS has been contracted by the"
+  echo "E-Government Innovation Center EGIZ, a joint initiative of the Federal Chancellery Austria and Graz University"
+  echo "of Technology. Licensed under the EUPL, Version 1.1 or – as soon they will be approved by the European"
+  echo "Commission – subsequent versions of the EUPL. Quelle (source): <https://git.egiz.gv.at/pdf-as-4/>."
+  echo
+  echo "PIDA nutzt diese Dateien unter der EUPL-1.2 (Lizenztext: \`LICENSE.txt\` im Programmpaket, an der"
+  echo "Kommandozeile \`pida-cli licenses\`). Sie sind unverändert aus der PDF-AS-Konfiguration von PDF-Over"
+  echo "(\`PDFASConfig.zip\`) übernommen:"
+  echo
+  echo "PIDA uses these files under the EUPL-1.2 (license text: \`LICENSE.txt\` in the package, on the command line"
+  echo "\`pida-cli licenses\`). They are taken over unchanged from the PDF-AS configuration shipped with PDF-Over"
+  echo "(\`PDFASConfig.zip\`):"
+  echo
+  echo "- \`cfg/config.properties\`, \`cfg/advancedconfig.properties\`"
+  profiles=("$ROOT"/crates/sigblock/assets/cfg/profiles/*.properties)
+  list=""
+  for f in "${profiles[@]}"; do list="$list, \`cfg/profiles/$(basename "$f")\`"; done
+  echo "- ${list#, } (${#profiles[@]} Profile)"
+  echo "- \`images/signatur-logo_de.png\`, \`images/signatur-logo_en.png\`, \`images/amtsignatur-logo_demo.png\`"
+  echo
+  echo "Beim Laden setzt PIDA in den kleinen Standardprofilen und \`BASE_LOGO\` das PIDA-Siegel als Bildmarke ein;"
+  echo "die Dateien selbst bleiben unverändert."
+  echo
+  echo "### PDF-Over – Textkataloge (message catalogs)"
+  echo
+  echo "Ein Teil der Oberflächentexte stammt aus den Textkatalogen von PDF-Over (Copyright 2012 by A-SIT, EUPL;"
+  echo "<https://github.com/a-sit/PDF-Over>), umgewandelt nach Fluent und angepasst. Part of the user interface texts"
+  echo "is derived from the PDF-Over message catalogs (Copyright 2012 by A-SIT, EUPL), converted to Fluent and adapted."
+  echo
+} >"$TMP/0-eupl.md"
 
 # --- 1. PDFium -----------------------------------------------------------------------------------
 # --print-dir lädt bei Bedarf (SHA-256 aus tools/pdfium.lock) und liefert <plattform>/lib bzw. bin.
@@ -222,7 +264,7 @@ fi
   echo "Quelle (source): Cargo.lock sha256 $(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$ROOT/Cargo.lock")"
   echo
   # Muss gültiges UTF-8 sein; Zeilenenden einheitlich LF.
-  cat "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-rust-std.md" "$TMP/5-npm.md" | python3 -I -c '
+  cat "$TMP/0-eupl.md" "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-rust-std.md" "$TMP/5-npm.md" | python3 -I -c '
 import sys
 data = sys.stdin.buffer.read().decode("utf-8")
 sys.stdout.write(data.replace("\r\n", "\n").replace("\r", "\n"))

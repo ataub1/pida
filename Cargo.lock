@@ -3981,6 +3981,7 @@ version = "0.2.2"
 dependencies = [
  "async-trait",
  "clap",
+ "flate2",
  "pida-backend-api",
  "pida-config",
  "pida-core-api",

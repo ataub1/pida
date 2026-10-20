@@ -82,6 +82,7 @@ pub fn help(lang: Lang) -> String {
         ("profiles", "ng-cli-help-cmd-profiles"),
         ("migrate", "ng-cli-help-cmd-migrate"),
         ("render-block", "ng-cli-help-cmd-render-block"),
+        ("licenses", "ng-cli-help-cmd-licenses"),
     ];
     let width = legacy.iter().chain(modern).chain(commands).map(|(o, _)| o.chars().count()).max().unwrap_or(0) + 2;
     let mut out = String::new();
