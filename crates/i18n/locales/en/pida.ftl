@@ -734,6 +734,7 @@ ng-ui-about-license =
     This software is freely provided by A-SIT under the conditions of the EUPL-1.2; the license text is included with the program. Terms and details at <a>https://technology.a-sit.at/en/terms-of-a-license/</a>. For technical support, contact <a href="mailto:software@egiz.gv.at">software@egiz.gv.at</a>.
 
     Included third-party components are provided under their own licenses, which are compatible with the EUPL – see “Show third-party licenses”.
+ng-ui-about-not-official = PIDA is an open-source project by A-SIT and not an official product of the Republic of Austria or A-Trust GmbH. “ID Austria” is a trademark of the Republic of Austria; the name only identifies the supported signing method.
 ng-ui-about-based-on = Based on PDF-Over by A-SIT.
 ng-ui-about-copyright = Copyright © { $year } A-SIT · Licence EUPL-1.2
 ng-ui-privacy-update-check = The update check asks GitHub (api.github.com) for the latest version. GitHub sees this device's IP address; no identifiers are sent. You can turn it off under Advanced › “Check for updates automatically”.

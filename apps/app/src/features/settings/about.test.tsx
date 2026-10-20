@@ -73,6 +73,7 @@ describe('Über PIDA: Kopf, Links, Urheberrecht', () => {
     await user.click(within(about).getByRole('link', { name: 'Logs anzeigen' }));
     await waitFor(() => expect(mock.nativeCalls).toEqual(expect.arrayContaining(['openNotices', 'openLogDir'])));
     expect(within(about).getByText('Basiert auf PDF-Over von A-SIT.')).toBeInTheDocument();
+    expect(within(about).getByText(/kein offizielles Produkt der Republik Österreich oder der A-Trust GmbH/)).toBeInTheDocument();
     const last = about.lastElementChild;
     expect(last).toHaveTextContent('Urheberrecht © 2026 A-SIT · Lizenz EUPL-1.2');
     expect(within(about).getByText(/Diese Software wird von A-SIT unter den Bedingungen der EUPL/)).toBeInTheDocument();

@@ -176,6 +176,7 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
       <p className="about-license pre-line">
         <Markup text={t.t('ng-ui-about-license')} />
       </p>
+      <p className="about-license">{t.t('ng-ui-about-not-official')}</p>
       <p className="about-based-on">{t.t('ng-ui-about-based-on')}</p>
       <p className="about-copyright">{t.t('ng-ui-about-copyright', { year })}</p>
     </div>

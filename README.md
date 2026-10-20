@@ -297,6 +297,9 @@ vertraulich melden, wie in [SECURITY.md](SECURITY.md) beschrieben (nicht als öf
 ## Lizenz
 
 Urheberrecht © 2026 A-SIT (Zentrum für sichere Informationstechnologie – Austria) · [EUPL-1.2](LICENSE).
+PIDA ist ein Open-Source-Projekt von A-SIT und kein offizielles Produkt der Republik Österreich oder der A-Trust
+GmbH. „ID Austria“ ist eine Marke der Republik Österreich; die Bezeichnung nennt nur das unterstützte
+Signaturverfahren.
 Profile, Texte und Testdokumente stammen aus PDF-Over/PDF-AS (EUPL). Drittlizenzen: Allowlist in `deny.toml`;
 `tools/third-party-notices.sh` erzeugt die THIRD-PARTY-NOTICES, die jedem App-Paket beiliegen. Herausgeber in
 den Installern und Paketen (Windows, macOS, Linux, iOS) ist A-SIT.
@@ -330,7 +333,9 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   GitHub (`api.github.com`) for the latest version at most once a day at startup and when “About PIDA” is
   opened; GitHub sees the device's IP address, no identifiers are sent and nothing is downloaded. Turn it off
   under Settings › Advanced or by policy (`update_check = false`).
-- **Copyright:** © 2026 A-SIT (Secure Information Technology Center – Austria), EUPL-1.2.
+- **Copyright:** © 2026 A-SIT (Secure Information Technology Center – Austria), EUPL-1.2. PIDA is an
+  open-source project by A-SIT and not an official product of the Republic of Austria or A-Trust GmbH.
+  “ID Austria” is a trademark of the Republic of Austria; the name only identifies the supported signing method.
 - **Verification:** PIDA checks every new signature before saving it (document unchanged, signature
   cryptographically intact). For a full check including the certificate chain and revocation status use
   [www.signaturpruefung.gv.at](https://www.signaturpruefung.gv.at).
