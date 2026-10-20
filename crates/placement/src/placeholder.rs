@@ -59,8 +59,8 @@ pub struct QrPlaceholder {
     pub resource_name: String,
     /// Inhalt
     pub payload: QrPayload,
-    /// Position: `x = floor(e)`, `y = ceil(f + d)`, `w = ceil(a)` nach Herausrechnen der Rotation;
-    /// die Höhe wird ignoriert.
+    /// Position: `x = floor(e)`, `y = ceil(f + d)`, `w = max(ceil(a), ceil(e + a) − floor(e))` nach Herausrechnen der
+    /// Rotation (rechte Kante deckt das Bild ab, KR-F14; PDF-AS: `ceil(a)`); die Höhe wird ignoriert.
     pub pos: TablePos,
     /// CTM beim `Do`
     pub ctm: Matrix,
@@ -238,9 +238,18 @@ pub fn placeholder_position(page: &PageInfo, ctm: &Matrix) -> (f32, f32, f32) {
     (m[4], m[5] + m[3], m[0])
 }
 
+/// Rechte Kante des Platzhalterbilds, die beim Aufrunden der Blockbreite noch als „ganzzahlig“ gilt (Rundungsrauschen
+/// der Matrix, damit eine Breite von genau 100 pt nicht zu 101 pt wird).
+const EDGE_EPSILON: f32 = 0.01;
+
+/// TablePos eines Platzhalters: `x` abgerundet, Oberkante `y` aufgerundet wie PDF-AS. Die Breite rundet PDF-AS für sich
+/// auf (`ceil(w)`); der Block endet dann bei `floor(x) + ceil(w)` bis knapp 1 pt vor der rechten Kante `x + w` des
+/// Bilds, das daneben hervorschaut. Korrigiert (KR-F14): mindestens `ceil(x + w) − floor(x)`, also auch die rechte Kante
+/// aufgerundet – höchstens 1 pt breiter als bei PDF-AS.
 fn placeholder_table_pos(page: &PageInfo, ctm: &Matrix) -> Option<TablePos> {
     let (x, y, w) = placeholder_position(page, ctm);
-    let (x, y, w) = (x.floor(), y.ceil(), w.ceil());
+    let covering = (x + w - EDGE_EPSILON).ceil() - x.floor();
+    let (x, y, w) = (x.floor(), y.ceil(), w.ceil().max(covering));
     // PDF-AS bricht hier die gesamte Suche ab (TablePos-Prüfung x,y ≥ 0, w ≥ 1); wir
     // überspringen nur diesen Platzhalter (Register KR-F05).
     if !(x.is_finite() && y.is_finite() && w.is_finite()) || x < 0.0 || y < 0.0 || w < 1.0 {
@@ -538,6 +547,43 @@ mod tests {
         assert_eq!(java_parse_int("007"), Some(7));
         assert_eq!(java_parse_int(" 7"), None);
         assert_eq!(java_parse_int("2147483648"), None);
+    }
+
+    fn a4() -> PageInfo {
+        let m = Rect::new(0.0, 0.0, 595.303_95, 841.889_77);
+        PageInfo {
+            index: 0,
+            object_id: (1, 0),
+            media_box: m,
+            crop_box: m,
+            rotation: pida_pdf_cos::Rotation::R0,
+            user_unit: 1.0,
+            annots_indirect: None,
+        }
+    }
+
+    fn table_pos(ctm: Matrix) -> (f32, f32, f32) {
+        let pos = placeholder_table_pos(&a4(), &ctm).expect("gültige Position");
+        match (pos.x, pos.y, pos.w) {
+            (Some(Coord::Value(x)), Some(Coord::Value(y)), Some(Coord::Value(w))) => (x, y, w),
+            other => panic!("unvollständig: {other:?}"),
+        }
+    }
+
+    /// KR-F14: Platzhalter aus `two_placeholder.pdf` (LibreOffice, Bild 224,9 × 44,9 pt bei x = 180,9). PDF-AS setzt
+    /// `x:180;w:225` – der Block endet bei 405 pt, das Bild bei 405,8 pt und schaut rechts hervor.
+    #[test]
+    fn placeholder_width_covers_the_right_edge() {
+        let (x, y, w) = table_pos([224.9, 0.0, 0.0, 44.9, 180.9, 689.539]);
+        assert_eq!((x, y), (180.0, 735.0));
+        assert_eq!(w, 226.0, "rechte Kante aufgerundet (406 ≥ 405,8)");
+        assert!(x + w >= 180.9 + 224.9);
+        // ganzzahlige Lage und Breite: wie PDF-AS, auch mit Rundungsrauschen der Matrix
+        assert_eq!(table_pos([100.0, 0.0, 0.0, 100.0, 50.0, 600.0]), (50.0, 700.0, 100.0));
+        assert_eq!(table_pos([100.000_01, 0.0, 0.0, 100.0, 50.0, 600.0]).2, 101.0, "ceil(w) wie PDF-AS");
+        assert_eq!(table_pos([99.999_99, 0.0, 0.0, 100.0, 50.000_01, 600.0]).2, 100.0);
+        // PDF-AS deckt schon ab (Nachkommaanteil von x klein): unverändert ceil(w)
+        assert_eq!(table_pos([224.9, 0.0, 0.0, 44.9, 180.05, 689.5]).2, 225.0);
     }
 
     #[test]

@@ -118,7 +118,8 @@ fn find_placeholders_in_generated_document() {
     assert_eq!(
         got,
         vec![
-            s(0, "Im1", "2", "p:1;x:50;y:701;w:100"),
+            // Bild 50,4 … 150,4: Breite 101 statt PDF-AS 100, damit die rechte Kante bedeckt ist (KR-F14)
+            s(0, "Im1", "2", "p:1;x:50;y:701;w:101"),
             s(0, "Im2", "1", "p:1;x:300;y:580;w:80"),
             s(0, "Im1", "2", "p:1;x:450;y:150;w:50"),
             // Seite 2: Form-XObject ohne descend_forms ignoriert
@@ -131,7 +132,7 @@ fn find_placeholders_in_generated_document() {
     assert_eq!(found[1].payload.profile.as_deref(), Some("SIGNATURBLOCK_SMALL_DE"));
     assert_eq!(found[1].ctm, [80.0, 0.0, 0.0, 80.0, 300.0, 500.0]);
     assert!(matches!(found[0].pos.page, Some(PageSelector::Exact(1))));
-    assert_eq!(found[0].pos.w, Some(Coord::Value(100.0)));
+    assert_eq!(found[0].pos.w, Some(Coord::Value(101.0)));
 
     // mit descend_forms: Bild im Form-XObject (CTM · /Matrix verkettet)
     let with_forms = common::all_invocations(&doc, true);

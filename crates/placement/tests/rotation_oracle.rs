@@ -177,7 +177,8 @@ fn qr_position_on_rotated_pages_matches_rendering() {
             find_qr_placeholders(renderer.as_ref(), &common::pages(&doc), &common::all_invocations(&doc, false))
                 .unwrap();
         assert_eq!(found.len(), 1, "{rotate}° {crop:?}: QR nicht gefunden (Bild aufrecht?)");
-        assert_eq!(found[0].pos.to_string(), "p:1;x:100;y:501;w:120", "{rotate}° {crop:?}");
+        // Bild 100,3 … 220,3: Breite 121 statt PDF-AS 120, damit die rechte Kante bedeckt ist (KR-F14)
+        assert_eq!(found[0].pos.to_string(), "p:1;x:100;y:501;w:121", "{rotate}° {crop:?}");
         // Gegenprobe: PDFium zeigt das Bild sichtbar an dieser Stelle (QR-Ruhezone ist weiß,
         // daher die dunklen Module etwas innerhalb)
         let img = renderer.render_page(0, 1.0).unwrap();

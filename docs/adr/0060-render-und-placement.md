@@ -75,7 +75,8 @@ fremdem Thread).
   außen vor).
 - QR: `rxing` `QRCodeReader` + `HybridBinarizer`, ohne TRY_HARDER, Luminanz wie ZXing
   `BufferedImageLuminanceSource`; ohne Treffer ein zweiter Versuch 2× vergrößert (KR-F07). Position
-  aus `CTM · (Benutzerraum → sichtbar)`: `x = floor(e)`, `y = ceil(f + d)`, `w = ceil(a)`.
+  aus `CTM · (Benutzerraum → sichtbar)`: `x = floor(e)`, `y = ceil(f + d)`, `w = ceil(a)` – seit KR-F14 (20.10.2026) mindestens
+  `ceil(e + a) − floor(e)`, damit der Block auch die rechte Kante des Platzhalterbilds abdeckt.
 
 ## 4a. Robustheit (Review 14.10.2026)
 

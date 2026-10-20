@@ -1091,7 +1091,7 @@ Die UI meldet nur Zeigerereignisse. Startposition und Startseite (letzte Seite, 
 - **QR-Platzhalter:**
   - Bildobjekte werden mit Matrix (CTM) über PDFium ermittelt, mit Dekodierung aller Filter (`FPDFImageObj_GetBitmap`/`GetRenderedBitmap`). `rxing` erkennt den QR-Code mit HybridBinarizer, wie ZXing.
   - Durchsucht werden nur Bild-XObjects, die per `Do` gezeichnet werden, wie bei PDF-AS. Form-XObjects nur hinter einem Flag.
-  - Payload `PDF-AS-POS;id=…;profile=…;type=…;key=…` [B recherche/03 §8.1]; Position x = floor, y = ceil(Oberkante), w = ceil, die Höhe wird ignoriert.
+  - Payload `PDF-AS-POS;id=…;profile=…;type=…;key=…` [B recherche/03 §8.1]; Position x = floor, y = ceil(Oberkante), w = ceil (PIDA: mindestens bis zur aufgerundeten rechten Kante, KR-F14), die Höhe wird ignoriert.
   - Modi STRICT/MODERATE/LENIENT/SORTED; PDF-Over sucht mit id 1 im Modus SORTED und signiert im Modus MODERATE. Belegte Platzhalter werden über `/Location` markiert. `profile=` im QR-Code überschreibt das Profil.
   - Der Block wird über den Platzhalter gelegt; nichts wird entfernt.
 - **Leere Signaturfelder:** Auswahlliste, nativ bzw. als Sheet auf Mobile. Sie gilt **je Signatur** (B-05). Der Block steht im vorhandenen Rect proportional, höchstens in natürlicher Größe und mittig (KR-P10, ADR 0004 Nachtrag 16). Gesperrte und bereits signierte Felder werden nicht angeboten.
