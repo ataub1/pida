@@ -85,12 +85,12 @@ sys.stdout.write(text.replace("\r\n", "\n").replace("\r", "\n").rstrip() + "\n")
   echo "Commission – subsequent versions of the EUPL. Quelle (source): <https://git.egiz.gv.at/pdf-as-4/>."
   echo
   echo "PIDA nutzt diese Dateien unter der EUPL-1.2 (Lizenztext: \`LICENSE.txt\` im Programmpaket, an der"
-  echo "Kommandozeile \`pida-cli licenses\`). Sie sind unverändert aus der PDF-AS-Konfiguration von PDF-Over"
-  echo "(\`PDFASConfig.zip\`) übernommen:"
+  echo "Kommandozeile \`pida-cli licenses\`). Sie sind inhaltlich unverändert aus der PDF-AS-Konfiguration von"
+  echo "PDF-Over (\`PDFASConfig.zip\`) übernommen; in den Textdateien sind nur die Zeilenenden auf LF vereinheitlicht:"
   echo
   echo "PIDA uses these files under the EUPL-1.2 (license text: \`LICENSE.txt\` in the package, on the command line"
-  echo "\`pida-cli licenses\`). They are taken over unchanged from the PDF-AS configuration shipped with PDF-Over"
-  echo "(\`PDFASConfig.zip\`):"
+  echo "\`pida-cli licenses\`). They are taken over unchanged in content from the PDF-AS configuration shipped with"
+  echo "PDF-Over (\`PDFASConfig.zip\`); only the line endings of the text files are normalised to LF:"
   echo
   echo "- \`cfg/config.properties\`, \`cfg/advancedconfig.properties\`"
   profiles=("$ROOT"/crates/sigblock/assets/cfg/profiles/*.properties)

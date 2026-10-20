@@ -85,7 +85,8 @@ dunkel/getönt). Der Test `seal_asset_matches_design_master` hält Asset und Gen
   y 30,2–33,9, Ring bis 33,95); ein Strichrest von 0,05 Einheiten ist erst bei starker Vergrößerung unter dem
   unteren roten Streifen zu sehen. Bewusst so belassen (pixelgleich zu `DefaultEmblem`); eine Korrektur wäre
   eine Änderung am Prototyp-Zeichen.
-- **Umsetzung:** Die PDF-AS-Profildateien bleiben byte-gleich zum Auslieferungsstand (Herkunft nachvollziehbar).
+- **Umsetzung:** Die PDF-AS-Profildateien bleiben inhaltlich gleich zum Auslieferungsstand (Herkunft nachvollziehbar;
+  nur die Zeilenenden sind auf LF vereinheitlicht, Nachtrag 20.10.2026).
   `ProfileStore::builtin()` setzt beim Laden für die neun Profile `value.SIG_LABEL = ./images/pida-seal.png` als
   eigenen Schlüssel (vor der Vererbung, ersetzt den aus `BASE_NORMAL[_EN]` geerbten bzw. bei `BASE_LOGO` den
   eigenen Wert);

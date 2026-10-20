@@ -12,7 +12,7 @@
 //! PIDA-Ergänzungen: `--kspass-env <VAR>` liest das Keystore-Passwort aus der Umgebung,
 //! `--log-level <filter>` setzt den Log-Filter (Vorrang vor `PIDA_LOG`), Datei-URLs (`file:///…`,
 //! Linux-Starter mit `%U`) gelten als Pfade; die
-//! CLI-Befehle (`verify`, `profiles`, `migrate`, `render-block`) und die Terminal-Optionen
+//! CLI-Befehle (`verify`, `profiles`, `migrate`, `render-block`, `licenses`) und die Terminal-Optionen
 //! (`--headless`, `--json`, `--kspass-stdin`) gibt es nur in `pida-cli` – in der GUI sind sie ein
 //! Argumentfehler. `sign <eingaben…>` öffnet die Eingaben (Ordner, Muster) wie in der CLI.
 //!
@@ -170,6 +170,7 @@ fn cli_only(cli: &Cli) -> Option<&'static str> {
         Some(Command::Profiles) => return Some("profiles"),
         Some(Command::Migrate { .. }) => return Some("migrate"),
         Some(Command::RenderBlock { .. }) => return Some("render-block"),
+        Some(Command::Licenses) => return Some("licenses"),
         Some(Command::Sign { .. }) | None => {}
     }
     if cli.modern.headless {
@@ -362,6 +363,7 @@ mod tests {
             (&["x", "--headless", "a.pdf"][..], "--headless"),
             (&["x", "--json"][..], "--json"),
             (&["x", "profiles"][..], "profiles"),
+            (&["x", "licenses"][..], "licenses"),
             (&["x", "verify", "a.pdf"][..], "verify"),
         ] {
             let r = parse_gui_args(args.iter().copied(), &dir, &no_env);

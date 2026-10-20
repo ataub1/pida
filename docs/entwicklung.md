@@ -216,14 +216,17 @@ cargo deny --locked check          # advisories bans licenses sources
 tools/third-party-notices.sh            # → target/notices/THIRD-PARTY-NOTICES.md
 ```
 
-Enthält PDFium samt mitgebauten Bibliotheken (aus dem PDFium-Paket), die Font-/AFM-Lizenzen aus
+Enthält zuerst die übernommenen EUPL-Bestandteile (PDF-AS-4-Konfiguration und -Bildmarken, © EGIZ, EUPL-1.1
+oder später; Herkunft der PDF-Over-Textkataloge, © A-SIT), dann PDFium samt mitgebauten Bibliotheken (aus dem PDFium-Paket), die Font-/AFM-Lizenzen aus
 `crates/sigblock/assets/licenses`, alle ausgelieferten Rust-Crates über cargo-about
 (`tools/licenses/about.toml`, `about.hbs`; Dev-Abhängigkeiten ausgenommen, Build-Abhängigkeiten
 enthalten) mit den NOTICE-Dateien von Apache-2.0-Crates, die Rust-Standardbibliothek (steht nicht in
 `Cargo.lock`, ist aber in jeder Binary: MIT-/Apache-Text aus der Toolchain, vollständige Hinweise als
 `RUST-STD-COPYRIGHT.html` daneben) und die npm-Laufzeitabhängigkeiten von `apps/app` (ohne Lizenzdatei
-im Paket, z. B. `@fluent/bundle`: Urheber und Verweis auf den SPDX-Standardtext). Beide Dateien kommen
-über `scripts/bundle-config.mjs` als Ressourcen in jedes App-Bundle; „Drittlizenzen anzeigen“ im
+im Paket, z. B. `@fluent/bundle`: Urheber und Verweis auf den SPDX-Standardtext) samt dem Hilfscode, den
+vite und rolldown ins Bundle schreiben. Beide Dateien kommen
+über `scripts/bundle-config.mjs` als Ressourcen in jedes App-Bundle (mit dem EUPL-Text als `LICENSE.txt`),
+`apps/cli/build.rs` bettet sie für `pida-cli licenses` ein; „Drittlizenzen anzeigen“ im
 Über-Tab öffnet sie (Command `open_notices`). PDFium-Lizenzen stammen aus dem Paket der Host-Plattform;
 für ein anderes Paket `--pdfium <plattform>` angeben.
 
@@ -234,7 +237,9 @@ fehlende Angaben brechen ab. Ausnahmen je Paket stehen mit Begründung in `RUNTI
 `tslib`, 0BSD, Laufzeit-Helfer von react-aria-components). `devOptional`-Pakete zählen zur Laufzeit (npm installiert sie auch ohne
 Dev-Abhängigkeiten), eigene Workspace-Pakete (Einträge außerhalb `node_modules/`) werden übersprungen.
 Alles, was der Bundler in die App übernimmt – auch Framework-Laufzeit –, gehört in `dependencies`, sonst
-fehlt es in den Hinweisen. Mit `--notices <datei>` entstehen die Hinweise; `--self-test` prüft Parser und
+fehlt es in den Hinweisen. Ausnahme ist Code, den ein Build-Werkzeug selbst erzeugt (`BUNDLED_TOOL_CODE`:
+vite – modulepreload-polyfill, preload-helper –, rolldown – runtime): Diese Werkzeuge brauchen eine
+Laufzeit-Lizenz, fehlen sie im Lockfile, bricht die Prüfung ab; ihre Texte stehen in einem eigenen Abschnitt. Mit `--notices <datei>` entstehen die Hinweise; `--self-test` prüft Parser und
 Einordnung (CI-Job `deny`).
 
 ## 7. i18n: Codes und Kataloge
@@ -380,7 +385,10 @@ strings -a target/release/pida-cli | grep -c "$HOME"   # 0
 
 `PIDA_REQUIRE_NOTICES=1` lässt den Build abbrechen, wenn die Hinweise fehlen (`apps/cli/build.rs` bettet
 `THIRD-PARTY-NOTICES.md` und `RUST-STD-COPYRIGHT.html` aus `$PIDA_NOTICES_DIR` bzw. `target/notices` komprimiert
-ein). Ohne die Variable entsteht ein Entwicklungs-Build, dessen `pida-cli licenses` nur den EUPL-Text ausgibt.
+ein; ein relativer `PIDA_NOTICES_DIR` gilt ab der Wurzel des Repositorys). Ohne die Variable werden vorhandene
+Hinweise ebenfalls eingebettet; fehlen sie, entsteht mit einer Cargo-Warnung ein Entwicklungs-Build, dessen
+`pida-cli licenses` nur den EUPL-Text samt Hinweis ausgibt. Später erzeugte Hinweise bettet der nächste Build ein
+(`build.rs` beobachtet `target/notices`).
 
 Nachweis 17.10.2026 (macOS arm64): `pida-cli` 0.2.0 enthielt 708 Fundstellen von `/Users/`, mit
 `PIDA_RELEASE_REMAP=1` 0 (die Orte heißen `/cargo/registry/src/index.crates.io-…/tokio-1.53.3/src/…`); die

@@ -5,8 +5,8 @@
 
 | Pfad | Inhalt | Lizenz | geändert |
 |---|---|---|---|
-| `cfg/config.properties`, `cfg/advancedconfig.properties` | Einstieg und Includes (`include.01 = profiles/*.properties`) | EUPL | nein |
-| `cfg/profiles/*.properties` | 20 Profildateien (Basisprofile + die 12 PDF-Over-Profil-IDs) | EUPL | nein |
+| `cfg/config.properties`, `cfg/advancedconfig.properties` | Einstieg und Includes (`include.01 = profiles/*.properties`) | EUPL | inhaltlich nein (Zeilenenden LF) |
+| `cfg/profiles/*.properties` | 20 Profildateien (Basisprofile + die 12 PDF-Over-Profil-IDs) | EUPL | inhaltlich nein (Zeilenenden LF) |
 | `fonts/DejaVuSansMono.ttf`, `fonts/DejaVuSansCondensed-Bold.ttf`, `fonts/DejaVuSansCondensed.ttf` | Wertefont, PDF/A-Captionfont, PDF/A-Ersatz für Helvetica | Bitstream Vera / DejaVu (`licenses/DejaVu-LICENSE.txt`) | nein (Subsets entstehen erst beim Einbetten) |
 | `images/signatur-logo_de.png`, `images/signatur-logo_en.png` (326×342 px), `images/amtsignatur-logo_demo.png` (236×235 px) | Standard-Bildmarken | EUPL | nein |
 | `licenses/Adobe-Core14-AFM-License.html` | Lizenzhinweis der Adobe Core 14 AFM Files | Adobe | nein |
@@ -16,7 +16,8 @@
 
 ## PIDA-Siegel als Standard-Bildmarke
 
-Die Profildateien bleiben byte-gleich zu PDF-AS. `ProfileStore::builtin()` setzt beim Laden für die
+Die Profildateien bleiben inhaltlich gleich zu PDF-AS (17 der 22 Dateien in `cfg/` haben in `PDFASConfig.zip`
+CRLF-Zeilenenden, hier LF; die Bildmarken sind byte-gleich). `ProfileStore::builtin()` setzt beim Laden für die
 acht kleinen Standardprofile und `BASE_LOGO` („nur Bildmarke“) `value.SIG_LABEL = ./images/pida-seal.png`
 (eigener Schlüssel des Profils, ersetzt den aus `BASE_NORMAL[_EN]` geerbten bzw. den eigenen Wert
 `signatur-logo_de.png` von `BASE_LOGO`); die Amtssignatur (`AMTSSIGNATURBLOCK_*`,

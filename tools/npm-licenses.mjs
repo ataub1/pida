@@ -294,7 +294,10 @@ function main() {
   if (noticesOut) {
     const root = path.dirname(path.resolve(lockPath));
     const lines = ["## npm-Abhängigkeiten der Oberfläche (npm dependencies of the UI)", ""];
-    lines.push(`Erzeugt aus \`${path.basename(lockPath)}\` (nur ausgelieferte Pakete, ohne Build-Werkzeuge).`, "");
+    const toolsNote = tools.found.length > 0
+      ? "; von Build-Werkzeugen nur der Hilfscode, den sie ins Bundle schreiben – letzter Abschnitt"
+      : ", ohne Build-Werkzeuge";
+    lines.push(`Erzeugt aus \`${path.basename(lockPath)}\` (nur ausgelieferte Pakete${toolsNote}).`, "");
     let withoutText = 0;
     for (const p of runtime) {
       lines.push(`### ${p.name} ${p.version} – ${p.license ?? "?"}`, "");
@@ -354,7 +357,7 @@ function main() {
     fs.writeFileSync(noticesOut, lines.join("\n") + "\n");
     console.error(`npm-licenses: Hinweise → ${noticesOut}`);
     if (withoutText > 0) {
-      console.error(`npm-licenses: warnung: ${withoutText} Laufzeitpaket(e) ohne Lizenzdatei (npm ci ausgeführt?)`);
+      console.error(`npm-licenses: warnung: ${withoutText} ausgelieferte(s) Paket(e) ohne Lizenzdatei (npm ci ausgeführt?)`);
     }
   }
 

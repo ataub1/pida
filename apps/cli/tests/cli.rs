@@ -146,9 +146,9 @@ fn licenses_text_and_files() {
     assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
     let out = stdout(&o);
     assert!(out.starts_with(eupl.trim_end()), "EUPL-Text zuerst");
+    // Inhalt der Hinweise prüft tools/third-party-notices.sh; hier nur, dass sie vollständig durchgereicht werden
     let embedded = out.contains("# THIRD-PARTY-NOTICES – PIDA");
     if embedded {
-        assert!(out.contains("## Übernommene EUPL-Bestandteile"), "Herkunft des PDF-AS-Materials");
         assert!(stderr(&o).contains("RUST-STD-COPYRIGHT.html"), "{}", stderr(&o));
     } else {
         assert!(stderr(&o).contains("keine Drittlizenz-Hinweise"), "{}", stderr(&o));
@@ -160,6 +160,10 @@ fn licenses_text_and_files() {
     assert_eq!(std::fs::read_to_string(dir.join("LICENSE.txt")).unwrap(), eupl);
     for name in ["THIRD-PARTY-NOTICES.md", "RUST-STD-COPYRIGHT.html"] {
         assert_eq!(dir.join(name).is_file(), embedded, "{name}");
+    }
+    if embedded {
+        let md = std::fs::read_to_string(dir.join("THIRD-PARTY-NOTICES.md")).unwrap();
+        assert!(out.contains(md.trim_end()), "stdout enthält die Hinweise vollständig");
     }
     assert_eq!(stdout(&o).lines().filter(|l| l.starts_with("written: ")).count(), if embedded { 3 } else { 1 });
     if !embedded {

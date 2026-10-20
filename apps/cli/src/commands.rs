@@ -214,7 +214,11 @@ pub fn licenses(term: &dyn Terminal, lang: Lang, output: Option<&Path>) -> ExitC
     for (name, data) in files {
         let path = dir.join(name);
         if let Err(e) = std::fs::write(&path, data) {
-            term.info(&tr(lang, "output-save_failed", &[("arg1", path.display().to_string()), ("arg2", e.to_string())]));
+            term.info(&tr(
+                lang,
+                "output-save_failed",
+                &[("arg1", path.display().to_string()), ("arg2", e.to_string())],
+            ));
             return ExitCode::Write;
         }
         term.out(&tr(lang, "ng-cli-written", &[("path", path.display().to_string())]));

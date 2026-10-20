@@ -53,7 +53,9 @@ impl Terminal for Tty {
     }
 
     fn out(&self, msg: &str) {
-        println!("{msg}");
+        // Schreibfehler (z. B. geschlossene Pipe bei `pida-cli licenses | head`) nicht als Panik: die Ausgabe ist nur
+        // Bericht, der Ablauf (und sein Exit-Code) geht weiter
+        let _ = writeln!(std::io::stdout().lock(), "{msg}");
     }
 }
 
