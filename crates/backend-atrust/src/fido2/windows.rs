@@ -112,6 +112,8 @@ const NTE_NOT_FOUND: Hresult = 0x8009_0011_u32 as Hresult;
 const HRESULT_ERROR_CANCELLED: Hresult = 0x8007_04C7_u32 as Hresult;
 const NTE_TOKEN_TIMEOUT: Hresult = 0x8009_0035_u32 as Hresult;
 
+// nur beim Laden der DLL (`cfg(windows)`) gebraucht; die übrigen Signaturen stehen in `Api`
+#[cfg(windows)]
 type FnGetApiVersion = unsafe extern "system" fn() -> Dword;
 type FnGetAssertion = unsafe extern "system" fn(
     Hwnd,

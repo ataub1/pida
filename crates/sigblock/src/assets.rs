@@ -108,12 +108,6 @@ pub const PIDA_SEAL_PROFILES: [&str; 9] = [
     "BASE_LOGO",
 ];
 
-/// Lizenztexte der eingebetteten Fremddaten (für „Über“-Dialoge).
-pub const LICENSES: &[(&str, &str)] = &[
-    ("DejaVu fonts (Bitstream Vera)", include_str!("../assets/licenses/DejaVu-LICENSE.txt")),
-    ("Adobe Core 14 AFM", include_str!("../assets/licenses/Adobe-Core14-AFM-License.html")),
-];
-
 /// Datei aus `cfg/` (Pfad relativ zu `cfg/`, `/`-getrennt).
 pub(crate) fn cfg(path: &str) -> Option<&'static [u8]> {
     CFG_FILES.iter().find(|(p, _)| *p == path).map(|(_, d)| *d)

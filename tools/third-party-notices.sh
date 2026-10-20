@@ -11,7 +11,8 @@
 #   0. Übernommene EUPL-Bestandteile: PDF-AS-4-Konfiguration und -Bildmarken (© EGIZ, EUPL-1.1+),
 #      Herkunft der PDF-Over-Textkataloge (© A-SIT)
 #   1. PDFium (BSD-3-Clause) samt Lizenzen der mitgebauten Bibliotheken aus dem PDFium-Paket
-#      (FreeType, ICU, libjpeg-turbo, lcms, OpenJPEG, zlib …; tools/fetch-pdfium.sh lädt es bei Bedarf)
+#      (FreeType, ICU, libjpeg-turbo, lcms, OpenJPEG, zlib …; tools/fetch-pdfium.sh lädt es bei Bedarf),
+#      ergänzt um die Unterlizenz von HarfBuzz (tools/licenses/harfbuzz-ms-use-COPYING.txt)
 #   2. Schriften und Metriken aus crates/sigblock/assets/licenses (DejaVu/Bitstream Vera, Adobe AFM)
 #   3. Rust-Abhängigkeiten über cargo-about 0.9.2 (tools/licenses/about.toml, about.hbs) plus die
 #      NOTICE-Dateien von Apache-2.0-Crates
@@ -36,7 +37,7 @@ while [ $# -gt 0 ]; do
       fi
       if [ "$1" = --out ]; then OUT="$2"; else PDFIUM_PLATFORM="$2"; fi
       shift ;;
-    -h | --help) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "third-party-notices: unbekanntes Argument $1" >&2; exit 2 ;;
   esac
   shift
@@ -142,6 +143,20 @@ PDFIUM_DIR="$(dirname "$pdfium_lib")"
     emit_text "$f"
     echo '~~~~'
   done
+  # harfbuzz.txt verweist für abweichend lizenzierte Teile auf COPYING-Dateien in Unterordnern, die das Paket nicht
+  # mitliefert. Ausgeliefert davon ist nur src/ms-use (Microsoft-Daten der USE-Tabelle, die in libpdfium steckt); die
+  # übrigen (perf/, test/) gehören nicht zur Bibliothek. Stand: HarfBuzz ff36703b aus den DEPS von chromium/8100.
+  if [ -f "$PDFIUM_DIR/licenses/harfbuzz.txt" ]; then
+    echo
+    echo "### PDFium: harfbuzz – src/ms-use/COPYING (Microsoft, MIT)"
+    echo
+    echo "Teile der USE-Tabelle von HarfBuzz (hb-ot-shaper-use-table.hh) sind aus diesen Daten erzeugt."
+    echo "Parts of HarfBuzz's USE table (hb-ot-shaper-use-table.hh) are generated from this data."
+    echo
+    echo '~~~~text'
+    emit_text "$ROOT/tools/licenses/harfbuzz-ms-use-COPYING.txt"
+    echo '~~~~'
+  fi
   echo
 } >"$TMP/1-pdfium.md"
 
