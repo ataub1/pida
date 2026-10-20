@@ -228,7 +228,13 @@ vite und rolldown ins Bundle schreiben. Beide Dateien kommen
 über `scripts/bundle-config.mjs` als Ressourcen in jedes App-Bundle (mit dem EUPL-Text als `LICENSE.txt`),
 `apps/cli/build.rs` bettet sie für `pida-cli licenses` ein; „Drittlizenzen anzeigen“ im
 Über-Tab öffnet sie (Command `open_notices`). PDFium-Lizenzen stammen aus dem Paket der Host-Plattform;
-für ein anderes Paket `--pdfium <plattform>` angeben.
+für ein anderes Paket `--pdfium <plattform>` angeben. Die abweichend lizenzierten HarfBuzz-Daten in PDFium
+(`src/ms-use`, Microsoft, MIT) ergänzt das Skript aus `tools/licenses/harfbuzz-ms-use-COPYING.txt`. Mit
+`--pdfium win-…` kommt der Windows-Teil dazu: WebView2-SDK (BSD-3, statisch in `pida.exe`), NSIS-Laufzeit des
+Setups (zlib, LZMA-Modul CPL-1.0), `nsis_tauri_utils` und die WiX-Teile des MSI (MS-RL); Texte, Versionen und
+Quellen stehen in `tools/licenses/windows`. Das Skript läuft nur unter Linux/macOS – die Windows-Pakete
+bekommen ihre Hinweise im Release-Workflow aus dem Linux-Job `notices-windows` (Artefakt, `--require-notices`
+auch für Windows); der CI-Job `notices` erzeugt beide Varianten.
 
 **npm** (Plan §2.5: dieselbe Allowlist für die UI): `node tools/npm-licenses.mjs apps/app/package-lock.json`
 prüft das Lockfile – Laufzeitpakete gegen die Allowlist, reine Build-Werkzeuge (`dev: true`) zusätzlich

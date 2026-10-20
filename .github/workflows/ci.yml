@@ -265,11 +265,19 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Hinweise erzeugen
         run: tools/third-party-notices.sh --out target/notices
+      # wie im Release-Workflow (Job notices-windows): PDFium-Lizenzen des Windows-Pakets und Windows-Teil
+      - name: Hinweise erzeugen (Windows)
+        run: tools/third-party-notices.sh --pdfium win-x64 --out target/notices-windows
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: THIRD-PARTY-NOTICES
           # THIRD-PARTY-NOTICES.md und RUST-STD-COPYRIGHT.html (Rust-Standardbibliothek)
           path: target/notices/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: THIRD-PARTY-NOTICES-windows
+          path: target/notices-windows/
           if-no-files-found: error
 
   mobile:

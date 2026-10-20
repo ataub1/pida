@@ -5,7 +5,7 @@
 #
 #   tools/third-party-notices.sh                       # → target/notices/THIRD-PARTY-NOTICES.md
 #   tools/third-party-notices.sh --out dist/notices    # anderes Zielverzeichnis
-#   tools/third-party-notices.sh --pdfium win-x64      # PDFium-Lizenzen dieser Plattform
+#   tools/third-party-notices.sh --pdfium win-x64      # PDFium-Lizenzen dieser Plattform; win-…: mit Windows-Teil
 #
 # Inhalt (in dieser Reihenfolge):
 #   0. Übernommene EUPL-Bestandteile: PDF-AS-4-Konfiguration und -Bildmarken (© EGIZ, EUPL-1.1+),
@@ -19,6 +19,8 @@
 #   4. Rust-Standardbibliothek (in jede Binary gelinkt; MIT OR Apache-2.0): Lizenztexte aus der
 #      Toolchain, vollständige Hinweise als RUST-STD-COPYRIGHT.html neben der Ausgabe
 #   5. npm-Abhängigkeiten der Oberfläche (apps/app/package-lock.json, falls vorhanden; tools/npm-licenses.mjs)
+#   6. nur mit --pdfium win-…: Windows-Installer und -Laufzeit (WebView2-SDK, NSIS, nsis_tauri_utils, WiX/MS-RL;
+#      Texte und Herkunft in tools/licenses/windows)
 #
 # Benötigt: cargo, rustc, cargo-about 0.9.x (`brew install cargo-about` oder
 # `cargo install --locked cargo-about@0.9.2`), python3; für Teil 5 node ≥ 18 und `npm ci` in apps/app.
@@ -37,7 +39,7 @@ while [ $# -gt 0 ]; do
       fi
       if [ "$1" = --out ]; then OUT="$2"; else PDFIUM_PLATFORM="$2"; fi
       shift ;;
-    -h | --help) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "third-party-notices: unbekanntes Argument $1" >&2; exit 2 ;;
   esac
   shift
@@ -247,6 +249,63 @@ else
   : >"$TMP/5-npm.md"
 fi
 
+# --- 6. Windows-Installer und -Laufzeit -----------------------------------------------------------
+# Nicht in Cargo.lock bzw. im npm-Lockfile: statisch gelinkter WebView2-Loader, NSIS-Laufzeit im Setup, WiX-Teile im
+# MSI (Lizenzbericht Befunde 1, 7, 8). Versionen und Quellen: tools/licenses/windows/README.md.
+: >"$TMP/6-windows.md"
+case "$PDFIUM_PLATFORM" in
+  win-*)
+    WIN="$ROOT/tools/licenses/windows"
+    {
+      echo "## Windows-Installer und -Laufzeit (Windows installer and runtime)"
+      echo
+      echo "### Microsoft WebView2 SDK 1.0.3650.58 – BSD-3-Clause"
+      echo
+      echo "\`WebView2LoaderStatic.lib\` ist statisch in \`pida.exe\` gelinkt; die Bindings von \`webview2-com-sys\` sind"
+      echo "aus dem SDK erzeugt. \`WebView2LoaderStatic.lib\` is statically linked into \`pida.exe\`; the bindings of"
+      echo "\`webview2-com-sys\` are generated from the SDK."
+      echo
+      echo '~~~~text'
+      emit_text "$WIN/Microsoft.Web.WebView2-LICENSE.txt"
+      echo '~~~~'
+      echo
+      echo "### NSIS 3.13 – Installerlaufzeit des Setups (zlib/libpng; LZMA-Modul CPL-1.0)"
+      echo
+      echo "Setup und Uninstaller enthalten die NSIS-Installerlaufzeit samt Plugins und Grafik (zlib/libpng) und den"
+      echo "LZMA-Dekompressor (Common Public License 1.0). Für den CPL-Teil gilt: Er wird ohne Gewährleistung und unter"
+      echo "Ausschluss der Haftung bereitgestellt (CPL §5, §6); davon abweichende Bedingungen bietet allein A-SIT als"
+      echo "Herausgeber von PIDA an, nicht die übrigen Beitragenden. Der Quellcode ist erhältlich unter"
+      echo "<https://github.com/kichik/nsis/tree/v313> (auch <https://nsis.sourceforge.io>)."
+      echo
+      echo "Setup and uninstaller contain the NSIS installer runtime with plug-ins and graphics (zlib/libpng) and the LZMA"
+      echo "decompressor (Common Public License 1.0). The CPL part is provided without warranty and with liability excluded"
+      echo "(CPL §5, §6); any provisions which differ from the CPL are offered by A-SIT, the publisher of PIDA, alone and not"
+      echo "by any other party. Source code is available at <https://github.com/kichik/nsis/tree/v313>."
+      echo
+      echo '~~~~text'
+      emit_text "$WIN/NSIS-COPYING.txt"
+      echo '~~~~'
+      echo
+      echo "### nsis_tauri_utils 0.5.3 – Apache-2.0 OR MIT (NSIS-Plugin im Setup)"
+      echo
+      echo '~~~~text'
+      emit_text "$WIN/nsis_tauri_utils-LICENSE_MIT.txt"
+      echo '~~~~'
+      echo
+      echo "### WiX Toolset 3.14.1 – MS-RL (WixUI-Dialoge, -Bitmaps und uica.dll im MSI)"
+      echo
+      echo "Das MSI enthält die WiX-UI-Bibliothek und die Custom Action \`uica.dll\` aus WiX 3.14.1 unverändert. Quellcode:"
+      echo "<https://github.com/wixtoolset/wix3/releases/tag/wix3141rtm>. The MSI contains the WiX UI library and the custom"
+      echo "action \`uica.dll\` from WiX 3.14.1, unmodified; source code at the link above."
+      echo
+      echo '~~~~text'
+      emit_text "$WIN/MS-RL.txt"
+      echo '~~~~'
+      echo
+    } >"$TMP/6-windows.md"
+    ;;
+esac
+
 # --- Zusammenführen --------------------------------------------------------------------------------
 # Jahr des Urheberrechtsvermerks wie „Über PIDA“ (Versionsdatum, crates/core-api/build_support/release_date.rs):
 # SOURCE_DATE_EPOCH, sonst das Commit-Datum – nur aus dem Repository, das PIDA selbst verwaltet (nicht aus einem fremden,
@@ -279,7 +338,7 @@ fi
   echo "Quelle (source): Cargo.lock sha256 $(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$ROOT/Cargo.lock")"
   echo
   # Muss gültiges UTF-8 sein; Zeilenenden einheitlich LF.
-  cat "$TMP/0-eupl.md" "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-rust-std.md" "$TMP/5-npm.md" | python3 -I -c '
+  cat "$TMP/0-eupl.md" "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-rust-std.md" "$TMP/5-npm.md" "$TMP/6-windows.md" | python3 -I -c '
 import sys
 data = sys.stdin.buffer.read().decode("utf-8")
 sys.stdout.write(data.replace("\r\n", "\n").replace("\r", "\n"))

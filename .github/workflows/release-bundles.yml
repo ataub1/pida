@@ -1,7 +1,7 @@
 # Release-Bundles für Windows, Linux und macOS – manuell auslösbar.
 #
-# Baut die optimierten Installer mit PDFium und Drittlizenz-Hinweisen (Plan §9.1) und legt sie als
-# Artefakte ab. Code-Signierung mit Identität, Notarisierung und Updater fehlen noch (Signier-Identitäten
+# Baut die optimierten Installer mit PDFium und Drittlizenz-Hinweisen (Plan §9.1; für Windows im Job
+# notices-windows erzeugt) und legt sie als Artefakte ab. Code-Signierung mit Identität, Notarisierung und Updater fehlen noch (Signier-Identitäten
 # beim Auftraggeber, Plan E-13); die Bundles sind zum Testen gedacht. macOS: PIDA.app ist ad hoc signiert
 # (versiegelte Ressourcen, `codesign --verify --deep --strict` wird geprüft), aber nicht notarisiert.
 name: Release-Bundles
@@ -26,8 +26,43 @@ env:
   CARGO_ABOUT_VERSION: "0.9.2"
 
 jobs:
+  # Drittlizenz-Hinweise für die Windows-Pakete: tools/third-party-notices.sh läuft nur unter Linux/macOS (bash,
+  # python3, cargo-about); mit --pdfium win-x64 enthalten sie die PDFium-Lizenzen des Windows-Pakets und den
+  # Windows-Teil (WebView2-SDK, NSIS, WiX/MS-RL; Lizenzbericht Befund 1). Der Windows-Bundle-Job lädt sie als Artefakt.
+  notices-windows:
+    name: THIRD-PARTY-NOTICES (Windows)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+      - name: Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/app/package-lock.json
+      - name: npm ci (Lizenztexte)
+        working-directory: apps/app
+        run: npm ci --ignore-scripts
+      - name: Hinweise erzeugen (PDFium win-x64, Windows-Teil)
+        run: tools/third-party-notices.sh --pdfium win-x64 --out target/notices
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notices-windows
+          path: target/notices/
+          if-no-files-found: error
+
   bundle:
     name: Release-Bundle (${{ matrix.os }})
+    needs: notices-windows
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -38,7 +73,7 @@ jobs:
             notices: true
           - os: windows-latest
             bundles: nsis,msi
-            notices: false
+            notices: true
           - os: macos-latest
             bundles: app,dmg
             notices: true
@@ -91,12 +126,18 @@ jobs:
         working-directory: apps/app
         run: npm ci
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
-        if: matrix.notices
+        if: matrix.notices && runner.os != 'Windows'
         with:
           tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
       - name: Drittlizenz-Hinweise (ins Bundle)
-        if: matrix.notices
+        if: matrix.notices && runner.os != 'Windows'
         run: tools/third-party-notices.sh --out target/notices
+      - name: Drittlizenz-Hinweise (Windows, aus dem Job notices-windows)
+        if: matrix.notices && runner.os == 'Windows'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: notices-windows
+          path: target/notices
       - name: Release-Bundle (${{ matrix.bundles }}) mit PDFium
         working-directory: apps/app
         env:
