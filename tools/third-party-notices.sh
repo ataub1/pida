@@ -179,9 +179,10 @@ PDFIUM_DIR="$(dirname "$pdfium_lib")"
 
 # --- 3. Rust ---------------------------------------------------------------------------------------
 cargo fetch --locked >/dev/null
-cargo about generate --locked --offline --workspace --all-features --fail \
+# ohne --offline: Lizenzdateien für `clarify.git` (about.toml) kommen aus den Quell-Repositories (mit Prüfsumme)
+cargo about generate --locked --workspace --all-features --fail \
   -c tools/licenses/about.toml tools/licenses/about.hbs -o "$TMP/3-rust.md"
-cargo about generate --locked --offline --workspace --all-features --fail \
+cargo about generate --locked --workspace --all-features --fail \
   -c tools/licenses/about.toml --format json -o "$TMP/rust.json"
 # NOTICE-Dateien (Apache-2.0 §4d) der ausgelieferten Crates anhängen.
 python3 -I - "$TMP/rust.json" >>"$TMP/3-rust.md" <<'PY'

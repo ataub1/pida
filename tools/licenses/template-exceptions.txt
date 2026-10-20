@@ -3,18 +3,9 @@
 # zusammen mit MIT, dpi) und brauchen eine Klarstellung mit der echten Lizenzdatei in about.toml
 # ([<crate>.clarify]). tools/third-party-notices.sh bricht bei jeder Vorlage ab, deren Crate hier nicht steht, und
 # warnt bei Einträgen, die nicht mehr nötig sind. Ein Crate-Name je Zeile.
-alloc-stdlib
+# Upstream ohne Copyright-Vermerk: LICENSE.md des Repositories madsmtm/objc2 verweist nur auf MIT (kein Text mit
+# Urheber); nichts nachzutragen, ohne einen Vermerk zu erfinden.
 block2
-brotli-decompressor
-dlopen2
-dlopen2_derive
-dpi
-libm
 objc2
 objc2-encode
 objc2-foundation
-ts-rs
-ts-rs-macros
-webview2-com
-webview2-com-macros
-webview2-com-sys

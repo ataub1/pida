@@ -42,7 +42,8 @@ targets = [
 ignore-dev-dependencies = true
 ignore-build-dependencies = false
 
-# Lizenztexte kommen ausschließlich aus den Crate-Quellen (Aufruf mit --offline/--locked).
+# Lizenztexte kommen aus den Crate-Quellen (Aufruf mit --locked); für Crates ohne Lizenzdatei aus dem
+# Quell-Repository beim veröffentlichten Commit (`clarify.git`, mit Prüfsumme), siehe unten.
 
 # Eigene Crates (EUPL-1.2, publish = false) gehören nicht in die Drittlizenzen.
 private = { ignore = true }
@@ -76,3 +77,95 @@ checksum = "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
 path = "src/unicode_tables/LICENSE-UNICODE"
 license = "Unicode-DFS-2016"
 checksum = "74db5baf44a41b1000312c673544b3374e4198af5605c7f9080a402cec42cfa3"
+
+# --- Copyright-Vermerke (Lizenzbericht Befund 6, Teil 2) ----------------------------------------------------------
+# Diese Crates liefern keinen Lizenztext mit Urheber (cargo-about setzte sonst die SPDX-Vorlage „<year> <copyright
+# holders>“ ein). Texte aus dem Paket (`files`) bzw. aus dem Quell-Repository beim veröffentlichten Commit
+# (`git`, .cargo_vcs_info.json – dafür ruft tools/third-party-notices.sh cargo-about ohne --offline auf).
+# Prüfsummen gelten für die Versionen in Cargo.lock; bei einem Update neu setzen (cargo-about bricht sonst ab).
+# Ohne Vermerk upstream (bleiben in template-exceptions.txt): objc2, block2, objc2-encode, objc2-foundation.
+
+[ts-rs.clarify]
+license = "MIT"
+[[ts-rs.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "db7f7f8e7236a2d0b41b855b2501b7b913caebbcda6ce498637a304ad1706ce1"
+
+[ts-rs-macros.clarify]
+license = "MIT"
+[[ts-rs-macros.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "db7f7f8e7236a2d0b41b855b2501b7b913caebbcda6ce498637a304ad1706ce1"
+
+[webview2-com.clarify]
+license = "MIT"
+[[webview2-com.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[webview2-com-sys.clarify]
+license = "MIT"
+[[webview2-com-sys.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[webview2-com-macros.clarify]
+license = "MIT"
+[[webview2-com-macros.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[dlopen2.clarify]
+license = "MIT"
+[[dlopen2.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2"
+
+[dlopen2_derive.clarify]
+license = "MIT"
+[[dlopen2_derive.clarify.git]]
+path = "LICENSE"
+license = "MIT"
+checksum = "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2"
+
+# alloc-stdlib 0.2.4 und 0.3.0: dieselbe BSD-3-Clause-Datei (Dropbox) im Repository-Wurzelordner
+[alloc-stdlib.clarify]
+license = "BSD-3-Clause"
+[[alloc-stdlib.clarify.git]]
+path = "LICENSE"
+license = "BSD-3-Clause"
+checksum = "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+
+# brotli-decompressor („BSD-3-Clause OR MIT“): nur der BSD-3-Text mit Urheber liegt bei – BSD-3-Clause gewählt
+[brotli-decompressor.clarify]
+license = "BSD-3-Clause"
+[[brotli-decompressor.clarify.files]]
+path = "LICENSE"
+license = "BSD-3-Clause"
+checksum = "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+
+# libm: MIT-Text des Projekts (ohne Copyright-Zeile upstream) statt der SPDX-Vorlage
+[libm.clarify]
+license = "MIT"
+[[libm.clarify.files]]
+path = "LICENSE.txt"
+license = "MIT"
+checksum = "3823dda7cf046602f4b4e77ec8e227863dc4736037cc85bb33d9f19febe16bb7"
+
+# dpi („Apache-2.0 AND MIT“): MIT-Teil aus libm
+[dpi.clarify]
+license = "Apache-2.0 AND MIT"
+[[dpi.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+[[dpi.clarify.files]]
+path = "LICENSE-LIBM-MIT"
+license = "MIT"
+checksum = "9eff396a99bafd208e7126602420d6864f6066c08b84485a5b032320a9c01997"
