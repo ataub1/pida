@@ -224,6 +224,15 @@ pub fn placeholder_block_spec(
     }
 }
 
+/// Zeigt `spec` die neutrale Platzhalter-Bildmarke der Amtssignatur (Backlog Nr. 10)? Sichtbar, keine eigene
+/// Bildmarke geladen und das Profil verweist auf [`pida_sigblock::assets::AMTS_PLACEHOLDER`] – entscheidet über den
+/// Hinweis im Arbeitsbereich (`BlockView::emblem_placeholder`).
+pub fn shows_amts_placeholder(spec: &BlockSpec) -> bool {
+    spec.visible()
+        && spec.input.emblem.is_none()
+        && spec.profile.values.get("SIG_LABEL").map(String::as_str) == Some(pida_sigblock::assets::AMTS_PLACEHOLDER)
+}
+
 /// Block für `profile_id`; `overrides` = PDF-Over-Overrides (Bildmarke, Hinweis, BASE_LOGO-Maße).
 fn spec_for(
     store: &ProfileStore,

@@ -73,6 +73,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -221,6 +222,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -369,6 +371,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -517,6 +520,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -659,6 +663,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -807,6 +812,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -957,6 +963,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -1105,6 +1112,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },

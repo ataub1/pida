@@ -1,6 +1,8 @@
 // Erzeugt crates/sigblock/assets/images/amtssignatur-platzhalter.png aus design/brand/amtssignatur-platzhalter.svg
 // (neutrale Platzhalter-Bildmarke der Amtssignatur, Backlog Nr. 10): 472 × 470 px = 2 × amtsignatur-logo_demo.png
-// (gleiches Seitenverhältnis, daher gleiche Blockmaße), transparent außerhalb des Rahmens.
+// (gleiches Seitenverhältnis, daher gleiche Blockmaße), transparent außerhalb des Rahmens. Voll transparente Pixel
+// tragen Weiß (wie beim PIDA-Siegel): PDF/A-1 komponiert auf Weiß, ein Programm, das die Transparenz verwirft, zeigt
+// so keinen schwarzen Rand.
 //
 //   npm --prefix design/brand/tools ci
 //   node design/brand/tools/amts-placeholder.mjs
@@ -10,12 +12,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Resvg } from '@resvg/resvg-js';
+import { PNG } from 'pngjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../../..');
 const svg = fs.readFileSync(path.join(root, 'design/brand/amtssignatur-platzhalter.svg'), 'utf8');
 const png = new Resvg(svg, { fitTo: { mode: 'width', value: 472 }, font: { loadSystemFonts: false } }).render();
 if (png.width !== 472 || png.height !== 470) throw new Error(`unerwartete Größe ${png.width} × ${png.height}`);
+const img = PNG.sync.read(png.asPng());
+for (let i = 0; i < img.data.length; i += 4) {
+  if (img.data[i + 3] === 0) img.data.fill(255, i, i + 3);
+}
 const out = path.join(root, 'crates/sigblock/assets/images/amtssignatur-platzhalter.png');
-fs.writeFileSync(out, png.asPng());
+fs.writeFileSync(out, PNG.sync.write(img, { colorType: 6, inputColorType: 6, inputHasAlpha: true, deflateLevel: 9 }));
 console.log(`${path.relative(root, out)}: ${png.width} × ${png.height}`);

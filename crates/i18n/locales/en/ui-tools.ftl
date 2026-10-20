@@ -58,6 +58,7 @@ ng-ui-set-lang-en = English
 ng-ui-set-emblem = Emblem
     .keywords = logo emblem image picture seal graphic company logo
 ng-ui-set-emblem-default = Default emblem (PIDA seal)
+ng-ui-set-emblem-default-amts = Placeholder – please choose your authority's emblem
 ng-ui-set-emblem-current = Current: { $name }
 ng-ui-set-emblem-hint = Drop an image here · PNG, JPEG or GIF. The image stays on this device.
 ng-ui-set-emblem-choose = Choose file …

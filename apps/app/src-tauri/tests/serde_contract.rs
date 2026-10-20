@@ -242,7 +242,13 @@ fn samples() -> Vec<(&'static str, ViewState)> {
             StepView::Position {
                 doc: doc(),
                 page: 1,
-                block: BlockView { width: 232.5, height: 82.0, preview_revision: 3, emblem_placeholder: false },
+                block: BlockView {
+                    width: 232.5,
+                    height: 82.0,
+                    preview_revision: 3,
+                    emblem_placeholder: false,
+                    emblem_choosable: true,
+                },
                 placement: Placement { page_index: 1, x: 297.5, y: 210.5, width: 232.5, height: 82.0 },
                 new_page: false,
                 announce,
@@ -256,7 +262,13 @@ fn samples() -> Vec<(&'static str, ViewState)> {
             StepView::Position {
                 doc: DocInfo { signed: true, ..doc() },
                 page: 2,
-                block: BlockView { width: 100.0, height: 40.0, preview_revision: 1, emblem_placeholder: false },
+                block: BlockView {
+                    width: 100.0,
+                    height: 40.0,
+                    preview_revision: 1,
+                    emblem_placeholder: false,
+                    emblem_choosable: true,
+                },
                 placement: Placement { page_index: 2, x: 0.0, y: 595.5, width: 100.0, height: 40.0 },
                 new_page: true,
                 announce: BTreeMap::new(),
@@ -575,6 +587,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
             ("general.recent_documents".to_owned(), "ng-recent-policy".to_owned()),
             ("proxy".to_owned(), "ng-settings-policy".to_owned()),
         ])),
+        emblem_placeholder: false,
     });
     with_settings.language = Lang::En;
     // eigener Datenschutztext per Richtlinie (Einstellungen › Datenschutz, ADR 0003)
@@ -595,6 +608,7 @@ fn samples() -> Vec<(&'static str, ViewState)> {
         applied_revision: 0,
         examples: BTreeMap::new(),
         locked: None,
+        emblem_placeholder: false,
     });
     out.push(("settings_defaults", defaults));
 
@@ -806,7 +820,13 @@ fn document(phase: DocumentPhase, origin: PlacementOrigin, target: PlacementTarg
         size_bytes: 248_512,
         phase,
         revision: 4,
-        block: BlockView { width: 232.5, height: 82.0, preview_revision: 3, emblem_placeholder: false },
+        block: BlockView {
+            width: 232.5,
+            height: 82.0,
+            preview_revision: 3,
+            emblem_placeholder: false,
+            emblem_choosable: true,
+        },
         placement: Placement { page_index: 1, x: 297.5, y: 210.5, width: 232.5, height: 82.0 },
         origin,
         target,
@@ -1022,7 +1042,13 @@ fn workspace_samples() -> Vec<(&'static str, ViewState)> {
         StepView::Position {
             doc: doc(),
             page: 1,
-            block: BlockView { width: 232.5, height: 82.0, preview_revision: 3, emblem_placeholder: false },
+            block: BlockView {
+                width: 232.5,
+                height: 82.0,
+                preview_revision: 3,
+                emblem_placeholder: false,
+                emblem_choosable: true,
+            },
             placement: Placement { page_index: 1, x: 297.5, y: 210.5, width: 232.5, height: 82.0 },
             new_page: false,
             announce,

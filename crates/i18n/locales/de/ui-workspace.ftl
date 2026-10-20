@@ -284,6 +284,8 @@ ng-ui-insp-overlap-fix = Freie Fläche suchen
 ng-ui-insp-qr-uncovered = Der Signaturblock bedeckt den QR-Platzhalter nicht ganz – ein Teil des Platzhalterbilds bleibt sichtbar.
 ng-ui-insp-emblem-placeholder = Für die Amtssignatur fehlt die Bildmarke Ihrer Behörde – der Signaturblock zeigt einen Platzhalter.
 ng-ui-insp-emblem-placeholder-choose = Bildmarke wählen
+ng-ui-insp-emblem-placeholder-mobile = Für die Amtssignatur fehlt die Bildmarke Ihrer Behörde – der Signaturblock zeigt einen Platzhalter. In der App lässt sich keine eigene Bildmarke festlegen.
+ng-ui-insp-emblem-placeholder-qr = Der QR-Platzhalter gibt die Amtssignatur vor; sie zeigt einen Platzhalter statt der Bildmarke Ihrer Behörde.
 # Hinweis zum Teilen auf iOS (Kern: `ViewState::share_hint`, ADR 0004 Nachtrag 12)
 ng-ui-ws-share-hint = Mehrere PDFs geteilt? iOS übergibt beim Teilen nur das erste. Für einen Stapel wählen Sie die übrigen über „Weitere PDFs hinzufügen …“ – dort ist Mehrfachauswahl möglich.
 ng-ui-ws-share-hint-dismiss = Hinweis ausblenden

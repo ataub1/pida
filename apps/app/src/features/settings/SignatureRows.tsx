@@ -150,10 +150,15 @@ export function EmblemRow() {
       <div className={`logo-drop${dragActive ? ' is-target' : ''}`} data-emblem-drop="" role="group" aria-labelledby="set-emblem-label" aria-describedby="set-emblem-hint">
         <div className="logo-drop-inner">
           <span className="logo-thumb" aria-hidden="true">
-            {emblem ? <IconImage size={22} /> : <DefaultEmblem />}
+            {emblem || s.view.emblem_placeholder ? <IconImage size={22} /> : <DefaultEmblem />}
           </span>
           <span className="logo-text">
-            <span className="logo-name">{emblem ? t.t('ng-ui-set-emblem-current', { name: baseName(emblem) }) : t.t('ng-ui-set-emblem-default')}</span>
+            <span className="logo-name">
+              {emblem
+                ? t.t('ng-ui-set-emblem-current', { name: baseName(emblem) })
+                : // Amtssignatur ohne eigene Bildmarke: neutraler Platzhalter statt PIDA-Siegel (Backlog Nr. 10, Kern)
+                  t.t(s.view.emblem_placeholder ? 'ng-ui-set-emblem-default-amts' : 'ng-ui-set-emblem-default')}
+            </span>
             <span className="field-hint" id="set-emblem-hint">
               {t.t('ng-ui-set-emblem-hint')}
             </span>

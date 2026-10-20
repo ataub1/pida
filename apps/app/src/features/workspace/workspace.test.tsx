@@ -359,6 +359,19 @@ describe('Überdeckung, Felder, Optionen', () => {
     expect(lastEvent(mock)).toEqual({ type: 'open_settings' });
   });
 
+  it('Platzhalter-Bildmarke ohne Wahlmöglichkeit: QR-Platzhalter gibt das Profil vor bzw. Mobile – Hinweis ohne „Bildmarke wählen“', async () => {
+    const base = documentView();
+    const qr = renderApp({ view: workspaceView({ ...base, block: { ...base.block, emblem_placeholder: true, emblem_choosable: false } }) });
+    const hint = await screen.findByTestId('emblem-placeholder-hint');
+    expect(hint).toHaveTextContent('Der QR-Platzhalter gibt die Amtssignatur vor; sie zeigt einen Platzhalter statt der Bildmarke Ihrer Behörde.');
+    expect(within(hint).queryByRole('button')).not.toBeInTheDocument();
+    qr.unmount();
+    renderApp({ view: onMobile(workspaceView({ ...base, block: { ...base.block, emblem_placeholder: true } }), IOS) });
+    const mobile = await screen.findByTestId('emblem-placeholder-hint');
+    expect(mobile).toHaveTextContent('In der App lässt sich keine eigene Bildmarke festlegen.');
+    expect(within(mobile).queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('ohne Platzhalter-Bildmarke kein Hinweis', async () => {
     renderApp({ view: workspaceView(documentView()) });
     await screen.findByRole('application', { name: 'Signaturblock' });

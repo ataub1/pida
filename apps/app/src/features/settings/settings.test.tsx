@@ -346,6 +346,14 @@ describe('Einstellungen › Dokument: Automatische Positionierung (Nachtrag 8)',
 });
 
 describe('Signaturbild: Bildmarke, Profile, Logo-Größe', () => {
+  it('Amtssignatur ohne eigene Bildmarke: Platzhalter statt PIDA-Siegel (Backlog Nr. 10, Kern entscheidet)', async () => {
+    const amts = { ...defaultSettings(), signature: { ...defaultSettings().signature, profile: 'AMTSSIGNATURBLOCK' as const } };
+    const { dialog } = await open({ settings: amts });
+    const zone = within(dialog).getByRole('group', { name: 'Bildmarke' });
+    expect(within(zone).getByText('Platzhalter – bitte die Bildmarke Ihrer Behörde wählen')).toBeInTheDocument();
+    expect(within(zone).queryByText('Standard-Bildmarke (PIDA-Siegel)')).not.toBeInTheDocument();
+  });
+
   it('ohne eigene Bildmarke das PIDA-Siegel; Datei wählen, Standard verwenden, Ablegen (ohne Profilwechsel)', async () => {
     const { dialog, mock, user } = await open({ pickFilesResult: ['/Users/demo/logo.png'] });
     const zone = within(dialog).getByRole('group', { name: 'Bildmarke' });

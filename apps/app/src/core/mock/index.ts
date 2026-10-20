@@ -983,7 +983,7 @@ function stepView(s: FlowState, ctx: MockCtx): StepView {
         step: 'position',
         doc: docInfo(d),
         page: p.page_index,
-        block: { width: size.width, height: size.height, preview_revision: s.preview, emblem_placeholder: emblemPlaceholder(ctx.settings()) },
+        block: { width: size.width, height: size.height, preview_revision: s.preview, emblem_placeholder: emblemPlaceholder(ctx.settings()), emblem_choosable: true },
         placement: { ...p },
         new_page: s.edit.newPage,
         announce: {

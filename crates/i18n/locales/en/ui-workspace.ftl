@@ -284,6 +284,8 @@ ng-ui-insp-overlap-fix = Find free space
 ng-ui-insp-qr-uncovered = The signature block does not fully cover the QR placeholder – part of the placeholder image remains visible.
 ng-ui-insp-emblem-placeholder = The official signature has no emblem of your authority yet – the signature block shows a placeholder.
 ng-ui-insp-emblem-placeholder-choose = Choose emblem
+ng-ui-insp-emblem-placeholder-mobile = The official signature has no emblem of your authority – the signature block shows a placeholder. An own emblem cannot be set in the app.
+ng-ui-insp-emblem-placeholder-qr = The QR placeholder sets the official signature; it shows a placeholder instead of your authority's emblem.
 # Sharing hint on iOS (core: `ViewState::share_hint`, ADR 0004 addendum 12)
 ng-ui-ws-share-hint = Shared several PDFs? iOS only passes on the first one. For a batch, choose the others with “Add more PDFs …” – you can select several there.
 ng-ui-ws-share-hint-dismiss = Hide hint

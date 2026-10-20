@@ -26,7 +26,7 @@ import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
 import { defaultDocumentDetection } from '../../core/defaults';
-import type { DocumentView, StepView } from '../../core/types';
+import { isMobile, type DocumentView, type StepView } from '../../core/types';
 import { AccessButton, Badge, Button, Keys, SwitchField, useModKey } from '../../ui/controls';
 import { useFitScale, useNarrow } from '../../ui/hooks';
 import { IconAlert, IconChevronDown, IconFileText, IconGrip, IconInfo, IconLock, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
@@ -181,14 +181,24 @@ export function Inspector({
             </div>
           </div>
           {/* Amtssignatur ohne eigene Bildmarke (Backlog Nr. 10): neutraler Platzhalter statt der Bildmarke der Behörde */}
+          {/* „Bildmarke wählen“ nur, wo eine eigene Bildmarke diesen Block ändert: nicht auf iOS/Android (keine eigene
+              Bildmarke) und nicht, wenn ein QR-Platzhalter das Profil vorgibt (der Kern entscheidet: `emblem_choosable`) */}
           {doc.block.emblem_placeholder ? (
             <div className="callout callout-info" data-testid="emblem-placeholder-hint">
               <IconInfo size={18} />
               <div>
-                <p>{t.t('ng-ui-insp-emblem-placeholder')}</p>
-                <Button variant="secondary" size="sm" onPress={() => openSettings('signature')} isDisabled={!view.actions.settings}>
-                  {t.t('ng-ui-insp-emblem-placeholder-choose')}
-                </Button>
+                {isMobile(view) ? (
+                  <p>{t.t('ng-ui-insp-emblem-placeholder-mobile')}</p>
+                ) : doc.block.emblem_choosable ? (
+                  <>
+                    <p>{t.t('ng-ui-insp-emblem-placeholder')}</p>
+                    <Button variant="secondary" size="sm" onPress={() => openSettings('signature')} isDisabled={!view.actions.settings}>
+                      {t.t('ng-ui-insp-emblem-placeholder-choose')}
+                    </Button>
+                  </>
+                ) : (
+                  <p>{t.t('ng-ui-insp-emblem-placeholder-qr')}</p>
+                )}
               </div>
             </div>
           ) : null}

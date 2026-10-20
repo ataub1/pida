@@ -916,10 +916,16 @@ height: number,
  */
 preview_revision: number, 
 /**
- * Profil Amtssignatur ohne eigene Bildmarke: der Block zeigt die neutrale Platzhalter-Bildmarke statt der
- * Bildmarke der Behörde (Backlog Nr. 10) – die Oberfläche weist inline darauf hin. Additiv.
+ * Der Block, der hier signiert wird, zeigt die neutrale Platzhalter-Bildmarke der Amtssignatur statt der
+ * Bildmarke der Behörde (Backlog Nr. 10): Profil Amtssignatur ohne ladbare eigene Bildmarke – am QR-Platzhalter
+ * das Profil, das der Platzhalter vorgibt (`profile=…`). Die Oberfläche weist inline darauf hin. Additiv.
  */
-emblem_placeholder: boolean, };
+emblem_placeholder: boolean, 
+/**
+ * Ändert eine eigene Bildmarke (Einstellungen) diesen Block? `false`, wenn ein QR-Platzhalter ein anderes Profil
+ * vorgibt – dessen Block übernimmt die eigene Bildmarke nicht (PDF-Over). Dann kein „Bildmarke wählen“. Additiv.
+ */
+emblem_choosable: boolean, };
 
 /**
  * Backend-Option.
@@ -1305,7 +1311,12 @@ examples: { [key in string]: string },
  * `ApplySettings` lehnt sie mit dem Grund als Problem ab. Nachtrag K3 (ADR 0004 §9, Vorschlag aus B3
  * `contract-draft.ts`): additiv, in TypeScript optional; der Kern liefert es immer (`Some`, ggf. leer).
  */
-locked?: { [key in string]: string } | null, };
+locked?: { [key in string]: string } | null, 
+/**
+ * Profil Amtssignatur ohne eigene Bildmarke (Arbeitskopie): Standard ist die neutrale Platzhalter-Bildmarke, nicht
+ * das PIDA-Siegel (Backlog Nr. 10) – die Bildmarken-Zeile nennt das. Additiv.
+ */
+emblem_placeholder: boolean, };
 
 /**
  * Gesamtzustand für die UI.

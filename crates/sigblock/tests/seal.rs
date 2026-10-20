@@ -85,6 +85,24 @@ fn seal_asset_matches_design_master() {
     assert!(bytes == SEAL_PNG, "assets/images/pida-seal.png weicht von design/brand/pida-seal-sigblock.png ab");
 }
 
+/// Neutrale Platzhalter-Bildmarke der Amtssignatur (Backlog Nr. 10): doppelte Pixelmaße der PDF-AS-Demo-Bildmarke,
+/// transparent außerhalb des Rahmens, voll transparente Pixel weiß (wie beim Siegel).
+#[test]
+fn amts_placeholder_asset_geometry_and_transparency() {
+    let p = Emblem::decode_original(include_bytes!("../assets/images/amtssignatur-platzhalter.png")).unwrap();
+    let demo = Emblem::decode_original(include_bytes!("../assets/images/amtsignatur-logo_demo.png")).unwrap();
+    assert_eq!((p.width, p.height), (2 * demo.width, 2 * demo.height));
+    assert!(p.has_alpha);
+    let mut transparent = 0;
+    for px in p.rgba.as_chunks::<4>().0 {
+        if px[3] == 0 {
+            transparent += 1;
+            assert_eq!(&px[..3], &[255, 255, 255], "voll transparente Pixel tragen Weiß");
+        }
+    }
+    assert!(transparent > 0, "Ecken außerhalb des Rahmens transparent");
+}
+
 #[test]
 fn seal_asset_geometry_and_colors() {
     let s = seal();

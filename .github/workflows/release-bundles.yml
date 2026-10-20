@@ -150,6 +150,8 @@ jobs:
       # MSVC-Toolsets des Runners, mit denen pida.exe gelinkt wird
       - name: MSVC-Version (Windows)
         if: runner.os == 'Windows'
+        # nur Protokoll – darf das Release nicht aufhalten
+        continue-on-error: true
         run: |
           vswhere="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
           vs="$("$vswhere" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)"

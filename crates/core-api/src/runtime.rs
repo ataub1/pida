@@ -91,6 +91,8 @@ pub(crate) struct BlockInfo {
     pub height: f32,
     pub revision: u64,
     pub pdf: Option<Arc<[u8]>>,
+    /// die Vorschau zeigt die neutrale Platzhalter-Bildmarke der Amtssignatur ([`plan::shows_amts_placeholder`])
+    pub emblem_placeholder: bool,
 }
 
 impl std::fmt::Debug for BlockInfo {
@@ -354,7 +356,15 @@ impl Shared {
         } else {
             None
         };
-        Ok(BlockInfo { doc: doc.map(|d| d.id), width: geom.width, height: geom.height, revision: 0, pdf })
+        let emblem_placeholder = plan::shows_amts_placeholder(&spec);
+        Ok(BlockInfo {
+            doc: doc.map(|d| d.id),
+            width: geom.width,
+            height: geom.height,
+            revision: 0,
+            pdf,
+            emblem_placeholder,
+        })
     }
 }
 
@@ -2827,6 +2837,7 @@ impl CoreTask {
             applied_revision: 0,
             examples: BTreeMap::new(),
             locked: None,
+            emblem_placeholder: false,
         }
     }
 
@@ -3282,6 +3293,9 @@ impl CoreTask {
         v.applied_revision = self.apply_state.published;
         v.examples = crate::settings_apply::examples(&v.settings);
         v.locked = Some(crate::settings_apply::locked_paths(self.cfg.policy.as_ref()));
+        // Amtssignatur ohne eigene Bildmarke: Standard ist der Platzhalter, nicht das PIDA-Siegel (Backlog Nr. 10)
+        v.emblem_placeholder = v.settings.signature.profile == pida_config::SignatureProfile::Amtssignaturblock
+            && v.settings.signature.emblem.is_none();
         if !self.cfg.keystore_offered {
             // iOS/Android nur mit ID Austria (ADR 0004 Nachtrag 11): keine Keystore-Angaben
             v.keystore_ready = false;
@@ -3360,7 +3374,8 @@ impl CoreTask {
                         width: if block.doc == Some(doc.id) { block.width } else { placement.width },
                         height: if block.doc == Some(doc.id) { block.height } else { placement.height },
                         preview_revision: block.revision,
-                        emblem_placeholder: self.emblem_placeholder(),
+                        emblem_placeholder: block.emblem_placeholder,
+                        emblem_choosable: true,
                     },
                     placement,
                     new_page: *new_page,

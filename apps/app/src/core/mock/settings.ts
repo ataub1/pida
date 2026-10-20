@@ -383,6 +383,8 @@ export const settingsArea: MockArea<SettingsState> = {
           applied_revision: state.appliedRevision,
           examples: { 'output.postfix': outputFileName('Vertrag.pdf', state.settings.output.postfix || '_signed') },
           locked: { ...state.locked },
+          // wie der Kern: Amtssignatur ohne eigene Bildmarke → Platzhalter statt PIDA-Siegel (Backlog Nr. 10)
+          emblem_placeholder: state.settings.signature.profile === 'AMTSSIGNATURBLOCK' && !state.settings.signature.emblem,
         }
       : null;
     return { settings: view, keystore_import: state.keystoreImport ? { ...state.keystoreImport } : null };

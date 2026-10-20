@@ -146,7 +146,7 @@ const documentView = obj({
   size_bytes: int,
   phase: lit('warning', 'editing', 'signing', 'done'),
   revision: int,
-  block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool }),
+  block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool, emblem_choosable: bool }),
   placement: obj({ page_index: int, x: num, y: num, width: num, height: num }),
   origin: lit('auto', 'user', 'field', 'qr'),
   target: placementTarget,
@@ -343,7 +343,7 @@ const stepView = tagged('step', {
   position: {
     doc: docInfo,
     page: int,
-    block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool }),
+    block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool, emblem_choosable: bool }),
     placement: obj({ page_index: int, x: num, y: num, width: num, height: num }),
     new_page: bool,
     announce: record(str),
@@ -444,6 +444,7 @@ const viewState = obj({
       examples: record(str),
       // Nachtrag K3: per Richtlinie festgelegte Pfade (in TS optional)
       locked: optional(record(str)),
+      emblem_placeholder: bool,
     }),
   ),
   language: lang,

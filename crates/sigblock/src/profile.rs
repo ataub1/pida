@@ -482,11 +482,17 @@ pub trait Resources: Send + Sync + std::fmt::Debug {
     fn font(&self, file: &str) -> Result<Arc<[u8]>>;
 }
 
-/// Name eines eingebetteten Bilds aus einer Profilreferenz (`./images/x.png`, `images/x.png`).
+/// Name eines eingebetteten Bilds aus einer Profilreferenz (`./images/x.png`, `images/x.png`). Ohne Feature
+/// `pdfas-reference` fehlt die Demo-Bildmarke der Amtssignatur (Backlog Nr. 10): Verweise darauf (PDF-AS-
+/// Konfigurationsordner ohne `images/`, Overlays) bekommen die neutrale Platzhalter-Bildmarke – gleiches
+/// Seitenverhältnis, also gleiche Blockmaße – statt eines Fehlers beim Signieren.
 fn builtin_image_name(reference: &str) -> Option<&str> {
     let r = reference.trim_start_matches("./");
     let r = r.strip_prefix("images/").unwrap_or(r);
-    assets::image(r).map(|_| r)
+    if assets::image(r).is_some() {
+        return Some(r);
+    }
+    (r == assets::AMTS_DEMO_FILE).then_some(assets::AMTS_PLACEHOLDER_FILE)
 }
 
 fn builtin_images() -> &'static HashMap<&'static str, std::result::Result<Arc<Emblem>, String>> {

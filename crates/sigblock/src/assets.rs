@@ -128,6 +128,12 @@ pub const PIDA_SEAL_PROFILES: [&str; 9] = [
 /// damit Zeilenhöhen und Blockmaße unverändert bleiben (wie beim PIDA-Siegel).
 pub const AMTS_PLACEHOLDER: &str = "./images/amtssignatur-platzhalter.png";
 
+/// Dateiname von [`AMTS_PLACEHOLDER`] unter `images/`.
+pub const AMTS_PLACEHOLDER_FILE: &str = "amtssignatur-platzhalter.png";
+
+/// Dateiname der Demo-Bildmarke der Amtssignatur aus PDF-AS (nur mit Feature `pdfas-reference` eingebettet).
+pub const AMTS_DEMO_FILE: &str = "amtsignatur-logo_demo.png";
+
 /// Profile, die in PDF-AS die Demo-Bildmarke der Behörde festlegen (`value.SIG_LABEL`) und in
 /// [`crate::ProfileStore::builtin`] stattdessen [`AMTS_PLACEHOLDER`] bekommen; `AMTSSIGNATURBLOCK_{DE,EN}_RECOMMENDED`
 /// erben sie.

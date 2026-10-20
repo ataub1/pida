@@ -1138,7 +1138,7 @@ export function emblemPlaceholder(settings: Settings): boolean {
 export function projectDocument(doc: MockDoc, edit: EditState, phase: DocumentPhase, settings: Settings, lang: Lang, previewRevision: number): DocumentView {
   const size = blockSize(settings, lang);
   // Amtssignatur ohne eigene Bildmarke: neutrale Platzhalter-Bildmarke (wie `emblem_placeholder` im Kern, Backlog Nr. 10)
-  const block: BlockView = { width: size.width, height: size.height, preview_revision: previewRevision, emblem_placeholder: emblemPlaceholder(settings) && !edit.invisible };
+  const block: BlockView = { width: size.width, height: size.height, preview_revision: previewRevision, emblem_placeholder: emblemPlaceholder(settings) && !edit.invisible, emblem_choosable: true };
   const p = edit.placement;
   let sticker: RectPt | null = null;
   if (p && !edit.invisible) {

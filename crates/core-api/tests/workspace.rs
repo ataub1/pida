@@ -1739,27 +1739,61 @@ async fn qr_placeholder_is_used_automatically_with_search() {
 }
 
 /// Amtssignatur ohne eigene Bildmarke (Backlog Nr. 10): `block.emblem_placeholder` meldet die neutrale
-/// Platzhalter-Bildmarke; mit eigener Bildmarke, mit einem anderen Profil oder unsichtbar nicht.
+/// Platzhalter-Bildmarke – auch wenn die eingetragene Bildmarke fehlt (der Block zeigt dann ebenfalls den Platzhalter);
+/// mit eigener Bildmarke, mit einem anderen Profil oder unsichtbar nicht. Entscheidend ist der gebaute Block
+/// (Vorschau), daher erst nach der Blockvorschau prüfen.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn official_signature_without_emblem_reports_the_placeholder() {
     let emblem = concat!(env!("CARGO_MANIFEST_DIR"), "/../sigblock/assets/images/pida-seal.png");
+    let missing = concat!(env!("CARGO_MANIFEST_DIR"), "/../sigblock/assets/images/gibt-es-nicht.png");
     for (settings, expected) in [
         ("[signature]\nprofile = \"AMTSSIGNATURBLOCK\"\n".to_owned(), true),
+        (format!("[signature]\nprofile = \"AMTSSIGNATURBLOCK\"\nemblem = {missing:?}\n"), true),
         (format!("[signature]\nprofile = \"AMTSSIGNATURBLOCK\"\nemblem = {emblem:?}\n"), false),
         ("[signature]\nprofile = \"SIGNATURBLOCK_SMALL\"\n".to_owned(), false),
     ] {
         let fx = Fixture::new();
         let a = copy_pdf(TEXT_PDF, &fx.dir("in"), "a.pdf");
         fx.write_settings(&settings);
-        let core = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), None, None, false).unwrap();
-        let v = wait_for(&core, "Arbeitsbereich", editing).await;
-        assert_eq!(v.document.unwrap().block.emblem_placeholder, expected, "{settings}");
+        // die Blockvorschau entsteht mit dem Renderer (wie in der App)
+        let Some(core) = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), None, None, true) else {
+            eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+            return;
+        };
+        let v = wait_for(&core, "Blockvorschau", |v| {
+            editing(v) && v.document.as_ref().is_some_and(|d| d.block.preview_revision > 0)
+        })
+        .await;
+        let d = v.document.unwrap();
+        assert_eq!(d.block.emblem_placeholder, expected, "{settings}");
+        assert!(d.block.emblem_choosable, "{settings}: frei platziert gilt die eigene Bildmarke");
         if expected {
             core.dispatch(UiEvent::SetInvisible { invisible: true });
             let v = wait_for(&core, "unsichtbar", |v| v.document.as_ref().is_some_and(|d| d.invisible)).await;
             assert!(!v.document.unwrap().block.emblem_placeholder, "unsichtbar ohne Hinweis");
         }
     }
+}
+
+/// QR-Platzhalter mit eigenem Profil (`profile=SIGNATURBLOCK_SMALL_DE` in den PDF-AS-Testdaten): signiert wird dieses
+/// Profil (PDF-Over), nicht die eingestellte Amtssignatur – kein Platzhalter-Hinweis, und eine eigene Bildmarke wirkt
+/// dort nicht (`emblem_choosable = false`).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn qr_placeholder_profile_decides_the_emblem_hint() {
+    let fx = Fixture::new();
+    let a = copy_pdf("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2-2.pdf", &fx.dir("in"), "qr.pdf");
+    fx.write_settings("[signature]\nprofile = \"AMTSSIGNATURBLOCK\"\n[placeholder]\nsearch = true\n");
+    let Some(core) = start(&fx, keystore_overlay(vec![a], &fx.dir("out")), None, Some(FakeEngine::new()), true) else {
+        eprintln!("PIDA_PDFIUM_DIR nicht gesetzt – übersprungen");
+        return;
+    };
+    let v = wait_for(&core, "QR-Ziel", |v| {
+        v.document.as_ref().is_some_and(|d| d.target == PlacementTarget::Qr && d.block.preview_revision > 0)
+    })
+    .await;
+    let d = v.document.unwrap();
+    assert!(!d.block.emblem_placeholder, "QR-Profil SIGNATURBLOCK_SMALL_DE zeigt das PIDA-Siegel");
+    assert!(!d.block.emblem_choosable, "eigene Bildmarke gilt im Profil des Platzhalters nicht");
 }
 
 /// QR-Platzhalter höher als der Block (Backlog Nr. 32): `check.placeholder_uncovered` meldet es, der Block bleibt

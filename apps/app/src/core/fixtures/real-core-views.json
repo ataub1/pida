@@ -26,6 +26,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -243,6 +244,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -299,6 +301,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -559,6 +562,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -770,6 +774,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -826,6 +831,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -1102,6 +1108,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -1350,6 +1357,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -1625,6 +1633,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -1854,6 +1863,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -1910,6 +1920,7 @@
         "top": "267"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -2236,6 +2247,7 @@
         "top": "70"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -2443,6 +2455,7 @@
         "top": "261"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -2681,6 +2694,7 @@
         "top": "261"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -2737,6 +2751,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -2966,6 +2981,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -3022,6 +3038,7 @@
         "top": "254"
       },
       "block": {
+        "emblem_choosable": false,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -3254,6 +3271,7 @@
         "top": "70"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -3310,6 +3328,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -3613,6 +3632,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -3867,6 +3887,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -3923,6 +3944,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -4229,6 +4251,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -4398,6 +4421,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 0,
+      "emblem_placeholder": false,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -4529,6 +4553,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
         "preview_revision": 1,
@@ -4585,6 +4610,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": true,
         "height": 120.0,
         "preview_revision": 2,
@@ -4754,6 +4780,7 @@
     "resume": null,
     "settings": {
       "applied_revision": 1,
+      "emblem_placeholder": true,
       "examples": {
         "output.postfix": "Vertrag_signed.pdf"
       },
@@ -4887,6 +4914,7 @@
         "top": "248"
       },
       "block": {
+        "emblem_choosable": true,
         "emblem_placeholder": true,
         "height": 120.0,
         "preview_revision": 2,

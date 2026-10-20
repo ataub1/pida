@@ -58,6 +58,7 @@ ng-ui-set-lang-en = English
 ng-ui-set-emblem = Bildmarke
     .keywords = logo bildmarke emblem bild siegel grafik firmenlogo
 ng-ui-set-emblem-default = Standard-Bildmarke (PIDA-Siegel)
+ng-ui-set-emblem-default-amts = Platzhalter – bitte die Bildmarke Ihrer Behörde wählen
 ng-ui-set-emblem-current = Aktuell: { $name }
 ng-ui-set-emblem-hint = Bild hierher ziehen · PNG, JPEG oder GIF. Das Bild bleibt auf diesem Gerät.
 ng-ui-set-emblem-choose = Datei wählen …

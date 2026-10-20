@@ -120,10 +120,15 @@ pub struct BlockView {
     pub height: f32,
     /// Vorschau-Revision (Cache-Busting für `blockPreviewUrl`)
     pub preview_revision: u64,
-    /// Profil Amtssignatur ohne eigene Bildmarke: der Block zeigt die neutrale Platzhalter-Bildmarke statt der
-    /// Bildmarke der Behörde (Backlog Nr. 10) – die Oberfläche weist inline darauf hin. Additiv.
+    /// Der Block, der hier signiert wird, zeigt die neutrale Platzhalter-Bildmarke der Amtssignatur statt der
+    /// Bildmarke der Behörde (Backlog Nr. 10): Profil Amtssignatur ohne ladbare eigene Bildmarke – am QR-Platzhalter
+    /// das Profil, das der Platzhalter vorgibt (`profile=…`). Die Oberfläche weist inline darauf hin. Additiv.
     #[serde(default)]
     pub emblem_placeholder: bool,
+    /// Ändert eine eigene Bildmarke (Einstellungen) diesen Block? `false`, wenn ein QR-Platzhalter ein anderes Profil
+    /// vorgibt – dessen Block übernimmt die eigene Bildmarke nicht (PDF-Over). Dann kein „Bildmarke wählen“. Additiv.
+    #[serde(default = "yes")]
+    pub emblem_choosable: bool,
 }
 
 /// Backend-Option.
@@ -471,6 +476,10 @@ pub struct SettingsView {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub locked: Option<BTreeMap<String, String>>,
+    /// Profil Amtssignatur ohne eigene Bildmarke (Arbeitskopie): Standard ist die neutrale Platzhalter-Bildmarke, nicht
+    /// das PIDA-Siegel (Backlog Nr. 10) – die Bildmarken-Zeile nennt das. Additiv.
+    #[serde(default)]
+    pub emblem_placeholder: bool,
 }
 
 /// Gesamtzustand für die UI.
