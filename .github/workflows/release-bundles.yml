@@ -156,6 +156,16 @@ jobs:
           # shellcheck disable=SC2086 # REQUIRE ist leer oder genau ein Schalter
           node scripts/bundle-config.mjs --require-pdfium $REQUIRE --out src-tauri/bundle.conf.json
           npm run tauri -- build --bundles ${{ matrix.bundles }} --config src-tauri/bundle.conf.json
+      # Portables Linux-Paket (Backlog Nr. 31): AppImage aus demselben Build und mit derselben Konfiguration (PDFium,
+      # Hinweise, LICENSE). Vorerst ein Versuch, der deb und rpm nicht aufhält; linuxdeploy ohne FUSE auf dem Runner.
+      - name: AppImage (Linux, portabel)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        working-directory: apps/app
+        env:
+          CI: "true"
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: npm run tauri -- build --bundles appimage --config src-tauri/bundle.conf.json
       # Tauri signiert PIDA.app samt Frameworks (libpdfium.dylib) vor dem DMG-Bau ad hoc
       # (bundle.macOS.signingIdentity "-"). Nur vom Linker signiert („Sealed Resources=none“) meldete macOS
       # die heruntergeladene App als „beschädigt“ (0.2.0); geprüft werden die App und die App in der DMG.
@@ -190,6 +200,7 @@ jobs:
           path: |
             target/release/bundle/deb/*.deb
             target/release/bundle/rpm/*.rpm
+            target/release/bundle/appimage/*.AppImage
             target/release/bundle/nsis/*.exe
             target/release/bundle/msi/*.msi
             target/release/bundle/dmg/*.dmg
