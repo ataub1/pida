@@ -251,15 +251,16 @@ fi
 
 # --- 6. Windows-Installer und -Laufzeit -----------------------------------------------------------
 # Nicht in Cargo.lock bzw. im npm-Lockfile: statisch gelinkter WebView2-Loader, NSIS-Laufzeit im Setup, WiX-Teile im
-# MSI (Lizenzbericht Befunde 1, 7, 8). Versionen und Quellen: tools/licenses/windows/README.md.
+# MSI (Lizenzbericht Befunde 1, 7, 8). Versionen und Quellen: tools/licenses/windows/README.md. Maßgeblich ist das
+# tatsächlich verwendete PDFium-Paket (<plattform>/lib bzw. bin), nicht das Argument.
 : >"$TMP/6-windows.md"
-case "$PDFIUM_PLATFORM" in
+case "$(basename "$PDFIUM_DIR")" in
   win-*)
     WIN="$ROOT/tools/licenses/windows"
     {
       echo "## Windows-Installer und -Laufzeit (Windows installer and runtime)"
       echo
-      echo "### Microsoft WebView2 SDK 1.0.3650.58 – BSD-3-Clause"
+      echo "### Microsoft WebView2 SDK 1.0.3800.47 – BSD-3-Clause"
       echo
       echo "\`WebView2LoaderStatic.lib\` ist statisch in \`pida.exe\` gelinkt; die Bindings von \`webview2-com-sys\` sind"
       echo "aus dem SDK erzeugt. \`WebView2LoaderStatic.lib\` is statically linked into \`pida.exe\`; the bindings of"
@@ -269,21 +270,30 @@ case "$PDFIUM_PLATFORM" in
       emit_text "$WIN/Microsoft.Web.WebView2-LICENSE.txt"
       echo '~~~~'
       echo
-      echo "### NSIS 3.13 – Installerlaufzeit des Setups (zlib/libpng; LZMA-Modul CPL-1.0)"
+      echo "### NSIS 3.13 – Installerlaufzeit des Setups (zlib/libpng; LZMA-Modul CPL-1.0; Modern UI 2)"
       echo
-      echo "Setup und Uninstaller enthalten die NSIS-Installerlaufzeit samt Plugins und Grafik (zlib/libpng) und den"
-      echo "LZMA-Dekompressor (Common Public License 1.0). Für den CPL-Teil gilt: Er wird ohne Gewährleistung und unter"
-      echo "Ausschluss der Haftung bereitgestellt (CPL §5, §6); davon abweichende Bedingungen bietet allein A-SIT als"
-      echo "Herausgeber von PIDA an, nicht die übrigen Beitragenden. Der Quellcode ist erhältlich unter"
-      echo "<https://github.com/kichik/nsis/tree/v313> (auch <https://nsis.sourceforge.io>)."
+      echo "Setup und Uninstaller enthalten die NSIS-Installerlaufzeit samt Plugins und Grafik (zlib/libpng), die Seiten"
+      echo "und Dialoge von Modern UI 2 (eigener Vermerk unten) und den LZMA-Dekompressor (Common Public License 1.0)."
+      echo "Für den CPL-Teil schließt A-SIT im Namen aller Beitragenden jede Gewährleistung und Bedingung, ausdrücklich"
+      echo "oder stillschweigend, sowie die Haftung für Schäden jeder Art aus (CPL §5, §6); davon abweichende Bedingungen"
+      echo "bietet allein A-SIT als Herausgeber von PIDA an, nicht die übrigen Beitragenden. Der Quellcode ist von A-SIT"
+      echo "erhältlich über <https://github.com/kichik/nsis/tree/v313> (unveränderter Quellcode von NSIS 3.13)."
       echo
-      echo "Setup and uninstaller contain the NSIS installer runtime with plug-ins and graphics (zlib/libpng) and the LZMA"
-      echo "decompressor (Common Public License 1.0). The CPL part is provided without warranty and with liability excluded"
-      echo "(CPL §5, §6); any provisions which differ from the CPL are offered by A-SIT, the publisher of PIDA, alone and not"
-      echo "by any other party. Source code is available at <https://github.com/kichik/nsis/tree/v313>."
+      echo "Setup and uninstaller contain the NSIS installer runtime with plug-ins and graphics (zlib/libpng), the pages and"
+      echo "dialogs of Modern UI 2 (own notice below) and the LZMA decompressor (Common Public License 1.0). For the CPL part,"
+      echo "A-SIT, on behalf of all Contributors, disclaims all warranties and conditions, express or implied, and excludes"
+      echo "liability for damages of any kind (CPL §5, §6); any provisions which differ from the CPL are offered by A-SIT,"
+      echo "the publisher of PIDA, alone and not by any other party. The source code is available from A-SIT at"
+      echo "<https://github.com/kichik/nsis/tree/v313> (unmodified source code of NSIS 3.13)."
       echo
       echo '~~~~text'
       emit_text "$WIN/NSIS-COPYING.txt"
+      echo '~~~~'
+      echo
+      echo "#### NSIS Modern UI 2 (Contrib/Modern UI 2)"
+      echo
+      echo '~~~~text'
+      emit_text "$WIN/NSIS-ModernUI2-License.txt"
       echo '~~~~'
       echo
       echo "### nsis_tauri_utils 0.5.3 – Apache-2.0 OR MIT (NSIS-Plugin im Setup)"

@@ -409,8 +409,9 @@ jobs:
           - os: macos-latest
             bundles: app
             notices: true
-          # Windows: Hinweise noch ohne CI-Nachweis (tools/third-party-notices.sh unter Git Bash) – Bundle ohne
-          # Hinweise, Release-Bundles verlangen sie (`npm run bundle:release`).
+          # Windows: Bundle ohne Hinweise (tools/third-party-notices.sh läuft nur unter Linux/macOS); die Hinweise der
+          # Windows-Pakete erzeugt der Job notices (Variante --pdfium win-x64), im Release-Workflow der Job
+          # notices-windows, dessen Artefakt das Windows-Bundle mit --require-notices verlangt.
           - os: windows-latest
             bundles: nsis
             notices: false

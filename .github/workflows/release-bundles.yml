@@ -63,6 +63,9 @@ jobs:
   bundle:
     name: Release-Bundle (${{ matrix.os }})
     needs: notices-windows
+    # Linux und macOS auch bauen, wenn notices-windows fehlschlägt (needs gilt für die ganze Matrix); Windows bricht
+    # dann im ersten Schritt ab
+    if: ${{ !cancelled() }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -81,6 +84,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Hinweise vorhanden? (Windows)
+        if: runner.os == 'Windows' && needs.notices-windows.result != 'success'
+        run: |
+          echo "::error::Job notices-windows ist fehlgeschlagen – Windows-Pakete brauchen die Drittlizenz-Hinweise"
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
