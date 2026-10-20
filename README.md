@@ -4,7 +4,7 @@
 
 **PDF-Signatur mit ID Austria** · PDF · ID · Austria
 
-[Download](#download) ·
+[**Download 0.2.3**](https://github.com/ataub1/pida/releases/tag/v0.2.3) ·
 [Installation](#installation) ·
 [In English](#in-english)
 
@@ -18,7 +18,7 @@ PIDA ist freie Software unter der **EUPL-1.2**.
 ![Arbeitsbereich von PIDA: links die Seitenminiaturen, in der Mitte die letzte Seite eines Vertrags mit dem automatisch platzierten Signaturblock, rechts der Inspektor mit „Signieren mit ID Austria“, Vorschau des Signaturbilds, Optionen und der Schaltfläche „Signieren“](docs/screenshots/02-arbeitsbereich.png)
 
 > [!NOTE]
-> **Testversion.** Die bisherigen Testversionen (bis 0.2.2) sind zurückgezogen, die nächste folgt in Kürze.
+> **Testversion.** 0.2.3 ist ein Pre-Release (die früheren Testversionen bis 0.2.2 sind zurückgezogen).
 > Die Pakete sind nicht code-signiert bzw. notarisiert und
 > aktualisieren sich nicht selbst. Windows und macOS warnen deshalb beim ersten Start, Android verlangt die
 > Installation aus unbekannten Quellen – siehe [Installation](#installation).
@@ -98,13 +98,20 @@ Dokumente).</sub>
 
 ## Download
 
-Derzeit gibt es keine fertigen Pakete: Die Testversionen bis 0.2.2 sind zurückgezogen. Die nächste Testversion
-erscheint auf der [Release-Seite](https://github.com/ataub1/pida/releases) – für Windows 10/11 x64 (Setup und
-MSI), macOS 11 oder neuer auf Apple Silicon, Linux x86_64 (deb, rpm, AppImage), Android 9 oder neuer (arm64)
-und die Kommandozeile `pida-cli` für macOS. Bis dahin lässt sich PIDA aus dem Quellcode bauen (siehe
-[Entwicklung](#entwicklung)).
+Alle Pakete stehen auf der Release-Seite: **[PIDA 0.2.3](https://github.com/ataub1/pida/releases/tag/v0.2.3)**.
 
-Jedem Release liegen Prüfsummen in `SHA256SUMS.txt` bei (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
+| System | Paket (direkter Download) | Größe | Voraussetzung |
+|---|---|---|---|
+| Windows | [`PIDA_0.2.3_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_windows_x64-setup.exe) (empfohlen) | 10,7 MiB | Windows 10 oder 11, x64 |
+| Windows | [`PIDA_0.2.3_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_windows_x64.msi) | 14,7 MiB | Windows 10 oder 11, x64 |
+| macOS | [`PIDA_0.2.3_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_macos_arm64.dmg) | 12,8 MiB | macOS 11 oder neuer, Apple Silicon |
+| Linux (Debian, Ubuntu) | [`PIDA_0.2.3_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_linux_amd64.deb) | 15,2 MiB | x86_64 |
+| Linux (Fedora, RHEL) | [`PIDA_0.2.3_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_linux_x86_64.rpm) | 15,2 MiB | x86_64 |
+| Linux (portabel) | [`PIDA_0.2.3_linux_x86_64.AppImage`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_linux_x86_64.AppImage) | 89,1 MiB | x86_64, ohne Installation |
+| Android | [`PIDA_0.2.3_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_android_arm64.apk) | 26,8 MiB | Android 9 oder neuer, arm64 |
+| Kommandozeile (macOS) | [`pida-cli_0.2.3_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.3/pida-cli_0.2.3_macos_arm64) | 15,1 MiB | macOS 11 oder neuer, Apple Silicon |
+
+Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.2.3/SHA256SUMS.txt) (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
 macOS, `sha256sum -c SHA256SUMS.txt` unter Linux bzw. `Get-FileHash <Datei> -Algorithm SHA256` in der Windows
 PowerShell). Eine iOS-Version ist nicht Teil der Releases.
 
@@ -130,6 +137,7 @@ PowerShell). Eine iOS-Version ist nicht Teil der Releases.
 ```sh
 sudo apt install ./PIDA_*.deb      # Debian, Ubuntu
 sudo dnf install ./PIDA_*.rpm      # Fedora, RHEL
+chmod +x PIDA_*.AppImage && ./PIDA_*.AppImage   # portabel, ohne Installation
 ```
 
 Die Paketverwaltung installiert die nötigen Bibliotheken (u. a. WebKitGTK) mit. PIDA erscheint danach im
@@ -196,7 +204,7 @@ pida-cli sign ./rechnungen -b KS -ks zertifikat.p12 --kspass-env PIDA_KSPASS -a 
 pida-cli verify vertrag_signed.pdf              # Selbstprüfung (ohne Vertrauenskette und Sperrstatus)
 pida-cli profiles                               # Signaturprofile auflisten
 pida-cli migrate --dry-run                      # Übernahme der PDF-Over-Einstellungen nur anzeigen
-pida-cli licenses -o ./lizenzen                 # EUPL-Lizenztext und Drittlizenz-Hinweise als Dateien (ab der nächsten Version)
+pida-cli licenses -o ./lizenzen                 # EUPL-Lizenztext und Drittlizenz-Hinweise als Dateien
 pida-cli --help                                 # alle Optionen und Exit-Codes
 ```
 
@@ -307,8 +315,8 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   status card with the comparison value, a “Done” view and “Recently signed”, customisable signature block
   with preview, PDF/A support, German and English, light and dark mode, command palette (⌘K / Ctrl+K). PDF-Over
   settings can be imported on first start; PDF-Over command-line arguments keep working (`pida-cli`).
-- **Download:** the test versions up to 0.2.2 have been withdrawn; the next one will appear on the
-  [releases page](https://github.com/ataub1/pida/releases) – Windows 10/11 x64 (`-setup.exe` or `.msi`), macOS 11+
+- **Download:** [PIDA 0.2.3](https://github.com/ataub1/pida/releases/tag/v0.2.3) (pre-release; earlier test versions
+  withdrawn) – Windows 10/11 x64 (`-setup.exe` or `.msi`), macOS 11+
   on Apple Silicon (`.dmg`), Linux x86_64 (`.deb`/`.rpm`/AppImage), Android 9+ arm64 (`.apk`), plus the
   command-line tool `pida-cli` for macOS on Apple Silicon. Checksums are in `SHA256SUMS.txt`. iOS is not included.
 - **Installation:** packages are not code-signed or notarised and do not update themselves. Windows SmartScreen:
