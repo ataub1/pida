@@ -208,6 +208,31 @@ if blocks:
     print("\n".join(blocks))
 PY
 
+# SPDX-Vorlagen statt Copyright-Vermerk (Lizenzbericht Befund 6): MIT und BSD verlangen den Vermerk. Erlaubt nur für
+# die noch zu klärenden Crates in tools/licenses/template-exceptions.txt.
+python3 -I - "$TMP/rust.json" "$ROOT/tools/licenses/template-exceptions.txt" <<'PY'
+import json, re, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+allowed = {l.strip() for l in open(sys.argv[2], encoding="utf-8") if l.strip() and not l.lstrip().startswith("#")}
+template = re.compile(r"<(year|copyright holders|owner|name of author)>", re.I)
+found = {}
+for lic in data.get("licenses", []):
+    if template.search(lic.get("text", "")):
+        for used in lic.get("used_by", []):
+            crate = used.get("crate", {})
+            found.setdefault(crate.get("name"), set()).add(f"{crate.get('version')} ({lic.get('id')})")
+unexpected = sorted(set(found) - allowed)
+for name in sorted(allowed - set(found)):
+    print(f"third-party-notices: warnung: {name} zeigt keine Vorlage mehr – aus template-exceptions.txt entfernen",
+          file=sys.stderr)
+if unexpected:
+    print("third-party-notices: Lizenztext nur als Vorlage ohne Copyright-Vermerk (about.toml [<crate>.clarify]):",
+          file=sys.stderr)
+    for name in unexpected:
+        print(f"  - {name} {', '.join(sorted(found[name]))}", file=sys.stderr)
+    sys.exit(1)
+PY
+
 # --- 4. Rust-Standardbibliothek --------------------------------------------------------------------
 # std/core/alloc (samt compiler_builtins, libc, hashbrown …) stecken in jeder Binary, stehen aber nicht
 # in Cargo.lock. Die Toolchain (Komponente rustc, auch im Profil minimal) liefert die Texte mit.

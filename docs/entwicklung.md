@@ -220,7 +220,9 @@ Enthält zuerst die übernommenen EUPL-Bestandteile (PDF-AS-4-Konfiguration und 
 oder später; Herkunft der PDF-Over-Textkataloge, © A-SIT), dann PDFium samt mitgebauten Bibliotheken (aus dem PDFium-Paket), die Font-/AFM-Lizenzen aus
 `crates/sigblock/assets/licenses`, alle ausgelieferten Rust-Crates über cargo-about
 (`tools/licenses/about.toml`, `about.hbs`; Dev-Abhängigkeiten ausgenommen, Build-Abhängigkeiten
-enthalten) mit den NOTICE-Dateien von Apache-2.0-Crates, die Rust-Standardbibliothek (steht nicht in
+enthalten; bei „MIT OR Apache-2.0“ gilt Apache-2.0, weil viele Crates nur eine MIT-Vorlage ohne Urheber
+mitliefern – verbliebene Vorlagen „`<year> <copyright holders>`“ brechen ab, außer für die noch zu klärenden
+Crates in `tools/licenses/template-exceptions.txt`) mit den NOTICE-Dateien von Apache-2.0-Crates, die Rust-Standardbibliothek (steht nicht in
 `Cargo.lock`, ist aber in jeder Binary: MIT-/Apache-Text aus der Toolchain, vollständige Hinweise als
 `RUST-STD-COPYRIGHT.html` daneben) und die npm-Laufzeitabhängigkeiten von `apps/app` (ohne Lizenzdatei
 im Paket, z. B. `@fluent/bundle`: Urheber und Verweis auf den SPDX-Standardtext) samt dem Hilfscode, den

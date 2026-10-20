@@ -3,8 +3,11 @@
 #
 # Dieselbe Allowlist wie deny.toml; was hier fehlt, bricht die Erzeugung ab (--fail).
 accepted = [
-    "MIT",
+    # Reihenfolge = Vorrang bei „A OR B“: Apache-2.0 vor MIT, weil viele Crates nur eine MIT-Vorlage ohne
+    # Urheber mitliefern („<year> <copyright holders>“); Apache-2.0 verlangt keinen eigenen Copyright-Vermerk
+    # (Lizenzbericht Befund 6). Verbliebene Vorlagen prüft tools/third-party-notices.sh.
     "Apache-2.0",
+    "MIT",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
