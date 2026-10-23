@@ -2319,12 +2319,19 @@ async fn block_language_switch_changes_the_setting() {
     let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
     let core = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, None, None, false).unwrap();
     wait_for(&core, "Arbeitsbereich", editing).await;
-    for lang in [pida_i18n::Lang::En, pida_i18n::Lang::De] {
+    // unabhängig von der Systemsprache des Rechners (ohne Einstellung gilt sie): auf die gespeicherte Datei warten –
+    // eine Wahl gleich der Systemsprache ändert die Ansicht nicht, wohl aber die Einstellung
+    let saved = |code: &str| {
+        std::fs::read_to_string(fx.paths.settings_file())
+            .is_ok_and(|t| t.contains(&format!("block_language = \"{code}\"")))
+    };
+    for lang in [pida_i18n::Lang::En, pida_i18n::Lang::De, pida_i18n::Lang::En] {
         core.dispatch(UiEvent::SetBlockLanguage { language: lang });
-        let v = wait_for(&core, "Sprache", |v| v.document.as_ref().is_some_and(|d| d.block.language == lang)).await;
-        assert!(editing(&v), "bleibt im Arbeitsbereich");
-        let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap();
         let code = if lang == pida_i18n::Lang::En { "en" } else { "de" };
-        assert!(saved.contains(&format!("block_language = \"{code}\"")), "{saved}");
+        let v = wait_for(&core, "Sprache gespeichert", |v| {
+            saved(code) && v.document.as_ref().is_some_and(|d| d.block.language == lang)
+        })
+        .await;
+        assert!(editing(&v), "bleibt im Arbeitsbereich");
     }
 }
