@@ -166,9 +166,11 @@ Ein früher installierter Debug-Build (Debug-Schlüssel) muss vor der Installati
 ```sh
 PIDA_RELEASE_REMAP=1 source tools/env.sh                # ohne Benutzerpfade (docs/entwicklung.md §10)
 tools/fetch-pdfium.sh --jnilibs
+tools/third-party-notices.sh --pdfium android-arm64 --out target/notices-android   # mit Android-Bibliotheken
 cd apps/app && npm ci
 export CARGO_TARGET_DIR="$PWD/../../target-android"
 export PIDA_ANDROID_KEYSTORE_PROPERTIES="$HOME/.pida-release/keystore.properties"
+export PIDA_NOTICES_DIR=target/notices-android PIDA_REQUIRE_NOTICES=1   # „Lizenzen anzeigen“ in der App
 npm run tauri android build -- --apk --target aarch64
 #  → src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk (nur arm64-v8a)
 apksigner verify --verbose --print-certs <apk>          # SHA-256 = LIESMICH.txt
