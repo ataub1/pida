@@ -42,6 +42,27 @@ pub const LOG_KEEP: u32 = 3;
 /// und die PDF-Over-Altkonfiguration wird in `$PIDA_HOME/.pdf-over` gesucht.
 pub const HOME_ENV: &str = "PIDA_HOME";
 
+/// Ordner neben `pida.exe`, der unter Windows den **portablen Modus** einschaltet (ZIP-Paket, Backlog Nr. 31): Gibt
+/// es ihn, liegen alle Ordner darin ([`Paths::under`]); [`HOME_ENV`] hat Vorrang. Die Shell merkt Passwörter dann
+/// nicht dauerhaft (kein Schlüsselbund, Entscheidung vom 20.10.2026) und hält auch die Daten der WebView und den
+/// Fensterzustand aus dem Benutzerprofil heraus.
+pub const PORTABLE_DIR: &str = "PIDA-Daten";
+
+/// Portabler Modus ([`PORTABLE_DIR`] neben dem Programm, nur Windows, ohne [`HOME_ENV`]): der Datenordner.
+pub fn portable_root() -> Option<PathBuf> {
+    if !cfg!(windows) || home_override().is_some() {
+        return None;
+    }
+    let exe = std::env::current_exe().ok()?;
+    portable_root_in(exe.parent()?)
+}
+
+/// [`PORTABLE_DIR`] im Ordner `dir`, falls vorhanden (ein Ordner, keine Datei).
+pub fn portable_root_in(dir: &Path) -> Option<PathBuf> {
+    let root = dir.join(PORTABLE_DIR);
+    root.is_dir().then_some(root)
+}
+
 fn home_override() -> Option<PathBuf> {
     home_override_from(std::env::var_os(HOME_ENV))
 }
@@ -72,9 +93,10 @@ impl Paths {
     ///
     /// Ist [`HOME_ENV`] (`PIDA_HOME`) gesetzt, liegen alle Ordner darunter ([`Paths::under`]) –
     /// portable Installation bzw. isolierte Tests. Unter Windows lassen sich die Profilordner sonst
-    /// nicht umlenken (Known-Folder-API statt `APPDATA`/`HOME`).
+    /// nicht umlenken (Known-Folder-API statt `APPDATA`/`HOME`). Ohne `PIDA_HOME` gilt unter Windows ein Ordner
+    /// [`PORTABLE_DIR`] neben dem Programm ([`portable_root`]).
     pub fn platform() -> Result<Paths> {
-        if let Some(root) = home_override() {
+        if let Some(root) = home_override().or_else(portable_root) {
             return Ok(Paths::under(&root));
         }
         let project_path = if cfg!(target_os = "windows") {
@@ -270,6 +292,22 @@ mod tests {
         assert_ne!(p.cache_dir, p.config_dir);
         assert_ne!(p.log_dir, p.config_dir);
         assert!(p.settings_file().ends_with(SETTINGS_FILE));
+    }
+
+    /// Portabler Modus (Backlog Nr. 31): nur ein Ordner `PIDA-Daten` zählt, keine gleichnamige Datei.
+    #[test]
+    fn portable_root_needs_a_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(portable_root_in(dir.path()), None);
+        std::fs::write(dir.path().join(PORTABLE_DIR), b"").unwrap();
+        assert_eq!(portable_root_in(dir.path()), None, "Datei statt Ordner");
+        std::fs::remove_file(dir.path().join(PORTABLE_DIR)).unwrap();
+        std::fs::create_dir(dir.path().join(PORTABLE_DIR)).unwrap();
+        let root = portable_root_in(dir.path()).expect("Ordner");
+        assert_eq!(Paths::under(&root).settings_file(), dir.path().join("PIDA-Daten/config/settings.toml"));
+        if !cfg!(windows) {
+            assert_eq!(portable_root(), None, "nur Windows");
+        }
     }
 
     #[test]

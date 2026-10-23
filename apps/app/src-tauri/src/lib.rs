@@ -319,6 +319,17 @@ fn core_config(app: &AppHandle, overlay: Overlay) -> Result<CoreConfig, pida_con
     })
 }
 
+/// Portabler Modus (Backlog Nr. 31): die Fenster der Konfiguration mit dem WebView-Datenordner `<PIDA-Daten>/webview`
+/// anlegen (sonst `%LOCALAPPDATA%\\<Kennung>\\EBWebView`).
+fn portable_main_window(app: &tauri::App, root: &std::path::Path) -> tauri::Result<()> {
+    for config in app.config().app.windows.clone() {
+        tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+            .data_directory(root.join("webview"))
+            .build()?;
+    }
+    Ok(())
+}
+
 /// Pfade: Desktop plattformüblich, Mobile die App-Sandbox (`app_data_dir` gesichert, `app_cache_dir`
 /// darf das System leeren).
 fn platform_paths(app: &AppHandle) -> Result<Paths, pida_config::ConfigError> {
@@ -497,6 +508,17 @@ pub fn run() {
         other => other,
     };
 
+    // Portabler Modus (Windows-ZIP, Backlog Nr. 31): Ordner `PIDA-Daten` neben `pida.exe`
+    let portable = pida_config::portable_root();
+    let mut context = tauri::generate_context!();
+    if portable.is_some() {
+        // Daten der WebView2 (Cache, Speicher) in den portablen Ordner statt nach %LOCALAPPDATA%: Die Konfiguration
+        // nimmt nur relative Pfade, also legt `setup` das Hauptfenster selbst an (`portable_main_window`).
+        for w in &mut context.config_mut().app.windows {
+            w.create = false;
+        }
+    }
+
     // vor `build` registriert: `RunEvent::Opened` kann unter macOS vor `setup` eintreffen
     let builder = tauri::Builder::default().manage(EarlyDocuments::default());
 
@@ -513,7 +535,11 @@ pub fn run() {
                 focus_main_window(app);
             }));
         }
-        builder.plugin(tauri_plugin_window_state::Builder::default().build())
+        // Fensterzustand liegt in %APPDATA% – im portablen Modus nicht merken
+        if portable.is_none() {
+            builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
+        }
+        builder
     };
 
     // Datei-/Speichern-Dialoge nur auf dem Desktop (Mobile: Dokument-Picker bzw. SAF über
@@ -572,6 +598,12 @@ pub fn run() {
                 }
             };
             tracing::info!(version = %handle.package_info().version, "PIDA startet");
+            if let Some(root) = &portable {
+                tracing::info!(dir = %root.display(), "Portabler Modus – Passwörter nur bis zum Beenden");
+                // kein Schlüsselbund: nicht dauerhaft gespeichert (Entscheidung vom 20.10.2026, Option a); der Kern
+                // blendet „Im Schlüsselbund“ aus und behandelt eine solche Einstellung wie „Bis zum Beenden“
+                shell.update_options(|o| o.secret_store = Some(Arc::new(pida_config::MemorySecretStore::default())));
+            }
             if cfg!(desktop) && !single_instance {
                 tracing::warn!("Single-Instance-Socket gehört nicht diesem Konto – Start ohne Single-Instance");
             }
@@ -606,10 +638,14 @@ pub fn run() {
             // Mobile-Kaltstart über „Öffnen in“/Share bzw. Intent: vorgemerkte Dokumente der Plattform
             #[cfg(mobile)]
             take_pending_documents(&handle, Vec::new());
+            // erst jetzt, da der Kern verwaltet wird (die Oberfläche fragt sofort `core_view` ab)
+            if let Some(root) = &portable {
+                portable_main_window(app, root)?;
+            }
             smoke::arm_watchdog(&handle);
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("Tauri-Anwendung konnte nicht erstellt werden");
 
     app.run(|app, event| match event {

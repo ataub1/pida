@@ -147,6 +147,15 @@ Installation (z. B. auf einem USB-Stick).
 PIDA_HOME="$(mktemp -d)" target/release/pida-cli profiles
 ```
 
+**Portables Windows-Paket** (`PIDA_<version>_x64-portable.zip`, Release-Workflow, Backlog Nr. 31): Liegt neben
+`pida.exe` ein Ordner `PIDA-Daten` (`pida_config::PORTABLE_DIR`) und ist `PIDA_HOME` nicht gesetzt, gilt er als
+`PIDA_HOME`. Die App legt dann auch die Daten der WebView2 dort ab (`PIDA-Daten/webview`; das Hauptfenster entsteht
+in `setup` mit `data_directory`), merkt keinen Fensterzustand (das Plugin schriebe nach `%APPDATA%`) und nutzt keinen
+Schlüsselbund: Keystore- und Proxy-Passwörter gelten nur bis zum Beenden (Entscheidung vom 20.10.2026). Die
+WebView2-Laufzeit bleibt Voraussetzung; Single-Instance gilt weiter je Konto (eine laufende installierte PIDA nimmt
+Dokumente der portablen an). Der Release-Workflow prüft das ZIP mit einem Start, der nichts ins Benutzerprofil
+schreiben darf.
+
 ## 5. Lints und Formatierung
 
 - `cargo fmt --all` (rustfmt.toml: Breite 120). Pakete formatieren nur ihre eigenen Crates (`cargo fmt -p …`).
