@@ -129,6 +129,10 @@ pub struct BlockView {
     /// vorgibt – dessen Block übernimmt die eigene Bildmarke nicht (PDF-Over). Dann kein „Bildmarke wählen“. Additiv.
     #[serde(default = "yes")]
     pub emblem_choosable: bool,
+    /// Sprache des Signaturblocks (Einstellung `signature.block_language`, ohne Angabe die Systemsprache); der
+    /// Inspektor schaltet sie mit `set_block_language` um. Additiv.
+    #[serde(default)]
+    pub language: Lang,
 }
 
 /// Backend-Option.
@@ -1009,6 +1013,13 @@ pub enum UiEvent {
         /// ausdrücklicher Klick („Jetzt prüfen“, „Erneut prüfen“)
         #[serde(default)]
         explicit: bool,
+    },
+    /// Inspektor › Optionen: Sprache des Signaturblocks umschalten – ändert die Einstellung
+    /// `signature.block_language` (gilt auch für weitere Dokumente, gespeichert) und baut die Vorschau neu. Nur im
+    /// Arbeitsbereich; startet **nichts**.
+    SetBlockLanguage {
+        /// Sprache
+        language: Lang,
     },
     /// Hinweis auf eine neue Version auf der Startseite ([`ViewState::update_hint`]) für diese Version ausblenden
     /// (dauerhaft; eine neuere Version erscheint wieder). Startet **nichts**.

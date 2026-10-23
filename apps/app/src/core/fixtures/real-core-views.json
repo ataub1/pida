@@ -29,6 +29,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -247,6 +248,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -305,6 +307,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -567,6 +570,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -779,6 +783,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -837,6 +842,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -1115,6 +1121,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -1365,6 +1372,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -1642,6 +1650,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -1872,6 +1881,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -1930,6 +1940,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -2257,6 +2268,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -2467,6 +2479,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -2706,6 +2719,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -2764,6 +2778,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -2994,6 +3009,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -3052,6 +3068,7 @@
         "emblem_choosable": false,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -3285,6 +3302,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -3333,22 +3351,23 @@
     "batch": null,
     "document": {
       "announce": {
-        "bottom": "219",
-        "left": "67",
+        "bottom": "41",
+        "left": "108",
         "page": "1",
         "pages": "1",
-        "top": "248"
+        "top": "70"
       },
       "block": {
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
       "check": {
         "clamped": false,
-        "for_revision": 2,
+        "for_revision": 1,
         "overlaps_content": false,
         "overlaps_widget": false,
         "placeholder_uncovered": false
@@ -3452,18 +3471,18 @@
         "height": 82.0,
         "page_index": 0,
         "width": 229.99998474121094,
-        "x": 191.0,
-        "y": 704.0
+        "x": 306.0,
+        "y": 198.0
       },
       "placement_locked": false,
       "qr": null,
-      "revision": 2,
+      "revision": 1,
       "size_bytes": 6257,
       "sticker": {
-        "bottom": 622.0,
-        "left": 191.0,
-        "right": 421.0,
-        "top": 704.0
+        "bottom": 116.0,
+        "left": 306.0,
+        "right": 536.0,
+        "top": 198.0
       },
       "target": {
         "kind": "free"
@@ -3638,22 +3657,23 @@
     "batch": null,
     "document": {
       "announce": {
-        "bottom": "219",
-        "left": "67",
+        "bottom": "41",
+        "left": "108",
         "page": "1",
         "pages": "1",
-        "top": "248"
+        "top": "70"
       },
       "block": {
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
       "check": {
         "clamped": false,
-        "for_revision": 2,
+        "for_revision": 1,
         "overlaps_content": false,
         "overlaps_widget": false,
         "placeholder_uncovered": false
@@ -3757,18 +3777,18 @@
         "height": 82.0,
         "page_index": 0,
         "width": 229.99998474121094,
-        "x": 191.0,
-        "y": 704.0
+        "x": 306.0,
+        "y": 198.0
       },
       "placement_locked": false,
       "qr": null,
-      "revision": 2,
+      "revision": 1,
       "size_bytes": 6257,
       "sticker": {
-        "bottom": 622.0,
-        "left": 191.0,
-        "right": 421.0,
-        "top": 704.0
+        "bottom": 116.0,
+        "left": 306.0,
+        "right": 536.0,
+        "top": 198.0
       },
       "target": {
         "kind": "free"
@@ -3894,15 +3914,16 @@
     },
     "step": {
       "announce": {
-        "left": "67",
+        "left": "108",
         "page": "1",
         "pages": "1",
-        "top": "248"
+        "top": "70"
       },
       "block": {
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -3923,9 +3944,9 @@
       "placement": {
         "height": 82.0,
         "page_index": 0,
-        "width": 230.0,
-        "x": 191.0,
-        "y": 704.0
+        "width": 229.99998474121094,
+        "x": 306.0,
+        "y": 198.0
       },
       "step": "position"
     },
@@ -3951,22 +3972,23 @@
     "batch": null,
     "document": {
       "announce": {
-        "bottom": "219",
-        "left": "67",
+        "bottom": "41",
+        "left": "108",
         "page": "1",
         "pages": "1",
-        "top": "248"
+        "top": "70"
       },
       "block": {
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
       "check": {
         "clamped": false,
-        "for_revision": 2,
+        "for_revision": 1,
         "overlaps_content": false,
         "overlaps_widget": false,
         "placeholder_uncovered": false
@@ -4070,18 +4092,18 @@
         "height": 82.0,
         "page_index": 0,
         "width": 229.99998474121094,
-        "x": 191.0,
-        "y": 704.0
+        "x": 306.0,
+        "y": 198.0
       },
       "placement_locked": false,
       "qr": null,
-      "revision": 2,
+      "revision": 1,
       "size_bytes": 6257,
       "sticker": {
-        "bottom": 622.0,
-        "left": 191.0,
-        "right": 421.0,
-        "top": 704.0
+        "bottom": 116.0,
+        "left": 306.0,
+        "right": 536.0,
+        "top": 198.0
       },
       "target": {
         "kind": "free"
@@ -4269,6 +4291,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -4571,6 +4594,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": false,
         "height": 82.0,
+        "language": "de",
         "preview_revision": 1,
         "width": 229.99998474121094
       },
@@ -4629,6 +4653,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": true,
         "height": 120.0,
+        "language": "de",
         "preview_revision": 2,
         "width": 512.0000610351562
       },
@@ -4933,6 +4958,7 @@
         "emblem_choosable": true,
         "emblem_placeholder": true,
         "height": 120.0,
+        "language": "de",
         "preview_revision": 2,
         "width": 512.0000610351562
       },

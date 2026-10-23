@@ -221,6 +221,10 @@ export const settingsArea: MockArea<SettingsState> = {
         state.open = false;
         state.problems = {};
         return true;
+      // Inspektor › Optionen (wie der Kern: ändert die Einstellung, auch bei geschlossenen Einstellungen)
+      case 'set_block_language':
+        changed(state, ctx, { ...state.settings, signature: { ...state.settings.signature, block_language: e.language } });
+        return true;
       case 'save_settings': {
         const problems = validate(e.settings, true);
         if (Object.keys(problems).length > 0) {

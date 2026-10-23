@@ -260,6 +260,8 @@ ng-ui-insp-invisible = Sign invisibly
 ng-ui-insp-invisible-hint = No signature block; the signature is only in the file.
 ng-ui-insp-new-page = On a new page
 ng-ui-insp-new-page-hint = Appends an empty page for the signature block.
+ng-ui-insp-block-lang = Signature block language
+ng-ui-insp-block-lang-hint = Also applies to further documents (Settings › Signature block).
 ng-ui-insp-new-page-locked = Not possible for this document.
 # Settings › Document (E3): what was detected or decided automatically on opening
 ng-ui-insp-detect-pdfa = PDF/A document detected – will be signed PDF/A-compliant

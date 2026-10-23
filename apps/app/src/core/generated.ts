@@ -925,7 +925,12 @@ emblem_placeholder: boolean,
  * Ändert eine eigene Bildmarke (Einstellungen) diesen Block? `false`, wenn ein QR-Platzhalter ein anderes Profil
  * vorgibt – dessen Block übernimmt die eigene Bildmarke nicht (PDF-Over). Dann kein „Bildmarke wählen“. Additiv.
  */
-emblem_choosable: boolean, };
+emblem_choosable: boolean, 
+/**
+ * Sprache des Signaturblocks (Einstellung `signature.block_language`, ohne Angabe die Systemsprache); der
+ * Inspektor schaltet sie mit `set_block_language` um. Additiv.
+ */
+language: Lang, };
 
 /**
  * Backend-Option.
@@ -1703,7 +1708,11 @@ mode?: OpenFilesMode | null, } | { "type": "check_for_updates",
 /**
  * ausdrücklicher Klick („Jetzt prüfen“, „Erneut prüfen“)
  */
-explicit: boolean, } | { "type": "dismiss_update_hint" };
+explicit: boolean, } | { "type": "set_block_language", 
+/**
+ * Sprache
+ */
+language: Lang, } | { "type": "dismiss_update_hint" };
 
 /**
  * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).

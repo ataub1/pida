@@ -650,6 +650,7 @@ impl crate::runtime::CoreTask {
                     preview_revision: block.revision,
                     emblem_placeholder: !edit.invisible && placeholder,
                     emblem_choosable: choosable,
+                    language: self.cfg.effective().block_language(pida_i18n::Lang::system()),
                 }
             },
             placement,

@@ -197,6 +197,7 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::SignRecent { .. } => "sign_recent",
         UiEvent::CheckForUpdates { .. } => "check_for_updates",
         UiEvent::DismissUpdateHint => "dismiss_update_hint",
+        UiEvent::SetBlockLanguage { .. } => "set_block_language",
     }
 }
 
@@ -2583,6 +2584,13 @@ impl CoreTask {
             // ADR 0004, Arbeitsbereich (K1): nur im Arbeitsbereich-Modus; keines dieser Ereignisse außer
             // `sign_with` startet etwas (A1)
             UiEvent::SetInvisible { invisible } if self.ws.enabled => self.apply(Event::InvisibleSet(invisible)),
+            UiEvent::SetBlockLanguage { language } if self.ws.enabled => {
+                let changes = BTreeMap::from([(
+                    "signature.block_language".to_owned(),
+                    serde_json::to_value(language).unwrap_or(serde_json::Value::Null),
+                )]);
+                self.apply_changes_now(&changes);
+            }
             UiEvent::UseTarget { target } if self.ws.enabled => {
                 let target = match target {
                     PlacementTarget::Free => pida_workflow::Target::Free,
@@ -2655,6 +2663,7 @@ impl CoreTask {
             // ADR 0004: im klassischen Ablauf ohne Wirkung die Ereignisse des Arbeitsbereichs, ohne
             // Stapelübersicht die des Stapels. Insbesondere öffnet keines dieser Ereignisse eine Sitzung (A1).
             e @ (UiEvent::SetInvisible { .. }
+            | UiEvent::SetBlockLanguage { .. }
             | UiEvent::UseTarget { .. }
             | UiEvent::InspectPages { .. }
             | UiEvent::SelectSigner { .. }
@@ -3379,6 +3388,7 @@ impl CoreTask {
                         preview_revision: block.revision,
                         emblem_placeholder: block.emblem_placeholder,
                         emblem_choosable: true,
+                        language: self.cfg.effective().block_language(Lang::system()),
                     },
                     placement,
                     new_page: *new_page,

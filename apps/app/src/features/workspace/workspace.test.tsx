@@ -404,6 +404,32 @@ describe('Überdeckung, Felder, Optionen', () => {
     expect(lastEvent(mock)).toEqual({ type: 'toggle_new_page' });
   });
 
+  it('Optionen: Sprache des Signaturblocks DE/EN (set_block_language), gesperrt wenn unsichtbar', async () => {
+    const { mock, user, unmount } = renderApp({ view: workspaceView() });
+    const group = await screen.findByRole('radiogroup', { name: 'Sprache des Signaturblocks' });
+    expect(within(group).getByRole('radio', { name: 'DE' })).toBeChecked();
+    expect(screen.getByText('Gilt auch für weitere Dokumente (Einstellungen › Signaturbild).')).toBeInTheDocument();
+    await user.click(within(group).getByRole('radio', { name: 'EN' }));
+    expect(lastEvent(mock)).toEqual({ type: 'set_block_language', language: 'en' });
+    await expectNoAxeViolations();
+    unmount();
+    renderApp({ view: workspaceView(documentView({ invisible: true, sticker: null })) });
+    const locked = await screen.findByRole('radiogroup', { name: 'Sprache des Signaturblocks' });
+    expect(within(locked).getByRole('radio', { name: 'EN' })).toBeDisabled();
+  });
+
+  it('Mock-Kern: DE/EN ändert die Einstellung und den Block', async () => {
+    const { user } = renderApp({ pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    const pick = await screen.findByRole('button', { name: 'PDF auswählen' });
+    await waitFor(() => expect(pick).toBeEnabled(), { timeout: 3000 });
+    await user.click(pick);
+    const group = await screen.findByRole('radiogroup', { name: 'Sprache des Signaturblocks' }, { timeout: 5000 });
+    const before = within(group).getByRole('radio', { name: 'DE' });
+    expect(before).toBeChecked();
+    await user.click(within(group).getByRole('radio', { name: 'EN' }));
+    await waitFor(() => expect(within(screen.getByRole('radiogroup', { name: 'Sprache des Signaturblocks' })).getByRole('radio', { name: 'EN' })).toBeChecked());
+  });
+
   it('„Auf neuer Seite“ bei signierten bzw. zertifizierten Dokumenten gesperrt mit Begründung des Kerns', async () => {
     const doc = documentView({
       doc: { ...documentView().doc, signed: true },

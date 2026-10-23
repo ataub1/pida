@@ -910,3 +910,17 @@
   }
 }
 
+
+/* Optionen › Sprache des Signaturblocks: Beschriftung links, DE/EN rechts (wie die Schalter darunter) */
+.insp-block-lang-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  /* wie `.switch` (Gewicht und Zeilenhöhe der Schalter darunter) */
+  min-height: 32px;
+  font-weight: var(--fw-medium);
+}
+.insp-block-lang.is-disabled .switch-label {
+  color: var(--c-text-3);
+}

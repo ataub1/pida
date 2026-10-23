@@ -260,6 +260,8 @@ ng-ui-insp-invisible = Unsichtbar signieren
 ng-ui-insp-invisible-hint = Ohne Signaturbild; die Signatur steckt nur in der Datei.
 ng-ui-insp-new-page = Auf neuer Seite
 ng-ui-insp-new-page-hint = Hängt eine leere Seite für das Signaturbild an.
+ng-ui-insp-block-lang = Sprache des Signaturblocks
+ng-ui-insp-block-lang-hint = Gilt auch für weitere Dokumente (Einstellungen › Signaturbild).
 ng-ui-insp-new-page-locked = Für dieses Dokument nicht möglich.
 # Einstellungen › Dokument (E3): was beim Öffnen erkannt bzw. automatisch entschieden wurde
 ng-ui-insp-detect-pdfa = PDF/A-Dokument erkannt – wird PDF/A-konform signiert

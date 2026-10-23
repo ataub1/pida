@@ -2310,3 +2310,21 @@ async fn real_core_views_for_the_ui() {
         });
     }
 }
+
+/// Inspektor › Optionen: Sprache des Signaturblocks umschalten (`set_block_language`) – ändert und speichert die
+/// Einstellung, der Block zeigt sie; im Arbeitsbereich ohne Seitenwechsel.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn block_language_switch_changes_the_setting() {
+    let fx = Fixture::new();
+    let a = copy_pdf(PDF, &fx.dir("in"), "a.pdf");
+    let core = start(&fx, Overlay { input_files: vec![a], ..Overlay::default() }, None, None, false).unwrap();
+    wait_for(&core, "Arbeitsbereich", editing).await;
+    for lang in [pida_i18n::Lang::En, pida_i18n::Lang::De] {
+        core.dispatch(UiEvent::SetBlockLanguage { language: lang });
+        let v = wait_for(&core, "Sprache", |v| v.document.as_ref().is_some_and(|d| d.block.language == lang)).await;
+        assert!(editing(&v), "bleibt im Arbeitsbereich");
+        let saved = std::fs::read_to_string(fx.paths.settings_file()).unwrap();
+        let code = if lang == pida_i18n::Lang::En { "en" } else { "de" };
+        assert!(saved.contains(&format!("block_language = \"{code}\"")), "{saved}");
+    }
+}

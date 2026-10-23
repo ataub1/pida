@@ -146,7 +146,7 @@ const documentView = obj({
   size_bytes: int,
   phase: lit('warning', 'editing', 'signing', 'done'),
   revision: int,
-  block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool, emblem_choosable: bool }),
+  block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool, emblem_choosable: bool, language: lit('de', 'en') }),
   placement: obj({ page_index: int, x: num, y: num, width: num, height: num }),
   origin: lit('auto', 'user', 'field', 'qr'),
   target: placementTarget,
@@ -343,7 +343,7 @@ const stepView = tagged('step', {
   position: {
     doc: docInfo,
     page: int,
-    block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool, emblem_choosable: bool }),
+    block: obj({ width: num, height: num, preview_revision: int, emblem_placeholder: bool, emblem_choosable: bool, language: lit('de', 'en') }),
     placement: obj({ page_index: int, x: num, y: num, width: num, height: num }),
     new_page: bool,
     announce: record(str),
@@ -576,6 +576,8 @@ const uiEvent = tagged('type', {
   check_for_updates: { explicit: bool },
   // Backlog Nr. 33: Hinweis auf der Startseite ausblenden
   dismiss_update_hint: {},
+  // Inspektor › Optionen: Sprache des Signaturblocks
+  set_block_language: { language: lit('de', 'en') },
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------

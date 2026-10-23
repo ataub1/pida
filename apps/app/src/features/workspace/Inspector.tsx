@@ -26,8 +26,8 @@ import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
 import { defaultDocumentDetection } from '../../core/defaults';
-import { isMobile, type DocumentView, type StepView } from '../../core/types';
-import { AccessButton, Badge, Button, Keys, SwitchField, useModKey } from '../../ui/controls';
+import { isMobile, type DocumentView, type Lang, type StepView } from '../../core/types';
+import { AccessButton, Badge, Button, Keys, Segmented, SwitchField, useModKey } from '../../ui/controls';
 import { useFitScale, useNarrow } from '../../ui/hooks';
 import { IconAlert, IconChevronDown, IconFileText, IconGrip, IconInfo, IconLock, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
@@ -209,6 +209,26 @@ export function Inspector({
             <h2 className="insp-heading" id={`${bodyId}-opts`}>
               {t.t('ng-ui-insp-options')}
             </h2>
+            {/* Schnellzugriff auf die Einstellung `signature.block_language` (gilt auch für weitere Dokumente) */}
+            <div className={`switch-field insp-block-lang${!editable || doc.invisible ? ' is-disabled' : ''}`}>
+              <div className="insp-block-lang-row">
+                <span className="switch-label" id={`${bodyId}-lang`}>
+                  {t.t('ng-ui-insp-block-lang')}
+                </span>
+                <Segmented<Lang>
+                  label={t.t('ng-ui-insp-block-lang')}
+                  hideLabel
+                  size="sm"
+                  value={doc.block.language}
+                  onChange={(language) => void dispatch({ type: 'set_block_language', language })}
+                  options={[
+                    { value: 'de', label: 'DE', isDisabled: !editable || doc.invisible },
+                    { value: 'en', label: 'EN', isDisabled: !editable || doc.invisible },
+                  ]}
+                />
+              </div>
+              <p className="switch-hint">{t.t('ng-ui-insp-block-lang-hint')}</p>
+            </div>
             <SwitchField
               label={t.t('ng-ui-insp-invisible')}
               hint={invisibleReason ?? t.t('ng-ui-insp-invisible-hint')}
