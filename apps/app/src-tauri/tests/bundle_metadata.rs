@@ -96,3 +96,22 @@ fn nsis_installer_adopts_the_registry_key_of_the_former_publisher() {
         assert!(line.is_ascii(), "{line}");
     }
 }
+
+/// Laufende App beim Setup bzw. Deinstallieren (tauri-apps/tauri#16277): Die Ergänzung ersetzt die Prüfung der
+/// Vorlage (Restart Manager, bricht bei jedem Fehler von RmShutdown ab – auch wenn PIDA schon beendet ist). Sie fragt
+/// nur bei laufendem PIDA, beendet notfalls wie bis Tauri 2.11, wartet auf die Datei und bricht nur ab, wenn PIDA
+/// danach noch läuft.
+#[test]
+fn nsis_running_app_check_tolerates_a_closed_pida() {
+    let hooks = NSIS_HOOKS;
+    assert!(hooks.contains("!macroundef CheckIfAppIsRunning"), "ersetzt die Prüfung der Vorlage");
+    assert!(hooks.contains("!macro CheckIfAppIsRunning executablePath productName"), "gleiche Parameter");
+    assert!(hooks.contains("nsis_tauri_utils::FindProcess \"${MAINBINARYNAME}.exe\""), "fragt nur bei laufendem PIDA");
+    assert!(hooks.contains("nsis_tauri_utils::KillProcessCurrentUser \"${MAINBINARYNAME}.exe\""), "Rückfall wie 2.11");
+    assert!(hooks.contains("RmShutdown(p R0, i ${RmForceShutdown}, p 0)"), "zuerst über den Restart Manager");
+    assert!(hooks.contains("${If} $R4 < 40") && hooks.contains("Sleep 250"), "bis zu 10 s warten");
+    // abbrechen nur, wenn PIDA nach dem Warten noch läuft
+    let tail = &hooks[hooks.rfind("nach 10 s noch belegt").expect("Abbruchzweig")..];
+    assert!(tail.contains("${If} $R6 != 0\n      Goto pida_done_${UniqueID}"), "kein PIDA mehr: weiter");
+    assert!(tail.contains("Abort $R3"), "sonst wie die Vorlage");
+}
