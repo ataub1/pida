@@ -10,7 +10,7 @@ fn main() {
         "app_info",
         "open_log_dir",
         "reveal_output",
-        "open_notices",
+        "license_text",
         "mobile_pick_files",
     ]));
     tauri_build::try_build(attributes).expect("tauri-build fehlgeschlagen");

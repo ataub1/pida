@@ -18,6 +18,7 @@ import { Button, Spinner } from '../../ui/controls';
 import { IconAlert, IconCheck, IconExternal, IconInfo, IconLock, IconRefresh } from '../../ui/Icons';
 import { LogoMark } from '../../ui/Logo';
 import { Markup } from '../../ui/Markup';
+import { LicensesDialog } from './licenses';
 
 /** `JJJJ-MM-TT` als Datum der Oberflächensprache (de-AT „17.10.2026“, en-GB „17 Oct 2026“); sonst unverändert. */
 export function formatReleaseDate(iso: string, lang: string): string {
@@ -133,6 +134,8 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
   const about = view.about ?? null;
   const update = about?.update ?? null;
   const mobile = isMobile(view);
+  // „Lizenzen anzeigen“: eigener Dialog über den Einstellungen (Backlog Nr. 2)
+  const [licenses, setLicenses] = useState(false);
   // ältere Kerne ohne `about`: Version aus der Shell
   const [shellVersion, setShellVersion] = useState<string | null>(null);
   useEffect(() => {
@@ -169,7 +172,7 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
       <ul className="about-links" aria-label={t.t('ng-ui-about-links')}>
         {about ? <AboutLink label={t.t('ng-ui-about-release-notes')} href={about.release_notes_url} /> : null}
         {about ? <AboutLink label={t.t('ng-ui-about-source')} href={about.source_url} /> : null}
-        <AboutLink label={t.t('ng-ui-about-notices')} onPress={() => void bridge.openNotices().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />
+        <AboutLink label={t.t('ng-ui-about-notices')} onPress={() => setLicenses(true)} />
         <AboutLink label={t.t('ng-ui-about-privacy')} onPress={onPrivacy} />
         {mobile ? null : <AboutLink label={t.t('config-ShowLogDirectory')} onPress={() => void bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />}
       </ul>
@@ -179,6 +182,7 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
       <p className="about-license">{t.t('ng-ui-about-not-official')}</p>
       <p className="about-based-on">{t.t('ng-ui-about-based-on')}</p>
       <p className="about-copyright">{t.t('ng-ui-about-copyright', { year })}</p>
+      {licenses ? <LicensesDialog onClose={() => setLicenses(false)} /> : null}
     </div>
   );
 }

@@ -228,15 +228,22 @@ Crates in `tools/licenses/template-exceptions.txt`) mit den NOTICE-Dateien von A
 im Paket, z. B. `@fluent/bundle`: Urheber und Verweis auf den SPDX-Standardtext) samt dem Hilfscode, den
 vite und rolldown ins Bundle schreiben. Beide Dateien kommen
 über `scripts/bundle-config.mjs` als Ressourcen in jedes App-Bundle (mit dem EUPL-Text als `LICENSE.txt`),
-`apps/cli/build.rs` bettet sie für `pida-cli licenses` ein; „Drittlizenzen anzeigen“ im
-Über-Tab öffnet sie (Command `open_notices`). PDFium-Lizenzen stammen aus dem Paket der Host-Plattform;
+`apps/cli/build.rs` bettet sie samt EUPL-Text ein (Feature `notices`) – für `pida-cli licenses` und für
+„Lizenzen anzeigen“ im Über-Tab: ein eigener Dialog der App (Command `license_text`) mit EUPL-1.2, Drittkomponenten
+und Rust-Standardbibliothek, auf allen Plattformen, auch Android (das APK hat keine Ressourcendateien).
+`PIDA_REQUIRE_NOTICES=1` bricht den Build ohne Hinweise ab (Release-Workflow, lokale Release-Builds). PDFium-Lizenzen stammen aus dem Paket der Host-Plattform;
 für ein anderes Paket `--pdfium <plattform>` angeben. Die abweichend lizenzierten HarfBuzz-Daten in PDFium
 (`src/ms-use`, Microsoft, MIT) ergänzt das Skript aus `tools/licenses/harfbuzz-ms-use-COPYING.txt`. Mit
 `--pdfium win-…` kommt der Windows-Teil dazu: WebView2-SDK (BSD-3, statisch in `pida.exe`), NSIS-Laufzeit des
 Setups (zlib, LZMA-Modul CPL-1.0), `nsis_tauri_utils` und die WiX-Teile des MSI (MS-RL); Texte, Versionen und
 Quellen stehen in `tools/licenses/windows`. Das Skript läuft nur unter Linux/macOS – die Windows-Pakete
 bekommen ihre Hinweise im Release-Workflow aus dem Linux-Job `notices-windows` (Artefakt, `--require-notices`
-auch für Windows); der CI-Job `notices` erzeugt beide Varianten.
+auch für Windows); der CI-Job `notices` erzeugt beide Varianten. Mit `--pdfium android-…` kommt der
+Android-Teil dazu (`tools/android-licenses.py` mit dem Init-Skript `tools/licenses/android-artifacts.gradle`): die
+Java-/Kotlin-Bibliotheken des APK-Laufzeit-Klassenpfads (AndroidX, Kotlin, Material, Jackson …) mit Lizenz aus dem
+POM und ihren LICENSE-/NOTICE-Dateien – das Android-Gradle-Plugin verwirft diese beim Packen. Für das APK daher
+vor dem Bau `tools/third-party-notices.sh --pdfium android-arm64 --out target/notices-android` und
+`PIDA_NOTICES_DIR=target/notices-android PIDA_REQUIRE_NOTICES=1` setzen (braucht JDK und das Android-Projekt).
 
 **npm** (Plan §2.5: dieselbe Allowlist für die UI): `node tools/npm-licenses.mjs apps/app/package-lock.json`
 prüft das Lockfile – Laufzeitpakete gegen die Allowlist, reine Build-Werkzeuge (`dev: true`) zusätzlich

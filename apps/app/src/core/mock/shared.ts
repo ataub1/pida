@@ -98,6 +98,8 @@ export interface MockOptions {
   missingFolders?: string[];
   /** Update-Prüfung („Über PIDA“, ADR 0004 Nachtrag 21; Standard `up_to_date`), siehe `mock/about.ts` */
   update?: MockUpdateScenario;
+  /** `false`: Build ohne eingebettete Drittlizenz-Hinweise (`license_text` → `ng-ui-licenses-missing`) */
+  notices?: boolean;
 }
 
 /** Ergebnis der simulierten Update-Prüfung (`MockOptions::update`, Browser-Vorschau `?update=`). */

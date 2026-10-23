@@ -62,16 +62,15 @@ describe('Über PIDA: Kopf, Links, Urheberrecht', () => {
     expect(links.map((l) => l.textContent)).toEqual([
       'Versionshinweise (öffnet im Browser)',
       'Quellcode (öffnet im Browser)',
-      'Drittlizenzen anzeigen',
+      'Lizenzen anzeigen',
       'Datenschutz',
       'Logs anzeigen',
     ]);
     await user.click(within(about).getByRole('link', { name: /Versionshinweise/ }));
     await user.click(within(about).getByRole('link', { name: /Quellcode/ }));
     expect(mock.openedUrls).toEqual(['https://github.com/ataub1/pida/releases/tag/v0.2.0', 'https://github.com/ataub1/pida']);
-    await user.click(within(about).getByRole('link', { name: 'Drittlizenzen anzeigen' }));
     await user.click(within(about).getByRole('link', { name: 'Logs anzeigen' }));
-    await waitFor(() => expect(mock.nativeCalls).toEqual(expect.arrayContaining(['openNotices', 'openLogDir'])));
+    await waitFor(() => expect(mock.nativeCalls).toContain('openLogDir'));
     expect(within(about).getByText('Basiert auf PDF-Over von A-SIT.')).toBeInTheDocument();
     expect(within(about).getByText(/kein offizielles Produkt der Republik Österreich oder der A-Trust GmbH/)).toBeInTheDocument();
     const last = about.lastElementChild;

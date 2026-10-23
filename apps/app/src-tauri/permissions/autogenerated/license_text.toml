@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-license-text"
+description = "Enables the license_text command without any pre-configured scope."
+commands.allow = ["license_text"]
+
+[[permission]]
+identifier = "deny-license-text"
+description = "Denies the license_text command without any pre-configured scope."
+commands.deny = ["license_text"]

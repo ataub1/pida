@@ -14,6 +14,9 @@ export const VIEW_EVENT = 'pida:view';
 export const RENDER_SCHEME = 'pida-render';
 
 /** Dateifilter eines Dialogs. */
+/** Lizenztexte der App (`license_text`). */
+export type LicenseKind = 'eupl' | 'notices' | 'rust_std';
+
 export interface FileFilter {
   name: string;
   extensions: string[];
@@ -93,8 +96,12 @@ export interface PlatformServices {
   revealOutput(doc?: DocId | null): Promise<void>;
   /** Öffnet den Log-Ordner. */
   openLogDir(): Promise<void>;
-  /** Öffnet die Drittlizenz-Hinweise des Pakets (THIRD-PARTY-NOTICES). */
-  openNotices(): Promise<void>;
+  /**
+   * Lizenztext für die Anzeige in der App (Backlog Nr. 2): `eupl` (EUPL-1.2 von PIDA), `notices`
+   * (THIRD-PARTY-NOTICES, Markdown) bzw. `rust_std` (Hinweise der Rust-Standardbibliothek, HTML) – eingebettet in das
+   * Programm, auch auf Android. Fehlen die Hinweise (Entwicklungsbuild): Fehler `ng-ui-licenses-missing`.
+   */
+  licenseText(kind: LicenseKind): Promise<string>;
   /** Version, Plattform, Kern verfügbar. */
   appInfo(): Promise<AppInfo>;
 }
@@ -275,9 +282,9 @@ export async function createTauriBridge(): Promise<Bridge> {
         throw new Error(errorCode(e));
       }
     },
-    async openNotices() {
+    async licenseText(kind) {
       try {
-        await invoke('open_notices');
+        return await invoke<string>('license_text', { kind });
       } catch (e) {
         throw new Error(errorCode(e));
       }

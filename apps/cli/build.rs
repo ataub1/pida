@@ -4,8 +4,8 @@
 //! `<repo>/target/notices` mit `THIRD-PARTY-NOTICES.md` und `RUST-STD-COPYRIGHT.html` aus `tools/third-party-notices.sh`.
 //! Fehlen sie (Entwicklungs-Build), bettet das Skript leere Daten ein und `licenses` nennt nur den EUPL-Text samt
 //! Hinweis; mit `PIDA_REQUIRE_NOTICES=1` (Release) bricht der Build stattdessen ab. Ein relativer `PIDA_NOTICES_DIR`
-//! gilt ab der Wurzel des Repositorys. Ohne Feature `run` (GUI-Shell, Mobile: nur der Argument-Parser) liest niemand
-//! die Daten – dann tut das Skript nichts.
+//! gilt ab der Wurzel des Repositorys. Ohne Feature `notices` (in `run` enthalten; die App schaltet es für ihre
+//! Lizenzanzeige ein) liest niemand die Daten – dann tut das Skript nichts.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -15,7 +15,7 @@ const FILES: [&str; 2] = ["THIRD-PARTY-NOTICES.md", "RUST-STD-COPYRIGHT.html"];
 fn main() {
     println!("cargo:rerun-if-env-changed=PIDA_NOTICES_DIR");
     println!("cargo:rerun-if-env-changed=PIDA_REQUIRE_NOTICES");
-    if std::env::var_os("CARGO_FEATURE_RUN").is_none() {
+    if std::env::var_os("CARGO_FEATURE_NOTICES").is_none() {
         return;
     }
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
@@ -53,7 +53,7 @@ fn main() {
             );
         }
         println!(
-            "cargo:warning=pida-cli ohne Drittlizenz-Hinweise gebaut (fehlten beim Build: {}; tools/third-party-notices.sh)",
+            "cargo:warning=ohne Drittlizenz-Hinweise gebaut (fehlten beim Build: {}; tools/third-party-notices.sh)",
             missing.join(", ")
         );
     }

@@ -33,8 +33,9 @@ pida-render = { workspace = true }
 # Mobile-Plugin (sicherer Speicher, Teilen/Exportieren, Import, eingehende Dokumente, TLS unter Android);
 # auf dem Desktop ohne native Seite (alle Methoden „nicht unterstützt“).
 tauri-plugin-pida-mobile = { workspace = true }
-# PDF-Over-Startargumente mit dem Parser der CLI (ohne Feature `run`), siehe src/args.rs
-pida-cli = { workspace = true }
+# PDF-Over-Startargumente mit dem Parser der CLI (ohne Feature `run`), siehe src/args.rs; dazu EUPL-Text und
+# eingebettete Drittlizenz-Hinweise (Feature `notices`, Command `license_text`)
+pida-cli = { workspace = true, features = ["notices"] }
 clap = { workspace = true }
 zeroize = { workspace = true }
 # Tauri 2.12.4 (Apache-2.0 OR MIT), Plan §2.1 „Tauri 2.12.x, gepinnt“.

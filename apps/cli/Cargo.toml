@@ -31,8 +31,11 @@ run = [
     "dep:tracing-subscriber",
     "dep:serde_json",
     "dep:rpassword",
-    "dep:flate2",
+    "notices",
 ]
+# EUPL-Text und eingebettete Drittlizenz-Hinweise (`notices`, build.rs) – für `pida-cli licenses` und die Anzeige in
+# der App (Backlog Nr. 2: auch Android, wo das Paket keine Ressourcendateien hat)
+notices = ["dep:flate2"]
 
 [dependencies]
 pida-config = { workspace = true }

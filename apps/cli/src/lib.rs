@@ -24,6 +24,8 @@
 
 #[cfg(feature = "run")]
 mod commands;
+#[cfg(feature = "notices")]
+pub mod notices;
 pub mod overlay;
 #[cfg(feature = "run")]
 pub mod session;

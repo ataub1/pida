@@ -10,7 +10,7 @@
     "allow-core-view",
     "allow-core-dispatch",
     "allow-app-info",
-    "allow-open-notices",
+    "allow-license-text",
     "allow-mobile-pick-files",
     {
       "identifier": "opener:allow-open-url",

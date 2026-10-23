@@ -167,6 +167,8 @@ jobs:
         working-directory: apps/app
         env:
           REQUIRE: ${{ matrix.notices && '--require-notices' || '' }}
+          # die App bettet die Hinweise für „Lizenzen anzeigen“ ein (pida-cli, Feature notices): ohne Hinweise abbrechen
+          PIDA_REQUIRE_NOTICES: ${{ matrix.notices && '1' || '' }}
           # macOS: DMG ohne Finder-Automation (AppleScript-Layout überspringen)
           CI: "true"
         run: |

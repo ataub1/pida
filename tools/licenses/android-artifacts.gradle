@@ -1,0 +1,71 @@
+// PIDA – Init-Skript für tools/android-licenses.py (Backlog Nr. 2): löst den Laufzeit-Klassenpfad der App auf und gibt
+// je Bibliothek die Pfade von POM (samt Eltern-POMs) und Archiv (JAR bzw. AAR) aus – lädt sie dabei bei Bedarf.
+//
+//   ./gradlew -q -I tools/licenses/android-artifacts.gradle :app:pidaLicenseArtifacts \
+//       -Ppida.configuration=universalReleaseRuntimeClasspath
+//
+// Ausgabe je Zeile: `MODULE <gruppe:name:version>`, `POM <gruppe:name:version> <pfad>`, `ARCHIVE <gruppe:name:version>
+// <pfad>`, `PROJECT <pfad>`. Nichts wird gebaut.
+
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.maven.MavenModule
+import org.gradle.maven.MavenPomArtifact
+
+allprojects { p ->
+    if (p.path != ':app') return
+    p.tasks.register('pidaLicenseArtifacts') {
+        doLast {
+            def name = p.findProperty('pida.configuration') ?: 'universalReleaseRuntimeClasspath'
+            def conf = p.configurations.getByName(name)
+            def modules = []
+            conf.incoming.resolutionResult.allComponents.each { c ->
+                def id = c.id
+                if (id instanceof ModuleComponentIdentifier) {
+                    modules << id
+                } else if (id instanceof ProjectComponentIdentifier && id.projectPath != ':app') {
+                    println "PROJECT ${id.projectPath}"
+                }
+            }
+            def poms = { ids ->
+                p.dependencies.createArtifactResolutionQuery().forComponents(ids)
+                    .withArtifacts(MavenModule, MavenPomArtifact).execute().resolvedComponents
+            }
+            def seenPoms = [] as Set
+            def pending = modules.collect { it }
+            while (!pending.isEmpty()) {
+                def next = []
+                poms(pending).each { rc ->
+                    def gav = "${rc.id.group}:${rc.id.module}:${rc.id.version}"
+                    rc.getArtifacts(MavenPomArtifact).each { a ->
+                        if (a.hasProperty('file') && seenPoms.add(gav)) {
+                            println "POM ${gav} ${a.file}"
+                            // Eltern-POM nachladen (Lizenz steht oft nur dort)
+                            def pom = new groovy.xml.XmlSlurper(false, false, false).parse(a.file)
+                            def parent = pom.parent
+                            if (!parent.isEmpty() && parent.groupId.text()) {
+                                next << org.gradle.api.internal.artifacts.DefaultModuleIdentifier
+                                    .newId(parent.groupId.text(), parent.artifactId.text()).with { mid ->
+                                        org.gradle.internal.component.external.model.DefaultModuleComponentIdentifier
+                                            .newId(mid, parent.version.text())
+                                    }
+                            }
+                        }
+                    }
+                }
+                pending = next.findAll { !seenPoms.contains("${it.group}:${it.module}:${it.version}") }
+            }
+            modules.each { id ->
+                def gav = "${id.group}:${id.module}:${id.version}"
+                println "MODULE ${gav}"
+                ['aar', 'jar'].find { ext ->
+                    def detached = p.configurations.detachedConfiguration(p.dependencies.create("${gav}@${ext}"))
+                    detached.transitive = false
+                    def files = detached.incoming.artifactView { lenient(true) }.files.files
+                    files.each { f -> println "ARCHIVE ${gav} ${f}" }
+                    !files.isEmpty()
+                }
+            }
+        }
+    }
+}

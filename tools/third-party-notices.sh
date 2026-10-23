@@ -6,6 +6,7 @@
 #   tools/third-party-notices.sh                       # → target/notices/THIRD-PARTY-NOTICES.md
 #   tools/third-party-notices.sh --out dist/notices    # anderes Zielverzeichnis
 #   tools/third-party-notices.sh --pdfium win-x64      # PDFium-Lizenzen dieser Plattform; win-…: mit Windows-Teil
+#   tools/third-party-notices.sh --pdfium android-arm64 --out target/notices-android   # APK: mit Android-Teil
 #
 # Inhalt (in dieser Reihenfolge):
 #   0. Übernommene EUPL-Bestandteile: PDF-AS-4-Konfiguration und -Bildmarken (© EGIZ, EUPL-1.1+),
@@ -21,6 +22,8 @@
 #   5. npm-Abhängigkeiten der Oberfläche (apps/app/package-lock.json, falls vorhanden; tools/npm-licenses.mjs)
 #   6. nur mit --pdfium win-…: Windows-Installer und -Laufzeit (WebView2-SDK, NSIS, nsis_tauri_utils, WiX/MS-RL;
 #      Texte und Herkunft in tools/licenses/windows)
+#   7. nur mit --pdfium android-…: Java-/Kotlin-Bibliotheken des APK aus Gradle (tools/android-licenses.py; braucht
+#      das Android-Projekt apps/app/src-tauri/gen/android und ein JDK)
 #
 # Benötigt: cargo, rustc, cargo-about 0.9.x (`brew install cargo-about` oder
 # `cargo install --locked cargo-about@0.9.2`), python3; für Teil 5 node ≥ 18 und `npm ci` in apps/app.
@@ -39,7 +42,7 @@ while [ $# -gt 0 ]; do
       fi
       if [ "$1" = --out ]; then OUT="$2"; else PDFIUM_PLATFORM="$2"; fi
       shift ;;
-    -h | --help) sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "third-party-notices: unbekanntes Argument $1" >&2; exit 2 ;;
   esac
   shift
@@ -359,6 +362,17 @@ case "$(basename "$PDFIUM_DIR")" in
     ;;
 esac
 
+# --- 7. Android-Bibliotheken ------------------------------------------------------------------------
+# Nicht in Cargo.lock: AndroidX, Kotlin, Material, Jackson … aus dem Laufzeit-Klassenpfad des APK samt ihren
+# NOTICE-Dateien (das Android-Gradle-Plugin verwirft META-INF/LICENSE*, NOTICE*; Backlog Nr. 2).
+: >"$TMP/7-android.md"
+case "$(basename "$PDFIUM_DIR")" in
+  android-*)
+    python3 -I "$ROOT/tools/android-licenses.py" --project "$ROOT/apps/app/src-tauri/gen/android" \
+      --apache "$RUST_DOC/licenses/Apache-2.0.txt" --mit "$RUST_DOC/licenses/MIT.txt" >"$TMP/7-android.md"
+    ;;
+esac
+
 # --- Zusammenführen --------------------------------------------------------------------------------
 # Jahr des Urheberrechtsvermerks wie „Über PIDA“ (Versionsdatum, crates/core-api/build_support/release_date.rs):
 # SOURCE_DATE_EPOCH, sonst das Commit-Datum – nur aus dem Repository, das PIDA selbst verwaltet (nicht aus einem fremden,
@@ -391,7 +405,7 @@ fi
   echo "Quelle (source): Cargo.lock sha256 $(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$ROOT/Cargo.lock")"
   echo
   # Muss gültiges UTF-8 sein; Zeilenenden einheitlich LF.
-  cat "$TMP/0-eupl.md" "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-rust-std.md" "$TMP/5-npm.md" "$TMP/6-windows.md" | python3 -I -c '
+  cat "$TMP/0-eupl.md" "$TMP/1-pdfium.md" "$TMP/2-assets.md" "$TMP/3-rust.md" "$TMP/4-rust-std.md" "$TMP/5-npm.md" "$TMP/6-windows.md" "$TMP/7-android.md" | python3 -I -c '
 import sys
 data = sys.stdin.buffer.read().decode("utf-8")
 sys.stdout.write(data.replace("\r\n", "\n").replace("\r", "\n"))

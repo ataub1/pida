@@ -562,7 +562,15 @@ ng-cli-fido2-pin = Security key PIN:{ " " }
 ng-certcache-mismatch = The certificate has changed (for example renewed, or a different account). The signature was discarded. "Retry" reads the certificate again, rebuilds the signature block with the new details and asks for confirmation again.
 ng-placeholder-profile-unknown = The signature placeholder names the unknown profile "{ $profile }"; the configured profile is used for signing.
 ng-ui-args-cli-only = The option { $option } is only available on the command line (pida-cli).
-ng-ui-about-notices = Show third-party licenses
+ng-ui-about-notices = Show licenses
+# Licenses in the app (backlog no. 2): PIDA's EUPL, third-party licenses, Rust standard library
+ng-ui-licenses-title = Licenses
+ng-ui-licenses-subtitle = PIDA is licensed under the EUPL-1.2 and contains third-party components under their own licenses.
+ng-ui-licenses-tab-eupl = PIDA (EUPL-1.2)
+ng-ui-licenses-tab-notices = Third-party components
+ng-ui-licenses-tab-rust-std = Rust standard library
+ng-ui-licenses-loading = Loading …
+ng-ui-licenses-missing = The third-party license notices are missing in this development build (tools/third-party-notices.sh).
 
 ## Mobile (mobile wave, package M0: lifecycle, "resume signature", sharing; plan §5.2). Since ADR 0004 addendum 11 the core
 ## returns the `ng-keystore-import*` codes on the desktop only (iOS/Android: ID Austria only).

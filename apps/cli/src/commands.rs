@@ -168,24 +168,7 @@ pub fn migrate(
     ExitCode::Success
 }
 
-/// EUPL-1.2-Text des Werks (Art. 5: jeder Kopie beilegen).
-const EUPL: &str = include_str!("../../../LICENSE");
-
-/// Drittlizenz-Hinweise (Dateiname, mit Deflate gepackter Inhalt aus `build.rs`; leer = nicht eingebettet).
-const NOTICES: [(&str, &[u8]); 2] = [
-    ("THIRD-PARTY-NOTICES.md", include_bytes!(concat!(env!("OUT_DIR"), "/THIRD-PARTY-NOTICES.md.deflate"))),
-    ("RUST-STD-COPYRIGHT.html", include_bytes!(concat!(env!("OUT_DIR"), "/RUST-STD-COPYRIGHT.html.deflate"))),
-];
-
-/// Eingebettete Datei entpacken (`None`, wenn der Build ohne Hinweise lief).
-fn notice(packed: &[u8]) -> Option<Vec<u8>> {
-    if packed.is_empty() {
-        return None;
-    }
-    let mut out = Vec::new();
-    std::io::Read::read_to_end(&mut flate2::read::DeflateDecoder::new(packed), &mut out).ok()?;
-    Some(out)
-}
+use crate::notices::{EUPL, NOTICES, notice};
 
 /// `licenses [-o <ordner>]` (Lizenzbericht Befunde 3, 4): ohne `-o` den EUPL-1.2-Text und die Drittlizenz-Hinweise auf
 /// stdout (die HTML-Hinweise der Rust-Standardbibliothek nur mit `-o`), mit `-o` `LICENSE.txt`,

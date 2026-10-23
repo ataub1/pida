@@ -17,7 +17,7 @@
  * der Warteschlange; mit `batchOverview` bei ≥ 2 Dokumenten, ADR 0004 §3.8).
  */
 import { defaultErrorContext, defaultSigners, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../defaults';
-import type { Bridge, FileDragEvent, MobilePick } from '../bridge';
+import type { Bridge, FileDragEvent, LicenseKind, MobilePick } from '../bridge';
 import type {
   ActionsView,
   BackendId,
@@ -1639,8 +1639,12 @@ export class MockCore implements Bridge {
     this.nativeCalls.push('openLogDir');
   }
 
-  async openNotices(): Promise<void> {
-    this.nativeCalls.push('openNotices');
+  async licenseText(kind: LicenseKind): Promise<string> {
+    this.nativeCalls.push(`licenseText:${kind}`);
+    if (kind === 'eupl') return 'EUROPEAN UNION PUBLIC LICENCE v. 1.2\nEUPL © the European Union 2007, 2016\n';
+    if (this.opts.notices === false) throw new Error('ng-ui-licenses-missing');
+    if (kind === 'notices') return '# THIRD-PARTY-NOTICES – PIDA\n\n## PDFium\n\nBSD-3-Clause …\n\n## Android-Bibliotheken (Android libraries)\n';
+    return '<!DOCTYPE html><html><head><title>Copyright notices for The Rust Standard Library</title></head><body><h1>Copyright notices for The Rust Standard Library</h1><p>The Rust Standard Library is dual-licensed under Apache 2.0 and MIT terms.</p><ul><li>core</li><li>alloc</li></ul><script>window.__pwned = true</script></body></html>';
   }
 
   async appInfo() {

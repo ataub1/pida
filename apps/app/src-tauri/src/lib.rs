@@ -144,20 +144,24 @@ fn reveal_output(app: AppHandle, shell: State<'_, Shell>, doc: Option<pida_workf
     app.opener().reveal_item_in_dir(path).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
-/// Name der Drittlizenz-Hinweise im Ressourcenordner (scripts/bundle-config.mjs, Plan §2.5).
-pub const NOTICES_FILE: &str = "THIRD-PARTY-NOTICES.md";
-
-/// Öffnet die Drittlizenz-Hinweise des Pakets (Über-Dialog); fehlen sie (Entwicklungsbuild ohne
-/// `npm run notices`), liefert der Command `ng-ui-open-failed`.
+/// Lizenztexte für die Anzeige in der App (Backlog Nr. 2; Einstellungen › Über PIDA › „Lizenzen“): `eupl` (EUPL-1.2,
+/// Lizenz von PIDA), `notices` (THIRD-PARTY-NOTICES.md) bzw. `rust_std` (RUST-STD-COPYRIGHT.html, HTML). Eingebettet in
+/// das Programm (`pida-cli`, Feature `notices`) statt aus dem Ressourcenordner gelesen – so auch auf Android und iOS.
+/// Fehlen die Hinweise (Entwicklungsbuild ohne `npm run notices`), liefert der Command `ng-ui-licenses-missing`.
 #[tauri::command]
-fn open_notices(app: AppHandle) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    let file = app.path().resource_dir().map(|d| d.join(NOTICES_FILE)).map_err(|_| "ng-ui-open-failed".to_owned())?;
-    if !file.is_file() {
-        tracing::info!("Drittlizenz-Hinweise nicht im Paket");
-        return Err("ng-ui-open-failed".to_owned());
+async fn license_text(kind: String) -> Result<String, String> {
+    use pida_cli::notices;
+    match kind.as_str() {
+        "eupl" => Ok(notices::EUPL.to_owned()),
+        "notices" | "rust_std" => {
+            let name = if kind == "notices" { "THIRD-PARTY-NOTICES.md" } else { "RUST-STD-COPYRIGHT.html" };
+            notices::text(name).ok_or_else(|| {
+                tracing::info!("Drittlizenz-Hinweise nicht eingebettet");
+                "ng-ui-licenses-missing".to_owned()
+            })
+        }
+        _ => Err(shell::EVENT_INVALID.to_owned()),
     }
-    app.opener().open_path(file.to_string_lossy(), None::<&str>).map_err(|_| "ng-ui-open-failed".to_owned())
 }
 
 /// Ergebnis von [`mobile_pick_files`]: Pfade der Kopien (Reihenfolge der Auswahl) und die Zahl der gewählten, aber
@@ -539,7 +543,7 @@ pub fn run() {
             app_info,
             open_log_dir,
             reveal_output,
-            open_notices,
+            license_text,
             mobile_pick_files
         ])
         .setup(move |app| {

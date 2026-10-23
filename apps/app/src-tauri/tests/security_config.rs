@@ -39,7 +39,7 @@ fn capabilities_are_minimal() {
         "allow-app-info",
         "allow-open-log-dir",
         "allow-reveal-output",
-        "allow-open-notices",
+        "allow-license-text",
         "dialog:allow-open",
         "dialog:allow-save",
         "opener:allow-open-url",
@@ -75,7 +75,7 @@ fn mobile_capabilities_are_minimal() {
         "allow-core-view",
         "allow-core-dispatch",
         "allow-app-info",
-        "allow-open-notices",
+        "allow-license-text",
         "allow-mobile-pick-files",
         "opener:allow-open-url",
     ]

@@ -627,3 +627,63 @@
   width: auto;
   height: 2px;
 }
+
+/* Lizenzen (Backlog Nr. 2): Reiter und langer, rollbarer Text */
+.licenses-modal .dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: min(86vh, 900px);
+}
+.licenses-tabs {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: 0 var(--sp-5) var(--sp-5);
+}
+.licenses-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: var(--sp-3);
+}
+.licenses-tab {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-14);
+  color: var(--c-text-2);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: default;
+}
+.licenses-tab[data-selected] {
+  color: var(--c-text);
+  border-bottom-color: var(--c-accent);
+  font-weight: var(--fw-semibold);
+}
+.licenses-panel {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+}
+.licenses-text {
+  flex: 1;
+  min-height: 12rem;
+  height: 60vh;
+  margin: 0;
+  overflow: auto;
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-3);
+  background: var(--c-surface-2);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.licenses-status {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--c-text-2);
+}

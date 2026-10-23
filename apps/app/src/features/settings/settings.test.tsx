@@ -609,14 +609,12 @@ describe('Erweitert und Über', () => {
     expect(lastEvent(mock)).toEqual({ type: 'reset_settings' });
   });
 
-  it('Über: Version mit Datum, Lizenz- und Supportlinks, Drittlizenzen, Logs, Verweis auf Datenschutz', async () => {
+  it('Über: Version mit Datum, Lizenz- und Supportlinks, Logs, Verweis auf Datenschutz', async () => {
     const { dialog, mock, user } = await open();
     await user.click(nav(dialog, 'Über PIDA'));
     expect(await within(dialog).findByText('Version 0.2.0 · 17.10.2026')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('link', { name: /software@egiz\.gv\.at/ }));
     expect(mock.openedUrls).toEqual(['mailto:software@egiz.gv.at']);
-    await user.click(within(dialog).getByRole('link', { name: 'Drittlizenzen anzeigen' }));
-    await waitFor(() => expect(mock.nativeCalls).toContain('openNotices'));
     await user.click(within(dialog).getByRole('link', { name: /Logs anzeigen/ }));
     await waitFor(() => expect(mock.nativeCalls).toContain('openLogDir'));
     await user.click(within(dialog).getByRole('link', { name: 'Datenschutz' }));
@@ -663,7 +661,7 @@ describe('Mobile (Abnahme E3 Punkt 7; nur ID Austria, ADR 0004 Nachtrag 11)', ()
     expect(within(dialog).queryByRole('switch', { name: /Updates/ })).toBeNull();
     await user.click(nav(dialog, 'Über PIDA'));
     expect(within(dialog).queryByRole('link', { name: /Logs/ })).toBeNull();
-    expect(within(dialog).getByRole('link', { name: 'Drittlizenzen anzeigen' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Lizenzen anzeigen' })).toBeInTheDocument();
     // keine Update-Prüfung auf iOS/Android (Nachtrag 21)
     expect(within(dialog).queryByRole('group', { name: 'Updates' })).toBeNull();
     // Datenschutz: auf Mobilgeräten nur ID Austria – kein lokales Signieren mit Keystore oder Chipkarte
