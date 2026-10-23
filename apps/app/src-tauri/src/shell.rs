@@ -399,6 +399,7 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         parked: None,
         share_hint: None,
         about: None,
+        update_hint: None,
     }
 }
 

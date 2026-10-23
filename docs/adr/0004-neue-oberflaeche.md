@@ -3513,7 +3513,7 @@ pub enum UpdateCheckState { Unchecked, Disabled, PolicyOff, Checking, UpToDate, 
 pub struct UpdateCheckView { state, latest_version, release_url, checked_at /* RFC 3339 */, reason /* i18n-ID */ }
 pub enum UiEvent { /* … */ CheckForUpdates { #[serde(default)] explicit: bool } }                    // am Ende
 // CoreOptions::update_transport: Option<Arc<dyn update::UpdateTransport>> (Standard pida-net; isolated(): None)
-// Meldungs-IDs (pida.ftl): ng-update-available ($version), ng-update-failed-{offline,timeout,proxy,tls,
+// Meldungs-IDs (pida.ftl): ng-update-failed-{offline,timeout,proxy,tls,
 //   rate-limited,forbidden,server,invalid}; UI: ng-ui-about-*, ng-ui-privacy-update-check
 ```
 
@@ -3537,16 +3537,19 @@ pub enum UiEvent { /* … */ CheckForUpdates { #[serde(default)] explicit: bool 
    Implementierung, keine neue Abhängigkeit). Die Release-Seite baut der Kern aus der gefundenen Version
    (`…/releases/tag/v<version>`) – die URL der Antwort wird nicht übernommen.
 4. **Wann:** beim Start im Hintergrund höchstens einmal je 24 h (letzter Versuch, auch erfolglos, aus
-   `<cache_dir>/update-check.json`: nur `checked_at`, `attempted_at` und die gefundenen Tags); beim Öffnen von „Über
+   `<cache_dir>/update-check.json`: nur `checked_at`, `attempted_at`, die gefundenen Tags und ggf. `dismissed_version`); beim Öffnen von „Über
    PIDA“ (`check_for_updates { explicit: false }`), wenn das letzte Ergebnis älter als eine Stunde ist – nach einem
    Fehler erst nach 15 Minuten, nach einem Rate-Limit nach einer Stunde (nicht jedes Öffnen schickt eine Anfrage an ein
    begrenzendes bzw. nicht erreichbares GitHub; „Erneut prüfen“ geht jederzeit) –, beides nur mit eingeschalteter
    Prüfung (Richtlinie vor Einstellung). Ausgeschaltet prüft „Jetzt prüfen“ (`explicit: true`)
    einmalig; das Ergebnis gilt, bis der Schalter wechselt. Mit Richtlinie „aus“ nie, auch nicht auf Klick. Während
    einer Prüfung startet keine zweite. Der Start wartet nie (eigener Tokio-Task, Ergebnis als `Msg::UpdateChecked`).
-   Findet die Prüfung **beim Start** eine neue Version, erscheint der Hinweis `ng-update-available` (Toast, kein
-   Dialog; nicht, wenn der Schalter inzwischen aus ist) – damit stimmt der Hinweistext des Schalters aus PDF-Over
-   („Zeigt eine Benachrichtigung …“).
+   Ist eine neue Version bekannt (auch aus dem Zwischenspeicher), zeigt die **Startseite** den Hinweis
+   `ViewState::update_hint` („PIDA x.y.z ist verfügbar.“ mit Link auf die Release-Seite und „Ausblenden“; kein
+   Dialog, keine Meldung; nur mit eingeschaltetem Schalter) – damit stimmt der Hinweistext des Schalters aus PDF-Over
+   („Zeigt eine Benachrichtigung …“). `dismiss_update_hint` blendet ihn für diese Version dauerhaft aus
+   (`dismissed_version` im Zwischenspeicher); eine neuere Version erscheint wieder (Backlog Nr. 33, 23.10.2026;
+   bis dahin ein Toast `ng-update-available` nur nach der Prüfung beim Start).
 5. **Zustände:** `policy_off` (Richtlinie) › `checking` › `disabled` (Schalter aus, ohne „Jetzt prüfen“) › Ergebnis:
    `unchecked` (noch keines), `up_to_date`/`available` (nur nach erfolgreicher Prüfung, auch aus dem Zwischenspeicher),
    `failed` mit Grund – offline/keine Antwort, Zeitüberschreitung, Proxy (auch eine unbrauchbare Proxy-Angabe), TLS,

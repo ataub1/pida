@@ -128,7 +128,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "first_run_fresh": {
     "about": {
@@ -251,7 +252,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "first_run_imported": {
     "about": {
@@ -383,7 +385,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "first_run_migration": {
     "about": {
@@ -580,6 +583,7 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   }
 }

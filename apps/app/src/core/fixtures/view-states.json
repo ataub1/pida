@@ -63,7 +63,8 @@
       },
       "step": {
         "step": "starting"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -131,7 +132,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -210,7 +212,8 @@
           }
         ],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -289,7 +292,8 @@
           }
         ],
         "step": "loading"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -376,7 +380,8 @@
           "signed": false
         },
         "step": "warning"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -497,7 +502,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -591,7 +597,8 @@
         ],
         "qr": null,
         "step": "placeholder"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -679,7 +686,8 @@
           "page": 1
         },
         "step": "placeholder"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -784,7 +792,8 @@
           "y": 210.5
         },
         "step": "position"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -884,7 +893,8 @@
           "y": 595.5
         },
         "step": "position"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1020,7 +1030,8 @@
           }
         ],
         "step": "backend"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1118,7 +1129,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1216,7 +1228,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1314,7 +1327,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1412,7 +1426,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1515,7 +1530,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1613,7 +1629,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1724,7 +1741,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1835,7 +1853,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -1946,7 +1965,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2057,7 +2077,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2170,7 +2191,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2286,7 +2308,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2396,7 +2419,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2506,7 +2530,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2616,7 +2641,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2726,7 +2752,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2846,7 +2873,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -2958,7 +2986,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3069,7 +3098,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3180,7 +3210,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3290,7 +3321,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3402,7 +3434,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3507,7 +3540,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3612,7 +3646,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3717,7 +3752,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3822,7 +3858,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -3926,7 +3963,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4030,7 +4068,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4134,7 +4173,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4238,7 +4278,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4346,7 +4387,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4450,7 +4492,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4554,7 +4597,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4658,7 +4702,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4762,7 +4807,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4866,7 +4912,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -4970,7 +5017,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5046,7 +5094,8 @@
           "summary": null
         },
         "step": "output"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5137,7 +5186,8 @@
           "summary": null
         },
         "step": "output"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5213,7 +5263,8 @@
           "summary": null
         },
         "step": "output"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5292,7 +5343,8 @@
           "summary": null
         },
         "step": "output"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5370,7 +5422,8 @@
         },
         "retry": true,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5438,7 +5491,8 @@
       "step": {
         "exit_code": 4,
         "step": "finished"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5605,7 +5659,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5743,7 +5798,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5838,7 +5894,8 @@
           }
         ],
         "step": "backend"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5912,7 +5969,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -5985,7 +6043,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -6383,7 +6442,8 @@
           "y": 210.5
         },
         "step": "position"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -6765,7 +6825,8 @@
           "y": 210.5
         },
         "step": "position"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -7163,7 +7224,8 @@
           "y": 210.5
         },
         "step": "position"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -7559,7 +7621,8 @@
           "y": 210.5
         },
         "step": "position"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -7734,7 +7797,8 @@
           "y": 210.5
         },
         "step": "position"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -8065,7 +8129,8 @@
           "signed": false
         },
         "step": "warning"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -8414,7 +8479,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -8763,7 +8829,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -9112,7 +9179,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -9461,7 +9529,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -9810,7 +9879,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -10159,7 +10229,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -10508,7 +10579,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -10857,7 +10929,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -11206,7 +11279,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -11555,7 +11629,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -11904,7 +11979,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -12253,7 +12329,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -12587,7 +12664,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -12921,7 +12999,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -13252,7 +13331,8 @@
           }
         ],
         "step": "signing"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -13328,7 +13408,8 @@
         "params": {},
         "retry": false,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -13404,7 +13485,8 @@
         "params": {},
         "retry": false,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -13480,7 +13562,8 @@
         "params": {},
         "retry": false,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -13807,7 +13890,8 @@
         "params": {},
         "retry": true,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -13883,7 +13967,8 @@
         "params": {},
         "retry": false,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -13959,7 +14044,8 @@
         "params": {},
         "retry": false,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -14035,7 +14121,8 @@
         "params": {},
         "retry": false,
         "step": "error"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -14383,7 +14470,8 @@
           }
         },
         "step": "output"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -14731,7 +14819,8 @@
           }
         },
         "step": "output"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -15072,7 +15161,8 @@
       },
       "step": {
         "step": "batch"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -15413,7 +15503,8 @@
       },
       "step": {
         "step": "batch"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -15754,7 +15845,8 @@
       },
       "step": {
         "step": "batch"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -16077,7 +16169,8 @@
       },
       "step": {
         "step": "batch"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -16158,7 +16251,8 @@
       },
       "step": {
         "step": "batch"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -16499,7 +16593,8 @@
       },
       "step": {
         "step": "batch"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -16840,7 +16935,8 @@
       },
       "step": {
         "step": "batch"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -16923,7 +17019,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -16991,7 +17088,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17064,7 +17162,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17137,7 +17236,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17333,7 +17433,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17455,7 +17556,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17535,7 +17637,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17615,7 +17718,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17695,7 +17799,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17775,7 +17880,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17855,7 +17961,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -17935,7 +18042,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -18015,7 +18123,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   },
   {
@@ -18119,7 +18228,8 @@
       "step": {
         "queue": [],
         "step": "open"
-      }
+      },
+      "update_hint": null
     }
   }
 ]

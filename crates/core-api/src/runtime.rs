@@ -196,6 +196,7 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::ShareRecent { .. } => "share_recent",
         UiEvent::SignRecent { .. } => "sign_recent",
         UiEvent::CheckForUpdates { .. } => "check_for_updates",
+        UiEvent::DismissUpdateHint => "dismiss_update_hint",
     }
 }
 
@@ -2635,6 +2636,7 @@ impl CoreTask {
             UiEvent::SignRecent { id, mode } => self.sign_recent(id, mode),
             // Nachtrag 21: „Über PIDA“ – Update-Prüfung beim Öffnen bzw. auf Klick (in beiden Modi; startet nichts sonst)
             UiEvent::CheckForUpdates { explicit } => self.check_for_updates(explicit),
+            UiEvent::DismissUpdateHint => self.dismiss_update_hint(),
             // ADR 0004 §3.12 (K4): Ersteinrichtung und erneutes Übernahmeangebot (Einstellungen › Erweitert)
             UiEvent::UpdateFirstRun { default_backend, profile, block_language } if self.ws.enabled => {
                 self.update_first_run(default_backend, profile, block_language);
@@ -3274,6 +3276,7 @@ impl CoreTask {
             actions,
             parked: self.parked_view(),
             about: Some(self.about_view()),
+            update_hint: self.update_hint_view(),
         }
     }
 

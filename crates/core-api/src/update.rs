@@ -15,7 +15,9 @@
 //!   begrenzendes bzw. nicht erreichbares GitHub schickt –, jeweils nur mit `general.update_check` und wenn die
 //!   Richtlinie es nicht verbietet. Ausgeschaltet prüft „Jetzt prüfen“ einmalig auf ausdrücklichen Klick, mit
 //!   Richtlinie „aus“ nie.
-//!   Findet die Prüfung beim Start eine neue Version, erscheint der Hinweis [`MSG_UPDATE_AVAILABLE`] (kein Dialog).
+//!   Ist eine neue Version bekannt (auch aus dem Zwischenspeicher), zeigt die Startseite den Hinweis
+//!   [`crate::view::ViewState::update_hint`] (kein Dialog, keine Meldung) – nur mit eingeschalteter automatischer
+//!   Prüfung und bis er für diese Version ausgeblendet ist (`dismiss_update_hint`, im Zwischenspeicher gemerkt).
 //!   Auf iOS/Android (keine Verteilung über GitHub) und ohne Oberfläche (CLI) prüft der Kern nie.
 //! - **Fehler** (offline, Zeitüberschreitung, Proxy, TLS, Rate-Limit – 429 bzw. 403 mit `x-ratelimit-remaining: 0`
 //!   oder `retry-after` –, sonstiges 403 als Sperre, Serverfehler, ungültige Antwort) →
@@ -23,7 +25,6 @@
 //! - **Logs** nennen nur Zustand, Version und Grund (keine Adressen, keine Personendaten).
 
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,7 +35,7 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use crate::runtime::{CoreTask, Msg};
-use crate::view::{AboutView, UpdateCheckState, UpdateCheckView};
+use crate::view::{AboutView, UpdateCheckState, UpdateCheckView, UpdateHintView};
 
 /// Repository (Quellcode, Release-Seiten).
 pub const REPOSITORY_URL: &str = "https://github.com/ataub1/pida";
@@ -65,8 +66,6 @@ const CLOCK_SLACK: Duration = Duration::from_secs(5 * 60);
 /// Höchstzahl der zwischengespeicherten Versionen.
 const MAX_CACHED_RELEASES: usize = 100;
 
-/// Meldungs-ID: Prüfung beim Start fand eine neue Version (`$version`); Hinweis ohne Rückfrage.
-pub const MSG_UPDATE_AVAILABLE: &str = "ng-update-available";
 /// Grund: keine Verbindung (DNS, TCP, Verbindung ohne Antwort).
 pub const MSG_FAILED_OFFLINE: &str = "ng-update-failed-offline";
 /// Grund: Zeitüberschreitung.
@@ -423,6 +422,9 @@ struct CacheFile {
     /// gefundene Releases der letzten erfolgreichen Prüfung
     #[serde(default)]
     releases: Vec<CachedRelease>,
+    /// Hinweis auf der Startseite für diese Version ausgeblendet (`dismiss_update_hint`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dismissed_version: Option<String>,
 }
 
 fn load_cache(path: &Path) -> CacheFile {
@@ -653,13 +655,6 @@ impl CoreTask {
                 match &evaluation {
                     Some(Evaluation::Available { latest }) => {
                         tracing::info!(latest = %latest, "Update-Prüfung: neue Version verfügbar");
-                        // nur, solange die automatische Prüfung noch an ist (Schalter während der Prüfung umgelegt)
-                        if kind == CheckKind::Startup && self.update_auto_enabled() {
-                            self.notify(
-                                MSG_UPDATE_AVAILABLE,
-                                BTreeMap::from([("version".to_owned(), latest.to_string())]),
-                            );
-                        }
                     }
                     Some(Evaluation::UpToDate { latest }) => tracing::info!(
                         latest = %latest.as_ref().map(ToString::to_string).unwrap_or_default(),
@@ -696,6 +691,45 @@ impl CoreTask {
             release_notes_url: release_page(&format!("v{version}")),
             source_url: REPOSITORY_URL.to_owned(),
             update: self.update_view(),
+        }
+    }
+
+    /// `ViewState::update_hint`: eine neue Version ist bekannt (auch aus dem Zwischenspeicher, auch während einer
+    /// weiteren Prüfung), die automatische Prüfung ist an (Richtlinie vor Einstellung) und der Hinweis wurde für diese
+    /// Version nicht ausgeblendet.
+    pub(crate) fn update_hint_view(&self) -> Option<UpdateHintView> {
+        if !self.updates_supported() || self.update_policy_off() || !self.update_auto_enabled() {
+            return None;
+        }
+        let latest = self.available_version()?;
+        if self.updates.cache.dismissed_version.as_deref() == Some(latest.as_str()) {
+            return None;
+        }
+        Some(UpdateHintView { release_url: release_page(&format!("v{latest}")), version: latest })
+    }
+
+    /// `UiEvent::DismissUpdateHint`: den Hinweis für die angezeigte Version ausblenden (eine neuere erscheint wieder).
+    pub(crate) fn dismiss_update_hint(&mut self) {
+        let Some(latest) = self.available_version() else { return };
+        self.updates.cache.dismissed_version = Some(latest);
+        let file = self.updates.cache_file.clone();
+        save_cache(&file, &self.updates.cache);
+    }
+
+    /// Neue Version nach der letzten erfolgreichen Prüfung (Zwischenspeicher – gilt auch nach einem späteren Fehler).
+    fn available_version(&self) -> Option<String> {
+        let current = self.updates.current.as_ref()?;
+        self.updates.cache.checked_at.as_ref()?;
+        let releases: Vec<Release> = self
+            .updates
+            .cache
+            .releases
+            .iter()
+            .filter_map(|r| Some(Release { version: version_from_tag(&r.tag)?, prerelease: r.prerelease }))
+            .collect();
+        match evaluate(current, &releases) {
+            Evaluation::Available { latest } => Some(latest.to_string()),
+            Evaluation::UpToDate { .. } => None,
         }
     }
 
@@ -949,6 +983,7 @@ mod tests {
             checked_at: Some("2026-10-17T10:00:00+02:00".into()),
             attempted_at: Some("2026-10-17T10:00:00+02:00".into()),
             releases: vec![CachedRelease { tag: "v0.2.0".into(), prerelease: true }],
+            dismissed_version: None,
         };
         save_cache(&path, &cache);
         assert_eq!(load_cache(&path), cache);

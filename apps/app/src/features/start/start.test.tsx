@@ -55,6 +55,29 @@ describe('Start', () => {
     expect(zone).not.toHaveAttribute('data-drop-target');
   });
 
+  it('neue Version: Hinweis mit Link auf die Release-Seite und „Ausblenden“ (Backlog Nr. 33); Mobile ohne', async () => {
+    const { mock, user } = renderApp({ update: 'available' });
+    const hint = await screen.findByTestId('update-hint');
+    expect(hint).toHaveAttribute('role', 'note');
+    expect(hint).toHaveTextContent('PIDA 0.3.0 ist verfügbar.');
+    await user.click(within(hint).getByRole('link', { name: 'Release-Seite von PIDA 0.3.0 auf GitHub öffnen' }));
+    expect(mock.openedUrls).toEqual(['https://github.com/ataub1/pida/releases/tag/v0.3.0']);
+    await expectNoAxeViolations();
+    await user.click(within(hint).getByRole('button', { name: 'Hinweis für diese Version ausblenden' }));
+    await waitFor(() => expect(screen.queryByTestId('update-hint')).not.toBeInTheDocument());
+    expect(mock.dispatched).toContainEqual({ type: 'dismiss_update_hint' });
+  });
+
+  it('kein Hinweis ohne neue Version und auf Mobilgeräten', async () => {
+    const { unmount } = renderApp({ update: 'up_to_date' });
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByTestId('update-hint')).not.toBeInTheDocument();
+    unmount();
+    renderApp({ update: 'available', platform: 'ios' });
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByTestId('update-hint')).not.toBeInTheDocument();
+  });
+
   it('⌘/Strg+O öffnet die Dateiauswahl (nur mit Freigabe)', async () => {
     const { mock, user } = renderApp({ view: START() });
     await screen.findByRole('heading', { level: 1 });

@@ -10,6 +10,8 @@
  *
  * Unter dem Knopf steht je Plattform, wie die Dateiauswahl mehrere PDFs auf einmal übernimmt (ADR 0004 Nachtrag 17).
  *
+ * Neue Version (Backlog Nr. 33): der Hinweis `UpdateHint` unter der Einleitung (nur, wenn der Kern ihn liefert).
+ *
  * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
  * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
  */
@@ -20,6 +22,7 @@ import { IconLock, IconUpload } from '../../ui/Icons';
 import { batchFlow, dropHintMsg } from '../batch/flow';
 import { RECENT_AVAILABLE, RecentPanel } from '../recent';
 import { ParkedCard } from './ParkedCard';
+import { UpdateHint } from './UpdateHint';
 import './start.css';
 
 export function StartView() {
@@ -35,6 +38,7 @@ export function StartView() {
           {t.t('ng-ui-start-title')}
         </h1>
         <p className="view-lead">{t.t('ng-ui-start-lead')}</p>
+        <UpdateHint />
         {view.parked ? <ParkedCard parked={view.parked} /> : null}
         <section className="dropzone start-drop" aria-label={t.t('ng-ui-start-drop-label')} data-drop-target={dragActive || undefined}>
           <div className={`drop-inner${dragActive ? ' is-target' : ''}`}>

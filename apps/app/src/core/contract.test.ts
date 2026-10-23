@@ -483,6 +483,8 @@ const viewState = obj({
       ),
     }),
   ),
+  // Backlog Nr. 33: Hinweis auf eine neue Version auf der Startseite – in TS optional
+  update_hint: optional(obj({ version: str, release_url: str })),
 });
 
 const formAnswer = tagged('kind', {
@@ -572,6 +574,8 @@ const uiEvent = tagged('type', {
   sign_recent: { id: int, mode: omittable(lit('add', 'replace')) },
   // Nachtrag 21: „Über PIDA“ – beim Öffnen bzw. „Jetzt prüfen“
   check_for_updates: { explicit: bool },
+  // Backlog Nr. 33: Hinweis auf der Startseite ausblenden
+  dismiss_update_hint: {},
 });
 
 // --- Typgleichheit Schema ↔ types.ts (Kompilierzeit) ------------------------------------------
@@ -714,6 +718,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         parked: null,
         share_hint: null,
         about: null,
+        update_hint: null,
       }),
     ).toEqual(['$.step<open>.queue: fehlt', '$.language: eines von de|en erwartet, "fr" gefunden']);
     expect(validate(uiEvent, { type: 'move_block', page: 1, x: 1, y: 2, z: 3 })).toEqual(['$<move_block>.z: unbekanntes Feld']);

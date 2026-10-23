@@ -558,6 +558,12 @@ pub struct ViewState {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(optional = nullable))]
     pub about: Option<AboutView>,
+    /// Startseite: Hinweis „PIDA x.y.z ist verfügbar“ mit Link auf die Release-Seite (Backlog Nr. 33). Nur am Desktop,
+    /// wenn eine neue Version bekannt ist (auch aus dem Zwischenspeicher), die automatische Prüfung an ist und der
+    /// Hinweis für diese Version nicht ausgeblendet wurde (`dismiss_update_hint`). Additiv, in TypeScript optional.
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(optional = nullable))]
+    pub update_hint: Option<UpdateHintView>,
 }
 
 /// Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1004,6 +1010,9 @@ pub enum UiEvent {
         #[serde(default)]
         explicit: bool,
     },
+    /// Hinweis auf eine neue Version auf der Startseite ([`ViewState::update_hint`]) für diese Version ausblenden
+    /// (dauerhaft; eine neuere Version erscheint wieder). Startet **nichts**.
+    DismissUpdateHint,
 }
 
 impl std::fmt::Debug for UiEvent {
@@ -2125,6 +2134,16 @@ pub struct AboutView {
     /// Update-Prüfung; `None` = keine (iOS/Android: dort keine Verteilung über GitHub; ohne Oberfläche bzw. ohne
     /// Netz-Zugang des Kerns)
     pub update: Option<UpdateCheckView>,
+}
+
+/// Hinweis auf der Startseite ([`ViewState::update_hint`]): neue Version und ihre Release-Seite.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct UpdateHintView {
+    /// die neue Version (`0.2.4`)
+    pub version: String,
+    /// Release-Seite der neuen Version
+    pub release_url: String,
 }
 
 /// Zustand der Update-Prüfung ([`UpdateCheckView::state`]).

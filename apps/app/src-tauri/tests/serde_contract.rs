@@ -69,6 +69,7 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         parked: None,
         share_hint: None,
         about: None,
+        update_hint: None,
     }
 }
 

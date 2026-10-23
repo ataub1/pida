@@ -601,6 +601,8 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         AboutView,
         UpdateCheckState,
         UpdateCheckView,
+        // Backlog Nr. 33
+        UpdateHintView,
     );
     (out, names)
 }

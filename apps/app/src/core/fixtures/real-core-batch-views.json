@@ -205,7 +205,8 @@
     },
     "step": {
       "step": "batch"
-    }
+    },
+    "update_hint": null
   },
   "batch_confirm_1": {
     "about": {
@@ -463,7 +464,8 @@
         }
       ],
       "step": "signing"
-    }
+    },
+    "update_hint": null
   },
   "batch_confirm_2": {
     "about": {
@@ -739,7 +741,8 @@
         }
       ],
       "step": "signing"
-    }
+    },
+    "update_hint": null
   },
   "batch_entry_parked": {
     "about": {
@@ -882,7 +885,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "batch_entry_resumed": {
     "about": {
@@ -1064,7 +1068,8 @@
     },
     "step": {
       "step": "batch"
-    }
+    },
+    "update_hint": null
   },
   "batch_login": {
     "about": {
@@ -1323,7 +1328,8 @@
         }
       ],
       "step": "signing"
-    }
+    },
+    "update_hint": null
   },
   "batch_overview": {
     "about": {
@@ -1524,7 +1530,8 @@
     },
     "step": {
       "step": "batch"
-    }
+    },
+    "update_hint": null
   },
   "batch_overview_estimate": {
     "about": {
@@ -1732,7 +1739,8 @@
     },
     "step": {
       "step": "batch"
-    }
+    },
+    "update_hint": null
   },
   "batch_parked": {
     "about": {
@@ -1863,7 +1871,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "batch_paused_connection": {
     "about": {
@@ -2144,7 +2153,8 @@
         }
       ],
       "step": "signing"
-    }
+    },
+    "update_hint": null
   },
   "batch_summary": {
     "about": {
@@ -2414,6 +2424,7 @@
     },
     "step": {
       "step": "batch"
-    }
+    },
+    "update_hint": null
   }
 }

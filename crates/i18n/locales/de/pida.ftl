@@ -700,10 +700,9 @@ ng-migration-item-signer-mobile = Signiermittel: ID Austria – andere Signiermi
 ng-migrate-keystore-mobile = { $key } wird nicht übernommen (auf Mobilgeräten wird nur mit ID Austria signiert).
 ng-resume-signer-not-offered = Eine unterbrochene Signatur wurde verworfen, weil es ihr Signiermittel in dieser App nicht mehr gibt. Bitte öffnen Sie das Dokument erneut und signieren Sie mit ID Austria.
 
-## „Über PIDA“ und Update-Prüfung (ADR 0004 Nachtrag 21). `ng-update-*` liefert der Kern (`update.rs`): den Hinweis
-## nach der Prüfung beim Start und den Grund nach „Prüfung nicht möglich: “ (klein, ohne Punkt).
+## „Über PIDA“ und Update-Prüfung (ADR 0004 Nachtrag 21). `ng-update-failed-*` liefert der Kern (`update.rs`): den
+## Grund nach „Prüfung nicht möglich: “ (klein, ohne Punkt).
 
-ng-update-available = PIDA { $version } ist verfügbar. Mehr dazu unter Einstellungen › Über PIDA.
 ng-update-failed-offline = keine Verbindung zu GitHub
 ng-update-failed-timeout = GitHub antwortet nicht rechtzeitig
 ng-update-failed-proxy = Proxy-Fehler (Einstellungen › Erweitert › Proxy)

@@ -157,10 +157,11 @@ describe('Über PIDA: Statuszeile in jedem Zustand des echten Kerns', () => {
     expect(checks(mock.dispatched)).toEqual([{ type: 'check_for_updates', explicit: false }]);
   });
 
-  it('Hinweis nach der Prüfung beim Start (ohne Dialog)', async () => {
-    renderApp({ view: state('about_available') });
-    const toasts = await screen.findByRole('region', { name: /Benachrichtigungen|Hinweise/ });
-    expect(toasts).toHaveTextContent('PIDA 0.3.0 ist verfügbar. Mehr dazu unter Einstellungen › Über PIDA.');
+  it('neue Version nach der Prüfung beim Start: Hinweis auf der Startseite, keine Meldung, kein Dialog', async () => {
+    const v = state('about_available');
+    expect(v.notices).toEqual([]);
+    renderApp({ view: v });
+    expect(await screen.findByTestId('update-hint')).toHaveTextContent('PIDA 0.3.0 ist verfügbar.');
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });

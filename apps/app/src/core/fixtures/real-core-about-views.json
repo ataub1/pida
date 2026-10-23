@@ -54,15 +54,7 @@
       ]
     },
     "migration": null,
-    "notices": [
-      {
-        "code": "ng-update-available",
-        "id": 1,
-        "params": {
-          "version": "0.3.0"
-        }
-      }
-    ],
+    "notices": [],
     "parked": null,
     "platform": {
       "mobile": false,
@@ -154,6 +146,10 @@
     "step": {
       "queue": [],
       "step": "open"
+    },
+    "update_hint": {
+      "release_url": "https://github.com/ataub1/pida/releases/tag/v0.3.0",
+      "version": "0.3.0"
     }
   },
   "about_checking": {
@@ -303,7 +299,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "about_disabled": {
     "about": {
@@ -452,7 +449,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "about_failed": {
     "about": {
@@ -601,7 +599,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "about_ios": {
     "about": {
@@ -744,7 +743,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "about_policy_off": {
     "about": {
@@ -895,7 +895,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "about_unchecked": {
     "about": {
@@ -1044,7 +1045,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "about_up_to_date": {
     "about": {
@@ -1193,6 +1195,7 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   }
 }

@@ -12,8 +12,9 @@
  * - Szenarien (`MockOptions::update`, Browser-Vorschau `?update=`): `up_to_date` (Standard), `available` (0.3.0),
  *   `failed` (erst Rate-Limit, „Erneut prüfen“ gelingt), `offline` (jede Prüfung ohne Verbindung), `unchecked`
  *   (noch kein Ergebnis; das Öffnen prüft), `checking` (die Prüfung endet nie – für Screenshots).
+ * - Startseite (Backlog Nr. 33): `update_hint` bei bekannter neuer Version, bis `dismiss_update_hint`.
  */
-import type { AboutView, UpdateCheckState, UpdateCheckView } from '../types';
+import type { AboutView, UpdateCheckState, UpdateCheckView, UpdateHintView } from '../types';
 import type { PolicyMock } from './settings';
 import type { MockArea, MockCtx, MockOptions, MockUpdateScenario } from './shared';
 
@@ -35,6 +36,8 @@ interface AboutState {
   /** zuletzt gesehener Schalter (Richtlinie vor Einstellung) */
   enabled: boolean;
   attempts: number;
+  /** Startseite: Hinweis für diese Version ausgeblendet (`dismiss_update_hint`) */
+  dismissed: string | null;
 }
 
 const AT = '2026-10-17T10:42:17+02:00';
@@ -91,13 +94,21 @@ function view(s: AboutState, ctx: MockCtx): UpdateCheckView | null {
   return { ...base('up_to_date'), latest_version: o.latest };
 }
 
+/** Startseite (Backlog Nr. 33): neue Version bekannt, automatische Prüfung an, nicht ausgeblendet – wie der Kern. */
+function hint(s: AboutState, ctx: MockCtx): UpdateHintView | null {
+  if (s.mobile || s.policy?.update_check === false || !autoEnabled(s, ctx)) return null;
+  const o = s.outcome;
+  if (o?.kind !== 'checked' || compare(o.latest, MOCK_VERSION) <= 0 || s.dismissed === o.latest) return null;
+  return { version: o.latest, release_url: `${REPO}/releases/tag/v${o.latest}` };
+}
+
 export const aboutArea: MockArea<AboutState> = {
   init(o: MockOptions & { policy?: PolicyMock }) {
     const scenario = o.update ?? 'up_to_date';
     const mobile = (o.platform ?? 'desktop') !== 'desktop';
     const policy = o.policy;
     const enabledAtStart = policy?.update_check ?? o.settings?.general.update_check ?? true;
-    const s: AboutState = { scenario, mobile, policy, running: false, outcome: null, explicit: false, enabled: enabledAtStart, attempts: 0 };
+    const s: AboutState = { scenario, mobile, policy, running: false, outcome: null, explicit: false, enabled: enabledAtStart, attempts: 0, dismissed: null };
     // Prüfung beim Start (wie aus dem Zwischenspeicher): nur am Desktop, erlaubt und eingeschaltet
     if (!mobile && policy?.update_check !== false && enabledAtStart && scenario !== 'unchecked' && scenario !== 'checking') {
       s.attempts = 1;
@@ -107,6 +118,11 @@ export const aboutArea: MockArea<AboutState> = {
   },
 
   handle(event, s, ctx) {
+    if (event.type === 'dismiss_update_hint') {
+      const h = hint(s, ctx);
+      if (h) s.dismissed = h.version;
+      return true;
+    }
     if (event.type !== 'check_for_updates') return false;
     if (s.mobile || s.policy?.update_check === false || s.running) return true;
     // der Mock kennt keine Zeit: ein Ergebnis (Erfolg oder Fehler) gilt als frisch
@@ -131,6 +147,6 @@ export const aboutArea: MockArea<AboutState> = {
       source_url: REPO,
       update: view(s, ctx),
     };
-    return { about };
+    return { about, update_hint: hint(s, ctx) };
   },
 };

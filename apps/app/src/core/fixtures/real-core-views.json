@@ -272,7 +272,8 @@
         "y": 704.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "atrust_done": {
     "about": {
@@ -533,7 +534,8 @@
         }
       },
       "step": "output"
-    }
+    },
+    "update_hint": null
   },
   "atrust_editing": {
     "about": {
@@ -802,7 +804,8 @@
         "y": 704.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "atrust_login": {
     "about": {
@@ -1079,7 +1082,8 @@
         }
       ],
       "step": "signing"
-    }
+    },
+    "update_hint": null
   },
   "atrust_network_error": {
     "about": {
@@ -1328,7 +1332,8 @@
       },
       "retry": true,
       "step": "error"
-    }
+    },
+    "update_hint": null
   },
   "atrust_tan": {
     "about": {
@@ -1604,7 +1609,8 @@
         }
       ],
       "step": "signing"
-    }
+    },
+    "update_hint": null
   },
   "doc_auto_locked": {
     "about": {
@@ -1891,7 +1897,8 @@
         "y": 704.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "doc_field_auto": {
     "about": {
@@ -2279,7 +2286,8 @@
         "y": 198.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "doc_parked": {
     "about": {
@@ -2426,7 +2434,8 @@
     "step": {
       "queue": [],
       "step": "open"
-    }
+    },
+    "update_hint": null
   },
   "doc_pdfa_detected": {
     "about": {
@@ -2722,7 +2731,8 @@
         "y": 741.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "doc_pdfa_forced": {
     "about": {
@@ -3009,7 +3019,8 @@
         "y": 704.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "doc_qr_auto": {
     "about": {
@@ -3299,7 +3310,8 @@
         "y": 198.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "keystore_done": {
     "about": {
@@ -3603,7 +3615,8 @@
         }
       },
       "step": "output"
-    }
+    },
+    "update_hint": null
   },
   "keystore_editing": {
     "about": {
@@ -3915,7 +3928,8 @@
         "y": 704.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "keystore_signing": {
     "about": {
@@ -4222,7 +4236,8 @@
         }
       ],
       "step": "signing"
-    }
+    },
+    "update_hint": null
   },
   "settings_open": {
     "about": {
@@ -4581,7 +4596,8 @@
         "y": 704.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   },
   "settings_partial": {
     "about": {
@@ -4942,6 +4958,7 @@
         "y": 704.0
       },
       "step": "position"
-    }
+    },
+    "update_hint": null
   }
 }

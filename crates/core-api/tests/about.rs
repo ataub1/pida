@@ -171,10 +171,6 @@ fn write_cache(fx: &Fixture, checked_hours_ago: Option<i64>, attempted_hours_ago
     std::fs::write(fx.paths.cache_dir.join(update::CACHE_FILE), json.to_string()).unwrap();
 }
 
-fn notices(v: &ViewState, code: &str) -> usize {
-    v.notices.iter().filter(|n| n.code == code).count()
-}
-
 fn apply(core: &Core, revision: u64, on: bool) {
     let changes = std::collections::BTreeMap::from([("general.update_check".to_owned(), serde_json::json!(on))]);
     core.dispatch(UiEvent::ApplySettings { changes, revision });
@@ -216,7 +212,8 @@ async fn startup_check_is_up_to_date_and_carries_no_identifiers() {
     assert_eq!((u.release_url, u.reason), (None, None));
     let checked = OffsetDateTime::parse(u.checked_at.as_deref().expect("checked_at"), &Rfc3339).unwrap();
     assert!((OffsetDateTime::now_utc() - checked).whole_seconds().abs() < 60);
-    assert_eq!(notices(&v, update::MSG_UPDATE_AVAILABLE), 0);
+    assert_eq!(v.update_hint, None, "auf dem neuesten Stand: kein Hinweis");
+    assert!(v.notices.is_empty(), "{:?}", v.notices);
     assert_eq!(gh.calls(), 1);
     // keine Kennungen: feste URL ohne Abfrage, nur zwei Header, Standard-User-Agent, keine Cookies
     let (net, request) = gh.requests.lock().unwrap()[0].clone();
@@ -251,7 +248,8 @@ async fn startup_check_is_up_to_date_and_carries_no_identifiers() {
     assert_eq!(gh.calls(), 1);
 }
 
-/// Neue Version beim Start: Hinweis ohne Rückfrage (einmal), Link auf die Release-Seite; nichts wird geladen.
+/// Neue Version beim Start: Hinweis auf der Startseite (keine Meldung), Link auf die Release-Seite; nichts wird
+/// geladen. „Ausblenden“ gilt dauerhaft für diese Version (Zwischenspeicher), eine neuere erscheint wieder.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn startup_check_announces_a_new_version() {
     let fx = fixture("[general]\n");
@@ -261,14 +259,29 @@ async fn startup_check_announces_a_new_version() {
     let u = update(&v).unwrap();
     assert_eq!(u.latest_version.as_deref(), Some("0.3.0"));
     assert_eq!(u.release_url.as_deref(), Some("https://github.com/ataub1/pida/releases/tag/v0.3.0"));
-    let n = v.notices.iter().find(|n| n.code == update::MSG_UPDATE_AVAILABLE).expect("Hinweis");
-    assert_eq!(n.params.get("version").map(String::as_str), Some("0.3.0"));
-    // „Jetzt prüfen“ prüft erneut, meldet aber keinen zweiten Hinweis (der Abschnitt zeigt es)
+    let hint = v.update_hint.clone().expect("Hinweis auf der Startseite");
+    assert_eq!(
+        (hint.version.as_str(), hint.release_url.as_str()),
+        ("0.3.0", "https://github.com/ataub1/pida/releases/tag/v0.3.0")
+    );
+    assert!(v.notices.is_empty(), "keine Meldung zusätzlich: {:?}", v.notices);
+    // während „Jetzt prüfen“ bleibt der Hinweis stehen
     core.dispatch(UiEvent::CheckForUpdates { explicit: true });
     wait_for(&core, "zweite Prüfung", |_| gh.calls() == 2).await;
+    wait_state(&core, UpdateCheckState::Available).await;
+    assert!(core.view().update_hint.is_some());
+    core.dispatch(UiEvent::DismissUpdateHint);
+    wait_for(&core, "ausgeblendet", |v| v.update_hint.is_none()).await;
+    let cache: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(fx.paths.cache_dir.join(update::CACHE_FILE)).unwrap()).unwrap();
+    assert_eq!(cache["dismissed_version"], "0.3.0");
+    drop(core);
+    // nächster Start (Ergebnis aus dem Zwischenspeicher): bleibt ausgeblendet; „Über PIDA“ zeigt die Version weiter
+    let gh = FakeGitHub::new(&[]);
+    let core = start(&fx, &gh);
     let v = wait_state(&core, UpdateCheckState::Available).await;
     settle().await;
-    assert_eq!(notices(&core.view(), update::MSG_UPDATE_AVAILABLE), 1, "{:?}", v.notices);
+    assert_eq!((core.view().update_hint, gh.calls()), (None, 0), "{:?}", v.notices);
 }
 
 /// Höchstens einmal je 24 h beim Start: ein Versuch vor 23 h → keine Prüfung, Ergebnis aus dem Zwischenspeicher;
@@ -283,11 +296,11 @@ async fn startup_check_at_most_once_per_day() {
     settle().await;
     assert_eq!(gh.calls(), 0, "Versuch vor 23 h: beim Start keine Prüfung");
     assert!(update(&v).unwrap().checked_at.is_some(), "Zeitpunkt aus dem Zwischenspeicher");
-    // „Über PIDA“ öffnen: das Ergebnis ist 23 h alt → erneut prüfen (findet 0.3.0, ohne Hinweis)
+    // „Über PIDA“ öffnen: das Ergebnis ist 23 h alt → erneut prüfen (findet 0.3.0, auch die Startseite zeigt es)
     core.dispatch(UiEvent::CheckForUpdates { explicit: false });
     let v = wait_state(&core, UpdateCheckState::Available).await;
     assert_eq!(gh.calls(), 1);
-    assert_eq!(notices(&v, update::MSG_UPDATE_AVAILABLE), 0, "Hinweis nur nach der Prüfung beim Start");
+    assert_eq!(v.update_hint.map(|h| h.version).as_deref(), Some("0.3.0"));
     drop(core);
 
     let fx = fixture("[general]\n");
@@ -500,7 +513,7 @@ async fn no_startup_notice_after_the_switch_was_turned_off() {
     wait_state(&core, UpdateCheckState::Disabled).await;
     settle().await;
     assert_eq!(gh.calls(), 1);
-    assert_eq!(notices(&core.view(), update::MSG_UPDATE_AVAILABLE), 0, "ausgeschaltet: kein Hinweis");
+    assert_eq!(core.view().update_hint, None, "ausgeschaltet: kein Hinweis");
 }
 
 /// iOS/Android (keine Verteilung über GitHub) und die CLI prüfen nie; ohne Transport (Tests) ebenso.
@@ -513,6 +526,7 @@ async fn mobile_cli_and_isolated_cores_never_check() {
         let v = wait_for(&core, "Projektion", |v| v.about.is_some()).await;
         let about = v.about.unwrap();
         assert_eq!((about.version.as_str(), about.update), ("0.2.0", None), "{platform:?}: keine Update-Zeile");
+        assert_eq!(v.update_hint, None, "{platform:?}: kein Hinweis auf der Startseite");
         core.dispatch(UiEvent::CheckForUpdates { explicit: true });
         settle().await;
         assert_eq!(gh.calls(), 0, "{platform:?}");

@@ -114,6 +114,11 @@ ng-ui-start-pick-mobile = Choose document
 ng-ui-start-local = Your documents stay on this device until you sign.
 ng-ui-start-shortcut = opens the file chooser
 ng-ui-start-side = Recently signed
+# Notice about a new version (core: `ViewState::update_hint`, backlog no. 33)
+ng-ui-start-update = PIDA { $version } is available.
+ng-ui-start-update-open = Go to release page
+ng-ui-start-update-open-label = Open the release page of PIDA { $version } on GitHub
+ng-ui-start-update-dismiss = Hide notice for this version
 # Parked work (“Go to start” parks the open document or batch, ADR 0004 addendum 10)
 ng-ui-start-parked-label = In progress
 ng-ui-start-parked-batch =

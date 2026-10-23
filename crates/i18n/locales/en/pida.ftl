@@ -700,10 +700,9 @@ ng-migration-item-signer-mobile = Signing method: ID Austria – other signing m
 ng-migrate-keystore-mobile = { $key } is not imported (on mobile devices, signing uses ID Austria only).
 ng-resume-signer-not-offered = An interrupted signature was discarded because its signing method is no longer available in this app. Please open the document again and sign with ID Austria.
 
-## About PIDA and update check (ADR 0004 addendum 21). The core delivers `ng-update-*` (`update.rs`): the notice after
-## the check at startup and the reason after "Check not possible: " (lower case, no full stop).
+## About PIDA and update check (ADR 0004 addendum 21). The core delivers `ng-update-failed-*` (`update.rs`): the
+## reason after "Check not possible: " (lower case, no full stop).
 
-ng-update-available = PIDA { $version } is available. See Settings › About PIDA.
 ng-update-failed-offline = no connection to GitHub
 ng-update-failed-timeout = GitHub did not respond in time
 ng-update-failed-proxy = proxy error (Settings › Advanced › Proxy)

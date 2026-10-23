@@ -206,7 +206,7 @@ pub use view::ParkedWorkView;
 // Nachtrag 12 (Randfälle aus dem Mobile-Check: Stapelwortlaut je Signiermittel, Hinweis zum Teilen auf iOS)
 pub use view::{BatchFlowView, ShareHintView};
 // Nachtrag 21 („Über PIDA“ und Update-Prüfung)
-pub use view::{AboutView, UpdateCheckState, UpdateCheckView};
+pub use view::{AboutView, UpdateCheckState, UpdateCheckView, UpdateHintView};
 
 use pida_backend_api::{Platform, SignatureBackend};
 use pida_config::{Overlay, Paths, Policy, SecretStore};
@@ -444,6 +444,7 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         parked: None,
         share_hint: None,
         about: None,
+        update_hint: None,
     }
 }
 

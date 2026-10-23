@@ -269,3 +269,10 @@
     justify-content: flex-start;
   }
 }
+
+/* Hinweis auf eine neue Version (Backlog Nr. 33) */
+.start-update > .start-update-close {
+  flex: none;
+  margin: -6px -10px 0 auto;
+  color: inherit;
+}

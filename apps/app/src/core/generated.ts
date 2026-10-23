@@ -1414,7 +1414,13 @@ share_hint?: ShareHintView | null,
  * „Über PIDA“ (ADR 0004 Nachtrag 21): Version, Versionsdatum, Links, Update-Prüfung. Additiv, in TypeScript
  * optional; der Kern liefert es immer (`None` nur ohne Kern, z. B. im Fehlerschritt der Shell).
  */
-about?: AboutView | null, };
+about?: AboutView | null, 
+/**
+ * Startseite: Hinweis „PIDA x.y.z ist verfügbar“ mit Link auf die Release-Seite (Backlog Nr. 33). Nur am Desktop,
+ * wenn eine neue Version bekannt ist (auch aus dem Zwischenspeicher), die automatische Prüfung an ist und der
+ * Hinweis für diese Version nicht ausgeblendet wurde (`dismiss_update_hint`). Additiv, in TypeScript optional.
+ */
+update_hint?: UpdateHintView | null, };
 
 /**
  * Antwort auf eine Maske (serde-Variante von `FormAnswer`; Passwort wird sofort in `Zeroizing`
@@ -1697,7 +1703,7 @@ mode?: OpenFilesMode | null, } | { "type": "check_for_updates",
 /**
  * ausdrücklicher Klick („Jetzt prüfen“, „Erneut prüfen“)
  */
-explicit: boolean, };
+explicit: boolean, } | { "type": "dismiss_update_hint" };
 
 /**
  * Rechteck in pt (`PAGE_ABS`: Ursprung links unten, y nach oben; ADR 0004 §3.0 Regel 3).
@@ -2748,3 +2754,16 @@ checked_at: string | null,
  * Grund (i18n-ID `ng-update-failed-*`), nur `failed`
  */
 reason: string | null, };
+
+/**
+ * Hinweis auf der Startseite ([`ViewState::update_hint`]): neue Version und ihre Release-Seite.
+ */
+export type UpdateHintView = { 
+/**
+ * die neue Version (`0.2.4`)
+ */
+version: string, 
+/**
+ * Release-Seite der neuen Version
+ */
+release_url: string, };
