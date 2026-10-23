@@ -4,7 +4,7 @@
 
 **PDF-Signatur mit ID Austria** · PDF · ID · Austria
 
-[**Download 0.2.3**](https://github.com/ataub1/pida/releases/tag/v0.2.3) ·
+[**Download 0.2.4**](https://github.com/ataub1/pida/releases/tag/v0.2.4) ·
 [Installation](#installation) ·
 [In English](#in-english)
 
@@ -18,7 +18,7 @@ PIDA ist freie Software unter der **EUPL-1.2**.
 ![Arbeitsbereich von PIDA: links die Seitenminiaturen, in der Mitte die letzte Seite eines Vertrags mit dem automatisch platzierten Signaturblock, rechts der Inspektor mit „Signieren mit ID Austria“, Vorschau des Signaturbilds, Optionen und der Schaltfläche „Signieren“](docs/screenshots/02-arbeitsbereich.png)
 
 > [!NOTE]
-> **Testversion.** 0.2.3 ist ein Pre-Release (die früheren Testversionen bis 0.2.2 sind zurückgezogen).
+> **Testversion.** 0.2.4 ist ein Pre-Release.
 > Die Pakete sind nicht code-signiert bzw. notarisiert und
 > aktualisieren sich nicht selbst. Windows und macOS warnen deshalb beim ersten Start, Android verlangt die
 > Installation aus unbekannten Quellen – siehe [Installation](#installation).
@@ -98,20 +98,21 @@ Dokumente).</sub>
 
 ## Download
 
-Alle Pakete stehen auf der Release-Seite: **[PIDA 0.2.3](https://github.com/ataub1/pida/releases/tag/v0.2.3)**.
+Alle Pakete stehen auf der Release-Seite: **[PIDA 0.2.4](https://github.com/ataub1/pida/releases/tag/v0.2.4)**.
 
 | System | Paket (direkter Download) | Größe | Voraussetzung |
 |---|---|---|---|
-| Windows | [`PIDA_0.2.3_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_windows_x64-setup.exe) (empfohlen) | 10,7 MiB | Windows 10 oder 11, x64 |
-| Windows | [`PIDA_0.2.3_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_windows_x64.msi) | 14,7 MiB | Windows 10 oder 11, x64 |
-| macOS | [`PIDA_0.2.3_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_macos_arm64.dmg) | 12,8 MiB | macOS 11 oder neuer, Apple Silicon |
-| Linux (Debian, Ubuntu) | [`PIDA_0.2.3_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_linux_amd64.deb) | 15,2 MiB | x86_64 |
-| Linux (Fedora, RHEL) | [`PIDA_0.2.3_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_linux_x86_64.rpm) | 15,2 MiB | x86_64 |
-| Linux (portabel) | [`PIDA_0.2.3_linux_x86_64.AppImage`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_linux_x86_64.AppImage) | 89,1 MiB | x86_64, ohne Installation |
-| Android | [`PIDA_0.2.3_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.2.3/PIDA_0.2.3_android_arm64.apk) | 26,8 MiB | Android 9 oder neuer, arm64 |
-| Kommandozeile (macOS) | [`pida-cli_0.2.3_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.3/pida-cli_0.2.3_macos_arm64) | 15,1 MiB | macOS 11 oder neuer, Apple Silicon |
+| Windows | [`PIDA_0.2.4_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_windows_x64-setup.exe) (empfohlen) | 10,8 MiB | Windows 10 oder 11, x64 |
+| Windows | [`PIDA_0.2.4_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_windows_x64.msi) | 14,9 MiB | Windows 10 oder 11, x64 |
+| Windows (portabel) | [`PIDA_0.2.4_windows_x64-portable.zip`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_windows_x64-portable.zip) | 14,0 MiB | Windows 10 oder 11, x64, ohne Installation |
+| macOS | [`PIDA_0.2.4_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_macos_arm64.dmg) | 12,9 MiB | macOS 11 oder neuer, Apple Silicon |
+| Linux (Debian, Ubuntu) | [`PIDA_0.2.4_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_linux_amd64.deb) | 15,4 MiB | x86_64 |
+| Linux (Fedora, RHEL) | [`PIDA_0.2.4_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_linux_x86_64.rpm) | 15,4 MiB | x86_64 |
+| Linux (portabel) | [`PIDA_0.2.4_linux_x86_64.AppImage`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_linux_x86_64.AppImage) | 89,2 MiB | x86_64, ohne Installation |
+| Android | [`PIDA_0.2.4_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.2.4/PIDA_0.2.4_android_arm64.apk) | 26,9 MiB | Android 9 oder neuer, arm64 |
+| Kommandozeile (macOS) | [`pida-cli_0.2.4_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.2.4/pida-cli_0.2.4_macos_arm64) | 15,1 MiB | macOS 11 oder neuer, Apple Silicon |
 
-Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.2.3/SHA256SUMS.txt) (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
+Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.2.4/SHA256SUMS.txt) (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
 macOS, `sha256sum -c SHA256SUMS.txt` unter Linux bzw. `Get-FileHash <Datei> -Algorithm SHA256` in der Windows
 PowerShell). Eine iOS-Version ist nicht Teil der Releases.
 
@@ -124,6 +125,10 @@ PowerShell). Eine iOS-Version ist nicht Teil der Releases.
    code-signiert ist: **„Weitere Informationen“ › „Trotzdem ausführen“**.
 3. Fehlt die WebView2-Laufzeit von Microsoft (unter Windows 11 vorinstalliert), lädt der Installer sie nach –
    dafür ist eine Internetverbindung nötig.
+
+**Portabel (ohne Installation):** `…-portable.zip` entpacken, z. B. auf einen USB-Stick, und `PIDA\pida.exe`
+starten. Einstellungen, Protokolle und Daten der Oberfläche bleiben im Ordner `PIDA-Daten` daneben; Passwörter
+merkt PIDA dort nur bis zum Beenden. Die WebView2-Laufzeit muss vorhanden sein.
 
 ### macOS
 
@@ -315,8 +320,7 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   status card with the comparison value, a “Done” view and “Recently signed”, customisable signature block
   with preview, PDF/A support, German and English, light and dark mode, command palette (⌘K / Ctrl+K). PDF-Over
   settings can be imported on first start; PDF-Over command-line arguments keep working (`pida-cli`).
-- **Download:** [PIDA 0.2.3](https://github.com/ataub1/pida/releases/tag/v0.2.3) (pre-release; earlier test versions
-  withdrawn) – Windows 10/11 x64 (`-setup.exe` or `.msi`), macOS 11+
+- **Download:** [PIDA 0.2.4](https://github.com/ataub1/pida/releases/tag/v0.2.4) (pre-release) – Windows 10/11 x64 (`-setup.exe`, `.msi` or portable `.zip`), macOS 11+
   on Apple Silicon (`.dmg`), Linux x86_64 (`.deb`/`.rpm`/AppImage), Android 9+ arm64 (`.apk`), plus the
   command-line tool `pida-cli` for macOS on Apple Silicon. Checksums are in `SHA256SUMS.txt`. iOS is not included.
 - **Installation:** packages are not code-signed or notarised and do not update themselves. Windows SmartScreen:
