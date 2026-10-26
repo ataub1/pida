@@ -154,6 +154,8 @@ time = { version = "0.3.55", features = ["formatting", "parsing", "macros", "ser
 # den lokalen Offset unter Unix in Mehrthread-Prozessen aber nicht und kennt keine IANA-Namen.
 # `jiff` liefert lokale Zeitzone (inkl. Sommerzeit) und `timezone`-Profilwerte (`Europe/Vienna`).
 jiff = "0.2.38"
+# Browser (wasm32-unknown-unknown): Uhrzeit aus JavaScript (`Date.now()`), Konzept Webdienst Etappe 1 (MIT/Apache-2.0)
+js-sys = "0.3.106"
 base64 = "0.23.1"
 hex = "0.4.3"
 toml = "1.1.8"

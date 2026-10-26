@@ -1,0 +1,32 @@
+[package]
+name = "pida-web-spike"
+description = "PIDA – Durchstich: Kern als WebAssembly im Browser (Konzept Webdienst, Variante E, Etappe 1)"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "EUPL-1.2"
+
+# eigener Workspace: der Durchstich ändert den App-Workspace und dessen Cargo.lock nicht
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pida-pdf-cos = { path = "../../crates/pdf-cos" }
+pida-pades = { path = "../../crates/pades" }
+pida-cades = { path = "../../crates/cades" }
+pida-sigblock = { path = "../../crates/sigblock" }
+pida-backend-keystore = { path = "../../crates/backend-keystore" }
+wasm-bindgen = "=0.2.129"
+time = "0.3.55"
+serde_json = "1"
+# Rust-Panics mit Meldung in der Browser-Konsole statt nur „unreachable“
+console_error_panic_hook = "0.1"
+# Zufall im Browser (crypto.getRandomValues): Browser-Variante beider getrandom-Generationen
+getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+
+[profile.release]
+opt-level = "s"
+lto = true

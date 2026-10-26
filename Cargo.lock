@@ -4137,6 +4137,7 @@ name = "pida-pdf-incremental"
 version = "0.2.5"
 dependencies = [
  "flate2",
+ "js-sys",
  "pida-pdf-cos",
  "serde",
  "serde_json",
