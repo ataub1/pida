@@ -1454,12 +1454,12 @@ mod tests {
         };
         let java = std::env::var_os("PIDA_JAVA").unwrap_or_else(|| "java".into());
         let dir = std::env::temp_dir().join(format!("pida-emblem-oracle-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        pida_fs::create_dir_all(&dir).unwrap();
         let fixtures = oracle_fixtures();
         let mut files = Vec::new();
         for (name, bytes) in &fixtures {
             let p = dir.join(name);
-            std::fs::write(&p, bytes).unwrap();
+            pida_fs::write(&p, bytes).unwrap();
             files.push(p);
         }
         let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1471,7 +1471,7 @@ mod tests {
             .args(&files)
             .output()
             .expect("Java startet");
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = pida_fs::remove_dir_all(&dir);
         assert!(out.status.success(), "Orakel: {}", String::from_utf8_lossy(&out.stderr));
         let stdout = String::from_utf8_lossy(&out.stdout);
         let unhex = |h: &str| -> Option<Vec<u8>> {

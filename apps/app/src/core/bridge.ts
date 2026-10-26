@@ -38,8 +38,8 @@ export interface AppInfo {
 
 /** Kern-Schnittstelle (Plan §3.4). */
 export interface CoreBridge {
-  /** `tauri` (Rust-Kern) oder `mock` (TS-Mock-Kern). */
-  readonly kind: 'tauri' | 'mock';
+  /** `tauri` (Rust-Kern), `web` (Rust-Kern als WebAssembly im Browser) oder `mock` (TS-Mock-Kern). */
+  readonly kind: 'tauri' | 'web' | 'mock';
   /** Aktueller Zustand (beim Start). */
   view(): Promise<ViewState>;
   /** Sendet ein Ereignis; Fehler tragen einen stabilen Code (i18n-ID). */

@@ -14,9 +14,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile, type UpdateCheckView } from '../../core/types';
+import { webProfile } from '../../core/web-profile';
 import { Button, Spinner } from '../../ui/controls';
 import { IconAlert, IconCheck, IconExternal, IconInfo, IconLock, IconRefresh } from '../../ui/Icons';
-import { LogoMark } from '../../ui/Logo';
+import { AsitLogo, LogoMark } from '../../ui/Logo';
 import { Markup } from '../../ui/Markup';
 import { LicensesDialog } from './licenses';
 
@@ -129,6 +130,9 @@ function AboutLink({ label, href, onPress }: { label: string; href?: string; onP
   );
 }
 
+/** Website des Herausgebers. */
+const ASIT_URL = 'https://www.a-sit.at';
+
 export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
   const { t, view, bridge, toast, dispatch } = useApp();
   const about = view.about ?? null;
@@ -174,12 +178,20 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
         {about ? <AboutLink label={t.t('ng-ui-about-source')} href={about.source_url} /> : null}
         <AboutLink label={t.t('ng-ui-about-notices')} onPress={() => setLicenses(true)} />
         <AboutLink label={t.t('ng-ui-about-privacy')} onPress={onPrivacy} />
-        {mobile ? null : <AboutLink label={t.t('config-ShowLogDirectory')} onPress={() => void bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />}
+        {mobile || webProfile() ? null : <AboutLink label={t.t('config-ShowLogDirectory')} onPress={() => void bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />}
       </ul>
       <p className="about-license pre-line">
         <Markup text={t.t('ng-ui-about-license')} />
       </p>
       <p className="about-license">{t.t('ng-ui-about-not-official')}</p>
+      {/* Herausgeber (Wunsch des Auftraggebers): Logo mit Link zur Website von A-SIT */}
+      <Link
+        className="about-publisher"
+        aria-label={`${t.t('ng-ui-about-publisher')} ${t.t('ng-ui-link-external')}`}
+        onPress={() => void bridge.openUrl(ASIT_URL).catch(() => toast(t.t('ng-ui-open-failed'), 'error'))}
+      >
+        <AsitLogo height={32} />
+      </Link>
       <p className="about-based-on">{t.t('ng-ui-about-based-on')}</p>
       <p className="about-copyright">{t.t('ng-ui-about-copyright', { year })}</p>
       {licenses ? <LicensesDialog onClose={() => setLicenses(false)} /> : null}

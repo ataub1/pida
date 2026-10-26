@@ -1,3 +1,4 @@
+#![cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(dead_code, unused_imports))]
 //! `pida-net` – HTTP-Client-Fassade für A-Trust (Szenario A), lokale BKU und Update-Check.
 //!
 //! Anforderungen (docs/analyse/02 §3.2–§3.4, §4.3, §6; Plan §2.1, §4.4):
@@ -435,6 +436,7 @@ impl Response {
 }
 
 /// HTTP-Client einer Sitzung.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Debug)]
 pub struct HttpClient {
     inner: reqwest::Client,
@@ -442,6 +444,7 @@ pub struct HttpClient {
     max_body: usize,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl HttpClient {
     /// Neuer Client mit eigenem Cookie-Jar (sofern der Zweck Cookies vorsieht).
     pub fn new(config: &NetConfig, purpose: Purpose) -> Result<Self> {
@@ -554,6 +557,7 @@ fn body_too_large(max: usize) -> NetError {
 }
 
 /// Proxy für die manuelle Konfiguration (`http://host:port`, Basic-Authentifizierung).
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn manual_proxy(host: &str, port: u16, auth: Option<&ProxyAuth>) -> Result<reqwest::Proxy> {
     let host = host.trim();
     if host.is_empty() {
@@ -586,6 +590,7 @@ fn header_value_to_string(bytes: &[u8]) -> String {
 }
 
 /// Fehlerkette ohne URL (`reqwest::Error::without_url`), für Diagnose.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn error_chain(error: &(dyn std::error::Error + 'static)) -> String {
     let mut parts = vec![error.to_string()];
     let mut source = error.source();
@@ -601,6 +606,7 @@ fn error_chain(error: &(dyn std::error::Error + 'static)) -> String {
 
 /// Sucht `T` in der Fehlerkette. `std::io::Error::source()` überspringt den eingebetteten Fehler
 /// (rustls/hyper-rustls verpacken TLS-Fehler so); deshalb wird zusätzlich `get_ref()` durchsucht.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn chain_contains<T: std::error::Error + 'static>(
     error: &(dyn std::error::Error + 'static),
     pred: &impl Fn(&T) -> bool,
@@ -628,6 +634,7 @@ fn chain_contains<T: std::error::Error + 'static>(
     false
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn map_reqwest_error(error: reqwest::Error) -> NetError {
     let error = error.without_url();
     if error.is_timeout() {
@@ -661,6 +668,7 @@ fn map_reqwest_error(error: reqwest::Error) -> NetError {
 /// Installiert den rustls-Crypto-Provider `ring` prozessweit (idempotent). Muss vor dem ersten
 /// Client aufgerufen werden; [`HttpClient::new`] tut das selbst. Ist bereits ein anderer Provider
 /// installiert, bleibt dieser aktiv.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn install_crypto_provider() {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
@@ -671,6 +679,57 @@ pub fn install_crypto_provider() {
     });
 }
 
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+/// HTTP-Client im Browser: Der Kern spricht dort nicht selbst mit dem Netz (CORS; A-Trust läuft über das Overlay der
+/// Seite, Konzept Webdienst Variante E). Gleiche Schnittstelle, jeder Request scheitert mit [`NetError::Config`].
+#[derive(Debug)]
+pub struct HttpClient {
+    purpose: Purpose,
+}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+impl HttpClient {
+    /// Neuer Client (ohne Verbindung).
+    pub fn new(_config: &NetConfig, purpose: Purpose) -> Result<Self> {
+        Ok(Self { purpose })
+    }
+
+    /// Zweck.
+    pub fn purpose(&self) -> Purpose {
+        self.purpose
+    }
+
+    /// Im Browser nicht möglich.
+    pub async fn execute(&self, _request: Request) -> Result<Response> {
+        Err(NetError::Config("im Browser spricht der Kern nicht selbst mit dem Netz".into()))
+    }
+
+    /// Im Browser nicht möglich (wie [`HttpClient::execute`]).
+    pub async fn get(&self, _url: &Url, _headers: &[(String, String)]) -> Result<Response> {
+        self.execute(Request::get(Url::parse("about:blank").map_err(|e| NetError::InvalidUrl(e.to_string()))?)).await
+    }
+
+    /// Im Browser nicht möglich (wie [`HttpClient::execute`]).
+    pub async fn post_form(&self, url: &Url, _fields: &[(String, String)]) -> Result<Response> {
+        self.get(url, &[]).await
+    }
+
+    /// Im Browser nicht möglich (wie [`HttpClient::execute`]).
+    pub async fn post_multipart(&self, url: &Url, _parts: Vec<FormPart>) -> Result<Response> {
+        self.get(url, &[]).await
+    }
+}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+/// Im Browser ohne Wirkung (kein rustls).
+pub fn install_crypto_provider() {}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+/// Im Browser gibt es keine TCP-Verbindungen – immer `false`.
+pub async fn tcp_probe(_addr: SocketAddr, _timeout: Duration) -> bool {
+    false
+}
+
 /// Löst `href` relativ zur Basis auf (wie jsoup `absUrl`: ASCII-Steuerzeichen werden entfernt;
 /// ungültig → Fehler).
 pub fn resolve(base: &Url, href: &str) -> Result<Url> {
@@ -679,6 +738,7 @@ pub fn resolve(base: &Url, href: &str) -> Result<Url> {
 }
 
 /// TCP-Probe (lokale BKU, `127.0.0.1:3495`, docs/analyse/02 §4.1).
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub async fn tcp_probe(addr: SocketAddr, timeout: Duration) -> bool {
     matches!(tokio::time::timeout(timeout, tokio::net::TcpStream::connect(addr)).await, Ok(Ok(_)))
 }

@@ -1,0 +1,17 @@
+PIDA Web – Signieren im Browser (Server)
+========================================
+
+Inhalt: bin/pida-web-server (statisch gebaut, läuft auf jedem x86_64-Linux), share/pida-web (Oberfläche),
+systemd-Dienst, Vorlage für Apache, install.sh, uninstall.sh.
+
+Installation und Update (als root):   ./install.sh
+Entfernen:                             /opt/pida-web/uninstall.sh        (--purge: auch /etc/pida-web)
+
+Der Dienst lauscht nur lokal (127.0.0.1:1442, einstellbar in /etc/pida-web/pida-web.env). Von außen erreichbar
+über einen Webserver mit HTTPS davor – Vorlage: apache-pida-web.conf. HTTPS ist Pflicht: A-Trust schickt die
+Signaturantwort an https://<Ihre Domain>/api/sl/data/…
+
+Der Server speichert nichts. Dokumente und Signaturantworten liegen nur bis zur Weitergabe im Speicher.
+
+Pakete für Debian/Ubuntu (.deb) und RHEL/Alma/Rocky/Fedora/openSUSE (.rpm) gibt es ebenfalls; sie richten Dienst
+und Updates über den Paketmanager ein.

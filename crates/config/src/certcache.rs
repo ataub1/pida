@@ -88,13 +88,13 @@ impl CertificateCache {
         }
         let file = self.file(key);
         // Übergroße Dateien gar nicht erst lesen (Cache-Ordner ist Nutzerdaten, kein vertrauenswürdiger Ort).
-        match std::fs::metadata(&file) {
+        match pida_fs::metadata(&file) {
             Ok(m) if !m.is_file() || m.len() > MAX_CERTIFICATE_BYTES as u64 => return Ok(None),
             Ok(_) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(e) => return Err(ConfigError::Io(e)),
         }
-        match std::fs::read(&file) {
+        match pida_fs::read(&file) {
             Ok(der) if plausible_der(&der) => Ok(Some(der)),
             Ok(_) => Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -111,14 +111,14 @@ impl CertificateCache {
         if !plausible_der(der) {
             return Err(ConfigError::Serialize("kein DER-Zertifikat".into()));
         }
-        std::fs::create_dir_all(&self.dir)?;
+        pida_fs::create_dir_all(&self.dir)?;
         restrict_dir(&self.dir)?;
         crate::settings::write_atomic(&self.file(key), der)
     }
 
     /// Eintrag entfernen (z. B. Zertifikat abgelaufen oder passt nicht mehr).
     pub fn remove(&self, key: &CertCacheKey) -> Result<()> {
-        match std::fs::remove_file(self.file(key)) {
+        match pida_fs::remove_file(self.file(key)) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(ConfigError::Io(e)),
@@ -128,7 +128,7 @@ impl CertificateCache {
     /// Alle Einträge löschen (auch bei deaktiviertem Cache, z. B. nach Widerruf des Opt-ins);
     /// liefert die Anzahl entfernter Einträge.
     pub fn clear(&self) -> Result<usize> {
-        let entries = match std::fs::read_dir(&self.dir) {
+        let entries = match pida_fs::read_dir(&self.dir) {
             Ok(e) => e,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
             Err(e) => return Err(ConfigError::Io(e)),
@@ -138,7 +138,7 @@ impl CertificateCache {
             let entry = entry?;
             let path = entry.path();
             if path.extension().is_some_and(|e| e == "der") && !entry.file_type()?.is_dir() {
-                std::fs::remove_file(&path)?;
+                pida_fs::remove_file(&path)?;
                 n += 1;
             }
         }
@@ -153,6 +153,7 @@ fn plausible_der(der: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pida_fs::PathExt as _;
 
     const DER: &[u8] = include_bytes!("../../../testdata/keystores/test-ecp256.crt.der");
 
@@ -164,14 +165,14 @@ mod tests {
         let off = CertificateCache::new(&paths, &CertificateCacheSettings { enabled: false });
         off.put(&key, DER).unwrap();
         assert_eq!(off.get(&key).unwrap(), None);
-        assert!(!paths.certificate_cache_dir().exists());
+        assert!(!paths.certificate_cache_dir().fs_exists());
 
         let on = CertificateCache::new(&paths, &CertificateCacheSettings { enabled: true });
         assert_eq!(on.get(&key).unwrap(), None);
         on.put(&key, DER).unwrap();
         assert_eq!(on.get(&key).unwrap().as_deref(), Some(DER));
         // kein Benutzername im Dateisystem oder im Debug-Text
-        let names: Vec<String> = std::fs::read_dir(on.dir())
+        let names: Vec<String> = pida_fs::read_dir(on.dir())
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
@@ -195,14 +196,14 @@ mod tests {
         let key = CertCacheKey::new("keystore", "k");
         assert!(c.put(&key, b"-----BEGIN CERTIFICATE-----").is_err());
         assert!(c.put(&key, &vec![0x30; MAX_CERTIFICATE_BYTES + 1]).is_err());
-        std::fs::create_dir_all(c.dir()).unwrap();
-        std::fs::write(c.dir().join(format!("{}.der", key.digest())), b"garbage").unwrap();
+        pida_fs::create_dir_all(c.dir()).unwrap();
+        pida_fs::write(c.dir().join(format!("{}.der", key.digest())), b"garbage").unwrap();
         assert_eq!(c.get(&key).unwrap(), None);
         // zu groß (auch wenn es mit SEQUENCE beginnt) bzw. ein Ordner statt einer Datei
-        std::fs::write(c.dir().join(format!("{}.der", key.digest())), vec![0x30; MAX_CERTIFICATE_BYTES + 1]).unwrap();
+        pida_fs::write(c.dir().join(format!("{}.der", key.digest())), vec![0x30; MAX_CERTIFICATE_BYTES + 1]).unwrap();
         assert_eq!(c.get(&key).unwrap(), None);
         let other = CertCacheKey::new("keystore", "ordner");
-        std::fs::create_dir_all(c.dir().join(format!("{}.der", other.digest()))).unwrap();
+        pida_fs::create_dir_all(c.dir().join(format!("{}.der", other.digest()))).unwrap();
         assert_eq!(c.get(&other).unwrap(), None);
         assert_eq!(c.clear().unwrap(), 1, "Ordner werden übersprungen");
     }

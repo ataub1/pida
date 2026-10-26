@@ -48,7 +48,7 @@ import { IconAlert, IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage
 import { abortTextMsg, batchFlow, confirmsEach, newSessionMsg } from '../batch/flow';
 import { statusLabel, statusTone } from '../batch/texts';
 import { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion, PrivacyNote } from '../settings';
-import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerChoice, signerClass, signerName } from '../workspace/signers';
+import { isShownBackend, SignerGlyph, SignerIcon, signerChoice, signerClass, signerName } from '../workspace/signers';
 import { CountdownRing, useCountdown } from './CountdownRing';
 import { friendlyError, noticeTexts, problemText, progressText, qrDataUrl } from './texts';
 import './signing.css';
@@ -1018,7 +1018,7 @@ function NoticePane({ request, notice }: { request: number; notice: Notice }) {
  */
 function ChoosePane({ step, onCancel }: { step: Extract<StepView, { step: 'backend' }>; onCancel: () => void }) {
   const { t, dispatch } = useApp();
-  const options = step.options.filter((o) => SHOWN_BACKENDS.includes(o.id));
+  const options = step.options.filter((o) => isShownBackend(o.id));
   const [choice, setChoice] = useState<BackendId | null>(options.find((o) => o.available)?.id ?? null);
   const selected = options.find((o) => o.id === choice);
   return (

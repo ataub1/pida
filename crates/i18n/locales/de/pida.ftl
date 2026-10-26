@@ -626,6 +626,8 @@ ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Details zum Datenschutz
 ng-ui-privacy-local = Mit einem Keystore oder der Chipkarte (über die Chipkarten-Software) wird auf diesem Gerät signiert; das Dokument wird dabei nicht hochgeladen.
 ng-ui-privacy-local-mobile = Auf diesem Gerät wird mit ID Austria signiert; dazu wird das Dokument an A-Trust übermittelt.
+ng-ui-privacy-statement-web = PIDA im Browser verarbeitet die für den Signaturvorgang benötigten Daten in Ihrem Browser; Dokumente und Einstellungen werden nicht gespeichert und sind nach dem Schließen der Seite weg. Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet. Die Speicherdauer sowie weitere Datenschutzinformationen zur ID-Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+ng-ui-privacy-local-web = Der Server liefert nur die Anwendung aus; Ihre Dokumente lädt PIDA nicht auf diesen Server hoch.
 ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.
 ng-ui-certcache-title = Zertifikats-Cache
@@ -744,4 +746,14 @@ ng-ui-about-license =
 ng-ui-about-not-official = PIDA ist ein Open-Source-Projekt von A-SIT und kein offizielles Produkt der Republik Österreich oder der A-Trust GmbH. „ID Austria“ ist eine Marke der Republik Österreich; die Bezeichnung nennt nur das unterstützte Signaturverfahren.
 ng-ui-about-based-on = Basiert auf PDF-Over von A-SIT.
 ng-ui-about-copyright = Urheberrecht © { $year } A-SIT · Lizenz EUPL-1.2
+ng-ui-about-publisher = A-SIT – Zentrum für sichere Informationstechnologie – Austria
 ng-ui-privacy-update-check = Die Update-Prüfung fragt bei GitHub (api.github.com) nach der neuesten Version. Dabei sieht GitHub die IP-Adresse dieses Geräts; Kennungen werden nicht übertragen. Abschalten lässt sie sich unter Erweitert › „Automatisch nach Updates suchen“.
+
+
+## Web-Variante: A-Trust-Overlay (apps/app/src/core/ida-overlay.ts)
+ng-web-ida-title = Signieren mit ID Austria
+ng-web-ida-origin = Seite von { $host } – Eingaben gehen direkt an A-Trust
+ng-web-atrust-popup = In eigenem Fenster öffnen
+ng-web-atrust-close = Abbrechen
+ng-web-atrust-popup-hint = Die Anmeldung bei A-Trust läuft im eigenen Fenster weiter.
+ng-web-atrust-popup-blocked = Der Browser hat das Fenster blockiert. Erlauben Sie Pop-ups für diese Seite.

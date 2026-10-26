@@ -12,6 +12,19 @@
 ## Shell: header, commands, notifications
 
 ng-ui-shell-skip = Skip to content
+ng-ui-shell-dl-region = App downloads
+ng-ui-shell-dl-banner = PIDA is also available as an app for Windows, macOS, Linux, iOS and Android.
+ng-ui-shell-dl-cta = Go to downloads
+ng-ui-shell-dl-hide = Hide notice
+ng-ui-shell-dl-title = PIDA as an app
+ng-ui-shell-dl-subtitle = The same features, installed on your device.
+ng-ui-shell-dl-desktop = Computer
+ng-ui-shell-dl-mobile = Phone and tablet
+ng-ui-shell-dl-github = Download on GitHub
+ng-ui-shell-dl-qr = QR code for the { $platform } app (coming)
+ng-ui-shell-dl-appstore = App Store – coming
+ng-ui-shell-dl-play = Google Play – coming
+ng-ui-shell-dl-source = Source code and all versions:
 ng-ui-shell-home = PIDA – home
 ng-ui-shell-starting = Starting PIDA …
 ng-ui-shell-title-workspace = Workspace
@@ -404,6 +417,8 @@ ng-ui-fin-signed-at = Signed on { $time }
 ng-ui-fin-preview = Preview of the signed page
 ng-ui-fin-open = Open
 ng-ui-fin-reveal = Show in folder
+ng-ui-fin-download = Download
+ng-ui-fin-ready-web = Ready to download – the result is gone once you close the page.
 ng-ui-fin-share = Share
 ng-ui-fin-export = Save as …
 ng-ui-fin-check = Full verification at signaturpruefung.gv.at
@@ -532,6 +547,7 @@ ng-ui-batch-sum-folder = Saved in { $folder }.
 ng-ui-batch-sum-next = Each saved next to its original.
 ng-ui-batch-sum-app = Saved in this app’s documents.
 ng-ui-batch-reveal = Show in folder
+ng-ui-batch-download-zip = Download all as ZIP
 ng-ui-batch-new = New batch
 ng-ui-batch-back = Back to batch
 ng-ui-batch-show = To the batch

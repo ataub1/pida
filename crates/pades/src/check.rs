@@ -529,7 +529,7 @@ mod tests {
         f(&mut b);
         let inc = b.build().unwrap();
         let new = SourcePdf::open(inc.to_vec(src.bytes()), &Limits::default()).unwrap();
-        let pem = std::fs::read_to_string(testdata("keystores/test-rsa2048.crt.pem")).unwrap();
+        let pem = pida_fs::read_to_string(testdata("keystores/test-rsa2048.crt.pem")).unwrap();
         let meta = SignedMeta {
             prepared: PreparedMeta {
                 build: BuildMeta {

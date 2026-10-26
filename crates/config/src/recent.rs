@@ -82,7 +82,7 @@ impl RecentStore {
     }
 
     fn read(&self) -> Result<Vec<RecentEntry>> {
-        let meta = match std::fs::metadata(&self.file) {
+        let meta = match pida_fs::metadata(&self.file) {
             Ok(m) => m,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(e) => return Err(ConfigError::Io(e)),
@@ -90,7 +90,7 @@ impl RecentStore {
         if meta.len() > MAX_FILE_BYTES {
             return Err(ConfigError::Parse("recent.json zu groß".into()));
         }
-        let bytes = std::fs::read(&self.file)?;
+        let bytes = pida_fs::read(&self.file)?;
         let mut entries: Vec<RecentEntry> = serde_json::from_slice(&bytes)
             .map_err(|e| ConfigError::Parse(format!("recent.json: {:?}", e.classify())))?;
         // gleiche Kennung bzw. gleicher Pfad nur einmal (die neueste Fassung zählt), höchstens zehn
@@ -155,7 +155,7 @@ impl RecentStore {
 
     /// Liste leeren: löscht die Datei.
     pub fn clear(&self) -> Result<()> {
-        match std::fs::remove_file(&self.file) {
+        match pida_fs::remove_file(&self.file) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(ConfigError::Io(e)),
@@ -166,6 +166,7 @@ impl RecentStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pida_fs::PathExt as _;
 
     fn entry(name: &str, dir: &Path) -> RecentEntry {
         RecentEntry {
@@ -188,7 +189,7 @@ mod tests {
         assert!(s.load().is_empty(), "keine Datei = leer");
         let e = s.push(entry("Vertrag_signed.pdf", tmp.path())).unwrap();
         assert_eq!(e.id, 1);
-        let text = std::fs::read_to_string(s.file()).unwrap();
+        let text = pida_fs::read_to_string(s.file()).unwrap();
         let json: serde_json::Value = serde_json::from_str(&text).unwrap();
         let list = json.as_array().expect("Liste");
         assert_eq!(list.len(), 1);
@@ -197,7 +198,7 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(s.file()).unwrap().permissions().mode() & 0o777;
+            let mode = pida_fs::metadata(s.file()).unwrap().permissions().mode() & 0o777;
             assert_eq!(mode, 0o600, "nur für die Benutzerin lesbar");
         }
     }
@@ -233,21 +234,21 @@ mod tests {
         s.push(entry("a.pdf", tmp.path())).unwrap();
         s.push(entry("b.pdf", tmp.path())).unwrap();
         s.clear().unwrap();
-        assert!(!s.file().exists(), "Liste leeren löscht die Datei");
+        assert!(!s.file().fs_exists(), "Liste leeren löscht die Datei");
         s.clear().unwrap();
         assert_eq!(s.push(entry("c.pdf", tmp.path())).unwrap().id, 1);
         // letzter Eintrag entfernt: Datei weg
         s.remove(1).unwrap();
-        assert!(!s.file().exists());
+        assert!(!s.file().fs_exists());
     }
 
     #[test]
     fn unreadable_file_is_empty_and_gets_replaced() {
         let (tmp, s) = store();
-        std::fs::create_dir_all(s.file().parent().unwrap()).unwrap();
-        std::fs::write(s.file(), b"{kein json").unwrap();
+        pida_fs::create_dir_all(s.file().parent().unwrap()).unwrap();
+        pida_fs::write(s.file(), b"{kein json").unwrap();
         assert!(s.load().is_empty());
-        std::fs::write(s.file(), br#"[{"id":1,"file_name":"a","path":"/a","signed_at":"x","signer":"y"}]"#).unwrap();
+        pida_fs::write(s.file(), br#"[{"id":1,"file_name":"a","path":"/a","signed_at":"x","signer":"y"}]"#).unwrap();
         assert!(s.load().is_empty(), "unbekannte Felder (z. B. Unterzeichner) werden nicht übernommen");
         assert_eq!(s.push(entry("a.pdf", tmp.path())).unwrap().id, 1);
         assert_eq!(s.load().len(), 1);
@@ -259,9 +260,9 @@ mod tests {
         let old = tmp.path().join("ALT/Documents");
         s.push(entry("a.pdf", &old)).unwrap();
         s.push(entry("b.pdf", tmp.path())).unwrap();
-        let before = std::fs::read(s.file()).unwrap();
+        let before = pida_fs::read(s.file()).unwrap();
         assert_eq!(s.relocate(|_| None).unwrap(), 0);
-        assert_eq!(std::fs::read(s.file()).unwrap(), before, "ohne Änderung nicht geschrieben");
+        assert_eq!(pida_fs::read(s.file()).unwrap(), before, "ohne Änderung nicht geschrieben");
         let new = tmp.path().join("NEU/Documents");
         let moved = s.relocate(|p| p.starts_with(&old).then(|| new.join(p.file_name().unwrap()))).unwrap();
         assert_eq!(moved, 1);

@@ -14,10 +14,7 @@ publish.workspace = true
 testing = ["tokio/io-util", "tokio/rt", "tokio/time"]
 
 [dependencies]
-reqwest = { workspace = true }
-rustls = { workspace = true }
 url = { workspace = true }
-tokio = { workspace = true, features = ["net"] }
 thiserror = { workspace = true }
 zeroize = { workspace = true }
 serde = { workspace = true }
@@ -25,6 +22,12 @@ time = { workspace = true }
 tracing = { workspace = true }
 # Charset-Dekodierung von Antwortkörpern (`Response::text`). Lizenz (Apache-2.0 OR MIT) AND BSD-3-Clause.
 encoding_rs = { workspace = true }
+
+# Netzzugang nur nativ – im Browser (wasm32-unknown-unknown) gibt es keine Sockets; dort scheitert jeder Request
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+reqwest = { workspace = true }
+rustls = { workspace = true }
+tokio = { workspace = true, features = ["net"] }
 # Nur für `hyper::ext::ReasonPhrase` (nicht-kanonische Reason-Phrase für `atrusterror.http_generic`), MIT.
 hyper = { workspace = true }
 

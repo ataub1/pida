@@ -9,10 +9,12 @@
 //! geöffnetes Dokument bleibt deshalb unberührt. Es läuft immer nur eine Voranalyse (niedrige Priorität
 //! gegenüber Kacheln und Blockvorschau).
 
+use pida_fs::PathExt as _;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use web_time::Instant;
 
 use pida_backend_api::{BackendId, NativeForm, SecretKind};
 use pida_render::RenderBackend;
@@ -149,7 +151,7 @@ pub(crate) fn keep_both(path: &Path) -> PathBuf {
             None => format!("{base} ({n})"),
         };
         let p = dir.join(candidate);
-        if !p.exists() {
+        if !p.fs_exists() {
             return p;
         }
     }
@@ -166,7 +168,7 @@ pub(crate) fn batch_target(
     on_existing: ExistingPolicy,
 ) -> (PathBuf, bool) {
     let path = target_path(input, folder, postfix);
-    let exists = path.exists();
+    let exists = path.fs_exists();
     match on_existing {
         ExistingPolicy::KeepBoth if exists => (keep_both(&path), true),
         _ => (path, exists),
@@ -255,7 +257,7 @@ impl crate::runtime::CoreTask {
             BatchOutput::Folder(dir) => Some(dir.clone()),
             BatchOutput::Configured => self.cfg.output().or_else(|| {
                 let dir = self.mobile.default_output_dir.clone()?;
-                if create && let Err(e) = std::fs::create_dir_all(&dir) {
+                if create && let Err(e) = pida_fs::create_dir_all(&dir) {
                     tracing::warn!(kind = ?e.kind(), "App-Dokumente nicht anlegbar");
                 }
                 Some(dir)
@@ -303,7 +305,7 @@ impl crate::runtime::CoreTask {
         } else {
             vec![configured.clone()]
         };
-        let needs_folder = resolved.iter().any(|r| !self.probe.get(format!("dir:{}", r.display()), || r.is_dir()));
+        let needs_folder = resolved.iter().any(|r| !self.probe.get(format!("dir:{}", r.display()), || r.fs_is_dir()));
         let next_to_source =
             configured.is_relative() && configured.components().all(|c| c == std::path::Component::CurDir);
         let mode = if next_to_source { OutputModeView::NextToSource } else { OutputModeView::Folder };
@@ -343,7 +345,7 @@ impl crate::runtime::CoreTask {
                     (Some(d), false) if item.status.signable() => {
                         let folder = self.batch_folder(&BatchOutput::Configured, false);
                         let path = target_path(&d.path, folder.as_deref(), postfix);
-                        self.probe.get(format!("file:{}", path.display()), || path.exists())
+                        self.probe.get(format!("file:{}", path.display()), || path.fs_exists())
                     }
                     _ => false,
                 };
@@ -577,7 +579,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let base = tmp.path().join("Vertrag_signed.pdf");
         assert_eq!(keep_both(&base), tmp.path().join("Vertrag_signed (2).pdf"));
-        std::fs::write(tmp.path().join("Vertrag_signed (2).pdf"), b"x").unwrap();
+        pida_fs::write(tmp.path().join("Vertrag_signed (2).pdf"), b"x").unwrap();
         assert_eq!(keep_both(&base), tmp.path().join("Vertrag_signed (3).pdf"));
         assert_eq!(keep_both(&tmp.path().join("noext")), tmp.path().join("noext (2)"));
     }
@@ -587,10 +589,10 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let input = tmp.path().join("in").join("a.pdf");
         let out = tmp.path().join("out");
-        std::fs::create_dir_all(&out).unwrap();
+        pida_fs::create_dir_all(&out).unwrap();
         let (p, exists) = batch_target(&input, Some(&out), "_signed", ExistingPolicy::KeepBoth);
         assert_eq!((p, exists), (out.join("a_signed.pdf"), false));
-        std::fs::write(out.join("a_signed.pdf"), b"x").unwrap();
+        pida_fs::write(out.join("a_signed.pdf"), b"x").unwrap();
         assert_eq!(
             batch_target(&input, Some(&out), "_signed", ExistingPolicy::KeepBoth),
             (out.join("a_signed (2).pdf"), true)

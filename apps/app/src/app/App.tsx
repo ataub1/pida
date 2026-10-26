@@ -24,6 +24,7 @@ import { I18nProvider } from 'react-aria-components';
 import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar, workspaceDefaults } from '../core/defaults';
 import { isMobile, type OpenFilesMode, type UiEvent, type ViewState } from '../core/types';
+import { webProfile } from '../core/web-profile';
 import { BatchView } from '../features/batch';
 import { DoneView, OutputDialogs } from '../features/done';
 import { Onboarding } from '../features/onboarding';
@@ -37,6 +38,7 @@ import { accessKeyFromEvent, trackAltKey, triggerAccessKey } from '../ui/AccessK
 import { Toasts } from '../ui/Toasts';
 import { batchNav, buildCommands, buildShortcuts } from './commands';
 import { AppContext, type AppContextValue, type SettingsSectionId, type ShellOverlay, type Toast } from './context';
+import { DownloadBanner } from './DownloadBanner';
 import { EMBLEM_DROP_EVENT } from './events';
 import { Header } from './Header';
 import { keepFocusedFieldVisible } from './keyboard';
@@ -435,6 +437,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   );
 
   const step = current.step;
+  // Web-Variante: Banner mit den Downloads der Apps (DownloadBanner.tsx)
+  const web = webProfile() !== null;
   return (
     <I18nProvider locale={current.language === 'de' ? 'de-AT' : 'en-GB'}>
       <AppContext.Provider value={ctx}>
@@ -445,10 +449,12 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           data-drag={dragActive || undefined}
           data-mobile={mobile || undefined}
           data-os={current.platform.os}
+          data-web={web || undefined}
         >
           <a className="skip-link" href="#main">
             {t.t('ng-ui-shell-skip')}
           </a>
+          {web ? <DownloadBanner /> : null}
           <Header theme={theme} onTheme={setTheme} />
           <main id="main" className="app-main" tabIndex={-1}>
             {main === 'starting' ? <StartingCard /> : null}

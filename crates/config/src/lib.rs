@@ -193,7 +193,7 @@ mod tests {
     fn os_not_found_is_not_a_missing_config_file() {
         // z. B. LegacyConfig::load auf einen gelöschten Pfad: kein „Konfigurationsdatei … fehlt“ mit
         // dem OS-Fehlertext als Pfad, sondern ein E/A-Fehler mit Details.
-        let err = ConfigError::Io(std::fs::read("/nicht/vorhanden/pida-test").unwrap_err());
+        let err = ConfigError::Io(pida_fs::read("/nicht/vorhanden/pida-test").unwrap_err());
         assert_eq!(err.message_id(), "ng-config-error-io");
         assert_eq!(err.missing_path(), None);
         assert!(!err.localized(Lang::De).contains("Konfigurationsdatei"));

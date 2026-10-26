@@ -543,6 +543,19 @@
 .about-based-on {
   margin-bottom: calc(-1 * var(--sp-3));
 }
+.about-publisher {
+  justify-self: start;
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: var(--r-3);
+  /* Logo in den Originalfarben: immer auf heller Fläche (auch im dunklen Farbschema) */
+  background: #ffffff;
+  outline: none;
+  cursor: pointer;
+}
+.about-publisher[data-focus-visible] {
+  box-shadow: 0 0 0 2px var(--c-focus);
+}
 
 /* ------------------------------------------------------------ Schmal und Mobile: Vollbild, Bereiche waagrecht */
 @media (max-width: 760px) {

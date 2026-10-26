@@ -504,7 +504,7 @@ impl crate::runtime::CoreTask {
             return;
         };
         let shared = self.shared.clone();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             let grid = compute_grid(&data, render.as_ref(), page).map(Arc::new);
             shared.send(crate::runtime::Msg::GridReady { doc, page, grid });
         });

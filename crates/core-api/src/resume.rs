@@ -18,6 +18,7 @@
 //! `Effect::DeletePersisted` den Ordner; ein Zustand älter als [`MAX_AGE`] wird nicht mehr
 //! angeboten. Auf dem Desktop ist die Persistenz aus (`CoreOptions::persist_prepared`).
 
+use pida_fs::PathExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -104,7 +105,7 @@ impl Persisted {
 
     /// Wartende Dokumente, die noch vorhanden sind.
     pub(crate) fn existing_pending(&self) -> Vec<PathBuf> {
-        self.record.pending.iter().filter(|p| p.is_file()).cloned().collect()
+        self.record.pending.iter().filter(|p| p.fs_is_file()).cloned().collect()
     }
 
     /// Stellt das vorbereitete Dokument für `src` wieder her (Prüfsummen, Original, Offsets).
@@ -147,7 +148,7 @@ fn safe_file_name(name: &str) -> String {
 #[cfg(unix)]
 fn restrict(path: &Path, mode: u32) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+    pida_fs::set_permissions(path, pida_fs::Permissions::from_mode(mode))
 }
 
 #[cfg(not(unix))]
@@ -158,9 +159,9 @@ fn restrict(_path: &Path, _mode: u32) -> std::io::Result<()> {
 /// Atomar schreiben (Temp-Datei im selben Ordner, Rechte 0600, Umbenennen).
 fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let tmp = path.with_extension("part");
-    std::fs::write(&tmp, bytes)?;
+    pida_fs::write(&tmp, bytes)?;
     restrict(&tmp, 0o600)?;
-    std::fs::rename(&tmp, path)
+    pida_fs::rename(&tmp, path)
 }
 
 /// Sichert einen vorbereiteten Vorgang (nach `prepare`, vor `sign`). Ein vorhandener Zustand wird
@@ -178,14 +179,14 @@ pub(crate) fn persist(
 ) -> Result<(), String> {
     delete(dir);
     let io = |e: std::io::Error| format!("{:?}", e.kind());
-    std::fs::create_dir_all(dir.join(DOCUMENT_DIR)).map_err(io)?;
+    pida_fs::create_dir_all(dir.join(DOCUMENT_DIR)).map_err(io)?;
     restrict(dir, 0o700).map_err(io)?;
     restrict(&dir.join(DOCUMENT_DIR), 0o700).map_err(io)?;
     let document = Path::new(DOCUMENT_DIR).join(safe_file_name(name));
     write_private(&dir.join(&document), source).map_err(io)?;
     let handle = prepared.persist(dir).map_err(|e| e.code().to_owned())?;
     for p in [handle.path.clone(), handle.path.with_extension("json")] {
-        if p.is_file() {
+        if p.fs_is_file() {
             restrict(&p, 0o600).map_err(io)?;
         }
     }
@@ -214,10 +215,10 @@ pub(crate) fn persist(
 /// Lädt einen gespeicherten Zustand und prüft Vollständigkeit, Prüfsumme der Dokumentkopie und Alter.
 pub(crate) fn load(dir: &Path, now: SystemTime) -> Loaded {
     let file = dir.join(RECORD_FILE);
-    let json = match std::fs::read(&file) {
+    let json = match pida_fs::read(&file) {
         Ok(j) => j,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return if dir.exists() { Loaded::Invalid("Datensatz fehlt".into()) } else { Loaded::Nothing };
+            return if dir.fs_exists() { Loaded::Invalid("Datensatz fehlt".into()) } else { Loaded::Nothing };
         }
         Err(e) => return Loaded::Invalid(format!("{:?}", e.kind())),
     };
@@ -239,12 +240,12 @@ pub(crate) fn load(dir: &Path, now: SystemTime) -> Loaded {
     if !inside(&record.document) || !inside(&record.prepared_file) {
         return Loaded::Invalid("Pfad außerhalb des Ordners".into());
     }
-    match std::fs::read(dir.join(&record.document)) {
+    match pida_fs::read(dir.join(&record.document)) {
         Ok(bytes) if sha256_hex(&bytes) == record.document_sha256 => {}
         Ok(_) => return Loaded::Invalid("Dokumentkopie verändert".into()),
         Err(e) => return Loaded::Invalid(format!("Dokumentkopie: {:?}", e.kind())),
     }
-    if !dir.join(&record.prepared_file).is_file() {
+    if !dir.join(&record.prepared_file).fs_is_file() {
         return Loaded::Invalid("vorbereiteter Zustand fehlt".into());
     }
     Loaded::Offer(Box::new(Persisted { dir: dir.to_path_buf(), record }))
@@ -252,7 +253,7 @@ pub(crate) fn load(dir: &Path, now: SystemTime) -> Loaded {
 
 /// Löscht den gespeicherten Zustand (Ordner samt Inhalt); ein fehlender Ordner ist kein Fehler.
 pub(crate) fn delete(dir: &Path) {
-    match std::fs::remove_dir_all(dir) {
+    match pida_fs::remove_dir_all(dir) {
         Ok(()) => tracing::debug!("persistierter Signierzustand gelöscht"),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => tracing::warn!(kind = ?e.kind(), "persistierter Signierzustand nicht gelöscht"),
@@ -286,14 +287,14 @@ mod tests {
     fn persist_load_restore_delete_roundtrip() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join(RESUME_DIR);
-        let bytes = std::fs::read(PDF).unwrap();
+        let bytes = pida_fs::read(PDF).unwrap();
         let src = open(&bytes);
         let engine = FakeEngine::default();
         let p = prepared(&engine, &src);
         let pending = tmp.path().join("b.pdf");
-        std::fs::write(&pending, b"%PDF-1.7").unwrap();
+        pida_fs::write(&pending, b"%PDF-1.7").unwrap();
         let gone = tmp.path().join("weg.pdf");
-        let now = SystemTime::now();
+        let now = pida_fs::system_now();
         persist(
             &dir,
             "Vertrag 1.pdf",
@@ -309,8 +310,8 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
-            let record = std::fs::metadata(dir.join(RECORD_FILE)).unwrap().permissions().mode() & 0o777;
+            assert_eq!(pida_fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
+            let record = pida_fs::metadata(dir.join(RECORD_FILE)).unwrap().permissions().mode() & 0o777;
             assert_eq!(record, 0o600);
         }
         let Loaded::Offer(persisted) = load(&dir, now + Duration::from_secs(125)) else { panic!("kein Angebot") };
@@ -320,7 +321,7 @@ mod tests {
         assert_eq!(persisted.record.on_existing, Some(ExistingPolicy::KeepBoth), "Regel des Stapels");
         assert_eq!(persisted.age_minutes(now + Duration::from_secs(125)), 2);
         assert_eq!(persisted.document().file_name().unwrap(), "Vertrag 1.pdf", "Ausgabename wie beim Original");
-        assert_eq!(std::fs::read(persisted.document()).unwrap(), bytes);
+        assert_eq!(pida_fs::read(persisted.document()).unwrap(), bytes);
         assert_eq!(persisted.existing_pending(), vec![pending]);
         assert!(!format!("{persisted:?}").contains("Vertrag"), "Debug ohne Namen");
         let restored = persisted.restore(&engine, &src).expect("restore");
@@ -330,7 +331,7 @@ mod tests {
         let other = open(&[bytes.as_slice(), b"\n%x\n"].concat());
         assert!(persisted.restore(&engine, &other).is_err());
         delete(&dir);
-        assert!(!dir.exists());
+        assert!(!dir.fs_exists());
         assert_eq!(load(&dir, now), Loaded::Nothing);
         delete(&dir);
     }
@@ -339,24 +340,24 @@ mod tests {
     fn old_tampered_or_incomplete_states_are_not_offered() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join(RESUME_DIR);
-        let bytes = std::fs::read(PDF).unwrap();
+        let bytes = pida_fs::read(PDF).unwrap();
         let src = open(&bytes);
         let engine = FakeEngine::default();
         let p = prepared(&engine, &src);
-        let now = SystemTime::now();
+        let now = pida_fs::system_now();
         persist(&dir, "a.pdf", &bytes, p.as_ref(), &PositionChoice::Auto, BackendId::Keystore, vec![], None, now)
             .unwrap();
         assert_eq!(load(&dir, now + MAX_AGE + Duration::from_secs(1)), Loaded::Expired);
         // Uhr zurückgestellt
         assert_eq!(load(&dir, now - Duration::from_secs(3600)), Loaded::Expired);
         // Dokumentkopie verändert
-        std::fs::write(dir.join(DOCUMENT_DIR).join("a.pdf"), b"anders").unwrap();
+        pida_fs::write(dir.join(DOCUMENT_DIR).join("a.pdf"), b"anders").unwrap();
         assert!(matches!(load(&dir, now), Loaded::Invalid(_)));
         // Datensatz kaputt
-        std::fs::write(dir.join(RECORD_FILE), b"{").unwrap();
+        pida_fs::write(dir.join(RECORD_FILE), b"{").unwrap();
         assert!(matches!(load(&dir, now), Loaded::Invalid(_)));
         // Ordner ohne Datensatz
-        std::fs::remove_file(dir.join(RECORD_FILE)).unwrap();
+        pida_fs::remove_file(dir.join(RECORD_FILE)).unwrap();
         assert!(matches!(load(&dir, now), Loaded::Invalid(_)));
     }
 
@@ -366,21 +367,21 @@ mod tests {
     fn records_without_a_batch_policy_still_load() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join(RESUME_DIR);
-        let bytes = std::fs::read(PDF).unwrap();
+        let bytes = pida_fs::read(PDF).unwrap();
         let src = open(&bytes);
         let engine = FakeEngine::default();
         let p = prepared(&engine, &src);
-        let now = SystemTime::now();
+        let now = pida_fs::system_now();
         persist(&dir, "a.pdf", &bytes, p.as_ref(), &PositionChoice::Auto, BackendId::Keystore, vec![], None, now)
             .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join(RECORD_FILE)).unwrap()).unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&pida_fs::read(dir.join(RECORD_FILE)).unwrap()).unwrap();
         assert!(json.get("on_existing").is_none(), "Einzeldokument: Feld fehlt wie im bisherigen Format");
         let Loaded::Offer(persisted) = load(&dir, now) else { panic!("kein Angebot") };
         assert_eq!(persisted.record.on_existing, None);
         // Stapel: als snake_case gespeichert und wieder gelesen
         let mut json = json;
         json["on_existing"] = serde_json::Value::String("keep_both".into());
-        std::fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&json).unwrap()).unwrap();
+        pida_fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&json).unwrap()).unwrap();
         let Loaded::Offer(persisted) = load(&dir, now) else { panic!("kein Angebot") };
         assert_eq!(persisted.record.on_existing, Some(ExistingPolicy::KeepBoth));
     }
@@ -389,10 +390,10 @@ mod tests {
     fn records_with_paths_outside_the_folder_are_rejected() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join(RESUME_DIR);
-        std::fs::create_dir_all(&dir).unwrap();
+        pida_fs::create_dir_all(&dir).unwrap();
         let record = ResumeRecord {
             format: FORMAT,
-            created_unix: unix(SystemTime::now()),
+            created_unix: unix(pida_fs::system_now()),
             name: "x.pdf".into(),
             document: PathBuf::from("../../etc/passwd"),
             document_sha256: String::new(),
@@ -403,8 +404,8 @@ mod tests {
             pending: vec![],
             on_existing: None,
         };
-        std::fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&record).unwrap()).unwrap();
-        assert_eq!(load(&dir, SystemTime::now()), Loaded::Invalid("Pfad außerhalb des Ordners".into()));
+        pida_fs::write(dir.join(RECORD_FILE), serde_json::to_vec(&record).unwrap()).unwrap();
+        assert_eq!(load(&dir, pida_fs::system_now()), Loaded::Invalid("Pfad außerhalb des Ordners".into()));
     }
 
     #[test]

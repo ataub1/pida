@@ -19,6 +19,7 @@ import type { SettingsSectionId } from '../../app/context';
 import { useApp } from '../../app/context';
 import { EMBLEM_DROP_EVENT } from '../../app/events';
 import { isMobile, type SettingsView, type SignatureProfile } from '../../core/types';
+import { webProfile } from '../../core/web-profile';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconClose, IconFileText, IconFolder, IconInfo, IconPhone, IconSearch, IconSettings, IconShield, IconSignature, IconSun } from '../../ui/Icons';
 import { AboutRow } from './about';
@@ -181,7 +182,7 @@ function Panel({ initial }: { initial: SectionId }) {
     if (focus) setTimeout(() => document.getElementById(focus)?.focus(), 0);
   };
 
-  const rows = visibleRows({ mobile: s.mobile, profile: s.get<SignatureProfile>('signature.profile') });
+  const rows = visibleRows({ mobile: s.mobile, profile: s.get<SignatureProfile>('signature.profile'), web: webProfile() });
   const q = query.trim();
   const hits = q ? search(t, rows, q) : rows.filter((r) => r.section === current);
   // Signaturbild-Treffer zeigen die Live-Vorschau mit (Änderungen gelten sofort)
@@ -209,7 +210,7 @@ function Panel({ initial }: { initial: SectionId }) {
       <div className={`settings-layout${q ? ' is-searching' : ''}`}>
         {q ? null : (
           <nav className="settings-nav" aria-label={t.t('ng-ui-set-sections')} ref={nav}>
-            {SECTIONS.map((sec) => (
+            {SECTIONS.filter((sec) => rows.some((r) => r.section === sec.id)).map((sec) => (
               <AriaButton
                 key={sec.id}
                 className={`settings-nav-item${current === sec.id ? ' is-current' : ''}`}

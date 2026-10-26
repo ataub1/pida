@@ -7,6 +7,8 @@
 //! blockierend) beschrieben. Die Shell bzw. die CLI ruft [`init`] einmal je Prozess auf; ist bereits
 //! ein globaler Subscriber gesetzt, bleibt er bestehen.
 
+#![cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(unused_imports, dead_code))]
+
 use std::io::Write;
 
 use pida_config::Paths;
@@ -17,6 +19,7 @@ use tracing_subscriber::{EnvFilter, Layer};
 
 /// Hält den Schreib-Thread der Logdatei am Leben (beim Drop wird geleert).
 pub struct LogGuard {
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
     /// Logdatei
     pub file: Option<std::path::PathBuf>,
@@ -47,16 +50,18 @@ impl Default for LogOptions {
     }
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Schreiber der Logdatei mit Rotation während des Laufs (läuft im Schreib-Thread von
 /// `tracing-appender`, deshalb ohne Sperren).
 struct RotatingWriter {
     paths: Paths,
-    file: Option<std::fs::File>,
+    file: Option<pida_fs::File>,
     written: u64,
     max: u64,
     keep: u32,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl RotatingWriter {
     fn open(paths: Paths, max: u64, keep: u32) -> std::io::Result<RotatingWriter> {
         let mut w = RotatingWriter { paths, file: None, written: 0, max, keep };
@@ -66,7 +71,7 @@ impl RotatingWriter {
 
     fn reopen(&mut self) -> std::io::Result<()> {
         let path = self.paths.log_file();
-        let file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+        let file = pida_fs::OpenOptions::new().create(true).append(true).open(&path)?;
         self.written = file.metadata().map(|m| m.len()).unwrap_or(0);
         self.file = Some(file);
         Ok(())
@@ -81,6 +86,7 @@ impl RotatingWriter {
     }
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl Write for RotatingWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         if self.written >= self.max {
@@ -96,7 +102,7 @@ impl Write for RotatingWriter {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        self.file.as_mut().map_or(Ok(()), std::fs::File::flush)
+        self.file.as_mut().map_or(Ok(()), pida_fs::File::flush)
     }
 }
 
@@ -120,6 +126,13 @@ fn stderr_ansi_here() -> bool {
     )
 }
 
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+/// Browser: keine Logdatei (kein Dateisystem, das bleibt); die Web-Shell richtet die Ausgabe in die Konsole selbst ein.
+pub fn init(_paths: &Paths, _opts: &LogOptions) -> LogGuard {
+    LogGuard { file: None, installed: false }
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Richtet das Logging ein: Rotation beim Start, Logdatei (ohne ANSI), optional stderr.
 pub fn init(paths: &Paths, opts: &LogOptions) -> LogGuard {
     let mut guard = None;
@@ -169,6 +182,7 @@ pub fn init(paths: &Paths, opts: &LogOptions) -> LogGuard {
 mod tests {
     use super::*;
     use pida_config::paths::LOG_FILE;
+    use pida_fs::PathExt as _;
 
     /// Lange Sitzung: die Datei rotiert auch während des Laufs; insgesamt höchstens
     /// `(LOG_KEEP + 1) × LOG_MAX_FILE_BYTES` (+ ein Eintrag) – Plan §7.1 (≤ 2 MB).
@@ -176,7 +190,7 @@ mod tests {
     fn rotates_while_running() {
         let tmp = tempfile::tempdir().unwrap();
         let paths = Paths::under(tmp.path());
-        std::fs::create_dir_all(&paths.log_dir).unwrap();
+        pida_fs::create_dir_all(&paths.log_dir).unwrap();
         let mut w = RotatingWriter::open(paths.clone(), 1000, 2).unwrap();
         let line = [b'x'; 99];
         for _ in 0..100 {
@@ -184,12 +198,12 @@ mod tests {
             w.write_all(b"\n").unwrap();
         }
         w.flush().unwrap();
-        let size = |p: &std::path::Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+        let size = |p: &std::path::Path| pida_fs::metadata(p).map(|m| m.len()).unwrap_or(0);
         assert!(size(&paths.log_file()) <= 1000 + 100, "{}", size(&paths.log_file()));
-        assert!(paths.log_dir.join(format!("{LOG_FILE}.1")).is_file());
-        assert!(paths.log_dir.join(format!("{LOG_FILE}.2")).is_file());
-        assert!(!paths.log_dir.join(format!("{LOG_FILE}.3")).exists(), "nur `keep` alte Dateien");
-        let total: u64 = std::fs::read_dir(&paths.log_dir).unwrap().map(|e| size(&e.unwrap().path())).sum();
+        assert!(paths.log_dir.join(format!("{LOG_FILE}.1")).fs_is_file());
+        assert!(paths.log_dir.join(format!("{LOG_FILE}.2")).fs_is_file());
+        assert!(!paths.log_dir.join(format!("{LOG_FILE}.3")).fs_exists(), "nur `keep` alte Dateien");
+        let total: u64 = pida_fs::read_dir(&paths.log_dir).unwrap().map(|e| size(&e.unwrap().path())).sum();
         assert!(total <= 3 * 1100, "{total}");
     }
 
@@ -208,15 +222,15 @@ mod tests {
     fn rotates_and_creates_log_dir() {
         let tmp = tempfile::tempdir().unwrap();
         let paths = Paths::under(tmp.path());
-        std::fs::create_dir_all(&paths.log_dir).unwrap();
-        std::fs::write(paths.log_file(), vec![b'x'; LOG_MAX_FILE_BYTES as usize]).unwrap();
+        pida_fs::create_dir_all(&paths.log_dir).unwrap();
+        pida_fs::write(paths.log_file(), vec![b'x'; LOG_MAX_FILE_BYTES as usize]).unwrap();
         let g = init(&paths, &LogOptions { level: "debug".into(), stderr: false, file: true });
         // die volle Datei wurde rotiert (auch wenn in diesem Testprozess schon ein Subscriber existiert)
-        assert!(paths.log_dir.join(format!("{LOG_FILE}.1")).is_file());
+        assert!(paths.log_dir.join(format!("{LOG_FILE}.1")).fs_is_file());
         if g.installed {
             tracing::info!("Testeintrag");
             drop(g);
-            assert!(std::fs::read_to_string(paths.log_file()).unwrap().contains("Testeintrag"));
+            assert!(pida_fs::read_to_string(paths.log_file()).unwrap().contains("Testeintrag"));
         }
     }
 }

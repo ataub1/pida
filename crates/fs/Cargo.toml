@@ -1,0 +1,16 @@
+[package]
+name = "pida-fs"
+description = "PIDA – Dateizugriff: nativ std::fs, im Browser (wasm32-unknown-unknown) ein Dateisystem im Speicher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Uhr im Browser (nativ nur ein Durchreichen von std::time)
+web-time = { workspace = true }
+
+[lints]
+workspace = true

@@ -3,11 +3,20 @@
  * Backend. Verfügbarkeit, Konto und Fähigkeiten kommen aus `ViewState::signers` (ADR 0004 §3.4).
  */
 import type { BackendId, SignerView, ViewState } from '../../core/types';
+import { webProfile } from '../../core/web-profile';
 import type { Translator } from '../../i18n/catalog';
 import { IconCard, IconFileKey, IconLock, IconPhone, IconShield } from '../../ui/Icons';
 
+
 /** Backends mit Oberfläche (reservierte Szenarien B/C/D erscheinen nicht). */
 export const SHOWN_BACKENDS: readonly BackendId[] = ['atrust_native', 'keystore', 'local_bku'];
+
+/** Angebotene Signiermittel; im Web ohne Chipkarte, der Keystore nur im lokalen Testbuild (`web-profile.ts`). */
+export function isShownBackend(id: BackendId): boolean {
+  const web = webProfile();
+  if (web) return id === 'atrust_native' || (id === 'keystore' && web.keystore);
+  return SHOWN_BACKENDS.includes(id);
+}
 
 /**
  * Signiermittel-Auswahl anbieten (Kern: `SignersView::choice_offered`, ADR 0004 Nachtrag 20)? Ohne Auswahl – auf

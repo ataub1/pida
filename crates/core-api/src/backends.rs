@@ -3,6 +3,7 @@
 //! PKCS#12-Keystore (nur Desktop, ADR 0004 Nachtrag 11) mit [`SecretStoreCache`] als `PasswordCache` auf
 //! `config::SecretStore`. Auf iOS/Android ist ID Austria das einzige Signiermittel.
 
+use pida_fs::PathExt as _;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -155,6 +156,8 @@ struct AtrustKey {
 /// Registrierte Backends.
 pub(crate) struct Registry {
     atrust: Option<(AtrustKey, Arc<AtrustNativeBackend>)>,
+    /// ersetzt das native ID-Austria-Backend (Browser: A-Trust-Overlay, `CoreOptions::id_austria_backend`)
+    id_austria: Option<Arc<dyn SignatureBackend>>,
     localbku: Option<Arc<LocalBkuBackend>>,
     keystore: Option<Arc<KeystoreBackend>>,
     keystore_configured: bool,
@@ -197,6 +200,7 @@ impl Registry {
         };
         Registry {
             atrust: None,
+            id_austria: None,
             localbku: None,
             keystore: None,
             keystore_configured: false,
@@ -208,6 +212,12 @@ impl Registry {
             platform,
             app_version: app_version.to_owned(),
         }
+    }
+
+    /// ID Austria über dieses Backend statt des nativen A-Trust-Ablaufs (Browser, Konzept Webdienst).
+    pub(crate) fn set_id_austria(&mut self, backend: Arc<dyn SignatureBackend>) {
+        self.atrust = None;
+        self.id_austria = Some(backend);
     }
 
     fn atrust_key(cfg: &ConfigState) -> AtrustKey {
@@ -235,10 +245,10 @@ impl Registry {
             return;
         }
         let eff = cfg.effective();
-        // ID Austria (Szenario A)
+        // ID Austria (Szenario A; im Browser das vorgegebene Backend)
         let key = Self::atrust_key(cfg);
         let proxy = key.proxy.clone();
-        if self.atrust.as_ref().is_none_or(|(k, _)| *k != key) {
+        if self.id_austria.is_none() && self.atrust.as_ref().is_none_or(|(k, _)| *k != key) {
             let mut c = AtrustConfig::production();
             c.net = NetConfig { proxy, ..c.net };
             c.prefill_username = key.username.clone();
@@ -261,7 +271,7 @@ impl Registry {
             && eff.keystore_enabled()
             && let Some(file) = eff.keystore_file()
         {
-            self.keystore_configured = file.is_file();
+            self.keystore_configured = file.fs_is_file();
             let (storage, cache) = self.keystore_cache(cfg);
             let session = cfg.session_secrets.as_ref();
             let mut kc = KeystoreConfig::new(file.to_path_buf());
@@ -376,7 +386,9 @@ impl Registry {
             return fixed.iter().filter(|b| offered || b.id() != BackendId::Keystore).cloned().collect();
         }
         let mut out: Vec<Arc<dyn SignatureBackend>> = Vec::new();
-        if let Some((_, a)) = &self.atrust {
+        if let Some(a) = &self.id_austria {
+            out.push(a.clone());
+        } else if let Some((_, a)) = &self.atrust {
             out.push(a.clone());
         }
         if let Some(l) = &self.localbku {
@@ -573,6 +585,48 @@ mod tests {
         assert!(reg.all().is_empty());
         let reg = Registry::new(Platform::Linux, None, "0.1.0", Some(fixed), false);
         assert_eq!(reg.all().len(), 1);
+    }
+
+    /// Browser: ein vorgegebenes ID-Austria-Backend ersetzt das native, die übrigen kommen aus der Registrierung.
+    #[test]
+    fn id_austria_backend_replaces_the_native_one() {
+        #[derive(Debug)]
+        struct BrowserIda;
+        #[async_trait::async_trait]
+        impl SignatureBackend for BrowserIda {
+            fn id(&self) -> BackendId {
+                BackendId::AtrustNative
+            }
+            fn capabilities(&self, _env: &Environment) -> Option<pida_backend_api::Capabilities> {
+                None
+            }
+            async fn open(
+                &self,
+                _ctx: pida_backend_api::SessionContext,
+                _ui: Arc<dyn pida_backend_api::InteractionBroker>,
+            ) -> Result<Box<dyn pida_backend_api::BackendSession>, pida_backend_api::BackendError> {
+                Err(pida_backend_api::BackendError::Cancelled)
+            }
+        }
+        let tmp = tempfile::tempdir().unwrap();
+        let (cfg, _) = ConfigState::load(
+            Paths::under(tmp.path()),
+            Overlay::default(),
+            None,
+            Arc::new(MemorySecretStore::default()),
+            None,
+            false,
+        )
+        .unwrap();
+        let mut reg = Registry::new(Platform::Linux, None, "0.1.0", None, false);
+        let overlay: Arc<dyn SignatureBackend> = Arc::new(BrowserIda);
+        reg.set_id_austria(Arc::clone(&overlay));
+        reg.configure(&cfg);
+        assert!(reg.atrust().is_none(), "kein natives ID-Austria-Backend");
+        let ida = reg.get(BackendId::AtrustNative).unwrap();
+        assert!(Arc::ptr_eq(&ida, &overlay));
+        assert_eq!(reg.all().iter().filter(|b| b.id() == BackendId::AtrustNative).count(), 1);
+        assert_eq!(reg.expected_logins(BackendId::AtrustNative), 1);
     }
 
     /// „Merken“ bei der Anmeldung: der Kern speichert den Benutzernamen; das ID-Austria-Backend (mit dem

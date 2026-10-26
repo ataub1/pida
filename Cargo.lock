@@ -2008,8 +2008,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2031,9 +2033,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi 6.0.0",
  "rand_core 0.10.1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2139,6 +2143,18 @@ name = "glob"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
+
+[[package]]
+name = "gloo-timers"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb143cf96099802033e0d4f4963b19fd2e0b728bcf076cd9cf7f6634f092994"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "gobject-sys"
@@ -2355,6 +2371,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
+name = "httpdate"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2377,6 +2399,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "smallvec",
@@ -2709,10 +2732,12 @@ dependencies = [
  "jiff-core",
  "jiff-static",
  "jiff-tzdb-platform",
+ "js-sys",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -3916,6 +3941,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pida-backend-atrust-web"
+version = "0.2.5"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "pida-backend-api",
+ "pida-cades",
+ "pida-sl12",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pida-backend-keystore"
 version = "0.2.5"
 dependencies = [
@@ -3924,6 +3962,7 @@ dependencies = [
  "p12-keystore",
  "pida-backend-api",
  "pida-cades",
+ "pida-fs",
  "pkcs5",
  "tempfile",
  "thiserror 2.0.21",
@@ -4004,6 +4043,7 @@ dependencies = [
  "directories",
  "hex",
  "keyring",
+ "pida-fs",
  "pida-i18n",
  "pida-java-properties",
  "serde",
@@ -4021,6 +4061,7 @@ name = "pida-core-api"
 version = "0.2.5"
 dependencies = [
  "async-trait",
+ "gloo-timers",
  "hex",
  "jiff",
  "pida-backend-api",
@@ -4030,6 +4071,7 @@ dependencies = [
  "pida-cades",
  "pida-config",
  "pida-core-api",
+ "pida-fs",
  "pida-i18n",
  "pida-net",
  "pida-pades",
@@ -4049,7 +4091,16 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "ts-rs",
+ "wasm-bindgen-futures",
+ "web-time",
  "zeroize",
+]
+
+[[package]]
+name = "pida-fs"
+version = "0.2.5"
+dependencies = [
+ "web-time",
 ]
 
 [[package]]
@@ -4104,6 +4155,7 @@ dependencies = [
  "pida-backend-api",
  "pida-backend-keystore",
  "pida-cades",
+ "pida-fs",
  "pida-pdf-cos",
  "pida-pdf-incremental",
  "pida-placement",
@@ -4126,6 +4178,7 @@ dependencies = [
  "flate2",
  "lopdf",
  "pdfium-render",
+ "pida-fs",
  "rxing",
  "serde",
  "thiserror 2.0.21",
@@ -4168,6 +4221,7 @@ version = "0.2.5"
 dependencies = [
  "flate2",
  "pdfium-render",
+ "pida-fs",
  "png 0.18.1",
  "serde",
  "thiserror 2.0.21",
@@ -4183,6 +4237,7 @@ dependencies = [
  "jiff",
  "kamadak-exif",
  "pdfium-render",
+ "pida-fs",
  "pida-java-properties",
  "pida-pdf-cos",
  "pida-sigblock",
@@ -4209,11 +4264,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "pida-web"
+version = "0.2.5"
+dependencies = [
+ "async-trait",
+ "console_error_panic_hook",
+ "getrandom 0.2.17",
+ "getrandom 0.4.3",
+ "js-sys",
+ "pida-backend-api",
+ "pida-backend-atrust-web",
+ "pida-config",
+ "pida-core-api",
+ "pida-fs",
+ "pida-i18n",
+ "pida-render",
+ "pida-workflow",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "pida-web-server"
+version = "0.2.5"
+dependencies = [
+ "base64 0.23.1",
+ "bytes",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "pida-backend-keystore",
+ "pida-cades",
+ "rand_core 0.6.4",
+ "serde_json",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "pida-workflow"
 version = "0.2.5"
 dependencies = [
  "pida-backend-api",
  "pida-config",
+ "pida-fs",
  "pida-pades",
  "pida-pdf-cos",
  "pida-placement",
@@ -6290,6 +6389,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb87b95ec50ddfa440816d227a17b2ccbdda963a316a727fda0fc4334f7d134"
 dependencies = [
  "deranged",
+ "js-sys",
  "num-conv",
  "powerfmt",
  "serde_core",

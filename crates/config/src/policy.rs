@@ -17,6 +17,7 @@
 //! nur der Registry-Zweig `HKLM\Software\Policies\…`, den die Shell liest und per
 //! [`Policy::from_toml`]/[`Policy::from_json`] übergibt (die Shell gibt ihm Vorrang vor der Datei).
 
+use pida_fs::PathExt as _;
 use std::path::{Path, PathBuf};
 
 use crate::settings::{BackendChoice, ProxySettings, SignatureProfile};
@@ -67,7 +68,7 @@ impl Policy {
     /// Lädt die Systemrichtlinie der Plattform, falls vorhanden.
     pub fn load_system() -> Result<Option<Policy>> {
         match Policy::system_path() {
-            Some(p) if p.is_file() => Policy::load_file(&p).map(Some),
+            Some(p) if p.fs_is_file() => Policy::load_file(&p).map(Some),
             _ => Ok(None),
         }
     }
@@ -84,7 +85,7 @@ impl Policy {
 
     /// Aus einer Datei (`.json` als JSON, sonst TOML).
     pub fn load_file(path: &Path) -> Result<Policy> {
-        let text = std::fs::read_to_string(path)?;
+        let text = pida_fs::read_to_string(path)?;
         if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("json")) {
             Policy::from_json(&text)
         } else {
@@ -145,10 +146,10 @@ mod tests {
     fn files() {
         let dir = tempfile::tempdir().unwrap();
         let t = dir.path().join("policy.toml");
-        std::fs::write(&t, "update_check = true\n").unwrap();
+        pida_fs::write(&t, "update_check = true\n").unwrap();
         assert_eq!(Policy::load_file(&t).unwrap().update_check, Some(true));
         let j = dir.path().join("policy.JSON");
-        std::fs::write(&j, r#"{"privacy_notice_text":"Hinweis"}"#).unwrap();
+        pida_fs::write(&j, r#"{"privacy_notice_text":"Hinweis"}"#).unwrap();
         assert_eq!(Policy::load_file(&j).unwrap().privacy_notice_text.as_deref(), Some("Hinweis"));
         assert!(Policy::load_file(&dir.path().join("fehlt.toml")).is_err());
         // Die Systemrichtlinie existiert auf Entwicklungsrechnern normalerweise nicht.

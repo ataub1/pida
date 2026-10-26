@@ -1,10 +1,11 @@
-#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
+#![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 //! PDFium-Implementierung über `pdfium-render` (Feature `pdfium`).
 //!
 //! Sicherer Teil: Bindung, Dokumente, Seitengrößen, normales Rendern und Bildobjekte laufen
 //! über die High-Level-API von `pdfium-render`. Nur das Forced-Color-Rendering braucht eine
 //! PDFium-Funktion, die `pdfium-render` nicht sicher anbietet; sie liegt in [`crate::ffi`].
 
+use pida_fs::PathExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
@@ -216,7 +217,7 @@ fn bind_library(library_dir: Option<&Path>) -> Result<Library> {
     let mut tried = Vec::new();
     for (label, dir) in &candidates {
         for path in crate::library_paths_in(dir) {
-            if !path.is_file() {
+            if !path.fs_is_file() {
                 tried.push(format!("{label}: {} (nicht vorhanden)", path.display()));
                 continue;
             }
@@ -256,7 +257,7 @@ fn bind_pair(
 
 fn read_build(lib_dir: &Path) -> Option<String> {
     for dir in [lib_dir.to_path_buf(), lib_dir.join("..")] {
-        if let Ok(text) = std::fs::read_to_string(dir.join("VERSION"))
+        if let Ok(text) = pida_fs::read_to_string(dir.join("VERSION"))
             && let Some(build) = text.lines().find_map(|l| l.trim().strip_prefix("BUILD="))
         {
             return Some(build.trim().to_owned());

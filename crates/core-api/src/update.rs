@@ -383,7 +383,7 @@ pub fn auto_retry_after(reason: &str) -> Duration {
 pub async fn fetch_releases(transport: &dyn UpdateTransport, proxy: ProxyConfig) -> Result<Vec<Release>, &'static str> {
     let request = releases_request().map_err(|e| reason_for_error(&e))?;
     let config = net_config(proxy);
-    let response = match tokio::time::timeout(OVERALL_TIMEOUT, transport.fetch(&config, request)).await {
+    let response = match crate::rt::timeout(OVERALL_TIMEOUT, transport.fetch(&config, request)).await {
         Ok(Ok(r)) => r,
         Ok(Err(e)) => return Err(reason_for_error(&e)),
         Err(_) => return Err(MSG_FAILED_TIMEOUT),
@@ -428,17 +428,17 @@ struct CacheFile {
 }
 
 fn load_cache(path: &Path) -> CacheFile {
-    std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    pida_fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
 }
 
 fn save_cache(path: &Path, cache: &CacheFile) {
     let result = (|| -> std::io::Result<()> {
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
+            pida_fs::create_dir_all(dir)?;
         }
         let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, serde_json::to_vec_pretty(cache).map_err(std::io::Error::other)?)?;
-        std::fs::rename(&tmp, path)
+        pida_fs::write(&tmp, serde_json::to_vec_pretty(cache).map_err(std::io::Error::other)?)?;
+        pida_fs::rename(&tmp, path)
     })();
     if let Err(e) = result {
         tracing::warn!(kind = ?e.kind(), "Update-Prüfung: Zwischenspeicher nicht geschrieben");
@@ -622,7 +622,7 @@ impl CoreTask {
         let proxy = crate::backends::proxy_config(&self.cfg);
         let shared = self.shared.clone();
         tracing::info!(kind = ?kind, "Update-Prüfung beginnt");
-        tokio::spawn(async move {
+        crate::rt::spawn(async move {
             let result = fetch_releases(transport.as_ref(), proxy).await;
             shared.send(Msg::UpdateChecked { generation, kind, result });
         });
@@ -987,12 +987,12 @@ mod tests {
         };
         save_cache(&path, &cache);
         assert_eq!(load_cache(&path), cache);
-        let text = std::fs::read_to_string(&path).unwrap();
+        let text = pida_fs::read_to_string(&path).unwrap();
         let json: serde_json::Value = serde_json::from_str(&text).unwrap();
         let mut keys: Vec<&String> = json.as_object().unwrap().keys().collect();
         keys.sort();
         assert_eq!(keys, ["attempted_at", "checked_at", "releases"]);
-        std::fs::write(&path, b"kaputt").unwrap();
+        pida_fs::write(&path, b"kaputt").unwrap();
         assert_eq!(load_cache(&path), CacheFile::default(), "unlesbar = leer");
     }
 }

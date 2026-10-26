@@ -47,6 +47,7 @@ const MAX_FORM_DEPTH: usize = 32;
 
 /// `IFSDK_PAUSE::NeedToPauseNow`: nie pausieren (PDFium verlangt ein Pause-Objekt mit
 /// `version == 1`, sonst liefert der progressive Start sofort `FPDF_RENDER_FAILED`).
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 unsafe extern "C" fn never_pause(_this: *mut IFSDK_PAUSE) -> FPDF_BOOL {
     0
 }

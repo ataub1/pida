@@ -12,6 +12,19 @@
 ## Shell: Kopfzeile, Befehle, Hinweise
 
 ng-ui-shell-skip = Zum Inhalt springen
+ng-ui-shell-dl-region = Downloads der Apps
+ng-ui-shell-dl-banner = PIDA gibt es auch als App für Windows, macOS, Linux, iOS und Android.
+ng-ui-shell-dl-cta = Zu den Downloads
+ng-ui-shell-dl-hide = Hinweis ausblenden
+ng-ui-shell-dl-title = PIDA als App
+ng-ui-shell-dl-subtitle = Dieselben Funktionen, installiert auf Ihrem Gerät.
+ng-ui-shell-dl-desktop = Computer
+ng-ui-shell-dl-mobile = Smartphone und Tablet
+ng-ui-shell-dl-github = Download auf GitHub
+ng-ui-shell-dl-qr = QR-Code zur App für { $platform } (folgt)
+ng-ui-shell-dl-appstore = App Store – folgt
+ng-ui-shell-dl-play = Google Play – folgt
+ng-ui-shell-dl-source = Quellcode und alle Versionen:
 ng-ui-shell-home = PIDA – Startseite
 ng-ui-shell-starting = PIDA wird gestartet …
 ng-ui-shell-title-workspace = Arbeitsbereich
@@ -404,6 +417,8 @@ ng-ui-fin-signed-at = Signiert am { $time }
 ng-ui-fin-preview = Vorschau der signierten Seite
 ng-ui-fin-open = Öffnen
 ng-ui-fin-reveal = Im Ordner zeigen
+ng-ui-fin-download = Herunterladen
+ng-ui-fin-ready-web = Bereit zum Herunterladen – nach dem Schließen der Seite ist das Ergebnis weg.
 ng-ui-fin-share = Teilen
 ng-ui-fin-export = Sichern unter …
 ng-ui-fin-check = Vollständige Prüfung bei signaturpruefung.gv.at
@@ -532,6 +547,7 @@ ng-ui-batch-sum-folder = Gespeichert in { $folder }.
 ng-ui-batch-sum-next = Jeweils neben dem Original gespeichert.
 ng-ui-batch-sum-app = Gespeichert in den Dokumenten dieser App.
 ng-ui-batch-reveal = Im Ordner zeigen
+ng-ui-batch-download-zip = Alle als ZIP herunterladen
 ng-ui-batch-new = Neuer Stapel
 ng-ui-batch-back = Zurück zum Stapel
 ng-ui-batch-show = Zum Stapel

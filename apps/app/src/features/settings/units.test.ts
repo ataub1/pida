@@ -123,3 +123,16 @@ describe('Hilfen', () => {
     expect(valueAt(s, 'nichts.da')).toBeUndefined();
   });
 });
+
+describe('Einstellungen im Web', () => {
+  it('nur Signaturbild, Dokument, Datenschutz, Über PIDA; Keystore nur im Testbuild', () => {
+    const sections = (keystore: boolean) => [...new Set(visibleRows({ mobile: false, profile: 'SIGNATURBLOCK_SMALL', web: { keystore } }).map((r) => r.section))];
+    expect(sections(false)).toEqual(['signature', 'document', 'privacy', 'about']);
+    const ids = (keystore: boolean) => visibleRows({ mobile: false, profile: 'SIGNATURBLOCK_SMALL', web: { keystore } }).map((r) => r.id);
+    expect(ids(false)).not.toContain('signers.keystore');
+    expect(ids(true).filter((id) => id.startsWith('signers.'))).toEqual(['signers.keystore']);
+    expect(ids(true)).not.toContain('privacy.recent');
+    // App unverändert
+    expect(visibleRows({ mobile: false, profile: 'SIGNATURBLOCK_SMALL' }).map((r) => r.id)).toContain('advanced.reset');
+  });
+});

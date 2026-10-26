@@ -93,7 +93,7 @@ pub fn pdfa_mode(pdfa: Option<&PdfaId>, profile: &Profile) -> PdfaMode {
 
 /// Bildmarke laden (ungültige Bilder werden wie in PDF-Over still verworfen, F-31/`-e`).
 pub fn load_emblem(path: &Path) -> Option<Arc<Emblem>> {
-    let bytes = match std::fs::read(path) {
+    let bytes = match pida_fs::read(path) {
         Ok(b) => b,
         Err(e) => {
             tracing::warn!(error = %e.kind(), "Bildmarke nicht lesbar – Profil-Logo wird verwendet");

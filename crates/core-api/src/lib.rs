@@ -167,6 +167,7 @@ mod parked;
 pub mod plan;
 mod recent;
 mod resume;
+mod rt;
 mod runtime;
 mod settings_apply;
 #[cfg(any(test, feature = "testing"))]
@@ -287,6 +288,9 @@ pub struct CoreOptions {
     pub engine: Option<Arc<dyn engine::PadesEngine>>,
     /// fest vorgegebene Backends statt der Registrierung (Tests, Einbettung)
     pub backends: Option<Vec<Arc<dyn SignatureBackend>>>,
+    /// ID Austria über dieses Backend statt des nativen A-Trust-Ablaufs (Browser: A-Trust-Overlay mit
+    /// Rückkanal, `pida-backend-atrust-web`); die übrigen Backends kommen weiter aus der Registrierung
+    pub id_austria_backend: Option<Arc<dyn SignatureBackend>>,
     /// Secret-Speicher (Standard: Schlüsselbund der Plattform, sonst RAM)
     pub secret_store: Option<Arc<dyn SecretStore>>,
     /// Richtlinie der Shell (Registry, Managed Preferences) – hat Vorrang vor der Datei
@@ -341,6 +345,7 @@ impl Default for CoreOptions {
             interactive: None,
             engine: None,
             backends: None,
+            id_austria_backend: None,
             secret_store: None,
             policy: None,
             load_system_policy: true,
@@ -412,13 +417,14 @@ pub struct Core {
     view_rx: watch::Receiver<ViewState>,
     finished_rx: watch::Receiver<Option<ExitCode>>,
     shared: Arc<Shared>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     runtime: Option<tokio::runtime::Runtime>,
     _log: Mutex<Option<logging::LogGuard>>,
 }
 
 impl std::fmt::Debug for Core {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Core").field("shared", &self.shared).field("own_runtime", &self.runtime.is_some()).finish()
+        f.debug_struct("Core").field("shared", &self.shared).finish_non_exhaustive()
     }
 }
 
@@ -456,6 +462,8 @@ impl Core {
 
     /// Wie [`Core::new`] mit erweiterten Optionen.
     pub fn new_with(config: CoreConfig, options: CoreOptions) -> Result<Core, CoreError> {
+        // Browser: keine eigene Laufzeit – der Reducer läuft im Ereignis-Takt der Seite (`rt::spawn`)
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let (runtime, handle) = match tokio::runtime::Handle::try_current() {
             Ok(h) => (None, h),
             Err(_) => {
@@ -468,6 +476,7 @@ impl Core {
                 (Some(rt), h)
             }
         };
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let _enter = handle.enter();
         if let Some(lang) = options.system_language {
             Lang::set_system(Some(lang));
@@ -547,13 +556,16 @@ impl Core {
             tile_scale: Mutex::new(1.0),
             thumbs: Mutex::new(std::collections::HashMap::new()),
         });
-        let registry = backends::Registry::new(
+        let mut registry = backends::Registry::new(
             config.platform,
             config.fido2.clone(),
             &config.app_version,
             options.backends.clone(),
             options.probe_local_bku,
         );
+        if let Some(backend) = options.id_austria_backend.clone() {
+            registry.set_id_austria(backend);
+        }
         let (view_tx, view_rx) = watch::channel(initial_view(cfg.language(), config.platform));
         let (finished_tx, finished_rx) = watch::channel(None);
         let mobile = runtime::MobileSetup {
@@ -578,8 +590,16 @@ impl Core {
             options.batch_overview.unwrap_or(false),
             updates,
         );
-        handle.spawn(task.run(rx));
-        Ok(Core { tx, view_rx, finished_rx, shared, runtime, _log: Mutex::new(log) })
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        {
+            handle.spawn(task.run(rx));
+            Ok(Core { tx, view_rx, finished_rx, shared, runtime, _log: Mutex::new(log) })
+        }
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        {
+            rt::spawn(task.run(rx));
+            Ok(Core { tx, view_rx, finished_rx, shared, _log: Mutex::new(log) })
+        }
     }
 
     /// Sendet ein UI-Ereignis (nicht blockierend).
@@ -683,6 +703,7 @@ impl Core {
 impl Drop for Core {
     fn drop(&mut self) {
         let _ = self.tx.send(Msg::Shutdown);
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(rt) = self.runtime.take() {
             rt.shutdown_background();
         }

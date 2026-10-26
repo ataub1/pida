@@ -626,6 +626,8 @@ ng-ui-privacy-details = Details
 ng-ui-privacy-details-label = Privacy details
 ng-ui-privacy-local = With a keystore or the smart card (local smart card software) the document is signed on this device and is not uploaded.
 ng-ui-privacy-local-mobile = On this device, documents are signed with ID Austria; for this, the document is sent to A-Trust.
+ng-ui-privacy-statement-web = PIDA in the browser processes the data needed for signing in your browser; documents and settings are not stored and are gone once you close the page. When signing with ID Austria, the PDF document to be signed is sent to A-Trust. For the retention period and further data protection information on ID Austria signatures, please refer to the A-Trust privacy policy: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
+ng-ui-privacy-local-web = The server only delivers the application; PIDA does not upload your documents to this server.
 ng-ui-privacy-atrust-link = A-Trust privacy policy: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
 ng-ui-privacy-about = Where your documents go when signing is described in the <a>Privacy</a> section.
 ng-ui-certcache-title = Certificate cache
@@ -744,4 +746,14 @@ ng-ui-about-license =
 ng-ui-about-not-official = PIDA is an open-source project by A-SIT and not an official product of the Republic of Austria or A-Trust GmbH. “ID Austria” is a trademark of the Republic of Austria; the name only identifies the supported signing method.
 ng-ui-about-based-on = Based on PDF-Over by A-SIT.
 ng-ui-about-copyright = Copyright © { $year } A-SIT · Licence EUPL-1.2
+ng-ui-about-publisher = A-SIT – Secure Information Technology Center – Austria
 ng-ui-privacy-update-check = The update check asks GitHub (api.github.com) for the latest version. GitHub sees this device's IP address; no identifiers are sent. You can turn it off under Advanced › “Check for updates automatically”.
+
+
+## Web-Variante: A-Trust-Overlay (apps/app/src/core/ida-overlay.ts)
+ng-web-ida-title = Sign with ID Austria
+ng-web-ida-origin = Page from { $host } – your input goes directly to A-Trust
+ng-web-atrust-popup = Open in separate window
+ng-web-atrust-close = Cancel
+ng-web-atrust-popup-hint = Sign-in with A-Trust continues in the separate window.
+ng-web-atrust-popup-blocked = The browser blocked the window. Allow pop-ups for this page.

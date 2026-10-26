@@ -7,6 +7,7 @@
 #   tools/third-party-notices.sh --out dist/notices    # anderes Zielverzeichnis
 #   tools/third-party-notices.sh --pdfium win-x64      # PDFium-Lizenzen dieser Plattform; win-…: mit Windows-Teil
 #   tools/third-party-notices.sh --pdfium android-arm64 --out target/notices-android   # APK: mit Android-Teil
+#   tools/third-party-notices.sh --web --pdfium wasm --out target/notices-web   # Web-Variante (Browser und Server)
 #
 # Inhalt (in dieser Reihenfolge):
 #   0. Übernommene EUPL-Bestandteile: PDF-AS-4-Konfiguration und -Bildmarken (© EGIZ, EUPL-1.1+),
@@ -16,7 +17,9 @@
 #      ergänzt um die Unterlizenz von HarfBuzz (tools/licenses/harfbuzz-ms-use-COPYING.txt)
 #   2. Schriften und Metriken aus crates/sigblock/assets/licenses (DejaVu/Bitstream Vera, Adobe AFM)
 #   3. Rust-Abhängigkeiten über cargo-about 0.9.2 (tools/licenses/about.toml, about.hbs) plus die
-#      NOTICE-Dateien von Apache-2.0-Crates
+#      NOTICE-Dateien von Apache-2.0-Crates; mit --web statt des ganzen Workspace genau, was die Web-Variante
+#      ausliefert: pida-web für wasm32-unknown-unknown und pida-web-server für x86_64-unknown-linux-musl (getrennt
+#      ermittelt – cargo-about trennt Ziele nicht je Pfad, gemeinsam käme z. B. webpki-root-certs fälschlich dazu)
 #   4. Rust-Standardbibliothek (in jede Binary gelinkt; MIT OR Apache-2.0): Lizenztexte aus der
 #      Toolchain, vollständige Hinweise als RUST-STD-COPYRIGHT.html neben der Ausgabe
 #   5. npm-Abhängigkeiten der Oberfläche (apps/app/package-lock.json, falls vorhanden; tools/npm-licenses.mjs)
@@ -33,6 +36,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/target/notices"
 PDFIUM_PLATFORM=""
+WEB=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --out | --pdfium)
@@ -42,7 +46,8 @@ while [ $# -gt 0 ]; do
       fi
       if [ "$1" = --out ]; then OUT="$2"; else PDFIUM_PLATFORM="$2"; fi
       shift ;;
-    -h | --help) sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --web) WEB=1 ;;
+    -h | --help) sed -n '2,34p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "third-party-notices: unbekanntes Argument $1" >&2; exit 2 ;;
   esac
   shift
@@ -184,10 +189,39 @@ PDFIUM_DIR="$(dirname "$pdfium_lib")"
 # --- 3. Rust ---------------------------------------------------------------------------------------
 cargo fetch --locked >/dev/null
 # ohne --offline: Lizenzdateien für `clarify.git` (about.toml) kommen aus den Quell-Repositories (mit Prüfsumme)
-cargo about generate --locked --workspace --all-features --fail \
-  -c tools/licenses/about.toml tools/licenses/about.hbs -o "$TMP/3-rust.md"
-cargo about generate --locked --workspace --all-features --fail \
-  -c tools/licenses/about.toml --format json -o "$TMP/rust.json"
+# Umfang je Lauf: Titel|Argumente für cargo about (Standard: ganzer Workspace mit den Zielen aus about.toml)
+if [ "$WEB" = 1 ]; then
+  SCOPES=("im Browser (WebAssembly)|-m apps/web/Cargo.toml --target wasm32-unknown-unknown"
+          "Server|-m apps/web-server/Cargo.toml --target x86_64-unknown-linux-musl")
+else
+  SCOPES=("|--workspace")
+fi
+: >"$TMP/3-rust.md"
+n=0
+for scope in "${SCOPES[@]}"; do
+  n=$((n + 1))
+  title="${scope%%|*}"
+  read -r -a args <<<"${scope#*|}"
+  cargo about generate --locked "${args[@]}" --all-features --fail \
+    -c tools/licenses/about.toml tools/licenses/about.hbs -o "$TMP/3-rust-$n.md"
+  cargo about generate --locked "${args[@]}" --all-features --fail \
+    -c tools/licenses/about.toml --format json -o "$TMP/rust-$n.json"
+  if [ -n "$title" ]; then
+    sed "1s/^## Rust-Abhängigkeiten (Rust dependencies)\$/## Rust-Abhängigkeiten – $title (Rust dependencies)/" "$TMP/3-rust-$n.md"
+  else
+    cat "$TMP/3-rust-$n.md"
+  fi >>"$TMP/3-rust.md"
+done
+# alle Läufe zusammen für die Prüfungen unten
+python3 -I - "$TMP/rust.json" "$TMP"/rust-*.json <<'PY'
+import json, sys
+merged = {"crates": [], "licenses": []}
+for path in sys.argv[2:]:
+    data = json.load(open(path, encoding="utf-8"))
+    merged["crates"] += data.get("crates", [])
+    merged["licenses"] += data.get("licenses", [])
+json.dump(merged, open(sys.argv[1], "w", encoding="utf-8"))
+PY
 # NOTICE-Dateien (Apache-2.0 §4d) der ausgelieferten Crates anhängen.
 python3 -I - "$TMP/rust.json" >>"$TMP/3-rust.md" <<'PY'
 import json, os, sys
@@ -215,9 +249,11 @@ PY
 
 # SPDX-Vorlagen statt Copyright-Vermerk (Lizenzbericht Befund 6): MIT und BSD verlangen den Vermerk. Erlaubt nur für
 # die noch zu klärenden Crates in tools/licenses/template-exceptions.txt.
-python3 -I - "$TMP/rust.json" "$ROOT/tools/licenses/template-exceptions.txt" <<'PY'
+python3 -I - "$TMP/rust.json" "$ROOT/tools/licenses/template-exceptions.txt" "$WEB" <<'PY'
 import json, re, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
+# --web prüft nur einen Teil des Workspace: dort fehlende Ausnahmen sind kein Hinweis auf veraltete Einträge
+partial = sys.argv[3] == "1"
 allowed = {l.strip() for l in open(sys.argv[2], encoding="utf-8") if l.strip() and not l.lstrip().startswith("#")}
 template = re.compile(r"<(year|copyright holders|owner|name of author)>", re.I)
 found = {}
@@ -227,7 +263,7 @@ for lic in data.get("licenses", []):
             crate = used.get("crate", {})
             found.setdefault(crate.get("name"), set()).add(f"{crate.get('version')} ({lic.get('id')})")
 unexpected = sorted(set(found) - allowed)
-for name in sorted(allowed - set(found)):
+for name in [] if partial else sorted(allowed - set(found)):
     print(f"third-party-notices: warnung: {name} zeigt keine Vorlage mehr – aus template-exceptions.txt entfernen",
           file=sys.stderr)
 if unexpected:

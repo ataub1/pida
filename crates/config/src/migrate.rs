@@ -11,6 +11,7 @@
 //! dauerhaft gespeicherte `signature_field_name` (B-05) wird verworfen und protokolliert (ohne den
 //! Feldnamen selbst – er stammt aus einem Dokument).
 
+use pida_fs::PathExt as _;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -171,7 +172,7 @@ pub fn migrate(legacy: &LegacyConfig, ctx: &MigrationContext) -> MigrationResult
     }
 
     let mut s = Settings::default();
-    let exists = |p: &Path| !ctx.check_paths || p.exists();
+    let exists = |p: &Path| !ctx.check_paths || p.fs_exists();
 
     // Allgemeines
     s.general.ui_language = v.locale;
@@ -309,7 +310,7 @@ fn path_msg(id: &'static str, key: LegacyKey, path: &Path) -> ReportMessage {
 /// Bildformate, die `pida-sigblock` verarbeitet (PNG, JPEG, GIF) – geprüft an der Signatur.
 fn supported_image(path: &Path) -> bool {
     let mut head = [0u8; 8];
-    let Ok(mut f) = std::fs::File::open(path) else { return false };
+    let Ok(mut f) = pida_fs::File::open(path) else { return false };
     let n = std::io::Read::read(&mut f, &mut head).unwrap_or(0);
     let head = &head[..n];
     head.starts_with(b"\x89PNG\r\n\x1a\n") || head.starts_with(&[0xFF, 0xD8, 0xFF]) || head.starts_with(b"GIF8")
@@ -339,7 +340,7 @@ pub fn is_pdfas_default_logo(path: &Path, check_content: bool) -> bool {
         return true;
     }
     check_content
-        && std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() < 1024 * 1024)
+        && pida_fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() < 1024 * 1024)
         && sha256_hex(path).is_some_and(|h| PDFAS_DEFAULT_LOGO_SHA256.contains(&h.as_str()))
 }
 
@@ -359,7 +360,7 @@ fn migrate_emblem(v: &LegacyValues, ctx: &MigrationContext, r: &mut Reporter) ->
     if !ctx.check_paths {
         return Some(emblem.clone());
     }
-    if emblem.is_file() {
+    if emblem.fs_is_file() {
         if supported_image(emblem) {
             return Some(emblem.clone());
         }
@@ -368,11 +369,11 @@ fn migrate_emblem(v: &LegacyValues, ctx: &MigrationContext, r: &mut Reporter) ->
     }
     let cached = ctx.legacy_dir.join(".emblem.png");
     let props = ctx.legacy_dir.join(".emblem.properties");
-    let refers_to_emblem = std::fs::read(&props)
+    let refers_to_emblem = pida_fs::read(&props)
         .ok()
         .and_then(|b| pida_java_properties::Properties::load_auto(&b).ok())
         .is_some_and(|(p, _)| p.get("IMG").map(Path::new) == Some(emblem.as_path()));
-    if refers_to_emblem && cached.is_file() && supported_image(&cached) {
+    if refers_to_emblem && cached.fs_is_file() && supported_image(&cached) {
         if is_pdfas_default_logo(&cached, true) {
             return default_logo(r);
         }
@@ -420,7 +421,7 @@ fn collect_secrets(legacy: &LegacyConfig, v: &LegacyValues, r: &mut Reporter) ->
 /// Sucht `PDF-Over.config` im Altordner.
 pub fn find_legacy_config(legacy_dir: &Path) -> Option<PathBuf> {
     let f = legacy_dir.join(LEGACY_CONFIG_FILE);
-    f.is_file().then_some(f)
+    f.fs_is_file().then_some(f)
 }
 
 /// Einmaliger Import (Plan §7.2): der Assistent wird nur angeboten, solange es noch **keine**
@@ -428,7 +429,7 @@ pub fn find_legacy_config(legacy_dir: &Path) -> Option<PathBuf> {
 /// Nutzerin ab, speichert die Shell die Standardeinstellungen – danach wird nie wieder gefragt (bis zu
 /// „Einstellungen zurücksetzen“, [`Paths::reset`]).
 pub fn import_offer(paths: &Paths, legacy_dir: Option<&Path>) -> Option<PathBuf> {
-    if paths.settings_file().exists() {
+    if paths.settings_file().fs_exists() {
         return None;
     }
     find_legacy_config(legacy_dir?)
@@ -436,7 +437,7 @@ pub fn import_offer(paths: &Paths, legacy_dir: Option<&Path>) -> Option<PathBuf>
 
 /// Liest `signature_field_name` aus `cfg/advancedconfig.properties` (wird verworfen und protokolliert).
 pub fn read_signature_field_name(legacy_dir: &Path) -> Option<String> {
-    let bytes = std::fs::read(legacy_dir.join("cfg").join("advancedconfig.properties")).ok()?;
+    let bytes = pida_fs::read(legacy_dir.join("cfg").join("advancedconfig.properties")).ok()?;
     let (props, _) = pida_java_properties::Properties::load_auto(&bytes).ok()?;
     props.get("signature_field_name").filter(|v| !crate::java::trim(v).is_empty()).map(str::to_owned)
 }
@@ -496,7 +497,7 @@ pub const SHIPPED_PDFAS_FILES: &[(&str, &str)] = &[
 
 /// SHA-256 einer Datei, gestreamt (eine riesige Datei in `cfg/` wird nicht in den Speicher geladen).
 fn sha256_hex(path: &Path) -> Option<String> {
-    let mut file = std::fs::File::open(path).ok()?;
+    let mut file = pida_fs::File::open(path).ok()?;
     let mut hasher = Sha256::new();
     std::io::copy(&mut file, &mut hasher).ok()?;
     Some(hex::encode(hasher.finalize()))
@@ -507,13 +508,13 @@ fn sha256_hex(path: &Path) -> Option<String> {
 pub fn scan_custom_profiles(legacy_dir: &Path) -> Vec<PathBuf> {
     let cfg = legacy_dir.join("cfg");
     let mut candidates = Vec::new();
-    if cfg.join("config.properties").is_file() {
+    if cfg.join("config.properties").fs_is_file() {
         candidates.push(("config.properties".to_owned(), cfg.join("config.properties")));
     }
-    if let Ok(entries) = std::fs::read_dir(cfg.join("profiles")) {
+    if let Ok(entries) = pida_fs::read_dir(cfg.join("profiles")) {
         for e in entries.flatten() {
             let p = e.path();
-            if p.is_file() && p.extension().is_some_and(|x| x == "properties") {
+            if p.fs_is_file() && p.extension().is_some_and(|x| x == "properties") {
                 let name = format!("profiles/{}", e.file_name().to_string_lossy());
                 candidates.push((name, p));
             }
@@ -577,10 +578,10 @@ pub fn apply_migration(
     secrets: &dyn SecretStore,
     opts: &ApplyOptions,
 ) -> Result<AppliedMigration> {
-    std::fs::create_dir_all(&paths.config_dir)?;
+    pida_fs::create_dir_all(&paths.config_dir)?;
     let settings_file = paths.settings_file();
     let mut backup = None;
-    if settings_file.exists() {
+    if settings_file.fs_exists() {
         if !opts.overwrite {
             return Err(ConfigError::Io(std::io::Error::new(
                 std::io::ErrorKind::AlreadyExists,
@@ -588,7 +589,7 @@ pub fn apply_migration(
             )));
         }
         let b = free_path(&paths.config_dir, "settings.toml.before-import", None);
-        std::fs::copy(&settings_file, &b)?;
+        pida_fs::copy(&settings_file, &b)?;
         backup = Some(b);
     }
     let mut tx = Rollback { secrets, created: Vec::new(), stored: Vec::new(), backup, settings_written: false };
@@ -626,12 +627,12 @@ fn apply_steps(
     let mut settings = result.settings.clone();
     if opts.copy_emblem
         && let Some(src) = settings.signature.emblem.clone()
-        && src.is_file()
+        && src.fs_is_file()
     {
         let ext = src.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_else(|| "png".into());
-        std::fs::create_dir_all(paths.emblem_dir())?;
+        pida_fs::create_dir_all(paths.emblem_dir())?;
         let target = free_path(&paths.emblem_dir(), "emblem", Some(&ext));
-        std::fs::copy(&src, &target)?;
+        pida_fs::copy(&src, &target)?;
         tx.created.push(target.clone());
         settings.signature.emblem = Some(target);
     }
@@ -668,9 +669,9 @@ impl Rollback<'_> {
         if let Some(b) = self.backup.take() {
             if self.settings_written {
                 // Die Sicherung ist der Stand vor dem Import.
-                let _ = std::fs::rename(&b, settings_file);
+                let _ = pida_fs::rename(&b, settings_file);
             } else {
-                let _ = std::fs::remove_file(&b);
+                let _ = pida_fs::remove_file(&b);
             }
         }
     }
@@ -683,18 +684,18 @@ fn free_path(dir: &Path, stem: &str, ext: Option<&str>) -> PathBuf {
         None => format!("{stem}{suffix}"),
     };
     let first = dir.join(name(String::new()));
-    if !first.exists() {
+    if !first.fs_exists() {
         return first;
     }
     (2u32..100_000)
         .map(|i| dir.join(name(format!("-{i}"))))
-        .find(|p| !p.exists())
-        .unwrap_or_else(|| dir.join(name(format!("-{}", std::process::id()))))
+        .find(|p| !p.fs_exists())
+        .unwrap_or_else(|| dir.join(name(format!("-{}", pida_fs::process_id()))))
 }
 
 fn cleanup(files: &[PathBuf]) {
     for f in files {
-        let _ = std::fs::remove_file(f);
+        let _ = pida_fs::remove_file(f);
     }
 }
 
@@ -702,14 +703,14 @@ fn cleanup(files: &[PathBuf]) {
 /// vorhandene `settings.toml` wieder her.
 pub fn undo_migration(applied: &AppliedMigration, secrets: &dyn SecretStore) -> Result<()> {
     for f in &applied.created {
-        match std::fs::remove_file(f) {
+        match pida_fs::remove_file(f) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(ConfigError::Io(e)),
         }
     }
     if let Some(b) = &applied.backup {
-        std::fs::rename(b, &applied.settings_file)?;
+        pida_fs::rename(b, &applied.settings_file)?;
     }
     for id in &applied.stored_secrets {
         secrets.delete(id)?;
@@ -722,7 +723,7 @@ fn protocol(result: &MigrationResult, stored: &[SecretId], opts: &ApplyOptions) 
     use std::fmt::Write as _;
     let r = &result.report;
     let mut out = String::from("# PIDA – Import aus ~/.pdf-over\n");
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let secs = pida_fs::system_now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let _ = writeln!(out, "zeit_unix = {secs}");
     let imported: Vec<&str> = r.imported.iter().map(|k| k.name()).collect();
     let _ = writeln!(out, "übernommen = {}", imported.join(", "));
@@ -809,7 +810,7 @@ mod tests {
         let paths = Paths::under(root.path());
         assert_eq!(import_offer(&paths, Some(legacy_dir.path())), None, "keine Altdatei");
         assert_eq!(import_offer(&paths, None), None);
-        std::fs::write(legacy_dir.path().join(LEGACY_CONFIG_FILE), "BKU=LOCAL\n").unwrap();
+        pida_fs::write(legacy_dir.path().join(LEGACY_CONFIG_FILE), "BKU=LOCAL\n").unwrap();
         assert_eq!(import_offer(&paths, Some(legacy_dir.path())), Some(legacy_dir.path().join(LEGACY_CONFIG_FILE)));
         // Abgelehnt oder importiert: es gibt settings.toml → nie wieder.
         Settings::default().save_atomic(&paths.settings_file()).unwrap();
@@ -833,7 +834,7 @@ mod tests {
         let applied =
             apply_migration(&res, &paths, &store, &ApplyOptions { store_secrets: true, ..Default::default() }).unwrap();
         assert_eq!(store.len(), 1);
-        let log = std::fs::read_to_string(&applied.log_file).unwrap();
+        let log = pida_fs::read_to_string(&applied.log_file).unwrap();
         assert!(!log.contains("test-s") && log.contains("BKU"));
         assert!(matches!(Settings::load(&paths.settings_file()), crate::LoadOutcome::Loaded(_)));
         // zweiter Lauf ohne overwrite: Fehler; mit overwrite: Sicherung
@@ -842,9 +843,9 @@ mod tests {
             apply_migration(&res, &paths, &store, &ApplyOptions { overwrite: true, ..Default::default() }).unwrap();
         assert!(again.backup.is_some());
         undo_migration(&again, &store).unwrap();
-        assert!(paths.settings_file().is_file(), "Sicherung wiederhergestellt");
+        assert!(paths.settings_file().fs_is_file(), "Sicherung wiederhergestellt");
         undo_migration(&applied, &store).unwrap();
-        assert!(!paths.settings_file().exists());
+        assert!(!paths.settings_file().fs_exists());
         assert!(store.is_empty());
     }
 }

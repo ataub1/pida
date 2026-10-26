@@ -20,6 +20,8 @@ import type { Settings } from './core/types';
 async function bridge(): Promise<Bridge> {
   const forceMock = import.meta.env.VITE_MOCK === '1';
   if (!forceMock && inTauri()) return createTauriBridge();
+  // Web-Variante (`npm run build:web`): Rust-Kern als WebAssembly im Browser (eigener Chunk)
+  if (import.meta.env.VITE_WEB === '1') return (await import('./core/web')).createWebBridge();
   // Mock-Kern nur bei Bedarf laden (eigener Chunk, nicht im Startpfad der App).
   const { MockCore: Mock, MOCK_SCENARIOS } = await import('./core/mock');
   const mock = new Mock(mockOptionsFromUrl(window.location.search, MOCK_SCENARIOS));
