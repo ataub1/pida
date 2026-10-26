@@ -18,12 +18,18 @@
 ## Konfiguration: Fehler (`pida_config::ConfigError::message_id`)
 
 ng-config-error-io = Ein-/Ausgabefehler bei den Einstellungen: { $detail }
+    .text = Die Einstellungen konnten nicht gelesen oder gespeichert werden.
 ng-config-error-parse = Die Einstellungen sind nicht lesbar: { $detail }
+    .text = Die gespeicherten Einstellungen sind nicht lesbar.
 ng-config-error-serialize = Die Einstellungen konnten nicht gespeichert werden: { $detail }
+    .text = Die Einstellungen konnten nicht gespeichert werden.
 ng-config-error-unsupported-schema = Die Einstellungen stammen von einer neueren Version (Schema { $found }, unterstützt bis { $supported }).
+    .text = Die Einstellungen stammen von einer neueren PIDA-Version.
 ng-config-error-legacy = Die PDF-Over-Konfiguration ist nicht lesbar: { $detail }
+    .text = Die Einstellungen von PDF-Over sind nicht lesbar.
 ng-config-error-no-home = Der Konfigurationsordner kann nicht ermittelt werden.
 ng-config-error-secret = Fehler beim Zugriff auf den Schlüsselbund: { $detail }
+    .text = Auf den Schlüsselbund des Systems kann nicht zugegriffen werden.
 ng-config-file-missing = Die Konfigurationsdatei „{ $path }“ wurde nicht gefunden.
 ng-config-reset-done = Die bisherigen Einstellungen wurden nach „{ $path }“ verschoben.
 ng-secrets-not-persistent = Kein Schlüsselbund verfügbar: Passwörter werden nur bis zum Beenden von PIDA gespeichert.
@@ -66,20 +72,33 @@ ng-migrate-keystore-jks = Keystore-Typ { $value }: JKS- bzw. JCEKS-Keystores mü
 ## CMS-Signaturen (`pida_cades::CmsError::code`)
 
 cms-der = Die Signaturdaten (CMS) sind nicht lesbar.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-certificate = Ein Zertifikat ist nicht lesbar.
+    .text = Das Zertifikat ist nicht lesbar.
 cms-unsupported-algorithm = Der Signatur- oder Hashalgorithmus wird nicht unterstützt.
+    .text = Das Signaturverfahren dieses Zertifikats wird nicht unterstützt.
 cms-not-signed-data = Die Daten sind keine CMS-Signatur (SignedData).
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-signer-count = Die Signatur enthält nicht genau einen Unterzeichner.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-missing-attribute = Ein Pflichtattribut der Signatur fehlt.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-digest-mismatch = Die Prüfsumme der Signatur passt nicht zum Dokument.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-invalid-signature = Der Signaturwert ist ungültig.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-signer-certificate-missing = Das Zertifikat des Unterzeichners fehlt in der Signatur.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-signing-certificate-mismatch = Das Signaturattribut verweist auf ein anderes Zertifikat.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 cms-unexpected-signer = Die Signatur wurde mit einem anderen als dem erwarteten Zertifikat erstellt.
 cms-key = Der Schlüssel ist nicht verwendbar.
+    .text = Der Schlüssel ist nicht verwendbar.
 cms-key-mismatch = Der private Schlüssel passt nicht zum Zertifikat.
+    .text = Schlüssel und Zertifikat passen nicht zusammen.
 cms-too-large = Die Signatur ist größer als der reservierte Platz.
 cms-io = Lesefehler beim Prüfen der Signatur.
+    .text = Die erhaltene Signatur ist fehlerhaft und wurde verworfen. Bitte versuchen Sie es erneut.
 
 ## Keystore (`pida_backend_keystore::KeystoreError::code`)
 
@@ -118,8 +137,9 @@ backend-http = Der Signaturdienst hat die Anfrage abgelehnt: HTTP { $status } { 
 backend-security-layer = Vorgang vom Signaturserver abgebrochen ({ $code }): { $info }
     .text = Der Signaturdienst hat den Vorgang abgebrochen. Die genaue Ursache steht unter „Technische Details“.
 backend-unknown-page = Unbekannte Seite des Signaturdienstes ({ $diagnostic }). Der Vorgang wurde abgebrochen.
-    .text = Unbekannte Seite des Signaturdienstes – der Vorgang wurde abgebrochen. Die genaue Ursache steht unter „Technische Details“.
+    .text = A-Trust hat eine Seite angezeigt, die PIDA nicht kennt; der Vorgang wurde abgebrochen. Bitte versuchen Sie es erneut; die genaue Ursache steht unter „Technische Details“.
 backend-loop = Der Signaturdienst antwortet in einer Endlosschleife; der Vorgang wurde abgebrochen.
+    .text = Der Signaturdienst hat nicht wie erwartet reagiert; der Vorgang wurde abgebrochen. Bitte versuchen Sie es erneut.
 backend-protocol = Unerwartete Antwort des Signaturdienstes: { $detail }
     .text = Der Signaturdienst hat unerwartet geantwortet; der Vorgang wurde abgebrochen. Die genaue Ursache steht unter „Technische Details“.
 backend-wrong-password = Das Passwort ist falsch.
@@ -133,6 +153,7 @@ backend-fido2 = FIDO2-Fehler: { $detail }
 backend-timeout = Zeitüberschreitung: Der Signaturdienst hat nicht rechtzeitig geantwortet.
     .title = Die Zeit ist abgelaufen
     .action = Neue Bestätigung anfordern
+    .text = Der Signaturdienst hat nicht rechtzeitig geantwortet.
 backend-internal = Interner Fehler: { $detail }
     .text = In PIDA ist ein interner Fehler aufgetreten. Die genaue Ursache steht unter „Technische Details“.
 backend-session-closed = Die Sitzung bei A-Trust ist abgelaufen oder wurde beendet. Bitte erneut versuchen – dabei beginnt eine neue Sitzung.
@@ -148,7 +169,7 @@ ng-form-login-rejected = Die Anmeldung wurde nicht angenommen. Bitte das Passwor
 ## ID Austria über A-Trust, Szenario A (`pida_backend_atrust`)
 
 atrust-unknown-page = Unbekannte Seite des Signaturdienstes ({ $diagnostic }). Der Vorgang wurde abgebrochen.
-    .text = Unbekannte Seite des Signaturdienstes – der Vorgang wurde abgebrochen. Die genaue Ursache steht unter „Technische Details“.
+    .text = A-Trust hat eine Seite angezeigt, die PIDA nicht kennt; der Vorgang wurde abgebrochen. Bitte versuchen Sie es erneut; die genaue Ursache steht unter „Technische Details“.
 atrust-signature-data-link-rejected = Der Link „Signaturdaten anzeigen“ führt nicht zu A-Trust und wird nicht geöffnet.
 
 ## FIDO2 (`pida_backend_atrust::Fido2Error::code` und Detailcodes der Provider)
@@ -156,6 +177,7 @@ atrust-signature-data-link-rejected = Der Link „Signaturdaten anzeigen“ füh
 fido2-unavailable = FIDO2 ist auf diesem Gerät nicht verfügbar.
 fido2-cancelled = Vorgang am Sicherheitsschlüssel abgebrochen.
 fido2-invalid-options = Die FIDO2-Anfrage des Signaturdienstes ist nicht lesbar.
+    .text = Die Anfrage von A-Trust für den Sicherheitsschlüssel ist nicht lesbar. Bitte verwenden Sie App oder SMS.
 fido2-device = Fehler am Sicherheitsschlüssel: { $detail }
     .text = Am Sicherheitsschlüssel ist ein Fehler aufgetreten. Bitte erneut versuchen oder App bzw. SMS verwenden.
 fido2-pin-unsupported = Dieser Sicherheitsschlüssel verlangt eine PIN; die PIN-Eingabe ist auf diesem System noch nicht verfügbar – bitte App oder SMS verwenden.
@@ -164,8 +186,11 @@ fido2-timeout = Zeitüberschreitung: Der Sicherheitsschlüssel wurde nicht berü
 fido2-locked = Der Sicherheitsschlüssel ist gesperrt.
 fido2-pin-auth-blocked = Zu viele falsche PIN-Eingaben in Folge. Bitte den Sicherheitsschlüssel ab- und wieder anstecken und es erneut versuchen.
 fido2-u2f-only = Der Sicherheitsschlüssel unterstützt kein FIDO2 (nur U2F).
+    .text = Dieser Sicherheitsschlüssel ist zu alt für ID Austria (nur U2F). Bitte verwenden Sie App oder SMS.
 fido2-no-user-verification = Der Sicherheitsschlüssel kann die Nutzerin nicht verifizieren (keine PIN oder Biometrie eingerichtet).
+    .text = Auf dem Sicherheitsschlüssel ist weder PIN noch Fingerabdruck eingerichtet. Bitte richten Sie eines davon ein oder verwenden Sie App oder SMS.
 fido2-hid-permission = Kein Zugriff auf den Sicherheitsschlüssel – die udev-Regel (uaccess) für FIDO-Geräte fehlt.
+    .text = Kein Zugriff auf den Sicherheitsschlüssel. Unter Linux braucht PIDA dafür eine Systemregel für FIDO-Geräte (udev) – bitte wenden Sie sich an Ihre IT oder verwenden Sie App oder SMS.
 fido2-no-device = Kein FIDO2-Sicherheitsschlüssel gefunden. Bitte stecken Sie Ihren Sicherheitsschlüssel an und versuchen Sie es erneut.
 
 ## Signaturblock (`pida_sigblock::SigBlockError::code`, `NOTICE_CHARS_REPLACED`)
@@ -218,12 +243,18 @@ placement-notice-scan_failed = Der freie Platz auf der Seite konnte nicht ermitt
 ## Eingangsanalyse (`pida_pades::Finding::code`, Plan §6.1)
 
 pdf-xref-repaired = Der Querverweis des Dokuments ist beschädigt und wurde beim Lesen korrigiert. Das Signieren ist möglich, ändert die Beschädigung aber nicht.
+    .text = Das Dokument ist leicht beschädigt; PIDA hat das beim Lesen ausgeglichen. Signieren ist möglich, die Beschädigung bleibt aber bestehen.
 pdf-xref-reconstructed = Der Querverweis des Dokuments fehlt oder ist unlesbar. Das Dokument kann ohne Reparatur nicht signiert werden.
+    .text = Das Dokument ist beschädigt und kann so nicht signiert werden. Speichern Sie es in einem PDF-Programm neu (z. B. „Als PDF drucken“) und versuchen Sie es erneut.
 pdf-tail-garbage = Nach dem Dateiende-Marker (%%EOF) stehen fremde Daten.
+    .text = Am Ende der Datei stehen zusätzliche Daten, die nicht zum PDF gehören.
 pdf-prior-signature-beyond-eof = Eine vorhandene Signatur reicht über das Dateiende hinaus – das Dokument wurde nach dem Signieren gekürzt oder beschädigt und kann nicht weiter signiert werden.
+    .text = Eine vorhandene Signatur passt nicht mehr zur Datei – das Dokument wurde nach dem Signieren verändert oder beschädigt und kann nicht weiter signiert werden.
 pdf-docmdp-p1 = Das Dokument ist zertifiziert und erlaubt keine Änderungen (DocMDP P=1); es kann nicht signiert werden.
+    .text = Das Dokument ist zertifiziert und darf nicht mehr verändert werden – auch nicht durch eine weitere Signatur.
 pdf-user-password = Das Dokument ist mit einem Kennwort zum Öffnen geschützt und kann nicht signiert werden.
 pdf-xfa-dynamic = Das Dokument ist ein dynamisches XFA-Formular und kann nicht signiert werden.
+    .text = Das Dokument ist ein spezielles Formular (dynamisches XFA), das sich nicht signieren lässt. Bitte speichern Sie es als normales PDF und versuchen Sie es erneut.
 pdf-usage-rights = Das Dokument enthält erweiterte Adobe-Reader-Rechte. Das Signieren macht sie ungültig; Adobe Reader zeigt danach eine Warnung.
 
 ## Oberfläche: Allgemein
@@ -256,6 +287,7 @@ ng-ui-core-unavailable = Der Signaturkern konnte nicht gestartet werden. Bitte v
 ng-ui-event-invalid = Diese Aktion wird von dieser Version des Signaturkerns noch nicht unterstützt.
 ng-ui-bridge-error = Die Verbindung zum Signaturkern ist gestört.
 ng-ui-error-unknown = Unerwarteter Fehler ({ $code }).
+ng-ui-error-unexpected = Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.
 ng-ui-open-failed = Das Öffnen ist fehlgeschlagen.
 ng-ui-dialog-failed = Der Dateidialog konnte nicht geöffnet werden.
 
@@ -337,6 +369,14 @@ ng-ui-secret-subject = Für: { $subject }
 ng-ui-proxy-password-prompt = Bitte geben Sie das Proxy-Passwort ein:
 ng-ui-proxy-password-retry = Das Proxy-Passwort ist falsch.
 ng-ui-notice-keystore-conversion = JKS- und JCEKS-Keystores werden nicht unterstützt. Bitte wandeln Sie den Keystore in PKCS#12 um (z. B. mit keytool -importkeystore).
+ng-ui-notice-http = A-Trust hat die Anfrage abgelehnt (Code { $status }). Bitte versuchen Sie es später erneut.
+ng-ui-notice-atrust = Meldung von A-Trust: { $text }
+ng-ui-notice-proxy-auth = Der Proxy-Server Ihres Netzwerks verlangt eine Anmeldung. Bitte tragen Sie Benutzername und Passwort unter Einstellungen › Erweitert › Proxy ein.
+ng-ui-notice-too-large = Das Dokument ist für ID Austria zu groß. Bitte verkleinern Sie das PDF und versuchen Sie es erneut.
+ng-ui-notice-connection = Keine Verbindung zum Signaturdienst. Bitte prüfen Sie die Internetverbindung und versuchen Sie es erneut.
+ng-ui-notice-localbku = Die Chipkarten-Software läuft nicht. Bitte starten Sie sie und versuchen Sie es erneut.
+ng-ui-notice-keystore = Der Keystore konnte nicht geöffnet werden. Bitte prüfen Sie das Passwort.
+ng-ui-notice-keystore-alias = Der Schlüssel „{ $alias }“ ist im Keystore nicht enthalten. Bitte wählen Sie unter Einstellungen › Signiermittel einen anderen.
 
 ## Oberfläche: Ergebnis
 
@@ -384,33 +424,53 @@ ng-ui-keystore-alias-hint = Leer lassen, wenn der Keystore nur einen Schlüssel 
 ng-ui-problem-required = Bitte füllen Sie dieses Feld aus.
 ng-ui-problem-port = Der Port muss zwischen 1 und 65535 liegen.
 ng-ui-problem-invalid = Der Wert ist ungültig.
+ng-ui-problem-tan-missing = Bitte geben Sie die TAN aus der SMS ein.
+ng-ui-problem-tan-too-long = Die TAN ist zu lang – bitte prüfen Sie die Eingabe.
+ng-ui-problem-reference-value = Das ist der Vergleichswert. Bitte geben Sie die TAN aus der SMS ein.
+ng-ui-problem-password-too-short = Das Passwort ist zu kurz.
+ng-ui-problem-password-too-long = Das Passwort ist zu lang.
+ng-ui-problem-qr-failed = Der QR-Code konnte nicht geladen werden. Bitte verwenden Sie die Bestätigung in der App oder per SMS.
+ng-ui-problem-atrust = Hinweis von A-Trust: { $text }
 ng-ui-about-version = Version { $version }
 ng-ui-about-thirdparty = Die Lizenzhinweise der verwendeten Komponenten liegen dem Programmpaket bei.
 
 ## Eingangsanalyse (`pida_pades::Finding::code`, Plan §6.1) – Welle 2
 
 pdf-docmdp-p2 = Das Dokument ist zertifiziert (Formulare ausfüllen und signieren erlaubt): nur vorhandene leere Signaturfelder oder unsichtbare Signaturen.
+    .text = Das Dokument ist zertifiziert. Signieren ist nur in einem vorhandenen leeren Signaturfeld oder unsichtbar möglich.
 pdf-docmdp-p3 = Das Dokument ist zertifiziert (Formulare, Signaturen und Kommentare erlaubt): nur vorhandene leere Signaturfelder oder unsichtbare Signaturen.
+    .text = Das Dokument ist zertifiziert. Signieren ist nur in einem vorhandenen leeren Signaturfeld oder unsichtbar möglich.
 pdf-permissions = Das Dokument ist geschützt; die Rechte erlauben kein Signieren.
 pdf-encrypted = Das Dokument ist verschlüsselt; die Signatur wird mit derselben Verschlüsselung ergänzt.
 pdf-xfa-hybrid = Das Dokument enthält ein XFA-Formular; XFA-Anzeigeprogramme zeigen den Signaturblock eventuell nicht.
+    .text = Das Dokument enthält ein spezielles Formular (XFA). Manche PDF-Programme zeigen den Signaturblock darin eventuell nicht an.
 pdf-field-locked = Einige Signaturfelder sind durch vorhandene Signaturen gesperrt und können nicht gewählt werden.
 pdf-seed-value = Das Signaturfeld enthält Vorgaben für die Signatur; sie werden erfüllt.
+    .text = Das Signaturfeld gibt Bedingungen für die Signatur vor; PIDA hält sie ein.
 pdf-seed-value-incompatible = Das Signaturfeld enthält Vorgaben, die diese Signatur nicht erfüllen kann.
+    .text = Das Signaturfeld gibt Bedingungen vor, die diese Signatur nicht erfüllen kann.
 pdf-pdfa-need-appearances = Das PDF/A-Dokument verlangt die Neuerzeugung von Formularansichten und ist bereits nicht konform.
+    .text = Das Dokument ist als PDF/A gekennzeichnet, erfüllt diesen Standard aber schon jetzt nicht vollständig.
 pdf-prior-signature-invalid = Eine vorhandene Signatur ist ungültig.
 pdf-prior-signature-unverifiable = Eine vorhandene Signatur kann nicht geprüft werden.
 pdf-public-key = Das Dokument ist mit Zertifikaten verschlüsselt und kann nicht signiert werden.
+    .text = Das Dokument ist für bestimmte Empfänger verschlüsselt und kann nicht signiert werden.
 pdf-unsupported-security = Die Verschlüsselung des Dokuments wird nicht unterstützt.
+    .text = Das Dokument ist auf eine Weise geschützt, die PIDA nicht unterstützt.
 pdf-no-pages = Das Dokument hat keine Seiten.
 pdf-not-a-pdf = Die Datei ist kein PDF-Dokument.
 pdf-unreadable = Das Dokument ist beschädigt und kann nicht gelesen werden.
 pdf-limit-exceeded = Das Dokument überschreitet eine Verarbeitungsgrenze.
+    .text = Das Dokument ist zu groß oder zu umfangreich, um es zu verarbeiten.
 pdf-decryption = Das Dokument konnte nicht entschlüsselt werden.
 pdf-io = Das Dokument konnte nicht gelesen werden (Lesefehler).
+    .text = Das Dokument konnte nicht gelesen werden.
 pdf-signature-subfilter = Das Signaturverfahren einer vorhandenen Signatur wird nicht geprüft.
+    .text = Eine vorhandene Signatur verwendet ein Verfahren, das PIDA nicht prüft.
 pdf-signature-byterange = Der signierte Bereich einer vorhandenen Signatur ist ungültig.
+    .text = Eine vorhandene Signatur deckt das Dokument nicht richtig ab und ist vermutlich beschädigt.
 pdf-signature-dictionary = Eine vorhandene Signatur hat kein lesbares Signaturdictionary.
+    .text = Eine vorhandene Signatur ist beschädigt und kann nicht gelesen werden.
 
 ## PAdES-Engine (`pida_pades::PadesError::code`, Invarianten I1–I6, Hinweise) – Welle 2
 
@@ -420,21 +480,33 @@ pades-field-already-signed = Das gewählte Signaturfeld ist bereits signiert.
 pades-field-locked = Das gewählte Signaturfeld ist gesperrt.
 pades-certificate-not-valid = Das Zertifikat ist zum Signierzeitpunkt nicht gültig.
 pades-io = Lese- oder Schreibfehler.
+    .text = Das Dokument konnte nicht gelesen oder geschrieben werden.
 pades-field-not-found = Das gewählte Signaturfeld wurde nicht gefunden.
 pades-new-page-not-allowed = Für dieses Dokument darf keine neue Seite angehängt werden.
 pades-invalid-plan = Die Signatur kann so nicht platziert werden.
 pades-invalid-state = Der gespeicherte Signaturvorgang ist ungültig und wird verworfen.
+    .text = Ein unterbrochener Signaturvorgang konnte nicht fortgesetzt werden und wurde verworfen.
 pades-invariant-i1 = Die Selbstprüfung der Signatur ist fehlgeschlagen (Original nicht unverändert); es wurde nichts gespeichert.
+    .text = Die Signatur hat die abschließende Selbstprüfung nicht bestanden. Es wurde nichts gespeichert – bitte versuchen Sie es erneut.
 pades-invariant-i2 = Die Selbstprüfung der Signatur ist fehlgeschlagen (signierter Bereich); es wurde nichts gespeichert.
+    .text = Die Signatur hat die abschließende Selbstprüfung nicht bestanden. Es wurde nichts gespeichert – bitte versuchen Sie es erneut.
 pades-invariant-i3 = Die Selbstprüfung der Signatur ist fehlgeschlagen (Signaturdaten oder Zertifikat); es wurde nichts gespeichert.
+    .text = Die Signatur hat die abschließende Selbstprüfung nicht bestanden. Es wurde nichts gespeichert – bitte versuchen Sie es erneut.
 pades-invariant-i4 = Die Selbstprüfung der Signatur ist fehlgeschlagen (vorhandene Signaturen); es wurde nichts gespeichert.
+    .text = Die Signatur hat die abschließende Selbstprüfung nicht bestanden. Es wurde nichts gespeichert – bitte versuchen Sie es erneut.
 pades-invariant-i5 = Die Selbstprüfung der Signatur ist fehlgeschlagen (Ergebnis nicht lesbar); es wurde nichts gespeichert.
+    .text = Die Signatur hat die abschließende Selbstprüfung nicht bestanden. Es wurde nichts gespeichert – bitte versuchen Sie es erneut.
 pades-invariant-i6 = Die Selbstprüfung der Signatur ist fehlgeschlagen (unerlaubte Änderung); es wurde nichts gespeichert.
+    .text = Die Signatur hat die abschließende Selbstprüfung nicht bestanden. Es wurde nichts gespeichert – bitte versuchen Sie es erneut.
 pades-pdfua-skipped = Die Barrierefreiheits-Struktur (PDF/UA) wurde nicht ergänzt.
+    .text = Die Angaben zur Barrierefreiheit (PDF/UA) wurden nicht ergänzt.
 pades-output-intent-skipped = Der Farbraum für PDF/A (OutputIntent) wurde nicht ergänzt, weil das Dokument bereits signiert ist.
+    .text = Eine PDF/A-Angabe wurde nicht ergänzt, weil das Dokument bereits signiert ist.
 pades-i5-without-pdfium = Die Prüfung mit PDFium wurde übersprungen.
+    .text = Eine zusätzliche Prüfung des Ergebnisses wurde übersprungen.
 pades-new-visible-field-not-allowed = Das Dokument ist zertifiziert: Ein neues sichtbares Signaturfeld würde die Zertifizierung verletzen. Bitte ein vorhandenes leeres Signaturfeld oder eine unsichtbare Signatur wählen.
 pades-not-self-checked = Die Selbstprüfung der Signatur wurde nicht bestanden; es wird nichts gespeichert.
+    .text = Die Signatur hat die abschließende Selbstprüfung nicht bestanden. Es wurde nichts gespeichert – bitte versuchen Sie es erneut.
 
 ## Signatur-Backends (`BackendError::code`, `FormProblem::code`) – Welle 2
 
@@ -516,6 +588,7 @@ ng-settings-invalid-logo-size = Die Größe der Bildmarke muss größer als 0 un
 ## Prüfung vorhandener Signaturen (`pida verify`, Entwickler-Werkzeug; die App hat keinen Prüfmodus, ADR 0004 Nachtrag 15) – Welle 2
 
 ng-verify-failed = Die Datei konnte nicht geprüft werden: { $detail }
+    .text = Die Datei konnte nicht geprüft werden.
 ng-verify-no-signature-dictionary = Signaturfeld ohne Signaturdaten.
 ng-verify-no-byte-range = Signatur ohne /ByteRange bzw. /Contents.
 ng-verify-byte-range = Der signierte Bereich (/ByteRange) der Signatur ist fehlerhaft.
