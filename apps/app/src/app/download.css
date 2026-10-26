@@ -9,7 +9,7 @@
   padding: env(safe-area-inset-top) max(var(--sp-4), env(safe-area-inset-right)) 0 max(var(--sp-4), env(safe-area-inset-left));
   background: var(--c-surface-2);
   border-bottom: 1px solid var(--c-border);
-  font-size: var(--fs-13);
+  font-size: var(--fs-15);
   color: var(--c-text-2);
 }
 .dl-banner-main {
@@ -18,8 +18,8 @@
   min-width: 0;
   align-items: center;
   justify-content: center;
-  gap: var(--sp-3);
-  padding: 6px 0;
+  gap: var(--sp-4);
+  padding: 10px 0;
   border: 0;
   background: none;
   color: inherit;
@@ -33,7 +33,7 @@
 }
 .dl-banner-icons {
   display: inline-flex;
-  gap: 6px;
+  gap: 10px;
   color: var(--c-text-3);
 }
 .dl-banner-text {
@@ -43,11 +43,14 @@
 }
 .dl-banner-cta {
   flex: none;
+  padding: 5px 12px;
+  border-radius: var(--r-3);
+  background: var(--c-primary);
+  color: var(--c-on-primary);
   font-weight: 600;
-  color: var(--c-link);
 }
 .dl-banner-main[data-hovered] .dl-banner-cta {
-  text-decoration: underline;
+  background: var(--c-primary-hover);
 }
 .dl-banner-close {
   flex: none;

@@ -158,14 +158,14 @@ export function DownloadBanner() {
       <AriaButton className="dl-banner-main" onPress={() => setOpen(true)}>
         <span className="dl-banner-icons" aria-hidden="true">
           {[...DESKTOP, ...MOBILE].map((p) => (
-            <PlatformIcon key={p} platform={p} size={16} />
+            <PlatformIcon key={p} platform={p} size={22} />
           ))}
         </span>
         <span className="dl-banner-text">{t.t('ng-ui-shell-dl-banner')}</span>
         <span className="dl-banner-cta">{t.t('ng-ui-shell-dl-cta')}</span>
       </AriaButton>
       <IconButton label={t.t('ng-ui-shell-dl-hide')} onPress={() => setHidden(true)} className="dl-banner-close" tooltip={false}>
-        <IconClose size={14} />
+        <IconClose size={16} />
       </IconButton>
       {open ? <DownloadsDialog onClose={() => setOpen(false)} /> : null}
     </div>
