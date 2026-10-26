@@ -58,6 +58,12 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zvariant: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
     { id = "RUSTSEC-2026-0371", reason = "zbus_names: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
+    # crypto-bigint < 0.7.6 nicht konstant in der Zeit (26.10.2026): 0.5.5 kommt über elliptic-curve 0.13 / ecdsa 0.16
+    # (pida-cades, Keystore). Geheime Werte verarbeitet das nur beim Signieren mit eigenem EC-Keystore am Desktop – ein
+    # Angreifer müsste auf demselben Rechner Laufzeiten messen; ID Austria (Schlüssel bei A-Trust), RSA und Prüfen
+    # (nur öffentliche Daten) sind nicht betroffen. Behoben erst in der nächsten RustCrypto-Generation (crypto-bigint 0.7,
+    # elliptic-curve 0.14, ecdsa 0.17): Backlog „EC-Kryptographie auf RustCrypto 0.14/0.17 heben“, dann entfernen.
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 über ecdsa 0.16; nur EC-Keystore am Desktop, Upgrade im Backlog" },
 ]
 
 # ---------------------------------------------------------------------------------------------
