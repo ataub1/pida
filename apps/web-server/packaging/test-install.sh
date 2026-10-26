@@ -56,7 +56,9 @@ check_server() {
   curl -fs "http://$bind/api/config" | grep -q 'service.a-trust.at' || { cat /tmp/pida-web.log; fail "/api/config"; }
   curl -fs "http://$bind/" | grep -qi '<html' || fail "Startseite"
   curl -fsI "http://$bind/pkg/pida_web_bg.wasm" | grep -qi 'application/wasm' || fail "WebAssembly-Typ"
-  curl -fs "http://$bind/notices/THIRD-PARTY-NOTICES.md" | grep -q . || fail "Lizenzhinweise in der Oberfläche"
+  # Größe statt `| grep -q`: grep endet nach der ersten Zeile, curl bekäme SIGPIPE (pipefail)
+  [ "$(curl -fs -o /dev/null -w '%{size_download}' "http://$bind/notices/THIRD-PARTY-NOTICES.md")" -gt 100000 ] \
+    || fail "Lizenzhinweise in der Oberfläche"
   [ "$(curl -s --path-as-is -o /dev/null -w '%{http_code}' "http://$bind/../../etc/passwd")" != 200 ] || fail "Pfad außerhalb"
   kill "$pid"
   wait "$pid" 2>/dev/null || true
