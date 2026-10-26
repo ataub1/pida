@@ -1,30 +1,35 @@
 /**
  * Web-Variante: Banner ganz oben „PIDA gibt es auch als App“ mit den Plattformen (Windows, macOS, Linux, iOS,
- * Android). Ein Klick öffnet den Dialog mit den Downloads: Desktop über die Releases auf GitHub, iOS und Android
+ * Android). Ein Klick öffnet den Dialog mit den Downloads: Desktop direkt mit den Installern der neuesten Release
+ * (beim Öffnen von GitHub abgefragt, `releases.ts`; sonst die Release-Seite), iOS und Android
  * mit QR-Code zum Store – vorerst Platzhalter (keine Store-Veröffentlichung geplant). Nur sichtbar, wenn
  * `webProfile()` gesetzt ist; ausblendbar bis zum Neuladen (nichts wird gespeichert).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { IconButton } from '../ui/controls';
 import { ModalShell, DialogHeader } from '../ui/Dialog';
-import { IconClose, IconExternal } from '../ui/Icons';
+import { IconClose, IconDownload, IconExternal } from '../ui/Icons';
 import { useApp } from './context';
+import { fetchLatestRelease, RELEASES_PAGE, type DesktopPlatform, type LatestRelease } from './releases';
 import './download.css';
 
-/** Downloads der Desktop-Pakete (aktuelle Release). */
-export const RELEASES_URL = 'https://github.com/ataub1/pida/releases/latest';
+/** Alle Releases (Rückfall, wenn die Abfrage scheitert; `/releases/latest` kennt keine Pre-releases). */
+export const RELEASES_URL = RELEASES_PAGE;
 /** Projektseite (Quellcode, alle Releases). */
 export const PROJECT_URL = 'https://github.com/ataub1/pida';
 
 type Platform = 'windows' | 'macos' | 'linux' | 'ios' | 'android';
-const DESKTOP: readonly Platform[] = ['windows', 'macos', 'linux'];
+const DESKTOP: readonly DesktopPlatform[] = ['windows', 'macos', 'linux'];
 const MOBILE: readonly Platform[] = ['ios', 'android'];
 const NAME: Record<Platform, string> = { windows: 'Windows', macos: 'macOS', linux: 'Linux', ios: 'iOS', android: 'Android' };
 
-/** Schlichte Plattform-Symbole (Strichstil wie `ui/Icons`, keine Markenlogos). */
-function PlatformIcon({ platform, size = 18 }: { platform: Platform; size?: number }) {
-  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true, focusable: false, className: 'icon' };
+/**
+ * Schlichte Plattform-Symbole (Strichstil wie `ui/Icons`, keine Markenlogos); `colored` färbt sie im Download-Dialog in
+ * den Farben der Plattform ein (download.css, `.dl-ico-<plattform>`).
+ */
+function PlatformIcon({ platform, size = 18, colored = false }: { platform: Platform; size?: number; colored?: boolean }) {
+  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true, focusable: false, className: colored ? `icon dl-ico dl-ico-${platform}` : 'icon' };
   switch (platform) {
     case 'windows':
       return (
@@ -92,9 +97,27 @@ function QrPlaceholder({ label }: { label: string }) {
   );
 }
 
+/** Stand der Abfrage: `undefined` = läuft, `null` = gescheitert. */
+type ReleaseState = LatestRelease | null | undefined;
+
 function DownloadsDialog({ onClose }: { onClose: () => void }) {
   const { t, bridge, toast } = useApp();
   const open = (url: string) => void bridge.openUrl(url).catch(() => toast(t.t('ng-ui-open-failed'), 'error'));
+  const [release, setRelease] = useState<ReleaseState>(undefined);
+  useEffect(() => {
+    const abort = new AbortController();
+    let alive = true;
+    const timer = setTimeout(() => abort.abort(), 8000);
+    void fetchLatestRelease(abort.signal).then((r) => {
+      if (alive) setRelease(r);
+    });
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, []);
+  const page = release?.page ?? RELEASES_URL;
   return (
     <ModalShell onClose={onClose} size="md" className="dl-modal">
       <DialogHeader title={t.t('ng-ui-shell-dl-title')} subtitle={t.t('ng-ui-shell-dl-subtitle')} onClose={onClose} />
@@ -103,20 +126,48 @@ function DownloadsDialog({ onClose }: { onClose: () => void }) {
           <h3 className="dl-section" id="dl-desktop">
             {t.t('ng-ui-shell-dl-desktop')}
           </h3>
+          <p className="dl-release" role="status">
+            {release === undefined
+              ? t.t('ng-ui-shell-dl-loading')
+              : release
+                ? t.t(release.prerelease ? 'ng-ui-shell-dl-version-test' : 'ng-ui-shell-dl-version', { version: release.version })
+                : t.t('ng-ui-shell-dl-unavailable')}
+          </p>
           <ul className="dl-desktop">
-            {DESKTOP.map((p) => (
-              <li key={p}>
-                <AriaButton className="dl-platform" onPress={() => open(RELEASES_URL)}>
-                  <PlatformIcon platform={p} size={28} />
+            {DESKTOP.map((p) => {
+              const [main, ...more] = release?.installers[p] ?? [];
+              const label = (format: string) => `${NAME[p]}: ${t.t('ng-ui-shell-dl-download')} (${format})`;
+              return (
+                <li key={p} className="dl-platform">
+                  <PlatformIcon platform={p} size={32} colored />
                   <span className="dl-platform-name">{NAME[p]}</span>
-                  <span className="dl-platform-hint">
-                    {t.t('ng-ui-shell-dl-github')}
-                    <IconExternal size={13} />
-                  </span>
-                </AriaButton>
-              </li>
-            ))}
+                  {main ? (
+                    <>
+                      <AriaButton className="btn btn-primary btn-sm dl-get" onPress={() => open(main.url)} aria-label={label(main.format)}>
+                        <IconDownload size={15} />
+                        {main.format}
+                      </AriaButton>
+                      {more.length > 0 ? (
+                        <span className="dl-more">
+                          {more.map((i) => (
+                            <AriaButton key={i.format} className="link" onPress={() => open(i.url)} aria-label={label(i.format)}>
+                              {i.format}
+                            </AriaButton>
+                          ))}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <AriaButton className="link dl-platform-hint" onPress={() => open(page)} isDisabled={release === undefined}>
+                      {t.t('ng-ui-shell-dl-github')}
+                      <IconExternal size={13} />
+                    </AriaButton>
+                  )}
+                </li>
+              );
+            })}
           </ul>
+          <p className="dl-note">{t.t('ng-ui-shell-dl-from-github')}</p>
         </section>
         <section aria-labelledby="dl-mobile">
           <h3 className="dl-section" id="dl-mobile">
@@ -127,7 +178,7 @@ function DownloadsDialog({ onClose }: { onClose: () => void }) {
               <li key={p} className="dl-store">
                 <QrPlaceholder label={t.t('ng-ui-shell-dl-qr', { platform: NAME[p] })} />
                 <p className="dl-platform-name">
-                  <PlatformIcon platform={p} />
+                  <PlatformIcon platform={p} size={20} colored />
                   {NAME[p]}
                 </p>
                 <p className="dl-platform-hint">{t.t(p === 'ios' ? 'ng-ui-shell-dl-appstore' : 'ng-ui-shell-dl-play')}</p>
