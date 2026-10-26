@@ -51,6 +51,35 @@ unsafe extern "C" fn never_pause(_this: *mut IFSDK_PAUSE) -> FPDF_BOOL {
     0
 }
 
+/// Rückruf für das Pause-Objekt. Nativ [`never_pause`]. Im Browser ruft PDFium (ein eigenes WebAssembly-Modul) den
+/// Zeiger über *seine* Funktionstabelle auf – ein Zeiger aus diesem Modul träfe dort eine fremde Funktion („function
+/// signature mismatch“). Die Seite legt deshalb mit `Module.addFunction(() => 0, 'ii')` eine Funktion in PDFiums
+/// Tabelle an und meldet ihren Index über [`set_wasm_never_pause`].
+#[cfg(not(target_arch = "wasm32"))]
+fn never_pause_fn() -> Result<unsafe extern "C" fn(*mut IFSDK_PAUSE) -> FPDF_BOOL> {
+    Ok(never_pause)
+}
+
+#[cfg(target_arch = "wasm32")]
+static WASM_NEVER_PAUSE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Browser: Index der „nie pausieren“-Funktion in der Funktionstabelle von PDFium (`Module.addFunction`).
+#[cfg(target_arch = "wasm32")]
+pub fn set_wasm_never_pause(table_index: usize) {
+    WASM_NEVER_PAUSE.store(table_index, std::sync::atomic::Ordering::Relaxed);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn never_pause_fn() -> Result<unsafe extern "C" fn(*mut IFSDK_PAUSE) -> FPDF_BOOL> {
+    let index = WASM_NEVER_PAUSE.load(std::sync::atomic::Ordering::Relaxed);
+    if index == 0 {
+        return Err(RenderError::Render("PDFium (WebAssembly): Pause-Rückruf nicht gesetzt".into()));
+    }
+    // SAFETY: Unter WebAssembly ist ein Funktionszeiger ein Index in eine Funktionstabelle; aufgerufen wird er nur von
+    // PDFium (über dessen Tabelle, in der die Seite die Funktion `(i32) -> i32` angelegt hat), nie aus diesem Modul.
+    Ok(unsafe { std::mem::transmute::<usize, unsafe extern "C" fn(*mut IFSDK_PAUSE) -> FPDF_BOOL>(index) })
+}
+
 fn argb(rgba: [u8; 4]) -> FPDF_DWORD {
     let v = (u32::from(rgba[3]) << 24) | (u32::from(rgba[0]) << 16) | (u32::from(rgba[1]) << 8) | u32::from(rgba[2]);
     FPDF_DWORD::from(v)
@@ -239,7 +268,7 @@ impl RawDocument {
         let fg = argb(opts.foreground);
         let scheme =
             FPDF_COLORSCHEME { path_fill_color: fg, path_stroke_color: fg, text_fill_color: fg, text_stroke_color: fg };
-        let mut pause = IFSDK_PAUSE { version: 1, NeedToPauseNow: Some(never_pause), user: std::ptr::null_mut() };
+        let mut pause = IFSDK_PAUSE { version: 1, NeedToPauseNow: Some(never_pause_fn()?), user: std::ptr::null_mut() };
         // SAFETY: gültige Handles; `scheme` und `pause` leben bis nach dem letzten Aufruf;
         // `never_pause` pausiert nie, PDFium rendert daher in einem Durchgang.
         let mut status = unsafe {
@@ -268,7 +297,13 @@ impl RawDocument {
         // SAFETY: gültiges Bitmap; Puffer wird vor der Freigabe kopiert.
         let stride = unsafe { b.FPDFBitmap_GetStride(bitmap) };
         let stride = usize::try_from(stride).map_err(|_| RenderError::Render("Bitmap-Stride ungültig".into()))?;
+        #[cfg(not(target_arch = "wasm32"))]
         let buffer = unsafe { b.FPDFBitmap_GetBuffer_as_slice(bitmap) };
+        // Browser: PDFium liegt in einem eigenen WebAssembly-Speicher – der Puffer kommt als Kopie
+        #[cfg(target_arch = "wasm32")]
+        let buffer_copy = unsafe { b.FPDFBitmap_GetBuffer_as_vec(bitmap) };
+        #[cfg(target_arch = "wasm32")]
+        let buffer = buffer_copy.as_slice();
         let (w, h) = (bw as usize, bh as usize);
         if stride < w * 4 || buffer.len() < stride * h {
             return Err(RenderError::Render("Bitmap-Puffer zu klein".into()));
@@ -406,7 +441,13 @@ impl RawDocument {
         }
         let stride = usize::try_from(stride).ok()?;
         // SAFETY: gültiges Bitmap; der Puffer wird vor der Freigabe kopiert.
+        #[cfg(not(target_arch = "wasm32"))]
         let buffer = unsafe { b.FPDFBitmap_GetBuffer_as_slice(bitmap) };
+        // Browser: PDFium liegt in einem eigenen WebAssembly-Speicher – der Puffer kommt als Kopie
+        #[cfg(target_arch = "wasm32")]
+        let buffer_copy = unsafe { b.FPDFBitmap_GetBuffer_as_vec(bitmap) };
+        #[cfg(target_arch = "wasm32")]
+        let buffer = buffer_copy.as_slice();
         let (wu, hu) = (w as usize, h as usize);
         if stride < wu * 4 || buffer.len() < stride * hu {
             return None;

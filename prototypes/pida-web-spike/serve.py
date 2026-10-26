@@ -14,7 +14,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         name = os.path.basename(self.path)
-        if not self.path.startswith("/pruefung/") or not name.endswith(".pdf"):
+        if not self.path.startswith("/pruefung/") or not name.endswith((".pdf", ".json")):
             self.send_error(404)
             return
         n = int(self.headers.get("Content-Length", "0"))

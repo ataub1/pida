@@ -1,10 +1,10 @@
+#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 //! PDFium-Implementierung über `pdfium-render` (Feature `pdfium`).
 //!
 //! Sicherer Teil: Bindung, Dokumente, Seitengrößen, normales Rendern und Bildobjekte laufen
 //! über die High-Level-API von `pdfium-render`. Nur das Forced-Color-Rendering braucht eine
 //! PDFium-Funktion, die `pdfium-render` nicht sicher anbietet; sie liegt in [`crate::ffi`].
 
-use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
@@ -87,8 +87,14 @@ impl PdfiumBackend {
     pub fn open_document(&self, data: Arc<[u8]>, password: Option<&str>) -> Result<PdfiumRenderer> {
         check_password(password)?;
         let _guard = op_lock();
-        let reader = Cursor::new(Arc::clone(&data));
-        let doc = self.lib.pdfium.load_pdf_from_reader(reader, password).map_err(map_load_error)?;
+        #[cfg(not(target_arch = "wasm32"))]
+        let doc = {
+            let reader = std::io::Cursor::new(Arc::clone(&data));
+            self.lib.pdfium.load_pdf_from_reader(reader, password).map_err(map_load_error)?
+        };
+        // Browser: PDFium übernimmt eine Kopie in seinen eigenen WebAssembly-Speicher
+        #[cfg(target_arch = "wasm32")]
+        let doc = self.lib.pdfium.load_pdf_from_byte_vec(data.to_vec(), password).map_err(map_load_error)?;
         let page_count = usize::try_from(doc.pages().len()).unwrap_or(0);
         Ok(PdfiumRenderer {
             lib: self.lib,
@@ -188,6 +194,19 @@ const LEAF_NAME_SEARCH: bool = !cfg!(any(target_os = "macos", target_os = "ios",
 #[cfg(any(target_os = "macos", target_os = "ios", windows))]
 const _: () = assert!(!LEAF_NAME_SEARCH);
 
+/// Browser (WebAssembly): PDFium ist ein eigenes WebAssembly-Modul, das die Seite vorher lädt und mit
+/// `initialize_pdfium_render` (pdfium-render) an diesen Kern bindet – es gibt keine Datei zu suchen.
+#[cfg(target_arch = "wasm32")]
+fn bind_library(_library_dir: Option<&Path>) -> Result<Library> {
+    match bind_pair(Pdfium::bind_to_system_library) {
+        Ok((main, raw)) => Ok(Library { pdfium: Pdfium::new(main), raw, path: None, build: None }),
+        Err(e) => Err(RenderError::LibraryNotFound(format!(
+            "PDFium (WebAssembly) nicht gebunden – initialize_pdfium_render vor dem Kern aufrufen ({e})"
+        ))),
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn bind_library(library_dir: Option<&Path>) -> Result<Library> {
     let file_name = Pdfium::pdfium_platform_library_name();
     let candidates: Vec<(String, PathBuf)> = match library_dir {
@@ -248,6 +267,7 @@ fn read_build(lib_dir: &Path) -> Option<String> {
 
 fn describe_pdfium_error(e: &PdfiumError) -> String {
     match e {
+        #[cfg(not(target_arch = "wasm32"))]
         PdfiumError::LoadLibraryError(err) => format!("Bibliothek nicht ladbar: {err}"),
         other => format!("{other:?}"),
     }
