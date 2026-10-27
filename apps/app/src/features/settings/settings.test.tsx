@@ -613,7 +613,7 @@ describe('Erweitert und Über', () => {
     const { dialog, mock, user } = await open();
     await user.click(nav(dialog, 'Über PIDA'));
     expect(await within(dialog).findByText('Version 0.2.0 · 17.10.2026')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('link', { name: /software@egiz\.gv\.at/ }));
+    await user.click(within(dialog).getByRole('link', { name: /^Kontakt: software@egiz\.gv\.at/ }));
     expect(mock.openedUrls).toEqual(['mailto:software@egiz.gv.at']);
     await user.click(within(dialog).getByRole('link', { name: /Logs anzeigen/ }));
     await waitFor(() => expect(mock.nativeCalls).toContain('openLogDir'));

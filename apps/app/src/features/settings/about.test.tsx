@@ -64,11 +64,13 @@ describe('Über PIDA: Kopf, Links, Urheberrecht', () => {
       'Quellcode (öffnet im Browser)',
       'Lizenzen anzeigen',
       'Datenschutz',
+      'Kontakt: software@egiz.gv.at (öffnet das E-Mail-Programm)',
       'Logs anzeigen',
     ]);
     await user.click(within(about).getByRole('link', { name: /Versionshinweise/ }));
     await user.click(within(about).getByRole('link', { name: /Quellcode/ }));
-    expect(mock.openedUrls).toEqual(['https://github.com/ataub1/pida/releases/tag/v0.2.0', 'https://github.com/ataub1/pida']);
+    await user.click(within(about).getByRole('link', { name: /Kontakt/ }));
+    expect(mock.openedUrls).toEqual(['https://github.com/ataub1/pida/releases/tag/v0.2.0', 'https://github.com/ataub1/pida', 'mailto:software@egiz.gv.at']);
     await user.click(within(about).getByRole('link', { name: 'Logs anzeigen' }));
     await waitFor(() => expect(mock.nativeCalls).toContain('openLogDir'));
     expect(within(about).getByText('Basiert auf PDF-Over von A-SIT.')).toBeInTheDocument();
