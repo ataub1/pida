@@ -102,10 +102,12 @@ export function HelpPanel({ target, onClose }: { target: string | null; onClose:
         </SearchField>
       </div>
       <div className="help-body">
-        <p className="help-draft" role="note">
-          <IconInfo size={15} />
-          {t.t('ng-ui-shell-help-draft')}
-        </p>
+        {t.lang !== 'de' ? (
+          <p className="help-note" role="note">
+            <IconInfo size={15} />
+            {t.t('ng-ui-shell-help-lang')}
+          </p>
+        ) : null}
         {q ? (
           <section aria-label={t.t('ng-ui-shell-help-results')}>
             <p className="sr-only" role="status">
