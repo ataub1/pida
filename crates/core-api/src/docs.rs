@@ -63,6 +63,10 @@ impl DocData {
     }
 }
 
+/// Größte Datei, die PIDA zur Verarbeitung annimmt: Grenze der Dokumentensignatur (20 MB). Größere Dokumente
+/// werden schon beim Laden abgelehnt (`ng-document-too-large`), nicht erst beim Signiermittel.
+pub const MAX_DOCUMENT_BYTES: u64 = 20_000_000;
+
 /// Fehlercode für ein nicht ladbares Dokument (PDF-Over F-15: `error.MayNotBeAPDF`,
 /// `error.PDFPwdProtected`, `error.IOError`) mit Klasse (K5 = kein „Wiederholen“).
 pub(crate) fn load_error(e: &CosError) -> WorkflowError {
@@ -155,6 +159,12 @@ pub(crate) fn load(
     fields: bool,
     renderer: Option<&dyn RenderBackend>,
 ) -> Result<Loaded, WorkflowError> {
+    if pida_fs::metadata(path).is_ok_and(|m| m.len() > MAX_DOCUMENT_BYTES) {
+        return Err(WorkflowError::Rejected {
+            class: AcceptanceClass::K5Rejected,
+            code: "ng-document-too-large".into(),
+        });
+    }
     let src = SourcePdf::open_file(path, &Limits::default()).map_err(|e| load_error(&e))?;
     let report = engine.analyze(&src).map_err(|e| analysis_error(&e))?;
     if report.class == AcceptanceClass::K5Rejected || report.class == AcceptanceClass::K2Repairable {
@@ -340,5 +350,21 @@ mod tests {
         let err =
             load(DocId(1), &tmp.path().join("fehlt.pdf"), &crate::engine::RealPades, false, false, None).unwrap_err();
         assert_eq!(err.code(), "error-IOError");
+    }
+
+    #[test]
+    fn documents_over_20_mb_are_rejected_before_reading() {
+        let tmp = tempfile::tempdir().unwrap();
+        let big = tmp.path().join("gross.pdf");
+        // dünn besetzte Datei: nur die Größe zählt, gelesen wird sie nicht
+        pida_fs::File::create(&big).unwrap().set_len(MAX_DOCUMENT_BYTES + 1).unwrap();
+        let err = load(DocId(1), &big, &crate::engine::RealPades, false, false, None).unwrap_err();
+        assert_eq!(err.code(), "ng-document-too-large");
+        assert!(matches!(err, WorkflowError::Rejected { class: AcceptanceClass::K5Rejected, .. }));
+        // genau an der Grenze: angenommen (hier dann „kein PDF“)
+        let edge = tmp.path().join("grenze.pdf");
+        pida_fs::File::create(&edge).unwrap().set_len(MAX_DOCUMENT_BYTES).unwrap();
+        let err = load(DocId(1), &edge, &crate::engine::RealPades, false, false, None).unwrap_err();
+        assert_eq!(err.code(), "error-MayNotBeAPDF");
     }
 }
