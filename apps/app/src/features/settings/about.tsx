@@ -16,7 +16,7 @@ import { useApp } from '../../app/context';
 import { isMobile, type UpdateCheckView } from '../../core/types';
 import { webProfile } from '../../core/web-profile';
 import { Button, Spinner } from '../../ui/controls';
-import { IconAlert, IconCheck, IconExternal, IconMail, IconInfo, IconLock, IconRefresh } from '../../ui/Icons';
+import { IconAlert, IconCheck, IconExternal, IconInfo, IconLock, IconRefresh } from '../../ui/Icons';
 import { AsitLogo, LogoMark } from '../../ui/Logo';
 import { Markup } from '../../ui/Markup';
 import { LicensesDialog } from './licenses';
@@ -111,22 +111,18 @@ export function UpdateStatus({ update }: { update: UpdateCheckView }) {
   );
 }
 
-/**
- * Eintrag der Linkliste: extern (Systembrowser bzw. bei `mailto:` das E-Mail-Programm, jeweils mit Hinweis für
- * Screenreader) oder eine Aktion der App.
- */
+/** Eintrag der Linkliste: extern (Systembrowser, mit Hinweis für Screenreader) oder eine Aktion der App. */
 function AboutLink({ label, href, onPress }: { label: string; href?: string; onPress?: () => void }) {
   const { t, bridge, toast } = useApp();
   const press = href ? () => void bridge.openUrl(href).catch(() => toast(t.t('ng-ui-open-failed'), 'error')) : onPress;
-  const mail = href?.startsWith('mailto:') ?? false;
   return (
     <li>
       <Link className="link" onPress={press}>
         {label}
         {href ? (
           <>
-            {mail ? <IconMail size={13} /> : <IconExternal size={13} />}
-            <span className="visually-hidden"> {t.t(mail ? 'ng-ui-link-mail' : 'ng-ui-link-external')}</span>
+            <IconExternal size={13} />
+            <span className="visually-hidden"> {t.t('ng-ui-link-external')}</span>
           </>
         ) : null}
       </Link>
@@ -136,9 +132,6 @@ function AboutLink({ label, href, onPress }: { label: string; href?: string; onP
 
 /** Website des Herausgebers. */
 const ASIT_URL = 'https://www.a-sit.at';
-
-/** Kontakt für Fragen und Rückmeldungen zu PIDA. */
-export const CONTACT_EMAIL = 'software@egiz.gv.at';
 
 export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
   const { t, view, bridge, toast, dispatch } = useApp();
@@ -185,7 +178,6 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
         {about ? <AboutLink label={t.t('ng-ui-about-source')} href={about.source_url} /> : null}
         <AboutLink label={t.t('ng-ui-about-notices')} onPress={() => setLicenses(true)} />
         <AboutLink label={t.t('ng-ui-about-privacy')} onPress={onPrivacy} />
-        <AboutLink label={t.t('ng-ui-about-contact', { email: CONTACT_EMAIL })} href={`mailto:${CONTACT_EMAIL}`} />
         {mobile || webProfile() ? null : <AboutLink label={t.t('config-ShowLogDirectory')} onPress={() => void bridge.openLogDir().catch(() => toast(t.t('ng-ui-open-failed'), 'error'))} />}
       </ul>
       <p className="about-license pre-line">

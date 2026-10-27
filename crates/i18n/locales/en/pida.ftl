@@ -268,7 +268,6 @@ ng-ui-continue = Continue
     .accesskey = C
 ng-ui-skip-to-content = Skip to content
 ng-ui-link-external = (opens in browser)
-ng-ui-link-mail = (opens your e-mail app)
 ng-ui-page-n = Page { $page }
 ng-ui-page-previous = Previous page
 ng-ui-page-next = Next page
@@ -818,7 +817,6 @@ ng-ui-about-links = Links
 ng-ui-about-release-notes = Release notes
 ng-ui-about-source = Source code
 ng-ui-about-privacy = Privacy
-ng-ui-about-contact = Contact: { $email }
 ng-ui-about-license =
     This software is freely provided by A-SIT under the conditions of the EUPL-1.2; the license text is included with the program. Terms and details at <a>https://technology.a-sit.at/en/terms-of-a-license/</a>. For technical support, contact <a href="mailto:software@egiz.gv.at">software@egiz.gv.at</a>.
 
