@@ -1,0 +1,87 @@
+# PIDA – täglicher Security-Check (Backlog PIDA-37)
+#
+# Neue Sicherheitsmeldungen fielen bisher erst beim nächsten Push auf (CI-Job „deny“). Dieser Workflow prüft
+# täglich den Stand von main gegen die aktuellen Datenbanken und schlägt bei einem Fund fehl – GitHub schickt
+# dann eine E-Mail. Er ändert nichts selbst: Cargo- und npm-Abhängigkeiten werden weiterhin nicht automatisch
+# gehoben (.github/dependabot.yml, Plan §2.5).
+#
+# Jobs:
+#   cargo    cargo deny check advisories (RustSec; Ausnahmen in deny.toml)
+#   npm      npm audit der ausgelieferten Pakete von apps/app (ohne devDependencies)
+#   actions  alle Actions auf Commit-SHAs gepinnt (Regel aus ci.yml)
+
+name: Security
+
+on:
+  schedule:
+    - cron: "0 5 * * *" # täglich 05:00 UTC (06:00/07:00 in Wien)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUST_TOOLCHAIN: "1.99.0"
+  CARGO_DENY_VERSION: "0.20.2"
+  NODE_VERSION: "22"
+
+jobs:
+  cargo:
+    name: cargo deny (Advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust-Toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
+      - name: cargo deny check advisories
+        run: cargo deny --locked check advisories
+
+  npm:
+    name: npm audit (ausgelieferte Pakete)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      # Nur das Lockfile wird geprüft (kein npm ci). devDependencies (Vitest, jsdom …) laufen nur beim Bauen und
+      # Testen; ihre Meldungen stehen als Hinweis in der Zusammenfassung, ohne den Lauf scheitern zu lassen.
+      - name: npm audit --omit=dev
+        working-directory: apps/app
+        run: npm audit --omit=dev --audit-level=low
+      - name: npm audit (alle, nur Hinweis)
+        if: always()
+        working-directory: apps/app
+        run: |
+          {
+            echo "### npm audit inkl. devDependencies (nur Hinweis)"
+            echo '```'
+            npm audit 2>&1 | tail -n 40 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  actions:
+    name: Actions gepinnt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: uses nur mit Commit-SHA
+        run: |
+          bad=$(grep -nE '^\s*-?\s*uses:\s' .github/workflows/*.yml | grep -vE 'uses:\s+[^@[:space:]]+@[0-9a-f]{40}(\s|$)' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Actions ohne Commit-SHA:"
+            echo "$bad"
+            exit 1
+          fi

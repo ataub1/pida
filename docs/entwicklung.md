@@ -304,6 +304,11 @@ Caching: `Swatinem/rust-cache` (Speichern nur auf `main`), PDFium, pip, npm. Act
 Commit-SHAs gepinnt (Kommentar = Release-Tag); `actionlint` prüft die Datei lokal
 (`brew install actionlint shellcheck && actionlint`).
 
+**Täglicher Security-Check** (`.github/workflows/security.yml`, 05:00 UTC und manuell): `cargo deny --locked
+check advisories`, `npm audit --omit=dev` für `apps/app` (devDependencies nur als Hinweis in der
+Zusammenfassung) und die Prüfung, dass alle Actions auf Commit-SHAs gepinnt sind. Ein Fund lässt den Lauf
+scheitern (E-Mail von GitHub); der Workflow ändert nichts selbst.
+
 ## 9. Cross-Checks (lokal, 15.10.2026, macOS arm64, Rust 1.99.0)
 
 `cargo check --locked --target <ziel> -p <crate>` je Crate (Skript-Ergebnis):
