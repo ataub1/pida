@@ -7,7 +7,7 @@
 //!    und **hält die Anfrage von A-Trust offen**, bis die Seite antwortet.
 //! 3. Die Seite holt die Antwort ([`Relay::take_response`], Long-Poll) und schickt entweder den nächsten Befehl
 //!    ([`Relay::command`] → Antwort an A-Trust `text/xml`, A-Trust führt ihn in derselben Sitzung aus) oder beendet
-//!    die Kette ([`Relay::finish`] bzw. [`Relay::abort`] → Abschlussseite an A-Trust, Sitzung gelöscht).
+//!    die Kette ([`Relay::finish`], erfolgreich oder abgebrochen → Abschlussseite an A-Trust, Sitzung gelöscht).
 //!
 //! **Datenschutz:** SL-Antworten (Zertifikat, Signatur) und Befehle (mit dem Dokument) liegen nur im Speicher, jeweils
 //! bis zur Weitergabe; protokolliert werden Ereignisse ohne Inhalt und ohne Kennung. Sitzungen verfallen nach

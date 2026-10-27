@@ -3,7 +3,8 @@
 //! **Nativ** ist dieses Crate nur ein Durchreichen von [`std::fs`] – Verhalten, Fehler und Typen bleiben exakt die
 //! der Standardbibliothek. **Im Browser** (`wasm32-unknown-unknown`) gibt es kein Dateisystem: Dort liegt hinter
 //! denselben Funktionen ein Dateisystem im Speicher. Die Web-Shell legt hochgeladene PDFs und Keystores hinein, holt
-//! signierte Dokumente heraus und sichert die Einstellungen (Ordner `config`) im Browser ([`snapshot`], [`restore`]).
+//! signierte Dokumente heraus und sichert die Einstellungen (Ordner `config`) im Browser (`snapshot`, `restore`;
+//! nur im Browser-Build).
 //!
 //! Prüfungen am Pfad (`Path::exists`, `is_file`, `is_dir`) fragen in der Standardbibliothek immer das echte
 //! Dateisystem; im Kern laufen sie deshalb über [`PathExt`] (`fs_exists`, `fs_is_file`, `fs_is_dir`).

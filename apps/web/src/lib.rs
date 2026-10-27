@@ -1,12 +1,12 @@
 //! Web-Shell: der PIDA-Kern als WebAssembly im Browser (Konzept Webdienst, Variante E, Etappe 1).
 //!
 //! Gegenstück zur Tauri-Shell (`apps/app/src-tauri`) für die Web-Brücke der Oberfläche (`apps/app/src/core/web.ts`):
-//! - **Kern:** [`WebCore`] startet `pida_core_api::Core` mit Ordnern im Dateisystem im Speicher ([`ROOT`], `pida-fs`),
-//!   ohne eigene Laufzeit (Aufgaben im Ereignis-Takt der Seite), mit PDFium als WebAssembly-Modul der Seite.
+//! - **Kern:** `WebCore` (nur im Browser-Build) startet `pida_core_api::Core` mit Ordnern im Dateisystem im
+//!   Speicher ([`ROOT`], `pida-fs`), ohne eigene Laufzeit (Aufgaben im Ereignis-Takt der Seite), mit PDFium als WebAssembly-Modul der Seite.
 //! - **Zustand:** `view()` und `dispatch()` als JSON (dieselbe serde-Form wie die Tauri-Commands `core_view` und
 //!   `core_dispatch`), Änderungen über den Rückruf aus dem Konstruktor.
 //! - **Bilder:** Kacheln, Blockvorschau und Miniaturen als PNG (wie das Protokoll `pida-render://`).
-//! - **Dateien:** [`put_file`] legt hochgeladene PDFs (und im Testbuild Keystores) ab, [`read_file`] holt das
+//! - **Dateien:** `put_file` legt hochgeladene PDFs (und im Testbuild Keystores) ab, `read_file` holt das
 //!   signierte Ergebnis.
 //! - **Shell-Dienste** (Ergebnis öffnen, im Ordner zeigen, Links): an einen JavaScript-Rückruf (Download, neuer Tab).
 //!
