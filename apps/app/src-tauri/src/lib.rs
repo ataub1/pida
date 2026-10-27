@@ -547,6 +547,18 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
+    // iOS/macOS: Beendet das System den Web-Prozess der WebView (iOS nach längerer Zeit im Hintergrund, um Speicher
+    // freizugeben), bleibt sonst das letzte Bild stehen – Scrollen geht noch (das übernimmt das System), Knöpfe nicht
+    // (kein JavaScript mehr). Dann die Oberfläche neu laden: Der Zustand liegt im Kern, die Oberfläche holt ihn beim
+    // Start mit `core_view` wieder ab. wry/Tauri laden von sich aus nicht neu.
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    let builder = builder.on_web_content_process_terminate(|webview| {
+        tracing::warn!("Web-Prozess beendet – Oberfläche wird neu geladen");
+        if let Err(e) = webview.reload() {
+            tracing::warn!(error = %e, "Oberfläche nicht neu geladen");
+        }
+    });
+
     let app = builder
         .plugin(tauri_plugin_opener::init())
         // Mobile: native Seite (Swift/Kotlin); Desktop: ohne Funktion. Keine Befehle für die WebView.
