@@ -133,6 +133,9 @@ function AboutLink({ label, href, onPress }: { label: string; href?: string; onP
 /** Website des Herausgebers. */
 const ASIT_URL = 'https://www.a-sit.at';
 
+/** Website von PIDA bzw. PDF-Over (Hauptseite für Nutzerinnen und Nutzer). */
+export const WEBSITE_URL = 'https://pdf.a-sit.at';
+
 export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
   const { t, view, bridge, toast, dispatch } = useApp();
   const about = view.about ?? null;
@@ -174,6 +177,7 @@ export function AboutRow({ onPrivacy }: { onPrivacy: () => void }) {
       </div>
       {update ? <UpdateStatus update={update} /> : null}
       <ul className="about-links" aria-label={t.t('ng-ui-about-links')}>
+        <AboutLink label={t.t('ng-ui-about-website')} href={WEBSITE_URL} />
         {about ? <AboutLink label={t.t('ng-ui-about-release-notes')} href={about.release_notes_url} /> : null}
         {about ? <AboutLink label={t.t('ng-ui-about-source')} href={about.source_url} /> : null}
         <AboutLink label={t.t('ng-ui-about-notices')} onPress={() => setLicenses(true)} />

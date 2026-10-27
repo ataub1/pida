@@ -814,6 +814,7 @@ ng-ui-about-update-retry = Erneut prüfen
 ng-ui-about-update-download = Herunterladen
 ng-ui-about-update-download-label = Version { $version } herunterladen (Release-Seite auf GitHub)
 ng-ui-about-links = Links
+ng-ui-about-website = Website (pdf.a-sit.at)
 ng-ui-about-release-notes = Versionshinweise
 ng-ui-about-source = Quellcode
 ng-ui-about-privacy = Datenschutz
