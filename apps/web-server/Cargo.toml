@@ -1,0 +1,34 @@
+[package]
+name = "pida-web-server"
+description = "Server der Web-Variante (Konzept Webdienst): statische Oberfläche, SL-Rückkanal (DataURL) für das A-Trust-Overlay, A-Trust-Testgegenstelle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "pida-web-server"
+path = "src/main.rs"
+
+[dependencies]
+pida-backend-keystore = { workspace = true }
+pida-cades = { workspace = true }
+hyper = { workspace = true, features = ["server", "client", "http1"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+http-body-util = { workspace = true }
+bytes = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "net", "macros", "time", "sync", "fs"] }
+rand_core = { workspace = true }
+base64 = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

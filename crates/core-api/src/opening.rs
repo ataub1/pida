@@ -18,8 +18,9 @@
 //! Dateien, die zwar vorhanden, aber kein lesbares PDF sind, übernimmt der Kern; die Analyse meldet sie wie bisher
 //! (Fehlerschritt bzw. Stapeleintrag „abgelehnt“).
 
+use pida_fs::File;
+use pida_fs::PathExt as _;
 use std::collections::{BTreeMap, HashSet};
-use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
@@ -68,7 +69,7 @@ impl CoreTask {
         let mut chosen: Vec<PathBuf> = Vec::with_capacity(paths.len());
         let mut missing = 0;
         for path in paths {
-            if !path.is_file() {
+            if !path.fs_is_file() {
                 missing += 1;
                 continue;
             }
@@ -113,7 +114,7 @@ fn same_copy(open: &Path, chosen: &Path) -> bool {
     if open == chosen || open.file_name() != chosen.file_name() {
         return false;
     }
-    match (std::fs::metadata(open), std::fs::metadata(chosen)) {
+    match (pida_fs::metadata(open), pida_fs::metadata(chosen)) {
         (Ok(a), Ok(b)) if a.is_file() && b.is_file() && a.len() == b.len() => same_bytes(open, chosen).unwrap_or(false),
         _ => false,
     }
@@ -157,8 +158,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = |sub: &str, name: &str, bytes: &[u8]| {
             let p = dir.path().join(sub).join(name);
-            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-            std::fs::write(&p, bytes).unwrap();
+            pida_fs::create_dir_all(p.parent().unwrap()).unwrap();
+            pida_fs::write(&p, bytes).unwrap();
             p
         };
         let big: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();

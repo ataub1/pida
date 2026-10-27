@@ -15,9 +15,10 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
+import { webProfile } from '../../core/web-profile';
 import { isMobile, type BackendId, type BatchFlowView, type BatchItemView, type BatchView as BatchViewData } from '../../core/types';
 import { AccessButton, Badge, Button, Details, IconButton, Progress, Spinner } from '../../ui/controls';
-import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconFolder, IconInfo, IconLayers, IconLock, IconPlus, IconSignature, IconTarget, IconTrash } from '../../ui/Icons';
+import { IconAlert, IconCheckCircle, IconChevronRight, IconClock, IconDownload, IconFolder, IconInfo, IconLayers, IconLock, IconPlus, IconSignature, IconTarget, IconTrash } from '../../ui/Icons';
 import { PrivacyNote } from '../settings';
 import { formatSize } from '../workspace/placement';
 import { SignerChip } from '../workspace/SignerChip';
@@ -80,7 +81,9 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
   const done = progress?.confirmations_done ?? 0;
   const total = progress?.total ?? 0;
   const current = progress?.doc ?? null;
-  const place = summary ? summaryPlace(t, summary, batch.output) : null;
+  // Web: kein Speicherort – die Ergebnisse kommen als ZIP (`revealOutput` der Web-Brücke)
+  const web = webProfile() !== null;
+  const place = summary && !web ? summaryPlace(t, summary, batch.output) : null;
   const aborted = !!summary && summary.aborted;
 
   return (
@@ -134,10 +137,12 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
               <span>{t.t('ng-ui-batch-estimate-none')}</span>
             </p>
           )}
-          <p className="batch-fact" data-testid="batch-output">
-            <IconFolder size={15} />
-            <span>{outputText(t, batch.output)}</span>
-          </p>
+          {web ? null : (
+            <p className="batch-fact" data-testid="batch-output">
+              <IconFolder size={15} />
+              <span>{outputText(t, batch.output)}</span>
+            </p>
+          )}
           {existing > 0 ? (
             <p className="batch-fact">
               <IconAlert size={15} />
@@ -177,8 +182,8 @@ export function BatchView({ batch }: { batch: BatchViewData }) {
             <div className="callout-actions">
               {!mobile && lastSigned ? (
                 <Button variant="secondary" size="sm" onPress={() => void reveal()}>
-                  <IconFolder size={15} />
-                  {t.t('ng-ui-batch-reveal')}
+                  {web ? <IconDownload size={15} /> : <IconFolder size={15} />}
+                  {t.t(web ? 'ng-ui-batch-download-zip' : 'ng-ui-batch-reveal')}
                 </Button>
               ) : null}
               <Button variant="ghost" size="sm" onPress={() => void dispatch({ type: 'navigate', step: 'Open' })} isDisabled={!view.actions.home}>

@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn verify_survives_hostile_byte_range() {
         let p = Path::new(TESTDATA).join("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf");
-        let mut bytes = std::fs::read(&p).unwrap();
+        let mut bytes = pida_fs::read(&p).unwrap();
         // PDF-AS füllt `/ByteRange [...]` mit Leerzeichen auf: gleiche Länge, xref-Offsets bleiben gültig
         let at = bytes.windows(10).position(|w| w == b"/ByteRange").unwrap();
         let open = at + bytes[at..].iter().position(|b| *b == b'[').unwrap();
@@ -211,7 +211,7 @@ mod tests {
         bytes[open..end].copy_from_slice(&replacement);
         let tmp = tempfile::tempdir().unwrap();
         let t = tmp.path().join("t.pdf");
-        std::fs::write(&t, &bytes).unwrap();
+        pida_fs::write(&t, &bytes).unwrap();
         let checks = verify_file(&t).expect("Struktur bleibt lesbar");
         assert!(checks.iter().any(|c| !c.intact && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
     }
@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn verify_rejects_bytes_hidden_in_the_gap() {
         let p = Path::new(TESTDATA).join("verify/pdfas-signed.pdf");
-        let mut bytes = std::fs::read(&p).unwrap();
+        let mut bytes = pida_fs::read(&p).unwrap();
         assert!(verify_file(&p).unwrap().iter().all(|c| c.intact));
         let at = bytes.windows(10).position(|w| w == b"/ByteRange").unwrap();
         let open = at + bytes[at..].iter().position(|b| *b == b'[').unwrap() + 1;
@@ -234,7 +234,7 @@ mod tests {
         bytes[gap_end - inject.len()..gap_end].copy_from_slice(inject);
         let tmp = tempfile::tempdir().unwrap();
         let t = tmp.path().join("t.pdf");
-        std::fs::write(&t, &bytes).unwrap();
+        pida_fs::write(&t, &bytes).unwrap();
         let checks = verify_file(&t).unwrap();
         assert!(checks.iter().all(|c| !c.intact && c.error.as_deref() == Some("ng-verify-byte-range")), "{checks:?}");
     }
@@ -269,13 +269,13 @@ mod tests {
     #[test]
     fn verify_detects_tampering() {
         let p = Path::new(TESTDATA).join("pdf/pdfas/pdf-as-pdfbox-2/new_qr_2_signed.pdf");
-        let mut bytes = std::fs::read(&p).unwrap();
+        let mut bytes = pida_fs::read(&p).unwrap();
         // ein Byte am Anfang (im signierten Bereich) ändern
         let pos = bytes.iter().position(|b| *b == b'\n').unwrap() + 1;
         bytes[pos] ^= 0x01;
         let tmp = tempfile::tempdir().unwrap();
         let t = tmp.path().join("t.pdf");
-        std::fs::write(&t, &bytes).unwrap();
+        pida_fs::write(&t, &bytes).unwrap();
         if let Ok(checks) = verify_file(&t) {
             assert!(checks.iter().any(|c| !c.intact), "{checks:?}");
         }

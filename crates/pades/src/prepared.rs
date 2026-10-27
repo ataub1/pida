@@ -371,8 +371,8 @@ impl Prepared {
     /// Original und die Offsets gegen die Bytes).
     pub fn restore(handle: &PreparedHandle, src: &SourcePdf) -> Result<Prepared, PadesError> {
         let invalid = |m: &str| PadesError::InvalidState(m.to_string());
-        let pdf = std::fs::read(&handle.path)?;
-        let json = std::fs::read(handle.path.with_extension("json"))?;
+        let pdf = pida_fs::read(&handle.path)?;
+        let json = pida_fs::read(handle.path.with_extension("json"))?;
         if state_digest(&pdf, &json) != handle.sha256 {
             return Err(invalid("Prüfsumme stimmt nicht"));
         }
@@ -439,7 +439,7 @@ impl Prepared {
     /// Löscht einen persistierten Zustand (nach Erfolg oder Abbruch, Plan §3.5).
     pub fn discard_persisted(handle: &PreparedHandle) -> std::io::Result<()> {
         for p in [handle.path.clone(), handle.path.with_extension("json")] {
-            match std::fs::remove_file(&p) {
+            match pida_fs::remove_file(&p) {
                 Ok(()) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => return Err(e),
@@ -508,7 +508,7 @@ impl Prepared {
 /// Schreibt eine Datei nur für den Eigentümer lesbar (Unix `0600`), atomar über eine Temp-Datei.
 fn write_private(path: &Path, data: &[u8]) -> std::io::Result<()> {
     let tmp = crate::signed::temp_path(path);
-    let mut opts = std::fs::OpenOptions::new();
+    let mut opts = pida_fs::OpenOptions::new();
     opts.write(true).create_new(true);
     #[cfg(unix)]
     {
@@ -520,10 +520,10 @@ fn write_private(path: &Path, data: &[u8]) -> std::io::Result<()> {
         f.write_all(data)?;
         f.sync_all()?;
         drop(f);
-        std::fs::rename(&tmp, path)
+        pida_fs::rename(&tmp, path)
     })();
     if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
+        let _ = pida_fs::remove_file(&tmp);
     }
     result
 }
@@ -572,7 +572,7 @@ mod tests {
     fn model_b_reserve_grows_with_large_estimates() {
         // Kette mit RSA-3072-Signer und Zwischenzertifikaten: Schätzung × 2 > 16 KiB?
         let leaf = Certificate::from_der(
-            &std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/cades/leaf-rsa3072.crt.der")).unwrap(),
+            &pida_fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/cades/leaf-rsa3072.crt.der")).unwrap(),
         )
         .unwrap();
         let mut chain = CertChain::new(leaf.clone());

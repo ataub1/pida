@@ -1,5 +1,6 @@
 //! Signiertes PDF, Selbstprüfung I1–I6 und atomares Schreiben (Plan §3.6, §6.2 „Ausgabe“).
 
+use pida_fs::PathExt as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -393,30 +394,30 @@ impl SignedPdf {
             return Err(PadesError::NotSelfChecked);
         }
         let path = &target.path;
-        if !target.overwrite && path.exists() {
+        if !target.overwrite && path.fs_exists() {
             return Err(PadesError::Io(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Zieldatei existiert")));
         }
         let tmp = temp_path(path);
         let result = (|| -> std::io::Result<()> {
-            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+            let mut f = pida_fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
             self.write_unchecked(&mut f)?;
             f.flush()?;
             f.sync_all()?;
             drop(f);
             if target.overwrite {
-                std::fs::rename(&tmp, path)?;
+                pida_fs::rename(&tmp, path)?;
             } else {
-                match std::fs::hard_link(&tmp, path) {
+                match pida_fs::hard_link(&tmp, path) {
                     Ok(()) => {
-                        let _ = std::fs::remove_file(&tmp);
+                        let _ = pida_fs::remove_file(&tmp);
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Err(e),
                     // Dateisysteme ohne Hardlinks (FAT, Netzlaufwerke): Umbenennen nach Prüfung
                     Err(_) => {
-                        if path.exists() {
+                        if path.fs_exists() {
                             return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "Zieldatei existiert"));
                         }
-                        std::fs::rename(&tmp, path)?;
+                        pida_fs::rename(&tmp, path)?;
                     }
                 }
             }
@@ -424,7 +425,7 @@ impl SignedPdf {
             Ok(())
         })();
         if let Err(e) = result {
-            let _ = std::fs::remove_file(&tmp);
+            let _ = pida_fs::remove_file(&tmp);
             return Err(PadesError::Io(e));
         }
         let mut h = DigestAlg::Sha256.hasher();
@@ -439,9 +440,9 @@ pub(crate) fn temp_path(path: &Path) -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let nanos = pida_fs::system_now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "ausgabe".into());
-    path.with_file_name(format!(".{name}.{}-{nanos}-{n}.pida-tmp", std::process::id()))
+    path.with_file_name(format!(".{name}.{}-{nanos}-{n}.pida-tmp", pida_fs::process_id()))
 }
 
 /// `fsync` des Verzeichnisses nach dem Umbenennen (Unix; sonst ohne Wirkung).
@@ -449,7 +450,7 @@ fn sync_dir(path: &Path) {
     #[cfg(unix)]
     if let Some(dir) = path.parent() {
         let dir = if dir.as_os_str().is_empty() { Path::new(".") } else { dir };
-        if let Ok(d) = std::fs::File::open(dir) {
+        if let Ok(d) = pida_fs::File::open(dir) {
             let _ = d.sync_all();
         }
     }

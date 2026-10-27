@@ -13,6 +13,8 @@ publish.workspace = true
 ts = ["dep:ts-rs"]
 
 [dependencies]
+# Dateizugriff: nativ std::fs, im Browser im Speicher (Konzept Webdienst)
+pida-fs = { workspace = true }
 pida-backend-api = { workspace = true }
 pida-placement = { workspace = true }
 pida-pades = { workspace = true }

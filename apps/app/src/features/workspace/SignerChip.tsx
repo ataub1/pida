@@ -15,7 +15,7 @@ import { Button, Header, Menu, MenuItem, MenuSection, MenuTrigger, Popover, Sepa
 import { useApp } from '../../app/context';
 import { isMobile, type BackendId } from '../../core/types';
 import { IconCheck, IconChevronDown, IconSettings, IconStar } from '../../ui/Icons';
-import { chipLabel, SHOWN_BACKENDS, SignerIcon, signerClass, signerDescription } from './signers';
+import { chipLabel, isShownBackend, SignerIcon, signerClass, signerDescription } from './signers';
 
 export function SignerChip({
   compact = false,
@@ -34,7 +34,7 @@ export function SignerChip({
 }) {
   const { t, view, dispatch, openSettings } = useApp();
   const mobile = isMobile(view);
-  const options = view.signers.options.filter((o) => SHOWN_BACKENDS.includes(o.backend));
+  const options = view.signers.options.filter((o) => isShownBackend(o.backend));
   const selected = view.signers.selected;
   const current = options.find((o) => o.backend === selected);
   const label = current ? chipLabel(t, current) : t.t('ng-ui-insp-signer-none');

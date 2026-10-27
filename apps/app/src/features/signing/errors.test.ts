@@ -8,7 +8,7 @@
 import { FluentResource } from '@fluent/bundle';
 import { describe, expect, it } from 'vitest';
 import { SOURCES, translator } from '../../i18n/catalog';
-import { everydayText, friendlyError, problemText } from './texts';
+import { everydayText, friendlyError, noticeTexts, problemText } from './texts';
 
 /** Familien der Fehlercodes und Fehlercodes des Ablaufs (wie im Katalogtest des Kerns). */
 const ERROR_FAMILIES = ['backend-', 'atrust-', 'fido2-', 'keystore-', 'cms-', 'sigblock-', 'render-', 'placement-', 'pdf-'];
@@ -104,5 +104,37 @@ describe('Alltagstexte der Fehlercodes (Nachtrag 19)', () => {
       'Die Sitzung bei A-Trust ist abgelaufen oder wurde beendet. Bitte erneut versuchen – dabei beginnt eine neue Sitzung.',
     );
     expect(friendlyError(translator('en'), 'backend-session-closed').action).toBe('Try again');
+  });
+});
+
+describe('Verständliche Meldungen statt technischer Texte', () => {
+  const t = translator('de');
+
+  it('t.code zeigt den Alltagstext, nie rohen Text', () => {
+    // Code mit Alltagstext: ohne technische Ursache
+    expect(t.code('pdf-docmdp-p1')).not.toMatch(/DocMDP|P=1/);
+    expect(t.code('ng-config-error-parse', { detail: 'TOML parse error at line 3' })).not.toContain('TOML');
+    // kein Code, sondern eine rohe Fehlermeldung: allgemeiner Text ohne den Rohtext
+    expect(t.code('Rückkanal: HTTP 502')).toBe(t.t('ng-ui-error-unexpected'));
+    expect(t.code('TypeError: Failed to fetch')).not.toContain('TypeError');
+    // unbekannter, aber gültiger Code: mit Code (für den Support)
+    expect(t.code('irgendwas-neues')).toContain('irgendwas-neues');
+  });
+
+  it('Meldungen beim Signieren ohne HTTP-Zeile und rohe Verbindungsfehler', () => {
+    const http = noticeTexts(t, { kind: 'Error', code: { Http: { status: 503 } }, text: 'Service Unavailable', buttons: 'Ok' } as never);
+    expect(http.text).toContain('503');
+    expect(http.text).not.toMatch(/HTTP|Service Unavailable/);
+    const conn = noticeTexts(t, { kind: 'Error', code: 'ConnectionFailed', text: 'error sending request: dns error', buttons: 'Ok' } as never);
+    expect(conn.text).not.toMatch(/dns|error sending/);
+    const proxy = noticeTexts(t, { kind: 'Error', code: 'ProxyAuthRequired', text: null, buttons: 'Ok' } as never);
+    expect(proxy.text).not.toMatch(/407|HTTP/);
+    // Texte von A-Trust selbst bleiben wörtlich
+    expect(noticeTexts(t, { kind: 'Error', code: 'AtrustError', text: 'Bitte später erneut versuchen.', buttons: 'Ok' } as never).text).toContain('Bitte später erneut versuchen.');
+  });
+
+  it('Eingabeprobleme in Alltagssprache', () => {
+    expect(problemText(t, 'NoTan')).toBe('Bitte geben Sie die TAN aus der SMS ein.');
+    expect(problemText(t, 'QrImageFailed')).not.toMatch(/QR code nicht laden/);
   });
 });

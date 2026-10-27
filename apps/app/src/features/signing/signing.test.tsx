@@ -281,7 +281,7 @@ describe('Signierkarte: Fehler, Rückfall, Fertigstellen', () => {
     const { user } = renderApp({ view: cardErrorView('backend-unknown-page', { detail, diagnostic: detail }, false) });
     const dialog = await card();
     const alert = within(dialog).getByRole('alert');
-    expect(alert).toHaveTextContent('Unbekannte Seite des Signaturdienstes – der Vorgang wurde abgebrochen.');
+    expect(alert).toHaveTextContent('A-Trust hat eine Seite angezeigt, die PIDA nicht kennt; der Vorgang wurde abgebrochen.');
     expect(alert.textContent).not.toMatch(/\{ ?\$|Neu\.aspx/);
     await user.click(within(dialog).getByRole('button', { name: 'Technische Details' }));
     expect(dialog).toHaveTextContent(detail);

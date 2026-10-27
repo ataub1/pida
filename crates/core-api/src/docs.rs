@@ -334,7 +334,7 @@ mod tests {
     fn not_a_pdf_fails_before_engine() {
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("x.pdf");
-        std::fs::write(&p, b"kein pdf").unwrap();
+        pida_fs::write(&p, b"kein pdf").unwrap();
         let err = load(DocId(1), &p, &crate::engine::RealPades, false, false, None).unwrap_err();
         assert_eq!(err.code(), "error-MayNotBeAPDF");
         let err =

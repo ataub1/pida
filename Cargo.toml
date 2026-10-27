@@ -13,6 +13,7 @@ resolver = "3"
 members = [
     # Basis
     "crates/java-properties",
+    "crates/fs",
     "crates/i18n",
     "crates/pdf-cos",
     "crates/cades",
@@ -29,12 +30,15 @@ members = [
     "crates/backend-keystore",
     "crates/backend-localbku",
     "crates/backend-atrust",
+    "crates/backend-atrust-web",
     "crates/pades",
     # Ebene 3–4 (Integration)
     "crates/workflow",
     "crates/core-api",
     # Anwendungen
     "apps/cli",
+    "apps/web",             # Web-Shell (WebAssembly), Konzept Webdienst
+    "apps/web-server",      # Server der Web-Variante: Auslieferung, SL-Rückkanal, A-Trust-Testgegenstelle
     "apps/app/src-tauri",   # Tauri-2-Shell (Desktop und Mobile), ADR 0001 §3
     "apps/app/plugins/pida-mobile",   # Mobile-Plugin der Shell (Swift/Kotlin: M-iOS/M-Android)
 ]
@@ -56,6 +60,7 @@ publish = false
 [workspace.dependencies]
 # --- interne Crates -------------------------------------------------------------------------------
 pida-java-properties = { path = "crates/java-properties" }
+pida-fs = { path = "crates/fs" }
 pida-i18n = { path = "crates/i18n" }
 pida-pdf-cos = { path = "crates/pdf-cos" }
 pida-pdf-incremental = { path = "crates/pdf-incremental" }
@@ -70,6 +75,7 @@ pida-backend-api = { path = "crates/backend-api" }
 pida-sl12 = { path = "crates/sl12" }
 pida-backend-atrust = { path = "crates/backend-atrust" }
 pida-backend-localbku = { path = "crates/backend-localbku" }
+pida-backend-atrust-web = { path = "crates/backend-atrust-web" }
 pida-backend-keystore = { path = "crates/backend-keystore" }
 pida-net = { path = "crates/net" }
 pida-workflow = { path = "crates/workflow" }
@@ -138,6 +144,9 @@ quick-xml = "0.42.0"
 encoding_rs = "=0.8.42"
 # Nur `hyper::ext::ReasonPhrase` (net); dieselben Features wie über reqwest im Graph.
 hyper = { version = "=1.12.0", default-features = false, features = ["http1", "client"] }
+hyper-util = { version = "0.1.21", default-features = false }
+http-body-util = "0.1.5"
+bytes = "1.12.1"
 
 # --- Allgemein ------------------------------------------------------------------------------------
 thiserror = "2.0.21"
@@ -157,6 +166,16 @@ time = { version = "0.3.55", features = ["formatting", "parsing", "macros", "ser
 # den lokalen Offset unter Unix in Mehrthread-Prozessen aber nicht und kennt keine IANA-Namen.
 # `jiff` liefert lokale Zeitzone (inkl. Sommerzeit) und `timezone`-Profilwerte (`Europe/Vienna`).
 jiff = "0.2.38"
+# Browser (wasm32-unknown-unknown): Uhrzeit aus JavaScript (`Date.now()`), Konzept Webdienst Etappe 1 (MIT/Apache-2.0)
+js-sys = "0.3.106"
+# Browser: Instant/SystemTime aus JavaScript (wie std, MIT/Apache-2.0)
+web-time = "1"
+# Browser: Aufgaben auf dem Ereignis-Takt der Seite (spawn_local) und Zeitgeber (MIT/Apache-2.0)
+wasm-bindgen-futures = "0.4"
+gloo-timers = { version = "0.3", features = ["futures"] }
+# Web-Shell: JavaScript-Anbindung (MIT/Apache-2.0)
+wasm-bindgen = "=0.2.129"
+console_error_panic_hook = "0.1.7"
 base64 = "0.23.1"
 hex = "0.4.3"
 toml = "1.1.8"

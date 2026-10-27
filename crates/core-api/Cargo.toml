@@ -15,6 +15,10 @@ testing = []
 ts = ["dep:ts-rs", "pida-workflow/ts", "pida-backend-api/ts", "pida-i18n/ts"]
 
 [dependencies]
+# Dateizugriff: nativ std::fs, im Browser im Speicher (Konzept Webdienst)
+pida-fs = { workspace = true }
+# Uhr (Instant) auch im Browser
+web-time = { workspace = true }
 pida-workflow = { workspace = true }
 pida-config = { workspace = true }
 pida-i18n = { workspace = true }
@@ -30,7 +34,7 @@ pida-backend-localbku = { workspace = true }
 pida-backend-keystore = { workspace = true }
 pida-net = { workspace = true }
 async-trait = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 zeroize = { workspace = true }
@@ -41,9 +45,20 @@ time = { workspace = true }
 jiff = { workspace = true }
 # Prüfsummen des persistierten Signierzustands („Signatur fortsetzen“, src/resume.rs). MIT OR Apache-2.0.
 hex = { workspace = true }
+ts-rs = { workspace = true, optional = true }
+
+# nativ: eigene Mehrthread-Laufzeit (Core::new ohne laufende Laufzeit)
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 # Logdatei (nicht blockierend) mit Rotation beim Start (Plan §7.1). MIT.
 tracing-appender = { workspace = true }
-ts-rs = { workspace = true, optional = true }
+
+# Browser (Konzept Webdienst): Aufgaben im Ereignis-Takt der Seite, Uhr und Zeitzone aus JavaScript
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+wasm-bindgen-futures = { workspace = true }
+gloo-timers = { workspace = true }
+time = { workspace = true, features = ["wasm-bindgen"] }
+jiff = { workspace = true, features = ["js"] }
 
 [dev-dependencies]
 # eigene Test-Hilfen auch für die Integrationstests unter tests/

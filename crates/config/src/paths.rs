@@ -12,6 +12,7 @@
 //! Mobile (iOS/Android) und portable Installationen übergeben ihre Sandbox-Ordner
 //! ([`Paths::sandbox`], [`Paths::under`]).
 
+use pida_fs::PathExt as _;
 use std::path::{Path, PathBuf};
 
 use directories::{BaseDirs, ProjectDirs};
@@ -60,7 +61,7 @@ pub fn portable_root() -> Option<PathBuf> {
 /// [`PORTABLE_DIR`] im Ordner `dir`, falls vorhanden (ein Ordner, keine Datei).
 pub fn portable_root_in(dir: &Path) -> Option<PathBuf> {
     let root = dir.join(PORTABLE_DIR);
-    root.is_dir().then_some(root)
+    root.fs_is_dir().then_some(root)
 }
 
 fn home_override() -> Option<PathBuf> {
@@ -181,7 +182,7 @@ impl Paths {
     /// Altordner unter einem bestimmten Home-Verzeichnis, falls vorhanden.
     pub fn legacy_dir_in(home: &Path) -> Option<PathBuf> {
         let dir = home.join(LEGACY_DIR);
-        dir.is_dir().then_some(dir)
+        dir.fs_is_dir().then_some(dir)
     }
 
     /// „Einstellungen zurücksetzen“: verschiebt den Konfigurationsordner nach `<ordner>.old`
@@ -192,17 +193,17 @@ impl Paths {
     /// Unter macOS ist der Konfigurationsordner zugleich der Datenordner.
     pub fn reset(&self) -> Result<PathBuf> {
         let backup = backup_path(&self.config_dir);
-        if !self.config_dir.exists() {
+        if !self.config_dir.fs_exists() {
             return Ok(backup);
         }
-        if backup.is_dir() {
-            std::fs::remove_dir_all(&backup)?;
-        } else if backup.exists() {
-            std::fs::remove_file(&backup)?;
+        if backup.fs_is_dir() {
+            pida_fs::remove_dir_all(&backup)?;
+        } else if backup.fs_exists() {
+            pida_fs::remove_file(&backup)?;
         }
-        if std::fs::rename(&self.config_dir, &backup).is_err() {
+        if pida_fs::rename(&self.config_dir, &backup).is_err() {
             copy_dir_all(&self.config_dir, &backup)?;
-            std::fs::remove_dir_all(&self.config_dir)?;
+            pida_fs::remove_dir_all(&self.config_dir)?;
         }
         tracing::info!("Einstellungen zurückgesetzt, Sicherung angelegt");
         Ok(backup)
@@ -211,7 +212,7 @@ impl Paths {
     /// Legt alle Ordner an; Temp-Ordner mit Rechten 0700 (Unix).
     pub fn ensure(&self) -> Result<()> {
         for d in [&self.config_dir, &self.data_dir, &self.cache_dir, &self.log_dir, &self.temp_dir] {
-            std::fs::create_dir_all(d)?;
+            pida_fs::create_dir_all(d)?;
         }
         restrict_dir(&self.temp_dir)?;
         Ok(())
@@ -220,25 +221,25 @@ impl Paths {
     /// Rotiert die Logdatei beim Start, wenn sie `max_bytes` erreicht hat (`.log` → `.log.1` …
     /// `.log.<keep>`, die älteste fällt weg); legt den Log-Ordner an und liefert die Logdatei.
     pub fn rotate_logs(&self, max_bytes: u64, keep: u32) -> Result<PathBuf> {
-        std::fs::create_dir_all(&self.log_dir)?;
+        pida_fs::create_dir_all(&self.log_dir)?;
         let log = self.log_file();
-        let size = std::fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
+        let size = pida_fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
         if size < max_bytes {
             return Ok(log);
         }
         let numbered = |i: u32| self.log_dir.join(format!("{LOG_FILE}.{i}"));
         if keep == 0 {
-            std::fs::remove_file(&log)?;
+            pida_fs::remove_file(&log)?;
             return Ok(log);
         }
-        let _ = std::fs::remove_file(numbered(keep));
+        let _ = pida_fs::remove_file(numbered(keep));
         for i in (1..keep).rev() {
             let from = numbered(i);
-            if from.exists() {
-                std::fs::rename(&from, numbered(i + 1))?;
+            if from.fs_exists() {
+                pida_fs::rename(&from, numbered(i + 1))?;
             }
         }
-        std::fs::rename(&log, numbered(1))?;
+        pida_fs::rename(&log, numbered(1))?;
         Ok(log)
     }
 }
@@ -251,14 +252,14 @@ fn backup_path(dir: &Path) -> PathBuf {
 }
 
 fn copy_dir_all(from: &Path, to: &Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(to)?;
-    for entry in std::fs::read_dir(from)? {
+    pida_fs::create_dir_all(to)?;
+    for entry in pida_fs::read_dir(from)? {
         let entry = entry?;
         let target = to.join(entry.file_name());
         if entry.file_type()?.is_dir() {
             copy_dir_all(&entry.path(), &target)?;
         } else {
-            std::fs::copy(entry.path(), &target)?;
+            pida_fs::copy(entry.path(), &target)?;
         }
     }
     Ok(())
@@ -269,7 +270,7 @@ pub(crate) fn restrict_dir(dir: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        pida_fs::set_permissions(dir, pida_fs::Permissions::from_mode(0o700))?;
     }
     let _ = dir;
     Ok(())
@@ -299,10 +300,10 @@ mod tests {
     fn portable_root_needs_a_folder() {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(portable_root_in(dir.path()), None);
-        std::fs::write(dir.path().join(PORTABLE_DIR), b"").unwrap();
+        pida_fs::write(dir.path().join(PORTABLE_DIR), b"").unwrap();
         assert_eq!(portable_root_in(dir.path()), None, "Datei statt Ordner");
-        std::fs::remove_file(dir.path().join(PORTABLE_DIR)).unwrap();
-        std::fs::create_dir(dir.path().join(PORTABLE_DIR)).unwrap();
+        pida_fs::remove_file(dir.path().join(PORTABLE_DIR)).unwrap();
+        pida_fs::create_dir(dir.path().join(PORTABLE_DIR)).unwrap();
         let root = portable_root_in(dir.path()).expect("Ordner");
         assert_eq!(Paths::under(&root).settings_file(), dir.path().join("PIDA-Daten/config/settings.toml"));
         if !cfg!(windows) {
@@ -326,20 +327,20 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let p = Paths::under(root.path());
         p.ensure().unwrap();
-        std::fs::write(p.settings_file(), "schema_version = 1\n").unwrap();
+        pida_fs::write(p.settings_file(), "schema_version = 1\n").unwrap();
         let backup = p.reset().unwrap();
         assert_eq!(backup, root.path().join("config.old"));
-        assert!(!p.config_dir.exists());
-        assert!(backup.join(SETTINGS_FILE).is_file());
+        assert!(!p.config_dir.fs_exists());
+        assert!(backup.join(SETTINGS_FILE).fs_is_file());
         // zweiter Reset ersetzt die alte Sicherung
-        std::fs::create_dir_all(&p.config_dir).unwrap();
-        std::fs::write(p.config_dir.join("neu.txt"), "x").unwrap();
+        pida_fs::create_dir_all(&p.config_dir).unwrap();
+        pida_fs::write(p.config_dir.join("neu.txt"), "x").unwrap();
         p.reset().unwrap();
-        assert!(backup.join("neu.txt").is_file());
-        assert!(!backup.join(SETTINGS_FILE).exists());
+        assert!(backup.join("neu.txt").fs_is_file());
+        assert!(!backup.join(SETTINGS_FILE).fs_exists());
         // ohne Konfigurationsordner: nichts zu tun
         assert_eq!(p.reset().unwrap(), backup);
-        assert!(backup.join("neu.txt").is_file());
+        assert!(backup.join("neu.txt").fs_is_file());
     }
 
     #[test]
@@ -358,7 +359,7 @@ mod tests {
     fn legacy_dir_detection() {
         let home = tempfile::tempdir().unwrap();
         assert_eq!(Paths::legacy_dir_in(home.path()), None);
-        std::fs::create_dir(home.path().join(LEGACY_DIR)).unwrap();
+        pida_fs::create_dir(home.path().join(LEGACY_DIR)).unwrap();
         assert_eq!(Paths::legacy_dir_in(home.path()), Some(home.path().join(LEGACY_DIR)));
     }
 
@@ -367,18 +368,18 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let p = Paths::under(root.path());
         let log = p.rotate_logs(10, 2).unwrap();
-        assert!(!log.exists());
+        assert!(!log.fs_exists());
         for round in 0..4 {
-            std::fs::write(&log, format!("runde {round} ....")).unwrap();
+            pida_fs::write(&log, format!("runde {round} ....")).unwrap();
             p.rotate_logs(10, 2).unwrap();
         }
-        assert!(!log.exists());
-        assert_eq!(std::fs::read_to_string(p.log_dir.join("pida.log.1")).unwrap(), "runde 3 ....");
-        assert_eq!(std::fs::read_to_string(p.log_dir.join("pida.log.2")).unwrap(), "runde 2 ....");
-        assert!(!p.log_dir.join("pida.log.3").exists());
-        std::fs::write(&log, "klein").unwrap();
+        assert!(!log.fs_exists());
+        assert_eq!(pida_fs::read_to_string(p.log_dir.join("pida.log.1")).unwrap(), "runde 3 ....");
+        assert_eq!(pida_fs::read_to_string(p.log_dir.join("pida.log.2")).unwrap(), "runde 2 ....");
+        assert!(!p.log_dir.join("pida.log.3").fs_exists());
+        pida_fs::write(&log, "klein").unwrap();
         p.rotate_logs(10, 2).unwrap();
-        assert!(log.exists());
+        assert!(log.fs_exists());
     }
 
     #[cfg(unix)]
@@ -388,7 +389,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let p = Paths::under(root.path());
         p.ensure().unwrap();
-        let mode = std::fs::metadata(&p.temp_dir).unwrap().permissions().mode() & 0o777;
+        let mode = pida_fs::metadata(&p.temp_dir).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700);
     }
 }

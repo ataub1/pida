@@ -19,6 +19,7 @@
 //! - Hinweise für **andere** Felder (z. B. manueller Proxy ohne Host nach `proxy.mode = manual`) lehnen
 //!   nichts ab; sie stehen nach der Übernahme in `problems` ([`validate`] der neuen Einstellungen).
 
+use pida_fs::PathExt as _;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -271,14 +272,14 @@ pub(crate) fn validate(settings: &Settings) -> Vec<FieldProblem> {
         problems.push(("proxy.port".into(), MSG_INVALID_PORT, true));
     }
     if let Some(e) = &settings.signature.emblem
-        && !e.is_file()
+        && !e.fs_is_file()
     {
         problems.push(("signature.emblem".into(), "exception-PathNotExist", false));
     }
     // Noch keine Datei gewählt ist kein Fehler (die Zeile zeigt „Keine Datei gewählt“, der Keystore ist
     // nur noch nicht als Standard wählbar: `SettingsView::keystore_ready`). Fehler nur, wenn die gewählte
     // Datei verschwunden ist.
-    if settings.keystore.enabled && settings.keystore.file.as_deref().is_some_and(|f| !f.is_file()) {
+    if settings.keystore.enabled && settings.keystore.file.as_deref().is_some_and(|f| !f.fs_is_file()) {
         problems.push(("keystore.file".into(), "ng-keystore-file-not-found", false));
     }
     let size = settings.signature.logo_only_size_mm;
@@ -287,8 +288,8 @@ pub(crate) fn validate(settings: &Settings) -> Vec<FieldProblem> {
     }
     if let Some(dir) = &settings.output.folder
         && dir.is_absolute()
-        && !dir.exists()
-        && dir.parent().is_some_and(|p| !p.exists())
+        && !dir.fs_exists()
+        && dir.parent().is_some_and(|p| !p.fs_exists())
     {
         problems.push(("output.folder".into(), "exception-PathNotExist", false));
     }

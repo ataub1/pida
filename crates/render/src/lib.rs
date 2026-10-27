@@ -63,6 +63,9 @@ mod ffi;
 #[cfg(feature = "pdfium")]
 mod pdfium;
 
+/// Browser: Index der „nie pausieren“-Funktion in PDFiums Funktionstabelle (siehe `ffi::never_pause_fn`).
+#[cfg(all(feature = "pdfium", target_arch = "wasm32"))]
+pub use ffi::set_wasm_never_pause;
 #[cfg(feature = "pdfium")]
 pub use pdfium::{PdfiumBackend, PdfiumRenderer};
 

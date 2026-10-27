@@ -19,7 +19,8 @@ export type MockScenario = 'start' | 'blank' | 'contract' | 'field' | 'signed' |
 export const MOCK_SCENARIOS: readonly MockScenario[] = ['start', 'blank', 'contract', 'field', 'signed', 'batch', 'error-password', 'error-atrust'];
 
 /** Ablauf der ID-Austria-Freigabe nach der Anmeldung (`decline` = in der App abgelehnt, `timeout` = abgelaufen). */
-export type MockSigningFlow = 'app' | 'sms' | 'qr' | 'fido2' | 'decline' | 'timeout';
+/** `none`: Identität ohne zweiten Faktor (Test-Identitäten von A-Trust) – nach der Anmeldung sofort signiert. */
+export type MockSigningFlow = 'app' | 'sms' | 'qr' | 'fido2' | 'decline' | 'timeout' | 'none';
 
 /** Optionen des Mock-Kerns. */
 export interface MockOptions {

@@ -8,6 +8,7 @@
 //! - Fehlt die Datei, gibt es eine Fehlermeldung (`ng-config-file-missing`) statt des Werksreset-Dialogs
 //!   von PDF-Over.
 
+use pida_fs::PathExt as _;
 use std::path::{Path, PathBuf};
 
 use pida_i18n::Lang;
@@ -44,13 +45,13 @@ impl ConfigSource {
 }
 
 fn looks_like_settings(path: &Path) -> bool {
-    std::fs::read_to_string(path).is_ok_and(|t| Settings::from_toml(&t).is_ok() && t.contains("schema_version"))
+    pida_fs::read_to_string(path).is_ok_and(|t| Settings::from_toml(&t).is_ok() && t.contains("schema_version"))
 }
 
 /// Löst `-c <name>` auf; `legacy_dir` ist `~/.pdf-over` (falls vorhanden).
 pub fn resolve_config_file(paths: &Paths, legacy_dir: Option<&Path>, name: &Path) -> Result<ConfigSource> {
     if name.is_absolute() {
-        if !name.is_file() {
+        if !name.fs_is_file() {
             return Err(missing(name));
         }
         return Ok(if looks_like_settings(name) {
@@ -60,12 +61,12 @@ pub fn resolve_config_file(paths: &Paths, legacy_dir: Option<&Path>, name: &Path
         });
     }
     let new = paths.config_dir.join(name);
-    if new.is_file() {
+    if new.fs_is_file() {
         return Ok(ConfigSource::Settings(new));
     }
     if let Some(dir) = legacy_dir {
         let old = dir.join(name);
-        if old.is_file() {
+        if old.fs_is_file() {
             return Ok(ConfigSource::Legacy(old));
         }
     }
@@ -126,23 +127,23 @@ mod tests {
         let home = tempfile::tempdir().unwrap();
         let paths = Paths::under(root.path());
         let legacy_dir = home.path().join(".pdf-over");
-        std::fs::create_dir_all(&legacy_dir).unwrap();
-        std::fs::create_dir_all(&paths.config_dir).unwrap();
+        pida_fs::create_dir_all(&legacy_dir).unwrap();
+        pida_fs::create_dir_all(&paths.config_dir).unwrap();
 
         let err = resolve_config_file(&paths, Some(&legacy_dir), Path::new("other.config")).unwrap_err();
         assert!(matches!(err, ConfigError::Io(ref e) if e.kind() == std::io::ErrorKind::NotFound));
         assert_eq!(err.message_id(), "ng-config-file-missing");
         assert_eq!(err.missing_path(), Some(paths.config_dir.join("other.config").as_path()));
 
-        std::fs::write(legacy_dir.join("other.config"), "BKU=LOCAL\n").unwrap();
+        pida_fs::write(legacy_dir.join("other.config"), "BKU=LOCAL\n").unwrap();
         let src = resolve_config_file(&paths, Some(&legacy_dir), Path::new("other.config")).unwrap();
         assert_eq!(src, ConfigSource::Legacy(legacy_dir.join("other.config")));
         assert!(src.is_read_only());
-        let before = std::fs::read(src.path()).unwrap();
+        let before = pida_fs::read(src.path()).unwrap();
         let (s, report) = load_config_source(&src, Lang::De).unwrap();
         assert_eq!(s.backend.default, Some(BackendChoice::LocalBku));
         assert!(report.is_some());
-        assert_eq!(std::fs::read(src.path()).unwrap(), before, "Altdatei unverändert");
+        assert_eq!(pida_fs::read(src.path()).unwrap(), before, "Altdatei unverändert");
 
         let mut toml = Settings::default();
         toml.backend.default = Some(BackendChoice::Keystore);
@@ -159,7 +160,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let paths = Paths::under(root.path());
         let file = home.path().join("skript.config");
-        std::fs::write(
+        pida_fs::write(
             &file,
             "BKU=KS\nKEYSTORE_FILE=/x/k.p12\nKEYSTORE_PASS_STORE_TYPE=disk\nKEYSTORE_STOREPASS=test-only-pw\n",
         )
@@ -192,7 +193,7 @@ mod tests {
         let toml = dir.path().join("a.toml");
         Settings::default().save_atomic(&toml).unwrap();
         let legacy = dir.path().join("b.config");
-        std::fs::write(&legacy, "BKU=MOBILE\n").unwrap();
+        pida_fs::write(&legacy, "BKU=MOBILE\n").unwrap();
         assert!(matches!(resolve_config_file(&paths, None, &toml).unwrap(), ConfigSource::Settings(_)));
         assert!(matches!(resolve_config_file(&paths, None, &legacy).unwrap(), ConfigSource::Legacy(_)));
         assert!(resolve_config_file(&paths, None, &dir.path().join("fehlt")).is_err());

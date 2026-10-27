@@ -1158,11 +1158,11 @@ impl SourcePdf {
 
     /// Liest eine Datei (Bytes vollständig oder per Memory-Map, Plan §6.2 „Speicher“).
     pub fn open_file(path: &Path, limits: &Limits) -> Result<SourcePdf> {
-        let len = std::fs::metadata(path)?.len();
+        let len = pida_fs::metadata(path)?.len();
         if len > limits.max_file_size {
             return Err(CosError::LimitExceeded { what: "Dateigröße", limit: limits.max_file_size });
         }
-        let bytes = std::fs::read(path)?;
+        let bytes = pida_fs::read(path)?;
         SourcePdf::open(bytes, limits)
     }
 

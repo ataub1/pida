@@ -18,10 +18,11 @@ import { useApp } from '../../app/context';
 import { tileScale } from '../../core/bridge';
 import { baseName, dirName } from '../../core/defaults';
 import { isMobile, type OutputView, type StepView } from '../../core/types';
+import { webProfile } from '../../core/web-profile';
 import { Button } from '../../ui/controls';
 import { useNarrow } from '../../ui/hooks';
 import { ConfirmDialog } from '../../ui/Dialog';
-import { IconCheck, IconExternal, IconFileText, IconFolder, IconLayers, IconShare, IconShieldCheck, IconUpload } from '../../ui/Icons';
+import { IconCheck, IconDownload, IconExternal, IconFileText, IconFolder, IconLayers, IconShare, IconShieldCheck, IconUpload } from '../../ui/Icons';
 import { displayPages, rectToBox } from '../workspace/placement';
 import './done.css';
 
@@ -135,6 +136,8 @@ export function DoneView({ step }: { step: Extract<StepView, { step: 'output' }>
   const box = doc?.sticker && stickerPage === pageIndex && size ? rectToBox(doc.sticker, size[1], scale) : null;
 
   const reveal = () => bridge.revealOutput().catch(() => toast(t.t('ng-ui-open-failed'), 'error'));
+  // Web: kein Ordner – das Ergebnis wird heruntergeladen (`open_result` → Download)
+  const web = webProfile() !== null;
   const openVerifyInfo = () => bridge.openUrl(VERIFY_URL).catch(() => toast(t.t('ng-ui-open-failed'), 'error'));
   const qualification = summary?.qualification === 'Qes' ? t.t('ng-ui-fin-qes') : summary?.qualification === 'AdES' ? t.t('ng-ui-fin-ades') : null;
 
@@ -179,12 +182,17 @@ export function DoneView({ step }: { step: Extract<StepView, { step: 'output' }>
               // Mobile: kein `title` – ohne Mauszeiger ohne Nutzen, und VoiceOver läse statt „Gespeichert in den
               // Dokumenten dieser App“ den Pfad im Sandbox-Container vor
               <p className="done-file-meta" title={mobile ? undefined : (result.path ?? undefined)}>
-                {mobile ? t.t('ng-ui-fin-saved-mobile') : t.t('ng-ui-fin-saved-in', { folder: folder ?? '' })}
+                {web ? t.t('ng-ui-fin-ready-web') : mobile ? t.t('ng-ui-fin-saved-mobile') : t.t('ng-ui-fin-saved-in', { folder: folder ?? '' })}
               </p>
             ) : null}
             {time ? <p className="done-file-meta">{signer ? t.t('ng-ui-fin-signed-by', { name: signer, time }) : t.t('ng-ui-fin-signed-at', { time })}</p> : null}
             <div className="done-actions">
-              {saved ? (
+              {saved && web ? (
+                <Button variant="primary" onPress={() => void dispatch({ type: 'open_result' })}>
+                  <IconDownload size={17} />
+                  {t.t('ng-ui-fin-download')}
+                </Button>
+              ) : saved ? (
                 <>
                   <Button variant="secondary" onPress={() => void dispatch({ type: 'open_result' })}>
                     <IconFileText size={17} />

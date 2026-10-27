@@ -18,6 +18,8 @@ default = ["pdfium"]
 pdfium = ["dep:pdfium-render", "dep:zeroize"]
 
 [dependencies]
+# Dateizugriff: nativ std::fs, im Browser im Speicher (Konzept Webdienst)
+pida-fs = { workspace = true }
 pdfium-render = { workspace = true, optional = true }
 png = { workspace = true }
 thiserror = { workspace = true }

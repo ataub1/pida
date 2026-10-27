@@ -263,3 +263,97 @@ jobs:
             target/release/bundle/portable/*.zip
             target/release/bundle/dmg/*.dmg
           if-no-files-found: error
+
+  # Web-Variante (Konzept Webdienst): Server samt Oberfläche als Linux-Pakete – .deb (Debian/Ubuntu), .rpm
+  # (RHEL/Alma/Rocky/Fedora/openSUSE) und .tar.gz (übrige, mit install.sh/uninstall.sh). Das Programm ist statisch
+  # gebaut (musl, keine C-Abhängigkeiten) und läuft damit auf jeder x86_64-Distribution. Geprüft wird in frischen
+  # Containern (debian:12, rockylinux:9): Installation, Update auf eine neuere Version (Einstellung bleibt),
+  # Deinstallation – apps/web-server/packaging/test-install.sh.
+  web-linux:
+    name: Web-Variante (Linux-Pakete)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust-Toolchain (WebAssembly, musl)
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --target wasm32-unknown-unknown,x86_64-unknown-linux-musl
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: web-linux
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: PDFium-Cache (WebAssembly)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: tools/pdfium
+          key: pdfium-wasm-${{ hashFiles('tools/pdfium.lock') }}
+      - name: Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/app/package-lock.json
+      - name: npm ci
+        working-directory: apps/app
+        run: npm ci
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-about@${{ env.CARGO_ABOUT_VERSION }}
+      - name: wasm-bindgen-cli 0.2.129 (passend zu wasm-bindgen in Cargo.lock)
+        run: cargo install --locked wasm-bindgen-cli --version 0.2.129 --root target/wasm-tools
+      - name: rpmbuild
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends rpm
+      - name: Drittlizenz-Hinweise (Browser und Server, PDFium WebAssembly)
+        run: tools/third-party-notices.sh --web --pdfium wasm --out target/notices-web
+      - name: Oberfläche und Kern als WebAssembly
+        env:
+          PIDA_WEB_NOTICES: target/notices-web
+        run: |
+          apps/web/build.sh
+          test ! -e apps/web/dist/samples
+      - name: Server statisch (musl)
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER: rust-lld
+        run: |
+          cargo build --locked --release -p pida-web-server --target x86_64-unknown-linux-musl
+          file target/x86_64-unknown-linux-musl/release/pida-web-server | tee /dev/stderr | grep -q 'static'
+      - name: Pakete (deb, rpm, tar.gz) und Folgeversion für den Update-Test
+        run: |
+          bin=target/x86_64-unknown-linux-musl/release/pida-web-server
+          apps/web-server/packaging/package.sh --binary "$bin" --dist apps/web/dist --notices target/notices-web \
+            --out target/web-packages
+          version="$("$bin" --version | awk '{print $2}')"
+          PIDA_WEB_PKG_VERSION="$version+test1" apps/web-server/packaging/package.sh --binary "$bin" \
+            --dist apps/web/dist --notices target/notices-web --out target/web-packages-next
+          {
+            echo "### Web-Variante (Linux-Pakete)"
+            echo '```'
+            ls -l target/web-packages
+            cat target/web-packages/SHA256SUMS-web
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Installationstest .deb (debian:12)
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w debian:12 bash apps/web-server/packaging/test-install.sh deb \
+            target/web-packages/*.deb target/web-packages-next/*.deb
+      - name: Installationstest .rpm (rockylinux:9)
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w rockylinux:9 bash apps/web-server/packaging/test-install.sh rpm \
+            target/web-packages/*.rpm target/web-packages-next/*.rpm
+      - name: Installationstest .tar.gz (debian:12)
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w debian:12 bash apps/web-server/packaging/test-install.sh tar \
+            target/web-packages/*.tar.gz target/web-packages-next/*.tar.gz
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pida-web-linux
+          path: |
+            target/web-packages/*.deb
+            target/web-packages/*.rpm
+            target/web-packages/*.tar.gz
+            target/web-packages/SHA256SUMS-web
+          if-no-files-found: error

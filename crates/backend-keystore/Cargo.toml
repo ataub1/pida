@@ -9,6 +9,8 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+# Dateizugriff: nativ std::fs, im Browser im Speicher (Konzept Webdienst)
+pida-fs = { workspace = true }
 pida-backend-api = { workspace = true }
 pida-cades = { workspace = true }
 p12-keystore = { workspace = true }

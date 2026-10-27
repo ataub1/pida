@@ -1,0 +1,24 @@
+#!/bin/sh
+# PIDA Web: Dienst nach Neuinstallation aktivieren und starten, nach einem Update neu starten (wie dh_installsystemd).
+set -e
+if [ "$1" = configure ] || [ "$1" = abort-upgrade ] || [ "$1" = abort-deconfigure ] || [ "$1" = abort-remove ]; then
+    if command -v deb-systemd-helper >/dev/null 2>&1; then
+        deb-systemd-helper unmask pida-web.service >/dev/null || true
+        # was-enabled gilt bei einer Neuinstallation als wahr; vom Admin deaktiviert bleibt deaktiviert
+        if deb-systemd-helper --quiet was-enabled pida-web.service; then
+            deb-systemd-helper enable pida-web.service >/dev/null || true
+        else
+            deb-systemd-helper update-state pida-web.service >/dev/null || true
+        fi
+    fi
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+        if [ -n "$2" ]; then action=restart; else action=start; fi
+        if command -v deb-systemd-invoke >/dev/null 2>&1; then
+            deb-systemd-invoke "$action" pida-web.service >/dev/null || true
+        else
+            systemctl "$action" pida-web.service >/dev/null || true
+        fi
+    fi
+fi
+exit 0

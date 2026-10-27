@@ -12,6 +12,7 @@
 //! Arbeitsverzeichnis des Prozesses, speichert dann aber relativ zum Ordner der Quelle; hier gilt
 //! für beides der Ordner der Quelle (sonst hinge das Ergebnis vom Startort ab).
 
+use pida_fs::PathExt as _;
 use std::path::{Path, PathBuf};
 
 /// Exit-Codes der CLI.
@@ -71,10 +72,10 @@ pub struct FsProbe;
 
 impl PathProbe for FsProbe {
     fn is_dir(&self, path: &Path) -> bool {
-        path.is_dir()
+        path.fs_is_dir()
     }
     fn exists(&self, path: &Path) -> bool {
-        path.exists()
+        path.fs_exists()
     }
 }
 

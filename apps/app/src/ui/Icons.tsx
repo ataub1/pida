@@ -34,6 +34,13 @@ export const IconUpload = (p: IconProps) => (
     <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
   </Icon>
 );
+export const IconDownload = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 4v11" />
+    <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+    <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+  </Icon>
+);
 export const IconFile = (p: IconProps) => (
   <Icon {...p}>
     <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
@@ -226,6 +233,12 @@ export const IconInfo = (p: IconProps) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="9" />
     <path d="M12 11v5M12 8h.01" />
+  </Icon>
+);
+export const IconHelp = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6M12 17h.01" />
   </Icon>
 );
 export const IconFolder = (p: IconProps) => (
