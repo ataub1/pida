@@ -742,6 +742,7 @@ const WORKFLOW_ERRORS: &[&str] = &[
     "ng-certificate-not-valid",
     "ng-certcache-mismatch",
     "ng-document-rejected",
+    "ng-document-too-large",
     "ng-pdf-no-sign-rights",
     "ng-field-locked",
     "ng-field-already-signed",
