@@ -176,9 +176,12 @@
 }
 
 @media (max-width: 760px) {
-  .hide-narrow,
-  .wordmark-tag {
+  .hide-narrow {
     display: none !important;
+  }
+  /* Untertitel der Wortmarke nur ohne Dokument- bzw. Stapelkontext in der Kopfzeile (sonst fehlt dem Namen der Platz) */
+  .app-header:has(.header-context) .wordmark-tag {
+    display: none;
   }
   .app-header {
     gap: var(--sp-1);

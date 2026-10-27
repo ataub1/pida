@@ -40,7 +40,7 @@ export function Header({ theme, onTheme }: { theme: Theme; onTheme: (theme: Them
   return (
     <header className="app-header">
       <AriaButton className="brand" aria-label={t.t('ng-ui-shell-home')} onPress={home}>
-        <Wordmark />
+        <Wordmark tagline={t.t('ng-ui-brand-tagline')} />
       </AriaButton>
       {awayFromStart && view.actions.home ? (
         <IconButton label={t.t('ng-ui-shell-cmd-home')} className="header-home" onPress={home}>
