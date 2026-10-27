@@ -6,6 +6,7 @@
  */
 import type { SettingsSectionId } from '../../app/context';
 import type { SignatureProfile } from '../../core/types';
+import type { WebProfile } from '../../core/web-profile';
 import type { Translator } from '../../i18n/catalog';
 
 /** Bereiche der Seitenleiste; `document` ist neu (Entscheidung des Auftraggebers, Vorlage Prototyp fd7def3). */
@@ -60,6 +61,8 @@ export type RowId =
 export interface RowContext {
   mobile: boolean;
   profile: SignatureProfile;
+  /** Web-Variante (`null` = App); fehlt = App */
+  web?: WebProfile | null;
 }
 
 export interface RowDef {
@@ -107,9 +110,37 @@ export const ROWS: readonly RowDef[] = [
   { id: 'about.info', section: 'about', label: 'ng-ui-set-about' },
 ];
 
+/**
+ * Im Web ausgeblendet: alles, was nur mit Speichern Sinn hat (Signiermittel einrichten, Speicherort, Darstellung –
+ * Sprache und Farbschema stehen in der Kopfzeile –, Zertifikats-Cache, „Zuletzt signiert“, Erweitert). Der
+ * Keystore nur im lokalen Testbuild (`WebProfile::keystore`).
+ */
+const WEB_HIDDEN: ReadonlySet<RowId> = new Set<RowId>([
+  'signers.default',
+  'signers.id_austria',
+  'signers.fido2',
+  'signers.card',
+  'save.target',
+  'save.postfix',
+  'appearance.theme',
+  'appearance.language',
+  'privacy.certcache',
+  'privacy.recent',
+  'advanced.proxy',
+  'advanced.updates',
+  'advanced.migration',
+  'advanced.reset',
+]);
+
+function webVisible(r: RowDef, web: WebProfile): boolean {
+  if (r.id === 'signers.keystore') return web.keystore;
+  return !WEB_HIDDEN.has(r.id);
+}
+
 /** Sichtbare Zeilen. */
 export function visibleRows(c: RowContext): RowDef[] {
-  return ROWS.filter((r) => !r.visible || r.visible(c));
+  const web = c.web ?? null;
+  return ROWS.filter((r) => (!r.visible || r.visible(c)) && (!web || webVisible(r, web)));
 }
 
 /** Kleinbuchstaben ohne Akzente („Größe“ ≙ „grosse“ nicht, aber „Ä“ ≙ „a“). */

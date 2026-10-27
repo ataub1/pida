@@ -4,10 +4,10 @@
 //! sich als Ereignis zurück. Ergebnisse eines abgebrochenen Signiervorgangs werden über eine
 //! Epoche verworfen.
 
+use pida_fs::PathExt as _;
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 
 use pida_backend_api::{
     BackendError, BackendEvent, BackendId, BackendSession, CancelToken, Capabilities, CertChain, DigestJob,
@@ -609,7 +609,7 @@ impl CoreTask {
             return;
         }
         let dir = self.resume_dir();
-        match resume::load(&dir, SystemTime::now()) {
+        match resume::load(&dir, pida_fs::system_now()) {
             resume::Loaded::Nothing => {}
             // Mobile nur mit ID Austria (ADR 0004 Nachtrag 11): einen Keystore-Vorgang eines früheren Builds gibt
             // es nicht fortzusetzen – verwerfen statt anbieten (das Original bleibt, wo es war)
@@ -659,7 +659,7 @@ impl CoreTask {
         }
         let Some(persisted) = self.resume_offer.take() else { return };
         let document = persisted.document();
-        if !document.is_file() {
+        if !document.fs_is_file() {
             resume::delete(&persisted.dir);
             self.notify(resume::MSG_RESTORE_FAILED, BTreeMap::new());
             return;
@@ -757,11 +757,11 @@ impl CoreTask {
         if busy {
             return Err(MSG_KEYSTORE_IMPORT_BUSY.into());
         }
-        let len = std::fs::metadata(path).map(|m| m.len()).map_err(|_| MSG_KEYSTORE_IMPORT_UNREADABLE.to_owned())?;
+        let len = pida_fs::metadata(path).map(|m| m.len()).map_err(|_| MSG_KEYSTORE_IMPORT_UNREADABLE.to_owned())?;
         if len == 0 || len > MAX_KEYSTORE_BYTES {
             return Err(MSG_KEYSTORE_IMPORT_UNREADABLE.into());
         }
-        let bytes = std::fs::read(path).map_err(|_| MSG_KEYSTORE_IMPORT_UNREADABLE.to_owned())?;
+        let bytes = pida_fs::read(path).map_err(|_| MSG_KEYSTORE_IMPORT_UNREADABLE.to_owned())?;
         match pida_backend_keystore::detect_format(&bytes) {
             pida_backend_keystore::KeystoreFormat::Pkcs12 => {}
             pida_backend_keystore::KeystoreFormat::Jks | pida_backend_keystore::KeystoreFormat::Jceks => {
@@ -792,7 +792,7 @@ impl CoreTask {
             && old != target
             && old.parent() == Some(dir.as_path())
         {
-            let _ = std::fs::remove_file(&old);
+            let _ = pida_fs::remove_file(&old);
             let _ = self.cfg.secrets.delete(&pida_config::SecretId::keystore_store(&old));
             let old_alias = self.cfg.settings.keystore.alias.clone().unwrap_or_default();
             let _ = self.cfg.secrets.delete(&pida_config::SecretId::keystore_key(&old, &old_alias));
@@ -905,8 +905,7 @@ impl CoreTask {
         self.guarded(|t| t.after_message());
         self.publish();
         // Backend-Auswahl aktuell halten (lokale BKU erscheint, sobald sie erreichbar ist, F-51)
-        let mut tick = tokio::time::interval(std::time::Duration::from_secs(5));
-        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut tick = crate::rt::Ticker::new(std::time::Duration::from_secs(5));
         loop {
             let msg = tokio::select! {
                 m = rx.recv() => m,
@@ -966,13 +965,13 @@ impl CoreTask {
                 _ => None,
             });
         let path = match signed {
-            Some(output) if !input.path.is_file() => output,
+            Some(output) if !input.path.fs_is_file() => output,
             _ => input.path.clone(),
         };
         let shared = self.shared.clone();
         let snap = self.snapshot();
         let search_qr = self.ctx.placeholder_search && !self.ctx.placeholder_fields;
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             let mark =
                 |data: &DocData, fields: &mut [EmptyFieldCandidate]| mark_auto_fields(&shared, &snap, data, fields);
             let (result, thumb) = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -1217,7 +1216,7 @@ impl CoreTask {
         let mut out = Vec::new();
         for p in paths {
             // F-12: nur vorhandene Dateien
-            if !p.is_file() {
+            if !p.fs_is_file() {
                 tracing::info!("Eingabe übersprungen (keine Datei)");
                 continue;
             }
@@ -1340,7 +1339,7 @@ impl CoreTask {
         F: std::future::Future<Output = Event> + Send + 'static,
     {
         let tx = self.shared.tx.clone();
-        tokio::spawn(async move {
+        crate::rt::spawn(async move {
             let event = fut.await;
             let _ = tx.send(Msg::Event { epoch, event });
         });
@@ -1353,7 +1352,7 @@ impl CoreTask {
         F: FnOnce() -> Event + Send + 'static,
     {
         self.spawn_event(epoch, async move {
-            match tokio::task::spawn_blocking(f).await {
+            match crate::rt::blocking(f).await {
                 Ok(ev) => ev,
                 Err(e) => {
                     tracing::error!(panic = e.is_panic(), "Hintergrundaufgabe abgebrochen");
@@ -1378,7 +1377,7 @@ impl CoreTask {
         };
         self.shared.broker.reset();
         if let Some(mut session) = session {
-            tokio::spawn(async move { session.cancel().await });
+            crate::rt::spawn(async move { session.cancel().await });
         }
     }
 
@@ -1468,7 +1467,7 @@ impl CoreTask {
         let search = self.ctx.placeholder_search;
         let fields = self.ctx.placeholder_fields;
         let tx = shared.tx.clone();
-        tokio::spawn(async move {
+        crate::rt::spawn(async move {
             let work = {
                 let shared = shared.clone();
                 move || -> Result<(Loaded, Option<Placement>, Vec<EmptyFieldCandidate>), WorkflowError> {
@@ -1485,7 +1484,7 @@ impl CoreTask {
                     Ok((loaded, start, candidates))
                 }
             };
-            let msg = match tokio::task::spawn_blocking(work).await {
+            let msg = match crate::rt::blocking(work).await {
                 Ok(Ok((loaded, start, candidates))) => {
                     let report = &loaded.data.report;
                     let event = Event::Analyzed {
@@ -1521,7 +1520,7 @@ impl CoreTask {
         }
         let render = self.shared.render.clone();
         let shared = self.shared.clone();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 crate::docs::find_placeholder(&data, false, render.as_deref())
             }));
@@ -1541,7 +1540,7 @@ impl CoreTask {
         let Some(render) = self.shared.render.clone() else { return };
         let shared = self.shared.clone();
         let scale = *lock(&shared.tile_scale);
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             if let Err(e) = shared.docs.tile(doc, page, scale, render.as_ref()) {
                 tracing::debug!(code = e.code(), "Vorab-Rendern fehlgeschlagen");
             }
@@ -1558,7 +1557,7 @@ impl CoreTask {
         };
         self.block_requested += 1;
         let generation = self.block_requested;
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             // eine Panik (Programmfehler, feindliche Bildmarke) meldet sich wie ein Fehler zurück – sonst
             // wartete eine Übernahme (`applied_revision`, ADR 0004 §3.11) für immer auf diese Vorschau
             let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -2179,7 +2178,7 @@ impl CoreTask {
         // Mobile: ohne Einstellung in die App-Dokumente (kein Speichern-Dialog; Teilen/Exportieren danach)
         let output = self.cfg.output().or_else(|| {
             let dir = self.mobile.default_output_dir.clone()?;
-            match std::fs::create_dir_all(&dir) {
+            match pida_fs::create_dir_all(&dir) {
                 Ok(()) => Some(dir),
                 Err(e) => {
                     tracing::warn!(kind = ?e.kind(), "App-Dokumente nicht anlegbar – Speichern-Dialog");
@@ -2208,7 +2207,7 @@ impl CoreTask {
             return;
         };
         self.spawn_blocking_event(None, Event::SaveFailed, move || {
-            if !overwrite && path.exists() {
+            if !overwrite && path.fs_exists() {
                 return Event::SaveFailed(format!("{} existiert bereits", file_name(&path)));
             }
             match signed.write_atomically(&OutputTarget { path, overwrite }) {
@@ -2239,7 +2238,7 @@ impl CoreTask {
             return;
         };
         let shared = self.shared.clone();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             if let Err(e) = shell.share_path(&path) {
                 tracing::warn!(error = %e, "Teilen fehlgeschlagen");
                 shared.send(Msg::Notices(vec![("ng-share-failed".to_owned(), BTreeMap::new())]));
@@ -2255,7 +2254,7 @@ impl CoreTask {
         };
         let shared = self.shared.clone();
         let name = file_name(&path);
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             // der Hinweis nennt den tatsächlich gesicherten Namen (Mobile-Check 16.10.2026: die Dateiauswahl legte
             // „Vertrag_signed (3).pdf“ an, der Hinweis nannte den Vorschlag); nur der Dateiname, nie ein Pfad
             let notice = match shell.export_path(&path, &name) {
@@ -2727,7 +2726,7 @@ impl CoreTask {
             Some(pida_workflow::BatchOutput::Configured)
         } else {
             match output_dir {
-                Some(dir) if dir.is_dir() => Some(pida_workflow::BatchOutput::Folder(dir)),
+                Some(dir) if dir.fs_is_dir() => Some(pida_workflow::BatchOutput::Folder(dir)),
                 Some(_) => None,
                 None if self.batch_output_view(queue).needs_folder => None,
                 None => Some(pida_workflow::BatchOutput::Configured),
@@ -3001,7 +3000,7 @@ impl CoreTask {
         });
         // erneutes Angebot (Einstellungen › Erweitert, ADR 0004 §3.12): die vorhandene `settings.toml` wird
         // vorher gesichert (`settings.toml.before-import`)
-        let overwrite = self.cfg.paths.settings_file().exists();
+        let overwrite = self.cfg.paths.settings_file().fs_exists();
         let applied = result.and_then(|r| {
             let opts = pida_config::ApplyOptions { store_secrets, overwrite, ..pida_config::ApplyOptions::default() };
             pida_config::apply_migration(&r, &self.cfg.paths, self.cfg.secrets.as_ref(), &opts).map(|a| (r, a))
@@ -3072,7 +3071,7 @@ impl CoreTask {
         let Some(data) = self.shared.docs.get(doc_id) else { return };
         let shared = self.shared.clone();
         let snap = self.snapshot();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             let Some(store) = shared.profiles.as_deref() else { return };
             let emblem = snap.effective().emblem().and_then(plan::load_emblem);
             let Ok(spec) = plan::block_spec(
@@ -3268,7 +3267,7 @@ impl CoreTask {
                 ResumeOfferView {
                     name: p.record.name.clone(),
                     backend: p.record.backend,
-                    age_minutes: p.age_minutes(SystemTime::now()),
+                    age_minutes: p.age_minutes(pida_fs::system_now()),
                     pending: u32::try_from(p.record.pending.len()).unwrap_or(u32::MAX),
                     document_leaves_device: self.resume_offer_leaves_device,
                 }
@@ -3516,7 +3515,7 @@ impl PersistJob {
     /// Sichert; Fehler sind nicht fatal (dann ohne „Fortsetzen“).
     fn save(&self, data: &DocData, prepared: &dyn PreparedDoc, position: &PositionChoice) {
         let src = data.src.bytes();
-        let now = SystemTime::now();
+        let now = pida_fs::system_now();
         let (pending, on_existing) = (self.pending.clone(), self.on_existing);
         match resume::persist(&self.dir, &self.name, src, prepared, position, self.backend, pending, on_existing, now) {
             Ok(()) => tracing::info!("vorbereiteter Zustand für „Signatur fortsetzen“ gesichert"),
@@ -3549,14 +3548,14 @@ fn store_prepared(
 /// Dateien außerhalb des Caches – etwa eine vom Desktop übergebene Datei); ein leerer Unterordner
 /// (`import/<n>/`) geht mit.
 fn remove_cache_copy(source: &Path, kept: &Path, cache_dir: &Path) {
-    let (Ok(source), Ok(cache)) = (std::fs::canonicalize(source), std::fs::canonicalize(cache_dir)) else { return };
-    if !source.starts_with(&cache) || source == cache || std::fs::canonicalize(kept).is_ok_and(|k| k == source) {
+    let (Ok(source), Ok(cache)) = (pida_fs::canonicalize(source), pida_fs::canonicalize(cache_dir)) else { return };
+    if !source.starts_with(&cache) || source == cache || pida_fs::canonicalize(kept).is_ok_and(|k| k == source) {
         return;
     }
-    match std::fs::remove_file(&source) {
+    match pida_fs::remove_file(&source) {
         Ok(()) => {
             if let Some(parent) = source.parent().filter(|p| *p != cache) {
-                let _ = std::fs::remove_dir(parent);
+                let _ = pida_fs::remove_dir(parent);
             }
         }
         Err(e) => tracing::warn!(kind = ?e.kind(), "Kopie der Dateiauswahl nicht entfernt"),
@@ -3566,11 +3565,11 @@ fn remove_cache_copy(source: &Path, kept: &Path, cache_dir: &Path) {
 /// Neuer Ort einer in die Sandbox importierten Datei nach einem Umzug der Sandbox: `old` fehlt, lag in
 /// einem Ordner mit dem Namen von `dir` (z. B. `keystores`), und `dir/<Dateiname>` ist vorhanden.
 pub(crate) fn relocated(old: &Path, dir: &Path) -> Option<PathBuf> {
-    if old.is_file() || old.parent()?.file_name()? != dir.file_name()? {
+    if old.fs_is_file() || old.parent()?.file_name()? != dir.file_name()? {
         return None;
     }
     let new = dir.join(old.file_name()?);
-    (new != old && new.is_file()).then_some(new)
+    (new != old && new.fs_is_file()).then_some(new)
 }
 
 /// Dateiname ohne Pfadanteile und Steuerzeichen; leer → `fallback`.
@@ -3583,23 +3582,23 @@ fn sanitize_file_name(name: &str, fallback: &str) -> String {
 
 /// Schreibt eine private Datei atomar (Ordner 0700, Datei 0600).
 fn write_private_file(dir: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    std::fs::create_dir_all(dir)?;
+    pida_fs::create_dir_all(dir)?;
     let tmp = target.with_extension("part");
-    std::fs::write(&tmp, bytes)?;
+    pida_fs::write(&tmp, bytes)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
+        pida_fs::set_permissions(dir, pida_fs::Permissions::from_mode(0o700))?;
+        pida_fs::set_permissions(&tmp, pida_fs::Permissions::from_mode(0o600))?;
     }
-    std::fs::rename(&tmp, target)
+    pida_fs::rename(&tmp, target)
 }
 
 fn file_name(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string())
 }
 
-fn panic_text(e: tokio::task::JoinError) -> String {
+fn panic_text(e: crate::rt::JoinError) -> String {
     if !e.is_panic() {
         return "abgebrochen".into();
     }

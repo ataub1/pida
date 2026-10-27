@@ -335,7 +335,7 @@ impl LegacyConfig {
 
     /// Liest eine Datei.
     pub fn load(path: &Path) -> Result<Self> {
-        let bytes = std::fs::read(path)?;
+        let bytes = pida_fs::read(path)?;
         LegacyConfig::parse(&bytes)
     }
 

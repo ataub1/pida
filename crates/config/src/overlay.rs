@@ -508,7 +508,7 @@ mod tests {
         #[cfg(unix)]
         let raw = {
             let real = dir.path().join("real");
-            std::fs::create_dir(&real).unwrap();
+            pida_fs::create_dir(&real).unwrap();
             let link = dir.path().join("link");
             std::os::unix::fs::symlink(&real, &link).unwrap();
             link.join("k.p12")
@@ -518,7 +518,7 @@ mod tests {
         let raw = dir.path().join("k.p12");
         let store = MemorySecretStore::default();
         store.set(&SecretId::KeystoreStorePassword { keystore: raw.clone() }, "raw-pw").unwrap();
-        std::fs::write(&raw, b"x").unwrap();
+        pida_fs::write(&raw, b"x").unwrap();
         assert_ne!(SecretId::keystore_store(&raw), SecretId::KeystoreStorePassword { keystore: raw.clone() });
         let mut s = Settings::default();
         s.keystore.file = Some(raw);

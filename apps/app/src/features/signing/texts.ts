@@ -6,22 +6,25 @@
 import type { BackendId, FormProblem, Notice, Progress, QrImage } from '../../core/types';
 import type { Args, Translator } from '../../i18n/catalog';
 
-/** Text eines `FormProblem` (Katalog-IDs aus PDF-Over, sonst eigene `ng-ui-*`). */
+/**
+ * Text eines `FormProblem`: eigene, verständliche Texte (`ng-ui-problem-*`) statt der PDF-Over-Kataloge („Keine TAN
+ * eingeben“, „Konnte den QR code nicht laden“); diese bleiben für CLI und Protokoll unverändert.
+ */
 export function problemText(t: Translator, problem: FormProblem): string {
   if (typeof problem === 'string') {
     switch (problem) {
       case 'PasswordTooShort':
-        return t.t('exception-PasswordTooShort');
+        return t.t('ng-ui-problem-password-too-short');
       case 'PasswordTooLong':
-        return t.t('exception-PasswordTooLong');
+        return t.t('ng-ui-problem-password-too-long');
       case 'NoTan':
-        return t.t('error-NoTan');
+        return t.t('ng-ui-problem-tan-missing');
       case 'TanTooLong':
-        return t.t('error-TanTooLong');
+        return t.t('ng-ui-problem-tan-too-long');
       case 'EnteredReferenceValue':
-        return t.t('error-EnteredReferenceValue');
+        return t.t('ng-ui-problem-reference-value');
       case 'QrImageFailed':
-        return t.t('error-FailedToLoadQRCode');
+        return t.t('ng-ui-problem-qr-failed');
       case 'LoginRejected':
         return t.t('ng-ui-login-rejected');
     }
@@ -36,7 +39,7 @@ export function problemText(t: Translator, problem: FormProblem): string {
     const code = problem.Fido2Failed;
     return t.attr(code, 'text') ?? (t.has(code) ? t.t(code, { detail: code }) : t.t('ng-ui-fido2-failed', { detail: code }));
   }
-  return `${t.t('mobileBKU-notice')} ${problem.Atrust}`;
+  return t.t('ng-ui-problem-atrust', { text: problem.Atrust });
 }
 
 /**
@@ -61,42 +64,45 @@ export function progressText(t: Translator, progress: Progress, backend: Backend
   return t.t('ng-ui-sc-document', { index: progress.Document.index, total: progress.Document.total });
 }
 
-/** Titel und Text einer Meldung (docs/analyse/01 §4.10; Texte von A-Trust roh). */
+/**
+ * Titel und Text einer Meldung (docs/analyse/01 §4.10). Texte von A-Trust erscheinen wörtlich; technische Angaben
+ * (HTTP-Statuszeile, rohe Verbindungsfehler) nicht – dafür verständliche Texte mit Handlungshinweis (`ng-ui-notice-*`).
+ */
 export function noticeTexts(t: Translator, notice: Notice): { title: string; text: string } {
   const title = notice.kind === 'Error' ? t.t('error-Title') : notice.kind === 'Warning' ? t.t('common-warning') : t.t('common-info');
   const raw = notice.text ?? '';
   const code = notice.code;
   let text: string;
   if (typeof code === 'object') {
-    text = t.t('atrusterror-http_generic', { arg1: code.Http.status, arg2: raw });
+    text = t.t('ng-ui-notice-http', { status: code.Http.status });
   } else {
     switch (code) {
       case 'AtrustInterstitial':
         text = raw || t.t('common-info');
         break;
       case 'AtrustError':
-        text = t.t('atrusterror-message', { arg1: raw });
+        text = raw ? t.t('ng-ui-notice-atrust', { text: raw }) : t.t('ng-ui-notice-connection');
         break;
       case 'ProxyAuthRequired':
-        text = t.t('error-ProxyAuthRequired');
+        text = t.t('ng-ui-notice-proxy-auth');
         break;
       case 'DocumentTooLarge':
-        text = t.t('atrusterror-http_413');
+        text = t.t('ng-ui-notice-too-large');
         break;
       case 'ConnectionFailed':
-        text = t.t('error-FailedToConnect', { arg1: raw });
+        text = t.t('ng-ui-notice-connection');
         break;
       case 'LocalBkuNotReachable':
-        text = t.t('error-LocalBKU');
+        text = t.t('ng-ui-notice-localbku');
         break;
       case 'KeystoreFileMissing':
         text = t.t('ng-keystore-file-not-found-at', { name: raw.split(/[\\/]/).pop() || raw });
         break;
       case 'KeystoreAliasMissing':
-        text = t.t('error-KeyStoreAliasExist', { arg1: raw });
+        text = t.t('ng-ui-notice-keystore-alias', { alias: raw });
         break;
       case 'KeystoreError':
-        text = t.t('error-KeyStore');
+        text = t.t('ng-ui-notice-keystore');
         break;
       case 'KeystoreConversionNeeded':
         text = t.t('ng-ui-notice-keystore-conversion');

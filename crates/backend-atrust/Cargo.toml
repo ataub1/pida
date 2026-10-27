@@ -37,9 +37,10 @@ time = { workspace = true }
 sha2 = { workspace = true }
 # CTAP2 `clientPIN` (PIN/UV-Auth-Protokoll 1 und 2, `src/fido2/pin.rs`; Welle 3): ECDH P-256,
 # AES-256-CBC, HMAC-SHA-256 (HKDF-SHA-256 darauf), Zufall für Schlüssel und IV. Nur RustCrypto;
-# aes/cbc/hmac in genau den Versionen, die lopdf 0.45 bzw. elliptic-curve 0.13 schon ziehen
-# (keine neuen Crates im Lockfile). Lizenz jeweils MIT OR Apache-2.0.
-p256 = { workspace = true, features = ["ecdh"] }
+# aes/cbc in den Versionen, die lopdf 0.45 schon zieht; hmac 0.12 passt zu sha2 0.10 (keine neuen Crates im
+# Lockfile). Schlüssel für ECDH aus dem Systemzufall (`Generate`, Feature `getrandom` von p256 0.14).
+# Lizenz jeweils MIT OR Apache-2.0.
+p256 = { workspace = true, features = ["ecdh", "getrandom"] }
 rand_core = { workspace = true }
 aes = "=0.9.3"
 cbc = "=0.2.1"

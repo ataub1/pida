@@ -7,6 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import { useApp } from '../../app/context';
+import { HelpLink } from '../help/HelpLink';
 import type { StepView } from '../../core/types';
 import { Button, Details, Spinner } from '../../ui/controls';
 import { IconAlert, IconAlertCircle, IconCheckCircle, IconFileText, IconLock } from '../../ui/Icons';
@@ -79,6 +80,7 @@ export function ErrorCard({ step }: { step: Extract<StepView, { step: 'error' }>
       <p className="state-text pre-line" role="alert">
         {locked ? t.t('ng-ui-ws-locked-text') : (friendly.text ?? t.code(step.code, step.params))}
       </p>
+      <HelpLink code={step.code} />
       <div className="state-actions">
         {step.retry ? (
           <Button variant="primary" onPress={() => void dispatch({ type: 'retry' })}>

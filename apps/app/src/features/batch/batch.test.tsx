@@ -319,7 +319,7 @@ describe('Stapellauf (E2.2–E2.5)', () => {
     const pause = await within(dialog).findByTestId('batch-pause');
     expect(pause).toHaveAttribute('data-scope', 'session');
     expect(within(pause).getByText('Erneut versuchen öffnet eine neue Sitzung – eine neue Anmeldung ist möglich.')).toBeInTheDocument();
-    expect(within(pause).getByText(/Unbekannte Seite des Signaturdienstes/)).toBeInTheDocument();
+    expect(within(pause).getByText(/A-Trust hat eine Seite angezeigt, die PIDA nicht kennt/)).toBeInTheDocument();
     // ohne eigene Überschrift: „Der Stapel ist angehalten“ steht nur im Titel, nicht doppelt
     expect(within(pause).getByRole('heading', { name: 'Der Stapel ist angehalten' })).toBeInTheDocument();
     expect(within(pause).getAllByText(/Der Stapel ist angehalten/)).toHaveLength(1);

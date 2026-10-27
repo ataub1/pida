@@ -2,6 +2,7 @@
 //! an den Originalinhalt hängt (`Inhalt ‖ CMS`). Signaturen sind echt (cades), nur die PDF-Struktur
 //! fehlt – damit lassen sich alle Abläufe des Kerns ohne `pida-pades` prüfen.
 
+use pida_fs::PathExt as _;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
@@ -120,7 +121,7 @@ impl PadesEngine for FakeEngine {
 
     fn restore(&self, handle: &PreparedHandle, src: &SourcePdf) -> Result<Box<dyn PreparedDoc>, PadesError> {
         let invalid = |m: &str| PadesError::InvalidState(m.to_owned());
-        let bytes = std::fs::read(&handle.path)?;
+        let bytes = pida_fs::read(&handle.path)?;
         if DigestAlg::Sha256.digest(&bytes).value != handle.sha256 {
             return Err(invalid("Prüfsumme stimmt nicht"));
         }
@@ -207,7 +208,7 @@ impl PreparedDoc for FakePrepared {
         };
         let bytes = serde_json::to_vec(&state).map_err(|e| PadesError::InvalidState(e.to_string()))?;
         let path = dir.join("fake-prepared.json");
-        std::fs::write(&path, &bytes)?;
+        pida_fs::write(&path, &bytes)?;
         Ok(PreparedHandle { path, sha256: DigestAlg::Sha256.digest(&bytes).value })
     }
 }
@@ -227,10 +228,10 @@ impl SignedDoc for FakeSigned {
         Ok(CheckReport { checked: vec![Invariant::I3Cms], prior: vec![], warnings: vec![] })
     }
     fn write_atomically(&self, target: &OutputTarget) -> Result<OutputInfo, PadesError> {
-        if target.path.exists() && !target.overwrite {
+        if target.path.fs_exists() && !target.overwrite {
             return Err(PadesError::Io(std::io::Error::from(std::io::ErrorKind::AlreadyExists)));
         }
-        std::fs::write(&target.path, &self.bytes)?;
+        pida_fs::write(&target.path, &self.bytes)?;
         Ok(OutputInfo { path: target.path.clone(), len: self.bytes.len() as u64, sha256: "fake".into() })
     }
     fn len(&self) -> u64 {
@@ -240,7 +241,7 @@ impl SignedDoc for FakeSigned {
 
 /// Prüft eine von der Fake-Engine geschriebene Datei: CMS über den Originalinhalt.
 pub fn verify_fake_output(path: &std::path::Path, original: &[u8]) -> pida_cades::CmsReport {
-    let bytes = std::fs::read(path).expect("Ausgabe lesbar");
+    let bytes = pida_fs::read(path).expect("Ausgabe lesbar");
     assert!(bytes.starts_with(original), "Original ist Präfix (I1)");
     let cms = &bytes[original.len()..];
     pida_cades::verify_detached(cms, &mut &original[..], &Expect::default()).expect("CMS gültig")

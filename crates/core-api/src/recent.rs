@@ -16,9 +16,11 @@
 //! - Gespeichert bleibt das Format von K3 (`recent.json`: `id`, `file_name`, `path`, `signed_at`); ältere Listen
 //!   werden unverändert gelesen.
 
+use pida_fs::PathExt as _;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use web_time::Instant;
 
 use pida_config::{Paths, RecentEntry, RecentStore};
 
@@ -49,7 +51,7 @@ impl RecentState {
 
     /// Existenz neu prüfen.
     fn check(&mut self) {
-        self.exists = self.entries.iter().map(|e| (e.id, e.path.is_file())).collect();
+        self.exists = self.entries.iter().map(|e| (e.id, e.path.fs_is_file())).collect();
         self.checked = Some(Instant::now());
     }
 
@@ -146,7 +148,7 @@ impl CoreTask {
             tracing::debug!(id, action, "„Zuletzt signiert“: unbekannter Eintrag");
             return None;
         };
-        let exists = path.is_file();
+        let exists = path.fs_is_file();
         self.recent.exists.insert(id, exists);
         if !exists {
             self.notify_code(MSG_RECENT_MISSING);
@@ -177,7 +179,7 @@ impl CoreTask {
             return;
         };
         let shared = self.shared.clone();
-        tokio::task::spawn_blocking(move || {
+        crate::rt::spawn_blocking(move || {
             if let Err(e) = shell.reveal_path(&path) {
                 tracing::warn!(error = %e, "Datei konnte nicht im Ordner gezeigt werden");
                 shared.send(crate::runtime::Msg::Notices(vec![(MSG_OPEN_FAILED.to_owned(), BTreeMap::new())]));

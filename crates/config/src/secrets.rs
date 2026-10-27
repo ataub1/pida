@@ -53,7 +53,7 @@ pub enum SecretId {
 
 /// Kanonischer Pfad, falls die Datei existiert (sonst unverändert).
 fn canonical(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    pida_fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 impl SecretId {
@@ -506,7 +506,7 @@ mod tests {
     fn canonical_keystore_path() {
         let dir = tempfile::tempdir().unwrap();
         let f = dir.path().join("k.p12");
-        std::fs::write(&f, b"x").unwrap();
+        pida_fs::write(&f, b"x").unwrap();
         let via_dot = dir.path().join(".").join("k.p12");
         assert_eq!(SecretId::keystore_store(&via_dot), SecretId::keystore_store(&f));
     }

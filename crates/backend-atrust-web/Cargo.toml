@@ -1,0 +1,25 @@
+[package]
+name = "pida-backend-atrust-web"
+description = "ID Austria im Browser: A-Trust-Seite im Overlay, SL-Befehlskette über einen DataURL-Rückkanal (Konzept Webdienst, Variante E)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+pida-backend-api = { workspace = true }
+pida-cades = { workspace = true }
+pida-sl12 = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+pida-backend-api = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
+base64 = { workspace = true }
+
+[lints]
+workspace = true

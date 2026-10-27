@@ -13,6 +13,7 @@ resolver = "3"
 members = [
     # Basis
     "crates/java-properties",
+    "crates/fs",
     "crates/i18n",
     "crates/pdf-cos",
     "crates/cades",
@@ -29,18 +30,21 @@ members = [
     "crates/backend-keystore",
     "crates/backend-localbku",
     "crates/backend-atrust",
+    "crates/backend-atrust-web",
     "crates/pades",
     # Ebene 3–4 (Integration)
     "crates/workflow",
     "crates/core-api",
     # Anwendungen
     "apps/cli",
+    "apps/web",             # Web-Shell (WebAssembly), Konzept Webdienst
+    "apps/web-server",      # Server der Web-Variante: Auslieferung, SL-Rückkanal, A-Trust-Testgegenstelle
     "apps/app/src-tauri",   # Tauri-2-Shell (Desktop und Mobile), ADR 0001 §3
     "apps/app/plugins/pida-mobile",   # Mobile-Plugin der Shell (Swift/Kotlin: M-iOS/M-Android)
 ]
 
 [workspace.package]
-version = "0.2.5"
+version = "0.5.0"
 edition = "2024"
 # MSRV = die verifizierte Toolchain (Rust 1.99 stable). Die Abhängigkeiten selbst verlangen mindestens 1.88
 # (lopdf 0.45, image 0.25, time 0.3.55, keyring 4); eine niedrigere MSRV wird erst nach CI-Nachweis gesenkt.
@@ -56,6 +60,7 @@ publish = false
 [workspace.dependencies]
 # --- interne Crates -------------------------------------------------------------------------------
 pida-java-properties = { path = "crates/java-properties" }
+pida-fs = { path = "crates/fs" }
 pida-i18n = { path = "crates/i18n" }
 pida-pdf-cos = { path = "crates/pdf-cos" }
 pida-pdf-incremental = { path = "crates/pdf-incremental" }
@@ -70,6 +75,7 @@ pida-backend-api = { path = "crates/backend-api" }
 pida-sl12 = { path = "crates/sl12" }
 pida-backend-atrust = { path = "crates/backend-atrust" }
 pida-backend-localbku = { path = "crates/backend-localbku" }
+pida-backend-atrust-web = { path = "crates/backend-atrust-web" }
 pida-backend-keystore = { path = "crates/backend-keystore" }
 pida-net = { path = "crates/net" }
 pida-workflow = { path = "crates/workflow" }
@@ -99,17 +105,20 @@ pkcs8 = { version = "~0.10.2", features = ["std"] }
 sha1 = { version = "~0.10.6", features = ["oid"] }
 sha2 = { version = "~0.10.9", features = ["oid"] }
 rsa = { version = "~0.9.10", features = ["sha2", "std"] }
-p256 = { version = "~0.13.2", features = ["ecdsa", "pkcs8", "std"] }
-p384 = { version = "~0.13.1", features = ["ecdsa", "pkcs8", "std"] }
-p521 = { version = "~0.13.3", features = ["ecdsa", "pkcs8", "std"] }
-ecdsa = { version = "~0.16.9", features = ["der", "verifying", "signing", "std"] }
-signature = { version = "~2.2.0", features = ["std"] }
+# EC (ECDSA, ECDH) schon in der Folgegeneration (RUSTSEC-2026-0387: crypto-bigint 0.5 nicht zeitkonstant):
+# elliptic-curve 0.14 / ecdsa 0.17 / crypto-bigint 0.7. Die Grenze zu rsa/cms sind Bytes (PKCS#8-DER,
+# SEC1-Punkt, Signaturwert), keine gemeinsamen Typen (ADR 0001 §5.2). rsa 0.9 bringt signature 2 selbst mit.
+p256 = { version = "~0.14.0", features = ["ecdsa", "pkcs8", "std"] }
+p384 = { version = "~0.14.0", features = ["ecdsa", "pkcs8", "std"] }
+p521 = { version = "~0.14.0", features = ["ecdsa", "pkcs8", "std"] }
+ecdsa = { version = "~0.17.0", features = ["der", "algorithm", "std"] }
+signature = { version = "~3.0.0" }
 p12-keystore = { version = "=0.4.1" }
 # Nur Feature-Vereinigung (backend-keystore): aktiviert in der von p12-keystore 0.4.1 genutzten
 # pkcs5-Version die Lesepfade PBES2/HMAC-SHA-1 (`sha1-insecure`) und DES-EDE3-CBC (`3des`). Version
 # muss der von p12-keystore entsprechen und wird bei einem Update von p12-keystore mitgezogen.
 pkcs5 = { version = "=0.8.1", default-features = false, features = ["sha1-insecure", "3des"] }
-# Zufall für RSA-Blinding beim Signieren (`OsRng`, cades); dieselbe Generation wie rsa/elliptic-curve.
+# Zufall für RSA-Blinding beim Signieren (`OsRng`, cades) und FIDO2 (IV, Token); dieselbe Generation wie rsa.
 rand_core = { version = "=0.6.4", features = ["getrandom"] }
 
 # --- Fonts, Bilder, QR ----------------------------------------------------------------------------
@@ -135,6 +144,9 @@ quick-xml = "0.42.0"
 encoding_rs = "=0.8.42"
 # Nur `hyper::ext::ReasonPhrase` (net); dieselben Features wie über reqwest im Graph.
 hyper = { version = "=1.12.0", default-features = false, features = ["http1", "client"] }
+hyper-util = { version = "0.1.21", default-features = false }
+http-body-util = "0.1.5"
+bytes = "1.12.1"
 
 # --- Allgemein ------------------------------------------------------------------------------------
 thiserror = "2.0.21"
@@ -154,6 +166,16 @@ time = { version = "0.3.55", features = ["formatting", "parsing", "macros", "ser
 # den lokalen Offset unter Unix in Mehrthread-Prozessen aber nicht und kennt keine IANA-Namen.
 # `jiff` liefert lokale Zeitzone (inkl. Sommerzeit) und `timezone`-Profilwerte (`Europe/Vienna`).
 jiff = "0.2.38"
+# Browser (wasm32-unknown-unknown): Uhrzeit aus JavaScript (`Date.now()`), Konzept Webdienst Etappe 1 (MIT/Apache-2.0)
+js-sys = "0.3.106"
+# Browser: Instant/SystemTime aus JavaScript (wie std, MIT/Apache-2.0)
+web-time = "1"
+# Browser: Aufgaben auf dem Ereignis-Takt der Seite (spawn_local) und Zeitgeber (MIT/Apache-2.0)
+wasm-bindgen-futures = "0.4"
+gloo-timers = { version = "0.3", features = ["futures"] }
+# Web-Shell: JavaScript-Anbindung (MIT/Apache-2.0)
+wasm-bindgen = "=0.2.129"
+console_error_panic_hook = "0.1.7"
 base64 = "0.23.1"
 hex = "0.4.3"
 toml = "1.1.8"

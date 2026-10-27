@@ -1,0 +1,205 @@
+/* Web-Variante: Download-Banner über der Kopfzeile und Dialog mit den Downloads (DownloadBanner.tsx) */
+.app[data-web] {
+  grid-template-rows: auto calc(var(--header-h) + env(safe-area-inset-top)) minmax(0, 1fr);
+}
+.dl-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: env(safe-area-inset-top) max(var(--sp-4), env(safe-area-inset-right)) 0 max(var(--sp-4), env(safe-area-inset-left));
+  background: var(--c-surface-2);
+  border-bottom: 1px solid var(--c-border);
+  font-size: var(--fs-15);
+  color: var(--c-text-2);
+}
+.dl-banner-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.dl-banner-main[data-focus-visible] {
+  box-shadow: 0 0 0 2px var(--c-focus);
+  border-radius: var(--r-2);
+}
+.dl-banner-icons {
+  display: inline-flex;
+  gap: 10px;
+  color: var(--c-text-3);
+}
+.dl-banner-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dl-banner-cta {
+  flex: none;
+  padding: 5px 12px;
+  border-radius: var(--r-3);
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  font-weight: 600;
+}
+.dl-banner-main[data-hovered] .dl-banner-cta {
+  background: var(--c-primary-hover);
+}
+.dl-banner-close {
+  flex: none;
+}
+@media (max-width: 560px) {
+  .dl-banner-text {
+    display: none;
+  }
+}
+
+.dl-body {
+  display: grid;
+  gap: var(--sp-5);
+  padding: 0 var(--sp-6) var(--sp-6);
+}
+.dl-section {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--c-text-3);
+}
+.dl-desktop,
+.dl-mobile {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dl-desktop {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.dl-mobile {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dl-platform,
+.dl-store {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+  width: 100%;
+  padding: var(--sp-4) var(--sp-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-4);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font: inherit;
+  text-align: center;
+}
+.dl-platform {
+  align-content: start;
+  gap: var(--sp-2);
+}
+.dl-get {
+  max-width: 100%;
+  margin-top: var(--sp-1);
+}
+.dl-more {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px var(--sp-3);
+  font-size: var(--fs-13);
+}
+.dl-release,
+.dl-note {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.dl-note {
+  margin: var(--sp-3) 0 0;
+}
+.dl-platform-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 600;
+}
+.dl-platform-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--c-text-3);
+}
+.dl-qr {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border: 1px dashed var(--c-border-strong);
+  border-radius: var(--r-3);
+  color: var(--c-text-3);
+  margin-bottom: var(--sp-2);
+}
+.dl-github {
+  margin: 0;
+  color: var(--c-text-2);
+}
+@media (max-width: 560px) {
+  .dl-desktop {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Plattform-Symbole in Farbe (nur im Download-Dialog) */
+.dl-ico-windows path {
+  fill: #0078d4;
+  stroke: #0078d4;
+}
+.dl-ico-macos path {
+  fill: var(--c-text);
+  stroke: var(--c-text);
+}
+.dl-ico-linux path:nth-child(1) {
+  fill: var(--c-text);
+  stroke: var(--c-text);
+}
+.dl-ico-linux path:nth-child(2) {
+  stroke: var(--c-surface);
+  stroke-width: 2.2;
+}
+.dl-ico-linux path:nth-child(3) {
+  fill: #f5b700;
+  stroke: #f5b700;
+}
+.dl-ico-ios rect {
+  fill: color-mix(in srgb, #007aff 14%, transparent);
+  stroke: #007aff;
+}
+.dl-ico-ios path {
+  stroke: #007aff;
+}
+.dl-ico-android path:nth-child(1) {
+  fill: #3ddc84;
+  stroke: #3ddc84;
+}
+.dl-ico-android path:nth-child(2) {
+  stroke: #3ddc84;
+}
+.dl-ico-android path:nth-child(3) {
+  stroke: #ffffff;
+  stroke-width: 2.2;
+}
+.dl-ico-android path:nth-child(4) {
+  stroke: #3ddc84;
+}

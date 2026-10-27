@@ -22,6 +22,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
+import { HelpLink } from '../help/HelpLink';
 import type {
   BackendId,
   BatchItemStatusView,
@@ -48,7 +49,7 @@ import { IconAlert, IconAlertCircle, IconCheck, IconClock, IconInfo, IconMessage
 import { abortTextMsg, batchFlow, confirmsEach, newSessionMsg } from '../batch/flow';
 import { statusLabel, statusTone } from '../batch/texts';
 import { DEFAULT_STORAGE_CHOICE, PasswordStorageQuestion, PrivacyNote } from '../settings';
-import { SHOWN_BACKENDS, SignerGlyph, SignerIcon, signerChoice, signerClass, signerName } from '../workspace/signers';
+import { isShownBackend, SignerGlyph, SignerIcon, signerChoice, signerClass, signerName } from '../workspace/signers';
 import { CountdownRing, useCountdown } from './CountdownRing';
 import { friendlyError, noticeTexts, problemText, progressText, qrDataUrl } from './texts';
 import './signing.css';
@@ -100,10 +101,11 @@ function methodFromInteraction(i: InteractionView): ConfirmMethod | null {
 
 type StepKey = 'login' | 'confirm' | 'unlock' | 'card' | 'done';
 
-function stepsFor(backend: BackendId | null): StepKey[] {
+/** `noConfirm`: ID Austria ohne zweiten Faktor (z. B. Test-Identitäten) – nach der Anmeldung gleich signiert. */
+function stepsFor(backend: BackendId | null, noConfirm = false): StepKey[] {
   if (backend === 'keystore') return ['unlock', 'done'];
   if (backend === 'local_bku') return ['card', 'done'];
-  return ['login', 'confirm', 'done'];
+  return noConfirm ? ['login', 'done'] : ['login', 'confirm', 'done'];
 }
 
 function stepIndex(backend: BackendId | null, stage: SigningStage, loginDone: boolean): number {
@@ -236,7 +238,10 @@ function SigningDialog({
       : backend
         ? t.t('ng-ui-sc-title', { signer: signerName(t, backend) })
         : t.t('ng-ui-insp-sign');
-  const steps = stepsFor(backend);
+  // Einzeldokument fertig, ohne dass je eine Bestätigung (App, SMS, QR, FIDO2) verlangt wurde: kein abgehakter Schritt
+  // „In der App bestätigen“, den es nicht gab
+  const noConfirm = !batch && finishing && backend === 'atrust_native' && method === null;
+  const steps = stepsFor(backend, noConfirm);
   const errorNow = mode === 'error' || mode === 'pause';
   // Stapel: „Signiert“ erst am Ende des Laufs; zwischen den Dokumenten bleibt der Schritt „Bestätigen“ aktiv
   const index = batch ? (saving ? Math.min(1, steps.length - 2) : stepIndex(backend, stage, loginDone)) : finishing ? steps.length - 1 : stepIndex(backend, stage, loginDone);
@@ -1018,7 +1023,7 @@ function NoticePane({ request, notice }: { request: number; notice: Notice }) {
  */
 function ChoosePane({ step, onCancel }: { step: Extract<StepView, { step: 'backend' }>; onCancel: () => void }) {
   const { t, dispatch } = useApp();
-  const options = step.options.filter((o) => SHOWN_BACKENDS.includes(o.id));
+  const options = step.options.filter((o) => isShownBackend(o.id));
   const [choice, setChoice] = useState<BackendId | null>(options.find((o) => o.available)?.id ?? null);
   const selected = options.find((o) => o.id === choice);
   return (
@@ -1119,6 +1124,7 @@ function ErrorPane({ step, beforeConfirm }: { step: Extract<StepView, { step: 'e
       <div role="alert">
         <StepTitle>{friendly.title}</StepTitle>
         <p className="step-text pre-line">{message}</p>
+        <HelpLink code={step.code} />
       </div>
       <Details label={t.t('ng-ui-sc-details')} level={4}>
         <p className="mono-small">

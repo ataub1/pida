@@ -27,6 +27,7 @@
 //! - **„Signatur fortsetzen“:** ein gesicherter Keystore-Vorgang eines früheren Builds wird beim Start
 //!   verworfen ([`MSG_RESUME_SIGNER_NOT_OFFERED`]) statt angeboten.
 
+use pida_fs::PathExt as _;
 use std::path::{Path, PathBuf};
 
 use pida_backend_api::{BackendId, Platform};
@@ -162,8 +163,8 @@ fn former_keystore_secret_ids(
             }
         }
     }
-    if let Ok(dir) = std::fs::read_dir(imported) {
-        files.extend(dir.flatten().map(|e| e.path()).filter(|p| p.is_file()));
+    if let Ok(dir) = pida_fs::read_dir(imported) {
+        files.extend(dir.flatten().map(|e| e.path()).filter(|p| p.fs_is_file()));
     }
     let mut aliases = vec![String::new()];
     if let Some(alias) = keystore.alias.as_ref().filter(|a| !a.is_empty()) {
@@ -187,11 +188,11 @@ fn former_keystore_secret_ids(
 /// fehlender, zu großer oder unlesbarer Datei – keine). Nur für [`former_keystore_secret_ids`]: die Datei wird
 /// mit dem gespeicherten Passwort gelesen, nichts geschrieben; Passwort und Inhalt nur im RAM.
 fn stored_key_aliases(secrets: &dyn SecretStore, file: &Path) -> Vec<String> {
-    if !std::fs::metadata(file).is_ok_and(|m| m.is_file() && m.len() <= crate::runtime::MAX_KEYSTORE_BYTES) {
+    if !pida_fs::metadata(file).is_ok_and(|m| m.is_file() && m.len() <= crate::runtime::MAX_KEYSTORE_BYTES) {
         return Vec::new();
     }
     let Ok(Some(password)) = secrets.get(&SecretId::keystore_store(file)) else { return Vec::new() };
-    let Ok(bytes) = std::fs::read(file).map(zeroize::Zeroizing::new) else { return Vec::new() };
+    let Ok(bytes) = pida_fs::read(file).map(zeroize::Zeroizing::new) else { return Vec::new() };
     match pida_backend_keystore::list_aliases(&bytes, &password) {
         Ok(entries) => entries.into_iter().map(|e| e.alias).collect(),
         Err(e) => {
@@ -212,7 +213,7 @@ impl CoreTask {
             return;
         }
         let marker = self.cfg.paths.data_dir.join(SECRETS_REMOVED_MARKER);
-        if marker.exists() {
+        if marker.fs_exists() {
             return;
         }
         if !self.cfg.secrets.is_persistent() {
@@ -247,8 +248,8 @@ impl CoreTask {
         if failed {
             return;
         }
-        let written = std::fs::create_dir_all(&self.cfg.paths.data_dir)
-            .and_then(|()| std::fs::write(&marker, b"ADR 0004 Nachtrag 11\n"));
+        let written = pida_fs::create_dir_all(&self.cfg.paths.data_dir)
+            .and_then(|()| pida_fs::write(&marker, b"ADR 0004 Nachtrag 11\n"));
         if let Err(e) = written {
             tracing::warn!(kind = ?e.kind(), "Merker der entfernten Keystore-Passwörter nicht geschrieben");
         }
@@ -260,16 +261,16 @@ impl CoreTask {
     /// PIDA-eigenen Ordner (keine Verknüpfungen, keine Unterordner); Originale an anderer Stelle bleiben unberührt.
     /// Wurde etwas gelöscht, einmal der Hinweis [`MSG_KEYSTORE_COPIES_REMOVED`]. Keine Pfade im Log (Regel 9).
     pub(crate) fn remove_former_keystore_files(&mut self) {
-        if self.cfg.keystore_offered || !self.cfg.paths.data_dir.join(SECRETS_REMOVED_MARKER).exists() {
+        if self.cfg.keystore_offered || !self.cfg.paths.data_dir.join(SECRETS_REMOVED_MARKER).fs_exists() {
             return;
         }
-        let Ok(entries) = std::fs::read_dir(self.cfg.paths.data_dir.join(KEYSTORE_DIR)) else { return };
+        let Ok(entries) = pida_fs::read_dir(self.cfg.paths.data_dir.join(KEYSTORE_DIR)) else { return };
         let mut removed = 0usize;
         for entry in entries.flatten() {
             if !entry.file_type().is_ok_and(|t| t.is_file()) {
                 continue;
             }
-            match std::fs::remove_file(entry.path()) {
+            match pida_fs::remove_file(entry.path()) {
                 Ok(()) => removed += 1,
                 Err(e) => tracing::warn!(kind = ?e.kind(), "Keystore-Kopie eines früheren Builds nicht gelöscht"),
             }
@@ -402,8 +403,8 @@ mod tests {
     fn secret_ids_cover_settings_file_imported_files_and_aliases() {
         let tmp = tempfile::tempdir().unwrap();
         let imported = tmp.path().join("keystores");
-        std::fs::create_dir_all(&imported).unwrap();
-        std::fs::write(imported.join("neu.p12"), b"x").unwrap();
+        pida_fs::create_dir_all(&imported).unwrap();
+        pida_fs::write(imported.join("neu.p12"), b"x").unwrap();
         let ks = KeystoreSettings {
             enabled: true,
             file: Some("/var/mobile/Containers/Data/Application/ALT/data/keystores/alt.p12".into()),
@@ -420,7 +421,7 @@ mod tests {
         assert!(has("keystore-store:/private/var/mobile/Containers/Data/Application/ALT/data/keystores/alt.p12"));
         assert!(has("keystore-key:/var/mobile/Containers/Data/Application/ALT/data/keystores/alt.p12:max"));
         assert!(has("keystore-key:/var/mobile/Containers/Data/Application/ALT/data/keystores/alt.p12:"));
-        let neu = std::fs::canonicalize(imported.join("neu.p12")).unwrap();
+        let neu = pida_fs::canonicalize(imported.join("neu.p12")).unwrap();
         assert!(has(&format!("keystore-store:{}", neu.display())));
         assert!(has(&format!("keystore-key:{}:", neu.display())));
         assert!(has(&format!("keystore-key:{}:frueher", neu.display())));
@@ -440,14 +441,14 @@ mod tests {
     fn stored_key_aliases_need_the_stored_password() {
         let tmp = tempfile::tempdir().unwrap();
         let file = tmp.path().join("k.p12");
-        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/keystores/test-rsa2048.p12"), &file)
+        pida_fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../../testdata/keystores/test-rsa2048.p12"), &file)
             .unwrap();
         let store = pida_config::MemorySecretStore::default();
         assert!(stored_key_aliases(&store, &file).is_empty(), "ohne Passwort");
         store.set(&SecretId::keystore_store(&file), "falsch").unwrap();
         assert!(stored_key_aliases(&store, &file).is_empty(), "falsches Passwort");
         store.set(&SecretId::keystore_store(&file), "test").unwrap();
-        let bytes = std::fs::read(&file).unwrap();
+        let bytes = pida_fs::read(&file).unwrap();
         let expected: Vec<String> =
             pida_backend_keystore::list_aliases(&bytes, "test").unwrap().into_iter().map(|e| e.alias).collect();
         assert!(!expected.is_empty());

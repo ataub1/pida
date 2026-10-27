@@ -1,0 +1,4 @@
+
+# Browser (Web-Shell apps/web): getrandom ≥ 0.3 über crypto.getRandomValues (zusätzlich zum Feature wasm_js)
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

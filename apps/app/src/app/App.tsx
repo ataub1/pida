@@ -19,14 +19,16 @@
  * kommt dort nur mit `document`, `StepView::Placeholder` gar nicht. Die bisherigen Bildschirme (`screens/`) sind
  * mit dem Merge von A1 entfernt (§3.15); ein klassischer Zustand ohne Dokument zeigt die Startansicht.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { I18nProvider } from 'react-aria-components';
 import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar, workspaceDefaults } from '../core/defaults';
 import { isMobile, type OpenFilesMode, type UiEvent, type ViewState } from '../core/types';
+import { webProfile } from '../core/web-profile';
 import { BatchView } from '../features/batch';
 import { DoneView, OutputDialogs } from '../features/done';
 import { Onboarding } from '../features/onboarding';
+import { HELP_AVAILABLE, HelpPanel } from '../features/help';
 import { CommandPalette, PALETTE_AVAILABLE, ShortcutsDialog } from '../features/palette';
 import { SettingsPanel } from '../features/settings';
 import { cardMode, errorInCard, SigningCard } from '../features/signing';
@@ -37,6 +39,7 @@ import { accessKeyFromEvent, trackAltKey, triggerAccessKey } from '../ui/AccessK
 import { Toasts } from '../ui/Toasts';
 import { batchNav, buildCommands, buildShortcuts } from './commands';
 import { AppContext, type AppContextValue, type SettingsSectionId, type ShellOverlay, type Toast } from './context';
+import { DownloadBanner } from './DownloadBanner';
 import { EMBLEM_DROP_EVENT } from './events';
 import { Header } from './Header';
 import { keepFocusedFieldVisible } from './keyboard';
@@ -129,6 +132,11 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   const [dragActive, setDragActive] = useState(false);
   const [section, setSection] = useState<SettingsSectionId>('signature');
   const [overlay, setOverlay] = useState<ShellOverlay>(null);
+  // Offline-Hilfe: offen mit optionalem Ziel-Artikel
+  const [help, setHelp] = useState<{ target: string | null } | null>(null);
+  const openHelp = useCallback((target: string | null = null) => {
+    if (HELP_AVAILABLE) setHelp({ target });
+  }, []);
   const [theme, setThemeState] = useState<Theme>(() => readTheme());
   const toastId = useRef(0);
   const signHandler = useRef<(() => void) | null>(null);
@@ -319,6 +327,12 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
       const { current: v, browse: b, openSettings: settings, requestSign: sign, overlay: o, dispatch: d } = keyState.current;
       const mod = isMac ? e.metaKey : e.ctrlKey;
       const k = e.key.toLowerCase();
+      // F1 = Hilfe, auch über dem Signierdialog (z. B. „Was ist der Vergleichswert?“)
+      if (e.key === 'F1' && HELP_AVAILABLE) {
+        e.preventDefault();
+        setHelp((h) => h ?? { target: null });
+        return;
+      }
       const blocked = o !== null || v.settings !== null || document.querySelector('[data-modal-layer]') !== null;
       if (mod && !e.altKey && !e.shiftKey && k === 'k' && PALETTE_AVAILABLE) {
         e.preventDefault();
@@ -414,8 +428,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   }, [overlayOpen]);
 
   const ctx = useMemo<AppContextValue>(
-    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, settingsSection: section, browse, signRecent, overlay, setOverlay, requestSign, registerSign }),
-    [bridge, current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, section, browse, signRecent, overlay, requestSign, registerSign],
+    () => ({ bridge, view: current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, openHelp, settingsSection: section, browse, signRecent, overlay, setOverlay, requestSign, registerSign }),
+    [bridge, current, dispatch, t, announce, toast, dragActive, isMac, theme, setTheme, openSettings, openHelp, section, browse, signRecent, overlay, requestSign, registerSign],
   );
 
   const commands = useMemo(
@@ -435,6 +449,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
   );
 
   const step = current.step;
+  // Web-Variante: Banner mit den Downloads der Apps (DownloadBanner.tsx)
+  const web = webProfile() !== null;
   return (
     <I18nProvider locale={current.language === 'de' ? 'de-AT' : 'en-GB'}>
       <AppContext.Provider value={ctx}>
@@ -445,10 +461,12 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           data-drag={dragActive || undefined}
           data-mobile={mobile || undefined}
           data-os={current.platform.os}
+          data-web={web || undefined}
         >
           <a className="skip-link" href="#main">
             {t.t('ng-ui-shell-skip')}
           </a>
+          {web ? <DownloadBanner /> : null}
           <Header theme={theme} onTheme={setTheme} />
           <main id="main" className="app-main" tabIndex={-1}>
             {main === 'starting' ? <StartingCard /> : null}
@@ -468,6 +486,11 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           {current.resume && !current.settings && !current.migration ? <ResumeDialog offer={current.resume} /> : null}
           {join && current.parked ? <ParkedJoinDialog parked={current.parked} request={join} onClose={() => setJoin(null)} /> : null}
           <CommandPalette isOpen={overlay === 'palette'} onClose={() => setOverlay(null)} commands={commands} />
+          {HELP_AVAILABLE && help ? (
+            <Suspense fallback={null}>
+              <HelpPanel target={help.target} onClose={() => setHelp(null)} />
+            </Suspense>
+          ) : null}
           <ShortcutsDialog isOpen={overlay === 'shortcuts'} onClose={() => setOverlay(null)} commands={commands} shortcuts={buildShortcuts(t, isMac)} />
           <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />
           <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="live-region">

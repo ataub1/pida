@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
+import { webProfile } from '../../core/web-profile';
 import { AccessButton } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
 import { IconShield } from '../../ui/Icons';
@@ -26,14 +27,15 @@ export function PrivacyInfo() {
   const { t, view } = useApp();
   const url = t.t('config-DataProtectionURL');
   const custom = view.privacy_text;
+  const web = webProfile() !== null;
   return (
     <>
       <p className="pre-line">
-        {custom ? custom : <Markup text={t.t(isMobile(view) ? 'ng-ui-privacy-statement-mobile' : 'ng-ui-privacy-statement')} targets={[{ href: url }]} />}
+        {custom ? custom : <Markup text={t.t(web ? 'ng-ui-privacy-statement-web' : isMobile(view) ? 'ng-ui-privacy-statement-mobile' : 'ng-ui-privacy-statement')} targets={[{ href: url }]} />}
       </p>
-      <p>{t.t(isMobile(view) ? 'ng-ui-privacy-local-mobile' : 'ng-ui-privacy-local')}</p>
-      {/* Update-Prüfung (Nachtrag 21): nur am Desktop – auf iOS/Android prüft PIDA nicht */}
-      {isMobile(view) ? null : <p>{t.t('ng-ui-privacy-update-check')}</p>}
+      <p>{t.t(web ? 'ng-ui-privacy-local-web' : isMobile(view) ? 'ng-ui-privacy-local-mobile' : 'ng-ui-privacy-local')}</p>
+      {/* Update-Prüfung (Nachtrag 21): nur am Desktop – auf iOS/Android und im Web prüft PIDA nicht */}
+      {isMobile(view) || web ? null : <p>{t.t('ng-ui-privacy-update-check')}</p>}
       {custom ? (
         // Der Text aus PDF-Over nennt die Datenschutzerklärung von A-Trust selbst; ein eigener Text evtl. nicht
         <p>

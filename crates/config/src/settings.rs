@@ -493,7 +493,7 @@ const FILE_HEADER: &str = "# PIDA – Einstellungen. Unbekannte Einträge bleibe
 impl Settings {
     /// Liest die TOML-Datei.
     pub fn load(path: &Path) -> LoadOutcome {
-        let bytes = match std::fs::read(path) {
+        let bytes = match pida_fs::read(path) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return LoadOutcome::Missing,
             Err(e) => return LoadOutcome::Unreadable(ConfigError::Io(e)),
@@ -799,10 +799,11 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         Some(d) if !d.as_os_str().is_empty() => d.to_path_buf(),
         _ => PathBuf::from("."),
     };
-    std::fs::create_dir_all(&dir)?;
+    pida_fs::create_dir_all(&dir)?;
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "settings".into());
-    let tmp = dir.join(format!(".{name}.tmp-{}-{}", std::process::id(), TMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
-    let mut opts = std::fs::OpenOptions::new();
+    let tmp =
+        dir.join(format!(".{name}.tmp-{}-{}", pida_fs::process_id(), TMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
+    let mut opts = pida_fs::OpenOptions::new();
     opts.write(true).create_new(true);
     #[cfg(unix)]
     {
@@ -814,15 +815,15 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         f.write_all(bytes)?;
         f.sync_all()?;
         drop(f);
-        std::fs::rename(&tmp, path)?;
+        pida_fs::rename(&tmp, path)?;
         #[cfg(unix)]
-        if let Ok(d) = std::fs::File::open(&dir) {
+        if let Ok(d) = pida_fs::File::open(&dir) {
             let _ = d.sync_all();
         }
         Ok(())
     })();
     if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
+        let _ = pida_fs::remove_file(&tmp);
     }
     result.map_err(ConfigError::Io)
 }

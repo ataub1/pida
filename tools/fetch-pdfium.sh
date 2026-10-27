@@ -20,6 +20,7 @@
 #
 # Plattformen: mac-arm64 mac-x64 linux-x64 linux-arm64 win-x64 win-arm64 ios-device-arm64
 #              ios-simulator-arm64 ios-simulator-x64 android-arm64 android-arm android-x64
+#              wasm (WebAssembly für die Web-Variante: lib/pdfium.js und lib/pdfium.wasm)
 #
 # Umgebung (optional): PDFIUM_DEST (Zielordner, Standard tools/pdfium), PDFIUM_CACHE (Archive,
 # Standard <Ziel>/.downloads), PDFIUM_RELEASE (nur mit --update-lock), PDFIUM_BASE_URL (Spiegel),
@@ -30,7 +31,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCK="$ROOT/tools/pdfium.lock"
 DEST="${PDFIUM_DEST:-$ROOT/tools/pdfium}"
-ALL_PLATFORMS="mac-arm64 mac-x64 linux-x64 linux-arm64 win-x64 win-arm64 ios-device-arm64 ios-simulator-arm64 ios-simulator-x64 android-arm64 android-arm android-x64"
+ALL_PLATFORMS="mac-arm64 mac-x64 linux-x64 linux-arm64 win-x64 win-arm64 ios-device-arm64 ios-simulator-arm64 ios-simulator-x64 android-arm64 android-arm android-x64 wasm"
 
 die() { echo "fetch-pdfium: $*" >&2; exit 1; }
 log() { echo "fetch-pdfium: $*" >&2; }

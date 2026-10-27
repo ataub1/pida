@@ -270,3 +270,11 @@
     min-height: 44px;
   }
 }
+
+/* „Was bedeutet das?“ an Fehlermeldungen (Offline-Hilfe, Entwurf) */
+.help-what {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: var(--sp-2);
+}

@@ -177,7 +177,7 @@ impl ConfigState {
         match &self.target {
             Some(path) => {
                 if let Some(dir) = path.parent() {
-                    std::fs::create_dir_all(dir)?;
+                    pida_fs::create_dir_all(dir)?;
                 }
                 self.settings.save_atomic(path)
             }
@@ -250,6 +250,7 @@ pub(crate) fn validate(settings: &Settings) -> (BTreeMap<String, String>, bool) 
 mod tests {
     use super::*;
     use pida_config::ProxyMode;
+    use pida_fs::PathExt as _;
 
     fn state(dir: &Path, overlay: Overlay) -> (ConfigState, Option<StartupProblem>) {
         ConfigState::load(Paths::under(dir), overlay, None, Arc::new(MemorySecretStore::default()), None, true).unwrap()
@@ -266,20 +267,20 @@ mod tests {
         expected.keystore.storage_chosen = false;
         assert_eq!(s.settings, expected);
         s.save().unwrap();
-        assert!(s.paths.settings_file().is_file());
+        assert!(s.paths.settings_file().fs_is_file());
     }
 
     #[test]
     fn unreadable_settings_are_read_only_until_reset() {
         let tmp = tempfile::tempdir().unwrap();
         let paths = Paths::under(tmp.path());
-        std::fs::create_dir_all(&paths.config_dir).unwrap();
-        std::fs::write(paths.settings_file(), "schema_version = 99\n").unwrap();
+        pida_fs::create_dir_all(&paths.config_dir).unwrap();
+        pida_fs::write(paths.settings_file(), "schema_version = 99\n").unwrap();
         let (s, p) = state(tmp.path(), Overlay::default());
         assert!(matches!(p, Some(StartupProblem::Unreadable(_))));
         assert!(s.read_only());
         s.save().unwrap();
-        assert_eq!(std::fs::read_to_string(paths.settings_file()).unwrap(), "schema_version = 99\n");
+        assert_eq!(pida_fs::read_to_string(paths.settings_file()).unwrap(), "schema_version = 99\n");
     }
 
     #[test]

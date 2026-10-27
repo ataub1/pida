@@ -1,7 +1,7 @@
 {
   "name": "pida-app",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.5.0",
   "description": "PIDA – Oberfläche (Tauri 2, React 19, React Aria Components)",
   "license": "EUPL-1.2",
   "type": "module",
@@ -13,6 +13,7 @@
     "dev:mock": "vite --mode mock",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "build:mock": "tsc --noEmit -p tsconfig.json && vite build --mode mock",
+    "build:web": "tsc --noEmit -p tsconfig.json && vite build --mode web --outDir ../web/dist --emptyOutDir",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",

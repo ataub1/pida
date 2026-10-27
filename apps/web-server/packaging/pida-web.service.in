@@ -1,0 +1,32 @@
+# PIDA Web – Server der Browser-Variante (Oberfläche, SL-Rückkanal für ID Austria).
+# Lauscht nur lokal; von außen erreichbar über den Webserver davor (Apache, siehe Vorlage apache-pida-web.conf).
+# Adresse und Port: /etc/pida-web/pida-web.env
+[Unit]
+Description=PIDA Web (Signieren im Browser)
+Documentation=https://github.com/ataub1/pida
+After=network.target
+
+[Service]
+Environment=PIDA_WEB_BIND=127.0.0.1:1442
+EnvironmentFile=-/etc/pida-web/pida-web.env
+ExecStart=@BINDIR@/pida-web-server --bind ${PIDA_WEB_BIND} --dir @DATADIR@
+Restart=on-failure
+# eigener, rechteloser Benutzer; der Server speichert nichts
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

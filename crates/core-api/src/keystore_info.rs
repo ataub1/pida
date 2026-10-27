@@ -45,7 +45,7 @@ struct FileStamp {
 
 impl FileStamp {
     fn of(path: &Path) -> Option<FileStamp> {
-        let meta = std::fs::metadata(path).ok().filter(std::fs::Metadata::is_file)?;
+        let meta = pida_fs::metadata(path).ok().filter(pida_fs::Metadata::is_file)?;
         Some(FileStamp { path: path.to_path_buf(), len: meta.len(), modified: meta.modified().ok() })
     }
 }
@@ -116,7 +116,7 @@ impl KeystoreInfo {
 /// Format der Datei am Inhalt (erste Bytes, ohne Passwort); `None`, wenn sie fehlt bzw. nicht lesbar ist.
 pub(crate) fn detect_format(path: &Path) -> Option<KeystoreFormatView> {
     use std::io::Read;
-    let file = std::fs::File::open(path).ok()?;
+    let file = pida_fs::File::open(path).ok()?;
     if !file.metadata().ok()?.is_file() {
         return None;
     }
@@ -143,7 +143,7 @@ fn entry_view(e: &AliasInfo) -> KeystoreEntryView {
 /// Einträge der PKCS#12-Datei mit dem Passwort lesen; `Err` = Meldungs-ID (`keystore-wrong-password` …).
 fn read_entries(file: &Path, password: &str) -> Result<Vec<KeystoreEntryView>, String> {
     use std::io::Read;
-    let f = std::fs::File::open(file).map_err(|_| MSG_KEYSTORE_FILE_NOT_FOUND.to_owned())?;
+    let f = pida_fs::File::open(file).map_err(|_| MSG_KEYSTORE_FILE_NOT_FOUND.to_owned())?;
     let mut bytes = Zeroizing::new(Vec::new());
     f.take(MAX_KEYSTORE_FILE + 1).read_to_end(&mut bytes).map_err(|_| "keystore-io".to_owned())?;
     if bytes.len() as u64 > MAX_KEYSTORE_FILE {
@@ -302,7 +302,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let write = |name: &str, bytes: &[u8]| {
             let p = tmp.path().join(name);
-            std::fs::write(&p, bytes).unwrap();
+            pida_fs::write(&p, bytes).unwrap();
             p
         };
         assert_eq!(detect_format(&testdata("keystores/test-rsa2048.p12")), Some(KeystoreFormatView::Pkcs12));
@@ -340,14 +340,14 @@ mod tests {
     fn info_follows_file_and_stamp() {
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("k.p12");
-        std::fs::copy(testdata("keystores/test-rsa2048.p12"), &p).unwrap();
+        pida_fs::copy(testdata("keystores/test-rsa2048.p12"), &p).unwrap();
         let mut info = KeystoreInfo::default();
         info.update(Some(&p));
         assert_eq!(info.format, Some(KeystoreFormatView::Pkcs12));
         info.entries = Some(Vec::new());
         info.update(Some(&p));
         assert!(info.entries.is_some(), "gleicher Stand: Einträge bleiben");
-        std::fs::write(&p, [0xFE, 0xED, 0xFE, 0xED, 0, 0]).unwrap();
+        pida_fs::write(&p, [0xFE, 0xED, 0xFE, 0xED, 0, 0]).unwrap();
         info.update(Some(&p));
         assert_eq!(info.format, Some(KeystoreFormatView::Jks));
         assert!(info.entries.is_none(), "neuer Stand: Einträge verworfen");

@@ -708,12 +708,24 @@ fn write_xref_stream(
     Ok(self_off)
 }
 
+/// Millisekunden seit 1970 – im Browser (wasm32-unknown-unknown) aus JavaScript, weil die Standardbibliothek dort
+/// keine Uhr hat (Konzept Webdienst, Etappe 1).
+fn unix_millis() -> u128 {
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+    {
+        js_sys::Date::now() as u128
+    }
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    {
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or_default()
+    }
+}
+
 /// `/ID[1]` wie PDFBox 2.0.34: SHA-256 über Zeit in Millisekunden und die `/Info`-Werte.
 fn compute_new_id(src: &SourcePdf) -> Vec<u8> {
     use sha2::Digest as _;
     let mut h = sha2::Sha256::new();
-    let millis =
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or_default();
+    let millis = unix_millis();
     h.update(millis.to_string().as_bytes());
     if let Some(info) = src.info_id().and_then(|id| src.get_object(id).ok())
         && let Object::Dictionary(d) = info

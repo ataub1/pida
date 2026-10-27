@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIDA im Browser – Durchstich</title>
+<style>
+  :root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+  body { max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+  fieldset { border: 1px solid #8884; border-radius: 8px; margin: 0 0 1rem; padding: .75rem 1rem 1rem; }
+  label { display: block; margin: .4rem 0; }
+  button { font: inherit; padding: .4rem .9rem; margin-right: .5rem; }
+  pre { background: #8881; padding: .75rem; border-radius: 6px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>PIDA im Browser – Durchstich</h1>
+<p>Der PIDA-Kern läuft hier als WebAssembly vollständig im Browser: Nichts verlässt diese Seite. Signiert wird mit
+einem Test-Keystore als Ersatz für A-Trust.</p>
+<fieldset>
+  <legend>Eingaben</legend>
+  <label>PDF <input type="file" id="pdf" accept="application/pdf"></label>
+  <label>PKCS#12-Keystore <input type="file" id="p12" accept=".p12,.pfx"></label>
+  <label>Passwort <input type="password" id="pw" value="test" autocomplete="off"></label>
+  <label>Profil <select id="profile">
+    <option>SIGNATURBLOCK_SMALL_DE</option><option>SIGNATURBLOCK_SMALL_EN</option><option>AMTSSIGNATURBLOCK_DE_RECOMMENDED</option>
+  </select></label>
+</fieldset>
+<button id="sample">Beispiel laden (simple.pdf, Test-Keystore)</button>
+<button id="sign">Signieren</button>
+<pre id="log" aria-live="polite">Lade Kern …</pre>
+<script type="module" src="main.js"></script>
+</body>
+</html>

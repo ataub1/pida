@@ -109,13 +109,17 @@ export class Translator {
   }
 
   /**
-   * Übersetzt einen Fehler-/Meldungscode des Kerns: zuerst die ID selbst, dann mit „-“ statt „.“
-   * (Konvention der Kataloge), sonst `fallback` mit dem Code als Detail.
+   * Übersetzt einen Fehler-/Meldungscode des Kerns für die Anzeige: zuerst die ID selbst, dann mit „-“ statt „.“
+   * (Konvention der Kataloge), sonst `fallback` mit dem Code als Detail. Hat die Meldung einen Alltagstext (`.text`,
+   * ohne technische Ursache), gilt er – die vollständige Meldung bleibt CLI, Protokoll und „Technische Details“.
    */
   code(code: string, params: Args = {}, fallback = 'ng-ui-error-unknown'): string {
-    if (this.has(code)) return this.t(code, params);
     const dashed = code.replace(/\./g, '-');
-    if (this.has(dashed)) return this.t(dashed, params);
+    for (const id of [code, dashed]) {
+      if (this.has(id)) return this.attr(id, 'text') ?? this.t(id, params);
+    }
+    // kein Code, sondern roher Text (z. B. eine technische Fehlermeldung): nicht anzeigen
+    if (!/^[a-z0-9][a-z0-9_.-]*$/i.test(code) && fallback === 'ng-ui-error-unknown') return this.t('ng-ui-error-unexpected', params);
     return this.t(fallback, { ...params, code });
   }
 }

@@ -55,6 +55,11 @@ export interface AppContextValue {
   setTheme: (theme: Theme) => void;
   /** Einstellungen öffnen, optional bei einem Abschnitt (z. B. `privacy` aus dem Kurzhinweis „Details“) */
   openSettings: (section?: SettingsSectionId) => void;
+  /**
+   * Offline-Hilfe öffnen (`HELP_AVAILABLE`), optional bei einem Artikel (z. B. `fehler:<code>` aus einer
+   * Fehlerkarte); ohne Hilfe ein No-op
+   */
+  openHelp: (target?: string | null) => void;
   /** zuletzt angeforderter Abschnitt der Einstellungen (für `SettingsPanel`) */
   settingsSection: SettingsSectionId;
   /**

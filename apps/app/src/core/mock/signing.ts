@@ -260,6 +260,11 @@ export class SigningSession {
     const scripted = this.opts.flow === 'decline' || this.opts.flow === 'timeout' ? (first ? this.opts.flow : 'app') : this.opts.flow;
     const flow = this.opts.fido2Default && this.opts.fido2Available && !this.opts.mobile ? 'fido2' : scripted;
     switch (flow) {
+      case 'none':
+        // ohne zweiten Faktor: A-Trust liefert nach der Anmeldung gleich die Signatur (keine Bestätigungsmaske)
+        this.method = null;
+        this.finish();
+        return;
       case 'sms':
         this.method = 'sms';
         return this.form({ SmsTan: { reference_value: this.ref, ctx: this.ctx() } });

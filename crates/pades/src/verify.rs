@@ -303,7 +303,7 @@ mod tests {
     fn single_end_entity_needs_exactly_one_non_ca() {
         let read = |n: &str| {
             let p = format!("{}/../../testdata/keystores/{n}", env!("CARGO_MANIFEST_DIR"));
-            Certificate::from_der(&std::fs::read(p).unwrap()).unwrap()
+            Certificate::from_der(&pida_fs::read(p).unwrap()).unwrap()
         };
         let a = read("test-rsa2048.crt.der");
         let b = read("test-ecp256.crt.der");

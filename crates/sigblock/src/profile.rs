@@ -5,6 +5,7 @@
 //! eingebaute Defaults aus `DefaultSignatureProfileSettings`), `TableFactory` (Zeilen `KEY-TYP`) und
 //! `Style` (Attribute, `doInherit`).
 
+use pida_fs::PathExt as _;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -590,8 +591,8 @@ impl Resources for DirResources {
     fn image(&self, reference: &str) -> Result<Arc<Emblem>> {
         let p = Path::new(reference);
         let path = if p.is_absolute() { p.to_path_buf() } else { self.workdir.join(reference) };
-        if path.is_file() {
-            let bytes = std::fs::read(&path)?;
+        if path.fs_is_file() {
+            let bytes = pida_fs::read(&path)?;
             return Emblem::decode_original(&bytes).map(Arc::new);
         }
         if builtin_image_name(reference).is_some() {
@@ -602,8 +603,8 @@ impl Resources for DirResources {
 
     fn font(&self, file: &str) -> Result<Arc<[u8]>> {
         let path = self.workdir.join("fonts").join(file);
-        if path.is_file() {
-            return Ok(Arc::from(std::fs::read(&path)?));
+        if path.fs_is_file() {
+            return Ok(Arc::from(pida_fs::read(&path)?));
         }
         BuiltinResources::default().font(file)
     }
@@ -658,11 +659,11 @@ struct DirCfg(PathBuf);
 
 impl CfgSource for DirCfg {
     fn read(&self, rel: &str) -> std::result::Result<Vec<u8>, String> {
-        std::fs::read(self.0.join(rel)).map_err(|e| format!("{rel}: {e}"))
+        pida_fs::read(self.0.join(rel)).map_err(|e| format!("{rel}: {e}"))
     }
 
     fn list(&self, dir: &str) -> Vec<String> {
-        let Ok(rd) = std::fs::read_dir(self.0.join(dir)) else {
+        let Ok(rd) = pida_fs::read_dir(self.0.join(dir)) else {
             return Vec::new();
         };
         rd.filter_map(|e| e.ok())

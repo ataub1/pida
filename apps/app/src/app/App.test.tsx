@@ -97,6 +97,18 @@ describe('Kernpfad mit dem Mock-Kern', () => {
     expect((screen.getByRole('application', { name: 'Signaturblock' }) as HTMLElement).style.left).toBe(before);
   });
 
+  it('ID Austria ohne zweiten Faktor (Test-Identitäten): nach der Anmeldung gleich signiert, kein Bestätigungsschritt', async () => {
+    const { mock, user } = renderApp({ settings: idAustria(), signingFlow: 'none', pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    await openOne(user);
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const dialog = await login(user);
+    // Abschluss ohne Bestätigungsmaske: der Stepper hakt kein „In der App bestätigen“ ab
+    await waitFor(() => expect(within(dialog).queryByText('In der App bestätigen')).not.toBeInTheDocument());
+    expect(await screen.findByRole('heading', { level: 1, name: 'Signiert' }, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' })).not.toBeInTheDocument();
+    expect(mock.dispatched.filter((e) => e.type === 'submit_form')).toHaveLength(1);
+  });
+
   it('Ablehnung in der App → Fehlerschritt „abgelehnt“, Erneut versuchen ohne neue Anmeldung', async () => {
     const { user } = renderApp({ settings: idAustria(), signingFlow: 'decline', pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
     await openOne(user);

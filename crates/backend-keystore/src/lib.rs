@@ -924,7 +924,7 @@ const MAX_KEYSTORE_FILE: u64 = 16 << 20;
 /// Liest die Keystore-Datei mit Größengrenze ([`std::io::ErrorKind::FileTooLarge`] bei Überschreitung).
 fn read_keystore_file(path: &Path) -> std::io::Result<Vec<u8>> {
     use std::io::Read as _;
-    let file = std::fs::File::open(path)?;
+    let file = pida_fs::File::open(path)?;
     let mut out = Vec::new();
     file.take(MAX_KEYSTORE_FILE + 1).read_to_end(&mut out)?;
     if out.len() as u64 > MAX_KEYSTORE_FILE {
