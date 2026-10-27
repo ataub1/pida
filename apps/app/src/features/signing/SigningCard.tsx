@@ -22,6 +22,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { useApp } from '../../app/context';
+import { HelpLink } from '../help/HelpLink';
 import type {
   BackendId,
   BatchItemStatusView,
@@ -1123,6 +1124,7 @@ function ErrorPane({ step, beforeConfirm }: { step: Extract<StepView, { step: 'e
       <div role="alert">
         <StepTitle>{friendly.title}</StepTitle>
         <p className="step-text pre-line">{message}</p>
+        <HelpLink code={step.code} />
       </div>
       <Details label={t.t('ng-ui-sc-details')} level={4}>
         <p className="mono-small">

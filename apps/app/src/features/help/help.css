@@ -1,0 +1,140 @@
+/* Offline-Hilfe (Entwurf): Seitenleiste wie die Einstellungen */
+.help-search {
+  padding: 0 var(--sp-6) var(--sp-3);
+}
+.help-body {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-5);
+  padding: 0 var(--sp-6) var(--sp-6);
+  overflow: auto;
+}
+.help-draft {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-3);
+  background: var(--c-surface-2);
+  color: var(--c-text-3);
+  font-size: var(--fs-13);
+}
+.help-section {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--c-text-3);
+}
+.help-list,
+.help-topics {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.help-row,
+.help-topic {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-3);
+  background: none;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.help-row[data-hovered],
+.help-topic[data-hovered] {
+  background: var(--c-hover);
+}
+.help-row[data-focus-visible],
+.help-topic[data-focus-visible] {
+  box-shadow: 0 0 0 2px var(--c-focus);
+}
+.help-row-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.help-row-title {
+  font-weight: 600;
+}
+.help-row-snippet {
+  overflow: hidden;
+  color: var(--c-text-3);
+  font-size: var(--fs-13);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.help-topic {
+  justify-content: space-between;
+  border-color: var(--c-border);
+  font-weight: 600;
+}
+.help-count {
+  color: var(--c-text-3);
+  font-size: var(--fs-13);
+  font-weight: 400;
+}
+.help-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: var(--sp-2);
+}
+.help-eyebrow {
+  margin: 0;
+  color: var(--c-text-3);
+  font-size: var(--fs-13);
+}
+.help-article-title {
+  margin: 0 0 var(--sp-3);
+  font-size: 1.25rem;
+}
+.help-md {
+  display: grid;
+  gap: var(--sp-3);
+  line-height: 1.55;
+}
+.help-md p,
+.help-md ul,
+.help-md ol {
+  margin: 0;
+}
+.help-md ul,
+.help-md ol {
+  padding-left: 1.3em;
+}
+.help-md li + li {
+  margin-top: 4px;
+}
+.help-md code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--c-surface-2);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.help-legal {
+  margin: var(--sp-4) 0 0;
+  color: var(--c-text-3);
+  font-size: var(--fs-13);
+}
+
+.help-article .help-section {
+  margin-top: var(--sp-5);
+}

@@ -11,18 +11,19 @@
  */
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
 import { isMobile } from '../core/types';
+import { HELP_AVAILABLE } from '../features/help';
 import { PALETTE_AVAILABLE } from '../features/palette';
 import { AddPdfMenu } from '../features/workspace';
 import { formatSize } from '../features/workspace/placement';
 import { IconButton, Keys, Segmented, useModKey } from '../ui/controls';
-import { IconArrowLeft, IconCheck, IconFileText, IconHome, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconSun } from '../ui/Icons';
+import { IconArrowLeft, IconCheck, IconFileText, IconHelp, IconHome, IconLayers, IconMonitor, IconMoon, IconSearch, IconSettings, IconSun } from '../ui/Icons';
 import { Wordmark } from '../ui/Logo';
 import { batchNav, goHome } from './commands';
 import { useApp } from './context';
 import type { Theme } from './theme';
 
 export function Header({ theme, onTheme }: { theme: Theme; onTheme: (theme: Theme) => void }) {
-  const { t, view, dispatch, openSettings, setOverlay } = useApp();
+  const { t, view, dispatch, openSettings, openHelp, setOverlay } = useApp();
   const { mod } = useModKey();
   const doc = view.document;
   const mobile = isMobile(view);
@@ -130,6 +131,11 @@ export function Header({ theme, onTheme }: { theme: Theme; onTheme: (theme: Them
             </Menu>
           </Popover>
         </MenuTrigger>
+        {HELP_AVAILABLE ? (
+          <IconButton label={t.t('ng-ui-shell-help')} onPress={() => openHelp()} aria-keyshortcuts={mobile ? undefined : 'F1'}>
+            <IconHelp size={18} />
+          </IconButton>
+        ) : null}
         <IconButton label={t.t('ng-ui-shell-settings')} onPress={() => openSettings()} isDisabled={!view.actions.settings || view.settings !== null} aria-keyshortcuts={mobile ? undefined : `${mod === '⌘' ? 'Meta' : 'Control'}+,`}>
           <IconSettings size={18} />
         </IconButton>
