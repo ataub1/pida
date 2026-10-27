@@ -1,4 +1,10 @@
-/* Offline-Hilfe (Entwurf): Seitenleiste wie die Einstellungen */
+/* Offline-Hilfe: Seitenleiste wie die Einstellungen */
+
+/* Mobile-App: Vollbild mit Safe Areas wie die Einstellungen (sonst liegen Titel und „Schließen“ unter der
+   Statusleiste bzw. der Dynamic Island) */
+:root[data-mobile] .modal-drawer.help-modal {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
 .help-search {
   padding: 0 var(--sp-6) var(--sp-3);
 }
