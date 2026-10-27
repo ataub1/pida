@@ -240,7 +240,9 @@ export async function createWebBridge(): Promise<Bridge> {
       };
     },
     async openUrl(url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      // E-Mail-Adressen öffnen das E-Mail-Programm ohne leeren Tab
+      if (url.startsWith('mailto:')) window.location.href = url;
+      else window.open(url, '_blank', 'noopener,noreferrer');
     },
     // Web: „Im Ordner zeigen“ des Stapels lädt alle signierten Dokumente als ZIP (Einzelergebnis: das PDF)
     async revealOutput(doc) {
