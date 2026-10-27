@@ -58,12 +58,6 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zvariant: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
     { id = "RUSTSEC-2026-0371", reason = "zbus_names: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: in zbus 6 aufgegangen; zbus 5 nur Linux über keyring/Tauri-Plugins" },
-    # crypto-bigint < 0.7.6 nicht konstant in der Zeit (26.10.2026): 0.5.5 kommt über elliptic-curve 0.13 / ecdsa 0.16
-    # (pida-cades, Keystore). Geheime Werte verarbeitet das nur beim Signieren mit eigenem EC-Keystore am Desktop – ein
-    # Angreifer müsste auf demselben Rechner Laufzeiten messen; ID Austria (Schlüssel bei A-Trust), RSA und Prüfen
-    # (nur öffentliche Daten) sind nicht betroffen. Behoben erst in der nächsten RustCrypto-Generation (crypto-bigint 0.7,
-    # elliptic-curve 0.14, ecdsa 0.17): Backlog „EC-Kryptographie auf RustCrypto 0.14/0.17 heben“, dann entfernen.
-    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 über ecdsa 0.16; nur EC-Keystore am Desktop, Upgrade im Backlog" },
 ]
 
 # ---------------------------------------------------------------------------------------------
@@ -145,19 +139,19 @@ skip = [
     { crate = "der@0.8.2", reason = "Folgegeneration RustCrypto über p12-keystore/pkcs5 (ADR 0001 §5.2)" },
     { crate = "der_derive@0.8.0", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
     { crate = "digest@0.11.3", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
-    { crate = "hkdf@0.13.0", reason = "Folgegeneration RustCrypto über secret-service (keyring, Linux)" },
     { crate = "hmac@0.13.0", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
     { crate = "pem-rfc7468@1.0.0", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
     { crate = "pkcs8@0.11.0", reason = "Folgegeneration RustCrypto über p12-keystore (ADR 0001 §5.2)" },
     { crate = "sha1@0.11.0", reason = "Folgegeneration RustCrypto über p12-keystore/pkcs5 (ADR 0001 §5.2)" },
     { crate = "sha2@0.11.1", reason = "Folgegeneration RustCrypto über lopdf/p12-keystore (ADR 0001 §5.2/§7)" },
+    { crate = "signature@3.0.0", reason = "Folgegeneration RustCrypto: ecdsa 0.17 (EC); rsa 0.9 nutzt signature 2" },
     { crate = "spki@0.8.1", reason = "Folgegeneration RustCrypto (ADR 0001 §5.2)" },
     { crate = "x509-cert@0.3.0", reason = "Folgegeneration RustCrypto über p12-keystore (ADR 0001 §5.2)" },
-    # Zufall: rand_core 0.6/getrandom 0.2 gehören zur gepinnten Generation (rsa, elliptic-curve, ring),
+    # Zufall: rand_core 0.6/getrandom 0.2 gehören zur gepinnten Generation (rsa, ring),
     # rand 0.10/getrandom 0.4 zu lopdf, p12-keystore, tempfile und proptest.
     { crate = "getrandom@0.2.17", reason = "gepinnte RustCrypto-Generation und ring 0.17" },
     { crate = "rand@0.8.8", reason = "num-bigint-dig (rsa 0.9)" },
-    { crate = "rand_core@0.6.4", reason = "gepinnte RustCrypto-Generation (rsa/elliptic-curve)" },
+    { crate = "rand_core@0.6.4", reason = "gepinnte RustCrypto-Generation (rsa 0.9, ring)" },
     # Sonstige Übergänge in Fremdbibliotheken, ohne eigenen Einfluss.
     { crate = "core-foundation@0.9.4", reason = "system-configuration 0.7 (hyper-util, macOS-Systemproxy)" },
     { crate = "miniz_oxide@0.8.9", reason = "png 0.18 (flate2 nutzt 0.9)" },

@@ -99,17 +99,20 @@ pkcs8 = { version = "~0.10.2", features = ["std"] }
 sha1 = { version = "~0.10.6", features = ["oid"] }
 sha2 = { version = "~0.10.9", features = ["oid"] }
 rsa = { version = "~0.9.10", features = ["sha2", "std"] }
-p256 = { version = "~0.13.2", features = ["ecdsa", "pkcs8", "std"] }
-p384 = { version = "~0.13.1", features = ["ecdsa", "pkcs8", "std"] }
-p521 = { version = "~0.13.3", features = ["ecdsa", "pkcs8", "std"] }
-ecdsa = { version = "~0.16.9", features = ["der", "verifying", "signing", "std"] }
-signature = { version = "~2.2.0", features = ["std"] }
+# EC (ECDSA, ECDH) schon in der Folgegeneration (RUSTSEC-2026-0387: crypto-bigint 0.5 nicht zeitkonstant):
+# elliptic-curve 0.14 / ecdsa 0.17 / crypto-bigint 0.7. Die Grenze zu rsa/cms sind Bytes (PKCS#8-DER,
+# SEC1-Punkt, Signaturwert), keine gemeinsamen Typen (ADR 0001 §5.2). rsa 0.9 bringt signature 2 selbst mit.
+p256 = { version = "~0.14.0", features = ["ecdsa", "pkcs8", "std"] }
+p384 = { version = "~0.14.0", features = ["ecdsa", "pkcs8", "std"] }
+p521 = { version = "~0.14.0", features = ["ecdsa", "pkcs8", "std"] }
+ecdsa = { version = "~0.17.0", features = ["der", "algorithm", "std"] }
+signature = { version = "~3.0.0" }
 p12-keystore = { version = "=0.4.1" }
 # Nur Feature-Vereinigung (backend-keystore): aktiviert in der von p12-keystore 0.4.1 genutzten
 # pkcs5-Version die Lesepfade PBES2/HMAC-SHA-1 (`sha1-insecure`) und DES-EDE3-CBC (`3des`). Version
 # muss der von p12-keystore entsprechen und wird bei einem Update von p12-keystore mitgezogen.
 pkcs5 = { version = "=0.8.1", default-features = false, features = ["sha1-insecure", "3des"] }
-# Zufall für RSA-Blinding beim Signieren (`OsRng`, cades); dieselbe Generation wie rsa/elliptic-curve.
+# Zufall für RSA-Blinding beim Signieren (`OsRng`, cades) und FIDO2 (IV, Token); dieselbe Generation wie rsa.
 rand_core = { version = "=0.6.4", features = ["getrandom"] }
 
 # --- Fonts, Bilder, QR ----------------------------------------------------------------------------

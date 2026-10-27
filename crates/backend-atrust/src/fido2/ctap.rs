@@ -736,7 +736,7 @@ pub(crate) mod sim {
                 received: Vec::new(),
                 cancel_received: false,
                 pending_assertion: None,
-                key_agreement: p256::SecretKey::random(&mut rand_core::OsRng),
+                key_agreement: <p256::SecretKey as p256::elliptic_curve::Generate>::generate(),
                 consecutive_fails: 0,
                 token: None,
                 last_uv: false,
@@ -747,7 +747,7 @@ pub(crate) mod sim {
         pub fn power_cycle(&mut self) {
             self.consecutive_fails = 0;
             self.token = None;
-            self.key_agreement = p256::SecretKey::random(&mut rand_core::OsRng);
+            self.key_agreement = <p256::SecretKey as p256::elliptic_curve::Generate>::generate();
         }
 
         fn protocol_of(&self, params: &Cbor) -> Result<PinProtocol, u8> {
@@ -811,7 +811,7 @@ pub(crate) mod sim {
                     self.config.pin_retries -= 1;
                     if hash.as_slice() != pin::pin_hash(&pin_value).as_ref() {
                         self.consecutive_fails += 1;
-                        self.key_agreement = p256::SecretKey::random(&mut rand_core::OsRng);
+                        self.key_agreement = <p256::SecretKey as p256::elliptic_curve::Generate>::generate();
                         return Err(if self.config.pin_retries == 0 {
                             status::PIN_BLOCKED
                         } else if self.consecutive_fails >= 3 {

@@ -13,7 +13,7 @@
 //! | encrypt | AES-256-CBC, IV = 0 | AES-256-CBC, zufälliger IV vorangestellt |
 //! | authenticate | HMAC-SHA-256, erste 16 Byte | HMAC-SHA-256 (32 Byte, HMAC-Schlüssel) |
 //!
-//! Nur RustCrypto (`p256` ECDH, `aes`, `cbc`, `hmac`, `sha2`, `rand_core::OsRng`). Geheimnisse
+//! Nur RustCrypto (`p256` ECDH, `aes`, `cbc`, `hmac`, `sha2`, Systemzufall). Geheimnisse
 //! (PIN-Hash, gemeinsames Geheimnis, Token) liegen in [`Zeroizing`] und erscheinen in keinem
 //! `Debug` (ADR 0001 Regel 9).
 //!
@@ -29,7 +29,8 @@ use cbc::cipher::block_padding::NoPadding;
 use cbc::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
 use hmac::{Hmac, Mac};
 use p256::PublicKey;
-use p256::elliptic_curve::sec1::ToEncodedPoint;
+use p256::elliptic_curve::Generate as _;
+use p256::elliptic_curve::sec1::ToSec1Point as _;
 use rand_core::RngCore;
 use sha2::Digest as _;
 use zeroize::Zeroizing;
@@ -251,7 +252,7 @@ pub fn pin_format_ok(pin: &str) -> bool {
 /// Öffentlicher Schlüssel als COSE_Key (§6.5.6 `getPublicKey`): kty EC2, alg -25
 /// (ECDH-ES+HKDF-256, für beide Protokolle so vorgeschrieben), crv P-256, x, y.
 pub fn cose_key(public: &PublicKey) -> Cbor {
-    let point = public.to_encoded_point(false);
+    let point = public.to_sec1_point(false);
     let x = point.x().map(|x| x.to_vec()).unwrap_or_default();
     let y = point.y().map(|y| y.to_vec()).unwrap_or_default();
     Cbor::Map(vec![
@@ -299,9 +300,9 @@ impl Default for PlatformKeyAgreement {
 }
 
 impl PlatformKeyAgreement {
-    /// Neuer zufälliger Schlüssel (`OsRng`).
+    /// Neuer zufälliger Schlüssel (Systemzufall).
     pub fn new() -> Self {
-        PlatformKeyAgreement { secret: p256::ecdh::EphemeralSecret::random(&mut rand_core::OsRng) }
+        PlatformKeyAgreement { secret: p256::ecdh::EphemeralSecret::generate() }
     }
 
     /// Eigener öffentlicher Schlüssel als COSE_Key (Parameter `keyAgreement`).

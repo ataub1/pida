@@ -6,7 +6,8 @@
 //! Kombination aus Kurve und SHA-2 (z. B. P-521 mit SHA-256; `ecdsa` 0.16 lehnt Hashes unter der
 //! halben Feldgröße sonst ab). Längere Hashes kürzt `ecdsa` selbst auf die Feldgröße.
 
-use rsa::pkcs8::DecodePrivateKey as _;
+use p256::pkcs8::DecodePrivateKey as _; // pkcs8 0.11 (EC, Folgegeneration)
+use rsa::pkcs8::DecodePrivateKey as _; // pkcs8 0.10 (RSA)
 use rsa::traits::PublicKeyParts as _;
 use rsa::{Pkcs1v15Sign, Pss, RsaPrivateKey, RsaPublicKey};
 use signature::hazmat::{PrehashSigner as _, PrehashVerifier as _};
@@ -97,12 +98,10 @@ impl LocalSigner {
             KeyType::Ec { curve: EcCurve::P521 } => {
                 let sk =
                     p521::SecretKey::from_pkcs8_der(pkcs8).map_err(|e| key_err(format!("P-521-Schlüssel: {e}")))?;
-                let key = p521::ecdsa::SigningKey::from_bytes(&sk.to_bytes())
-                    .map_err(|_| key_err("P-521-Schlüssel ungültig"))?;
+                let key = p521::ecdsa::SigningKey::from(sk);
                 let cert_vk = p521::ecdsa::VerifyingKey::from_sec1_bytes(chain.signer.public_key_bits()?)
                     .map_err(|_| CmsError::Certificate("öffentlicher P-521-Schlüssel unlesbar".into()))?;
-                let own = p521::ecdsa::VerifyingKey::from(&key);
-                if own.to_encoded_point(false) != cert_vk.to_encoded_point(false) {
+                if *key.verifying_key() != cert_vk {
                     return Err(key_mismatch());
                 }
                 KeyMaterial::P521(key)
