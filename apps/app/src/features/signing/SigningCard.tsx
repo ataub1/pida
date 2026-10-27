@@ -100,10 +100,11 @@ function methodFromInteraction(i: InteractionView): ConfirmMethod | null {
 
 type StepKey = 'login' | 'confirm' | 'unlock' | 'card' | 'done';
 
-function stepsFor(backend: BackendId | null): StepKey[] {
+/** `noConfirm`: ID Austria ohne zweiten Faktor (z. B. Test-Identitäten) – nach der Anmeldung gleich signiert. */
+function stepsFor(backend: BackendId | null, noConfirm = false): StepKey[] {
   if (backend === 'keystore') return ['unlock', 'done'];
   if (backend === 'local_bku') return ['card', 'done'];
-  return ['login', 'confirm', 'done'];
+  return noConfirm ? ['login', 'done'] : ['login', 'confirm', 'done'];
 }
 
 function stepIndex(backend: BackendId | null, stage: SigningStage, loginDone: boolean): number {
@@ -236,7 +237,10 @@ function SigningDialog({
       : backend
         ? t.t('ng-ui-sc-title', { signer: signerName(t, backend) })
         : t.t('ng-ui-insp-sign');
-  const steps = stepsFor(backend);
+  // Einzeldokument fertig, ohne dass je eine Bestätigung (App, SMS, QR, FIDO2) verlangt wurde: kein abgehakter Schritt
+  // „In der App bestätigen“, den es nicht gab
+  const noConfirm = !batch && finishing && backend === 'atrust_native' && method === null;
+  const steps = stepsFor(backend, noConfirm);
   const errorNow = mode === 'error' || mode === 'pause';
   // Stapel: „Signiert“ erst am Ende des Laufs; zwischen den Dokumenten bleibt der Schritt „Bestätigen“ aktiv
   const index = batch ? (saving ? Math.min(1, steps.length - 2) : stepIndex(backend, stage, loginDone)) : finishing ? steps.length - 1 : stepIndex(backend, stage, loginDone);

@@ -354,8 +354,19 @@ impl Dialog {
                             self.ui.event(BackendEvent::ServerTime(date));
                         }
                         let text = response.text();
-                        return pida_sl12::parse_response(text.as_bytes())
-                            .map_err(|e| BackendError::Protocol(format!("SL-Antwort nicht lesbar: {e}")));
+                        let parsed = pida_sl12::parse_response(text.as_bytes())
+                            .map_err(|e| BackendError::Protocol(format!("SL-Antwort nicht lesbar: {e}")))?;
+                        // Identität ohne zweiten Faktor (z. B. Test-Identitäten von A-Trust): auf die Anmeldung folgt
+                        // gleich die SL-Antwort, keine Seite dazwischen – die Anmeldung war erfolgreich („Merken“,
+                        // Ereignis an den Kern wie nach einer Bestätigungsseite)
+                        if login.submitted
+                            && !login.confirmed
+                            && !matches!(parsed, SlResponse::Error(_))
+                            && let (Some(user), Some(password)) = (&credentials.username, &credentials.password)
+                        {
+                            self.login_succeeded(user.clone(), password.clone());
+                        }
+                        return Ok(parsed);
                     }
                     Reply::Page(page, page_url, received) => {
                         match self.present(credentials, *page, &page_url, received, &mut login, &mut renewal).await? {

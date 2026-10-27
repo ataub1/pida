@@ -74,6 +74,75 @@ async fn open(
     backend.open(ctx(), broker.clone()).await.unwrap()
 }
 
+/// Identität ohne zweiten Faktor (Test-Identitäten von A-Trust): auf die Anmeldung folgt sofort die SL-Antwort, keine
+/// TAN-, App-, QR- oder FIDO2-Seite. Die Anmeldung gilt als erfolgreich („Merken“, Ereignis), der zweite SL-Request
+/// meldet automatisch an.
+#[tokio::test]
+async fn login_without_second_factor() {
+    let sl = Arc::new(Counter::default());
+    let server = MockServer::start({
+        let sl = sl.clone();
+        move |req| {
+            if is(req, "POST", "default.aspx") {
+                return start_session(sl.next());
+            }
+            if is(req, "GET", "Login.aspx") {
+                return page("login.html", &[("SID", &sid(req))]);
+            }
+            if is(req, "POST", "Login.aspx") {
+                assert!(credentials_ok(req));
+                return if sid(req) == "S0" { infobox_xml() } else { cms_xml() };
+            }
+            MockResponse::status(404)
+        }
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, true)]));
+    let mut session = open(&backend, &broker).await;
+
+    let chain = session.certificate().await.unwrap();
+    assert_eq!(chain.signer.as_der(), cert_der().as_slice());
+    let (_, job) = document();
+    assert_eq!(session.sign(vec![job]).await.unwrap(), vec![SignResult::Cms(FAKE_CMS.to_vec())]);
+
+    let f = forms(&broker);
+    assert_eq!(f.len(), 1, "nur die Anmeldemaske: {f:?}");
+    assert!(matches!(&f[0], NativeForm::Login { .. }));
+    assert_eq!(
+        events(&broker).iter().filter(|e| matches!(e, BackendEvent::LoginSucceeded { .. })).collect::<Vec<_>>(),
+        [&BackendEvent::LoginSucceeded { username: USER.into(), remember: true }]
+    );
+    assert!(backend.has_remembered_password(), "„Merken“ wirkt auch ohne Bestätigungsseite");
+    assert_eq!(broker.remaining(), 0);
+    let logins = server.requests().iter().filter(|r| is(r, "POST", "Login.aspx")).count();
+    assert_eq!(logins, 2, "zweiter SL-Request: automatische Anmeldung");
+}
+
+/// Ohne zweiten Faktor, aber Abbruch bzw. SL-Fehler direkt nach der Anmeldung: keine erfolgreiche Anmeldung melden.
+#[tokio::test]
+async fn sl_error_right_after_login_is_no_successful_login() {
+    let server = MockServer::start(move |req| {
+        if is(req, "POST", "default.aspx") {
+            return start_session(0);
+        }
+        if is(req, "GET", "Login.aspx") {
+            return page("login.html", &[("SID", &sid(req))]);
+        }
+        if is(req, "POST", "Login.aspx") {
+            return sl_error_xml(6001);
+        }
+        MockResponse::status(404)
+    })
+    .await;
+    let backend = backend(&server, |_| {});
+    let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, true)]));
+    let mut session = open(&backend, &broker).await;
+    assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    assert!(!events(&broker).iter().any(|e| matches!(e, BackendEvent::LoginSucceeded { .. })));
+    assert!(!backend.has_remembered_password());
+}
+
 #[tokio::test]
 async fn login_then_sms_tan_and_second_request_logs_in_automatically() {
     let sl = Arc::new(Counter::default());

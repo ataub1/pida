@@ -32,7 +32,7 @@ async function bridge(): Promise<Bridge> {
 /**
  * Browser-Vorschau (ADR 0004 §4.8): `?scenario=start|blank|contract|field|signed|batch|error-password|
  * error-atrust` wie im Prototyp (ohne dessen Prüfmodus, ADR 0004 Nachtrag 15), `&platform=ios|android` (Mobile-Oberfläche), `&flow=app|sms|
- * qr|fido2|decline|timeout` (Antwort von ID Austria nach der Anmeldung), `&resume=1` (Angebot „Signatur
+ * qr|fido2|decline|timeout|none` (Antwort von ID Austria nach der Anmeldung; `none` = Identität ohne zweiten Faktor), `&resume=1` (Angebot „Signatur
  * fortsetzen“), `&lang=en`, `&examples=1` (Beispiele der späteren Etappen). Stapel (ADR 0004 §3.8):
  * `&batch=0` (ohne Stapelübersicht), `&search=0|1` (Platzhaltersuche; im Szenario `batch` an), `&kind=fields`
  * (Platzhaltersuche „Leere Signaturfelder“ statt QR, E3), `&pdfa=1` („PDF/A-kompatibel signieren“, E3),
@@ -73,7 +73,7 @@ function mockOptionsFromUrl(search: string, scenarios: readonly string[]): Setti
     settings,
     platform: mobile ? platform : 'desktop',
     scenario: scenario && scenarios.includes(scenario) ? (scenario as MockOptions['scenario']) : 'start',
-    signingFlow: flow === 'sms' || flow === 'qr' || flow === 'fido2' || flow === 'decline' || flow === 'timeout' ? flow : 'app',
+    signingFlow: flow === 'sms' || flow === 'qr' || flow === 'fido2' || flow === 'decline' || flow === 'timeout' || flow === 'none' ? flow : 'app',
     language: lang === 'en' ? 'en' : undefined,
     examples: params.get('examples') === '1',
     resumeOffer: params.get('resume') === '1' ? { name: 'Vertrag.pdf', backend: 'atrust_native', age_minutes: 4, pending: 1, document_leaves_device: true } : null,
