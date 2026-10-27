@@ -11,14 +11,15 @@
 PIDA signiert PDF-Dokumente elektronisch – mit **ID Austria**, am Desktop auch mit einer **Chipkarte** oder
 einem **Keystore** (PKCS#12). PIDA ist ein funktional gleichwertiger Nachbau von
 [PDF-Over](https://technology.a-sit.at/pdf-over/), dem PDF-Signaturwerkzeug von A-SIT – aber **ohne Java**:
-ein Rust-Kern mit einer schlanken Oberfläche (Tauri 2) für **Windows, macOS, Linux und Android**. Die
+ein Rust-Kern mit einer schlanken Oberfläche (Tauri 2) für **Windows, macOS, Linux und Android** – und als
+**[PIDA Web](#pida-web-im-browser)** direkt im Browser, ohne Installation. Die
 Signaturen entstehen wie bei PDF-Over nach dem **PDF-AS-Verfahren** (Signaturblock und Profile aus PDF-AS).
 PIDA ist freie Software unter der **EUPL-1.2**.
 
 ![Arbeitsbereich von PIDA: links die Seitenminiaturen, in der Mitte die letzte Seite eines Vertrags mit dem automatisch platzierten Signaturblock, rechts der Inspektor mit „Signieren mit ID Austria“, Vorschau des Signaturbilds, Optionen und der Schaltfläche „Signieren“](docs/screenshots/02-arbeitsbereich.png)
 
 > [!NOTE]
-> **Testversion.** 0.2.5 ist ein Pre-Release.
+> **Testversion.** 0.5.0 ist ein Pre-Release.
 > Die Pakete sind nicht code-signiert bzw. notarisiert und
 > aktualisieren sich nicht selbst. Windows und macOS warnen deshalb beim ersten Start, Android verlangt die
 > Installation aus unbekannten Quellen – siehe [Installation](#installation).
@@ -41,9 +42,21 @@ PIDA ist freie Software unter der **EUPL-1.2**.
   PDF/A-konform signiert.
 - **Bedienung:** Deutsch und Englisch, helles und dunkles Design, Befehlspalette (⌘K bzw. Strg+K),
   vollständig per Tastatur bedienbar, ausgerichtet an WCAG 2.2 AA.
+- **Hilfe ohne Internet:** Die Offline-Hilfe (Knopf „?“ bzw. F1) erklärt Abläufe und Begriffe; Fehlermeldungen
+  sind in Alltagssprache gehalten und verlinken mit „Was bedeutet das?“ den passenden Artikel.
 - **Umstieg von PDF-Over:** Beim ersten Start bietet PIDA an, die Einstellungen aus PDF-Over (`~/.pdf-over`)
   zu übernehmen. Die Startargumente von PDF-Over funktionieren weiter, dazu gibt es die Kommandozeile
   [`pida-cli`](#kommandozeile-pida-cli).
+
+## PIDA Web (im Browser)
+
+Dieselbe Oberfläche läuft auch im Browser: PIDA-Kern und PDFium als WebAssembly, ohne Installation auf dem
+Gerät. Signiert wird mit **ID Austria** – die Anmeldung erscheint als echte A-Trust-Seite in einem Overlay, ein
+kleiner Server auf Ihrer Domain reicht die Signaturbefehle an A-Trust weiter (eine Anmeldung auch für einen
+Stapel). Nichts wird gespeichert: Einstellungen gelten bis zum Schließen der Seite, das Ergebnis kommt als
+Download (Stapel als ZIP). Den Server gibt es als Paket für Linux (`.deb`, `.rpm`, `.tar.gz`) – Einrichtung mit
+Apache unter [Server für PIDA Web](#server-für-pida-web-linux), Details in
+[docs/integration/web.md](docs/integration/web.md).
 
 ## Screenshots
 
@@ -159,13 +172,28 @@ Anwendungsmenü.
 Die APK ist mit einem eigenen Schlüssel des Projekts signiert. Ist bereits ein PIDA-Build anderer Herkunft
 installiert (andere Signatur), muss dieser vorher deinstalliert werden.
 
+### Server für PIDA Web (Linux)
+
+```sh
+sudo apt install ./pida-web_*_amd64.deb          # Debian, Ubuntu
+sudo dnf install ./pida-web-*.x86_64.rpm          # RHEL, Alma, Rocky, Fedora, openSUSE
+tar xzf pida-web-*-linux-x86_64.tar.gz && cd pida-web-*/ && sudo ./install.sh   # alle übrigen
+```
+
+Der Dienst `pida-web` startet sofort und lauscht nur lokal (`127.0.0.1:1442`, einstellbar in
+`/etc/pida-web/pida-web.env`). Davor gehört ein Webserver mit **HTTPS**, denn A-Trust schickt die Signaturantwort
+an Ihre Domain; die Pakete enthalten eine Vorlage für Apache (Debian: `a2ensite pida-web`, dann
+`certbot --apache -d <Domain>`). Updates: die neue Version genauso installieren, Einstellungen bleiben erhalten.
+Entfernen: `apt remove pida-web` bzw. `dnf remove pida-web` bzw. `/opt/pida-web/uninstall.sh`. Mehr dazu in
+[docs/integration/web.md](docs/integration/web.md).
+
 ## Signiermittel
 
-| Signiermittel | Desktop | Android |
-|---|:---:|:---:|
-| **ID Austria** (Signatur über A-Trust) | ✓ | ✓ |
-| **Chipkarte** über eine lokal installierte Chipkarten-Software | ✓ | – |
-| **Keystore** (PKCS#12, `.p12`/`.pfx`) | ✓ | – |
+| Signiermittel | Desktop | Android | Browser (PIDA Web) |
+|---|:---:|:---:|:---:|
+| **ID Austria** (Signatur über A-Trust) | ✓ | ✓ | ✓ |
+| **Chipkarte** über eine lokal installierte Chipkarten-Software | ✓ | – | – |
+| **Keystore** (PKCS#12, `.p12`/`.pfx`) | ✓ | – | – |
 
 - **ID Austria:** Anmeldung mit Telefonnummer oder Benutzername und Signatur-Passwort; bestätigt wird in der
   App „ID Austria“ (Vergleichswert prüfen), per SMS-TAN oder am Desktop mit einem FIDO2-Sicherheitsschlüssel.
@@ -184,6 +212,9 @@ installiert (andere Signatur), muss dieser vorher deinstalliert werden.
   [Datenschutzerklärung von A-Trust](https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
   Eine Verbindung zu ID Austria entsteht erst, wenn Sie das Signieren ausdrücklich starten.
 - **Chipkarte und Keystore:** Signiert wird auf dem eigenen Gerät; das Dokument wird nicht hochgeladen.
+- **PIDA Web:** Dokument und Einstellungen bleiben im Browser und werden nicht gespeichert. Beim Signieren läuft
+  das Dokument über den Server der Seite zu A-Trust – dort nur im Arbeitsspeicher, sofort verworfen. Die
+  Zugangsdaten für ID Austria geben Sie direkt auf der A-Trust-Seite ein; der Server sieht sie nie.
 - Einstellungen, die abschaltbare Liste „Zuletzt signiert“ und Protokolle bleiben auf dem Gerät. Protokolle
   enthalten keine Passwörter, TANs oder Dokumentinhalte.
 - **Update-Prüfung (Desktop):** PIDA fragt höchstens einmal am Tag beim Start und beim Öffnen von „Über PIDA“
@@ -258,8 +289,10 @@ crates/
   render            Renderer-Trait, PDFium-Implementierung hinter Feature `pdfium`
   backend-api       Backend-Traits, Capabilities, InteractionBroker
   sl12              Security Layer 1.2 (XML)
+  fs                Dateizugriff: nativ std::fs, im Browser ein Dateisystem im Speicher
   net               HTTP-Client (Cookies, Redirects, Proxy, OS-Truststore)
   backend-atrust    ID Austria / A-Trust
+  backend-atrust-web  ID Austria im Browser (A-Trust-Overlay, SL-Befehlskette über die DataURL)
   backend-localbku  Chipkarten-Software (lokale BKU, 127.0.0.1:3495)
   backend-keystore  PKCS#12
   pades             Analyse, Prepared (Zweiphasenmodell), Invarianten I1–I6
@@ -270,6 +303,8 @@ apps/
   cli               pida-cli (kompatibel zu den PDF-Over-Argumenten; Parser auch für die App)
   app               Oberfläche (React 19, React Aria) + Tauri-2-Shell (src-tauri, inkl. iOS/Android-Projekte)
                     und Plugin pida-mobile (plugins/)
+  web               Web-Shell: der Kern als WebAssembly für PIDA Web (build.sh)
+  web-server        Server für PIDA Web: Auslieferung, SL-Rückkanal, Linux-Pakete (packaging/)
 design/             Marke: PIDA-Siegel, App-Symbol
 docs/               Plan, Analysen, Recherchen, ADRs, Abnahmen
 testdata/           gemeinsame Testdaten (Test-Keystores NUR TEST, PDF-AS-PDFs, qpdf-Varianten)
@@ -287,6 +322,8 @@ tools/              env.sh, fetch-pdfium.*, third-party-notices.sh, npm-licenses
   [0003 Datenschutzhinweis ohne Dialog](docs/adr/0003-datenschutzhinweis-ohne-dialog.md),
   [0004 neue Oberfläche](docs/adr/0004-neue-oberflaeche.md)
 - [apps/app/README.md](apps/app/README.md) – App, Mock-Vorschau, Shell
+- [docs/integration/web.md](docs/integration/web.md) – PIDA Web: Ablauf, Betrieb auf einem Linux-Server,
+  Entwicklung
 - [docs/integration/app-abnahme.md](docs/integration/app-abnahme.md) – Abnahme der App,
   [docs/integration/mobile.md](docs/integration/mobile.md) – iOS und Android
 
@@ -312,7 +349,8 @@ den Installern und Paketen (Windows, macOS, Linux, iOS) ist A-SIT.
 **PIDA – PDF signing with ID Austria.** PIDA signs PDF documents with **ID Austria** and, on the desktop, also
 with a **smart card** (via locally installed smart-card software) or a **PKCS#12 keystore**. It is a
 functionally equivalent re-implementation of [PDF-Over](https://technology.a-sit.at/pdf-over/) by A-SIT –
-**without Java**: a Rust core with a thin Tauri 2 interface for **Windows, macOS, Linux and Android**.
+**without Java**: a Rust core with a thin Tauri 2 interface for **Windows, macOS, Linux and Android**, and as
+**PIDA Web** right in the browser.
 Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the **EUPL-1.2**.
 
 - **Features:** one workspace with page thumbnails and automatic placement of the signature block (drag to
@@ -323,6 +361,12 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
 - **Download:** [PIDA 0.2.5](https://github.com/ataub1/pida/releases/tag/v0.2.5) (pre-release) – Windows 10/11 x64 (`-setup.exe`, `.msi` or portable `.zip`), macOS 11+
   on Apple Silicon (`.dmg`), Linux x86_64 (`.deb`/`.rpm`/AppImage), Android 9+ arm64 (`.apk`), plus the
   command-line tool `pida-cli` for macOS on Apple Silicon. Checksums are in `SHA256SUMS.txt`. iOS is not included.
+- **PIDA Web:** the same interface in the browser (core and PDFium as WebAssembly), signing with ID Austria via
+  the real A-Trust page in an overlay; nothing is stored. The server (`pida-web-server`, packages `.deb`, `.rpm`,
+  `.tar.gz` for Linux) runs behind a web server with HTTPS – see [docs/integration/web.md](docs/integration/web.md)
+  (German). When signing, the document passes through this server's memory on its way to A-Trust and is
+  discarded at once; ID Austria credentials are entered on the A-Trust page only.
+- **Help:** an offline help (“?” button or F1) explains workflows and terms; error messages link to it.
 - **Installation:** packages are not code-signed or notarised and do not update themselves. Windows SmartScreen:
   “More info” › “Run anyway”. macOS: right-click › “Open” (macOS 15 and later: System Settings › Privacy &
   Security › “Open Anyway”). Android: allow

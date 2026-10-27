@@ -377,6 +377,14 @@ gehören dem Auftraggeber (Plan §9.3, E-13).
 **Desktop-Bundles** baut `.github/workflows/release-bundles.yml` (Tag `v*` oder manuell); lokal
 `npm run bundle:mac:release` (§4, in Terminal-Sitzungen mit `CI=true`).
 
+**PIDA Web** (Browser-Variante, ab 0.5.0): derselbe Workflow baut im Job „Web-Variante (Linux-Pakete)“ Oberfläche
+und Kern als WebAssembly (`apps/web/build.sh`), den Server statisch für x86_64-Linux (musl) und daraus
+`pida-web_<v>_amd64.deb`, `pida-web-<v>-1.x86_64.rpm` und `pida-web-<v>-linux-x86_64.tar.gz`
+(`apps/web-server/packaging/package.sh`); `packaging/test-install.sh` prüft Installation, Update und Entfernen in
+Debian- und Rocky-Containern. Lokal: `apps/web/build.sh`, dann
+`cargo run -p pida-web-server -- --mock-atrust testdata/keystores/test-rsa2048.p12 --mock-password test`
+(Testgegenstelle statt A-Trust). Aufbau und Betrieb: [integration/web.md](integration/web.md).
+
 **macOS-Signatur (ad hoc):** `bundle.macOS.signingIdentity` ist `"-"` (`apps/app/src-tauri/tauri.conf.json`):
 Tauri signiert `Contents/Frameworks/libpdfium.dylib`, die Binary und `PIDA.app` vor dem DMG-Bau ad hoc und
 versiegelt die Ressourcen. Bis 0.2.0 war die App nur vom Linker signiert (`Sealed Resources=none`,
