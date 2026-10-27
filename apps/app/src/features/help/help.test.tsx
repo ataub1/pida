@@ -30,6 +30,23 @@ describe('Suche und Artikel', () => {
   });
 });
 
+describe('Englisch', () => {
+  const en = translator('en');
+  const index = new HelpIndex(allArticles(en), 'en');
+
+  it('gleiche Kennungen wie Deutsch, englische Texte und Suche', () => {
+    const de = allArticles(translator('de')).filter((a) => a.topic !== 'fehler').map((a) => a.id);
+    const ids = index.articles.filter((a) => a.topic !== 'fehler').map((a) => a.id);
+    expect(ids).toEqual(de);
+    expect(index.articles.find((a) => a.id === 'pida:was-ist-pida')?.title).toBe('What is PIDA?');
+    expect(index.search('reference value')[0]?.article.id).toBe('id-austria:wie-signiert-man-mit-id-austria-in-pida');
+    expect(index.search('Adobe validity unknown')[0]?.article.id).toBe('pdf:signatur-prufen');
+    const proxy = index.articles.find((a) => a.id === 'fehler:backend-proxy-auth');
+    expect(proxy?.body).toContain('Code: `backend-proxy-auth`');
+    expect(proxy?.body).not.toMatch(/Was Sie tun|Technischen Details/);
+  });
+});
+
 describe('Hilfe-Panel', () => {
   it('Kopfzeile → Suche → Artikel → Zurück; F1 öffnet ebenfalls', async () => {
     const { user } = renderApp();

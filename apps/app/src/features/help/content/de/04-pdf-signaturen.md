@@ -1,7 +1,5 @@
 # PDF-Signaturen: Technik und Prüfung
 
-ENTWURF für den Machbarkeitstest – fachlich zu prüfen.
-
 ## Wie steckt eine Signatur in einem PDF?
 
 - Die Signatur wird als **inkrementelle Änderung** an das PDF angehängt; der ursprüngliche Inhalt bleibt Byte für

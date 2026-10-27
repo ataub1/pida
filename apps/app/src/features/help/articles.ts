@@ -6,10 +6,14 @@
 import { SOURCES } from '../../i18n/catalog';
 import type { Translator } from '../../i18n/catalog';
 import { ERROR_FAMILIES } from './codes';
-import pida from './content/de/01-pida.md?raw';
-import recht from './content/de/02-signaturarten-recht.md?raw';
-import idAustria from './content/de/03-id-austria.md?raw';
-import pdf from './content/de/04-pdf-signaturen.md?raw';
+import pidaDe from './content/de/01-pida.md?raw';
+import rechtDe from './content/de/02-signaturarten-recht.md?raw';
+import idAustriaDe from './content/de/03-id-austria.md?raw';
+import pdfDe from './content/de/04-pdf-signaturen.md?raw';
+import pidaEn from './content/en/01-pida.md?raw';
+import rechtEn from './content/en/02-signaturarten-recht.md?raw';
+import idAustriaEn from './content/en/03-id-austria.md?raw';
+import pdfEn from './content/en/04-pdf-signaturen.md?raw';
 
 export type TopicId = 'pida' | 'recht' | 'id-austria' | 'pdf' | 'fehler';
 
@@ -24,12 +28,21 @@ export interface Article {
   code?: string;
 }
 
-const DOCS: { topic: TopicId; text: string }[] = [
-  { topic: 'pida', text: pida },
-  { topic: 'id-austria', text: idAustria },
-  { topic: 'pdf', text: pdf },
-  { topic: 'recht', text: recht },
-];
+/** Wissensbasis je Sprache; die englischen Überschriften tragen die Kennung des deutschen Artikels (`{#…}`). */
+const DOCS: Record<'de' | 'en', { topic: TopicId; text: string }[]> = {
+  de: [
+    { topic: 'pida', text: pidaDe },
+    { topic: 'id-austria', text: idAustriaDe },
+    { topic: 'pdf', text: pdfDe },
+    { topic: 'recht', text: rechtDe },
+  ],
+  en: [
+    { topic: 'pida', text: pidaEn },
+    { topic: 'id-austria', text: idAustriaEn },
+    { topic: 'pdf', text: pdfEn },
+    { topic: 'recht', text: rechtEn },
+  ],
+};
 
 export function slug(text: string): string {
   return text
@@ -40,15 +53,16 @@ export function slug(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
-/** Abschnitte `## Titel` eines Dokuments; der Kopf (`# …`, Entwurfshinweis) entfällt. */
+/** Abschnitte `## Titel` bzw. `## Titel {#kennung}` eines Dokuments; der Kopf (`# …`, Quellenhinweis) entfällt. */
 function sections(topic: TopicId, text: string): Article[] {
   return text
     .split(/^## /m)
     .slice(1)
     .map((part) => {
       const [head = '', ...rest] = part.split('\n');
-      const title = head.trim();
-      return { id: `${topic}:${slug(title)}`, topic, title, body: rest.join('\n').trim() };
+      const m = /^(.*?)\s*\{#([a-z0-9-]+)\}\s*$/.exec(head);
+      const title = (m?.[1] ?? head).trim();
+      return { id: `${topic}:${m?.[2] ?? slug(title)}`, topic, title, body: rest.join('\n').trim() };
     });
 }
 
@@ -71,10 +85,10 @@ function errorArticle(t: Translator, code: string): Article | null {
   const action = t.attr(code, 'action');
   const exact = t.attr(code, 'text') ? t.t(code) : null;
   const lines = [text];
-  if (action) lines.push('', `**Was Sie tun können:** ${action}.`);
+  if (action) lines.push('', `**${t.t('ng-ui-shell-help-todo')}** ${action}.`);
   // die genaue Meldung (mit Platzhaltern) nur zur Einordnung der „Technischen Details“
-  if (exact && exact !== text) lines.push('', `In den „Technischen Details“ steht die genaue Meldung, z. B.: ${exact.replace(/\{\s*\$\w+\s*\}|\{\$\w+\}/g, '…')}`);
-  lines.push('', `Code: \`${code}\``);
+  if (exact && exact !== text) lines.push('', t.t('ng-ui-shell-help-exact', { message: exact.replace(/\{\s*\$\w+\s*\}|\{\$\w+\}/g, '…') }));
+  lines.push('', `${t.t('ng-ui-shell-help-code')}: \`${code}\``);
   return { id: `fehler:${code}`, topic: 'fehler', title: title ?? shortTitle(text), body: lines.join('\n'), code };
 }
 
@@ -86,10 +100,11 @@ function shortTitle(text: string): string {
 
 let cache: { lang: string; articles: Article[] } | null = null;
 
-/** Alle Artikel (Fehlerartikel in der Sprache der Oberfläche, Wissensbasis vorerst nur Deutsch). */
+/** Alle Artikel in der Sprache der Oberfläche (Fehlercodes aus dem deutschen Katalog, Texte aus dem der Sprache). */
 export function allArticles(t: Translator): Article[] {
   if (cache && cache.lang === t.lang) return cache.articles;
-  const articles = [...DOCS.flatMap((d) => sections(d.topic, d.text)), ...errorCodes().flatMap((c) => errorArticle(t, c) ?? [])];
+  const docs = t.lang === 'en' ? DOCS.en : DOCS.de;
+  const articles = [...docs.flatMap((d) => sections(d.topic, d.text)), ...errorCodes().flatMap((c) => errorArticle(t, c) ?? [])];
   cache = { lang: t.lang, articles };
   return articles;
 }

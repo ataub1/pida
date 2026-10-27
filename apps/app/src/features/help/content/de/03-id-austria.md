@@ -1,6 +1,6 @@
 # ID Austria und A-Trust
 
-ENTWURF für den Machbarkeitstest – fachlich zu prüfen. Aktuelle Details stehen auf www.oesterreich.gv.at bzw.
+Aktuelle Details stehen auf www.oesterreich.gv.at bzw.
 www.id-austria.gv.at.
 
 ## Was ist ID Austria?

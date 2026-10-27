@@ -8,7 +8,7 @@ import { Button as AriaButton, Input, SearchField } from 'react-aria-components'
 import { useApp } from '../../app/context';
 import type { ViewState } from '../../core/types';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
-import { IconArrowLeft, IconChevronRight, IconClose, IconInfo, IconSearch } from '../../ui/Icons';
+import { IconArrowLeft, IconChevronRight, IconClose, IconSearch } from '../../ui/Icons';
 import { allArticles, type Article, type TopicId } from './articles';
 import { errorId } from './codes';
 import { Markdown } from './markdown';
@@ -23,19 +23,19 @@ const TOPICS: { id: TopicId; label: string }[] = [
   { id: 'fehler', label: 'ng-ui-shell-help-topic-fehler' },
 ];
 
-/** Suchanfragen für „Passend zu dieser Ansicht“. */
-function contextQueries(view: ViewState): string[] {
+/** Artikel für „Passend zu dieser Ansicht“ (Kennungen, in beiden Sprachen gleich). */
+function contextArticles(view: ViewState): string[] {
   switch (view.step.step) {
     case 'signing':
-      return ['Vergleichswert', 'Keine Benachrichtigung in der App'];
+      return ['id-austria:wie-signiert-man-mit-id-austria-in-pida', 'id-austria:haufige-fragen'];
     case 'output':
-      return ['Signatur prüfen', 'Adobe Gültigkeit unbekannt'];
+      return ['pdf:signatur-prufen', 'pida:signaturniveau-und-prufung'];
     case 'warning':
-      return ['zertifiziertes Dokument', 'Signaturfelder'];
+      return ['pdf:wie-steckt-eine-signatur-in-einem-pdf', 'pida:bedienung'];
     default:
-      if (view.batch) return ['Stapel mehrere PDFs', 'Signiermittel'];
-      if (view.document) return ['unsichtbar signieren', 'Signaturfelder', 'Signiermittel'];
-      return ['Signiermittel', 'Stapel mehrere PDFs', 'Umstieg von PDF-Over'];
+      if (view.batch) return ['pida:bedienung', 'pida:signiermittel'];
+      if (view.document) return ['pida:bedienung', 'pida:signiermittel', 'pdf:wie-steckt-eine-signatur-in-einem-pdf'];
+      return ['pida:signiermittel', 'pida:bedienung', 'pida:was-ist-pida'];
   }
 }
 
@@ -43,7 +43,7 @@ type Screen = { kind: 'home' } | { kind: 'topic'; topic: TopicId } | { kind: 'ar
 
 export function HelpPanel({ target, onClose }: { target: string | null; onClose: () => void }) {
   const { t, view, bridge, toast } = useApp();
-  const index = useMemo(() => new HelpIndex(allArticles(t)), [t]);
+  const index = useMemo(() => new HelpIndex(allArticles(t), t.lang === 'en' ? 'en' : 'de'), [t]);
   const byId = useMemo(() => new Map(index.articles.map((a) => [a.id, a])), [index]);
   const [query, setQuery] = useState('');
   const [stack, setStack] = useState<Screen[]>(() => [{ kind: 'home' }, ...(target && byId.has(target) ? [{ kind: 'article' as const, id: target }] : [])]);
@@ -58,21 +58,17 @@ export function HelpPanel({ target, onClose }: { target: string | null; onClose:
   const q = query.trim();
   const hits = q ? index.search(q) : [];
   const suggestions = useMemo(() => {
-    const seen = new Set<string>();
     const out: Article[] = [];
     if (view.step.step === 'error') {
       const a = byId.get(`fehler:${errorId(view.step.code)}`);
       if (a) out.push(a);
     }
-    for (const cq of contextQueries(view)) {
-      const hit = index.search(cq, 4).find((h) => h.article.topic !== 'fehler')?.article;
-      if (hit && !seen.has(hit.id) && !out.includes(hit)) {
-        seen.add(hit.id);
-        out.push(hit);
-      }
+    for (const id of contextArticles(view)) {
+      const a = byId.get(id);
+      if (a && !out.includes(a)) out.push(a);
     }
     return out.slice(0, 4);
-  }, [index, byId, view]);
+  }, [byId, view]);
 
   const row = (a: Article) => (
     <li key={a.id}>
@@ -102,12 +98,6 @@ export function HelpPanel({ target, onClose }: { target: string | null; onClose:
         </SearchField>
       </div>
       <div className="help-body">
-        {t.lang !== 'de' ? (
-          <p className="help-note" role="note">
-            <IconInfo size={15} />
-            {t.t('ng-ui-shell-help-lang')}
-          </p>
-        ) : null}
         {q ? (
           <section aria-label={t.t('ng-ui-shell-help-results')}>
             <p className="sr-only" role="status">

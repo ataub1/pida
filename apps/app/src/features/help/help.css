@@ -9,17 +9,6 @@
   padding: 0 var(--sp-6) var(--sp-6);
   overflow: auto;
 }
-.help-note {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: flex-start;
-  margin: 0;
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-3);
-  background: var(--c-surface-2);
-  color: var(--c-text-3);
-  font-size: var(--fs-13);
-}
 .help-section {
   margin: 0 0 var(--sp-2);
   font-size: var(--fs-13);

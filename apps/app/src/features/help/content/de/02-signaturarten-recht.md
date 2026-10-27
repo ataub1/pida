@@ -1,6 +1,6 @@
 # Elektronische Signaturen: Arten und Rechtslage
 
-ENTWURF für den Machbarkeitstest – fachlich (insbesondere rechtlich) zu prüfen. Keine Rechtsberatung.
+Allgemeine Information, keine Rechtsberatung.
 
 ## Rechtsgrundlagen
 
