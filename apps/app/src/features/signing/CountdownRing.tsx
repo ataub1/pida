@@ -1,6 +1,13 @@
 /**
  * Countdown-Ring für die App-Bestätigung (aus dem Prototyp, ADR 0004 §4.2). `role="timer"` (nicht
  * laufend angesagt). Die Gesamtzeit kommt aus `timeout_secs` der Maske; die Oberfläche zählt selbst herunter.
+ *
+ * Mit `key` (Anfrage) zählt die Uhr ab der ersten Anzeige dieser Anfrage, auch wenn die Ansicht neu aufgebaut wird –
+ * etwa nachdem iOS den Web-Prozess im Hintergrund beendet und PIDA die Oberfläche neu geladen hat, oder nachdem
+ * Android die Activity samt WebView neu angelegt hat. Der Startzeitpunkt liegt deshalb zusätzlich im `localStorage`
+ * (übersteht beides; `sessionStorage` gehört unter Android zur einzelnen WebView). Der Schlüssel enthält den
+ * Vergleichswert, damit nach einem Neustart der App, der die Nummern der Anfragen neu beginnen lässt, kein alter
+ * Startzeitpunkt gilt.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../app/context';
@@ -11,16 +18,42 @@ export function formatTime(totalSecs: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export function useCountdown(totalSecs: number, tickMs: number, onExpire: () => void) {
-  const [remaining, setRemaining] = useState(totalSecs);
-  const start = useRef(Date.now());
+const START_STORAGE = 'pida.countdown';
+const starts = new Map<string, number>();
+
+/** Startzeitpunkt der Anfrage `key` (erste Anzeige); ohne `key` jetzt. Es zählt immer nur eine Anfrage. */
+export function countdownStart(key: string | undefined, now = Date.now()): number {
+  if (key === undefined) return now;
+  let known = starts.get(key);
+  if (known === undefined) {
+    try {
+      const stored = JSON.parse(localStorage.getItem(START_STORAGE) ?? 'null') as { key?: unknown; start?: unknown } | null;
+      if (stored?.key === key && typeof stored.start === 'number') known = stored.start;
+    } catch {
+      // kein Speicher (privater Modus, Tests): nur im Speicher der Seite
+    }
+  }
+  // Uhr zurückgestellt: neu beginnen statt eine Restzeit über der Gesamtzeit anzuzeigen
+  const start = known !== undefined && known <= now ? known : now;
+  starts.set(key, start);
+  try {
+    localStorage.setItem(START_STORAGE, JSON.stringify({ key, start }));
+  } catch {
+    // siehe oben
+  }
+  return start;
+}
+
+export function useCountdown(totalSecs: number, tickMs: number, onExpire: () => void, key?: string) {
+  const [remaining, setRemaining] = useState(() => Math.max(0, totalSecs - (Date.now() - countdownStart(key)) / 1000));
+  const start = useRef(0);
   const expired = useRef(false);
   const cb = useRef(onExpire);
   cb.current = onExpire;
   useEffect(() => {
-    start.current = Date.now();
+    start.current = countdownStart(key);
     expired.current = false;
-    setRemaining(totalSecs);
+    setRemaining(Math.max(0, totalSecs - (Date.now() - start.current) / 1000));
     const id = setInterval(() => {
       const left = totalSecs - (Date.now() - start.current) / 1000;
       setRemaining(Math.max(0, left));
@@ -31,7 +64,7 @@ export function useCountdown(totalSecs: number, tickMs: number, onExpire: () => 
       }
     }, tickMs);
     return () => clearInterval(id);
-  }, [totalSecs, tickMs]);
+  }, [totalSecs, tickMs, key]);
   return remaining;
 }
 
