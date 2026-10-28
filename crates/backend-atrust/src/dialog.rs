@@ -153,6 +153,7 @@ fn net_to_backend(error: NetError) -> BackendError {
         NetError::Body(m) => BackendError::Protocol(m),
         NetError::Config(m) => BackendError::Internal(m),
         NetError::NoResponse => BackendError::Network("keine Antwort des Signaturdienstes".into()),
+        NetError::ConnectionLost(m) => BackendError::Network(m),
     }
 }
 

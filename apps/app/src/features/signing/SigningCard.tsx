@@ -491,7 +491,7 @@ function useSubmit(request: number) {
 
 /**
  * „Stattdessen: FIDO2-Schlüssel · SMS-TAN“ nach `FormContext`. Mobile: bietet A-Trust FIDO2 an, gibt es auf
- * dem Gerät aber keinen Authenticator, bleibt der Link sichtbar, ausgegraut, mit Hinweis.
+ * dem Gerät aber keinen Authenticator, entfällt der Link; es bleibt nur der Hinweis, dass FIDO2 hier nicht geht.
  */
 function Alternatives({ ctx, send, sent, sms = true, fido2 = true, app }: { ctx: FormContext; send: (a: FormAnswerView) => void; sent: boolean; sms?: boolean; fido2?: boolean; app?: () => void }) {
   const { t, view } = useApp();
@@ -514,14 +514,6 @@ function Alternatives({ ctx, send, sent, sms = true, fido2 = true, app }: { ctx:
       </AriaButton>,
     );
   }
-  if (fido2Greyed) {
-    items.push(
-      <AriaButton key="fido2-off" className="link" isDisabled aria-describedby="sc-fido2-unavailable">
-        <IconUsbKey size={15} />
-        {t.t('ng-ui-sc-alt-fido2')}
-      </AriaButton>,
-    );
-  }
   if (sms && ctx.can_switch_to_sms) {
     items.push(
       <AriaButton key="sms" className="link" onPress={() => send({ kind: 'switch_to_sms' })} isDisabled={sent}>
@@ -530,15 +522,17 @@ function Alternatives({ ctx, send, sent, sms = true, fido2 = true, app }: { ctx:
       </AriaButton>,
     );
   }
-  if (items.length === 0) return null;
+  if (items.length === 0 && !fido2Greyed) return null;
   return (
     <>
-      <div className="alt-row">
-        <span>{t.t('ng-ui-sc-alternatives')}</span>
-        {items.flatMap((item, i) => (i === 0 ? [item] : [<span key={`sep-${i}`} aria-hidden="true">·</span>, item]))}
-      </div>
+      {items.length > 0 ? (
+        <div className="alt-row">
+          <span>{t.t('ng-ui-sc-alternatives')}</span>
+          {items.flatMap((item, i) => (i === 0 ? [item] : [<span key={`sep-${i}`} aria-hidden="true">·</span>, item]))}
+        </div>
+      ) : null}
       {fido2Greyed ? (
-        <p id="sc-fido2-unavailable" className="step-footnote">
+        <p className="step-footnote">
           {t.t('ng-fido2-unavailable-mobile')}
         </p>
       ) : null}

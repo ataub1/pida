@@ -353,7 +353,7 @@ pub fn reason_for_error(e: &NetError) -> &'static str {
         NetError::Timeout => MSG_FAILED_TIMEOUT,
         NetError::Proxy(_) => MSG_FAILED_PROXY,
         NetError::Tls(_) => MSG_FAILED_TLS,
-        NetError::Connect(_) | NetError::NoResponse => MSG_FAILED_OFFLINE,
+        NetError::Connect(_) | NetError::NoResponse | NetError::ConnectionLost(_) => MSG_FAILED_OFFLINE,
         NetError::Body(_) | NetError::InvalidUrl(_) => MSG_FAILED_INVALID,
         // u. a. eine unbrauchbare manuelle Proxy-Angabe (Host, Port) oder eine Adresse ohne `https`
         NetError::Config(_) => MSG_FAILED_PROXY,

@@ -7,7 +7,7 @@
 //! | `Error == true` | ebenfalls neu laden (A-Trust zeigt dann den Fehler) |
 //! | weder noch | Schleife beenden, Maske wartet weiter auf die Nutzerin |
 //! | kein JSON / Schlüssel fehlt | 10 s warten, dann neu laden |
-//! | keine Antwort / Timeout | weiter pollen; nach 300 s seit Beginn neu laden |
+//! | keine Antwort / Timeout / Verbindung abgerissen | weiter pollen; nach 300 s seit Beginn neu laden |
 //! | sonstiger Netzfehler | 10 s warten, dann neu laden |
 //!
 //! Der Poll-Client hat **keine Cookies** und sendet `Authorization: Bearer <Token>`. Abweichung zum
@@ -184,7 +184,8 @@ pub async fn run(client: &HttpClient, info: &PollInfo, config: PollConfig, cance
                     };
                 }
             },
-            Err(NetError::NoResponse | NetError::Timeout) => {
+            // abgerissene Verbindung (z. B. vom Mobil-OS im Hintergrund gekappt): einfach weiter pollen
+            Err(NetError::NoResponse | NetError::Timeout | NetError::ConnectionLost(_)) => {
                 if tokio::time::Instant::now() >= deadline {
                     tracing::debug!("Long-Poll ohne Antwort nach Ablauf der A-Trust-Frist – Seite neu laden");
                     return PollOutcome::Reload;

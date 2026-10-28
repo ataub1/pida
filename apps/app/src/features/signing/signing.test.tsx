@@ -91,12 +91,12 @@ describe('Signierkarte: Schritte und Stepper', () => {
     }
   });
 
-  it('Mobile: FIDO2 ausgegraut mit Hinweis, Text „in der App bestätigen, dann zurückkehren“', async () => {
+  it('Mobile: kein FIDO2-Link, nur Hinweis; Text „in der App bestätigen, dann zurückkehren“', async () => {
     renderApp({ view: onMobile(cardView(APP({ fido2_visible: false, can_switch_to_fido2: true }), { stage: 'confirming', method: 'app', login_done: true })) });
     const dialog = await card();
-    const fido = within(dialog).getByRole('button', { name: 'FIDO2-Schlüssel' });
-    expect(fido).toBeDisabled();
-    expect(fido).toHaveAccessibleDescription(/FIDO2-Sicherheitsschlüssel sind auf diesem Gerät nicht verfügbar/);
+    expect(within(dialog).queryByRole('button', { name: 'FIDO2-Schlüssel' })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'SMS-TAN' })).toBeEnabled();
+    expect(dialog).toHaveTextContent('FIDO2-Sicherheitsschlüssel sind auf diesem Gerät nicht verfügbar');
     expect(dialog).toHaveTextContent('Bestätigen Sie in der App „ID Austria“ und kehren Sie dann zu PIDA zurück.');
   });
 
