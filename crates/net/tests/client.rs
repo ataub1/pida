@@ -1,5 +1,6 @@
 //! Integrationstests des HTTP-Clients gegen einen lokalen Mock-Server (nur 127.0.0.1, kein Netz).
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -273,4 +274,69 @@ async fn update_check_refuses_plain_http() {
     assert!(server.requests().is_empty(), "kein Request über http");
     let poll = HttpClient::new(&direct(), Purpose::AtrustPoll).unwrap();
     assert_eq!(poll.get(&server.url("/x"), &[]).await.unwrap().status, 200);
+}
+
+/// Server, der die ersten `resets` Verbindungen nach dem Lesen des Requests hart zurücksetzt (RST,
+/// wie eine vom Mobil-OS gekappte Keep-Alive-Verbindung) und danach normal antwortet.
+async fn resetting_server(resets: usize) -> (SocketAddr, Arc<AtomicUsize>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let connections = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&connections);
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut stream, _)) = listener.accept().await else { return };
+            let n = counter.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 8192];
+                let mut read = 0;
+                while !buf[..read].windows(4).any(|w| w == b"\r\n\r\n") {
+                    match stream.read(&mut buf[read..]).await {
+                        Ok(0) | Err(_) => return,
+                        Ok(k) => read += k,
+                    }
+                }
+                if n < resets {
+                    #[allow(deprecated)]
+                    let _ = stream.set_linger(Some(Duration::ZERO));
+                    return;
+                }
+                let _ = stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                    .await;
+            });
+        }
+    });
+    (addr, connections)
+}
+
+#[tokio::test]
+async fn get_is_retried_once_after_connection_reset() {
+    let (addr, connections) = resetting_server(1).await;
+    let client = HttpClient::new(&direct(), Purpose::AtrustSession).unwrap();
+    let url = Url::parse(&format!("http://{addr}/seite")).unwrap();
+    let r = client.get(&url, &[]).await.expect("zweiter Versuch auf neuer Verbindung");
+    assert_eq!((r.status, r.body.as_slice()), (200, b"ok".as_slice()));
+    assert_eq!(connections.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn get_retry_only_once() {
+    let (addr, connections) = resetting_server(2).await;
+    let client = HttpClient::new(&direct(), Purpose::AtrustSession).unwrap();
+    let url = Url::parse(&format!("http://{addr}/seite")).unwrap();
+    let err = client.get(&url, &[]).await.unwrap_err();
+    assert!(matches!(err, NetError::ConnectionLost(_)), "{err:?}");
+    assert_eq!(connections.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn post_is_not_retried_after_connection_reset() {
+    let (addr, connections) = resetting_server(1).await;
+    let client = HttpClient::new(&direct(), Purpose::AtrustSession).unwrap();
+    let url = Url::parse(&format!("http://{addr}/senden")).unwrap();
+    let err = client.post_form(&url, &[("a".into(), "b".into())]).await.unwrap_err();
+    assert!(matches!(err, NetError::ConnectionLost(_)), "{err:?}");
+    assert_eq!(connections.load(Ordering::SeqCst), 1);
 }

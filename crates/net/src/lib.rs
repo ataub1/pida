@@ -72,6 +72,11 @@ pub enum NetError {
     /// der Long-Poll pollt dann weiter, docs/analyse/02 §3.6).
     #[error("keine Antwort der Gegenstelle")]
     NoResponse,
+    /// Eine bestehende Verbindung ist abgerissen (TLS ohne `close_notify`, Reset, Broken Pipe) –
+    /// typisch für eine wiederverwendete Keep-Alive-Verbindung, die das Mobil-OS im Hintergrund
+    /// gekappt hat. GET-Requests wiederholt [`HttpClient::execute`] einmal auf neuer Verbindung.
+    #[error("Verbindung unterbrochen: {0}")]
+    ConnectionLost(String),
 }
 
 /// Text, mit dem [`NetError::Proxy`] eine 407-Antwort des Proxys beim `CONNECT` meldet.
@@ -481,7 +486,21 @@ impl HttpClient {
 
     /// Führt einen Request aus. Redirects folgt nur ein Client, dessen [`Purpose::follows_redirects`]
     /// gilt; sonst kommt jede 3xx-Antwort unverändert zurück.
+    ///
+    /// Ein GET, dessen Verbindung abreißt ([`NetError::ConnectionLost`]), wird einmal wiederholt: Nach
+    /// einem App-Wechsel auf iOS/Android ist die Keep-Alive-Verbindung im Pool oft tot, ohne dass der
+    /// Client es weiß. POST wird nie wiederholt (der Server könnte ihn schon verarbeitet haben).
     pub async fn execute(&self, request: Request) -> Result<Response> {
+        match self.execute_once(request.clone()).await {
+            Err(NetError::ConnectionLost(reason)) if request.method == Method::Get => {
+                tracing::info!(%reason, "Verbindung abgerissen – GET wird einmal auf neuer Verbindung wiederholt");
+                self.execute_once(request).await
+            }
+            result => result,
+        }
+    }
+
+    async fn execute_once(&self, request: Request) -> Result<Response> {
         let method = match request.method {
             Method::Get => reqwest::Method::GET,
             Method::Post => reqwest::Method::POST,
@@ -652,6 +671,13 @@ fn map_reqwest_error(error: reqwest::Error) -> NetError {
     }
     if chain_contains::<hyper::Error>(&error, &|e| e.is_incomplete_message()) {
         return NetError::NoResponse;
+    }
+    if chain_contains::<std::io::Error>(&error, &|e| {
+        use std::io::ErrorKind::*;
+        matches!(e.kind(), UnexpectedEof | ConnectionReset | ConnectionAborted | BrokenPipe | NotConnected)
+    }) || chain_contains::<hyper::Error>(&error, &|e| e.is_canceled() || e.is_closed())
+    {
+        return NetError::ConnectionLost(text);
     }
     if chain_contains::<std::io::Error>(&error, &|e| e.kind() == std::io::ErrorKind::TimedOut) {
         return NetError::Timeout;
