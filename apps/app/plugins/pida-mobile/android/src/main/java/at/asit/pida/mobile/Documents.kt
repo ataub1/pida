@@ -3,7 +3,7 @@
 // Reine Logik ohne Android-Klassen (JVM-Unit-Tests: src/test). Die Regeln entsprechen der Rust-Shell
 // (apps/app/src-tauri/src/mobile.rs: `safe_name`, `unique_target`, `MAX_DOCUMENT_BYTES`).
 
-package at.pida.mobile
+package at.asit.pida.mobile
 
 import java.io.File
 

@@ -1,6 +1,6 @@
 // PIDA – JVM-Unit-Tests der reinen Logik der Android-Seite (ohne Gerät):
 //   cd apps/app/src-tauri/gen/android && ./gradlew :tauri-plugin-pida-mobile:testDebugUnitTest
-package at.pida.mobile
+package at.asit.pida.mobile
 
 import java.io.File
 import java.nio.file.Files

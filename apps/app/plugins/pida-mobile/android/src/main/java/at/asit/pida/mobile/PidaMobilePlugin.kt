@@ -20,7 +20,7 @@
 // Verschlüsselung laufen auf einem eigenen Thread, die Antwort kommt von dort. Regeln: keine Pfade,
 // URIs, Schlüssel oder Werte in Fehlermeldungen oder Logs (ADR 0001 Regel 9).
 
-package at.pida.mobile
+package at.asit.pida.mobile
 
 import android.app.Activity
 import android.content.ActivityNotFoundException

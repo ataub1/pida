@@ -27,7 +27,8 @@ pub const LEGACY_DIR: &str = ".pdf-over";
 pub const LEGACY_CONFIG_FILE: &str = "PDF-Over.config";
 /// Anzeigename bzw. Ordnername unter Windows.
 pub const APP_NAME: &str = "PIDA";
-/// Ordnername unter macOS (Bundle-ID-Form).
+/// Ordnername unter macOS (Bundle-ID-Form). Bleibt bei der ersten Kennung `at.pida`, auch seit die App `at.asit.pida`
+/// heißt (0.5.3): Einstellungen, Bildmarke und Richtlinien-Pfad bleiben so ohne Umzug gültig.
 pub const MACOS_APP_DIR: &str = "at.pida";
 /// Ordnername unter Linux/BSD (wie `/etc/pida/policy.toml`).
 pub const UNIX_APP_DIR: &str = "pida";

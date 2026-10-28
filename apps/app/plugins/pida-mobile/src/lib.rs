@@ -54,7 +54,7 @@ pub use error::{Error, Result};
 /// Name des Plugins (Tauri).
 pub const PLUGIN_NAME: &str = "pida-mobile";
 /// Android: Paket der Kotlin-Klasse `PidaMobilePlugin`.
-pub const ANDROID_PACKAGE: &str = "at.pida.mobile";
+pub const ANDROID_PACKAGE: &str = "at.asit.pida.mobile";
 
 /// Art einer zu importierenden Datei (Dokument-Picker bzw. SAF-Filter).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

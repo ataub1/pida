@@ -36,10 +36,10 @@ struct NativeError: Error {
 
 enum SecureStore {
   /// Markierung in `UserDefaults`: Keychain dieser Installation bereits bereinigt.
-  private static let installedMarker = "at.pida.secure-store.installed"
+  private static let installedMarker = "at.asit.pida.secure-store.installed"
 
   static var service: String {
-    (Bundle.main.bundleIdentifier ?? "at.pida") + ".secrets"
+    (Bundle.main.bundleIdentifier ?? "at.asit.pida") + ".secrets"
   }
 
   private static func query(_ key: String) -> [String: Any] {

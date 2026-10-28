@@ -13,7 +13,7 @@
     </queries>
     <application>
         <provider
-            android:name="at.pida.mobile.PidaFileProvider"
+            android:name="at.asit.pida.mobile.PidaFileProvider"
             android:authorities="${applicationId}.pida.files"
             android:exported="false"
             android:grantUriPermissions="true">

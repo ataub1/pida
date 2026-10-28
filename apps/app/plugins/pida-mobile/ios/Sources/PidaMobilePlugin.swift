@@ -83,7 +83,7 @@ class PidaMobilePlugin: Plugin {
   /// Laufende QuickLook-Vorschau (nur Hauptthread; `dataSource` hält QuickLook nur schwach).
   private var activePreview: PreviewSession?
   /// Dateikopien (eingehende Dokumente, Import).
-  private let io = DispatchQueue(label: "at.pida.mobile.io", qos: .userInitiated)
+  private let io = DispatchQueue(label: "at.asit.pida.mobile.io", qos: .userInitiated)
 
   override init() {
     super.init()
