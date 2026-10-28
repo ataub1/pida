@@ -24,7 +24,7 @@ Angelegt mit `npm run tauri android init --ci` (Tauri CLI 2.12.3) und versionier
 
 | Punkt | Wert / Umsetzung |
 |---|---|
-| `applicationId`, `namespace` | `at.asit.pida` (Paketname bei Google Play; bis 0.5.2 `at.pida`). Die Plugin-Klassen liegen in `at.asit.pida.mobile`. |
+| `applicationId`, `namespace` | `at.asit.pida.app` (Paketname bei Google Play seit 0.6.0; 0.5.3–0.5.5 `at.asit.pida`, bis 0.5.2 `at.pida`). Die Plugin-Klassen liegen in `at.asit.pida.mobile`. |
 | SDK | `minSdk 28` (Android 9, Plan E-15), `targetSdk 36` (seit 0.5.3, Play-Vorgabe), `compileSdk 36` (die Tauri-API-Bibliothek `.tauri/tauri-api` verlangt 36; Plattform 36 und Build-Tools 36 lädt AGP beim ersten Build selbst). |
 | Werkzeuge | AGP 9.3.1, Kotlin 2.2.10, Gradle 9.6.1 mit `distributionSha256Sum` (Prüfsumme von services.gradle.org) und `networkTimeout=60000` – der Wrapper brach den Download sonst nach 10 s ab. |
 | Manifest | Intent-Filter `VIEW` (`content://`, `application/pdf`), `SEND` und `SEND_MULTIPLE` (`application/pdf`); Activity `singleTask` mit `configChanges` für Drehen, Dark Mode, Sprache, Schriftgröße, Tastatur; `windowSoftInputMode=adjustResize`. Berechtigungen nur `INTERNET` und `VIBRATE` (Haptik beim Positionieren), **keine** Speicher-Berechtigungen. |
@@ -120,13 +120,13 @@ Emulator und Startprüfung:
 emulator -avd pdfover_api35 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &   # echter AVD-Name, rename-to-pida:keep
 adb wait-for-device; until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 2; done
 adb install -r app-universal-debug.apk
-adb shell am start -W -n at.asit.pida/.MainActivity --ez pida.smoke true
+adb shell am start -W -n at.asit.pida.app/.MainActivity --ez pida.smoke true
 adb logcat -d | grep pida-smoke                  # Tag RustStdoutStderr (tao leitet stdout/stderr um)
 # Dokument per VIEW (die Freigabe klappt nur als Shell-Nutzer, nicht unter `adb root`)
 adb push testdata/pdf/generated/simple-xref-table.pdf /sdcard/Download/Vertrag.pdf
 adb shell content call --method scan_volume --uri content://media --arg external_primary
 adb shell am start -a android.intent.action.VIEW -d content://media/external/file/<id> -t application/pdf \
-  --grant-read-uri-permission -n at.asit.pida/.MainActivity
+  --grant-read-uri-permission -n at.asit.pida.app/.MainActivity
 adb emu kill
 ```
 
@@ -174,7 +174,7 @@ export PIDA_NOTICES_DIR=target/notices-android PIDA_REQUIRE_NOTICES=1   # „Liz
 npm run tauri android build -- --apk --target aarch64
 #  → src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk (nur arm64-v8a)
 apksigner verify --verbose --print-certs <apk>          # SHA-256 = LIESMICH.txt
-aapt dump badging <apk> | head -1                       # package at.asit.pida, versionName
+aapt dump badging <apk> | head -1                       # package at.asit.pida.app, versionName
 strings -a "$CARGO_TARGET_DIR/aarch64-linux-android/release/libpida_app_lib.so" | grep -c "$HOME"   # 0
 ```
 
@@ -202,8 +202,8 @@ oder Variable verwirft den Configuration Cache, ohne Variable entsteht wieder `�
   `takePendingOpenDocuments`-Aufrufen (genau einmal). `SEND` aus der App „Dateien“ (Teilen → PIDA) in die
   laufende App: ebenso genau einmal. Dateiauswahl (`importFile`, `pdf`): Dokument geöffnet. Ohne URI-Freigabe
   (`am start` gibt `EXTRA_STREAM` keine Freigabe) wird das Dokument übersprungen (`unreadable`), ohne Absturz.
-- **Abgewiesene Intents:** `VIEW file:///data/user/0/at.asit.pida/config/settings.toml`, `VIEW` auf den eigenen
-  Provider (`content://at.asit.pida.pida.files/…`) und `SEND text/plain`: je „Intent ohne zulässiges
+- **Abgewiesene Intents:** `VIEW file:///data/user/0/at.asit.pida.app/config/settings.toml`, `VIEW` auf den eigenen
+  Provider (`content://at.asit.pida.app.pida.files/…`) und `SEND text/plain`: je „Intent ohne zulässiges
   Dokument verworfen“, kein Dokument geöffnet.
 - **Positionieren per Touch:** Ziehen mit `adb shell input swipe` verschiebt den Block (Screenshot 02).
 - **Signiermittel:** ID Austria mit „FIDO2 nicht verfügbar“ (durchgestrichen) und Hinweis, keine lokale BKU;
@@ -215,7 +215,7 @@ oder Variable verwirft den Configuration Cache, ohne Variable entsteht wieder `�
   SHA-256-Namen und `v1:`-Chiffrate (kein Klartext `test`). Nach Neuinstallation (neuer Prozess) signiert die App
   ohne Passwortabfrage (`secureStoreGet` liefert das Passwort).
 - **Signatur und Export:** Signatur mit dem Keystore in der App („Signatur war erfolgreich“, Screenshot 05),
-  Ausgabe (Stand M-Android; seit dem Review `files/Documents` im internen Speicher) `Android/data/at.asit.pida/files/Documents/Vertrag_signed.pdf`; „Sichern unter …“ → SAF →
+  Ausgabe (Stand M-Android; seit dem Review `files/Documents` im internen Speicher) `Android/data/at.asit.pida.app/files/Documents/Vertrag_signed.pdf`; „Sichern unter …“ → SAF →
   `Download/Vertrag_signed.pdf` (bitgleich, SHA-256 `093b844f…d56e`). Auf dem Mac mit `adb pull`:
 
   ```text
@@ -247,7 +247,7 @@ dem Review): `01-start`, `02-positionieren`, `03-signiermittel`, `04-keystore-im
 **Review (15.10.2026, mobile.md §10):** neu gebaut, im Flugmodus erneut durchgespielt – Startprüfung `pdfium=true`,
 Keystore-Import über SAF (Kopie in `cache/import` danach entfernt), `VIEW`-Intent genau einmal, Ziehen des Blocks,
 Hintergrund/Vordergrund ohne Zustandsverlust, Signatur ohne Passwortabfrage, Ausgabe `files/Documents/Vertrag_signed.pdf`
-(0600), Teilen und „Öffnen“ über den FileProvider (`content://at.asit.pida.pida.files/…`), „Sichern unter“ bitgleich
+(0600), Teilen und „Öffnen“ über den FileProvider (`content://at.asit.pida.app.pida.files/…`), „Sichern unter“ bitgleich
 nach `Download/`; pyHanko *VALID*. `cmd package query-activities`: `VIEW` mit `BROWSABLE` bzw. `file:` löst nicht mehr
 auf PIDA auf.
 
@@ -291,7 +291,7 @@ auf PIDA auf.
    der Emulator im Flugmodus.
 7. **ABIs:** `tools/fetch-pdfium.sh --jnilibs` liefert arm64-v8a, armeabi-v7a, x86_64; ein Universal-Build ohne
    `--target` enthält auch x86 (i686) – dort ohne PDFium.
-8. **Google Play (seit 0.5.3):** Paketname `at.asit.pida` (unveränderlich, bis 0.5.2 `at.pida` – eine andere App),
+8. **Google Play (seit 0.5.3):** Paketname `at.asit.pida.app` seit 0.6.0 (unveränderlich; 0.5.3–0.5.5 `at.asit.pida`, in der Play Console gelöscht, bis 0.5.2 `at.pida` – je eine andere App),
    `targetSdk 36` (Play-Vorgabe für neue Apps/Updates ab Ende August 2026). Für die Play Console ein App Bundle bauen
    (`npm run tauri android build -- --aab`, signiert mit `PIDA_ANDROID_KEYSTORE_PROPERTIES`); dieser Schlüssel ist bei
    Play nur der **Upload-Schlüssel**, Google signiert die ausgelieferten APKs mit dem Schlüssel der Play-App-Signatur.
@@ -328,7 +328,7 @@ emulator -avd "$AVD" -no-window -no-audio -no-boot-anim -gpu swiftshader_indirec
 adb shell cmd connectivity airplane-mode enable       # zusätzlich zur Proxy-Sperre: „Active default network: none“
 adb root; adb shell setprop persist.sys.locale de-AT; adb shell setprop ctl.restart zygote; adb unroot
 adb install -r …/app-universal-debug.apk
-adb shell am start -W -n at.asit.pida/.MainActivity --ez pida.smoke true
+adb shell am start -W -n at.asit.pida.app/.MainActivity --ez pida.smoke true
 adb -s emulator-5554 emu kill                          # am Ende
 ```
 
@@ -339,8 +339,8 @@ adb -s emulator-5554 emu kill                          # am Ende
   Zustände per `Runtime.evaluate`, Namen für den Bildschirmleser per `Accessibility.getFullAXTree`. Native Oberflächen
   (Dateiauswahl, Teilen, PDF-Anzeige) per `uiautomator dump`; Mehrfachauswahl in der Dateiauswahl per langem Druck
   (`input swipe x y x y 900`), dann „Auswählen“.
-- **App-Ende während eines Laufs:** `adb shell run-as at.asit.pida kill -9 <pid>`; Ergebnisse vom Gerät mit
-  `adb exec-out run-as at.asit.pida cat files/Documents/<Name>` (Ausgabe `files/Documents`, 0600).
+- **App-Ende während eines Laufs:** `adb shell run-as at.asit.pida.app kill -9 <pid>`; Ergebnisse vom Gerät mit
+  `adb exec-out run-as at.asit.pida.app cat files/Documents/<Name>` (Ausgabe `files/Documents`, 0600).
 - **Startprüfung** nach dem Merge: `pida-smoke: ok step=open pdfium=true webview_ms=914 core_ms=915` (frische
   Installation), Kaltstart `TotalTime` 458–574 ms.
 
