@@ -675,15 +675,20 @@ function LoginPane({ request, data, onCancel }: { request: number; data: Extract
   );
 }
 
-/** Restzeit mit Countdown-Ring (ohne `timeout_secs` kein Ring; neue Anfrage = neuer `key`). */
-function Countdown({ total }: { total: number }) {
-  const remaining = useCountdown(total, 250, () => undefined);
+/** Uhr je Anfrage (Nummer aus dem Kern; Vergleichswert gegen gleiche Nummern nach einem Neustart der App). */
+function countdownKey(request: number, reference: string | null): string {
+  return `${request}:${reference ?? ''}`;
+}
+
+/** Restzeit mit Countdown-Ring (ohne `timeout_secs` kein Ring; neue Anfrage = neuer `key`, neue Uhr). */
+function Countdown({ request, reference, total }: { request: number; reference: string | null; total: number }) {
+  const remaining = useCountdown(total, 250, () => undefined, countdownKey(request, reference));
   return <CountdownRing remaining={remaining} total={total} />;
 }
 
-function LowTimeNotice({ total }: { total: number }) {
+function LowTimeNotice({ request, reference, total }: { request: number; reference: string | null; total: number }) {
   const { t } = useApp();
-  const remaining = useCountdown(total, 1000, () => undefined);
+  const remaining = useCountdown(total, 1000, () => undefined, countdownKey(request, reference));
   // Screenreader: einmalige Vorwarnung kurz vor Ablauf (der Ring selbst wird nicht laufend angesagt)
   const low = total > 60 && remaining > 0 && remaining <= 60;
   return (
@@ -713,10 +718,10 @@ function AppPane({ request, data, onCancel }: { request: number; data: Extract<N
       {data.reference_value || data.timeout_secs ? (
         <div className="app-confirm">
           {data.reference_value ? <ReferenceValue value={data.reference_value} onShowData={showData} /> : <span />}
-          {data.timeout_secs ? <Countdown key={request} total={data.timeout_secs} /> : null}
+          {data.timeout_secs ? <Countdown key={request} request={request} reference={data.reference_value} total={data.timeout_secs} /> : null}
         </div>
       ) : null}
-      {data.timeout_secs ? <LowTimeNotice key={`low-${request}`} total={data.timeout_secs} /> : null}
+      {data.timeout_secs ? <LowTimeNotice key={`low-${request}`} request={request} reference={data.reference_value} total={data.timeout_secs} /> : null}
       <p className="step-hint">
         <IconClock size={15} />
         {t.t('ng-ui-sc-ref-hint')} <span className="waiting-dots">{t.t('ng-ui-sc-app-waiting')}</span>
@@ -752,7 +757,7 @@ function QrPane({ request, data, onCancel }: { request: number; data: Extract<Na
         {data.image ? <img className="qr-image" src={qrDataUrl(data.image)} alt={t.t('ng-ui-qr-alt')} width={180} height={180} /> : null}
         <div className="qr-side">
           <ReferenceValue value={data.reference_value} size="sm" onShowData={showData} />
-          {data.timeout_secs ? <Countdown key={request} total={data.timeout_secs} /> : null}
+          {data.timeout_secs ? <Countdown key={request} request={request} reference={data.reference_value} total={data.timeout_secs} /> : null}
         </div>
       </div>
       <ProblemLine ctx={data.ctx} local={data.image ? null : t.t('error-FailedToLoadQRCode')} />
