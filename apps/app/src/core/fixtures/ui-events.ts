@@ -125,7 +125,7 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'choose_backend', backend: 'keystore' },
   { type: 'answer_warning', proceed: false },
   { type: 'accept_migration', store_secrets: false },
-  { type: 'import_keystore', path: '/data/user/0/at.asit.pida/cache/import/k.p12', password: null, remember: false },
+  { type: 'import_keystore', path: '/data/user/0/at.asit.pida.app/cache/import/k.p12', password: null, remember: false },
   // ADR 0004: übrige Varianten der neuen Datentypen
   { type: 'use_target', target: { kind: 'free' } },
   { type: 'use_target', target: { kind: 'qr' } },

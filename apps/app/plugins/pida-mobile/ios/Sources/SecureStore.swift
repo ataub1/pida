@@ -39,7 +39,7 @@ enum SecureStore {
   private static let installedMarker = "at.asit.pida.secure-store.installed"
 
   static var service: String {
-    (Bundle.main.bundleIdentifier ?? "at.asit.pida") + ".secrets"
+    (Bundle.main.bundleIdentifier ?? "at.asit.pida.app") + ".secrets"
   }
 
   private static func query(_ key: String) -> [String: Any] {

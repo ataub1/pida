@@ -1,9 +1,9 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "PIDA",
-  "identifier": "at.asit.pida",
+  "identifier": "at.asit.pida.app",
   "mainBinaryName": "pida",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "build": {
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist",

@@ -21,7 +21,7 @@
 // - Debug-Builds: Startprüfung über das Intent-Extra `pida.smoke` (setzt PIDA_SMOKE=1 für den
 //   Kern, siehe apps/app/src-tauri/src/smoke.rs; die App beendet sich danach selbst).
 
-package at.asit.pida
+package at.asit.pida.app
 
 import android.content.ContentResolver
 import android.content.Intent

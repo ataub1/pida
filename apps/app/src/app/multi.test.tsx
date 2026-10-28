@@ -159,7 +159,7 @@ describe('Mehrfachauswahl auf Mobilgeräten', () => {
     const start = renderApp({ view: onMobile(viewOf({ step: 'open', queue: [] }, { actions: editActions({ sign: false, edit_placement: false }) }), ANDROID), platform: 'android' });
     expect(await screen.findByText('Mehrere PDFs auf einmal: in der Dateiauswahl ein PDF lange drücken, weitere antippen, dann „Auswählen“.')).toBeInTheDocument();
     start.unmount();
-    const files = ['/data/user/0/at.asit.pida/cache/import/1/A.pdf', '/data/user/0/at.asit.pida/cache/import/2/B.pdf', '/data/user/0/at.asit.pida/cache/import/3/C.pdf'];
+    const files = ['/data/user/0/at.asit.pida.app/cache/import/1/A.pdf', '/data/user/0/at.asit.pida.app/cache/import/2/B.pdf', '/data/user/0/at.asit.pida.app/cache/import/3/C.pdf'];
     const { mock, user } = renderApp({ view: onMobile(workspaceView(), ANDROID), platform: 'android', pickMobileFilesResult: files });
     await screen.findByRole('application', { name: 'Signaturblock' });
     await user.click(await screen.findByRole('button', { name: 'PDF hinzufügen oder öffnen' }));

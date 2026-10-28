@@ -24,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-PACKAGE = "at.asit.pida"
+PACKAGE = "at.asit.pida.app"
 TRACK = "internal"
 SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 TOKEN_URL = "https://oauth2.googleapis.com/token"

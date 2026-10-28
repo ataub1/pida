@@ -43,7 +43,7 @@ enum SandboxFiles {
   /// `app_data_dir` = `Library/Application Support/<Bundle-ID>`, `Paths::sandbox` → `data/`).
   static var importedKeystores: URL {
     let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    return support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "at.asit.pida", isDirectory: true)
+    return support.appendingPathComponent(Bundle.main.bundleIdentifier ?? "at.asit.pida.app", isDirectory: true)
       .appendingPathComponent("data", isDirectory: true)
       .appendingPathComponent("keystores", isDirectory: true)
   }

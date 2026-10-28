@@ -229,3 +229,14 @@ Für Google Play (Paketname unveränderlich) heißt die App seit 0.5.3 `at.asit.
   `/Library/Application Support/at.pida/policy.toml`) bleiben unverändert (`MACOS_APP_DIR`), damit Einstellungen,
   Bildmarke und verwaltete Richtlinien ohne Umzug gelten. Was Tauri selbst unter der Kennung ablegt
   (Fensterposition, WebView-Daten wie das gewählte Farbschema), beginnt einmalig neu.
+
+## 8. Nachtrag (28.10.2026): Kennung `at.asit.pida.app` (0.6.0)
+
+`at.asit.pida` war im kostenlosen persönlichen Apple-Team des Entwicklers registriert (automatische Bereitstellung durch
+Xcode) und ließ sich im A-SIT-Team für TestFlight nicht anlegen; selbst freigeben lässt sich so eine ID nicht. Deshalb
+heißt die App auf allen Plattformen seit 0.6.0 `at.asit.pida.app`: `identifier` in `tauri.conf.json`, Android
+`applicationId`/`namespace`, iOS `PRODUCT_BUNDLE_IDENTIFIER`, Kotlin-Paket der App `at.asit.pida.app` (buildSrc
+`at.asit.pida.app.kotlin`). Unverändert bleiben das Plugin-Paket `at.asit.pida.mobile` und die Desktop-Ordner
+(`MACOS_APP_DIR` = `at.pida`). Die Play-App `at.asit.pida` (nur interner Test) wurde gelöscht. Auf Android und iOS ist
+0.6.0 eine neue App: Einstellungen werden nicht übernommen.
+
