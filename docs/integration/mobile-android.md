@@ -296,6 +296,10 @@ auf PIDA auf.
    (`npm run tauri android build -- --aab`, signiert mit `PIDA_ANDROID_KEYSTORE_PROPERTIES`); dieser Schlüssel ist bei
    Play nur der **Upload-Schlüssel**, Google signiert die ausgelieferten APKs mit dem Schlüssel der Play-App-Signatur.
    Jeder Upload braucht einen höheren `versionCode` (aus der Version, 0.5.3 → 5003). Erste Verteilung: interner Test.
+   Hochladen in den internen Test: `tools/play-upload.py <aab> --notes-de "…" [--notes-en "…"]` (Play Developer API,
+   Dienstkonto-Schlüssel `~/.pida-release/play-service-account.json` bzw. `PIDA_PLAY_SERVICE_ACCOUNT`, nur Python und
+   `openssl`); `--check` prüft den Zugang, ohne etwas zu ändern. Das Dienstkonto hat in der Play Console nur das Recht,
+   Test-Track-Releases für PIDA zu erstellen; geschlossene, offene und Produktions-Releases bleiben Handarbeit.
 9. Gradle meldet Abkündigungen der Tauri-Vorlage (AGP 9 `android.newDsl=false`, Java 8 als Quelle/Ziel) –
    kommen mit einer neueren Tauri-Vorlage weg.
 
