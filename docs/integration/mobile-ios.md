@@ -27,7 +27,7 @@ Angelegt mit `npm run tauri ios init -- --ci --skip-targets-install` und **versi
 
 | Punkt | Umsetzung |
 |---|---|
-| Bundle-ID | `at.pida` (`tauri.conf.json` `identifier`, `PRODUCT_BUNDLE_IDENTIFIER`); Anzeigename „PIDA“ |
+| Bundle-ID | `at.asit.pida` (`tauri.conf.json` `identifier`, `PRODUCT_BUNDLE_IDENTIFIER`); Anzeigename „PIDA“ |
 | Mindest-iOS | **16.0** (Plan §5.1): `tauri.conf.json` `bundle.iOS.minimumSystemVersion`, `project.yml` `deploymentTarget`, `Podfile`; App-Binary `LC_BUILD_VERSION minos 16.0` (geprüft mit `vtool -show-build`). Abweichung zu M0 (17.0) siehe §3 |
 | Dokumenttypen | `CFBundleDocumentTypes`: `com.adobe.pdf`, Rolle `Viewer`, `LSHandlerRank` **`Alternate`** (nie Standard-App für PDF); Tauri ergänzt beim Bauen `CFBundleTypeExtensions: [pdf]` aus `bundle.fileAssociations` |
 | Öffnen am Ort | `LSSupportsOpeningDocumentsInPlace = YES` – iOS übergibt das Original als Security-Scoped URL, die App kopiert die **Bytes** in die Sandbox (§2.5). Zusammen mit `UIFileSharingEnabled = YES` erscheint `Documents` (signierte Dokumente) in der Dateien-App unter „Auf meinem iPhone › PIDA“ (Screenshots 05, 08) |
@@ -145,12 +145,12 @@ npx tauri ios build --target aarch64-sim --debug
 #  → src-tauri/gen/apple/build/arm64-sim/PIDA.app (Debug 224 MB: Binary 209 MB unoptimiert mit Debug-Infos, PDFium universal 14 MB)
 
 DEV=<UDID>; xcrun simctl boot $DEV; xcrun simctl install $DEV "src-tauri/gen/apple/build/arm64-sim/PIDA.app"
-SIMCTL_CHILD_PIDA_SMOKE=1 xcrun simctl launch $DEV at.pida
+SIMCTL_CHILD_PIDA_SMOKE=1 xcrun simctl launch $DEV at.asit.pida
 xcrun simctl spawn $DEV log show --last 1m --predicate 'process == "PIDA"' | grep pida-smoke
 ```
 
 stdout/stderr leitet Tauri unter iOS in das System-Log um (`log show`), die App-Logdatei liegt im Container
-unter `Library/Application Support/at.pida/logs/`. Prüfungen: `cargo clippy --no-deps -p pida-app
+unter `Library/Application Support/at.asit.pida/logs/`. Prüfungen: `cargo clippy --no-deps -p pida-app
 -p tauri-plugin-pida-mobile --target aarch64-apple-ios{,-sim} -- -D warnings` (grün; der Build des
 Geräte-Ziels kompiliert dabei auch das Swift-Paket für `arm64-apple-ios`), `cargo test -p pida-app -p
 tauri-plugin-pida-mobile` (58 Tests grün), Swift-Paket ohne Warnungen der eigenen Quellen

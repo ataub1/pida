@@ -13,7 +13,7 @@
 //! PIDA“.
 //!
 //! Windows/NSIS: Der Herausgeber steckt auch im Registrierungsschlüssel `Software\<Herausgeber>\<Produkt>`, unter
-//! dem sich der Installer den Ordner merkt. Bis 0.2.0 war das „pida“ (Tauri-Vorgabe aus der Kennung `at.pida`);
+//! dem sich der Installer den Ordner merkt. Bis 0.2.0 war das „pida“ (Tauri-Vorgabe aus der damaligen Kennung `at.pida`);
 //! `windows/installer-hooks.nsh` übernimmt den alten Ordner, damit „Vor der Installation deinstallieren“ die alte
 //! Installation findet.
 
@@ -76,10 +76,9 @@ fn nsis_installer_adopts_the_registry_key_of_the_former_publisher() {
     assert!(nsis.get("installMode").is_none_or(|m| m == "currentUser"), "{nsis}");
     let product = conf["productName"].as_str().expect("productName");
     let publisher = conf["bundle"]["publisher"].as_str().expect("bundle.publisher");
-    // bisheriger Herausgeber: Tauri-Vorgabe = zweiter Teil der Kennung (at.pida → pida)
-    let identifier = conf["identifier"].as_str().expect("identifier");
-    let legacy = identifier.split('.').nth(1).expect("Kennung mit Punkt");
-    assert_eq!((legacy, publisher), ("pida", "A-SIT"));
+    // bisheriger Herausgeber: Tauri-Vorgabe = zweiter Teil der damaligen Kennung (at.pida → pida; seit 0.5.3 at.asit.pida)
+    let legacy = "pida";
+    assert_eq!(publisher, "A-SIT");
     let new_key = format!("\"Software\\{publisher}\\{product}\"");
     let old_key = format!("\"Software\\{legacy}\\{product}\"");
     assert!(NSIS_HOOKS.contains("!define MUI_CUSTOMFUNCTION_GUIINIT PidaAdoptLegacyPublisherKey"), "vor den Seiten");

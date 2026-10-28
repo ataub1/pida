@@ -1,6 +1,6 @@
 name: pida-app
 options:
-  bundleIdPrefix: at.pida
+  bundleIdPrefix: at.asit.pida
   deploymentTarget:
     iOS: 16.0
 fileGroups: [../../src]
@@ -11,7 +11,7 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: PIDA
-      PRODUCT_BUNDLE_IDENTIFIER: at.pida
+      PRODUCT_BUNDLE_IDENTIFIER: at.asit.pida
 targetTemplates:
   app:
     type: application
@@ -57,8 +57,8 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # Version wie Cargo.toml/package.json/tauri.conf.json (die CLI überschreibt sie beim Build aus `version`)
-        CFBundleShortVersionString: 0.5.2
-        CFBundleVersion: "0.5.2"
+        CFBundleShortVersionString: 0.5.3
+        CFBundleVersion: "0.5.3"
         # --- PIDA (M-iOS, docs/integration/mobile-ios.md) ---
         CFBundleDisplayName: PIDA
         # Urheberrecht wie bundle.copyright in tauri.conf.json (ADR 0004 Nachtrag 21)

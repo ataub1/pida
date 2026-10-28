@@ -24,7 +24,7 @@ use std::sync::Mutex;
 use crate::shell::MAX_PENDING_DOCUMENTS;
 
 /// Kennung der App (`identifier` in `tauri.conf.json`; Test `identifier_matches_tauri_conf`).
-pub const IDENTIFIER: &str = "at.pida";
+pub const IDENTIFIER: &str = "at.asit.pida";
 
 /// Dokumente, die vor dem Anlegen der [`Shell`](crate::shell::Shell) eintreffen (Tauri-State, vor `build` registriert).
 ///
@@ -148,7 +148,7 @@ mod tests {
         let conf: serde_json::Value =
             serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
         assert_eq!(conf["identifier"], IDENTIFIER);
-        assert_eq!(macos_socket_path(IDENTIFIER), PathBuf::from("/tmp/at_pida_si.sock"));
+        assert_eq!(macos_socket_path(IDENTIFIER), PathBuf::from("/tmp/at_asit_pida_si.sock"));
     }
 
     #[test]

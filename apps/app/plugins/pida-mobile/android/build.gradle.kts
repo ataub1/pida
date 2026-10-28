@@ -27,7 +27,7 @@ run {
 }
 
 android {
-    namespace = "at.pida.mobile"
+    namespace = "at.asit.pida.mobile"
     compileSdk = 36
 
     defaultConfig {

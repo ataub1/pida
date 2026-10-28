@@ -64,20 +64,21 @@ val releaseSigning: Properties? = System.getenv("PIDA_ANDROID_KEYSTORE_PROPERTIE
     }
 
 android {
-    // compileSdk 36: die Tauri-API-Bibliothek (.tauri/tauri-api) verlangt 36; Zielplattform bleibt 35.
+    // compileSdk 36: die Tauri-API-Bibliothek (.tauri/tauri-api) verlangt 36.
     compileSdk = 36
-    namespace = "at.pida"
+    namespace = "at.asit.pida"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        // Kennung at.pida = Android-Paket (Tauri; ohne „-“, das dort unzulässig wäre).
-        applicationId = "at.pida"
+        // Kennung at.asit.pida = Android-Paket = Paketname bei Google Play (seit 0.5.3; vorher at.pida).
+        applicationId = "at.asit.pida"
         // Plan §5.1/E-15: Android 9 (API 28)
         minSdk = 28
-        targetSdk = 35
-        // tauri.properties (von der CLI aus `version` in tauri.conf.json erzeugt): 0.5.2 → versionCode
-        // 0 · 1000000 + 5 · 1000 + 2 = 5002; die Rückfallwerte entsprechen dem, falls die Datei fehlt
-        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "5002").toInt()
-        versionName = tauriProperties.getProperty("tauri.android.versionName", "0.5.2")
+        // Google Play verlangt für neue Apps und Updates API 36 (Android 16)
+        targetSdk = 36
+        // tauri.properties (von der CLI aus `version` in tauri.conf.json erzeugt): 0.5.3 → versionCode
+        // 0 · 1000000 + 5 · 1000 + 3 = 5003; die Rückfallwerte entsprechen dem, falls die Datei fehlt
+        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "5003").toInt()
+        versionName = tauriProperties.getProperty("tauri.android.versionName", "0.5.3")
     }
     sourceSets {
         getByName("main") {

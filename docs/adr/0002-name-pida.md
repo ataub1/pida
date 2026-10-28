@@ -215,3 +215,17 @@ Handkorrekturen, sonst gehen sie beim nächsten Lauf verloren. Gleiches gilt fü
   (u. a. `tauri.android.conf.json`) und ignorierter Build-Ausgaben: 333 Dateien, 36 Pfade, danach `--check`
   ohne Befund außer den abgeleiteten Dateien; `cargo update --workspace --offline` erzeugt ein bis auf die
   Namen gleiches `Cargo.lock` (736 Pakete); die liegen gebliebenen Ordner werden als Hinweis gemeldet.
+
+## 7. Nachtrag (28.10.2026): Kennung `at.asit.pida`
+
+Für Google Play (Paketname unveränderlich) heißt die App seit 0.5.3 `at.asit.pida`: `identifier` in
+`tauri.conf.json`, Android `applicationId`/`namespace`, iOS `PRODUCT_BUNDLE_IDENTIFIER`, Kotlin-Pakete
+`at.asit.pida`, `at.asit.pida.mobile` und `at.asit.pida.kotlin` (buildSrc), Single-Instance-Socket
+`/tmp/at_asit_pida_si.sock`. `tools/rename-to-pida.py` bleibt beim alten Ziel `at.pida` (historischer Lauf).
+
+- **Mobile:** iOS und Android behandeln die neue Kennung als andere App. Eine installierte 0.5.2 und ältere
+  (`at.pida`) bleibt daneben bestehen und lässt sich deinstallieren; Einstellungen ziehen nicht mit um.
+- **Desktop:** Die Ordner aus §2 (macOS `~/Library/Application Support/at.pida`, Caches, Logs,
+  `/Library/Application Support/at.pida/policy.toml`) bleiben unverändert (`MACOS_APP_DIR`), damit Einstellungen,
+  Bildmarke und verwaltete Richtlinien ohne Umzug gelten. Was Tauri selbst unter der Kennung ablegt
+  (Fensterposition, WebView-Daten wie das gewählte Farbschema), beginnt einmalig neu.

@@ -9,7 +9,7 @@
 //
 // Keine Werte, Schlüssel oder Ausnahmetexte in Logs.
 
-package at.pida.mobile
+package at.asit.pida.mobile
 
 import android.content.Context
 import android.content.SharedPreferences
