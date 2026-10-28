@@ -71,8 +71,8 @@ sudo systemctl reload apache2
 
 In der Vorlage die Domain eintragen. RHEL & Co.: die Vorlage aus `/usr/share/doc/pida-web/` nach
 `/etc/httpd/conf.d/pida-web.conf` kopieren und den Proxy unter SELinux erlauben
-(`sudo setsebool -P httpd_can_network_connect 1`). Wichtig in der Vorlage: `LimitRequestBody` ≥ 100 MB (Befehle
-mit dem Dokument als Base64, Grenze des Servers 96 MB), `ProxyTimeout 120`, Komprimierung für `application/wasm`.
+(`sudo setsebool -P httpd_can_network_connect 1`). Wichtig in der Vorlage: `LimitRequestBody` ≥ 28 MB (Befehle
+mit dem Dokument als Base64, Grenze des Servers 28 MB; PDFs höchstens 20 MB wie bei A-Trust), `ProxyTimeout 120`, Komprimierung für `application/wasm`.
 
 ### Was der Server tut
 
