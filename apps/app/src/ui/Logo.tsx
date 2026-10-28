@@ -16,13 +16,14 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
   );
 }
 
-export function Wordmark({ showTagline = true }: { showTagline?: boolean }) {
+/** Wortmarke mit Untertitel (`tagline`, übersetzt, z. B. „PDF-Signatur ID Austria“). */
+export function Wordmark({ tagline }: { tagline?: string }) {
   return (
     <span className="wordmark">
       <LogoMark size={28} />
       <span className="wordmark-text">
         <span className="wordmark-name">PIDA</span>
-        {showTagline ? <span className="wordmark-tag">PDF · ID · Austria</span> : null}
+        {tagline ? <span className="wordmark-tag">{tagline}</span> : null}
       </span>
     </span>
   );

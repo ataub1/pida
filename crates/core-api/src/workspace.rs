@@ -1038,9 +1038,11 @@ impl crate::runtime::CoreTask {
         }
         let origin = match from {
             Some(State::Analyzing { .. } | State::Resuming { doc: None, .. }) => match error.code().as_str() {
-                "error-IOError" | "error-MayNotBeAPDF" | "error-PDFPwdProtected" | "error-PDFProtected" => {
-                    ErrorOrigin::Load
-                }
+                "error-IOError"
+                | "error-MayNotBeAPDF"
+                | "error-PDFPwdProtected"
+                | "error-PDFProtected"
+                | "ng-document-too-large" => ErrorOrigin::Load,
                 _ => ErrorOrigin::Analysis,
             },
             Some(State::Signing { .. } | State::ChoosingBackend { .. } | State::Resuming { .. }) => {
