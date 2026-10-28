@@ -675,9 +675,13 @@ function LoginPane({ request, data, onCancel }: { request: number; data: Extract
   );
 }
 
-/** Uhr je Anfrage (Nummer aus dem Kern; Vergleichswert gegen gleiche Nummern nach einem Neustart der App). */
-function countdownKey(request: number, reference: string | null): string {
-  return `${request}:${reference ?? ''}`;
+/**
+ * Uhr je Vorgang bei A-Trust: der Vergleichswert. Nach der Rückkehr in die App lädt der Kern die Seite neu
+ * (Long-Poll neu starten) – das ist eine neue Anfrage mit neuer Nummer, aber derselbe Vorgang mit demselben
+ * Vergleichswert; die Uhr läuft weiter. Ohne Vergleichswert gilt die Nummer der Anfrage.
+ */
+export function countdownKey(request: number, reference: string | null): string {
+  return reference ? `ref:${reference}` : `request:${request}`;
 }
 
 /** Restzeit mit Countdown-Ring (ohne `timeout_secs` kein Ring; neue Anfrage = neuer `key`, neue Uhr). */
