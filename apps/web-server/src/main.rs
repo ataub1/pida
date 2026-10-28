@@ -39,8 +39,9 @@ use crate::relay::{Relay, RelayError, Reply};
 const ATRUST_ENDPOINT: &str = "https://service.a-trust.at/mobile/https-security-layer-request/default.aspx";
 /// Höchstgröße der SL-Antwort von A-Trust an die DataURL.
 const MAX_DATA_URL_BODY: usize = 4 << 20;
-/// Höchstgröße eines Befehls der Seite (Dokument als Base64).
-const MAX_COMMAND_BODY: usize = 96 << 20;
+/// Höchstgröße eines Befehls der Seite (Dokument als Base64): A-Trust nimmt höchstens 20 MB an (der Kern lehnt
+/// größere PDFs schon beim Laden ab, `MAX_DOCUMENT_BYTES`), Base64 macht daraus knapp 27 MB.
+const MAX_COMMAND_BODY: usize = 28 << 20;
 
 struct App {
     dir: PathBuf,
