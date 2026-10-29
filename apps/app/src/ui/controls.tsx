@@ -6,7 +6,7 @@
  * Katalog tragen dessen Zugriffstaste (`AccessButton`, `&`-Mnemonics aus PDF-Over, `data-accesskey`;
  * ausgelöst in `ui/AccessKeys.ts`), Tastenbeschriftungen folgen der Plattform (`useModKey`).
  */
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   Button as AriaButton,
   Checkbox,
@@ -29,7 +29,7 @@ import {
 } from 'react-aria-components';
 import { useApp } from '../app/context';
 import type { Args } from '../i18n/catalog';
-import { IconCheck, IconChevronRight } from './Icons';
+import { IconCheck, IconChevronRight, IconEye, IconEyeOff } from './Icons';
 
 export type Variant = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'danger';
 export type Size = 'sm' | 'md' | 'lg';
@@ -149,6 +149,7 @@ export function TextInput({
   placeholder,
   spellCheck,
   autoCapitalize,
+  type,
   ...rest
 }: {
   label: string;
@@ -172,10 +173,43 @@ export function TextInput({
   /** Bildschirmtastatur: `none` für Kennungen (kein Großbuchstabe am Anfang) */
   autoCapitalize?: 'none' | 'sentences';
 }) {
+  const { t } = useApp();
+  const [revealed, setRevealed] = useState(false);
+  const secret = type === 'password';
+  const input = (
+    <Input
+      className={`input${secret ? ' input-secret' : ''}${inputClassName ? ` ${inputClassName}` : ''}`}
+      placeholder={placeholder}
+      // sichtbares Passwort: keine Autokorrektur und kein Großbuchstabe am Anfang
+      spellCheck={secret ? false : spellCheck}
+      autoCapitalize={secret ? 'none' : autoCapitalize}
+      autoCorrect={secret ? 'off' : undefined}
+    />
+  );
   return (
-    <TextField className={`field${className ? ` ${className}` : ''}`} isInvalid={!!error} {...rest}>
+    <TextField className={`field${className ? ` ${className}` : ''}`} isInvalid={!!error} type={secret && revealed ? 'text' : type} {...rest}>
       <Label className="field-label">{label}</Label>
-      <Input className={`input${inputClassName ? ` ${inputClassName}` : ''}`} placeholder={placeholder} spellCheck={spellCheck} autoCapitalize={autoCapitalize} />
+      {secret ? (
+        <div className="input-reveal">
+          {input}
+          {/* Augen-Symbol: Passwort im Klartext zeigen. Kein Formular-Knopf (type="button"); mousedown ohne
+              Fokuswechsel, damit Cursor und Bildschirmtastatur im Feld bleiben. */}
+          <button
+            type="button"
+            className="input-reveal-toggle"
+            aria-label={t.t(revealed ? 'ng-ui-password-hide' : 'ng-ui-password-show')}
+            aria-pressed={revealed}
+            title={t.t(revealed ? 'ng-ui-password-hide' : 'ng-ui-password-show')}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setRevealed((r) => !r)}
+            disabled={rest.isDisabled}
+          >
+            {revealed ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+          </button>
+        </div>
+      ) : (
+        input
+      )}
       {description && !error ? (
         <Text slot="description" className="field-hint">
           {description}

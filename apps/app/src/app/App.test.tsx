@@ -63,6 +63,28 @@ describe('Kernpfad mit dem Mock-Kern', () => {
     expect(mock.dispatched.some((e) => e.type === 'confirm_position' || e.type === 'choose_backend')).toBe(false);
   });
 
+  it('Passwort per Augen-Symbol im Klartext zeigen und wieder verbergen', async () => {
+    const { mock, user } = renderApp({ settings: idAustria(), pickFilesResult: ['/Users/demo/Vertrag.pdf'] });
+    await openOne(user);
+    await user.click(screen.getByRole('button', { name: /^Signieren/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Signieren mit ID Austria' });
+    const field = within(dialog).getByLabelText('Signatur-Passwort');
+    await user.type(field, 'geheim123');
+    expect(field).toHaveAttribute('type', 'password');
+    await user.click(within(dialog).getByRole('button', { name: 'Passwort anzeigen' }));
+    expect(field).toHaveAttribute('type', 'text');
+    expect(field).toHaveValue('geheim123');
+    expect(field).toHaveAttribute('autocorrect', 'off');
+    const hide = within(dialog).getByRole('button', { name: 'Passwort verbergen' });
+    expect(hide).toHaveAttribute('aria-pressed', 'true');
+    await user.click(hide);
+    expect(field).toHaveAttribute('type', 'password');
+    // das Augen-Symbol schickt das Formular nicht ab
+    expect(mock.dispatched.some((e) => e.type === 'login' || (e as { kind?: string }).kind === 'login')).toBe(false);
+    await user.click(within(dialog).getByRole('button', { name: 'Anmelden' }));
+    expect(await within(dialog).findByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' })).toBeInTheDocument();
+  });
+
   it('zweites Dokument (ohne Stapelübersicht): gemerkte Anmeldung → direkt die App-Bestätigung; „Nächstes Dokument“', async () => {
     const { mock, user } = renderApp({ settings: idAustria(), batchOverview: false, pickFilesResult: ['/Users/demo/Vertrag.pdf', '/Users/demo/Angebot.pdf'] });
     await openOne(user);
