@@ -1008,6 +1008,11 @@
 :root[data-mobile] .overlay-drawer {
   padding-bottom: var(--kb-inset);
 }
+/* Felder im Dialog: beim In-den-Blick-Holen (app/keyboard.ts) Platz für den mitlaufenden Fuß mit den Knöpfen
+   (signing.css, `.step-actions` sticky) lassen, sonst läge das Feld genau darunter */
+:root[data-mobile] .overlay :is(input, textarea) {
+  scroll-margin-block: var(--sp-3) 96px;
+}
 :root[data-mobile] .overlay .modal {
   max-height: min(calc(100dvh - 2 * var(--gutter)), 100%);
 }
