@@ -80,7 +80,7 @@ describe('Kernpfad mit dem Mock-Kern', () => {
     await user.click(hide);
     expect(field).toHaveAttribute('type', 'password');
     // das Augen-Symbol schickt das Formular nicht ab
-    expect(mock.dispatched.some((e) => e.type === 'login' || (e as { kind?: string }).kind === 'login')).toBe(false);
+    expect(mock.dispatched.some((e) => e.type === 'submit_form')).toBe(false);
     await user.click(within(dialog).getByRole('button', { name: 'Anmelden' }));
     expect(await within(dialog).findByRole('heading', { name: 'Benachrichtigung an die ID-Austria-App gesendet' })).toBeInTheDocument();
   });
