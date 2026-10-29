@@ -457,3 +457,34 @@ fn updated_selector_file_without_code_change() {
     let new = SelectorSet::from_json_validated(&json.to_string()).unwrap();
     assert!(matches!(classify(&url("sms.aspx"), &html, &new).unwrap().block, PageBlock::SmsTan { .. }));
 }
+
+#[test]
+fn entry_page_without_form_shows_title_and_text() {
+    // Erste Antwort auf den SL-Request ohne Formular (z. B. Wartungsseite): Titel und Textanfang in der Diagnose
+    let html = "<html><head><title>Wartung</title><style>p{color:red}</style></head><body>\
+                <script>var x = \"geheim\";</script><h1>Wartungsarbeiten</h1>\
+                <p>Der   Dienst ist \"kurz\"\n nicht verfügbar.</p></body></html>";
+    let d = diagnostic(&url("default.aspx"), html);
+    assert_eq!(
+        d,
+        "path=/mobile/https-security-layer-request/default.aspx forms=0 ids=[] \
+         title=\"Wartung\" text=\"Wartungsarbeiten Der Dienst ist 'kurz' nicht verfügbar.\""
+    );
+    let err = classify(&url("default.aspx"), html, &SelectorSet::builtin()).unwrap_err();
+    assert_eq!(err, PageError::FormCount(0));
+
+    let long = format!("<title>T</title><body>{}</body>", "a ".repeat(200));
+    let d = diagnostic(&url("default.aspx"), &long);
+    let text = d.split("text=\"").nth(1).unwrap();
+    assert!(text.ends_with("…\"") && text.chars().count() <= 162, "{d}");
+}
+
+#[test]
+fn other_pages_without_form_keep_the_short_diagnostic() {
+    // nach der Anmeldung kann eine Seite Personendaten zeigen → kein Text in der Diagnose
+    let html = "<html><head><title>Hallo Max</title></head><body>Max Mustermann</body></html>";
+    let d = diagnostic(&url("Weiter.aspx?sid=1"), html);
+    assert_eq!(d, "path=/mobile/https-security-layer-request/Weiter.aspx forms=0 ids=[]");
+    let d = diagnostic(&url("default.aspx"), &format!("<form></form>{html}"));
+    assert!(!d.contains("Max"), "{d}");
+}

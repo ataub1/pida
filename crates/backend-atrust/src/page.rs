@@ -685,7 +685,51 @@ fn diagnostic_of(doc: &Html, base_url: &Url) -> String {
             }
         }
     }
-    format!("path={} forms={} ids=[{}]", base_url.path(), forms, ids.join(","))
+    let mut out = format!("path={} forms={} ids=[{}]", base_url.path(), forms, ids.join(","));
+    if forms == 0 && is_entry_page(base_url) {
+        // Einstiegsseite ohne Formular (Wartung, Überlastung, Sperrseite, Ablehnung): Titel und Textanfang mit
+        // aufnehmen, damit „Technische Details“ zeigen, was A-Trust meldet. Vor der Anmeldung gibt es dort
+        // keine Personendaten; nach der Anmeldung (andere Pfade) bleibt es bei Pfad, Zahl und IDs.
+        let first_text = |css: &str| {
+            Selector::parse(css)
+                .ok()
+                .and_then(|s| doc.select(&s).next().map(|e| visible_text(e, MAX_DIAGNOSTIC_TEXT)))
+                .unwrap_or_default()
+        };
+        out.push_str(&format!(" title=\"{}\" text=\"{}\"", first_text("title"), first_text("body")));
+    }
+    out
+}
+
+/// Höchstlänge (Zeichen) von Titel bzw. Textanfang in der Diagnose der Einstiegsseite.
+const MAX_DIAGNOSTIC_TEXT: usize = 160;
+
+/// Einstiegsseite der Security-Layer-Anfrage (`…/default.aspx`, erster POST vor der Anmeldung).
+fn is_entry_page(url: &Url) -> bool {
+    url.path().rsplit('/').next().is_some_and(|last| last.eq_ignore_ascii_case("default.aspx"))
+}
+
+/// Sichtbarer Text (ohne `script`, `style`, `noscript`, `template`), Leerraum zusammengefasst, `"` als `'`,
+/// höchstens `max` Zeichen (gekürzt mit `…`).
+fn visible_text(element: ElementRef<'_>, max: usize) -> String {
+    let mut acc = String::new();
+    for node in element.descendants() {
+        let Node::Text(text) = node.value() else { continue };
+        let hidden = node.ancestors().any(|a| {
+            matches!(a.value(), Node::Element(e) if matches!(e.name(), "script" | "style" | "noscript" | "template"))
+        });
+        if !hidden {
+            acc.push(' ');
+            acc.push_str(text);
+        }
+    }
+    let joined = acc.split_whitespace().collect::<Vec<_>>().join(" ").replace('"', "'");
+    if joined.chars().count() > max {
+        let cut: String = joined.chars().take(max).collect();
+        format!("{}…", cut.trim_end())
+    } else {
+        joined
+    }
 }
 
 /// Höchstzahl der Einträge von [`link_targets`].
