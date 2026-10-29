@@ -706,6 +706,7 @@ ng-ui-privacy-local-mobile = Auf diesem Gerät wird mit ID Austria signiert; daz
 ng-ui-privacy-statement-web = PIDA im Browser verarbeitet die für den Signaturvorgang benötigten Daten in Ihrem Browser; Dokumente und Einstellungen werden nicht gespeichert und sind nach dem Schließen der Seite weg. Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument über den Server dieser Seite an die Firma A-Trust gesendet. Die Speicherdauer sowie weitere Datenschutzinformationen zur ID-Austria-Signatur entnehmen Sie bitte der Datenschutzerklärung der Firma A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>.
 ng-ui-privacy-local-web = Der Server dieser Seite reicht das Dokument beim Signieren nur an A-Trust weiter: Er hält es dabei kurz im Arbeitsspeicher, speichert es nicht und verwirft es sofort. Ihre Zugangsdaten für ID Austria geben Sie direkt auf der Seite von A-Trust ein – der Server sieht sie nie.
 ng-ui-privacy-atrust-link = Datenschutzerklärung von A-Trust: <a>https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf</a>
+ng-ui-privacy-pida-link = Datenschutzerklärung von PIDA (A-SIT): <a>https://pdf.a-sit.at/datenschutz/</a>
 ng-ui-privacy-about = Wohin Ihre Dokumente beim Signieren gehen, steht im Abschnitt <a>Datenschutz</a>.
 ng-ui-certcache-title = Zertifikats-Cache
 
@@ -815,6 +816,11 @@ ng-ui-about-update-download = Herunterladen
 ng-ui-about-update-download-label = Version { $version } herunterladen (Release-Seite auf GitHub)
 ng-ui-about-links = Links
 ng-ui-about-website = Website (pdf.a-sit.at)
+ng-ui-about-imprint = Impressum
+## Web-Variante: Fußzeile der Startseite (Impressum nach § 5 ECG leicht auffindbar)
+ng-ui-web-legal = Rechtliches
+ng-ui-web-imprint = Impressum
+ng-ui-web-privacy = Datenschutz
 ng-ui-about-release-notes = Versionshinweise
 ng-ui-about-source = Quellcode
 ng-ui-about-privacy = Datenschutz

@@ -10,13 +10,15 @@
  * `privacy_notice_text` – der eigene Text der Organisation, dazu der Hinweis auf das lokale Signieren mit
  * Keystore und Chipkarte (Mobilgeräte: dort wird nur mit ID Austria signiert, ADR 0004 Nachtrag 11 – der Hinweis
  * sagt das), am Desktop ein Satz zur Update-Prüfung (Abfrage bei GitHub, IP-Adresse sichtbar, keine Kennungen,
- * abschaltbar; ADR 0004 Nachtrag 21) und der Link zur Datenschutzerklärung von A-Trust.
+ * abschaltbar; ADR 0004 Nachtrag 21) und der Link zur Datenschutzerklärung von A-Trust. Zum Schluss der Link zur
+ * Datenschutzerklärung von PIDA selbst (pdf.a-sit.at/datenschutz/; die Stores verlangen sie aus der App heraus).
  */
 import { useState } from 'react';
 import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
 import { webProfile } from '../../core/web-profile';
+import { PRIVACY_URL } from './about';
 import { AccessButton } from '../../ui/controls';
 import { ConfirmDialog } from '../../ui/Dialog';
 import { IconShield } from '../../ui/Icons';
@@ -42,6 +44,9 @@ export function PrivacyInfo() {
           <Markup text={t.t('ng-ui-privacy-atrust-link')} targets={[{ href: url }]} />
         </p>
       ) : null}
+      <p>
+        <Markup text={t.t('ng-ui-privacy-pida-link')} targets={[{ href: PRIVACY_URL }]} />
+      </p>
     </>
   );
 }

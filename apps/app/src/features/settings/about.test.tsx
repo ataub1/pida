@@ -61,6 +61,7 @@ describe('Über PIDA: Kopf, Links, Urheberrecht', () => {
     const links = within(within(about).getByRole('list', { name: 'Links' })).getAllByRole('link');
     expect(links.map((l) => l.textContent)).toEqual([
       'Website (pdf.a-sit.at) (öffnet im Browser)',
+      'Impressum (öffnet im Browser)',
       'Versionshinweise (öffnet im Browser)',
       'Quellcode (öffnet im Browser)',
       'Lizenzen anzeigen',

@@ -4,7 +4,8 @@
  * kennwortgeschütztes PDF ohne Kennwortfeld mit „Anderes Dokument öffnen“, Fehlerkarte mit Details, axe.
  */
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setWebProfile } from '../../core/web-profile';
 import { defaultErrorContext } from '../../core/defaults';
 import { expectNoAxeViolations } from '../../test/a11y';
 import { renderApp } from '../../test/render';
@@ -135,5 +136,24 @@ describe('Zustandskarten', () => {
     renderApp({ view: onMobile(START(), IOS) });
     await screen.findByRole('heading', { level: 1 });
     await expectNoAxeViolations();
+  });
+});
+
+describe('Start: Impressum und Datenschutz (Web-Variante)', () => {
+  afterEach(() => setWebProfile(null));
+
+  it('Web: Fußzeile mit Impressum und Datenschutz der eigenen Website, je in neuem Tab', async () => {
+    setWebProfile({ keystore: false });
+    const { mock, user } = renderApp();
+    const legal = await screen.findByRole('navigation', { name: 'Rechtliches' });
+    await user.click(within(legal).getByRole('link', { name: 'Impressum' }));
+    await user.click(within(legal).getByRole('link', { name: 'Datenschutz' }));
+    expect(mock.openedUrls).toEqual([`${window.location.origin}/impressum/`, `${window.location.origin}/datenschutz/`]);
+  });
+
+  it('App: keine Fußzeile (Impressum unter Einstellungen › Über PIDA)', async () => {
+    renderApp();
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('navigation', { name: 'Rechtliches' })).toBeNull();
   });
 });

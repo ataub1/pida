@@ -14,9 +14,14 @@
  *
  * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
  * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
+ *
+ * Web-Variante: unten Impressum und Datenschutz der Website, auf der PIDA läuft (`/impressum/`, `/datenschutz/`;
+ * § 5 ECG verlangt ein leicht auffindbares Impressum).
  */
+import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
+import { webProfile } from '../../core/web-profile';
 import { AccessButton, Keys, useModKey } from '../../ui/controls';
 import { IconLock, IconUpload } from '../../ui/Icons';
 import { batchFlow, dropHintMsg } from '../batch/flow';
@@ -72,6 +77,7 @@ export function StartView() {
             </p>
           </div>
         </section>
+        {webProfile() ? <WebLegalLinks /> : null}
       </div>
 
       {single ? null : (
@@ -82,3 +88,22 @@ export function StartView() {
     </div>
   );
 }
+
+/** Web-Variante: Impressum und Datenschutz der Website (gleicher Ursprung, neuer Tab – das Dokument bleibt offen). */
+function WebLegalLinks() {
+  const { t, bridge, toast } = useApp();
+  const open = (path: string) => () =>
+    void bridge.openUrl(new URL(path, window.location.origin).href).catch(() => toast(t.t('ng-ui-open-failed'), 'error'));
+  return (
+    <nav className="start-legal" aria-label={t.t('ng-ui-web-legal')}>
+      <Link className="link" onPress={open('/impressum/')}>
+        {t.t('ng-ui-web-imprint')}
+      </Link>
+      <span aria-hidden="true">·</span>
+      <Link className="link" onPress={open('/datenschutz/')}>
+        {t.t('ng-ui-web-privacy')}
+      </Link>
+    </nav>
+  );
+}
+
