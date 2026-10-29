@@ -577,3 +577,18 @@ clippy --workspace --all-targets -- -D warnings` und `cargo fmt --all --check` o
 npm test` 34 Dateien, 708 Tests; `ts_bindings`, `serde_contract` und die Real-Core-Proben (`workspace`, `batch`,
 `first_run`) mit `PIDA_BLESS=1` ohne weitere Änderung; `python3 tools/rename-to-pida.py --check` ohne Befund; `cargo
 check -p pida-app` für `aarch64-apple-ios-sim` und `aarch64-linux-android` grün.
+
+## 11. TestFlight (seit 0.6.0, 28.10.2026)
+
+- **Team und App:** A-SIT-Team `9CYHJNG644`, App „PIDA“ (`at.asit.pida.app`) in App Store Connect; nur interne Tests
+  (Gruppe „PIDA interne Tests“, automatische Verteilung). Keine Einreichung zur App-Store-Prüfung ohne ausdrückliche
+  Freigabe.
+- **Bauen und signieren:** `npx tauri ios build --target aarch64 --export-method app-store-connect` mit
+  `APPLE_DEVELOPMENT_TEAM=9CYHJNG644` erzeugt das Archiv; der Export scheitert dort an der Cloud-Signatur (der
+  API-Schlüssel mit Rolle App Manager darf die in der Cloud verwalteten Vertriebszertifikate nicht nutzen). Exportiert
+  wird daher über das A-SIT-Konto in Xcode: `xcodebuild -exportArchive -allowProvisioningUpdates` mit
+  `method = app-store-connect`, `teamID = 9CYHJNG644`, `signingStyle = automatic`.
+- **Hochladen:** `tools/testflight-upload.py <ipa>` – Upload mit `xcrun altool` und dem Teamschlüssel aus
+  `~/.pida-release/appstore.env`, danach schaltet das Skript für den neuen Build „Tester automatisch benachrichtigen“
+  aus (keine E-Mail/Push je Testbuild; `--notify` lässt sie an). `--check` zeigt die letzten Builds mit Status.
+- **Exportkontrolle:** `ITSAppUsesNonExemptEncryption = false` (Info.plist) – keine Frage je Build.
