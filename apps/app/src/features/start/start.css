@@ -276,3 +276,13 @@
   margin: -6px -10px 0 auto;
   color: inherit;
 }
+
+/* Web-Variante: Impressum · Datenschutz unter der Ablagefläche */
+.start-legal {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  font-size: var(--fs-12);
+  color: var(--c-text-3);
+}

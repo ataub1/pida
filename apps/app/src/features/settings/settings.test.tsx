@@ -535,10 +535,12 @@ describe('Datenschutz (Abnahme E3 Punkt 4)', () => {
     expect(within(dialog).getByRole('heading', { name: 'Datenschutzinformation' })).toBeInTheDocument();
     expect(within(dialog).getByText(/Die Software PIDA verarbeitet .*Beim Signaturvorgang mittels ID Austria wird das zu signierende PDF-Dokument an die Firma A-Trust gesendet/)).toBeInTheDocument();
     expect(within(dialog).getByText(/Mit einem Keystore oder der Chipkarte/)).toBeInTheDocument();
+    // Datenschutzerklärung von A-Trust (im Text) und von PIDA selbst (pdf.a-sit.at)
     const links = within(dialog).getAllByRole('link');
-    expect(links).toHaveLength(1);
+    expect(links).toHaveLength(2);
     await user.click(links[0] as HTMLElement);
-    expect(mock.openedUrls).toEqual(['https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf']);
+    await user.click(links[1] as HTMLElement);
+    expect(mock.openedUrls).toEqual(['https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf', 'https://pdf.a-sit.at/datenschutz/']);
 
     await user.click(within(dialog).getByRole('switch', { name: 'Signaturzertifikat zwischenspeichern' }));
     expect(lastEvent(mock)).toEqual({ type: 'apply_settings', changes: { 'certificate_cache.enabled': true }, revision: 1 });
