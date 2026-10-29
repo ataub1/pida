@@ -236,7 +236,8 @@ describe('Signiermittel auf Mobilgeräten: nur ID Austria, keine Auswahl (ADR 00
     const app = document.querySelector('.app') as HTMLElement;
     expect(app.dataset.mobile).toBe('true');
     expect(app.dataset.os).toBe('android');
-    expect(document.documentElement.hasAttribute('data-mobile')).toBe(true);
+    // per Effekt an <html>: warten statt sofort prüfen (in der CI zeitweise noch nicht gesetzt)
+    await waitFor(() => expect(document.documentElement.hasAttribute('data-mobile')).toBe(true));
   });
 
   it('Mock-Kern mit `platform: android`: Arbeitsbereich und Karte im Szenario „Vertrag“', async () => {
