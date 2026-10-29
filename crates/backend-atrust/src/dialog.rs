@@ -624,7 +624,11 @@ impl Dialog {
                 }
             }
             PageBlock::Error { message, back, cancel, recoverable, requires_response } => {
-                self.clear_password(credentials);
+                // Gescheiterte Anmeldung (Fehlerseite nach dem Absenden, vor der bestätigten Anmeldung): Passwort
+                // verwerfen, nie automatisch erneut senden. Andere Fehlerseiten lassen das gemerkte Passwort stehen.
+                if login.submitted && !login.confirmed {
+                    self.clear_password(credentials);
+                }
                 let buttons = if recoverable { NoticeButtons::RetryCancel } else { NoticeButtons::Ok };
                 let notice =
                     Notice { kind: NoticeKind::Error, code: NoticeCode::AtrustError, text: Some(message), buttons };
@@ -659,7 +663,7 @@ impl Dialog {
                     timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
                     ctx: self.context(&page, problem),
                 };
-                self.wait_with_poll(credentials, &page, form, poll, login).await?
+                self.wait_with_poll(&page, form, poll, login).await?
             }
             PageBlock::WaitingForApp2Fa { reference_value, poll } => {
                 let form = NativeForm::WaitForApp {
@@ -667,7 +671,7 @@ impl Dialog {
                     timeout_secs: Some(self.config.poll.total_timeout.as_secs().min(u32::MAX as u64) as u32),
                     ctx: self.context(&page, None),
                 };
-                self.wait_with_poll(credentials, &page, form, poll, login).await?
+                self.wait_with_poll(&page, form, poll, login).await?
             }
             PageBlock::Fido2 { options_json, result_field, submit } => {
                 self.ensure_trusted(page_url, &page, "FIDO2")?;
@@ -860,10 +864,9 @@ impl Dialog {
     }
 
     /// QR/App: Maske und Long-Poll nebenläufig. Poll „fertig“ → Maske droppen (schließt sie) und
-    /// Seite neu laden (R7); Wechsel per Link (R6); Abbruch löscht das Passwort.
+    /// Seite neu laden (R7); Wechsel per Link (R6). Ein Abbruch lässt das gemerkte Passwort stehen.
     async fn wait_with_poll(
         &mut self,
-        credentials: &mut Credentials,
         page: &ParsedPage,
         form: NativeForm,
         poll_info: Option<PollInfo>,
@@ -910,10 +913,9 @@ impl Dialog {
             Ok(FormAnswer::SwitchToSms) => Ok(page.sms_link.clone().map(Request::get).unwrap_or(reload)),
             Ok(FormAnswer::SwitchToFido2) => Ok(page.fido2_link.clone().map(Request::get).unwrap_or(reload)),
             Ok(_) => Ok(reload),
-            Err(InteractionError::Cancelled) => {
-                self.clear_password(credentials);
-                Err(BackendError::Cancelled)
-            }
+            // Abbruch in der QR-/App-Maske: das gemerkte Passwort bleibt (nur „Merken“ abwählen oder eine
+            // gescheiterte Anmeldung verwerfen es)
+            Err(InteractionError::Cancelled) => Err(BackendError::Cancelled),
             Err(InteractionError::Unsupported) => {
                 Err(BackendError::Unavailable("Eingabemaske in dieser Oberfläche nicht verfügbar".into()))
             }
