@@ -52,3 +52,28 @@
   border: 0;
   background: #ffffff;
 }
+
+/* Schmale Bildschirme (Handy-Browser): Overlay füllt den Bildschirm, Titel über den Schaltflächen – sonst drücken die
+   Schaltflächen den Titel auf ein Wort je Zeile und dem iframe bleibt kaum Höhe */
+@media (max-width: 560px) {
+  .ida-overlay {
+    padding: 0;
+  }
+  .ida-panel {
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  .ida-head {
+    flex-wrap: wrap;
+    padding: var(--sp-2) var(--sp-3);
+  }
+  .ida-head > div {
+    flex-basis: 100%;
+  }
+  .ida-head > .btn {
+    flex: 1;
+  }
+}

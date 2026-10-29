@@ -75,10 +75,10 @@ android {
         minSdk = 28
         // Google Play verlangt für neue Apps und Updates API 36 (Android 16)
         targetSdk = 36
-        // tauri.properties (von der CLI aus `version` in tauri.conf.json erzeugt): 0.6.0 → versionCode
-        // 0 · 1000000 + 6 · 1000 + 0 = 6000; die Rückfallwerte entsprechen dem, falls die Datei fehlt
-        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "6000").toInt()
-        versionName = tauriProperties.getProperty("tauri.android.versionName", "0.6.0")
+        // tauri.properties (von der CLI aus `version` in tauri.conf.json erzeugt): 0.6.1 → versionCode
+        // 0 · 1000000 + 6 · 1000 + 1 = 6001; die Rückfallwerte entsprechen dem, falls die Datei fehlt
+        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "6001").toInt()
+        versionName = tauriProperties.getProperty("tauri.android.versionName", "0.6.1")
     }
     sourceSets {
         getByName("main") {
