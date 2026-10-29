@@ -969,6 +969,8 @@
 :root[data-mobile] .overlay {
   --kb-inset: max(0px, calc(100dvh - var(--visual-viewport-height, 100dvh)));
   padding-bottom: max(var(--gutter), var(--kb-inset));
+  /* iOS rollt den sichtbaren Bereich beim Fokussieren nach unten (`--vv-top`, app/keyboard.ts): mitschieben */
+  transform: translateY(var(--vv-top, 0px));
 }
 :root[data-mobile] .overlay-drawer {
   padding-bottom: var(--kb-inset);

@@ -7,6 +7,7 @@ afterEach(() => {
   Reflect.deleteProperty(window, 'visualViewport');
   document.body.innerHTML = '';
   document.documentElement.removeAttribute('data-keyboard');
+  document.documentElement.style.removeProperty('--vv-top');
 });
 
 describe('Bildschirmtastatur', () => {
@@ -85,5 +86,23 @@ describe('Bildschirmtastatur', () => {
     const stop = keepFocusedFieldVisible(window);
     expect(stop).toBeTypeOf('function');
     stop();
+  });
+
+  it('`--vv-top` folgt dem gerollten sichtbaren Bereich (iOS rollt beim Fokussieren), danach wieder entfernt', () => {
+    const vv = Object.assign(new EventTarget(), { height: window.innerHeight, scale: 1, offsetTop: 0 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: vv });
+    const root = document.documentElement;
+    const stop = keepFocusedFieldVisible(window);
+    vv.offsetTop = 212.4;
+    vv.dispatchEvent(new Event('scroll'));
+    expect(root.style.getPropertyValue('--vv-top')).toBe('212px');
+    vv.offsetTop = 0;
+    vv.dispatchEvent(new Event('resize'));
+    expect(root.style.getPropertyValue('--vv-top')).toBe('');
+    vv.offsetTop = 90;
+    vv.dispatchEvent(new Event('resize'));
+    expect(root.style.getPropertyValue('--vv-top')).toBe('90px');
+    stop();
+    expect(root.style.getPropertyValue('--vv-top')).toBe('');
   });
 });
