@@ -15,6 +15,11 @@
  * unten (`visualViewport.offsetTop`); fest positionierte Overlays bleiben am Fenster und lagen dann um genau
  * diesen Betrag zu hoch – die Anmeldemaske von ID Austria verschwand oben aus dem Bild, sobald man ins
  * Passwortfeld tippte (iPhone, 29.10.2026). components.css schiebt die Overlays um `--vv-top` nach.
+ *
+ * Wechselt der Fokus bei schon offener Tastatur in ein anderes Feld (Benutzername → Passwort), ändert sich der
+ * sichtbare Bereich nicht – kein `resize`. Deshalb holt auch `focusin` das Feld in den Blick, ebenso das Rollen
+ * des sichtbaren Bereichs durch iOS; das Passwortfeld lag sonst unter dem Fuß mit „Anmelden“ (iPhone,
+ * 29.10.2026). Den Abstand zum mitlaufenden Fuß hält `scroll-margin` (components.css).
  */
 
 /** Verzögerung nach dem letzten `resize` des sichtbaren Bereichs (Tastatur-Animation, React-Commit). */
@@ -51,18 +56,27 @@ export function keepFocusedFieldVisible(win: Window = window): () => void {
     if (top > 0) root.style.setProperty('--vv-top', `${top}px`);
     else root.style.removeProperty('--vv-top');
   };
+  const later = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(reveal, REVEAL_DELAY_MS);
+  };
   const onResize = () => {
     // sofort (vor dem Rollen), damit das Layout ohne mitlaufende Teile schon steht
     root.toggleAttribute('data-keyboard', keyboardShown(win));
     follow();
-    if (timer !== undefined) clearTimeout(timer);
-    timer = setTimeout(reveal, REVEAL_DELAY_MS);
+    later();
+  };
+  const onScroll = () => {
+    follow();
+    later();
   };
   vv.addEventListener('resize', onResize);
-  vv.addEventListener('scroll', follow);
+  vv.addEventListener('scroll', onScroll);
+  win.document.addEventListener('focusin', later);
   return () => {
     vv.removeEventListener('resize', onResize);
-    vv.removeEventListener('scroll', follow);
+    vv.removeEventListener('scroll', onScroll);
+    win.document.removeEventListener('focusin', later);
     root.style.removeProperty('--vv-top');
     if (timer !== undefined) clearTimeout(timer);
     root.removeAttribute('data-keyboard');

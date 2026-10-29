@@ -54,6 +54,36 @@ describe('Bildschirmtastatur', () => {
     expect(reveal.pw).toHaveBeenCalledTimes(1);
   });
 
+  it('Fokuswechsel bei offener Tastatur (Benutzername → Passwort) und Rollen des sichtbaren Bereichs: Feld in den Blick', () => {
+    vi.useFakeTimers();
+    const vv = Object.assign(new EventTarget(), { height: window.innerHeight - 300, scale: 1, offsetTop: 0 });
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: vv });
+    document.body.innerHTML = '<div class="overlay"><div class="modal"><input id="user"><input id="pw" type="password"></div></div>';
+    const user = document.getElementById('user') as HTMLInputElement;
+    const pw = document.getElementById('pw') as HTMLInputElement;
+    user.scrollIntoView = vi.fn();
+    pw.scrollIntoView = vi.fn();
+    const stop = keepFocusedFieldVisible(window);
+
+    user.focus();
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
+    expect(user.scrollIntoView).toHaveBeenCalledTimes(1);
+    // kein `resize`: die Tastatur bleibt offen
+    pw.focus();
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
+    expect(pw.scrollIntoView).toHaveBeenCalledTimes(1);
+    // iOS rollt den sichtbaren Bereich nach
+    vv.offsetTop = 120;
+    vv.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
+    expect(pw.scrollIntoView).toHaveBeenCalledTimes(2);
+
+    stop();
+    user.focus();
+    vi.advanceTimersByTime(REVEAL_DELAY_MS);
+    expect(user.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
   it('`data-keyboard` am Wurzelelement, solange die Tastatur den sichtbaren Bereich verkleinert (nicht beim Zoomen)', () => {
     // iPhone 17e: Fenster 844 hoch, mit Software-Tastatur sichtbar 448 – die mitlaufende Vorschau verdeckte sonst
     // das fokussierte Feld (settings.css, signing.css)
