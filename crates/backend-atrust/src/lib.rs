@@ -171,9 +171,10 @@ pub struct AtrustConfig {
     /// Backends ([`AtrustNativeBackend::new`]); [`AtrustNativeBackend::forget_credentials`] bzw. das
     /// Abwählen von „Merken“ löschen ihn wie in PDF-Over.
     pub prefill_username: Option<String>,
-    /// Passwort aus `-p` (nur RAM). Startwert wie `prefill_username`; nach einer Fehlerseite, einer
-    /// abgelehnten Anmeldung oder einem Nutzerabbruch ist es gelöscht und wird **nicht** in der
-    /// nächsten Sitzung erneut gesendet (PDF-Over: Overlay `clearRememberedPassword`).
+    /// Passwort aus `-p` (nur RAM). Startwert wie `prefill_username`; nach einer gescheiterten Anmeldung
+    /// (abgelehnt bzw. Fehlerseite vor der bestätigten Anmeldung) ist es gelöscht und wird **nicht** in der
+    /// nächsten Sitzung erneut gesendet (PDF-Over: Overlay `clearRememberedPassword`). Ein Nutzerabbruch lässt
+    /// es stehen (anders als PDF-Over F-72).
     pub prefill_password: Option<Zeroizing<String>>,
     /// „Merken“-Zustand (`MOBILE_REMEMBER_PASSWORD`).
     pub remember: bool,
@@ -360,36 +361,22 @@ impl std::fmt::Debug for AtrustSession {
     }
 }
 
-impl AtrustSession {
-    /// Ein Nutzerabbruch löscht das Passwort (Sitzung und „Merken“-Speicher; F-72: Benutzername
-    /// bleibt), wie PDF-Over `SigningState`.
-    fn after<T>(&mut self, result: Result<T, BackendError>) -> Result<T, BackendError> {
-        if matches!(result, Err(BackendError::Cancelled)) {
-            self.inner.clear_password(&mut self.credentials);
-        }
-        result
-    }
-}
-
 #[async_trait]
 impl BackendSession for AtrustSession {
     async fn certificate(&mut self) -> Result<CertChain, BackendError> {
-        let result = self.inner.certificate(&mut self.credentials, &mut self.loop_guard).await;
-        self.after(result)
+        self.inner.certificate(&mut self.credentials, &mut self.loop_guard).await
     }
 
     async fn sign(&mut self, jobs: Vec<SignJob>) -> Result<Vec<SignResult>, BackendError> {
-        let result = self.inner.sign(&mut self.credentials, &mut self.loop_guard, jobs).await;
-        self.after(result)
+        self.inner.sign(&mut self.credentials, &mut self.loop_guard, jobs).await
     }
 
     /// Ein Dokument (Arbeitsbereich und Stapel, ADR 0004 §3.8). Anders als [`BackendSession::sign`]:
     ///
     /// - weder ein Job-Abbruch (`job_cancel`, „Dokument überspringen“) noch `Cancelled` aus SL 6000/6001
     ///   (Ablehnung bzw. Zeitablauf in der App) löschen die Zugangsdaten der Sitzung – die nächste
-    ///   Bestätigung braucht keine neue Anmeldung (§8 F10). Gelöscht werden sie wie bisher bei
-    ///   [`BackendSession::cancel`] (Sitzungsabbruch, F-72), nach einer A-Trust-Fehlerseite, nach einer
-    ///   abgelehnten Anmeldung und beim Abbruch in der QR-/App-Maske (`dialog.rs`);
+    ///   Bestätigung braucht keine neue Anmeldung (§8 F10). Gelöscht wird das Passwort nur bei einer
+    ///   gescheiterten Anmeldung (`dialog.rs`) bzw. beim Abwählen von „Merken“;
     /// - HTTP 407/413/sonstige erscheinen **ohne** eigene Meldung als [`BackendError::ProxyAuthRequired`],
     ///   [`BackendError::DocumentTooLarge`] bzw. [`BackendError::Http`];
     /// - der laufende SL-Request wird beim Job-Abbruch gedroppt (A-Trust erfährt davon nichts, §1.2);
@@ -407,9 +394,10 @@ impl BackendSession for AtrustSession {
         result?.into_iter().next().ok_or_else(|| BackendError::Internal("sign lieferte kein Ergebnis".into()))
     }
 
-    async fn cancel(&mut self) {
-        self.inner.clear_password(&mut self.credentials);
-    }
+    /// Abbruch durch die Nutzerin: das gemerkte Passwort bleibt (Abweichung von PDF-Over F-72, Wunsch des
+    /// Auftraggebers 29.10.2026). Verworfen wird es nur beim Abwählen von „Merken“
+    /// ([`AtrustNativeBackend::forget_credentials`]) und bei einer gescheiterten Anmeldung (`dialog.rs`).
+    async fn cancel(&mut self) {}
 }
 
 #[cfg(test)]

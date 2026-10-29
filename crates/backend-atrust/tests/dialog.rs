@@ -927,7 +927,7 @@ async fn user_cancel_in_login_sms_and_app() {
     assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
     assert!(!server.requests()[before..].iter().any(|r| is(r, "POST", "sms.aspx")));
 
-    // App: Abbruch löscht das gemerkte Passwort, der Benutzername bleibt
+    // App: Abbruch lässt das gemerkte Passwort stehen – die nächste Sitzung meldet sich ohne Maske an
     let broker = Arc::new(ScriptedBroker::new([
         ScriptedReply::Form(FormAnswer::Login {
             username: "app".into(),
@@ -938,16 +938,14 @@ async fn user_cancel_in_login_sms_and_app() {
     ]));
     let mut session = open(&backend, &broker).await;
     assert_eq!(session.certificate().await.unwrap_err(), BackendError::Cancelled);
+    assert!(backend.has_remembered_password(), "Abbruch verwirft das gemerkte Passwort nicht");
     let broker = Arc::new(ScriptedBroker::new([ScriptedReply::Cancel]));
     let mut session = open(&backend, &broker).await;
     let _ = session.certificate().await;
-    match &forms(&broker)[0] {
-        NativeForm::Login { prefill_username, remember, .. } => {
-            assert_eq!(prefill_username.as_deref(), Some("app"));
-            assert!(*remember);
-        }
-        other => panic!("{other:?}"),
-    }
+    assert!(!forms(&broker).iter().any(|f| matches!(f, NativeForm::Login { .. })), "keine Anmeldemaske");
+    // „Merken“ abwählen verwirft es
+    backend.forget_credentials();
+    assert!(!backend.has_remembered_password());
 }
 
 #[tokio::test]
@@ -1844,14 +1842,14 @@ async fn sign_one_declined_keeps_the_password() {
     assert_eq!(session.sign_one(document().1, token()).await, Ok(SignResult::Cms(b"S2".to_vec())));
     assert_eq!(logins(&broker), 1);
 
-    // klassisch: SL 6001 löscht das Passwort (F-72), die nächste Anmeldung fragt wieder
+    // klassisch: auch SL 6001 (Ablehnung in der App) lässt das Passwort stehen – anders als PDF-Over F-72
     let server = MockServer::start(one_doc_server(vec![OneDoc::Declined, OneDoc::Cms])).await;
     let backend = support::backend(&server, |_| {});
     let broker = Arc::new(ScriptedBroker::new([login_reply(PASSWORD, false), login_reply(PASSWORD, false)]));
     let mut session = open(&backend, &broker).await;
     assert_eq!(session.sign(vec![document().1]).await, Err(BackendError::Cancelled));
     assert!(session.sign(vec![document().1]).await.is_ok());
-    assert_eq!(logins(&broker), 2);
+    assert_eq!(logins(&broker), 1);
 }
 
 /// „Dokument überspringen“: der Job-Abbruch beendet die laufende Bestätigung (hier die offene SMS-TAN-

@@ -10,6 +10,11 @@
  * Teile (Vorschau des Signaturbilds in den Einstellungen, Knöpfe der Signierkarte) rollen dann mit, statt im
  * kleinen sichtbaren Rest das Feld zu verdecken (iPhone 17e, 17.10.2026: „Hinweistext“ lag unter der
  * Vorschau). Media Queries sehen das nicht – das Fenster bleibt ja gleich hoch.
+ *
+ * Und `--vv-top` am Wurzelelement: Beim Fokussieren eines Felds rollt iOS den sichtbaren Bereich im Fenster nach
+ * unten (`visualViewport.offsetTop`); fest positionierte Overlays bleiben am Fenster und lagen dann um genau
+ * diesen Betrag zu hoch – die Anmeldemaske von ID Austria verschwand oben aus dem Bild, sobald man ins
+ * Passwortfeld tippte (iPhone, 29.10.2026). components.css schiebt die Overlays um `--vv-top` nach.
  */
 
 /** Verzögerung nach dem letzten `resize` des sichtbaren Bereichs (Tastatur-Animation, React-Commit). */
@@ -41,15 +46,24 @@ export function keepFocusedFieldVisible(win: Window = window): () => void {
       el.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
   };
+  const follow = () => {
+    const top = Math.max(0, Math.round(vv.offsetTop || 0));
+    if (top > 0) root.style.setProperty('--vv-top', `${top}px`);
+    else root.style.removeProperty('--vv-top');
+  };
   const onResize = () => {
     // sofort (vor dem Rollen), damit das Layout ohne mitlaufende Teile schon steht
     root.toggleAttribute('data-keyboard', keyboardShown(win));
+    follow();
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(reveal, REVEAL_DELAY_MS);
   };
   vv.addEventListener('resize', onResize);
+  vv.addEventListener('scroll', follow);
   return () => {
     vv.removeEventListener('resize', onResize);
+    vv.removeEventListener('scroll', follow);
+    root.style.removeProperty('--vv-top');
     if (timer !== undefined) clearTimeout(timer);
     root.removeAttribute('data-keyboard');
   };
