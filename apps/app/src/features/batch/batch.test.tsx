@@ -101,7 +101,7 @@ describe('Stapelübersicht (E2.1)', () => {
     expect(locked.querySelector('.batch-thumb img')).toBeNull();
     // die abgelehnte Zeile lässt sich nicht öffnen
     expect(within(locked).queryByRole('button', { name: /öffnen und positionieren/ })).not.toBeInTheDocument();
-    expect(screen.getByTestId('batch-estimate')).toHaveTextContent('Voraussichtlich: 3 Dokumente · 1 Anmeldung · 3 Bestätigungen (ggf. +1 für das Zertifikat)');
+    await waitFor(() => expect(screen.getByTestId('batch-estimate')).toHaveTextContent('Voraussichtlich: 3 Dokumente · 1 Anmeldung · 3 Bestätigungen (ggf. +1 für das Zertifikat)'));
     expect(screen.getByTestId('batch-output')).toHaveTextContent('Speichern: jeweils neben dem Original');
     expect(screen.getByRole('button', { name: 'Alle signieren (3)' })).toBeEnabled();
     // Kurzhinweis Datenschutz beim Signiermittel ID Austria (nie blockierend); im Stapel in der Mehrzahl (iPhone 17e, Android)
@@ -125,7 +125,7 @@ describe('Stapelübersicht (E2.1)', () => {
 
   it('Mock: Schätzung nach Anmeldung mit „Daten merken“ – 0 Anmeldungen; Zertifikats-Cache ohne „+1“', async () => {
     const { list, user, mock } = await openBatch({ settings: settings({ certificate_cache: { enabled: true } }) });
-    expect(screen.getByTestId('batch-estimate')).toHaveTextContent(/1 Anmeldung · 3 Bestätigungen$/);
+    await waitFor(() => expect(screen.getByTestId('batch-estimate')).toHaveTextContent(/1 Anmeldung · 3 Bestätigungen$/));
     // ein Dokument einzeln signieren (Anmeldung mit „Daten merken“)
     await user.click(within(row(list, 'Vertrag.pdf')).getByRole('button', { name: '„Vertrag.pdf“ öffnen und positionieren' }));
     await screen.findByRole('application', { name: 'Signaturblock' });
@@ -140,7 +140,7 @@ describe('Stapelübersicht (E2.1)', () => {
   it('Englisch: Status, Schätzung und Speicherort', async () => {
     renderApp({ view: batchOverview(batchData(), { language: 'en' }) });
     expect(await screen.findByRole('heading', { level: 1, name: '4 documents' })).toBeInTheDocument();
-    expect(screen.getByTestId('batch-estimate')).toHaveTextContent('Expected: 3 documents · 1 login · 3 confirmations (possibly +1 for the certificate)');
+    await waitFor(() => expect(screen.getByTestId('batch-estimate')).toHaveTextContent('Expected: 3 documents · 1 login · 3 confirmations (possibly +1 for the certificate)'));
     expect(screen.getByTestId('batch-output')).toHaveTextContent('Save: next to each original');
     const list = screen.getByRole('list', { name: 'Documents in the batch' });
     expect(within(row(list, 'Scan.pdf')).getByText('Rejected')).toBeInTheDocument();

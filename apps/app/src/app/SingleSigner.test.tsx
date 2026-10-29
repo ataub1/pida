@@ -61,7 +61,7 @@ describe('Desktop mit nur einem Signiermittel (Richtlinie): keine Auswahl', () =
     const { mock, user } = renderApp({ scenario: 'batch', ...ONLY_IDA });
     const signAll = await screen.findByRole('button', { name: /Alle signieren/ });
     expect(screen.queryByTestId('signer-chip')).not.toBeInTheDocument();
-    expect(screen.getByTestId('batch-estimate')).toHaveTextContent('1 Anmeldung');
+    await waitFor(() => expect(screen.getByTestId('batch-estimate')).toHaveTextContent('1 Anmeldung'));
     expect(screen.queryByText('Wählen Sie beim Signieren das Signiermittel.')).not.toBeInTheDocument();
     await expectNoAxeViolations();
     await user.click(signAll);
