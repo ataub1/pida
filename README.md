@@ -4,7 +4,7 @@
 
 **PDF-Signatur mit ID Austria** · PDF · ID · Austria
 
-[**Download 0.5.0**](https://github.com/ataub1/pida/releases/tag/v0.5.0) ·
+[**Download 0.6.2**](https://github.com/ataub1/pida/releases/tag/v0.6.2) ·
 [Installation](#installation) ·
 [In English](#in-english)
 
@@ -19,7 +19,7 @@ PIDA ist freie Software unter der **EUPL-1.2**.
 ![Arbeitsbereich von PIDA: links die Seitenminiaturen, in der Mitte die letzte Seite eines Vertrags mit dem automatisch platzierten Signaturblock, rechts der Inspektor mit „Signieren mit ID Austria“, Vorschau des Signaturbilds, Optionen und der Schaltfläche „Signieren“](docs/screenshots/02-arbeitsbereich.png)
 
 > [!NOTE]
-> **Testversion.** 0.5.0 ist ein Pre-Release.
+> **Testversion.** 0.6.2 ist ein Pre-Release.
 > Die Pakete sind nicht code-signiert bzw. notarisiert und
 > aktualisieren sich nicht selbst. Windows und macOS warnen deshalb beim ersten Start, Android verlangt die
 > Installation aus unbekannten Quellen – siehe [Installation](#installation).
@@ -50,6 +50,7 @@ PIDA ist freie Software unter der **EUPL-1.2**.
 
 ## PIDA Web (im Browser)
 
+**Öffentlich unter [pdf.a-sit.at](https://pdf.a-sit.at)** (Impressum und Datenschutzerklärung dort verlinkt).
 Dieselbe Oberfläche läuft auch im Browser: PIDA-Kern und PDFium als WebAssembly, ohne Installation auf dem
 Gerät. Signiert wird mit **ID Austria** – die Anmeldung erscheint als echte A-Trust-Seite in einem Overlay, ein
 kleiner Server auf Ihrer Domain reicht die Signaturbefehle an A-Trust weiter (eine Anmeldung auch für einen
@@ -111,24 +112,24 @@ Dokumente).</sub>
 
 ## Download
 
-Alle Pakete stehen auf der Release-Seite: **[PIDA 0.5.0](https://github.com/ataub1/pida/releases/tag/v0.5.0)**.
+Alle Pakete stehen auf der Release-Seite: **[PIDA 0.6.2](https://github.com/ataub1/pida/releases/tag/v0.6.2)**.
 
 | System | Paket (direkter Download) | Größe | Voraussetzung |
 |---|---|---|---|
-| Windows | [`PIDA_0.5.0_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_windows_x64-setup.exe) (empfohlen) | 10,9 MiB | Windows 10 oder 11, x64 |
-| Windows | [`PIDA_0.5.0_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_windows_x64.msi) | 14,9 MiB | Windows 10 oder 11, x64 |
-| Windows (portabel) | [`PIDA_0.5.0_windows_x64-portable.zip`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_windows_x64-portable.zip) | 14,0 MiB | Windows 10 oder 11, x64, ohne Installation |
-| macOS | [`PIDA_0.5.0_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_macos_arm64.dmg) | 13,0 MiB | macOS 11 oder neuer, Apple Silicon |
-| Linux (Debian, Ubuntu) | [`PIDA_0.5.0_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_linux_amd64.deb) | 15,4 MiB | x86_64 |
-| Linux (Fedora, RHEL) | [`PIDA_0.5.0_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_linux_x86_64.rpm) | 15,4 MiB | x86_64 |
-| Linux (portabel) | [`PIDA_0.5.0_linux_x86_64.AppImage`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_linux_x86_64.AppImage) | 89,3 MiB | x86_64, ohne Installation |
-| Android | [`PIDA_0.5.0_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.5.0/PIDA_0.5.0_android_arm64.apk) | 27,3 MiB | Android 9 oder neuer, arm64 |
-| Kommandozeile (macOS) | [`pida-cli_0.5.0_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.5.0/pida-cli_0.5.0_macos_arm64) | 15,4 MiB | macOS 11 oder neuer, Apple Silicon |
-| Server PIDA Web (Debian, Ubuntu) | [`pida-web_0.5.0_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.5.0/pida-web_0.5.0_amd64.deb) | 6,5 MiB | x86_64, Webserver mit HTTPS davor |
-| Server PIDA Web (RHEL, Alma, Rocky, Fedora, openSUSE) | [`pida-web-0.5.0-1.x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.5.0/pida-web-0.5.0-1.x86_64.rpm) | 8,3 MiB | x86_64, Webserver mit HTTPS davor |
-| Server PIDA Web (andere Linux) | [`pida-web-0.5.0-linux-x86_64.tar.gz`](https://github.com/ataub1/pida/releases/download/v0.5.0/pida-web-0.5.0-linux-x86_64.tar.gz) (mit `install.sh`) | 8,3 MiB | x86_64, Webserver mit HTTPS davor |
+| Windows | [`PIDA_0.6.2_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_windows_x64-setup.exe) (empfohlen) | 10,9 MiB | Windows 10 oder 11, x64 |
+| Windows | [`PIDA_0.6.2_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_windows_x64.msi) | 14,9 MiB | Windows 10 oder 11, x64 |
+| Windows (portabel) | [`PIDA_0.6.2_windows_x64-portable.zip`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_windows_x64-portable.zip) | 14,1 MiB | Windows 10 oder 11, x64, ohne Installation |
+| macOS | [`PIDA_0.6.2_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_macos_arm64.dmg) | 13,0 MiB | macOS 11 oder neuer, Apple Silicon |
+| Linux (Debian, Ubuntu) | [`PIDA_0.6.2_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_linux_amd64.deb) | 15,4 MiB | x86_64 |
+| Linux (Fedora, RHEL) | [`PIDA_0.6.2_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_linux_x86_64.rpm) | 15,4 MiB | x86_64 |
+| Linux (portabel) | [`PIDA_0.6.2_linux_x86_64.AppImage`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_linux_x86_64.AppImage) | 89,3 MiB | x86_64, ohne Installation |
+| Android | [`PIDA_0.6.2_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_android_arm64.apk) | 27,3 MiB | Android 9 oder neuer, arm64 |
+| Kommandozeile (macOS) | [`pida-cli_0.6.2_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-cli_0.6.2_macos_arm64) | 15,4 MiB | macOS 11 oder neuer, Apple Silicon |
+| Server PIDA Web (Debian, Ubuntu) | [`pida-web_0.6.2_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-web_0.6.2_amd64.deb) | 6,5 MiB | x86_64, Webserver mit HTTPS davor |
+| Server PIDA Web (RHEL, Alma, Rocky, Fedora, openSUSE) | [`pida-web-0.6.2-1.x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-web-0.6.2-1.x86_64.rpm) | 8,3 MiB | x86_64, Webserver mit HTTPS davor |
+| Server PIDA Web (andere Linux) | [`pida-web-0.6.2-linux-x86_64.tar.gz`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-web-0.6.2-linux-x86_64.tar.gz) (mit `install.sh`) | 8,3 MiB | x86_64, Webserver mit HTTPS davor |
 
-Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.5.0/SHA256SUMS.txt) (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
+Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.6.2/SHA256SUMS.txt) (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
 macOS, `sha256sum -c SHA256SUMS.txt` unter Linux bzw. `Get-FileHash <Datei> -Algorithm SHA256` in der Windows
 PowerShell). Eine iOS-Version ist nicht Teil der Releases.
 
@@ -173,7 +174,9 @@ Anwendungsmenü.
    Android-Version erst nach dem Aufklappen der Details).
 
 Die APK ist mit einem eigenen Schlüssel des Projekts signiert. Ist bereits ein PIDA-Build anderer Herkunft
-installiert (andere Signatur), muss dieser vorher deinstalliert werden.
+installiert (andere Signatur, etwa aus dem internen Test bei Google Play), muss dieser vorher deinstalliert werden.
+Seit 0.6.0 heißt die App `at.asit.pida.app`: Ältere Testversionen (`at.pida`, `at.asit.pida`) werden nicht
+aktualisiert, sondern bleiben daneben bestehen – bitte deinstallieren.
 
 ### Server für PIDA Web (Linux)
 
@@ -213,6 +216,7 @@ Entfernen: `apt remove pida-web` bzw. `dnf remove pida-web` bzw. `/opt/pida-web/
   Hinweis direkt beim Signiermittel; den vollständigen Text finden Sie unter Einstellungen › Datenschutz,
   Speicherdauer und weitere Angaben in der
   [Datenschutzerklärung von A-Trust](https://www.a-trust.at/downloads/documents/datenschutzerklaerung.pdf).
+  Die Datenschutzerklärung von PIDA selbst steht unter [pdf.a-sit.at/datenschutz](https://pdf.a-sit.at/datenschutz/).
   Eine Verbindung zu ID Austria entsteht erst, wenn Sie das Signieren ausdrücklich starten.
 - **Chipkarte und Keystore:** Signiert wird auf dem eigenen Gerät; das Dokument wird nicht hochgeladen.
 - **PIDA Web:** Dokument und Einstellungen bleiben im Browser und werden nicht gespeichert. Beim Signieren läuft
@@ -361,11 +365,11 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
   status card with the comparison value, a “Done” view and “Recently signed”, customisable signature block
   with preview, PDF/A support, German and English, light and dark mode, command palette (⌘K / Ctrl+K). PDF-Over
   settings can be imported on first start; PDF-Over command-line arguments keep working (`pida-cli`).
-- **Download:** [PIDA 0.5.0](https://github.com/ataub1/pida/releases/tag/v0.5.0) (pre-release) – Windows 10/11 x64 (`-setup.exe`, `.msi` or portable `.zip`), macOS 11+
+- **Download:** [PIDA 0.6.2](https://github.com/ataub1/pida/releases/tag/v0.6.2) (pre-release) – Windows 10/11 x64 (`-setup.exe`, `.msi` or portable `.zip`), macOS 11+
   on Apple Silicon (`.dmg`), Linux x86_64 (`.deb`/`.rpm`/AppImage), Android 9+ arm64 (`.apk`), plus the
   command-line tool `pida-cli` for macOS on Apple Silicon and the PIDA Web server for x86_64 Linux
   (`pida-web` as `.deb`, `.rpm`, `.tar.gz`). Checksums are in `SHA256SUMS.txt`. iOS is not included.
-- **PIDA Web:** the same interface in the browser (core and PDFium as WebAssembly), signing with ID Austria via
+- **PIDA Web:** publicly available at [pdf.a-sit.at](https://pdf.a-sit.at) – the same interface in the browser (core and PDFium as WebAssembly), signing with ID Austria via
   the real A-Trust page in an overlay; nothing is stored. The server (`pida-web-server`, packages `.deb`, `.rpm`,
   `.tar.gz` for Linux) runs behind a web server with HTTPS – see [docs/integration/web.md](docs/integration/web.md)
   (German). When signing, the document passes through this server's memory on its way to A-Trust and is
