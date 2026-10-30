@@ -267,8 +267,8 @@ Reihenfolge: 1 → 2 → 6 (erste Tests mit Betroffenen) → 3 → 4 → 5.
 **Stufe 1 – umgesetzt** (ADR 0004 Nachtrag 23):
 - Einstellungen › Barrierefreiheit und Schalter „Barrierefreie Bedienung“ in der Kopfzeile, Direktlink
   `?barrierefrei=1` (Variante A mit Einstieg aus B, §6).
-- P-1 Methodenwahl, P-2 automatisch, P-3 Platzhalter mit Liste und Nummer (nur der vom Kern gefundene
-  QR-Platzhalter, siehe unten), P-4 Millimeter (WAI-Bezugspunkt), P-6 freie Flächen als Liste.
+- P-1 Methodenwahl, P-2 automatisch, P-3 Platzhalter als Auswahlliste mit Nummer, Seite und Lage; ohne Fund nur ein
+  Hinweis, keine Nummerneingabe (nur der vom Kern gefundene QR-Platzhalter, siehe unten), P-4 Millimeter (WAI-Bezugspunkt), P-6 freie Flächen als Liste.
 - R-1 „Vor dem Signieren prüfen“, R-5 ausführliche bzw. verzögerte Ansagen, R-6 einheitlicher Bezugspunkt.
 - B-1/B-3/B-12: Tastatur, Zeiger-Alternative, Struktur (axe-geprüft in den Komponententests).
 - Schrittweite der Pfeiltasten einstellbar.

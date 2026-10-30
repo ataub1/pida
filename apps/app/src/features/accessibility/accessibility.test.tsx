@@ -139,20 +139,15 @@ describe('Platzierung ohne Vorschau', () => {
     expect(e.y).toBeCloseTo((120 * 72) / 25.4, 3);
   });
 
-  it('Platzhalter: Liste mit Seite und Lage, Nummer wie bei PDF-AS-WAI (0002 = 2), falsche Nummer mit Hinweis', async () => {
+  it('Platzhalter: Auswahlliste mit Nummer, Seite und Lage; Wahl setzt das Ziel; kein Nummernfeld', async () => {
     const doc = documentView({ qr: { page: 2, rect: { left: 320, right: 384, top: 532, bottom: 468 }, id: '0002' } });
     const { mock, user } = renderApp({ view: a11yView(ON, doc) });
     const panel = await screen.findByTestId('placement-panel');
     await user.click(within(panel).getByRole('radio', { name: /Platzhalter im Dokument/ }));
     const found = within(panel).getByRole('radiogroup', { name: 'Im Dokument gefunden' });
-    expect(within(found).getByRole('radio', { name: /^QR-Code-Platzhalter 0002 ?Seite 3, / })).toBeInTheDocument();
-    const id = within(panel).getByRole('textbox', { name: 'Nummer des QR-Code-Platzhalters' });
-    await user.type(id, '3');
-    await user.click(within(panel).getByRole('button', { name: 'Platzhalter übernehmen' }));
-    expect(id).toHaveAccessibleDescription('Platzhalter 3 ist in diesem Dokument nicht vorhanden. Gefunden: 0002.');
-    await user.clear(id);
-    await user.type(id, '2{Enter}');
+    await user.click(within(found).getByRole('radio', { name: /^QR-Code-Platzhalter 0002 ?Seite 3, / }));
     expect(lastEvent(mock)).toEqual({ type: 'use_target', target: { kind: 'qr' } });
+    expect(within(panel).queryByRole('textbox')).not.toBeInTheDocument();
   });
 
   it('ohne QR-Platzhalter: Hinweis auf die Platzhaltersuche', async () => {
@@ -161,6 +156,9 @@ describe('Platzierung ohne Vorschau', () => {
     await user.click(within(panel).getByRole('radio', { name: /Platzhalter im Dokument/ }));
     expect(within(panel).getByText('Kein QR-Code-Platzhalter und kein leeres Signaturfeld gefunden.')).toBeInTheDocument();
     expect(within(panel).getByText(/Signaturplatzhalter automatisch suchen/)).toBeInTheDocument();
+    // nichts gefunden: keine Liste und kein Nummernfeld
+    expect(within(panel).queryByRole('radiogroup', { name: 'Im Dokument gefunden' })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('textbox')).not.toBeInTheDocument();
   });
 
   it('freie Flächen als Liste; Wahl setzt den Block in die Fläche', async () => {

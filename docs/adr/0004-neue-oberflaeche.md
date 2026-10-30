@@ -3663,8 +3663,8 @@ und der vom Auftraggeber freigegebene Prototyp `prototypes/a11y-positionierung` 
    `announce = detailed`, `announce_after_move` und `check_before_sign` gemeinsam ein bzw. zurück; Funktionen schaltet
    er nicht frei. Direktlink `?barrierefrei=1`; im Web merkt sich der Browser den Schalter (`localStorage`, nur
    Bequemlichkeit – Einstellungen werden dort sonst nicht gespeichert).
-3. **Platzierung ohne Vorschau** (`PlacementPanel`): Methode automatisch · Platzhalter im Dokument (Liste mit Seite
-   und Lage, Nummer wie PDF-AS-WAI, „0002“ = „2“, falsche Nummer mit Hinweis statt stillem Rückfall) · Position in
+3. **Platzierung ohne Vorschau** (`PlacementPanel`): Methode automatisch · Platzhalter im Dokument (Auswahlliste mit
+   Nummer, Seite und Lage; ohne Fund nur der Hinweis auf die Platzhaltersuche) · Position in
    Millimetern · freie Fläche bzw. selbst verschieben; dazu die aktuelle Lage als Text. Mit dem Schalter als erster
    Abschnitt im Inspektor, sonst eingeklappt unter „Platzierung“. **Ergänzt D1:** Zahlenfelder gibt es weiterhin
    nicht im Inspektor selbst, nur in diesem Panel.

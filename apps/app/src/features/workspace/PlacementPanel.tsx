@@ -1,6 +1,6 @@
 /**
  * „Platzierung der Signatur“ ohne Vorschau (docs/analyse/06, Prototyp `prototypes/a11y-positionierung`): Methode
- * wählen – automatisch, Platzhalter im Dokument (Liste und Nummer wie PDF-AS-WAI), Position in Millimetern (linke
+ * wählen – automatisch, Platzhalter im Dokument (Auswahlliste mit Nummer, Seite und Lage), Position in Millimetern (linke
  * obere Ecke ab der linken unteren Seitenecke, wie PDF-AS), freie Fläche bzw. selbst verschieben – und die aktuelle
  * Lage als Text. Für alle da: mit „Barrierefreie Bedienung“ oben im Inspektor und aufgeklappt, sonst unter
  * „Platzierung“ als „Ohne Vorschau platzieren …“ (aufgeklappt, wenn die Platzierung mit der Methodenwahl beginnt).
@@ -23,14 +23,6 @@ type Method = 'auto' | 'placeholder' | 'coords' | 'free';
 function initialMethod(doc: DocumentView): Method {
   if (doc.target.kind !== 'free') return 'placeholder';
   return isAutoPlaced(doc) ? 'auto' : 'free';
-}
-
-/** Gleiche Nummer? „0001“ = „1“ (PDF-AS vergleicht numerisch, sonst ohne Groß-/Kleinschreibung). */
-function sameId(a: string, b: string): boolean {
-  const x = a.trim();
-  const y = b.trim();
-  if (/^\d+$/.test(x) && /^\d+$/.test(y)) return Number(x) === Number(y);
-  return x.toLowerCase() === y.toLowerCase();
 }
 
 export function PlacementPanel({ doc, editable, embedded }: { doc: DocumentView; editable: boolean; embedded: boolean }) {
@@ -178,10 +170,12 @@ function where(t: ReturnType<typeof useApp>['t'], sizes: [number, number][], pag
   return t.t('ng-ui-insp-pos-item-where', { page: page + 1, zone: zoneText(t, rect, pw, ph) });
 }
 
+/**
+ * Gefundene Platzhalter als Auswahlliste (Nummer, Seite, Lage); ohne Fund nur der Hinweis – eine Nummer einzugeben,
+ * ergäbe nichts, was die Liste nicht schon zeigt.
+ */
 function PlaceholderDetail({ doc, editable, sizes }: { doc: DocumentView; editable: boolean; sizes: [number, number][] }) {
-  const { t, dispatch, announce, openSettings, view } = useApp();
-  const [id, setId] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const { t, dispatch, openSettings, view } = useApp();
   const fields = doc.fields.filter(offeredField);
   const qr = doc.qr;
   const current = doc.target.kind === 'field' ? `field:${doc.target.index}` : doc.target.kind === 'qr' ? 'qr' : null;
@@ -195,19 +189,6 @@ function PlaceholderDetail({ doc, editable, sizes }: { doc: DocumentView; editab
     if (v === 'qr') void dispatch({ type: 'use_target', target: { kind: 'qr' } });
     else void dispatch({ type: 'use_target', target: { kind: 'field', index: Number(v.slice('field:'.length)) } });
   };
-  const apply = () => {
-    const wanted = id.trim();
-    let problem: string | null = null;
-    if (!wanted) problem = t.t('ng-ui-insp-pos-id-empty');
-    else if (!qr) problem = t.t('ng-ui-insp-pos-id-none', { id: wanted });
-    else if (!qr.id || !sameId(qr.id, wanted)) problem = t.t('ng-ui-insp-pos-id-missing', { id: wanted, found: qr.id ?? t.t('ng-ui-insp-pos-qr-item-noid') });
-    setError(problem);
-    if (problem) {
-      announce(problem);
-      return;
-    }
-    use('qr');
-  };
   return (
     <div className="stack-3">
       {options.length > 0 ? (
@@ -215,6 +196,7 @@ function PlaceholderDetail({ doc, editable, sizes }: { doc: DocumentView; editab
       ) : (
         <p className="insp-hint">{t.t('ng-ui-insp-pos-none')}</p>
       )}
+      {/* QR-Code-Platzhalter findet PIDA nur mit der Platzhaltersuche (Einstellungen › Dokument) */}
       {!qr ? (
         <div className="insp-pos-hint">
           <p className="insp-hint">{t.t('ng-ui-insp-pos-qr-search-hint')}</p>
@@ -224,21 +206,6 @@ function PlaceholderDetail({ doc, editable, sizes }: { doc: DocumentView; editab
           </Button>
         </div>
       ) : null}
-      <form
-        className="insp-pos-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          apply();
-        }}
-      >
-        <TextInput label={t.t('ng-ui-insp-pos-id')} value={id} onChange={(v) => {
-            setId(v);
-            setError(null);
-          }} inputMode="numeric" autoComplete="off" error={error} isDisabled={!editable} />
-        <Button type="submit" variant="secondary" size="sm" isDisabled={!editable}>
-          {t.t('ng-ui-insp-pos-id-apply')}
-        </Button>
-      </form>
     </div>
   );
 }
