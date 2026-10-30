@@ -15,6 +15,8 @@
  * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
  * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
  *
+ * Unter der Ablagefläche: „Dokument für andere vorbereiten: QR-Platzhalter erstellen …“ (ADR 0004 Nachtrag 24).
+ *
  * Web-Variante: unten Impressum und Datenschutz der Website, auf der PIDA läuft (`/impressum/`, `/datenschutz/`;
  * § 5 ECG verlangt ein leicht auffindbares Impressum).
  */
@@ -22,8 +24,8 @@ import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
 import { webProfile } from '../../core/web-profile';
-import { AccessButton, Keys, useModKey } from '../../ui/controls';
-import { IconLock, IconUpload } from '../../ui/Icons';
+import { AccessButton, Button, Keys, useModKey } from '../../ui/controls';
+import { IconLock, IconQr, IconUpload } from '../../ui/Icons';
 import { batchFlow, dropHintMsg } from '../batch/flow';
 import { RECENT_AVAILABLE, RecentPanel } from '../recent';
 import { ParkedCard } from './ParkedCard';
@@ -31,7 +33,7 @@ import { UpdateHint } from './UpdateHint';
 import './start.css';
 
 export function StartView() {
-  const { t, view, dragActive, browse } = useApp();
+  const { t, view, dragActive, browse, setOverlay } = useApp();
   const { mod } = useModKey();
   const mobile = isMobile(view);
   const showRecent = RECENT_AVAILABLE && view.recent !== null;
@@ -77,6 +79,13 @@ export function StartView() {
             </p>
           </div>
         </section>
+        {/* für Ersteller:innen: Platzhalter für andere (zweitrangig, unter der Ablagefläche) */}
+        <div className="start-qr">
+          <Button variant="ghost" size="sm" onPress={() => setOverlay('qr')}>
+            <IconQr size={15} />
+            {t.t('ng-ui-start-qr')}
+          </Button>
+        </div>
         {webProfile() ? <WebLegalLinks /> : null}
       </div>
 

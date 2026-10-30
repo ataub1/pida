@@ -57,8 +57,9 @@ pub use layout::{
 };
 pub use placeholder::{
     EmptyFieldCandidate, MATRIX_TOLERANCE, MIN_QR_IMAGE_PX, PlaceholderMode, PlaceholderQuery,
-    QR_PLACEHOLDER_IDENTIFIER, QR_UPSCALE_MAX_PIXELS, QrPayload, QrPlaceholder, decode_qr, find_empty_sig_fields,
-    find_qr_placeholders, parse_qr_payload, placeholder_position, select_placeholder,
+    QR_PLACEHOLDER_IDENTIFIER, QR_UPSCALE_MAX_PIXELS, QrMatrix, QrPayload, QrPlaceholder, decode_qr, encode_qr,
+    find_empty_sig_fields, find_qr_placeholders, parse_qr_payload, placeholder_position, qr_placeholder_text,
+    select_placeholder,
 };
 pub use position::{
     BlockGeometry, Coord, FreeSpaceScanner, PageSelector, Placement, PlacementNotice, PositionContext, RasterScanner,
@@ -109,6 +110,9 @@ pub enum PlacementError {
     /// Renderer-Fehler (Rasterscan, Bildobjekte).
     #[error(transparent)]
     Render(#[from] pida_render::RenderError),
+    /// QR-Code nicht erzeugbar („QR-Platzhalter erstellen“).
+    #[error("QR-Code nicht erzeugbar: {0}")]
+    Qr(String),
 }
 
 impl PlacementError {
@@ -121,6 +125,7 @@ impl PlacementError {
             PlacementError::PlaceholderNotFound => "placement.placeholder_not_found",
             PlacementError::NotEnoughSpace => "placement.not_enough_space",
             PlacementError::Render(e) => e.code(),
+            PlacementError::Qr(_) => "placement.qr",
         }
     }
 }

@@ -15,7 +15,7 @@
  * (`?test-keystore`) zusätzlich der Keystore.
  */
 import type { AppInfo, Bridge, FileDragEvent, LicenseKind } from './bridge';
-import { blockPreviewPath, tileScale } from './bridge';
+import { blockPreviewPath, qrPlaceholderPath, tileScale } from './bridge';
 import type { DocId, UiEvent, ViewState } from './types';
 import { createSlTransport } from './ida-overlay';
 import { setWebProfile } from './web-profile';
@@ -38,6 +38,7 @@ interface PidaWebModule {
     dispatch(event: string): void;
     page_tile(doc: bigint, page: number, scale: number): Uint8Array<ArrayBuffer>;
     block_preview(scale: number): Uint8Array<ArrayBuffer>;
+    qr_placeholder(spec: string, format: string): Uint8Array<ArrayBuffer>;
     thumbnail(doc: bigint): Uint8Array<ArrayBuffer>;
   };
   put_file(name: string, bytes: Uint8Array): string;
@@ -126,11 +127,11 @@ export async function createWebBridge(): Promise<Bridge> {
   ), testKeystore);
 
   const images = new Map<string, string>();
-  const image = (key: string, render: () => Uint8Array<ArrayBuffer>): string => {
+  const image = (key: string, render: () => Uint8Array<ArrayBuffer>, type = 'image/png'): string => {
     const hit = images.get(key);
     if (hit) return hit;
     try {
-      const url = URL.createObjectURL(new Blob([render()], { type: 'image/png' }));
+      const url = URL.createObjectURL(new Blob([render()], { type }));
       images.set(key, url);
       if (images.size > 400) {
         const [oldKey, oldUrl] = images.entries().next().value as [string, string];
@@ -190,6 +191,8 @@ export async function createWebBridge(): Promise<Bridge> {
     },
     blockPreviewUrl: (scale, revision) => image(blockPreviewPath(scale, revision), () => core.block_preview(tileScale(scale))),
     thumbUrl: (doc) => image(`thumb/${doc}/${current?.batch?.items.length ?? 0}`, () => core.thumbnail(BigInt(doc))),
+    qrPlaceholderUrl: (spec, format) =>
+      image(qrPlaceholderPath(spec, format), () => core.qr_placeholder(JSON.stringify(spec), format), format === 'svg' ? 'image/svg+xml' : 'image/png'),
 
     async pickFiles({ filters, multiple }) {
       const accept = filters.flatMap((f) => f.extensions.map((e) => `.${e}`)).join(',');

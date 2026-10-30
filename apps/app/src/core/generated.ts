@@ -809,6 +809,33 @@ certificate_cache: CertificateCacheSettings,
 accessibility: AccessibilitySettings, } & ({ [key in string]: unknown });
 
 /**
+ * Signaturbild, das den Platzhalter beim Signieren ersetzt.
+ */
+export type QrPlaceholderProfile = "standard" | "amtssignatur" | "signer";
+
+/**
+ * Dateiformat.
+ */
+export type QrPlaceholderFormat = "png" | "svg";
+
+/**
+ * Was der Platzhalter enthält.
+ */
+export type QrPlaceholderSpec = { 
+/**
+ * Nummer (nur Ziffern, 1 bis 10 Stellen; „0001“ und „1“ gelten beim Signieren als gleich)
+ */
+id: string, 
+/**
+ * Signaturbild
+ */
+profile: QrPlaceholderProfile, 
+/**
+ * Sprache des Signaturblocks und der Beschriftung
+ */
+language: Lang, };
+
+/**
  * Hinweis ohne Rückfrage (i18n-ID mit Parametern), z. B. `error-PositioningNotPossible`,
  * `placement.notice.*`, `ng-config-reset-done`. Die UI schließt ihn mit [`UiEvent::DismissNotice`].
  */
@@ -1707,7 +1734,19 @@ language: Lang | null, } | { "type": "set_accessibility",
 /**
  * neue Werte
  */
-accessibility: AccessibilitySettings, } | { "type": "update_first_run", 
+accessibility: AccessibilitySettings, } | { "type": "export_qr_placeholder", 
+/**
+ * Inhalt
+ */
+spec: QrPlaceholderSpec, 
+/**
+ * Format
+ */
+format: QrPlaceholderFormat, 
+/**
+ * Ziel (`None` = teilen bzw. herunterladen)
+ */
+path: string | null, } | { "type": "update_first_run", 
 /**
  * Standard-Signiermittel (`None` = „Jedes Mal fragen“)
  */

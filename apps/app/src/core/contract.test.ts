@@ -565,6 +565,12 @@ const uiEvent = tagged('type', {
   apply_settings: { changes: record(unknownValue), revision: int },
   set_ui_language: { language: nullable(lang) },
   set_accessibility: { accessibility },
+  // Nachtrag 24: „QR-Platzhalter erstellen“
+  export_qr_placeholder: {
+    spec: obj({ id: str, profile: lit('standard', 'amtssignatur', 'signer'), language: lit('de', 'en') }),
+    format: lit('png', 'svg'),
+    path: nullable(str),
+  },
   update_first_run: { default_backend: nullable(backendChoice), profile: signatureProfile, block_language: nullable(lang) },
   finish_first_run: {},
   offer_migration: {},

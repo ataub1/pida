@@ -3683,3 +3683,45 @@ VoiceOver „anpassbar“ bzw. TalkBack-Aktionen auf Mobile.
 
 Tests: `core-api/tests/workspace.rs::accessibility_settings_apply_without_settings_view_and_set_the_keyboard_step`,
 `apps/app/src/features/accessibility/accessibility.test.tsx`.
+
+### Nachtrag 24 (30.10.2026): QR-Platzhalter erstellen
+
+Grundlage: Analyse 06 E-1, Vorbild PDF-AS-WAI („QR Platzhalter“, `pdf-as-web/placeholder`).
+
+1. **Dialog „QR-Platzhalter erstellen“** für Ersteller:innen von Dokumenten. Felder:
+   - Nummer: nur Ziffern, 1 bis 10 Stellen, Standard „0001“.
+   - Signaturbild: Standard, Amtssignatur oder „Wie bei der unterzeichnenden Person eingestellt“ (ohne Profil im
+     QR-Code, PDF-AS-WAI „PDF Over“).
+   - Sprache.
+
+   Dazu eine Vorschau des Kerns und eine Kurzanleitung. Erreichbar über:
+   - die Startseite (zweitrangig unter der Ablagefläche),
+   - die Befehlsliste,
+   - „Platzierung der Signatur“ › „Platzhalter im Dokument“,
+   - den Hilfeartikel „Dokument für andere vorbereiten“.
+
+   Nicht in den Einstellungen und nicht im Signierablauf.
+2. **Bild wie PDF-AS:** QR-Code links, rechts „Platzhalter für die elektronische Signatur Nr. …“, Format 5 : 1,
+   240 × 48 pt. Inhalt: `PDF-AS-POS;id=…[;profile=…]`, damit PDF-Over, pdf-as-web und PDF-AS-WAI ihn ebenso erkennen.
+   Die Breite des eingefügten Bildes bestimmt die Blockbreite (PDF-AS), deshalb etwa so breit wie der Standardblock.
+3. **Erzeugt im Kern, offline:**
+   - QR-Code: `rxing`-Encoder, `pida_placement::encode_qr`.
+   - SVG: direkt.
+   - PNG: über ein Mini-PDF und PDFium (gleiches Bild auf allen Plattformen, auch im Browser), 360 dpi mit `pHYs`.
+
+   Vorschau über `pida-render://qr/<nummer>.<png|svg>?profile=…&lang=…` bzw. `WebCore::qr_placeholder`.
+4. **Speichern:** `export_qr_placeholder`.
+   - Desktop-App: mit Pfad aus dem Speichern-Dialog.
+   - Mobile: ohne Pfad, der Kern teilt (`share_path`).
+   - Web: ohne Pfad, der Kern öffnet; das ergibt einen Download.
+
+   Ergebnis als Hinweis (`ng-qr-saved`, `ng-qr-failed`, `ng-qr-invalid-id`).
+5. **Keine Zwischenablage:** Die CSP der App erlaubt der Oberfläche nicht, das Bild als Daten zu lesen. PNG bzw. SVG
+   speichern und einfügen genügt.
+
+Tests:
+- `placement` (Rundlauf Kodieren ↔ Erkennen)
+- `core-api/src/qr_placeholder.rs` (Inhalt, Nummer, SVG/PDF)
+- `core-api/tests/qr_placeholder.rs` (PNG mit PDFium wird als derselbe Platzhalter erkannt, 360 dpi)
+- `src-tauri` (Protokoll)
+- `features/qr/qr.test.tsx`

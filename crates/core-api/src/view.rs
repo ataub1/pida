@@ -916,6 +916,17 @@ pub enum UiEvent {
         #[cfg_attr(feature = "ts", ts(as = "crate::ts::AccessibilitySettings"))]
         accessibility: pida_config::AccessibilitySettings,
     },
+    /// „QR-Platzhalter erstellen“ (ADR 0004 Nachtrag 24): Bild speichern – mit `path` (Speichern-Dialog am Desktop)
+    /// dorthin, sonst in den Temp-Ordner und teilen (Mobile) bzw. öffnen (Web: Download). Ergebnis als Hinweis
+    /// (`ng-qr-saved`, `ng-qr-failed`, `ng-qr-invalid-id`); in jedem Zustand möglich, ändert nichts am Ablauf.
+    ExportQrPlaceholder {
+        /// Inhalt
+        spec: crate::qr_placeholder::QrPlaceholderSpec,
+        /// Format
+        format: crate::qr_placeholder::QrPlaceholderFormat,
+        /// Ziel (`None` = teilen bzw. herunterladen)
+        path: Option<PathBuf>,
+    },
     /// Ersteinrichtung Schritte 2/3: sofort übernehmen und speichern (Vorschau neu; §3.12)
     UpdateFirstRun {
         /// Standard-Signiermittel (`None` = „Jedes Mal fragen“)

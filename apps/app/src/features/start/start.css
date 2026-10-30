@@ -286,3 +286,17 @@
   font-size: var(--fs-12);
   color: var(--c-text-3);
 }
+
+/* „QR-Platzhalter erstellen“ (ADR 0004 Nachtrag 24) */
+.start-qr {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--sp-3);
+}
+.start-qr .btn {
+  white-space: normal;
+  height: auto;
+  min-height: 32px;
+  line-height: var(--lh-snug);
+  padding-block: 6px;
+}

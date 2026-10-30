@@ -686,3 +686,27 @@ ng-ui-insp-check-signer = Signieren mit
 ng-ui-insp-check-overlap = Achtung: Der Signaturblock überdeckt Inhalt der Seite. Wer das Dokument bekommt, kann diesen Inhalt dann nicht mehr lesen.
 ng-ui-insp-check-back = Zurück zur Platzierung
 ng-ui-insp-check-sign = Signieren
+
+## QR-Platzhalter erstellen (ADR 0004 Nachtrag 24)
+ng-ui-shell-qr-title = QR-Platzhalter erstellen
+ng-ui-shell-qr-subtitle = Für Dokumente, die andere unterschreiben: Der Platzhalter legt fest, wo die Signatur hinkommt.
+ng-ui-shell-qr-id = Nummer
+ng-ui-shell-qr-id-hint = Für mehrere Unterschriften je eine eigene Nummer, z. B. 0001 und 0002 – und den Unterzeichnenden ihre Nummer mitteilen.
+ng-ui-shell-qr-profile = Signaturbild
+ng-ui-shell-qr-profile-standard = Standard
+ng-ui-shell-qr-profile-standard-desc = Signaturblock für Unterschriften von Personen
+ng-ui-shell-qr-profile-amtssignatur = Amtssignatur
+ng-ui-shell-qr-profile-amtssignatur-desc = Für Behörden
+ng-ui-shell-qr-profile-signer = Wie bei der unterzeichnenden Person eingestellt
+ng-ui-shell-qr-profile-signer-desc = Deren eigenes Signaturbild, z. B. mit Bildmarke
+ng-ui-shell-qr-lang = Sprache des Signaturblocks
+ng-ui-shell-qr-lang-caption = Sprache der Beschriftung
+ng-ui-shell-qr-alt = QR-Code-Platzhalter Nummer { $id }, Signaturbild { $profile }, { $lang }
+ng-ui-shell-qr-howto = Fügen Sie das Bild in Ihr Dokument ein, so breit, wie der Signaturblock werden soll (gespeichert mit 8,5 cm). Beim Signieren ersetzt der Signaturblock den Platzhalter – in PIDA, PDF-Over und PDF-AS.
+ng-ui-shell-qr-save-png = Als PNG speichern
+ng-ui-shell-qr-save-svg = Als SVG speichern
+ng-ui-shell-qr-share-png = PNG teilen
+ng-ui-shell-qr-share-svg = SVG teilen
+ng-ui-shell-cmd-qr = QR-Platzhalter erstellen …
+    .keywords = qr platzhalter signaturplatzhalter vorlage vorbereiten unterzeichnende mehrere dokument
+ng-ui-start-qr = Dokument für andere vorbereiten: QR-Platzhalter erstellen …

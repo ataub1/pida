@@ -11,15 +11,14 @@ publish.workspace = true
 [dependencies]
 pida-pdf-cos = { workspace = true }
 pida-render = { workspace = true }
-rxing = { workspace = true }
+# Erkennen und – für „QR-Platzhalter erstellen“ – Erzeugen von QR-Codes
+rxing = { workspace = true, features = ["encoders"] }
 thiserror = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
 # Tests mit echtem PDFium (nur mit PIDA_PDFIUM_DIR, sonst übersprungen).
 pida-render = { workspace = true, features = ["pdfium"] }
-# QR-Testdokumente selbst erzeugen.
-rxing = { workspace = true, features = ["encoders"] }
 # Referenzbilder der PDF-AS-Testsuiten lesen, Manifest der Golden-Tests.
 png = { workspace = true }
 serde_json = { workspace = true }

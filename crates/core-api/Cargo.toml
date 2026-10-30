@@ -26,6 +26,8 @@ pida-render = { workspace = true, features = ["pdfium"] }
 pida-pades = { workspace = true }
 pida-placement = { workspace = true }
 pida-sigblock = { workspace = true }
+# PNG mit Auflösung (QR-Platzhalter)
+png = { workspace = true }
 pida-cades = { workspace = true }
 pida-pdf-cos = { workspace = true }
 pida-backend-api = { workspace = true }
