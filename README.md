@@ -4,7 +4,7 @@
 
 **PDF-Signatur mit ID Austria** · PDF · ID · Austria
 
-[**Download 0.6.2**](https://github.com/ataub1/pida/releases/tag/v0.6.2) ·
+[**Download 0.7.0**](https://github.com/ataub1/pida/releases/tag/v0.7.0) ·
 [Installation](#installation) ·
 [In English](#in-english)
 
@@ -19,7 +19,7 @@ PIDA ist freie Software unter der **EUPL-1.2**.
 ![Arbeitsbereich von PIDA: links die Seitenminiaturen, in der Mitte die letzte Seite eines Vertrags mit dem automatisch platzierten Signaturblock, rechts der Inspektor mit „Signieren mit ID Austria“, Vorschau des Signaturbilds, Optionen und der Schaltfläche „Signieren“](docs/screenshots/02-arbeitsbereich.png)
 
 > [!NOTE]
-> **Testversion.** 0.6.2 ist ein Pre-Release.
+> **Testversion.** 0.7.0 ist ein Pre-Release.
 > Die Pakete sind nicht code-signiert bzw. notarisiert und
 > aktualisieren sich nicht selbst. Windows und macOS warnen deshalb beim ersten Start, Android verlangt die
 > Installation aus unbekannten Quellen – siehe [Installation](#installation).
@@ -40,6 +40,12 @@ PIDA ist freie Software unter der **EUPL-1.2**.
 - **Signaturbild nach Wunsch:** Profile „Standard (klein)“, „Amtssignatur“ und weitere aus PDF-AS, Sprache des
   Signaturblocks, eigene Bildmarke (Standard: PIDA-Siegel), Hinweistext – mit Vorschau. PDF/A-Dokumente werden
   PDF/A-konform signiert.
+- **Barrierefreie Bedienung:** Schalter in der Kopfzeile (im Web auch per `?barrierefrei=1`) – die Signatur lässt
+  sich ohne Vorschau platzieren: automatisch, in einen Platzhalter des Dokuments, per Position in Millimetern
+  (wie PDF-AS) oder auf eine freie Fläche; die Lage steht als Text da, auf Wunsch mit Prüfung vor dem Signieren.
+  Eigener Einstellungsbereich „Barrierefreiheit“ (Ansagen, Schrittweite der Pfeiltasten).
+- **QR-Platzhalter erstellen:** Für Dokumente, die andere unterschreiben, erzeugt PIDA offline QR-Code-Platzhalter
+  (PNG/SVG) – kompatibel mit PDF-Over, pdf-as-web und PDF-AS-WAI.
 - **Bedienung:** Deutsch und Englisch, helles und dunkles Design, Befehlspalette (⌘K bzw. Strg+K),
   vollständig per Tastatur bedienbar, ausgerichtet an WCAG 2.2 AA.
 - **Hilfe ohne Internet:** Die Offline-Hilfe (Knopf „?“ bzw. F1) erklärt Abläufe und Begriffe; Fehlermeldungen
@@ -112,24 +118,24 @@ Dokumente).</sub>
 
 ## Download
 
-Alle Pakete stehen auf der Release-Seite: **[PIDA 0.6.2](https://github.com/ataub1/pida/releases/tag/v0.6.2)**.
+Alle Pakete stehen auf der Release-Seite: **[PIDA 0.7.0](https://github.com/ataub1/pida/releases/tag/v0.7.0)**.
 
 | System | Paket (direkter Download) | Größe | Voraussetzung |
 |---|---|---|---|
-| Windows | [`PIDA_0.6.2_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_windows_x64-setup.exe) (empfohlen) | 10,9 MiB | Windows 10 oder 11, x64 |
-| Windows | [`PIDA_0.6.2_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_windows_x64.msi) | 14,9 MiB | Windows 10 oder 11, x64 |
-| Windows (portabel) | [`PIDA_0.6.2_windows_x64-portable.zip`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_windows_x64-portable.zip) | 14,1 MiB | Windows 10 oder 11, x64, ohne Installation |
-| macOS | [`PIDA_0.6.2_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_macos_arm64.dmg) | 13,0 MiB | macOS 11 oder neuer, Apple Silicon |
-| Linux (Debian, Ubuntu) | [`PIDA_0.6.2_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_linux_amd64.deb) | 15,4 MiB | x86_64 |
-| Linux (Fedora, RHEL) | [`PIDA_0.6.2_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_linux_x86_64.rpm) | 15,4 MiB | x86_64 |
-| Linux (portabel) | [`PIDA_0.6.2_linux_x86_64.AppImage`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_linux_x86_64.AppImage) | 89,3 MiB | x86_64, ohne Installation |
-| Android | [`PIDA_0.6.2_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.6.2/PIDA_0.6.2_android_arm64.apk) | 27,3 MiB | Android 9 oder neuer, arm64 |
-| Kommandozeile (macOS) | [`pida-cli_0.6.2_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-cli_0.6.2_macos_arm64) | 15,4 MiB | macOS 11 oder neuer, Apple Silicon |
-| Server PIDA Web (Debian, Ubuntu) | [`pida-web_0.6.2_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-web_0.6.2_amd64.deb) | 6,5 MiB | x86_64, Webserver mit HTTPS davor |
-| Server PIDA Web (RHEL, Alma, Rocky, Fedora, openSUSE) | [`pida-web-0.6.2-1.x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-web-0.6.2-1.x86_64.rpm) | 8,3 MiB | x86_64, Webserver mit HTTPS davor |
-| Server PIDA Web (andere Linux) | [`pida-web-0.6.2-linux-x86_64.tar.gz`](https://github.com/ataub1/pida/releases/download/v0.6.2/pida-web-0.6.2-linux-x86_64.tar.gz) (mit `install.sh`) | 8,3 MiB | x86_64, Webserver mit HTTPS davor |
+| Windows | [`PIDA_0.7.0_windows_x64-setup.exe`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_windows_x64-setup.exe) (empfohlen) | 11,0 MiB | Windows 10 oder 11, x64 |
+| Windows | [`PIDA_0.7.0_windows_x64.msi`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_windows_x64.msi) | 15,1 MiB | Windows 10 oder 11, x64 |
+| Windows (portabel) | [`PIDA_0.7.0_windows_x64-portable.zip`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_windows_x64-portable.zip) | 14,2 MiB | Windows 10 oder 11, x64, ohne Installation |
+| macOS | [`PIDA_0.7.0_macos_arm64.dmg`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_macos_arm64.dmg) | 13,1 MiB | macOS 11 oder neuer, Apple Silicon |
+| Linux (Debian, Ubuntu) | [`PIDA_0.7.0_linux_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_linux_amd64.deb) | 15,6 MiB | x86_64 |
+| Linux (Fedora, RHEL) | [`PIDA_0.7.0_linux_x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_linux_x86_64.rpm) | 15,6 MiB | x86_64 |
+| Linux (portabel) | [`PIDA_0.7.0_linux_x86_64.AppImage`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_linux_x86_64.AppImage) | 89,5 MiB | x86_64, ohne Installation |
+| Android | [`PIDA_0.7.0_android_arm64.apk`](https://github.com/ataub1/pida/releases/download/v0.7.0/PIDA_0.7.0_android_arm64.apk) | 27,6 MiB | Android 9 oder neuer, arm64 |
+| Kommandozeile (macOS) | [`pida-cli_0.7.0_macos_arm64`](https://github.com/ataub1/pida/releases/download/v0.7.0/pida-cli_0.7.0_macos_arm64) | 15,7 MiB | macOS 11 oder neuer, Apple Silicon |
+| Server PIDA Web (Debian, Ubuntu) | [`pida-web_0.7.0_amd64.deb`](https://github.com/ataub1/pida/releases/download/v0.7.0/pida-web_0.7.0_amd64.deb) | 6,6 MiB | x86_64, Webserver mit HTTPS davor |
+| Server PIDA Web (RHEL, Alma, Rocky, Fedora, openSUSE) | [`pida-web-0.7.0-1.x86_64.rpm`](https://github.com/ataub1/pida/releases/download/v0.7.0/pida-web-0.7.0-1.x86_64.rpm) | 8,4 MiB | x86_64, Webserver mit HTTPS davor |
+| Server PIDA Web (andere Linux) | [`pida-web-0.7.0-linux-x86_64.tar.gz`](https://github.com/ataub1/pida/releases/download/v0.7.0/pida-web-0.7.0-linux-x86_64.tar.gz) (mit `install.sh`) | 8,4 MiB | x86_64, Webserver mit HTTPS davor |
 
-Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.6.2/SHA256SUMS.txt) (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
+Prüfsummen stehen in [`SHA256SUMS.txt`](https://github.com/ataub1/pida/releases/download/v0.7.0/SHA256SUMS.txt) (prüfen mit `shasum -a 256 -c SHA256SUMS.txt` unter
 macOS, `sha256sum -c SHA256SUMS.txt` unter Linux bzw. `Get-FileHash <Datei> -Algorithm SHA256` in der Windows
 PowerShell). Eine iOS-Version ist nicht Teil der Releases.
 
@@ -362,10 +368,12 @@ Signatures follow the **PDF-AS method**, just like PDF-Over. Licensed under the 
 
 - **Features:** one workspace with page thumbnails and automatic placement of the signature block (drag to
   move, snaps to empty signature fields and QR placeholders), batches with a single ID Austria login, a signing
-  status card with the comparison value, a “Done” view and “Recently signed”, customisable signature block
+  status card with the comparison value, an accessible mode (place the signature without the preview –
+  automatically, into a placeholder, by millimetres or on a free area), creating QR placeholders for documents
+  others will sign, a “Done” view and “Recently signed”, customisable signature block
   with preview, PDF/A support, German and English, light and dark mode, command palette (⌘K / Ctrl+K). PDF-Over
   settings can be imported on first start; PDF-Over command-line arguments keep working (`pida-cli`).
-- **Download:** [PIDA 0.6.2](https://github.com/ataub1/pida/releases/tag/v0.6.2) (pre-release) – Windows 10/11 x64 (`-setup.exe`, `.msi` or portable `.zip`), macOS 11+
+- **Download:** [PIDA 0.7.0](https://github.com/ataub1/pida/releases/tag/v0.7.0) (pre-release) – Windows 10/11 x64 (`-setup.exe`, `.msi` or portable `.zip`), macOS 11+
   on Apple Silicon (`.dmg`), Linux x86_64 (`.deb`/`.rpm`/AppImage), Android 9+ arm64 (`.apk`), plus the
   command-line tool `pida-cli` for macOS on Apple Silicon and the PIDA Web server for x86_64 Linux
   (`pida-web` as `.deb`, `.rpm`, `.tar.gz`). Checksums are in `SHA256SUMS.txt`. iOS is not included.
