@@ -102,6 +102,12 @@ describe('Ersteinrichtung', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Weiter' }));
     expect(within(dialog).getByText('Schritt 2 von 2')).toBeInTheDocument();
     expect(within(dialog).getByRole('radio', { name: 'Wie System' })).toBeChecked();
+    // Barrierefreie Bedienung: Standard „Nein“, „Ja“ setzt die Voreinstellungen sofort (docs/analyse/06)
+    const a11y = within(dialog).getByRole('radiogroup', { name: 'Barrierefreie Bedienung verwenden?' });
+    expect(within(a11y).getByRole('radio', { name: 'Nein' })).toBeChecked();
+    await user.click(within(a11y).getByRole('radio', { name: 'Ja' }));
+    expect(lastEvent(mock)).toMatchObject({ type: 'set_accessibility', accessibility: { mode: true, start: 'methods', check_before_sign: true } });
+    await waitFor(() => expect(within(a11y).getByRole('radio', { name: 'Ja' })).toBeChecked());
     // die Vorschau ist die des Kerns; ohne eigene Bildmarke zeigt sie das PIDA-Siegel (keine erfundene)
     expect((await mock.view()).settings).toBeNull();
     await user.click(within(dialog).getByRole('button', { name: 'Los geht’s' }));

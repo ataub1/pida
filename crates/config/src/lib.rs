@@ -48,9 +48,10 @@ pub use secrets::{
     ShellSecretStore, platform_secret_store,
 };
 pub use settings::{
-    BackendChoice, BackendSettings, CertificateCacheSettings, CmsProfileChoice, GeneralSettings, IdAustriaSettings,
-    KeystoreSettings, LoadOutcome, NoteSetting, OutputSettings, PasswordStorage, PlaceholderKind, PlaceholderSettings,
-    ProxyMode, ProxySettings, RETIRED_KEYS, SCHEMA_VERSION, Settings, SignatureProfile, SignatureSettings, WindowSize,
+    AccessibilitySettings, AnnounceDetail, BackendChoice, BackendSettings, CertificateCacheSettings, CmsProfileChoice,
+    GeneralSettings, IdAustriaSettings, KeyboardStep, KeystoreSettings, LoadOutcome, NoteSetting, OutputSettings,
+    PasswordStorage, PlaceholderKind, PlaceholderSettings, PlacementStart, ProxyMode, ProxySettings, RETIRED_KEYS,
+    SCHEMA_VERSION, Settings, SignatureProfile, SignatureSettings, WindowSize,
 };
 pub use source::{
     ConfigSource, SessionSecrets, load_config_source, load_config_source_with_secrets, resolve_config_file,

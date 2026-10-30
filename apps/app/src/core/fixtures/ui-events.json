@@ -157,6 +157,14 @@
       "certificate_cache": {
         "enabled": false
       },
+      "accessibility": {
+        "mode": false,
+        "start": "preview",
+        "announce": "short",
+        "announce_after_move": false,
+        "keyboard_step": "standard",
+        "check_before_sign": false
+      },
       "signature.future_key": "bleibt",
       "future": 42
     }
@@ -456,6 +464,17 @@
   {
     "type": "set_ui_language",
     "language": null
+  },
+  {
+    "type": "set_accessibility",
+    "accessibility": {
+      "mode": true,
+      "start": "methods",
+      "announce": "detailed",
+      "announce_after_move": true,
+      "keyboard_step": "mm5",
+      "check_before_sign": true
+    }
   },
   {
     "type": "update_first_run",

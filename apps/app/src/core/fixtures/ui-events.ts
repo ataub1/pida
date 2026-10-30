@@ -136,6 +136,11 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'start_batch', backend: 'local_bku', docs: [], output_dir: null, on_existing: 'skip' },
   { type: 'apply_settings', changes: {}, revision: 0 },
   { type: 'set_ui_language', language: null },
+  // Einstellungen › Barrierefreiheit (Schalter „Barrierefreie Bedienung“, docs/analyse/06)
+  {
+    type: 'set_accessibility',
+    accessibility: { mode: true, start: 'methods', announce: 'detailed', announce_after_move: true, keyboard_step: 'mm5', check_before_sign: true },
+  },
   { type: 'update_first_run', default_backend: null, profile: 'AMTSSIGNATURBLOCK', block_language: null },
   { type: 'submit_secret', request: 3, secret: 'geheim-123', password_storage: 'none' },
   { type: 'inspect_keystore', password: null },

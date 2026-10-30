@@ -127,19 +127,19 @@ describe('Feld-Treffer, Lage, Touch', () => {
 describe('Live-Region und Überdeckung', () => {
   const t = translator('de');
 
-  it('Lage aus `announce` (mit `bottom`), Einrasten der Oberfläche, Prüfergebnis', () => {
+  it('Lage aus `announce` (linke obere Ecke, `top`), Einrasten der Oberfläche, Prüfergebnis', () => {
     expect(announceText(t, documentView(), ['content_right', 'below_content'])).toBe(
-      'Seite 3 von 3, 64 mm von links, 77 mm von unten. Rastet ein: rechts unten. Freie Fläche.',
+      'Seite 3 von 3, linke obere Ecke 64 mm von links, 106 mm von unten. Rastet ein: rechts unten. Freie Fläche.',
     );
     const overlap = documentView({ check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false, placeholder_uncovered: false } });
-    expect(announceText(t, overlap)).toBe('Seite 3 von 3, 64 mm von links, 77 mm von unten. Achtung: überdeckt Inhalt.');
+    expect(announceText(t, overlap)).toBe('Seite 3 von 3, linke obere Ecke 64 mm von links, 106 mm von unten. Achtung: überdeckt Inhalt.');
     expect(overlapState(overlap)).toBe('content');
   });
 
   it('Prüfergebnis einer älteren Revision zählt nicht; unbekannt = keine Aussage', () => {
     const stale = documentView({ revision: 2, check: { for_revision: 1, overlaps_content: true, overlaps_widget: false, clamped: false, placeholder_uncovered: false } });
     expect(overlapState(stale)).toBeNull();
-    expect(announceText(t, stale)).toBe('Seite 3 von 3, 64 mm von links, 77 mm von unten.');
+    expect(announceText(t, stale)).toBe('Seite 3 von 3, linke obere Ecke 64 mm von links, 106 mm von unten.');
     const unknown = documentView({ check: { for_revision: 1, overlaps_content: null, overlaps_widget: false, clamped: false, placeholder_uncovered: false } });
     expect(announceText(t, unknown)).not.toContain('Fläche');
   });

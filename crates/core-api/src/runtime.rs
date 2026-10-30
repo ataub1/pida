@@ -179,6 +179,7 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::ClearRecent => "clear_recent",
         UiEvent::ApplySettings { .. } => "apply_settings",
         UiEvent::SetUiLanguage { .. } => "set_ui_language",
+        UiEvent::SetAccessibility { .. } => "set_accessibility",
         UiEvent::UpdateFirstRun { .. } => "update_first_run",
         UiEvent::FinishFirstRun => "finish_first_run",
         UiEvent::OfferMigration => "offer_migration",
@@ -2392,12 +2393,13 @@ impl CoreTask {
             }
             UiEvent::NudgeBlock { dx, dy, fine, coarse } => {
                 if let Some(p) = self.move_base() {
+                    // Einstellungen › Barrierefreiheit: Schrittweite der Pfeiltasten (Umschalt/Strg bleiben)
                     let step = if coarse {
                         pida_placement::KEYBOARD_COARSE_STEP_PT
                     } else if fine {
                         pida_placement::KEYBOARD_FINE_STEP_PT
                     } else {
-                        pida_placement::KEYBOARD_STEP_PT
+                        self.cfg.settings.accessibility.keyboard_step.pt().unwrap_or(pida_placement::KEYBOARD_STEP_PT)
                     };
                     let moved = Placement { x: p.x + dx as f32 * step, y: p.y + dy as f32 * step, ..p };
                     if let Some(c) = self.clamp(&moved) {
@@ -2631,6 +2633,7 @@ impl CoreTask {
             }
             // Oberflächensprache (Kopfzeile, Palette): in beiden Modi; schreibgeschützt nur im Speicher
             UiEvent::SetUiLanguage { language } => self.set_ui_language(language),
+            UiEvent::SetAccessibility { accessibility } => self.set_accessibility(accessibility),
             // ADR 0004 §3.11 (K3): sofort wirksame Einstellungen (in beiden Modi, nur mit offener Ansicht)
             UiEvent::ApplySettings { changes, revision } => self.apply_settings(&changes, revision),
             // ADR 0004 §3.10 (K3): „Zuletzt signiert“
@@ -2801,6 +2804,24 @@ impl CoreTask {
         }
         if let Err(e) = self.cfg.save() {
             tracing::warn!(id = e.message_id(), "Oberflächensprache nicht gespeichert");
+        }
+    }
+
+    /// Einstellungen › Barrierefreiheit setzen (`SetAccessibility`): je Feld wie `apply_settings` (Richtlinie),
+    /// sofort gespeichert; eine offene Einstellungsansicht zeigt die neuen Werte.
+    fn set_accessibility(&mut self, a: pida_config::AccessibilitySettings) {
+        let changes = match serde_json::to_value(a) {
+            Ok(serde_json::Value::Object(map)) => {
+                map.into_iter().map(|(k, v)| (format!("accessibility.{k}"), v)).collect::<BTreeMap<_, _>>()
+            }
+            _ => return,
+        };
+        let rejected = self.apply_changes_now(&changes);
+        if !rejected.is_empty() {
+            tracing::debug!(fields = rejected.len(), "Barrierefreiheit teilweise abgelehnt");
+        }
+        if let Some(v) = &mut self.settings_view {
+            v.settings.accessibility = self.cfg.settings.accessibility;
         }
     }
 
@@ -3259,6 +3280,7 @@ impl CoreTask {
             main_bar,
             settings: self.settings_view.clone().map(|v| self.live_settings_view(v)),
             language: self.cfg.language(),
+            accessibility: Some(self.cfg.settings.accessibility),
             notices: self.notices.clone(),
             migration: self.projected_migration(),
             done,

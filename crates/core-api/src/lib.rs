@@ -434,6 +434,7 @@ fn initial_view(lang: Lang, platform: Platform) -> ViewState {
         main_bar: MainBarView { steps: pida_workflow::State::Starting.main_bar().to_vec(), settings_enabled: false },
         settings: None,
         language: lang,
+        accessibility: None,
         notices: Vec::new(),
         migration: None,
         done: Vec::new(),

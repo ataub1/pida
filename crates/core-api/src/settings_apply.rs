@@ -50,6 +50,7 @@ const SECTIONS: &[&str] = &[
     "output",
     "proxy",
     "certificate_cache",
+    "accessibility",
 ];
 
 /// Auf Mobilgeräten nicht einstellbar (ADR 0004 E3 Punkt 7: ohne Proxy/Ordner/Updates; Nachtrag 11: ohne
@@ -120,6 +121,7 @@ fn section_json(s: &Settings, section: &str) -> Option<serde_json::Value> {
         "output" => serde_json::to_value(&s.output),
         "proxy" => serde_json::to_value(&s.proxy),
         "certificate_cache" => serde_json::to_value(s.certificate_cache),
+        "accessibility" => serde_json::to_value(s.accessibility),
         _ => return None,
     };
     v.ok()
@@ -137,6 +139,7 @@ fn set_section(s: &mut Settings, section: &str, v: serde_json::Value) -> Result<
         "output" => s.output = serde_json::from_value(v)?,
         "proxy" => s.proxy = serde_json::from_value(v)?,
         "certificate_cache" => s.certificate_cache = serde_json::from_value(v)?,
+        "accessibility" => s.accessibility = serde_json::from_value(v)?,
         _ => {}
     }
     Ok(())

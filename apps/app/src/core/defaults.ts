@@ -3,6 +3,7 @@
  * Hilfen zur unveränderlichen Bearbeitung der Einstellungen.
  */
 import type {
+  AccessibilitySettings,
   ActionsView,
   DocumentDetectionView,
   ErrorContextView,
@@ -44,7 +45,13 @@ export function defaultSettings(): Settings {
     output: { folder: null, postfix: '_signed' },
     proxy: { mode: 'system', host: null, port: null, user: null },
     certificate_cache: { enabled: false },
+    accessibility: defaultAccessibility(),
   };
+}
+
+/** Entspricht `AccessibilitySettings::default()` (Einstellungen › Barrierefreiheit). */
+export function defaultAccessibility(): AccessibilitySettings {
+  return { mode: false, start: 'preview', announce: 'short', announce_after_move: false, keyboard_step: 'standard', check_before_sign: false };
 }
 
 /** Entspricht `SigningProgressView::default()` (ADR 0004 §3.6; bis K1 liefert der Kern nur diesen Wert). */
@@ -112,6 +119,7 @@ export const SETTINGS_SECTIONS = [
   'output',
   'proxy',
   'certificate_cache',
+  'accessibility',
 ] as const;
 
 /** Abschnittsname. */

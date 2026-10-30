@@ -6,7 +6,9 @@
  * Breite nimmt), Signaturbild
  * (Vorschau des Kerns, „Bearbeiten“ → Einstellungen ›
  * Signaturbild), Optionen (Unsichtbar, Auf neuer Seite – gesperrt mit Begründung aus `constraints`),
- * Platzierung (sprechende Lage, „Neu platzieren“/„Frei platzieren“, **keine** Zahlenfelder, D1),
+ * Platzierung (sprechende Lage, „Neu platzieren“/„Frei platzieren“, **keine** Zahlenfelder, D1 – darunter
+ * „Ohne Vorschau platzieren …“ mit Methodenwahl und Millimeter-Eingabe, `PlacementPanel`; mit „Barrierefreie
+ * Bedienung“ steht dieses Panel als „Platzierung der Signatur“ ganz oben, docs/analyse/06),
  * dezente Hinweise auf Erkanntes (Einstellungen › Dokument, `DocumentView::detection`: PDF/A erkannt bzw.
  * erzwungen; QR-Platzhalter bzw. Signaturfeld nur bei automatischer Platzierung),
  * vorhandene Signaturen, primärer Knopf „Signieren ⌘↵“, darunter „Zurück zum Stapel“ (aus der
@@ -30,7 +32,9 @@ import { isMobile, type DocumentView, type Lang, type StepView } from '../../cor
 import { AccessButton, Badge, Button, Keys, Segmented, SwitchField, useModKey } from '../../ui/controls';
 import { useFitScale, useNarrow } from '../../ui/hooks';
 import { IconAlert, IconChevronDown, IconFileText, IconGrip, IconInfo, IconLock, IconPen, IconQr, IconShieldCheck, IconSignature, IconTarget, IconWand } from '../../ui/Icons';
+import { accessibilityOf } from '../accessibility';
 import { PrivacyNote } from '../settings';
+import { PlacementPanel } from './PlacementPanel';
 import { displayPages, overlapState, placeholderUncovered, zoneText } from './placement';
 import { ShareHint } from './ShareHint';
 import { SignerChip } from './SignerChip';
@@ -58,7 +62,9 @@ export function Inspector({
 }) {
   const { t, view, dispatch, openSettings, bridge } = useApp();
   const { mod, enter } = useModKey();
-  const [expanded, setExpanded] = useState(false);
+  const a11y = accessibilityOf(view);
+  // Bottom-Sheet: beginnt die Platzierung mit der Methodenwahl, ist es gleich aufgeklappt
+  const [expanded, setExpanded] = useState(a11y.start === 'methods');
   const narrow = useNarrow();
   const bodyId = useId();
   const previewRef = useRef<HTMLDivElement>(null);
@@ -91,6 +97,10 @@ export function Inspector({
   const backToBatch = view.batch?.open_item === doc.doc.id;
   const newPageReason = !c.new_page_allowed ? (reason('ng-constraint-signed') ?? reason('ng-constraint-certified') ?? t.t('ng-ui-insp-new-page-locked')) : null;
   const invisibleReason = !c.visible_allowed ? (reason('ng-constraint-invisible-profile') ?? null) : null;
+  // Platzierung ohne Vorschau (docs/analyse/06): mit „Barrierefreie Bedienung“ als erster Abschnitt, sonst eingeklappt
+  // unter „Platzierung“; nicht bei gesperrter Platzierung („Automatische Positionierung“) und unsichtbarer Signatur
+  const panelShown = !warning && !doc.invisible && !!doc.sticker && !locked;
+  const panelOnTop = panelShown && a11y.mode;
   const chip = (compact: boolean) => (
     <SignerChip compact={compact} isOpen={chipOpen} onOpenChange={(open) => onChipOpenChange(open, false)} signMode={signMode} />
   );
@@ -106,6 +116,7 @@ export function Inspector({
       ) : null}
 
       <div className="inspector-scroll" id={bodyId} hidden={narrow && !expanded}>
+        {panelOnTop ? <PlacementPanel doc={doc} editable={editable} embedded={false} /> : null}
         {warning ? (
           <section className="insp-section insp-warning" aria-labelledby={`${bodyId}-warn`}>
             <h2 className="insp-heading" id={`${bodyId}-warn`}>
@@ -252,7 +263,7 @@ export function Inspector({
           </section>
         ) : null}
 
-        {!warning && !doc.invisible && doc.sticker ? (
+        {!warning && !doc.invisible && doc.sticker && !panelOnTop ? (
           <section className="insp-section" aria-labelledby={`${bodyId}-place`}>
             <div className="insp-heading-row">
               <h2 className="insp-heading" id={`${bodyId}-place`}>
@@ -303,6 +314,7 @@ export function Inspector({
             ) : (
               <p className="insp-hint">{t.t('ng-ui-insp-placement-hint')}</p>
             )}
+            {panelShown ? <PlacementPanel doc={doc} editable={editable} embedded /> : null}
           </section>
         ) : null}
 

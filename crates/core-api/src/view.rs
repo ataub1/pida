@@ -498,6 +498,11 @@ pub struct ViewState {
     pub settings: Option<SettingsView>,
     /// UI-Sprache
     pub language: Lang,
+    /// Einstellungen › Barrierefreiheit (für Kopfzeile, Inspektor und Ansagen, auch ohne Einstellungsansicht).
+    /// Additiv, in TypeScript optional; der Kern liefert es immer.
+    #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(as = "Option<crate::ts::AccessibilitySettings>", optional = nullable))]
+    pub accessibility: Option<pida_config::AccessibilitySettings>,
     /// Hinweise ohne Rückfrage (älteste zuerst)
     #[serde(default)]
     pub notices: Vec<NoticeView>,
@@ -902,6 +907,14 @@ pub enum UiEvent {
     SetUiLanguage {
         /// Sprache (`None` = System)
         language: Option<Lang>,
+    },
+    /// Einstellungen › Barrierefreiheit aus Kopfzeile bzw. Inspektor setzen (ohne Einstellungsansicht; Schalter
+    /// „Barrierefreie Bedienung“, docs/analyse/06): wie `apply_settings` für die Felder von `accessibility`
+    /// (Richtlinie gilt), sofort gespeichert. Ergebnis in [`ViewState::accessibility`].
+    SetAccessibility {
+        /// neue Werte
+        #[cfg_attr(feature = "ts", ts(as = "crate::ts::AccessibilitySettings"))]
+        accessibility: pida_config::AccessibilitySettings,
     },
     /// Ersteinrichtung Schritte 2/3: sofort übernehmen und speichern (Vorschau neu; §3.12)
     UpdateFirstRun {

@@ -7,6 +7,14 @@
       "update": null,
       "version": "0.1.0-test"
     },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -285,6 +293,14 @@
       "update": null,
       "version": "0.1.0-test"
     },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
+    },
     "actions": {
       "edit_placement": false,
       "home": true,
@@ -547,6 +563,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": true,
@@ -819,6 +843,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": false,
@@ -1099,6 +1131,14 @@
       "update": null,
       "version": "0.1.0-test"
     },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
+    },
     "actions": {
       "edit_placement": false,
       "home": false,
@@ -1349,6 +1389,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": false,
@@ -1627,6 +1675,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": true,
@@ -1917,6 +1973,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": true,
@@ -2309,6 +2373,14 @@
       "update": null,
       "version": "0.1.0-test"
     },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
+    },
     "actions": {
       "edit_placement": false,
       "home": true,
@@ -2456,6 +2528,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": true,
@@ -2756,6 +2836,14 @@
       "update": null,
       "version": "0.1.0-test"
     },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -3045,6 +3133,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": true,
@@ -3338,6 +3434,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": false,
@@ -3644,6 +3748,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": true,
@@ -3960,6 +4072,14 @@
       "update": null,
       "version": "0.1.0-test"
     },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
+    },
     "actions": {
       "edit_placement": false,
       "home": false,
@@ -4269,6 +4389,14 @@
       "update": null,
       "version": "0.1.0-test"
     },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
+    },
     "actions": {
       "edit_placement": true,
       "home": true,
@@ -4474,6 +4602,14 @@
       "problems": {},
       "read_only": false,
       "settings": {
+        "accessibility": {
+          "announce": "short",
+          "announce_after_move": false,
+          "check_before_sign": false,
+          "keyboard_step": "standard",
+          "mode": false,
+          "start": "preview"
+        },
         "backend": {
           "default": null
         },
@@ -4630,6 +4766,14 @@
       "source_url": "https://github.com/ataub1/pida",
       "update": null,
       "version": "0.1.0-test"
+    },
+    "accessibility": {
+      "announce": "short",
+      "announce_after_move": false,
+      "check_before_sign": false,
+      "keyboard_step": "standard",
+      "mode": false,
+      "start": "preview"
     },
     "actions": {
       "edit_placement": true,
@@ -4838,6 +4982,14 @@
       },
       "read_only": false,
       "settings": {
+        "accessibility": {
+          "announce": "short",
+          "announce_after_move": false,
+          "check_before_sign": false,
+          "keyboard_step": "standard",
+          "mode": false,
+          "start": "preview"
+        },
         "backend": {
           "default": null
         },

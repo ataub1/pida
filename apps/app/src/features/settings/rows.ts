@@ -23,6 +23,8 @@ export const SECTIONS: readonly SectionDef[] = [
   { id: 'signers', label: 'ng-ui-set-sec-signers' },
   { id: 'save', label: 'ng-ui-set-sec-save' },
   { id: 'appearance', label: 'ng-ui-set-sec-appearance' },
+  // Barrierefreiheit (docs/analyse/06): auch im Web (Schalter „Barrierefreie Bedienung“ in der Kopfzeile)
+  { id: 'accessibility', label: 'ng-ui-set-sec-a11y' },
   { id: 'privacy', label: 'ng-ui-set-sec-privacy' },
   { id: 'advanced', label: 'ng-ui-set-sec-advanced' },
   { id: 'about', label: 'ng-ui-set-sec-about' },
@@ -48,6 +50,12 @@ export type RowId =
   | 'save.postfix'
   | 'appearance.theme'
   | 'appearance.language'
+  | 'accessibility.mode'
+  | 'accessibility.start'
+  | 'accessibility.check'
+  | 'accessibility.announce'
+  | 'accessibility.step'
+  | 'accessibility.keys'
   | 'privacy.info'
   | 'privacy.certcache'
   | 'privacy.recent'
@@ -98,6 +106,13 @@ export const ROWS: readonly RowDef[] = [
   { id: 'save.postfix', section: 'save', label: 'ng-ui-set-postfix' },
   { id: 'appearance.theme', section: 'appearance', label: 'ng-ui-set-theme' },
   { id: 'appearance.language', section: 'appearance', label: 'ng-ui-set-ui-lang' },
+  { id: 'accessibility.mode', section: 'accessibility', label: 'ng-ui-set-a11y-mode' },
+  { id: 'accessibility.start', section: 'accessibility', label: 'ng-ui-set-a11y-start' },
+  { id: 'accessibility.check', section: 'accessibility', label: 'ng-ui-set-a11y-check' },
+  { id: 'accessibility.announce', section: 'accessibility', label: 'ng-ui-set-a11y-announce' },
+  // Pfeiltasten und Kürzelübersicht nur mit Tastatur (Mobile: Ziehen und Doppeltippen)
+  { id: 'accessibility.step', section: 'accessibility', label: 'ng-ui-set-a11y-step', visible: desktop },
+  { id: 'accessibility.keys', section: 'accessibility', label: 'ng-ui-set-a11y-keys', visible: desktop },
   { id: 'privacy.info', section: 'privacy', label: 'ng-ui-set-privacy-info' },
   { id: 'privacy.certcache', section: 'privacy', label: 'ng-ui-set-certcache' },
   { id: 'privacy.recent', section: 'privacy', label: 'ng-ui-set-recent' },

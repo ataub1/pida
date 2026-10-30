@@ -23,10 +23,10 @@ export interface Toast {
  * Abschnitte der Einstellungen für `openSettings(section)` (ADR 0004 §6.1, in E0 festgelegt). Welcher
  * Abschnitt gezeigt wird, ist reiner UI-Zustand; der Kern öffnet nur das Overlay (`open_settings`).
  */
-export type SettingsSectionId = 'signature' | 'document' | 'signers' | 'save' | 'appearance' | 'privacy' | 'advanced' | 'about';
+export type SettingsSectionId = 'signature' | 'document' | 'signers' | 'save' | 'appearance' | 'accessibility' | 'privacy' | 'advanced' | 'about';
 
 /** Alle Abschnitte in der Reihenfolge der Einstellungen („Dokument“ seit E3 direkt nach „Signaturbild“). */
-export const SETTINGS_SECTION_IDS: readonly SettingsSectionId[] = ['signature', 'document', 'signers', 'save', 'appearance', 'privacy', 'advanced', 'about'];
+export const SETTINGS_SECTION_IDS: readonly SettingsSectionId[] = ['signature', 'document', 'signers', 'save', 'appearance', 'accessibility', 'privacy', 'advanced', 'about'];
 
 /** Overlays der Shell, die die Oberfläche selbst öffnet (Palette und Kürzelübersicht kommen mit B4). */
 export type ShellOverlay = 'palette' | 'shortcuts' | null;

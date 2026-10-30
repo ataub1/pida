@@ -6,9 +6,11 @@
  *
  * - Seiten werden nur in Sichtweite geladen; die sichtbaren Seiten gehen als `inspect_pages` (≤ 8) an den
  *   Kern, der dafür Layout (Einrastlinien, freie Flächen) und Prüfung liefert.
- * - Live-Region nach jeder Änderung der Platzierung (`announce` + Einrasten + Prüfergebnis).
+ * - Live-Region nach jeder Änderung der Platzierung (`announce` + Einrasten + Prüfergebnis); Umfang und Verzögerung
+ *   nach Einstellungen › Barrierefreiheit (ausführlich, erst nach dem Verschieben).
  * - „Signieren“ (Knopf, ⌘↵, Palette): mit gewähltem Signiermittel `sign_with`, sonst öffnet sich das Menü
- *   des Konto-Chips und die Wahl dort signiert (§3.4, §8 F12). Ohne Signiermittel-Auswahl (nur ein Signiermittel,
+ *   des Konto-Chips und die Wahl dort signiert (§3.4, §8 F12). Mit „Vor dem Signieren prüfen“ (Barrierefreiheit)
+ *   zuerst die Zusammenfassung `SignCheck`. Ohne Signiermittel-Auswahl (nur ein Signiermittel,
  *   `signers.choice_offered`, ADR 0004 Nachtrag 20) ist es vom Kern gewählt; ein Menü gibt es dann nicht.
  * - ⌘/Strg + Plus/Minus/0 zoomt nur die Seitenansicht.
  * - Einstellung „Automatische Positionierung“ (`document.placement_locked`, ADR 0004 Nachtrag 8): der Block ist
@@ -22,7 +24,9 @@ import type { DocumentView, GuideKind } from '../../core/types';
 import { Button, IconButton } from '../../ui/controls';
 import { useNarrow } from '../../ui/hooks';
 import { IconEyeOff, IconFitWidth, IconQr, IconSidebar, IconSignature, IconZoomIn, IconZoomOut } from '../../ui/Icons';
+import { accessibilityOf } from '../accessibility';
 import { Inspector } from './Inspector';
+import { SignCheck } from './SignCheck';
 import { signerChoice } from './signers';
 import { Pages } from './Pages';
 import { announceText, displayPages, isAutoPlaced, layoutPages, offeredField, PAGE_PAD, PT_TO_PX, visiblePages, ZOOM_STEPS } from './placement';
@@ -190,8 +194,11 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     }
   };
 
-  // Live-Region nach jeder Änderung der Platzierung (nicht beim Öffnen)
-  const text = announceText(t, doc, lastSnap.current);
+  // Live-Region nach jeder Änderung der Platzierung (nicht beim Öffnen); Umfang und Verzögerung laut Einstellungen ›
+  // Barrierefreiheit („erst nach dem Verschieben“: erst, wenn der Block kurz stillsteht)
+  const a11y = accessibilityOf(view);
+  const text = announceText(t, doc, lastSnap.current, a11y.announce);
+  const announceDelay = a11y.announce_after_move ? 900 : 250;
   const firstText = useRef(true);
   const announced = useRef(false);
   useEffect(() => {
@@ -202,9 +209,9 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     const timer = setTimeout(() => {
       announced.current = true;
       announce(text);
-    }, 250);
+    }, announceDelay);
     return () => clearTimeout(timer);
-  }, [doc.revision, text, announce]);
+  }, [doc.revision, text, announce, announceDelay]);
   // Dokument geschlossen bzw. gewechselt (eigene Ansicht je Dokument): die Lage dieses Dokuments verlässt die
   // Live-Region – sonst stand dort nach dem Öffnen eines anderen Stapeldokuments noch die vorige (Mobile-Check
   // 16.10.2026)
@@ -231,12 +238,21 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   // „Signieren“: mit gewähltem Signiermittel sofort, sonst das Menü des Konto-Chips (Wahl signiert) – ohne
   // Signiermittel-Auswahl gibt es kein Menü (Nachtrag 20)
   const choice = signerChoice(view);
-  const sign = useCallback(() => {
+  const [checking, setChecking] = useState(false);
+  const proceed = useCallback(() => {
     if (!view.actions.sign) return;
     setCoach(false);
     if (view.signers.selected) void dispatch({ type: 'sign_with', backend: view.signers.selected });
     else if (choice) setChip({ open: true, sign: true });
   }, [view.actions.sign, view.signers.selected, choice, dispatch]);
+  const check = a11y.check_before_sign && doc.phase === 'editing';
+  const sign = useCallback(() => {
+    if (!view.actions.sign) return;
+    if (check) {
+      setCoach(false);
+      setChecking(true);
+    } else proceed();
+  }, [view.actions.sign, check, proceed]);
   useEffect(() => {
     registerSign(sign);
     return () => registerSign(null);
@@ -358,6 +374,16 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
         onChipOpenChange={(open) => setChip({ open, sign: open ? chip.sign : false })}
         onSign={sign}
       />
+      {checking ? (
+        <SignCheck
+          doc={doc}
+          onCancel={() => setChecking(false)}
+          onSign={() => {
+            setChecking(false);
+            proceed();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -258,6 +258,14 @@ export const IconExternal = (p: IconProps) => (
     <path d="M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4" />
   </Icon>
 );
+/** Bedienungshilfen (Figur im Kreis, wie das Symbol der Systeme) */
+export const IconAccessibility = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9.5" />
+    <circle cx="12" cy="7.2" r="1.3" />
+    <path d="M7.5 9.6l4.5 1 4.5-1M12 10.6v3.4l-2.4 4.2M12 14l2.4 4.2" />
+  </Icon>
+);
 export const IconEye = (p: IconProps) => (
   <Icon {...p}>
     <path d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />

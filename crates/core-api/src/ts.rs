@@ -252,6 +252,57 @@ pub struct CertificateCacheSettings {
     pub enabled: bool,
 }
 
+/// Spiegel von `pida_config::PlacementStart`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementStart {
+    /// Seitenvorschau
+    Preview,
+    /// Auswahl der Methode
+    Methods,
+}
+
+/// Spiegel von `pida_config::AnnounceDetail`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnounceDetail {
+    /// kurz
+    Short,
+    /// ausführlich
+    Detailed,
+}
+
+/// Spiegel von `pida_config::KeyboardStep`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyboardStep {
+    /// 15 pt
+    Standard,
+    /// 1 mm
+    Mm1,
+    /// 5 mm
+    Mm5,
+    /// 10 mm
+    Mm10,
+}
+
+/// Spiegel von `pida_config::AccessibilitySettings`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct AccessibilitySettings {
+    /// „Barrierefreie Bedienung“
+    pub mode: bool,
+    /// Womit die Platzierung beginnt
+    pub start: PlacementStart,
+    /// Umfang der Ansagen
+    pub announce: AnnounceDetail,
+    /// erst nach dem Verschieben ansagen
+    pub announce_after_move: bool,
+    /// Schrittweite der Pfeiltasten
+    pub keyboard_step: KeyboardStep,
+    /// vor dem Signieren prüfen
+    pub check_before_sign: bool,
+}
+
 /// Wert eines unbekannten Eintrags (`Settings::unknown`): beliebiges JSON, unverändert zurückgeben.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(transparent)]
@@ -282,6 +333,8 @@ pub struct Settings {
     pub proxy: ProxySettings,
     /// Zertifikats-Cache
     pub certificate_cache: CertificateCacheSettings,
+    /// Barrierefreiheit
+    pub accessibility: AccessibilitySettings,
     /// unbekannte Einträge
     #[serde(flatten)]
     pub unknown: BTreeMap<String, UnknownValue>,
@@ -301,6 +354,7 @@ impl From<&pida_config::Settings> for Settings {
             output,
             proxy,
             certificate_cache,
+            accessibility,
             unknown,
         } = v;
         let c::GeneralSettings {
@@ -328,6 +382,14 @@ impl From<&pida_config::Settings> for Settings {
         let c::OutputSettings { folder, postfix } = output;
         let c::ProxySettings { mode, host, port, user } = proxy;
         let c::CertificateCacheSettings { enabled: cache_enabled } = certificate_cache;
+        let c::AccessibilitySettings {
+            mode: a11y_mode,
+            start,
+            announce,
+            announce_after_move,
+            keyboard_step,
+            check_before_sign,
+        } = accessibility;
         Settings {
             schema_version: *schema_version,
             general: GeneralSettings {
@@ -397,6 +459,25 @@ impl From<&pida_config::Settings> for Settings {
                 user: user.clone(),
             },
             certificate_cache: CertificateCacheSettings { enabled: *cache_enabled },
+            accessibility: AccessibilitySettings {
+                mode: *a11y_mode,
+                start: match start {
+                    c::PlacementStart::Preview => PlacementStart::Preview,
+                    c::PlacementStart::Methods => PlacementStart::Methods,
+                },
+                announce: match announce {
+                    c::AnnounceDetail::Short => AnnounceDetail::Short,
+                    c::AnnounceDetail::Detailed => AnnounceDetail::Detailed,
+                },
+                announce_after_move: *announce_after_move,
+                keyboard_step: match keyboard_step {
+                    c::KeyboardStep::Standard => KeyboardStep::Standard,
+                    c::KeyboardStep::Mm1 => KeyboardStep::Mm1,
+                    c::KeyboardStep::Mm5 => KeyboardStep::Mm5,
+                    c::KeyboardStep::Mm10 => KeyboardStep::Mm10,
+                },
+                check_before_sign: *check_before_sign,
+            },
             unknown: unknown
                 .iter()
                 .map(|(k, v)| (k.clone(), UnknownValue(serde_json::to_value(v).unwrap_or(serde_json::Value::Null))))
@@ -523,6 +604,10 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         ProxyMode,
         ProxySettings,
         CertificateCacheSettings,
+        PlacementStart,
+        AnnounceDetail,
+        KeyboardStep,
+        AccessibilitySettings,
         Settings,
         // pida-core-api (view.rs)
         NoticeView,

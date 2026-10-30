@@ -382,6 +382,7 @@ pub fn error_view(code: &str, params: BTreeMap<String, String>, retry: bool, lan
         },
         settings: None,
         language,
+        accessibility: None,
         notices: Vec::new(),
         migration: None,
         done: Vec::new(),
