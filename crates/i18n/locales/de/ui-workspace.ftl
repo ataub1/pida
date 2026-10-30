@@ -709,4 +709,6 @@ ng-ui-shell-qr-share-png = PNG teilen
 ng-ui-shell-qr-share-svg = SVG teilen
 ng-ui-shell-cmd-qr = QR-Platzhalter erstellen …
     .keywords = qr platzhalter signaturplatzhalter vorlage vorbereiten unterzeichnende mehrere dokument
-ng-ui-start-qr = Dokument für andere vorbereiten: QR-Platzhalter erstellen …
+ng-ui-start-qr-title = Dokument für andere vorbereiten
+ng-ui-start-qr-text = Mit einem QR-Platzhalter legen Sie fest, wo die Signatur hinkommt – auch für mehrere Unterzeichnende.
+ng-ui-start-qr-action = QR-Platzhalter erstellen

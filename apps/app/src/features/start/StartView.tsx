@@ -15,7 +15,8 @@
  * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
  * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
  *
- * Unter der Ablagefläche: „Dokument für andere vorbereiten: QR-Platzhalter erstellen …“ (ADR 0004 Nachtrag 24).
+ * Unter der Ablagefläche die Karte „Dokument für andere vorbereiten“ mit „QR-Platzhalter erstellen“ (ADR 0004
+ * Nachtrag 24).
  *
  * Web-Variante: unten Impressum und Datenschutz der Website, auf der PIDA läuft (`/impressum/`, `/datenschutz/`;
  * § 5 ECG verlangt ein leicht auffindbares Impressum).
@@ -79,13 +80,22 @@ export function StartView() {
             </p>
           </div>
         </section>
-        {/* für Ersteller:innen: Platzhalter für andere (zweitrangig, unter der Ablagefläche) */}
-        <div className="start-qr">
-          <Button variant="ghost" size="sm" onPress={() => setOverlay('qr')}>
-            <IconQr size={15} />
-            {t.t('ng-ui-start-qr')}
+        {/* für Ersteller:innen: Platzhalter für andere – eigene Karte unter der Ablagefläche */}
+        <section className="start-tool" aria-labelledby="start-tool-qr">
+          <span className="start-tool-icon" aria-hidden="true">
+            <IconQr size={24} />
+          </span>
+          <div className="start-tool-text">
+            <h2 className="start-tool-title" id="start-tool-qr">
+              {t.t('ng-ui-start-qr-title')}
+            </h2>
+            <p className="start-tool-desc">{t.t('ng-ui-start-qr-text')}</p>
+          </div>
+          <Button variant="secondary" className="start-tool-action" onPress={() => setOverlay('qr')}>
+            <IconQr size={16} />
+            {t.t('ng-ui-start-qr-action')}
           </Button>
-        </div>
+        </section>
         {webProfile() ? <WebLegalLinks /> : null}
       </div>
 

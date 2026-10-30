@@ -11,7 +11,8 @@ import { onMobile, viewOf } from '../../test/views';
 
 async function openFromStart(options: Parameters<typeof renderApp>[0] = {}) {
   const r = renderApp(options);
-  await r.user.click(await screen.findByRole('button', { name: 'Dokument für andere vorbereiten: QR-Platzhalter erstellen …' }));
+  const card = await screen.findByRole('region', { name: 'Dokument für andere vorbereiten' });
+  await r.user.click(within(card).getByRole('button', { name: 'QR-Platzhalter erstellen' }));
   const dialog = await screen.findByRole('dialog', { name: 'QR-Platzhalter erstellen' });
   return { ...r, dialog };
 }

@@ -3695,7 +3695,7 @@ Grundlage: Analyse 06 E-1, Vorbild PDF-AS-WAI („QR Platzhalter“, `pdf-as-web
    - Sprache.
 
    Dazu eine Vorschau des Kerns und eine Kurzanleitung. Erreichbar über:
-   - die Startseite (zweitrangig unter der Ablagefläche),
+   - die Startseite: eigene Karte „Dokument für andere vorbereiten“ unter der Ablagefläche,
    - die Befehlsliste,
    - „Platzierung der Signatur“ › „Platzhalter im Dokument“,
    - den Hilfeartikel „Dokument für andere vorbereiten“.
