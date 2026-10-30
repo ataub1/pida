@@ -5,11 +5,14 @@
 //! | `pida-render://localhost/page/<doc>/<seite>?scale=<f>` | `http://pida-render.localhost/page/…` | PNG der Seite (0-basiert) |
 //! | `pida-render://localhost/block?scale=<f>&rev=<n>` | `http://pida-render.localhost/block?…` | PNG der Blockvorschau |
 //! | `pida-render://localhost/thumb/<doc>` | `http://pida-render.localhost/thumb/<doc>` | PNG-Miniatur eines Stapeleintrags (ADR 0004 §3.8) |
+//! | `pida-render://localhost/qr/<nummer>.<png\|svg>?profile=<p>&lang=<de\|en>` | `http://pida-render.localhost/qr/…` | QR-Platzhalter (ADR 0004 Nachtrag 24) |
 //!
 //! `scale` ist der Faktor gegenüber 72 dpi (1 pt = 1 px); `rev` dient nur dem Cache-Busting
 //! (`BlockView::preview_revision`). Alle Eingaben werden streng geprüft; Antworten tragen nie
 //! Dokumentinhalte in Fehlertexten (Regel 9).
 
+use pida_core_api::qr_placeholder::{QrPlaceholderFormat, QrPlaceholderProfile, QrPlaceholderSpec};
+use pida_i18n::Lang;
 use pida_workflow::DocId;
 
 /// Name des Schemas.
@@ -20,7 +23,7 @@ pub const MIN_SCALE: f32 = 0.05;
 pub const MAX_SCALE: f32 = 8.0;
 
 /// Geprüfte Anfrage.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RenderRequest {
     /// Seitenkachel
     Page {
@@ -40,6 +43,13 @@ pub enum RenderRequest {
     Thumb {
         /// Dokument
         doc: DocId,
+    },
+    /// QR-Platzhalter („QR-Platzhalter erstellen“)
+    Qr {
+        /// Inhalt
+        spec: QrPlaceholderSpec,
+        /// Format
+        format: QrPlaceholderFormat,
     },
 }
 
@@ -67,8 +77,33 @@ pub fn parse(path: &str, query: Option<&str>) -> Result<RenderRequest, RenderUri
             let doc = doc.parse::<u64>().map_err(|_| RenderUriError::BadRequest("doc"))?;
             Ok(RenderRequest::Thumb { doc: DocId(doc) })
         }
+        ["qr", file] => qr_request(file, query),
         _ => Err(RenderUriError::NotFound),
     }
+}
+
+fn qr_request(file: &str, query: Option<&str>) -> Result<RenderRequest, RenderUriError> {
+    let (id, format) = match file.rsplit_once('.') {
+        Some((id, "png")) => (id, QrPlaceholderFormat::Png),
+        Some((id, "svg")) => (id, QrPlaceholderFormat::Svg),
+        _ => return Err(RenderUriError::NotFound),
+    };
+    let (mut profile, mut language) = (QrPlaceholderProfile::Standard, Lang::De);
+    for pair in query.unwrap_or("").split('&').filter(|p| !p.is_empty()) {
+        match pair.split_once('=').unwrap_or((pair, "")) {
+            ("profile", "standard") => profile = QrPlaceholderProfile::Standard,
+            ("profile", "amtssignatur") => profile = QrPlaceholderProfile::Amtssignatur,
+            ("profile", "signer") => profile = QrPlaceholderProfile::Signer,
+            ("profile", _) => return Err(RenderUriError::BadRequest("profile")),
+            ("lang", "de") => language = Lang::De,
+            ("lang", "en") => language = Lang::En,
+            ("lang", _) => return Err(RenderUriError::BadRequest("lang")),
+            _ => {}
+        }
+    }
+    let spec = QrPlaceholderSpec { id: id.to_owned(), profile, language };
+    spec.validate().map_err(|_| RenderUriError::BadRequest("id"))?;
+    Ok(RenderRequest::Qr { spec, format })
 }
 
 fn scale_param(query: Option<&str>) -> Result<f32, RenderUriError> {
@@ -88,9 +123,14 @@ fn scale_param(query: Option<&str>) -> Result<f32, RenderUriError> {
 
 /// Antwort als PNG.
 pub fn png(bytes: Vec<u8>) -> tauri::http::Response<Vec<u8>> {
+    image(bytes, "image/png")
+}
+
+/// Antwort als Bild des Typs `content_type`.
+pub fn image(bytes: Vec<u8>, content_type: &'static str) -> tauri::http::Response<Vec<u8>> {
     tauri::http::Response::builder()
         .status(200)
-        .header(tauri::http::header::CONTENT_TYPE, "image/png")
+        .header(tauri::http::header::CONTENT_TYPE, content_type)
         .header(tauri::http::header::CACHE_CONTROL, "no-store")
         .header("X-Content-Type-Options", "nosniff")
         .body(bytes)
@@ -113,6 +153,33 @@ pub fn error(status: u16, code: &str) -> tauri::http::Response<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_qr_placeholders() {
+        assert_eq!(
+            parse("/qr/0001.png", Some("profile=amtssignatur&lang=en")),
+            Ok(RenderRequest::Qr {
+                spec: QrPlaceholderSpec {
+                    id: "0001".into(),
+                    profile: QrPlaceholderProfile::Amtssignatur,
+                    language: Lang::En
+                },
+                format: QrPlaceholderFormat::Png,
+            })
+        );
+        assert_eq!(
+            parse("/qr/7.svg", None),
+            Ok(RenderRequest::Qr {
+                spec: QrPlaceholderSpec { id: "7".into(), profile: QrPlaceholderProfile::Standard, language: Lang::De },
+                format: QrPlaceholderFormat::Svg,
+            })
+        );
+        assert_eq!(parse("/qr/7.gif", None), Err(RenderUriError::NotFound));
+        assert_eq!(parse("/qr/abc.png", None), Err(RenderUriError::BadRequest("id")));
+        assert_eq!(parse("/qr/12345678901.png", None), Err(RenderUriError::BadRequest("id")));
+        assert_eq!(parse("/qr/1.png", Some("profile=x")), Err(RenderUriError::BadRequest("profile")));
+        assert_eq!(parse("/qr/1.png", Some("lang=fr")), Err(RenderUriError::BadRequest("lang")));
+    }
 
     #[test]
     fn parses_page_tiles() {

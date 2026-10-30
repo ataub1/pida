@@ -6,7 +6,7 @@
  * `pida:view`, Custom Protocol `pida-render://`) und der TS-Mock-Kern (`mock.ts`, für
  * `VITE_MOCK=1`, Browser-Vorschau und Tests).
  */
-import type { DocId, UiEvent, ViewState } from './types';
+import type { DocId, QrPlaceholderFormat, QrPlaceholderSpec, UiEvent, ViewState } from './types';
 
 /** Name des Ereignisses mit dem aktuellen ViewState (`pida_app_lib::VIEW_EVENT`). */
 export const VIEW_EVENT = 'pida:view';
@@ -55,6 +55,8 @@ export interface CoreBridge {
    * §3.8/§3.14). Nur bei `BatchItemView::thumbnail`.
    */
   thumbUrl(doc: DocId): string;
+  /** URL eines QR-Platzhalters als PNG bzw. SVG („QR-Platzhalter erstellen“, `pida-render://qr/…`). */
+  qrPlaceholderUrl(spec: QrPlaceholderSpec, format: QrPlaceholderFormat): string;
 }
 
 /** Ergebnis der Mobile-Dateiauswahl (Command `mobile_pick_files`): Kopien in der Sandbox und nicht übernommene. */
@@ -160,6 +162,11 @@ export function thumbPath(doc: DocId): string {
   return `thumb/${encodeURIComponent(String(doc))}`;
 }
 
+/** URL eines QR-Platzhalters relativ zur Basis (Nummer nur Ziffern, sonst leer – der Kern prüft ebenfalls). */
+export function qrPlaceholderPath(spec: QrPlaceholderSpec, format: QrPlaceholderFormat): string {
+  return `qr/${encodeURIComponent(spec.id)}.${format}?profile=${spec.profile}&lang=${spec.language}`;
+}
+
 /** URL der Blockvorschau relativ zur Basis. */
 export function blockPreviewPath(scale: number, revision: number): string {
   return `block?scale=${tileScale(scale)}&rev=${encodeURIComponent(String(revision))}`;
@@ -216,6 +223,7 @@ export async function createTauriBridge(): Promise<Bridge> {
     pageTileUrl: (doc, page, scale) => base + pageTilePath(doc, page, scale),
     blockPreviewUrl: (scale, revision) => base + blockPreviewPath(scale, revision),
     thumbUrl: (doc) => base + thumbPath(doc),
+    qrPlaceholderUrl: (spec, format) => base + qrPlaceholderPath(spec, format),
 
     async pickFiles({ title, filters, defaultPath, multiple }) {
       const result = await dialog.open({ title, filters, multiple, directory: false, defaultPath: defaultPath ?? undefined });

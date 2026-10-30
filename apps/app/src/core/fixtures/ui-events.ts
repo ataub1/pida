@@ -136,6 +136,9 @@ export const UI_EVENT_EXTRA: UiEvent[] = [
   { type: 'start_batch', backend: 'local_bku', docs: [], output_dir: null, on_existing: 'skip' },
   { type: 'apply_settings', changes: {}, revision: 0 },
   { type: 'set_ui_language', language: null },
+  // „QR-Platzhalter erstellen“ (ADR 0004 Nachtrag 24)
+  { type: 'export_qr_placeholder', spec: { id: '0001', profile: 'standard', language: 'de' }, format: 'png', path: '/Users/demo/qr-platzhalter-0001.png' },
+  { type: 'export_qr_placeholder', spec: { id: '2', profile: 'signer', language: 'en' }, format: 'svg', path: null },
   // Einstellungen › Barrierefreiheit (Schalter „Barrierefreie Bedienung“, docs/analyse/06)
   {
     type: 'set_accessibility',

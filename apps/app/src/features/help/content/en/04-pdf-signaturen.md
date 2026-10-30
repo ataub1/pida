@@ -41,3 +41,21 @@ Translation of content/de/04-pdf-signaturen.md.
 
 PDF/A is an ISO standard for the long-term archiving of PDF documents. PIDA detects PDF/A documents and signs them so
 that they remain PDF/A-compliant.
+
+## Preparing a document for others (QR placeholder) {#dokument-fur-andere-vorbereiten-qr-platzhalter}
+
+If you create a document that others will sign, a **QR placeholder** determines where the signature goes. PIDA,
+PDF-Over and PDF-AS (including the accessible signing page PDF-AS-WAI) recognise it and put the signature block in
+its place.
+
+1. Choose **“Create QR placeholder …”** – on the start page below the drop area or in the command list.
+2. Set a **number**. For several signatures, each placeholder gets its own number, e.g. 0001 and 0002. Tell the
+   signers their number.
+3. Choose the **signature block** and **language**. “As set by the signer” uses their own signature block.
+4. Save as **PNG** or **SVG** and insert it in your word processor at the desired place, as wide as the signature
+   block should be. It is saved 8.5 cm wide, which fits the standard signature block.
+5. Save the document as PDF.
+
+When signing, PIDA finds the placeholder if the placeholder search for QR code placeholders is switched on under
+Settings › Document. Without a placeholder, millimetre values also work: give the signers the page and the distance
+of the top left corner from the left and from the bottom (“Signature placement” › “Position in millimetres”).

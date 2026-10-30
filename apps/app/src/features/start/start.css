@@ -286,3 +286,50 @@
   font-size: var(--fs-12);
   color: var(--c-text-3);
 }
+
+/* Karte „Dokument für andere vorbereiten“ (ADR 0004 Nachtrag 24): eigene Aufgabe neben dem Signieren */
+.start-tool {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-5);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-1);
+}
+.start-tool-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-4);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+}
+.start-tool-text {
+  display: grid;
+  gap: 2px;
+}
+.start-tool-title {
+  margin: 0;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+}
+.start-tool-desc {
+  margin: 0;
+  font-size: var(--fs-14);
+  color: var(--c-text-2);
+}
+@media (max-width: 640px) {
+  .start-tool {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .start-tool-action {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+}

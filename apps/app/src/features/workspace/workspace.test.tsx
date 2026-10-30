@@ -917,3 +917,14 @@ describe('Automatische Positionierung (Einstellung, ADR 0004 Nachtrag 8)', () =>
     await expectNoAxeViolations();
   });
 });
+
+describe('Inhaltsbereich im Arbeitsbereich', () => {
+  it('rollt nie: wird `.app-main` trotzdem gerollt (Fokus, scrollIntoView in WKWebView), springt er zurück', async () => {
+    renderApp({ view: workspaceView() });
+    await screen.findByRole('application', { name: 'Signaturblock' });
+    const main = document.getElementById('main') as HTMLElement;
+    main.scrollTop = 64;
+    fireEvent.scroll(main);
+    expect(main.scrollTop).toBe(0);
+  });
+});

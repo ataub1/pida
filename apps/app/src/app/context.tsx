@@ -29,7 +29,7 @@ export type SettingsSectionId = 'signature' | 'document' | 'signers' | 'save' | 
 export const SETTINGS_SECTION_IDS: readonly SettingsSectionId[] = ['signature', 'document', 'signers', 'save', 'appearance', 'accessibility', 'privacy', 'advanced', 'about'];
 
 /** Overlays der Shell, die die Oberfläche selbst öffnet (Palette und Kürzelübersicht kommen mit B4). */
-export type ShellOverlay = 'palette' | 'shortcuts' | null;
+export type ShellOverlay = 'palette' | 'shortcuts' | 'qr' | null;
 
 /** Werte des Kontexts. */
 export interface AppContextValue {

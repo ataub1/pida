@@ -279,5 +279,5 @@ Reihenfolge: 1 → 2 → 6 (erste Tests mit Betroffenen) → 3 → 4 → 5.
   meldet nur einen. Dafür braucht es eine Kernänderung an Suche, Zustand und Fortsetzen.
 - B-2 VoiceOver „anpassbar“ bzw. TalkBack-Aktionen (Mobile-Plugins).
 - P-8 Stapel, P-9 Übergabe von außen.
-- E-1/E-2 Platzhalter erzeugen.
+- E-2 Platzhalter direkt ins PDF setzen (E-1 „QR-Platzhalter erstellen“ ist umgesetzt, ADR 0004 Nachtrag 24).
 - Q-2…Q-5: Screenreader-Protokolle, Tests mit Betroffenen, Audit.

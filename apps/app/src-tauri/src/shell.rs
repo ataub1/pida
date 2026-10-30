@@ -270,13 +270,20 @@ impl Shell {
         let Some(core) = self.core() else {
             return protocol::error(503, CORE_UNAVAILABLE);
         };
-        let result = catch_unwind(AssertUnwindSafe(|| match request {
-            RenderRequest::Page { doc, page, scale } => core.page_tile(doc, page, scale),
-            RenderRequest::Block { scale } => core.block_preview(scale),
-            RenderRequest::Thumb { doc } => core.thumbnail(doc),
+        let content_type = match &request {
+            RenderRequest::Qr { format: pida_core_api::qr_placeholder::QrPlaceholderFormat::Svg, .. } => {
+                "image/svg+xml"
+            }
+            _ => "image/png",
+        };
+        let result = catch_unwind(AssertUnwindSafe(|| match &request {
+            RenderRequest::Page { doc, page, scale } => core.page_tile(*doc, *page, *scale),
+            RenderRequest::Block { scale } => core.block_preview(*scale),
+            RenderRequest::Thumb { doc } => core.thumbnail(*doc),
+            RenderRequest::Qr { spec, format } => core.qr_placeholder(spec, *format),
         }));
         match result {
-            Ok(Ok(png)) => protocol::png(png),
+            Ok(Ok(bytes)) => protocol::image(bytes, content_type),
             Ok(Err(pida_core_api::CoreError::UnknownDocument(_))) => protocol::error(404, "unknown-document"),
             Ok(Err(e)) => {
                 tracing::warn!(error = %e, "Rendern fehlgeschlagen");

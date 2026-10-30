@@ -180,6 +180,7 @@ fn ui_event_kind(e: &UiEvent) -> &'static str {
         UiEvent::ApplySettings { .. } => "apply_settings",
         UiEvent::SetUiLanguage { .. } => "set_ui_language",
         UiEvent::SetAccessibility { .. } => "set_accessibility",
+        UiEvent::ExportQrPlaceholder { .. } => "export_qr_placeholder",
         UiEvent::UpdateFirstRun { .. } => "update_first_run",
         UiEvent::FinishFirstRun => "finish_first_run",
         UiEvent::OfferMigration => "offer_migration",
@@ -2634,6 +2635,7 @@ impl CoreTask {
             // Oberflächensprache (Kopfzeile, Palette): in beiden Modi; schreibgeschützt nur im Speicher
             UiEvent::SetUiLanguage { language } => self.set_ui_language(language),
             UiEvent::SetAccessibility { accessibility } => self.set_accessibility(accessibility),
+            UiEvent::ExportQrPlaceholder { spec, format, path } => self.export_qr_placeholder(spec, format, path),
             // ADR 0004 §3.11 (K3): sofort wirksame Einstellungen (in beiden Modi, nur mit offener Ansicht)
             UiEvent::ApplySettings { changes, revision } => self.apply_settings(&changes, revision),
             // ADR 0004 §3.10 (K3): „Zuletzt signiert“
@@ -2823,6 +2825,51 @@ impl CoreTask {
         if let Some(v) = &mut self.settings_view {
             v.settings.accessibility = self.cfg.settings.accessibility;
         }
+    }
+
+    /// „QR-Platzhalter erstellen“: Bild im Hintergrund erzeugen und speichern; mit Pfad Hinweis „gespeichert“, ohne
+    /// Pfad teilen (Mobile) bzw. öffnen (Web: Download). Fehler als Hinweis.
+    fn export_qr_placeholder(
+        &mut self,
+        spec: crate::qr_placeholder::QrPlaceholderSpec,
+        format: crate::qr_placeholder::QrPlaceholderFormat,
+        path: Option<PathBuf>,
+    ) {
+        use crate::qr_placeholder as qr;
+        if let Err(code) = spec.validate() {
+            self.notify(code, BTreeMap::new());
+            return;
+        }
+        let target = path.clone().unwrap_or_else(|| qr::temp_target(&self.cfg.paths.temp_dir, &spec, format));
+        let mobile = !self.mobile.platform.is_desktop();
+        let render = self.shared.render.clone();
+        let shell = self.shared.shell();
+        let shared = self.shared.clone();
+        crate::rt::spawn_blocking(move || {
+            let written = qr::image(&spec, format, render.as_deref()).and_then(|bytes| {
+                if let Some(dir) = target.parent() {
+                    pida_fs::create_dir_all(dir).map_err(|_| qr::MSG_FAILED)?;
+                }
+                pida_fs::write(&target, bytes).map_err(|_| qr::MSG_FAILED)
+            });
+            let notice = match written {
+                Err(code) => Some(qr::notice(Err(code))),
+                Ok(()) if path.is_some() => Some(qr::notice(Ok(file_name(&target)))),
+                Ok(()) => {
+                    let handed = shell.map(|s| if mobile { s.share_path(&target) } else { s.open_path(&target) });
+                    match handed {
+                        Some(Ok(())) => None,
+                        _ => {
+                            tracing::warn!("QR-Platzhalter: Teilen bzw. Öffnen fehlgeschlagen");
+                            Some(qr::notice(Err(qr::MSG_FAILED)))
+                        }
+                    }
+                }
+            };
+            if let Some(n) = notice {
+                shared.send(Msg::Notices(vec![n]));
+            }
+        });
     }
 
     /// Vorbereitetes Dokument, Attribute und Ergebnis verwerfen, Sitzung und Kette behalten (§3.6).

@@ -195,6 +195,18 @@ impl WebCore {
     pub fn thumbnail(&self, doc: u64) -> Result<Vec<u8>, JsError> {
         self.core.thumbnail(pida_workflow::DocId(doc)).map_err(js_err)
     }
+
+    /// QR-Platzhalter („QR-Platzhalter erstellen“) als PNG bzw. SVG; `spec` als JSON (`QrPlaceholderSpec`),
+    /// `format` = `png` bzw. `svg`.
+    pub fn qr_placeholder(&self, spec: &str, format: &str) -> Result<Vec<u8>, JsError> {
+        use pida_core_api::qr_placeholder::{QrPlaceholderFormat, QrPlaceholderSpec};
+        let spec: QrPlaceholderSpec = serde_json::from_str(spec).map_err(|_| JsError::new("ng-qr-invalid-id"))?;
+        let format = match format {
+            "svg" => QrPlaceholderFormat::Svg,
+            _ => QrPlaceholderFormat::Png,
+        };
+        self.core.qr_placeholder(&spec, format).map_err(js_err)
+    }
 }
 
 /// EUPL-1.2-Text (Über PIDA › Lizenzen).

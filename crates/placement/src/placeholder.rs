@@ -175,6 +175,46 @@ pub fn parse_qr_payload(text: &str) -> Option<QrPayload> {
     Some(payload)
 }
 
+/// Inhalt eines QR-Platzhalters, wie ihn der PDF-AS-Generator erzeugt und [`parse_qr_payload`] liest:
+/// `PDF-AS-POS;id=<id>` und optional `;profile=<Profil-ID>` (ohne Profil gilt das der unterzeichnenden Person).
+pub fn qr_placeholder_text(id: &str, profile: Option<&str>) -> String {
+    match profile {
+        Some(p) => format!("{QR_PLACEHOLDER_IDENTIFIER};id={id};profile={p}"),
+        None => format!("{QR_PLACEHOLDER_IDENTIFIER};id={id}"),
+    }
+}
+
+/// Module eines QR-Codes (ohne Ruhezone), zeilenweise von oben links; `true` = dunkel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QrMatrix {
+    /// Module je Seite
+    pub size: u32,
+    /// `size × size` Module
+    pub modules: Vec<bool>,
+}
+
+impl QrMatrix {
+    /// Modul an Spalte `x`, Zeile `y` (außerhalb: hell).
+    pub fn get(&self, x: u32, y: u32) -> bool {
+        x < self.size && y < self.size && self.modules[(y * self.size + x) as usize]
+    }
+}
+
+/// Kodiert `text` als QR-Code (`rxing`, Fehlerkorrektur M wie ZXing-Standard), ohne Ruhezone.
+pub fn encode_qr(text: &str) -> Result<QrMatrix> {
+    use rxing::Writer as _;
+    let hints = rxing::EncodeHints::default().with(rxing::EncodeHintValue::Margin("0".to_owned()));
+    let m = rxing::qrcode::QRCodeWriter
+        .encode_with_hints(text, &rxing::BarcodeFormat::QR_CODE, 0, 0, &hints)
+        .map_err(|e| PlacementError::Qr(e.to_string()))?;
+    let size = m.width();
+    if size == 0 || m.height() != size {
+        return Err(PlacementError::Qr("QR-Matrix nicht quadratisch".into()));
+    }
+    let modules = (0..size).flat_map(|y| (0..size).map(move |x| (x, y))).map(|(x, y)| m.get(x, y)).collect();
+    Ok(QrMatrix { size, modules })
+}
+
 /// Bilder bis zu dieser Pixelzahl werden ohne Treffer ein zweites Mal 2× vergrößert dekodiert.
 pub const QR_UPSCALE_MAX_PIXELS: u64 = 4_000_000;
 
@@ -533,6 +573,33 @@ pub fn find_empty_sig_fields(fields: &[SigField]) -> Vec<EmptyFieldCandidate> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// „QR-Platzhalter erstellen“: was PIDA erzeugt, erkennt es selbst wieder (Inhalt wie der PDF-AS-Generator).
+    #[test]
+    fn generated_placeholder_decodes_to_the_same_payload() {
+        for (id, profile) in
+            [("0001", Some("SIGNATURBLOCK_SMALL_DE")), ("12", Some("AMTSSIGNATURBLOCK_EN_RECOMMENDED")), ("7", None)]
+        {
+            let text = qr_placeholder_text(id, profile);
+            let m = encode_qr(&text).unwrap();
+            assert!(m.size >= 21 && m.modules.len() == (m.size * m.size) as usize);
+            // 4 px je Modul, 4 Module Ruhezone
+            let px = 4;
+            let side = (m.size + 8) * px;
+            let mut data = Vec::with_capacity((side * side * 4) as usize);
+            for y in 0..side {
+                for x in 0..side {
+                    let (mx, my) = ((x / px).wrapping_sub(4), (y / px).wrapping_sub(4));
+                    let g = if m.get(mx, my) { 0 } else { 255 };
+                    data.extend_from_slice(&[g, g, g, 255]);
+                }
+            }
+            let decoded = decode_qr(&RgbaImage::from_raw(side, side, data).unwrap());
+            let payload = decoded.iter().find_map(|t| parse_qr_payload(t)).expect("erkannt");
+            assert_eq!(payload.id.as_deref(), Some(id));
+            assert_eq!(payload.profile.as_deref(), profile);
+        }
+    }
 
     #[test]
     fn java_string_helpers() {

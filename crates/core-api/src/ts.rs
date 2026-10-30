@@ -609,6 +609,10 @@ pub fn typescript_bindings_with_names() -> (String, Vec<String>) {
         KeyboardStep,
         AccessibilitySettings,
         Settings,
+        // pida-core-api (qr_placeholder.rs)
+        crate::qr_placeholder::QrPlaceholderProfile,
+        crate::qr_placeholder::QrPlaceholderFormat,
+        crate::qr_placeholder::QrPlaceholderSpec,
         // pida-core-api (view.rs)
         NoticeView,
         SaveDialogView,

@@ -1,0 +1,33 @@
+/* „QR-Platzhalter erstellen“ (ADR 0004 Nachtrag 24) */
+.qr-body {
+  display: grid;
+  gap: var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+  overflow: auto;
+}
+.qr-fields {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+.qr-preview {
+  margin: 0;
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: center;
+  padding: var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-4);
+  background: var(--c-surface-2);
+}
+.qr-preview img {
+  width: min(100%, 360px);
+  height: auto;
+  background: #fff;
+  box-shadow: var(--shadow-1);
+}
+.qr-hint {
+  font-size: var(--fs-13);
+  color: var(--c-text-2);
+  max-width: 52ch;
+}

@@ -4090,6 +4090,7 @@ dependencies = [
  "pida-render",
  "pida-sigblock",
  "pida-workflow",
+ "png 0.18.1",
  "serde",
  "serde_json",
  "tempfile",

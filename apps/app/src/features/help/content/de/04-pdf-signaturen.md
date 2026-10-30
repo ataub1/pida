@@ -40,3 +40,23 @@
 
 PDF/A ist ein ISO-Standard für die Langzeitarchivierung von PDF-Dokumenten. PIDA erkennt PDF/A-Dokumente und
 signiert sie so, dass sie PDF/A-konform bleiben.
+
+## Dokument für andere vorbereiten (QR-Platzhalter)
+
+Wer ein Dokument erstellt, das andere unterschreiben, kann mit einem **QR-Platzhalter** festlegen, wo die
+Signatur hinkommt. PIDA, PDF-Over und PDF-AS (auch die barrierefreie Signaturseite PDF-AS-WAI) erkennen ihn und
+setzen den Signaturblock an seine Stelle.
+
+1. **„QR-Platzhalter erstellen …“** wählen – auf der Startseite unter der Ablagefläche oder in der Befehlsliste.
+2. **Nummer** festlegen. Für mehrere Unterschriften bekommt jeder Platzhalter eine eigene Nummer, z. B. 0001 und
+   0002. Teilen Sie den Unterzeichnenden ihre Nummer mit.
+3. **Signaturbild** und **Sprache** wählen. „Wie bei der unterzeichnenden Person eingestellt“ übernimmt deren
+   eigenes Signaturbild.
+4. Als **PNG** oder **SVG** speichern und im Textprogramm an der gewünschten Stelle einfügen – so breit, wie der
+   Signaturblock werden soll. Gespeichert ist er 8,5 cm breit, das passt zum Standard-Signaturblock.
+5. Das Dokument als PDF speichern.
+
+Beim Signieren findet PIDA den Platzhalter, wenn unter Einstellungen › Dokument die Platzhaltersuche für
+QR-Code-Platzhalter eingeschaltet ist. Ohne Platzhalter geht es auch mit Millimeter-Angaben: Geben Sie den
+Unterzeichnenden Seite und Abstand von links und von unten der linken oberen Ecke an („Platzierung der Signatur“ ›
+„Position in Millimetern“).

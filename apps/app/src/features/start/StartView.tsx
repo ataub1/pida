@@ -15,6 +15,9 @@
  * Geparkte Arbeit („Zur Startseite“, ADR 0004 Nachtrag 10): oben die Karte „In Bearbeitung“ (`ParkedCard`); neue
  * PDFs fragen dann vorher, ob sie zum Stapel kommen (`ParkedJoinDialog`, Shell).
  *
+ * Unter der Ablagefläche die Karte „Dokument für andere vorbereiten“ mit „QR-Platzhalter erstellen“ (ADR 0004
+ * Nachtrag 24).
+ *
  * Web-Variante: unten Impressum und Datenschutz der Website, auf der PIDA läuft (`/impressum/`, `/datenschutz/`;
  * § 5 ECG verlangt ein leicht auffindbares Impressum).
  */
@@ -22,8 +25,8 @@ import { Link } from 'react-aria-components';
 import { useApp } from '../../app/context';
 import { isMobile } from '../../core/types';
 import { webProfile } from '../../core/web-profile';
-import { AccessButton, Keys, useModKey } from '../../ui/controls';
-import { IconLock, IconUpload } from '../../ui/Icons';
+import { AccessButton, Button, Keys, useModKey } from '../../ui/controls';
+import { IconLock, IconQr, IconUpload } from '../../ui/Icons';
 import { batchFlow, dropHintMsg } from '../batch/flow';
 import { RECENT_AVAILABLE, RecentPanel } from '../recent';
 import { ParkedCard } from './ParkedCard';
@@ -31,7 +34,7 @@ import { UpdateHint } from './UpdateHint';
 import './start.css';
 
 export function StartView() {
-  const { t, view, dragActive, browse } = useApp();
+  const { t, view, dragActive, browse, setOverlay } = useApp();
   const { mod } = useModKey();
   const mobile = isMobile(view);
   const showRecent = RECENT_AVAILABLE && view.recent !== null;
@@ -76,6 +79,22 @@ export function StartView() {
               )}
             </p>
           </div>
+        </section>
+        {/* für Ersteller:innen: Platzhalter für andere – eigene Karte unter der Ablagefläche */}
+        <section className="start-tool" aria-labelledby="start-tool-qr">
+          <span className="start-tool-icon" aria-hidden="true">
+            <IconQr size={24} />
+          </span>
+          <div className="start-tool-text">
+            <h2 className="start-tool-title" id="start-tool-qr">
+              {t.t('ng-ui-start-qr-title')}
+            </h2>
+            <p className="start-tool-desc">{t.t('ng-ui-start-qr-text')}</p>
+          </div>
+          <Button variant="secondary" className="start-tool-action" onPress={() => setOverlay('qr')}>
+            <IconQr size={16} />
+            {t.t('ng-ui-start-qr-action')}
+          </Button>
         </section>
         {webProfile() ? <WebLegalLinks /> : null}
       </div>

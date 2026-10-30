@@ -30,6 +30,7 @@ import { DoneView, OutputDialogs } from '../features/done';
 import { Onboarding } from '../features/onboarding';
 import { HELP_AVAILABLE, HelpPanel } from '../features/help';
 import { CommandPalette, PALETTE_AVAILABLE, ShortcutsDialog } from '../features/palette';
+import { QrPlaceholderDialog } from '../features/qr/QrPlaceholderDialog';
 import { SettingsPanel } from '../features/settings';
 import { cardMode, errorInCard, SigningCard } from '../features/signing';
 import { ParkedJoinDialog, StartView, type JoinRequest } from '../features/start';
@@ -468,7 +469,16 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           </a>
           {web ? <DownloadBanner /> : null}
           <Header theme={theme} onTheme={setTheme} />
-          <main id="main" className="app-main" tabIndex={-1}>
+          <main
+            id="main"
+            className="app-main"
+            tabIndex={-1}
+            // Arbeitsbereich (`overflow: hidden`): der Inhaltsbereich rollt nie – rollt ihn etwas trotzdem (Fokus,
+            // `scrollIntoView` in WKWebView), sofort zurück, sonst stünde alles verschoben (macOS-Testbuild 30.10.2026)
+            onScroll={(e) => {
+              if (main === 'workspace' && e.currentTarget.scrollTop !== 0) e.currentTarget.scrollTop = 0;
+            }}
+          >
             {main === 'starting' ? <StartingCard /> : null}
             {main === 'start' ? <StartView /> : null}
             {main === 'loading' && step.step === 'loading' ? <LoadingCard step={step} /> : null}
@@ -491,6 +501,7 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
               <HelpPanel target={help.target} onClose={() => setHelp(null)} />
             </Suspense>
           ) : null}
+          {overlay === 'qr' ? <QrPlaceholderDialog onClose={() => setOverlay(null)} /> : null}
           <ShortcutsDialog isOpen={overlay === 'shortcuts'} onClose={() => setOverlay(null)} commands={commands} shortcuts={buildShortcuts(t, isMac)} />
           <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />
           <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="live-region">

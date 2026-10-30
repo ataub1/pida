@@ -14,7 +14,7 @@ import { Disclosure, DisclosurePanel, Heading, Button as AriaButton } from 'reac
 import { useApp } from '../../app/context';
 import type { AccessibilitySettings, AnnounceDetail, DocumentView, KeyboardStep, RectPt } from '../../core/types';
 import { Button, RadioCards, Segmented, SwitchField, TextInput } from '../../ui/controls';
-import { IconChevronRight, IconSettings, IconTarget, IconWand } from '../../ui/Icons';
+import { IconChevronRight, IconQr, IconSettings, IconTarget, IconWand } from '../../ui/Icons';
 import { accessibilityOf, formatMm, parseMm, PT_PER_MM } from '../accessibility';
 import { announceText, displayPages, isAutoPlaced, offeredField, zoneText } from './placement';
 
@@ -175,7 +175,7 @@ function where(t: ReturnType<typeof useApp>['t'], sizes: [number, number][], pag
  * ergäbe nichts, was die Liste nicht schon zeigt.
  */
 function PlaceholderDetail({ doc, editable, sizes }: { doc: DocumentView; editable: boolean; sizes: [number, number][] }) {
-  const { t, dispatch, openSettings, view } = useApp();
+  const { t, dispatch, openSettings, view, setOverlay } = useApp();
   const fields = doc.fields.filter(offeredField);
   const qr = doc.qr;
   const current = doc.target.kind === 'field' ? `field:${doc.target.index}` : doc.target.kind === 'qr' ? 'qr' : null;
@@ -206,6 +206,13 @@ function PlaceholderDetail({ doc, editable, sizes }: { doc: DocumentView; editab
           </Button>
         </div>
       ) : null}
+      {/* wer selbst Dokumente vorbereitet: Platzhalter für andere erstellen (ADR 0004 Nachtrag 24) */}
+      <div>
+        <Button variant="ghost" size="sm" onPress={() => setOverlay('qr')}>
+          <IconQr size={15} />
+          {t.t('ng-ui-shell-cmd-qr')}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -306,8 +313,14 @@ function FreeDetail({ doc, editable, sizes }: { doc: DocumentView; editable: boo
   };
   const toBlock = () => {
     const el = document.querySelector<HTMLElement>('[data-testid="sticker"]');
-    el?.scrollIntoView?.({ block: 'center' });
-    el?.focus();
+    // nur die Seitenansicht rollen (nicht `.app-main`, siehe Workspace `centerInCanvas`)
+    const scroller = el?.closest<HTMLElement>('.canvas-scroll');
+    if (el && scroller) {
+      const e = el.getBoundingClientRect();
+      const s = scroller.getBoundingClientRect();
+      scroller.scrollTop = Math.max(0, scroller.scrollTop + (e.top - s.top) - (s.height - e.height) / 2);
+    }
+    el?.focus({ preventScroll: true });
   };
   return (
     <div className="stack-3">

@@ -29,6 +29,7 @@ import type {
   NoticeView,
   ParkedWorkView,
   PlatformView,
+  QrPlaceholderSpec,
   ResumeOfferView,
   SaveDialogView,
   Settings,
@@ -42,6 +43,7 @@ import type {
 import { aboutArea } from './about';
 import { MockBatch, type BatchHost, type BatchPlan } from './batch';
 import { firstRunArea } from './firstrun';
+import { qrArea, qrPlaceholderSvg } from './qr';
 import { recentArea } from './recent';
 import { settingsArea } from './settings';
 import {
@@ -1471,6 +1473,8 @@ export class MockCore implements Bridge {
       { area: firstRunArea as MockArea<unknown>, state: firstRunArea.init(this.opts) },
       // Nachtrag 21: „Über PIDA“ und Update-Prüfung
       { area: aboutArea as MockArea<unknown>, state: aboutArea.init(this.opts) },
+      // Nachtrag 24: „QR-Platzhalter erstellen“
+      { area: qrArea as MockArea<unknown>, state: qrArea.init(this.opts) },
     ];
     const settingsState = this.areas[1]?.state as ReturnType<typeof settingsArea.init>;
     this.ctx = {
@@ -1529,6 +1533,10 @@ export class MockCore implements Bridge {
     const p = d?.spec.pages[0] ?? null;
     const size: [number, number] = p ? [p.w, p.h] : A4;
     return pageTileSvg(p, size, 96 / size[0]);
+  }
+
+  qrPlaceholderUrl(spec: QrPlaceholderSpec): string {
+    return qrPlaceholderSvg(spec);
   }
 
   blockPreviewUrl(scale: number, revision: number): string {

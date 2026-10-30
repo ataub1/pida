@@ -10,19 +10,7 @@
 import type { ComponentType } from 'react';
 import type { Translator } from '../i18n/catalog';
 import type { OpenFilesMode, UiEvent, ViewState } from '../core/types';
-import {
-  IconFilePlus,
-  IconFolder,
-  IconGlobe,
-  IconHome,
-  IconKeyboard,
-  IconLayers,
-  IconMonitor,
-  IconMoon,
-  IconSettings,
-  IconSignature,
-  IconSun,
-} from '../ui/Icons';
+import { IconFilePlus, IconFolder, IconGlobe, IconHome, IconKeyboard, IconLayers, IconMonitor, IconMoon, IconQr, IconSettings, IconSignature, IconSun } from '../ui/Icons';
 import type { SettingsSectionId, ShellOverlay } from './context';
 import type { Theme } from './theme';
 
@@ -33,6 +21,7 @@ export type CommandId =
   | 'sign'
   | 'settings'
   | 'signature'
+  | 'qr'
   | 'home'
   | 'theme-light'
   | 'theme-dark'
@@ -68,6 +57,8 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: 'sign', group: 'actions', label: 'ng-ui-shell-cmd-sign', keys: { mod: true, key: 'Enter' }, icon: IconSignature },
   { id: 'settings', group: 'actions', label: 'ng-ui-shell-cmd-settings', keys: { mod: true, key: ',' }, icon: IconSettings },
   { id: 'signature', group: 'actions', label: 'ng-ui-shell-cmd-signature', icon: IconSignature },
+  // Nachtrag 24: „QR-Platzhalter erstellen“
+  { id: 'qr', group: 'actions', label: 'ng-ui-shell-cmd-qr', icon: IconQr },
   { id: 'home', group: 'actions', label: 'ng-ui-shell-cmd-home', icon: IconHome },
   { id: 'theme-light', group: 'view', label: 'ng-ui-shell-cmd-theme-light', icon: IconSun },
   { id: 'theme-dark', group: 'view', label: 'ng-ui-shell-cmd-theme-dark', icon: IconMoon },
@@ -186,6 +177,8 @@ export function buildCommands(deps: CommandDeps): CommandEntry[] {
         return () => deps.openSettings();
       case 'signature':
         return () => deps.openSettings('signature');
+      case 'qr':
+        return () => deps.setOverlay('qr');
       case 'home':
         return () => void goHome(deps.view, deps.dispatch);
       case 'theme-light':

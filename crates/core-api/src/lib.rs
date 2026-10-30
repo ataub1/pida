@@ -165,6 +165,7 @@ mod mobile_signers;
 mod opening;
 mod parked;
 pub mod plan;
+pub mod qr_placeholder;
 mod recent;
 mod resume;
 mod rt;
@@ -242,6 +243,9 @@ pub enum CoreError {
     /// Prüfung (`verify`) nicht möglich (Datei nicht lesbar)
     #[error("Prüfung nicht möglich: {0}")]
     Verify(String),
+    /// QR-Platzhalter nicht erstellbar (Meldungs-ID)
+    #[error("QR-Platzhalter: {0}")]
+    QrPlaceholder(&'static str),
 }
 
 impl CoreError {
@@ -255,6 +259,7 @@ impl CoreError {
             CoreError::NoPreview => "ng-no-preview",
             CoreError::Runtime(_) => "error-Unexpected",
             CoreError::Verify(_) => "ng-verify-failed",
+            CoreError::QrPlaceholder(id) => id,
         }
     }
 }
@@ -663,6 +668,17 @@ impl Core {
         let renderer = render.open(pdf, None)?;
         let image = renderer.render_page(0, scale)?;
         Ok(pida_render::encode_png(&image)?)
+    }
+
+    /// Bild eines QR-Platzhalters („QR-Platzhalter erstellen“; Custom Protocol `pida-render://qr…`, Web): SVG immer,
+    /// PNG nur mit PDFium.
+    pub fn qr_placeholder(
+        &self,
+        spec: &qr_placeholder::QrPlaceholderSpec,
+        format: qr_placeholder::QrPlaceholderFormat,
+    ) -> Result<Vec<u8>, CoreError> {
+        let render = self.shared.render.as_deref().map(|r| r as &dyn pida_render::RenderBackend);
+        qr_placeholder::image(spec, format, render).map_err(CoreError::QrPlaceholder)
     }
 
     /// Wartet bis `Finished` (CLI) und liefert den Exit-Code.
