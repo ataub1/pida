@@ -3716,7 +3716,9 @@ Grundlage: Analyse 06 E-1, Vorbild PDF-AS-WAI („QR Platzhalter“, `pdf-as-web
    - Web: ohne Pfad, der Kern öffnet; das ergibt einen Download.
 
    Ergebnis als Hinweis (`ng-qr-saved`, `ng-qr-failed`, `ng-qr-invalid-id`).
-5. **Keine Zwischenablage:** Die CSP der App erlaubt der Oberfläche nicht, das Bild als Daten zu lesen. PNG bzw. SVG
+5. **Web-Variante:** Jede Sitzung beginnt mit eingeschalteter Platzhaltersuche „QR-Code-Platzhalter“
+   (`SESSION_SETTINGS`), damit vorbereitete Dokumente ohne weiteren Schritt richtig signiert werden.
+6. **Keine Zwischenablage:** Die CSP der App erlaubt der Oberfläche nicht, das Bild als Daten zu lesen. PNG bzw. SVG
    speichern und einfügen genügt.
 
 Tests:

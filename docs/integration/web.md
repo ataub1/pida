@@ -9,6 +9,8 @@ Webdienst“ (Variante E, A-Trust-Overlay).
 
 - **Signieren nur mit ID Austria.** Chipkarte gibt es im Browser nicht; einen Keystore nur als verstecktes
   Testmerkmal (`?test-keystore` in der Adresse, für interne Tests – die Oberfläche bietet ihn sonst nirgends an).
+- **QR-Code-Platzhalter werden immer gesucht:** Jede Sitzung beginnt mit eingeschalteter Platzhaltersuche
+  „QR-Code-Platzhalter“ (Einstellungen › Dokument, für die Sitzung änderbar).
 - **Nichts wird gespeichert:** jede Sitzung beginnt mit denselben Einstellungen, ohne Ersteinrichtung und ohne
   „Zuletzt signiert“; Änderungen gelten bis zum Schließen der Seite. In den Einstellungen bleiben Signaturbild
   (samt eigener Bildmarke für die Sitzung), Dokument, Datenschutz und Über PIDA.

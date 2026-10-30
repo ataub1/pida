@@ -35,6 +35,12 @@ update_check = false
 [output]
 folder = "/pida/Ausgabe"
 
+# QR-Code-Platzhalter immer suchen (ADR 0004 Nachtrag 24): Dokumente, die mit einem Platzhalter vorbereitet sind
+# (PIDA, PDF-AS-WAI), bekommen die Signatur ohne weiteren Schritt an die richtige Stelle
+[placeholder]
+search = true
+kind = "marker"
+
 [id_austria]
 remember = false
 
@@ -49,3 +55,18 @@ mod relay;
 mod web;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub use web::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Die Sitzungseinstellungen sind gültig und suchen QR-Code-Platzhalter.
+    #[test]
+    fn session_settings_search_qr_placeholders() {
+        let s = pida_config::Settings::from_toml(SESSION_SETTINGS).expect("gültige Einstellungen");
+        assert!(s.placeholder.search);
+        assert_eq!(s.placeholder.kind, pida_config::PlaceholderKind::Marker);
+        assert_eq!(s.output.folder.as_deref(), Some(std::path::Path::new(OUTPUT_DIR)));
+        assert!(!s.general.recent_documents && !s.general.update_check);
+    }
+}
