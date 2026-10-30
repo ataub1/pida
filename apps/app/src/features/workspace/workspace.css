@@ -464,7 +464,8 @@
   font-size: var(--fs-12);
   font-weight: var(--fw-semibold);
   white-space: nowrap;
-  animation: marker-pulse 2.4s var(--ease-in-out) infinite;
+  /* begrenzt (WCAG 2.2.2): lenkt kurz auf das Feld, pulsiert dann nicht dauerhaft weiter */
+  animation: marker-pulse 2.4s var(--ease-in-out) 3;
 }
 @keyframes marker-pulse {
   0%,

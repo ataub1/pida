@@ -764,6 +764,7 @@ function QrPane({ request, data, onCancel }: { request: number; data: Extract<Na
           {data.timeout_secs ? <Countdown key={request} request={request} reference={data.reference_value} total={data.timeout_secs} /> : null}
         </div>
       </div>
+      {data.timeout_secs ? <LowTimeNotice key={`low-${request}`} request={request} reference={data.reference_value} total={data.timeout_secs} /> : null}
       <ProblemLine ctx={data.ctx} local={data.image ? null : t.t('error-FailedToLoadQRCode')} />
       <Alternatives ctx={data.ctx} send={send} sent={sent} />
       <div className="step-actions">

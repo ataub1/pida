@@ -45,9 +45,14 @@ class Overlay {
   private readonly frame: HTMLIFrameElement;
   private readonly popupButton: HTMLButtonElement;
   private readonly note: HTMLParagraphElement;
+  private readonly title: HTMLParagraphElement;
+  private readonly cancel: HTMLButtonElement;
+  /** Fokus vor dem Öffnen (Knopf „Anmelden“ bzw. Signierkarte), kommt beim Schließen zurück */
+  private readonly returnFocus: Element | null;
   private popup: Window | null = null;
 
   constructor(t: Translator, host: string, onPopup: () => void, onCancel: () => void) {
+    this.returnFocus = document.activeElement;
     this.root = document.createElement('div');
     this.root.className = 'ida-overlay';
     this.root.setAttribute('role', 'dialog');
@@ -63,6 +68,9 @@ class Overlay {
     const title = document.createElement('p');
     title.className = 'ida-title';
     title.textContent = t.t('ng-web-ida-title');
+    // Ziel des Fokus beim Öffnen: Screenreader nennen den Dialog, Tab führt zu den Schaltflächen und ins iframe
+    title.tabIndex = -1;
+    this.title = title;
     const origin = document.createElement('p');
     origin.className = 'ida-origin';
     origin.textContent = t.t('ng-web-ida-origin', { host });
@@ -72,7 +80,7 @@ class Overlay {
     this.popupButton.className = 'btn btn-ghost btn-sm';
     this.popupButton.textContent = t.t('ng-web-atrust-popup');
     this.popupButton.addEventListener('click', onPopup);
-    const cancel = document.createElement('button');
+    const cancel = (this.cancel = document.createElement('button'));
     cancel.type = 'button';
     cancel.className = 'btn btn-secondary btn-sm';
     cancel.textContent = t.t('ng-web-atrust-close');
@@ -80,6 +88,7 @@ class Overlay {
     head.append(titles, this.popupButton, cancel);
     this.note = document.createElement('p');
     this.note.className = 'ida-note';
+    this.note.setAttribute('role', 'status');
     this.note.hidden = true;
     this.frame = document.createElement('iframe');
     this.frame.name = IFRAME_NAME;
@@ -89,11 +98,34 @@ class Overlay {
     this.frame.allow = 'publickey-credentials-get *';
     this.frame.referrerPolicy = 'no-referrer';
     panel.append(head, this.note, this.frame);
-    this.root.append(panel);
+    // Fokusfalle (WCAG 2.1.2/2.4.3): Wächter vor und nach dem Panel – Tab aus dem iframe heraus führt zurück
+    // zu den Schaltflächen, Umschalt+Tab davor ins iframe; die Signierkarte dahinter ist für Tab nicht erreichbar
+    const guard = (onFocus: () => void) => {
+      const g = document.createElement('span');
+      g.tabIndex = 0;
+      g.className = 'ida-guard';
+      g.addEventListener('focus', onFocus);
+      return g;
+    };
+    this.root.append(
+      guard(() => this.focusLast()),
+      panel,
+      guard(() => this.focusFirst()),
+    );
     this.root.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') onCancel();
     });
     document.body.append(this.root);
+    this.title.focus();
+  }
+
+  private focusFirst(): void {
+    (this.popupButton.hidden ? this.cancel : this.popupButton).focus();
+  }
+
+  private focusLast(): void {
+    if (this.frame.isConnected) this.frame.focus();
+    else this.cancel.focus();
   }
 
   /** Formular-POST an A-Trust ins iframe bzw. Popup. */
@@ -129,6 +161,8 @@ class Overlay {
     this.frame.remove();
     this.popupButton.hidden = true;
     this.showNote(t.t('ng-web-atrust-popup-hint'));
+    // der Knopf ist weg: Fokus nicht ins Leere fallen lassen
+    this.cancel.focus();
     return true;
   }
 
@@ -144,7 +178,9 @@ class Overlay {
 
   close(): void {
     this.popup?.close();
+    const hadFocus = this.root.contains(document.activeElement);
     this.root.remove();
+    if (hadFocus && this.returnFocus instanceof HTMLElement && this.returnFocus.isConnected) this.returnFocus.focus();
   }
 }
 

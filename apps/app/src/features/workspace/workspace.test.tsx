@@ -566,13 +566,13 @@ describe('Seitenansicht, Zoom und Barrierefreiheit', () => {
     const { user } = renderApp({ view: workspaceView() });
     await screen.findByRole('application', { name: 'Signaturblock' });
     const toolbar = screen.getByRole('toolbar', { name: 'Ansicht' });
-    expect(within(toolbar).getByLabelText('Zoom 86 %')).toBeInTheDocument();
+    expect(within(toolbar).getByText('Zoom 86 %')).toBeInTheDocument();
     await user.click(within(toolbar).getByRole('button', { name: 'Vergrößern' }));
-    expect(within(toolbar).getByLabelText('Zoom 90 %')).toBeInTheDocument();
+    expect(within(toolbar).getByText('Zoom 90 %')).toBeInTheDocument();
     await user.keyboard('{Control>}={/Control}');
-    expect(within(toolbar).getByLabelText('Zoom 100 %')).toBeInTheDocument();
+    expect(within(toolbar).getByText('Zoom 100 %')).toBeInTheDocument();
     await user.click(within(toolbar).getByRole('button', { name: 'An Breite anpassen' }));
-    expect(within(toolbar).getByLabelText('Zoom 86 %')).toBeInTheDocument();
+    expect(within(toolbar).getByText('Zoom 86 %')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Seiten' })).toBeInTheDocument();
     await user.click(within(toolbar).getByRole('button', { name: 'Seitenleiste ein-/ausblenden' }));
     expect(screen.queryByRole('navigation', { name: 'Seiten' })).not.toBeInTheDocument();

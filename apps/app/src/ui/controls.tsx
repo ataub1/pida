@@ -317,6 +317,8 @@ export interface ChoiceOption<V extends string> {
   description?: string;
   icon?: ReactNode;
   isDisabled?: boolean;
+  /** Sprache der Beschriftung, wenn sie von der Oberfläche abweicht (Sprachnamen, WCAG 3.1.2) */
+  lang?: string;
 }
 
 /** Auswahl als Karten (Radio-Gruppe). */
@@ -377,7 +379,7 @@ export function Segmented<V extends string>({
         {options.map((o) => (
           <Radio key={o.value} value={o.value} className="segment" isDisabled={o.isDisabled} aria-label={o.icon && !o.label ? o.value : undefined}>
             {o.icon}
-            {o.label ? <span>{o.label}</span> : null}
+            {o.label ? <span lang={o.lang}>{o.label}</span> : null}
           </Radio>
         ))}
       </div>

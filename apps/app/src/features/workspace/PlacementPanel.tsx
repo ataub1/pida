@@ -224,7 +224,8 @@ interface CoordErrors {
 }
 
 function CoordsDetail({ doc, editable, sizes }: { doc: DocumentView; editable: boolean; sizes: [number, number][] }) {
-  const { t, dispatch, announce } = useApp();
+  const { t, dispatch } = useApp();
+  const formRef = useRef<HTMLFormElement>(null);
   const lang = t.lang;
   const pages = doc.doc.page_count;
   const fromDoc = () => ({
@@ -260,9 +261,10 @@ function CoordsDetail({ doc, editable, sizes }: { doc: DocumentView; editable: b
     if (x === null || x * PT_PER_MM > maxX + 0.05) e.x = t.t('ng-ui-insp-pos-err-x', { max: formatMm(maxX, lang) });
     if (y === null || y * PT_PER_MM < bh - 0.05 || y * PT_PER_MM > ph + 0.05) e.y = t.t('ng-ui-insp-pos-err-y', { min: formatMm(bh, lang), max: formatMm(ph, lang) });
     setErrors(e);
-    const list = [e.page, e.x, e.y].filter((m): m is string => !!m);
-    if (list.length > 0) {
-      announce(t.t('ng-ui-insp-pos-err-announce', { errors: list.join(' ') }));
+    if (e.page || e.x || e.y) {
+      // Fokus auf das erste falsche Feld (WCAG 3.3.1): Screenreader lesen Bezeichnung und Fehler (aria-describedby);
+      // keine zusätzliche Ansage, die `role="alert"` der Felder melden die Fehler schon
+      requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus());
       return;
     }
     setDirty(false);
@@ -270,6 +272,7 @@ function CoordsDetail({ doc, editable, sizes }: { doc: DocumentView; editable: b
   };
   return (
     <form
+      ref={formRef}
       className="stack-3"
       onSubmit={(ev) => {
         ev.preventDefault();

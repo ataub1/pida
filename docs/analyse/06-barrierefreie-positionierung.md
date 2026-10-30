@@ -273,6 +273,23 @@ Reihenfolge: 1 → 2 → 6 (erste Tests mit Betroffenen) → 3 → 4 → 5.
 - B-1/B-3/B-12: Tastatur, Zeiger-Alternative, Struktur (axe-geprüft in den Komponententests).
 - Schrittweite der Pfeiltasten einstellbar.
 
+**Prüfung der ganzen App (30.10.2026, WCAG 2.1 AA bzw. EN 301 549):**
+- Vorgehen: axe-core auf 14 Ansichten in hell, dunkel und mobil, eigener Kontrasttest, Bedienung nur mit der Tastatur
+  (Platzierung, mm-Eingabe, Signiervorgang bis „Signiert“), Reflow bei 320/360 px, Textabstände (1.4.12), Code-Durchsicht.
+- Ergebnis: weitgehend erfüllt, Kontraste ausreichend, Signieren vollständig per Tastatur.
+- Behoben:
+  - Web: Das A-Trust-Overlay holt den Fokus, hält Tab mit Wächtern und gibt den Fokus beim Schließen zurück (2.1.2/2.4.3).
+  - Die Ansage-Region ist bei offenen Dialogen nicht mehr inert (`data-live-announcer`, 4.1.3).
+  - Kopfzeile ab 480 px schmaler: nur Logo bzw. ohne Untertitel, ohne doppeltes Haus-Symbol. Bei 320/360 px fehlten
+    sonst Einstellungen bzw. Hilfe (1.4.10).
+  - Die Einzeltaste `?` ist im barrierefreien Modus aus (2.1.4).
+  - Der Feld-Marker pulsiert nur dreimal (2.2.2).
+  - Die QR-Ansicht warnt vor Ablauf der Restzeit (2.2.1).
+  - mm-Eingabe: Fokus auf das erste falsche Feld statt doppelter Ansage.
+  - Zoom-Wert als Text statt `aria-label` an einem `span`.
+  - Sprachnamen mit `lang` (3.1.2).
+- Nicht geprüft: echte Screenreader (VoiceOver, TalkBack, NVDA) und Hardware-Tastatur auf Mobilgeräten, siehe Q-2.
+
 **Stufe 2 – offen:**
 - P-5 Textanker, R-2 überdeckten Text benennen, R-3 Seitentext (PDFium-Textextraktion).
 - P-3 vollständig: alle QR-Platzhalter mit Nummer zur Auswahl. Heute sucht der Kern nach PDF-Over-Regel und

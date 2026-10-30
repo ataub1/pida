@@ -111,8 +111,8 @@ export function QrPlaceholderDialog({ onClose }: { onClose: () => void }) {
             value={language}
             onChange={setLanguage}
             options={[
-              { value: 'de', label: 'Deutsch' },
-              { value: 'en', label: 'English' },
+              { value: 'de', label: 'Deutsch', lang: 'de' },
+              { value: 'en', label: 'English', lang: 'en' },
             ]}
           />
         </div>
