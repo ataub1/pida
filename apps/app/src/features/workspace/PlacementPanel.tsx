@@ -313,8 +313,14 @@ function FreeDetail({ doc, editable, sizes }: { doc: DocumentView; editable: boo
   };
   const toBlock = () => {
     const el = document.querySelector<HTMLElement>('[data-testid="sticker"]');
-    el?.scrollIntoView?.({ block: 'center' });
-    el?.focus();
+    // nur die Seitenansicht rollen (nicht `.app-main`, siehe Workspace `centerInCanvas`)
+    const scroller = el?.closest<HTMLElement>('.canvas-scroll');
+    if (el && scroller) {
+      const e = el.getBoundingClientRect();
+      const s = scroller.getBoundingClientRect();
+      scroller.scrollTop = Math.max(0, scroller.scrollTop + (e.top - s.top) - (s.height - e.height) / 2);
+    }
+    el?.focus({ preventScroll: true });
   };
   return (
     <div className="stack-3">

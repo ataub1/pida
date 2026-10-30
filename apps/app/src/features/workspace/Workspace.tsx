@@ -33,6 +33,24 @@ import { announceText, displayPages, isAutoPlaced, layoutPages, offeredField, PA
 import { Thumbnails } from './Thumbnails';
 import './workspace.css';
 
+/**
+ * Block mittig in die Seitenansicht holen. Nur die Seitenansicht rollt: `scrollIntoView` rollte auch die Vorfahren
+ * mit, in WKWebView den Inhaltsbereich `.app-main` des Arbeitsbereichs (`overflow: hidden`) – dann stand alles
+ * verschoben, ohne dass man zurückrollen konnte (macOS-Testbuild 30.10.2026).
+ */
+function centerInCanvas(el: HTMLElement | null, scroller: HTMLElement | null, smooth = false): void {
+  if (!el || !scroller) return;
+  const e = el.getBoundingClientRect();
+  const s = scroller.getBoundingClientRect();
+  const top = Math.max(0, scroller.scrollTop + (e.top - s.top) - (s.height - e.height) / 2);
+  const left = Math.max(0, scroller.scrollLeft + (e.left - s.left) - (s.width - e.width) / 2);
+  if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ top, left, behavior: smooth ? 'smooth' : 'auto' });
+  else {
+    scroller.scrollTop = top;
+    scroller.scrollLeft = left;
+  }
+}
+
 function clamp(v: number, min: number, max: number): number {
   return Math.min(Math.max(v, min), max);
 }
@@ -115,7 +133,7 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     if (!fitReady) return;
     if (didScroll.current && Date.now() - mountedAt.current > 1000) return;
     didScroll.current = true;
-    stickerRef.current?.scrollIntoView?.({ block: 'center' });
+    centerInCanvas(stickerRef.current, scrollRef.current);
   }, [fitReady, fitScale]);
 
   // Von der Automatik in ein anderes Ziel versetzt (geänderte Platzhaltersuche in den Einstellungen ›
@@ -126,7 +144,7 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
     if (autoKey === lastAutoKey.current) return;
     lastAutoKey.current = autoKey;
     if (!autoKey || doc.phase !== 'editing') return;
-    stickerRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    centerInCanvas(stickerRef.current, scrollRef.current, true);
     setCoach(true);
   }, [autoKey, doc.phase]);
 
@@ -226,7 +244,7 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
   const page = doc.placement.page_index;
   const prevPage = useRef(page);
   useEffect(() => {
-    if (prevPage.current !== page) stickerRef.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    if (prevPage.current !== page) centerInCanvas(stickerRef.current, scrollRef.current, true);
     prevPage.current = page;
   }, [page]);
 

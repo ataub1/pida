@@ -469,7 +469,16 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           </a>
           {web ? <DownloadBanner /> : null}
           <Header theme={theme} onTheme={setTheme} />
-          <main id="main" className="app-main" tabIndex={-1}>
+          <main
+            id="main"
+            className="app-main"
+            tabIndex={-1}
+            // Arbeitsbereich (`overflow: hidden`): der Inhaltsbereich rollt nie – rollt ihn etwas trotzdem (Fokus,
+            // `scrollIntoView` in WKWebView), sofort zurück, sonst stünde alles verschoben (macOS-Testbuild 30.10.2026)
+            onScroll={(e) => {
+              if (main === 'workspace' && e.currentTarget.scrollTop !== 0) e.currentTarget.scrollTop = 0;
+            }}
+          >
             {main === 'starting' ? <StartingCard /> : null}
             {main === 'start' ? <StartView /> : null}
             {main === 'loading' && step.step === 'loading' ? <LoadingCard step={step} /> : null}
