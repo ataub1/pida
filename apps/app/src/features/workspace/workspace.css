@@ -969,8 +969,20 @@
 .insp-pos-coords {
   display: grid;
   grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--sp-2);
-  align-items: start;
+  /* gemeinsame Zeilen für Beschriftung, Feld und Fehler: die Felder stehen auf einer Linie, auch wenn eine
+     Beschriftung umbricht („Von links (mm)“) */
+  grid-template-rows: auto auto auto;
+  column-gap: var(--sp-2);
+  row-gap: 0;
+}
+.insp-pos-coords > .field {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 4px;
+}
+.insp-pos-coords > .field > .field-label {
+  align-self: end;
 }
 .insp-pos-form {
   display: grid;
