@@ -927,6 +927,8 @@
 
 /* ------------------------------------------------------------ Platzierung ohne Vorschau (docs/analyse/06) */
 .insp-pos-panel {
+  /* eine Spalte, die schrumpfen darf: sonst drückt ein langer Knopftext die Karten über den Rahmen */
+  grid-template-columns: minmax(0, 1fr);
   border: 2px solid var(--c-focus);
   border-radius: var(--r-4);
   padding: var(--sp-3);
@@ -934,13 +936,24 @@
 }
 .insp-pos {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-3);
+}
+/* lange Knopftexte (z. B. „Alle Einstellungen zur Barrierefreiheit“) umbrechen statt überzustehen */
+.insp-pos .btn {
+  white-space: normal;
+  height: auto;
+  min-height: 32px;
+  padding-block: 6px;
+  line-height: var(--lh-snug);
+  text-align: left;
 }
 .insp-pos-disclosure {
   margin-top: var(--sp-2);
 }
 .insp-pos-detail {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-3);
   padding: var(--sp-3);
   border: 1px solid var(--c-border);

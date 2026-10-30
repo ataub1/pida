@@ -157,6 +157,13 @@
   outline: 2px solid var(--c-focus);
   outline-offset: 2px;
 }
+/* mit Dokument- bzw. Stapelkontext braucht die Kopfzeile den Platz: Beschriftung erst ab 1280 px (Symbol und Schalter
+   bleiben, der zugängliche Name ebenso) */
+@media (max-width: 1279px) {
+  .app-header:has(.header-context) .a11y-switch-text {
+    display: none;
+  }
+}
 .command-button {
   display: flex;
   align-items: center;
