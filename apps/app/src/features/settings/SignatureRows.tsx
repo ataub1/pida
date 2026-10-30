@@ -110,8 +110,8 @@ export function BlockLangRow() {
       onChange={(x) => s.apply({ 'signature.block_language': x === 'system' ? null : x })}
       options={[
         { value: 'system', label: t.t('ng-ui-set-lang-system') },
-        { value: 'de', label: t.t('ng-ui-set-lang-de') },
-        { value: 'en', label: t.t('ng-ui-set-lang-en') },
+        { value: 'de', label: t.t('ng-ui-set-lang-de'), lang: 'de' },
+        { value: 'en', label: t.t('ng-ui-set-lang-en'), lang: 'en' },
       ]}
     />
   );

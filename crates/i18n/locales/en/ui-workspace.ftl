@@ -667,7 +667,6 @@ ng-ui-insp-pos-coords-apply = Apply position
 ng-ui-insp-pos-err-page = Page 1 to { $max }.
 ng-ui-insp-pos-err-x = 0 to { $max } mm, so that the block fits on the page.
 ng-ui-insp-pos-err-y = { $min } to { $max } mm (top edge of the block).
-ng-ui-insp-pos-err-announce = Please check: { $errors }
 ng-ui-insp-pos-free-list = Free areas the block fits into
 ng-ui-insp-pos-free-item = Free area { $n }: page { $page }, { $zone }, { $w } × { $h } mm
 ng-ui-insp-pos-free-none = No free area is known yet for the loaded pages.

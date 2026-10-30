@@ -25,6 +25,7 @@ import type { Bridge, FileDragEvent } from '../core/bridge';
 import { mainBar, workspaceDefaults } from '../core/defaults';
 import { isMobile, type OpenFilesMode, type UiEvent, type ViewState } from '../core/types';
 import { webProfile } from '../core/web-profile';
+import { accessibilityOf } from '../features/accessibility';
 import { BatchView } from '../features/batch';
 import { DoneView, OutputDialogs } from '../features/done';
 import { Onboarding } from '../features/onboarding';
@@ -378,7 +379,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
         }
         return;
       }
-      if (e.key === '?' && !mod && !isTyping(e.target) && PALETTE_AVAILABLE && !blocked) {
+      // Einzeltaste: im barrierefreien Modus aus (WCAG 2.1.4, Sprachsteuerung); dort über ⌘K bzw. die Hilfe
+      if (e.key === '?' && !mod && !isTyping(e.target) && PALETTE_AVAILABLE && !blocked && !accessibilityOf(v).mode) {
         e.preventDefault();
         setOverlay('shortcuts');
         return;
@@ -504,7 +506,8 @@ export function App({ bridge, isMac: isMacProp }: { bridge: Bridge; isMac?: bool
           {overlay === 'qr' ? <QrPlaceholderDialog onClose={() => setOverlay(null)} /> : null}
           <ShortcutsDialog isOpen={overlay === 'shortcuts'} onClose={() => setOverlay(null)} commands={commands} shortcuts={buildShortcuts(t, isMac)} />
           <Toasts toasts={toasts} onDismiss={dismiss} notices={current.notices} />
-          <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="live-region">
+          {/* `data-live-announcer`: React Aria lässt die Region bei offenen Dialogen sichtbar (sonst inert, Ansagen gingen verloren) */}
+          <div className="sr-only" aria-live="polite" aria-atomic="true" data-live-announcer="true" data-testid="live-region">
             {liveText}
           </div>
         </div>

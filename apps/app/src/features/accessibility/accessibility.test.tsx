@@ -3,7 +3,7 @@
  * (`withMode`), Platzierung ohne Vorschau im Inspektor (Methoden, Millimeter, Platzhalter-Nummer, freie Flächen),
  * ausführliche Ansage und „Vor dem Signieren prüfen“.
  */
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defaultAccessibility } from '../../core/defaults';
 import type { AccessibilitySettings, UiEvent } from '../../core/types';
@@ -123,7 +123,9 @@ describe('Platzierung ohne Vorschau', () => {
     expect(page).toHaveAccessibleDescription('Seite 1 bis 3.');
     expect(x).toHaveAccessibleDescription(/^0 bis 128,9 mm/);
     expect(lastEvent(mock)?.type).not.toBe('move_block');
-    await waitFor(() => expect(screen.getByTestId('live-region')).toHaveTextContent(/^Bitte prüfen: Seite 1 bis 3\./));
+    // Fokus springt auf das erste falsche Feld (keine zweite Ansage über die Live-Region)
+    await waitFor(() => expect(page).toHaveFocus());
+    expect(screen.getByTestId('live-region')).not.toHaveTextContent(/Bitte prüfen/);
     await user.clear(page);
     await user.type(page, '1');
     await user.clear(x);
@@ -255,5 +257,23 @@ describe('Einstellungen › Barrierefreiheit', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Einstellungen' });
     await user.type(within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' }), 'blind');
     expect(within(dialog).getByRole('switch', { name: 'Barrierefreie Bedienung' })).toBeInTheDocument();
+  });
+});
+
+describe('Prüfung 30.10.2026 (WCAG)', () => {
+  it('2.1.4: die Einzeltaste „?“ ist im barrierefreien Modus aus, sonst öffnet sie die Kürzel', async () => {
+    renderApp({ view: a11yView(ON) });
+    await screen.findByTestId('placement-panel');
+    fireEvent.keyDown(window, { key: '?' });
+    expect(screen.queryByRole('dialog', { name: 'Tastenkürzel' })).not.toBeInTheDocument();
+  });
+
+  it('4.1.3: die Ansage-Region bleibt bei offenen Dialogen erreichbar (React Aria macht sie nicht inert)', async () => {
+    const { user } = renderApp();
+    await user.click(await screen.findByRole('button', { name: /QR-Platzhalter erstellen/ }));
+    await screen.findByRole('dialog', { name: 'QR-Platzhalter erstellen' });
+    const region = screen.getByTestId('live-region');
+    expect(region).toHaveAttribute('data-live-announcer', 'true');
+    expect(region.closest('[inert], [aria-hidden="true"]')).toBeNull();
   });
 });

@@ -326,8 +326,10 @@ function WorkspaceView({ doc }: { doc: DocumentView }) {
           <IconButton label={t.t('ng-ui-ws-zoom-out')} onPress={() => zoomBy(-1)} isDisabled={zoomPct <= 50}>
             <IconZoomOut size={18} />
           </IconButton>
-          <span className="zoom-value" aria-label={t.t('ng-ui-ws-zoom-value', { value: zoomPct })}>
-            {zoomPct} %
+          {/* Name an einem generischen span ignorieren Screenreader (WCAG 4.1.2): gelesen wird der Text */}
+          <span className="zoom-value">
+            <span aria-hidden="true">{zoomPct} %</span>
+            <span className="sr-only">{t.t('ng-ui-ws-zoom-value', { value: zoomPct })}</span>
           </span>
           <IconButton label={t.t('ng-ui-ws-zoom-in')} onPress={() => zoomBy(1)} isDisabled={zoomPct >= 200}>
             <IconZoomIn size={18} />

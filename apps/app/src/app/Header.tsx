@@ -93,8 +93,8 @@ export function Header({ theme, onTheme }: { theme: Theme; onTheme: (theme: Them
             value={view.language}
             onChange={(v) => void dispatch({ type: 'set_ui_language', language: v })}
             options={[
-              { value: 'de', label: 'DE' },
-              { value: 'en', label: 'EN' },
+              { value: 'de', label: 'DE', lang: 'de' },
+              { value: 'en', label: 'EN', lang: 'en' },
             ]}
           />
         </div>

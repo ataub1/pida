@@ -310,6 +310,14 @@
   .app-header:has(.header-back) .wordmark-text {
     display: none;
   }
+  /* Reflow (WCAG 1.4.10, Barrierefreiheits-Check 30.10.2026): auf 360-px-Telefonen fehlten sonst Einstellungen bzw.
+     der Schalter lag über „+ PDF“. Mit Dokument- bzw. Stapelkontext nur das Logo; das Haus-Symbol entfällt, weil die
+     Wortmarke selbst zur Startseite führt („PIDA – Startseite“). Ohne Kontext entfällt der Untertitel. */
+  .app-header:has(.header-context) .wordmark-text,
+  .wordmark-tag,
+  .header-home {
+    display: none;
+  }
 }
 
 /* Finger: auch Wortmarke, Befehlsknopf und „+ PDF“ mindestens 44 × 44 px (WCAG 2.5.5, Apple HIG; das schmale
