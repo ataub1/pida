@@ -10,6 +10,8 @@
  *    Richtlinie nur ein Signiermittel lassen – dann entfällt der Schritt.
  * 3. **Signaturbild** (Profil, Blocksprache) mit der Blockvorschau des Kerns (`first_run.preview_revision`)
  *    → `update_first_run`. Die Bildmarke bleibt das PIDA-Siegel, sofern PDF-Over keine eigene gesetzt hatte.
+ *    Darunter „Barrierefreie Bedienung verwenden?“ (Standard „Nein“, docs/analyse/06) → `set_accessibility`; der
+ *    letzte Schritt ist der einzige, den es auf allen Plattformen gibt.
  *
  * „Los geht’s“ → `finish_first_run` (Hinweis „Einrichtung abgeschlossen“), „Später einrichten“ (auch Esc) →
  * `postpone_first_run` (Hinweis, wo es weitergeht; ADR 0004 Nachtrag 12); ein noch offenes Migrationsangebot wird
@@ -22,6 +24,7 @@ import { type BackendChoice, type FirstRunView, type Lang, type MigrationOfferVi
 import { Button, RadioCards, Segmented, type ChoiceOption } from '../../ui/controls';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
 import { IconCard, IconFileKey, IconPhone } from '../../ui/Icons';
+import { accessibilityOf, withMode } from '../accessibility';
 import { signerChoice } from '../workspace/signers';
 import { MigrationOfferPane } from './MigrationOffer';
 import './onboarding.css';
@@ -190,7 +193,8 @@ function SignerStep({ firstRun, onNext }: { firstRun: FirstRunView; onNext: () =
 
 /** Signaturbild; `onBack` fehlt ohne vorigen Schritt (Mobile ohne Übernahmeangebot). */
 function BlockStep({ firstRun, onBack, onFinish, busy }: { firstRun: FirstRunView; onBack?: () => void; onFinish: () => void; busy: boolean }) {
-  const { t, bridge } = useApp();
+  const { t, bridge, view, dispatch } = useApp();
+  const a11y = accessibilityOf(view);
   const { current, update } = useFirstRunUpdate(firstRun);
   const profile = current.profile;
   const lang: LangChoice = current.block_language ?? 'system';
@@ -230,6 +234,20 @@ function BlockStep({ firstRun, onBack, onFinish, busy }: { firstRun: FirstRunVie
             options={(['system', 'de', 'en'] as const).map((l) => ({ value: l, label: t.t(LANG_LABEL[l]) }))}
           />
         ) : null}
+      </div>
+      {/* Barrierefreie Bedienung (docs/analyse/06): Standard „Nein“, gilt sofort und lässt sich jederzeit über den
+          Schalter in der Kopfzeile bzw. Einstellungen › Barrierefreiheit ändern */}
+      <div className="ob-a11y">
+        <Segmented<'no' | 'yes'>
+          label={t.t('ng-ui-ob-a11y')}
+          value={a11y.mode ? 'yes' : 'no'}
+          onChange={(v) => void dispatch({ type: 'set_accessibility', accessibility: withMode(a11y, v === 'yes') })}
+          options={[
+            { value: 'no', label: t.t('ng-ui-ob-a11y-no') },
+            { value: 'yes', label: t.t('ng-ui-ob-a11y-yes') },
+          ]}
+        />
+        <p className="step-text">{t.t('ng-ui-ob-a11y-hint')}</p>
       </div>
       <div className="step-actions">
         {onBack ? (

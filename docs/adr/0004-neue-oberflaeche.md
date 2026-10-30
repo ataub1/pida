@@ -3671,7 +3671,10 @@ und der vom Auftraggeber freigegebene Prototyp `prototypes/a11y-positionierung` 
 4. **Bezugspunkt der Millimeter** wie PDF-AS(-WAI): linke obere Ecke des Blocks ab der linken unteren Seitenecke
    (`move_block` in pt, der Kern klemmt). Die Live-Region nennt seither ebenfalls die linke obere Ecke
    (`ng-ui-ws-announce` mit `top` statt `bottom`).
-5. **Vor dem Signieren prüfen**: „Signieren“ (Knopf, ⌘↵, Palette) zeigt zuerst Platzierung, Signaturbild und
+5. **Ersteinrichtung** (nur Apps): im letzten Schritt „Barrierefreie Bedienung verwenden?“, Standard „Nein“; „Ja“ wirkt
+   wie der Schalter. Im Web gibt es keine Ersteinrichtung – dort ist der Schalter aus, außer über den Direktlink bzw.
+   wenn ihn der Browser von einem früheren Besuch kennt.
+6. **Vor dem Signieren prüfen**: „Signieren“ (Knopf, ⌘↵, Palette) zeigt zuerst Platzierung, Signaturbild und
    Signiermittel samt Überdeckungswarnung; erst „Signieren“ im Dialog startet.
 
 Stufe 2 (offen): Textanker („unter dem Text …“) und Seitentext statt Vorschau (PDFium-Textextraktion), überdeckten
