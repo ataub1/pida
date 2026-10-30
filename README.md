@@ -70,12 +70,12 @@ Apache unter [Server für PIDA Web](#server-für-pida-web-linux), Details in
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/01-start.png" alt="Startseite: Fläche „PDF hierher ziehen oder auswählen“ mit der Schaltfläche „PDF auswählen“, daneben die Liste „Zuletzt signiert“ mit drei Dokumenten">
+      <img src="docs/screenshots/01-start.png" alt="Startseite: Fläche „PDF hierher ziehen oder auswählen“ mit der Schaltfläche „PDF auswählen“, darunter die Karte „Dokument für andere vorbereiten“ mit „QR-Platzhalter erstellen“, daneben die Liste „Zuletzt signiert“ mit drei Dokumenten; in der Kopfzeile der Schalter „Barrierefreie Bedienung“">
       <br><b>Startseite</b> – PDF hineinziehen oder auswählen, mehrere Dateien werden zum Stapel. Daneben
-      „Zuletzt signiert“.
+      „Zuletzt signiert“, darunter „Dokument für andere vorbereiten“.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/03-signieren-id-austria.png" alt="Dialog „Signieren mit ID Austria“, Schritt 2 „In der App bestätigen“: Vergleichswert aus zehn Zeichen, Restzeit 4:59, Alternativen FIDO2-Schlüssel und SMS-TAN">
+      <img src="docs/screenshots/03-signieren-id-austria.png" alt="Dialog „Signieren mit ID Austria“, Schritt 2 „In der App bestätigen“: Vergleichswert aus zehn Zeichen, Restzeit 4:58, Alternativen FIDO2-Schlüssel und SMS-TAN">
       <br><b>Signieren mit ID Austria</b> – Statuskarte mit Vergleichswert und Restzeit; bestätigt wird in der
       App „ID Austria“.
     </td>
@@ -103,17 +103,29 @@ Apache unter [Server für PIDA Web](#server-für-pida-web-linux), Details in
       <br><b>Dunkles Design</b> – der Signaturblock rastet in ein leeres Signaturfeld des Formulars ein.
     </td>
   </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/10-barrierefrei-platzierung.png" alt="Arbeitsbereich mit eingeschalteter barrierefreier Bedienung: rechts oben „Platzierung der Signatur“ mit den Methoden Automatisch, Platzhalter im Dokument, Position in Millimetern (gewählt, mit Feldern für Seite, Abstand von links und von unten) sowie Freie Fläche">
+      <br><b>Barrierefreie Bedienung</b> – die Signatur ohne Vorschau platzieren: automatisch, in einen
+      Platzhalter, per Millimeter (wie PDF-AS) oder auf eine freie Fläche.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/11-qr-platzhalter.png" alt="Dialog „QR-Platzhalter erstellen“: Vorschau des Platzhalters mit QR-Code und „Platzhalter für die elektronische Signatur Nr. 0001“, darunter Nummer, Signaturbild und die Schaltflächen „Als SVG speichern“ und „Als PNG speichern“">
+      <br><b>QR-Platzhalter erstellen</b> – für Dokumente, die andere unterschreiben; kompatibel mit
+      PDF-Over und PDF-AS.
+    </td>
+  </tr>
 </table>
 
 <p align="center">
-  <img src="docs/screenshots/08-mobil-start.png" width="280" alt="Android, Startseite: „Was möchten Sie signieren?“ mit der Schaltfläche „Dokument auswählen“ und der Liste „Zuletzt signiert“">
+  <img src="docs/screenshots/08-mobil-start.png" width="280" alt="Android, Startseite: „Was möchten Sie signieren?“ mit der Schaltfläche „Dokument auswählen“, darunter die Karte „Dokument für andere vorbereiten“">
   &nbsp;&nbsp;
   <img src="docs/screenshots/09-mobil-arbeitsbereich.png" width="280" alt="Android, Arbeitsbereich: Vertragsseite mit platziertem Signaturblock, unten das einklappbare Bedienfeld mit „ID Austria“ und „Signieren“">
   <br><b>Android</b> – Startseite und Arbeitsbereich mit ausklappbarem Bedienfeld; auf dem Smartphone wird
   mit ID Austria signiert. PDFs kommen auch über „Teilen“ aus anderen Apps.
 </p>
 
-<sub>Aufnahmen der Oberfläche von 0.2.0 mit Beispieldaten (fiktive Person „Max Mustermann“, frei erfundene
+<sub>Aufnahmen der Oberfläche von 0.7.0 mit Beispieldaten (fiktive Person „Max Mustermann“, frei erfundene
 Dokumente).</sub>
 
 ## Download
