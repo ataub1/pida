@@ -124,6 +124,39 @@
   gap: var(--sp-2);
   flex: none;
 }
+/* Schalter „Barrierefreie Bedienung“ (docs/analyse/06): eingeschaltet in der Fokusfarbe, damit er auffällt */
+.a11y-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 34px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-pill);
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.a11y-switch[data-hovered] {
+  background: var(--c-hover);
+}
+.a11y-switch[data-selected] {
+  border-color: var(--c-focus);
+  color: var(--c-info-on-soft);
+  background: var(--c-info-soft);
+}
+.a11y-switch[data-selected] .switch-track {
+  background: var(--c-focus);
+}
+.a11y-switch[data-selected] .switch-thumb {
+  transform: translateX(16px);
+}
+.a11y-switch[data-focus-visible] {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+}
 .command-button {
   display: flex;
   align-items: center;
@@ -166,6 +199,9 @@
 @media (max-width: 960px) {
   .command-button {
     min-width: 0;
+  }
+  .a11y-switch-text {
+    display: none;
   }
   .command-button-text {
     display: none;
@@ -215,6 +251,12 @@
   }
   .command-button .keys {
     display: none;
+  }
+  /* schmal: Symbol und Schalter (Zustand bleibt auch ohne Farbe erkennbar, z. B. in Kontrastdesigns) */
+  .a11y-switch {
+    height: 36px;
+    padding: 0 6px;
+    gap: 4px;
   }
   .header-actions {
     gap: 0;

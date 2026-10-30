@@ -2,7 +2,7 @@
  * Kopfzeile (Gestalt aus dem Prototyp, ADR 0004 §3 „Informationsarchitektur“): Wortmarke (→ Start, ohne
  * „Prototyp“-Plakette), Dokumentkontext (Name, Seiten, Größe; aus dem Stapel geöffnet mit „Zurück zum
  * Stapel“; daneben „+ PDF“ mit „Weitere PDFs hinzufügen“ und „Anderes PDF öffnen“, Nachtrag 9) bzw.
- * Stapelkontext („Stapel · 4 Dokumente“), „Befehle ⌘K“, DE/EN (`set_ui_language`), Farbschema (lokal je Gerät)
+ * Stapelkontext („Stapel · 4 Dokumente“), Schalter „Barrierefreie Bedienung“ (docs/analyse/06), „Befehle ⌘K“, DE/EN (`set_ui_language`), Farbschema (lokal je Gerät)
  * und Einstellungen (`actions.settings`). Kein Knopf „Prüfen“: den Prüfmodus gibt es nicht mehr (ADR 0004
  * Nachtrag 15).
  *
@@ -11,6 +11,7 @@
  */
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover } from 'react-aria-components';
 import { isMobile } from '../core/types';
+import { A11ySwitch } from '../features/accessibility/A11ySwitch';
 import { HELP_AVAILABLE } from '../features/help';
 import { PALETTE_AVAILABLE } from '../features/palette';
 import { AddPdfMenu } from '../features/workspace';
@@ -75,6 +76,8 @@ export function Header({ theme, onTheme }: { theme: Theme; onTheme: (theme: Them
       ) : null}
       <div className="header-spacer" />
       <div className="header-actions">
+        {/* Barrierefreie Bedienung (docs/analyse/06): zusätzlich zu den übrigen Symbolen, ersetzt keines */}
+        <A11ySwitch />
         {PALETTE_AVAILABLE ? (
           <AriaButton className="command-button" onPress={() => setOverlay('palette')} aria-label={t.t('ng-ui-shell-commands-long')}>
             <IconSearch size={16} />

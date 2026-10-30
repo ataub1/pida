@@ -924,3 +924,94 @@
 .insp-block-lang.is-disabled .switch-label {
   color: var(--c-text-3);
 }
+
+/* ------------------------------------------------------------ Platzierung ohne Vorschau (docs/analyse/06) */
+.insp-pos-panel {
+  border: 2px solid var(--c-focus);
+  border-radius: var(--r-4);
+  padding: var(--sp-3);
+  background: var(--c-surface);
+}
+.insp-pos {
+  display: grid;
+  gap: var(--sp-3);
+}
+.insp-pos-disclosure {
+  margin-top: var(--sp-2);
+}
+.insp-pos-detail {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-3);
+  background: var(--c-surface-2);
+}
+.insp-pos-detail:empty {
+  display: none;
+}
+.insp-pos-detail > .btn {
+  justify-self: start;
+}
+.insp-pos-coords {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: start;
+}
+.insp-pos-form {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+.insp-pos-form .field {
+  justify-self: stretch;
+}
+.insp-pos-hint {
+  display: grid;
+  gap: var(--sp-1);
+  justify-items: start;
+}
+.insp-pos-current {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-3);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  font-size: var(--fs-14);
+}
+.insp-pos-current p {
+  margin: 0;
+}
+.insp-pos-current-label {
+  font-weight: var(--fw-semibold);
+}
+.insp-pos > .btn {
+  justify-self: start;
+}
+@media (max-width: 420px) {
+  .insp-pos-coords {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Vor dem Signieren prüfen */
+.sign-check-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0 0 var(--sp-3);
+}
+.sign-check-list dt {
+  font-weight: var(--fw-semibold);
+}
+.sign-check-list dd {
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .sign-check-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sign-check-list dd {
+    margin-bottom: var(--sp-2);
+  }
+}

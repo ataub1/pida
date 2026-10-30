@@ -3647,3 +3647,36 @@ Entscheidungen des Auftraggebers vom 19.10.2026.
 Tests: `workflow/tests/workspace.rs::field_search_skips_fields_unsuitable_for_the_block`, `core-api/tests/mobile.rs`
 (Keystore-Kopie gelöscht, Hinweis), `core-api/tests/settings.rs::field_search_places_into_the_first_empty_field_immediately`
 (Block steht proportional im Feld).
+
+### Nachtrag 23 (30.10.2026): Barrierefreie Bedienung – Platzierung ohne Vorschau (Stufe 1)
+
+Grundlage: Anforderungsanalyse [`analyse/06`](../analyse/06-barrierefreie-positionierung.md) (Vorbild PDF-AS-WAI)
+und der vom Auftraggeber freigegebene Prototyp `prototypes/a11y-positionierung` (30.10.2026).
+
+1. **Einstellungen › Barrierefreiheit** (neuer Abschnitt `accessibility`, auch im Web): `mode`, `start`
+   (`preview`/`methods`), `announce` (`short`/`detailed`), `announce_after_move`, `keyboard_step`
+   (`standard` = 15 pt, `mm1`/`mm5`/`mm10`; Umschalt 1 pt und Strg/⌘ 50 pt bleiben), `check_before_sign`.
+   Standard = bisheriges Verhalten. Der Kern liefert die Werte immer in `ViewState::accessibility` und nimmt
+   `set_accessibility` auch ohne Einstellungsansicht an (je Feld wie `apply_settings`, Richtlinie gilt).
+2. **Schalter „Barrierefreie Bedienung“ in der Kopfzeile**, zusätzlich zu Befehlen, Sprache, Farbschema, Hilfe und
+   Einstellungen (ersetzt nichts; schmal nur Symbol und Schalter). Er stellt `start = methods`,
+   `announce = detailed`, `announce_after_move` und `check_before_sign` gemeinsam ein bzw. zurück; Funktionen schaltet
+   er nicht frei. Direktlink `?barrierefrei=1`; im Web merkt sich der Browser den Schalter (`localStorage`, nur
+   Bequemlichkeit – Einstellungen werden dort sonst nicht gespeichert).
+3. **Platzierung ohne Vorschau** (`PlacementPanel`): Methode automatisch · Platzhalter im Dokument (Liste mit Seite
+   und Lage, Nummer wie PDF-AS-WAI, „0002“ = „2“, falsche Nummer mit Hinweis statt stillem Rückfall) · Position in
+   Millimetern · freie Fläche bzw. selbst verschieben; dazu die aktuelle Lage als Text. Mit dem Schalter als erster
+   Abschnitt im Inspektor, sonst eingeklappt unter „Platzierung“. **Ergänzt D1:** Zahlenfelder gibt es weiterhin
+   nicht im Inspektor selbst, nur in diesem Panel.
+4. **Bezugspunkt der Millimeter** wie PDF-AS(-WAI): linke obere Ecke des Blocks ab der linken unteren Seitenecke
+   (`move_block` in pt, der Kern klemmt). Die Live-Region nennt seither ebenfalls die linke obere Ecke
+   (`ng-ui-ws-announce` mit `top` statt `bottom`).
+5. **Vor dem Signieren prüfen**: „Signieren“ (Knopf, ⌘↵, Palette) zeigt zuerst Platzierung, Signaturbild und
+   Signiermittel samt Überdeckungswarnung; erst „Signieren“ im Dialog startet.
+
+Stufe 2 (offen): Textanker („unter dem Text …“) und Seitentext statt Vorschau (PDFium-Textextraktion), überdeckten
+Text benennen, mehrere QR-Platzhalter zur Auswahl (heute liefert der Kern nur den nach PDF-Over-Regel gefundenen),
+VoiceOver „anpassbar“ bzw. TalkBack-Aktionen auf Mobile.
+
+Tests: `core-api/tests/workspace.rs::accessibility_settings_apply_without_settings_view_and_set_the_keyboard_step`,
+`apps/app/src/features/accessibility/accessibility.test.tsx`.

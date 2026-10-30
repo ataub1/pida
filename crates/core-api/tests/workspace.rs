@@ -2335,3 +2335,46 @@ async fn block_language_switch_changes_the_setting() {
         assert!(editing(&v), "bleibt im Arbeitsbereich");
     }
 }
+
+/// Einstellungen › Barrierefreiheit ohne Einstellungsansicht (`set_accessibility`, Schalter „Barrierefreie
+/// Bedienung“): sofort in `ViewState::accessibility` und gespeichert; die Schrittweite der Pfeiltasten gilt für
+/// `nudge_block` (Umschalt bleibt 1 pt).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn accessibility_settings_apply_without_settings_view_and_set_the_keyboard_step() {
+    let fx = Fixture::new();
+    let input = fx.dir("in");
+    let out = fx.dir("out");
+    let a = copy_pdf(TEXT_PDF, &input, "a.pdf");
+    // Verschieben braucht die Seitengeometrie (PDFium); ohne PDFium übersprungen wie die übrigen Layout-Tests
+    let Some(core) = start(&fx, keystore_overlay(vec![a], &out), None, Some(FakeEngine::new()), true) else { return };
+    settled(&core, true).await;
+    assert_eq!(core.view().accessibility, Some(pida_config::AccessibilitySettings::default()));
+    let wanted = pida_config::AccessibilitySettings {
+        mode: true,
+        start: pida_config::PlacementStart::Methods,
+        announce: pida_config::AnnounceDetail::Detailed,
+        announce_after_move: true,
+        keyboard_step: pida_config::KeyboardStep::Mm10,
+        check_before_sign: true,
+    };
+    core.dispatch(UiEvent::SetAccessibility { accessibility: wanted });
+    wait_for(&core, "Barrierefreiheit übernommen", |v| v.accessibility == Some(wanted)).await;
+    let saved = std::fs::read_to_string(fx.paths.settings_file()).expect("Einstellungen gespeichert");
+    assert!(saved.contains("[accessibility]") && saved.contains("keyboard_step = \"mm10\""), "{saved}");
+
+    core.dispatch(UiEvent::MoveBlock { page: 0, x: 100.0, y: 500.0 });
+    wait_for(&core, "verschoben", |v| v.document.as_ref().is_some_and(|d| (d.placement.x - 100.0).abs() < 0.01)).await;
+    core.dispatch(UiEvent::NudgeBlock { dx: 1, dy: -1, fine: false, coarse: false });
+    let step = 10.0 * 72.0 / 25.4;
+    wait_for(&core, "um 10 mm verschoben", |v| {
+        v.document.as_ref().is_some_and(|d| {
+            (d.placement.x - (100.0 + step)).abs() < 0.01 && (d.placement.y - (500.0 - step)).abs() < 0.01
+        })
+    })
+    .await;
+    core.dispatch(UiEvent::NudgeBlock { dx: 1, dy: 0, fine: true, coarse: false });
+    wait_for(&core, "Umschalt: 1 pt", |v| {
+        v.document.as_ref().is_some_and(|d| (d.placement.x - (101.0 + step)).abs() < 0.01)
+    })
+    .await;
+}

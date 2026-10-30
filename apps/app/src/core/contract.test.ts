@@ -368,6 +368,16 @@ const stepView = tagged('step', {
   batch: {},
 });
 
+// Einstellungen › Barrierefreiheit (docs/analyse/06)
+const accessibility = obj({
+  mode: bool,
+  start: lit('preview', 'methods'),
+  announce: lit('short', 'detailed'),
+  announce_after_move: bool,
+  keyboard_step: lit('standard', 'mm1', 'mm5', 'mm10'),
+  check_before_sign: bool,
+});
+
 const settings = objOpen({
   schema_version: int,
   general: obj({
@@ -402,6 +412,7 @@ const settings = objOpen({
   output: obj({ folder: nullable(str), postfix: str }),
   proxy: obj({ mode: lit('system', 'none', 'manual'), host: nullable(str), port: nullable(int), user: nullable(str) }),
   certificate_cache: obj({ enabled: bool }),
+  accessibility,
 });
 
 const workflowError = ext({
@@ -448,6 +459,7 @@ const viewState = obj({
     }),
   ),
   language: lang,
+  accessibility: optional(accessibility),
   notices: arr(obj({ id: int, code: str, params: record(str) })),
   migration: nullable(migrationOffer),
   done: arr(obj({ id: int, name: str, input: str, result: docResult })),
@@ -552,6 +564,7 @@ const uiEvent = tagged('type', {
   clear_recent: {},
   apply_settings: { changes: record(unknownValue), revision: int },
   set_ui_language: { language: nullable(lang) },
+  set_accessibility: { accessibility },
   update_first_run: { default_backend: nullable(backendChoice), profile: signatureProfile, block_language: nullable(lang) },
   finish_first_run: {},
   offer_migration: {},
@@ -696,6 +709,7 @@ describe('Vertrag ViewState (Rust → TS)', () => {
         main_bar: { steps: [], settings_enabled: true },
         settings: null,
         language: 'fr',
+        accessibility: null,
         notices: [],
         migration: null,
         done: [],

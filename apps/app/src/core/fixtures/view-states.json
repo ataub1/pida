@@ -3,6 +3,14 @@
     "name": "starting",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -71,6 +79,14 @@
     "name": "open_empty",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -140,6 +156,14 @@
     "name": "open_queue",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -220,6 +244,14 @@
     "name": "loading",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -300,6 +332,14 @@
     "name": "warning",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -388,6 +428,14 @@
     "name": "open_notices_migration_done",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -510,6 +558,14 @@
     "name": "placeholder_fields",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -605,6 +661,14 @@
     "name": "placeholder_qr",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -694,6 +758,14 @@
     "name": "position",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -801,6 +873,14 @@
     "name": "position_new_page",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -903,6 +983,14 @@
     "name": "backend",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1040,6 +1128,14 @@
     "name": "waiting_connecting",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1139,6 +1235,14 @@
     "name": "waiting_certificate",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1238,6 +1342,14 @@
     "name": "waiting_server",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1337,6 +1449,14 @@
     "name": "waiting_signing",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1436,6 +1556,14 @@
     "name": "waiting_document",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1540,6 +1668,14 @@
     "name": "waiting_done",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1639,6 +1775,14 @@
     "name": "form_login",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1751,6 +1895,14 @@
     "name": "form_login_too_short",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1863,6 +2015,14 @@
     "name": "form_login_too_long",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -1975,6 +2135,14 @@
     "name": "form_login_rejected",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2087,6 +2255,14 @@
     "name": "form_login_atrust",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2201,6 +2377,14 @@
     "name": "form_login_fido2_error",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2318,6 +2502,14 @@
     "name": "form_sms",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2429,6 +2621,14 @@
     "name": "form_sms_no_tan",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2540,6 +2740,14 @@
     "name": "form_sms_too_long",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2651,6 +2859,14 @@
     "name": "form_sms_reference",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2762,6 +2978,14 @@
     "name": "form_qr",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2883,6 +3107,14 @@
     "name": "form_qr_failed",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -2996,6 +3228,14 @@
     "name": "form_app",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3108,6 +3348,14 @@
     "name": "form_app_no_reference",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3220,6 +3468,14 @@
     "name": "form_fido2",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3331,6 +3587,14 @@
     "name": "form_fido2_failed",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3444,6 +3708,14 @@
     "name": "secret_keystore",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3550,6 +3822,14 @@
     "name": "secret_key_retry",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3656,6 +3936,14 @@
     "name": "secret_proxy",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3762,6 +4050,14 @@
     "name": "secret_fido2_pin",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3868,6 +4164,14 @@
     "name": "notice_interstitial",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -3973,6 +4277,14 @@
     "name": "notice_atrust_error",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4078,6 +4390,14 @@
     "name": "notice_proxy",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4183,6 +4503,14 @@
     "name": "notice_too_large",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4288,6 +4616,14 @@
     "name": "notice_http",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4397,6 +4733,14 @@
     "name": "notice_connection",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4502,6 +4846,14 @@
     "name": "notice_local_bku",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4607,6 +4959,14 @@
     "name": "notice_keystore_missing",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4712,6 +5072,14 @@
     "name": "notice_alias_missing",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4817,6 +5185,14 @@
     "name": "notice_keystore",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -4922,6 +5298,14 @@
     "name": "notice_conversion",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5027,6 +5411,14 @@
     "name": "output_saved",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5104,6 +5496,14 @@
     "name": "output_pending_next",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5196,6 +5596,14 @@
     "name": "output_ask_overwrite",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5273,6 +5681,14 @@
     "name": "output_save_dialog",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5353,6 +5769,14 @@
     "name": "error",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5432,6 +5856,14 @@
     "name": "finished",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5501,6 +5933,14 @@
     "name": "settings_open",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5592,6 +6032,14 @@
         },
         "read_only": false,
         "settings": {
+          "accessibility": {
+            "announce": "short",
+            "announce_after_move": false,
+            "check_before_sign": false,
+            "keyboard_step": "standard",
+            "mode": false,
+            "start": "preview"
+          },
           "backend": {
             "default": null
           },
@@ -5669,6 +6117,14 @@
     "name": "settings_defaults",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5734,6 +6190,14 @@
         "problems": {},
         "read_only": true,
         "settings": {
+          "accessibility": {
+            "announce": "short",
+            "announce_after_move": false,
+            "check_before_sign": false,
+            "keyboard_step": "standard",
+            "mode": false,
+            "start": "preview"
+          },
           "backend": {
             "default": null
           },
@@ -5808,6 +6272,14 @@
     "name": "mobile_backend",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5904,6 +6376,14 @@
     "name": "mobile_resume_offer",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -5979,6 +6459,14 @@
     "name": "keystore_imported",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -6053,6 +6541,14 @@
     "name": "ws_editing",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": true,
         "home": true,
@@ -6454,6 +6950,14 @@
     "name": "ws_share_hint_ios",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": true,
         "home": true,
@@ -6839,6 +7343,14 @@
     "name": "ws_editing_locked",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": true,
         "home": true,
@@ -7240,6 +7752,14 @@
     "name": "ws_field_no_signer",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": true,
         "home": true,
@@ -7639,6 +8159,14 @@
     "name": "ws_invisible",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": true,
         "home": true,
@@ -7817,6 +8345,14 @@
     "name": "ws_warning",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -8150,6 +8686,14 @@
     "name": "ws_signing_connecting",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -8501,6 +9045,14 @@
     "name": "ws_signing_login",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -8852,6 +9404,14 @@
     "name": "ws_signing_certificate",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -9203,6 +9763,14 @@
     "name": "ws_signing_preparing",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -9554,6 +10122,14 @@
     "name": "ws_signing_confirming_app",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -9905,6 +10481,14 @@
     "name": "ws_signing_confirming_qr",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -10256,6 +10840,14 @@
     "name": "ws_signing_confirming_sms",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -10607,6 +11199,14 @@
     "name": "ws_signing_confirming_fido2",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -10958,6 +11558,14 @@
     "name": "ws_signing_confirming_password",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -11309,6 +11917,14 @@
     "name": "ws_signing_confirming_card",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -11660,6 +12276,14 @@
     "name": "ws_signing_finishing",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -12011,6 +12635,14 @@
     "name": "ws_signing_saving",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -12362,6 +12994,14 @@
     "name": "ws_batch_pause_document",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -12697,6 +13337,14 @@
     "name": "ws_batch_pause_connection",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -13032,6 +13680,14 @@
     "name": "ws_batch_pause_session",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -13364,6 +14020,14 @@
     "name": "ws_error_load",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -13441,6 +14105,14 @@
     "name": "ws_error_analysis",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -13518,6 +14190,14 @@
     "name": "ws_error_prepare",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -13595,6 +14275,14 @@
     "name": "ws_error_signing",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -13924,6 +14612,14 @@
     "name": "ws_error_output",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -14001,6 +14697,14 @@
     "name": "ws_error_config",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -14078,6 +14782,14 @@
     "name": "ws_error_other",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -14155,6 +14867,14 @@
     "name": "ws_done",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -14505,6 +15225,14 @@
     "name": "ws_done_mobile",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -14855,6 +15583,14 @@
     "name": "ws_batch",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -15197,6 +15933,14 @@
     "name": "ws_batch_folder",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -15539,6 +16283,14 @@
     "name": "ws_batch_ask",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -15881,6 +16633,14 @@
     "name": "ws_batch_mobile",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -16205,6 +16965,14 @@
     "name": "ws_batch_empty",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -16287,6 +17055,14 @@
     "name": "ws_batch_auto_once",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -16629,6 +17405,14 @@
     "name": "ws_batch_auto_setting",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -16971,6 +17755,14 @@
     "name": "ws_recent",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -17055,6 +17847,14 @@
     "name": "ws_recent_empty",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -17124,6 +17924,14 @@
     "name": "ws_start_parked",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -17198,6 +18006,14 @@
     "name": "ws_start_parked_batch",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": true,
@@ -17272,6 +18088,14 @@
     "name": "ws_first_run",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -17469,6 +18293,14 @@
     "name": "ws_first_run_without_migration",
     "view": {
       "about": null,
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -17604,6 +18436,14 @@
         },
         "version": "0.2.0"
       },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -17684,6 +18524,14 @@
           "state": "disabled"
         },
         "version": "0.2.0"
+      },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
       },
       "actions": {
         "edit_placement": false,
@@ -17766,6 +18614,14 @@
         },
         "version": "0.2.0"
       },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -17846,6 +18702,14 @@
           "state": "checking"
         },
         "version": "0.2.0"
+      },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
       },
       "actions": {
         "edit_placement": false,
@@ -17928,6 +18792,14 @@
         },
         "version": "0.2.0"
       },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -18008,6 +18880,14 @@
           "state": "available"
         },
         "version": "0.2.0"
+      },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
       },
       "actions": {
         "edit_placement": false,
@@ -18090,6 +18970,14 @@
         },
         "version": "0.2.0"
       },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
+      },
       "actions": {
         "edit_placement": false,
         "home": false,
@@ -18164,6 +19052,14 @@
         "source_url": "https://github.com/ataub1/pida",
         "update": null,
         "version": "0.2.0"
+      },
+      "accessibility": {
+        "announce": "short",
+        "announce_after_move": false,
+        "check_before_sign": false,
+        "keyboard_step": "standard",
+        "mode": false,
+        "start": "preview"
       },
       "actions": {
         "edit_placement": false,

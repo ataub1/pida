@@ -8,7 +8,7 @@
  * Flächen und die Überdeckung. Koordinaten wie im Kern: pt, `PAGE_ABS` (Ursprung links unten, y nach oben;
  * eine Lage ist die linke obere Ecke `x`/`y` = Oberkante von unten).
  */
-import type { DocumentView, FieldTargetView, GuideKind, GuideView, PlacementTarget, QrTargetView, RectPt } from '../../core/types';
+import type { AnnounceDetail, DocumentView, FieldTargetView, GuideKind, GuideView, PlacementTarget, QrTargetView, RectPt } from '../../core/types';
 import type { Translator } from '../../i18n/catalog';
 
 /** 100 % Zoom = 96 px je Zoll (1 pt = 1,333 px) wie im Prototyp. */
@@ -232,15 +232,23 @@ function snapWord(t: Translator, kinds: GuideKind[]): string {
 }
 
 /**
- * Satz der Live-Region, z. B. „Seite 3 von 3, 112 mm von links, 38 mm von unten. Rastet ein: rechts unten.
- * Freie Fläche.“ – Lage aus `announce` (Kern), „rastet ein“ kennt nur die Oberfläche (Ziehen), das
- * Prüfergebnis aus `check` (nur, wenn es zur aktuellen Revision gehört).
+ * Satz der Live-Region, z. B. „Seite 3 von 3, linke obere Ecke 112 mm von links, 67 mm von unten. Rastet ein:
+ * rechts unten. Freie Fläche.“ – Lage aus `announce` (Kern), „rastet ein“ kennt nur die Oberfläche (Ziehen), das
+ * Prüfergebnis aus `check` (nur, wenn es zur aktuellen Revision gehört). `detailed` (Einstellungen ›
+ * Barrierefreiheit) ergänzt die Lage in Worten („Lage: rechts unten.“).
  */
-export function announceText(t: Translator, doc: DocumentView, snapped: GuideKind[] = []): string {
+export function announceText(t: Translator, doc: DocumentView, snapped: GuideKind[] = [], detail: AnnounceDetail = 'short'): string {
   const a = doc.announce;
   if (doc.invisible) return t.t('ng-ui-ws-announce-invisible');
   if (!a.page) return '';
-  const parts = [t.t('ng-ui-ws-announce', { page: a.page, pages: a.pages ?? a.page, left: a.left ?? '0', bottom: a.bottom ?? '0' })];
+  // linke obere Ecke wie die Millimeter-Eingabe und PDF-AS (docs/analyse/06 R-6)
+  const parts = [t.t('ng-ui-ws-announce', { page: a.page, pages: a.pages ?? a.page, left: a.left ?? '0', top: a.top ?? '0' })];
+  // ausführlich (Einstellungen › Barrierefreiheit): Lage in Worten
+  if (detail === 'detailed' && doc.sticker) {
+    const sizes = displayPages(doc);
+    const [pw, ph] = sizes[doc.placement.page_index] ?? sizes[sizes.length - 1] ?? [595.28, 841.89];
+    parts.push(t.t('ng-ui-ws-announce-zone', { zone: zoneText(t, doc.sticker, pw, ph) }));
+  }
   const field = doc.target.kind === 'field' ? doc.fields.find((f) => doc.target.kind === 'field' && f.index === doc.target.index) : undefined;
   if (field) parts.push(t.t('ng-ui-ws-announce-field', { name: field.name }));
   else if (doc.target.kind === 'qr') parts.push(t.t('ng-ui-ws-announce-qr'));

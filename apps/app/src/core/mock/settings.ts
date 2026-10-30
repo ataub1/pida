@@ -267,6 +267,9 @@ export const settingsArea: MockArea<SettingsState> = {
       case 'set_ui_language':
         changed(state, ctx, { ...state.settings, general: { ...state.settings.general, ui_language: e.language } });
         return true;
+      case 'set_accessibility':
+        changed(state, ctx, { ...state.settings, accessibility: { ...e.accessibility } });
+        return true;
       case 'select_signer':
         if (!e.make_default) return false;
         // iOS/Android: Keystore und Chipkarte gibt es nicht (`mobile_signers::ignored_on_mobile`)

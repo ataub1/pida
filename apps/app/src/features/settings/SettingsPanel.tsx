@@ -5,7 +5,7 @@
  * Bereichsnavigation links (schmal und auf Mobilgeräten waagrecht, im Vollbild). Bereiche: Signaturbild
  * (Live-Editor mit Vorschau, die beim Bearbeiten oben sichtbar bleibt), Dokument (PDF/A, Platzhaltersuche,
  * automatische Positionierung),
- * Signiermittel, Speichern, Darstellung, Datenschutz, Erweitert (u. a. „PDF-Over-Einstellungen übernehmen“ mit
+ * Signiermittel, Speichern, Darstellung, Barrierefreiheit (docs/analyse/06), Datenschutz, Erweitert (u. a. „PDF-Over-Einstellungen übernehmen“ mit
  * dem Angebot direkt im Bereich), Über PIDA (Version mit Datum, Update-Prüfung, Links, Urheberrecht; Nachtrag 21).
  *
  * Schließen (×, Escape, Klick daneben) sendet zuerst wartende Texteingaben und dann `close_settings` – es gibt
@@ -21,7 +21,8 @@ import { EMBLEM_DROP_EVENT } from '../../app/events';
 import { isMobile, type SettingsView, type SignatureProfile } from '../../core/types';
 import { webProfile } from '../../core/web-profile';
 import { DialogHeader, ModalShell } from '../../ui/Dialog';
-import { IconClose, IconFileText, IconFolder, IconInfo, IconPhone, IconSearch, IconSettings, IconShield, IconSignature, IconSun } from '../../ui/Icons';
+import { IconAccessibility, IconClose, IconFileText, IconFolder, IconInfo, IconPhone, IconSearch, IconSettings, IconShield, IconSignature, IconSun } from '../../ui/Icons';
+import { A11yAnnounceRow, A11yCheckRow, A11yKeysRow, A11yModeRow, A11yStartRow, A11yStepRow } from './AccessibilityRows';
 import { AboutRow } from './about';
 import { CertCacheRow, MigrationRow, PRIVACY_HEADING_ID, PrivacyInfoRow, ProxyRow, RecentRow, ResetRow, ThemeRow, UiLangRow, UpdatesRow } from './OtherRows';
 import { ROWS, SECTIONS, search, visibleRows, type RowDef, type RowId, type SectionId } from './rows';
@@ -43,6 +44,7 @@ const SECTION_ICON: Record<SectionId, ReactNode> = {
   signers: <IconPhone size={18} />,
   save: <IconFolder size={18} />,
   appearance: <IconSun size={18} />,
+  accessibility: <IconAccessibility size={18} />,
   privacy: <IconShield size={18} />,
   advanced: <IconSettings size={18} />,
   about: <IconInfo size={18} />,
@@ -95,6 +97,18 @@ function SettingRow({ id, goto }: { id: RowId; goto: (section: SectionId, focus?
       return <ThemeRow />;
     case 'appearance.language':
       return <UiLangRow />;
+    case 'accessibility.mode':
+      return <A11yModeRow />;
+    case 'accessibility.start':
+      return <A11yStartRow />;
+    case 'accessibility.check':
+      return <A11yCheckRow />;
+    case 'accessibility.announce':
+      return <A11yAnnounceRow />;
+    case 'accessibility.step':
+      return <A11yStepRow />;
+    case 'accessibility.keys':
+      return <A11yKeysRow />;
     case 'privacy.info':
       return <PrivacyInfoRow />;
     case 'privacy.certcache':

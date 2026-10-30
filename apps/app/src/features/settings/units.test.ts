@@ -17,7 +17,7 @@ const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
 describe('Bereiche und Zeilen', () => {
   it('„Dokument“ direkt nach „Signaturbild“; PDF/A und Platzhalter nicht unter „Erweitert“', () => {
     const order = SECTIONS.map((s) => s.id);
-    expect(order).toEqual(['signature', 'document', 'signers', 'save', 'appearance', 'privacy', 'advanced', 'about']);
+    expect(order).toEqual(['signature', 'document', 'signers', 'save', 'appearance', 'accessibility', 'privacy', 'advanced', 'about']);
     expect(ROWS.filter((r) => r.section === 'document').map((r) => r.id)).toEqual(['document.pdfa', 'document.placeholder', 'document.auto_position']);
     expect(ROWS.filter((r) => r.section === 'advanced').map((r) => r.id)).not.toContain('document.placeholder');
   });
@@ -125,9 +125,9 @@ describe('Hilfen', () => {
 });
 
 describe('Einstellungen im Web', () => {
-  it('nur Signaturbild, Dokument, Datenschutz, Über PIDA; Keystore nur im Testbuild', () => {
+  it('nur Signaturbild, Dokument, Barrierefreiheit, Datenschutz, Über PIDA; Keystore nur im Testbuild', () => {
     const sections = (keystore: boolean) => [...new Set(visibleRows({ mobile: false, profile: 'SIGNATURBLOCK_SMALL', web: { keystore } }).map((r) => r.section))];
-    expect(sections(false)).toEqual(['signature', 'document', 'privacy', 'about']);
+    expect(sections(false)).toEqual(['signature', 'document', 'accessibility', 'privacy', 'about']);
     const ids = (keystore: boolean) => visibleRows({ mobile: false, profile: 'SIGNATURBLOCK_SMALL', web: { keystore } }).map((r) => r.id);
     expect(ids(false)).not.toContain('signers.keystore');
     expect(ids(true).filter((id) => id.startsWith('signers.'))).toEqual(['signers.keystore']);

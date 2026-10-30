@@ -16,7 +16,7 @@
  * (Stapelübersicht und -lauf mit eigenem Zustand, wie `State::BatchOverview`/`BatchSigning` des Kerns neben
  * der Warteschlange; mit `batchOverview` bei ≥ 2 Dokumenten, ADR 0004 §3.8).
  */
-import { defaultErrorContext, defaultSigners, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../defaults';
+import { defaultAccessibility, defaultErrorContext, defaultSigners, defaultSigningProgress, mainBar, noActions, workspaceDefaults } from '../defaults';
 import type { Bridge, FileDragEvent, LicenseKind, MobilePick } from '../bridge';
 import type {
   ActionsView,
@@ -1693,6 +1693,7 @@ export class MockCore implements Bridge {
       main_bar: mainBar(['', '', '', ''], false),
       settings: null,
       language: settings.general.ui_language ?? this.opts.language ?? 'de',
+      accessibility: { ...(settings.accessibility ?? defaultAccessibility()) },
       notices: this.notices.map((n) => ({ ...n, params: { ...n.params } })),
       migration: null,
       done: [],

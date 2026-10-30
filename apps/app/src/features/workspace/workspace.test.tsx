@@ -145,7 +145,7 @@ describe('Sticker und Seiten', () => {
     expect(tap.y).toBeCloseTo(PH - (400 - 82 - 12));
   });
 
-  it('Live-Region nach einer Änderung des Kerns: Lage mit „von unten“, Einrasten, Prüfergebnis', async () => {
+  it('Live-Region nach einer Änderung des Kerns: Lage der linken oberen Ecke „von unten“, Einrasten, Prüfergebnis', async () => {
     const { mock } = renderApp({ view: workspaceView() });
     const s = await screen.findByRole('application', { name: 'Signaturblock' });
     stubRects();
@@ -160,7 +160,7 @@ describe('Sticker und Seiten', () => {
       announce: { page: '3', pages: '3', left: '109', top: '114', bottom: '85' },
     });
     act(() => mock.setView(workspaceView(next)));
-    await waitFor(() => expect(screen.getByTestId('live-region')).toHaveTextContent('Seite 3 von 3, 109 mm von links, 85 mm von unten. Rastet ein: rechts unten. Freie Fläche.'));
+    await waitFor(() => expect(screen.getByTestId('live-region')).toHaveTextContent('Seite 3 von 3, linke obere Ecke 109 mm von links, 114 mm von unten. Rastet ein: rechts unten. Freie Fläche.'));
   });
 });
 
@@ -632,7 +632,7 @@ describe('Seitenansicht, Zoom und Barrierefreiheit', () => {
     });
     act(() => mock.setView(workspaceView(moved)));
     const live = screen.getByTestId('live-region');
-    await waitFor(() => expect(live).toHaveTextContent(/^Seite 3 von 3, 109 mm von links/));
+    await waitFor(() => expect(live).toHaveTextContent(/^Seite 3 von 3, linke obere Ecke 109 mm von links/));
     const other = documentView({ doc: { ...moved.doc, id: 8, name: 'Angebot.pdf' }, revision: 1 });
     act(() => mock.setView(workspaceView(other)));
     await screen.findByRole('img', { name: 'Seite 3 von 3 – Angebot.pdf' });

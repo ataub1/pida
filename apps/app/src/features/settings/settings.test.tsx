@@ -46,7 +46,7 @@ describe('Rahmen und sofortige Wirkung', () => {
     const names = within(within(dialog).getByRole('navigation', { name: 'Bereiche' }))
       .getAllByRole('button')
       .map((b) => b.textContent);
-    expect(names).toEqual(['Signaturbild', 'Dokument', 'Signiermittel', 'Speichern', 'Darstellung', 'Datenschutz', 'Erweitert', 'Über PIDA']);
+    expect(names).toEqual(['Signaturbild', 'Dokument', 'Signiermittel', 'Speichern', 'Darstellung', 'Barrierefreiheit', 'Datenschutz', 'Erweitert', 'Über PIDA']);
     expect(nav(dialog, 'Signaturbild')).toHaveAttribute('aria-current', 'true');
     // „Speichern“ ist nur der Bereich, kein Knopf zum Übernehmen; kein „Abbrechen“
     expect(within(dialog).getAllByRole('button', { name: 'Speichern' })).toEqual([nav(dialog, 'Speichern')]);
@@ -752,13 +752,13 @@ describe('Bereichsleiste bei großer Schrift (Mobile-Check 16.10.2026)', () => {
       await user.click(nav(dialog, 'Signaturbild'));
       expect(bar.scrollLeft).toBe(0);
       await user.click(nav(dialog, 'Erweitert'));
-      expect(bar.scrollLeft).toBe(6 * 150 + 150 - 300 + 12);
+      expect(bar.scrollLeft).toBe(7 * 150 + 150 - 300 + 12);
       // nach der Suche (die Leiste verschwindet währenddessen) wieder beim aktiven Bereich
       const search = within(dialog).getByRole('searchbox', { name: 'Einstellungen durchsuchen' });
       await user.type(search, 'proxy');
       expect(within(dialog).queryByRole('navigation', { name: 'Bereiche' })).toBeNull();
       await user.clear(search);
-      expect(within(dialog).getByRole('navigation', { name: 'Bereiche' }).scrollLeft).toBe(6 * 150 + 150 - 300 + 12);
+      expect(within(dialog).getByRole('navigation', { name: 'Bereiche' }).scrollLeft).toBe(7 * 150 + 150 - 300 + 12);
     } finally {
       spy.mockRestore();
     }

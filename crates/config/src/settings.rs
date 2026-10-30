@@ -426,6 +426,76 @@ pub struct CertificateCacheSettings {
     pub enabled: bool,
 }
 
+/// Womit die Platzierung beginnt (Einstellungen › Barrierefreiheit).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementStart {
+    /// Seitenvorschau mit dem Signaturblock (wie bisher).
+    #[default]
+    Preview,
+    /// Auswahl der Methode (automatisch, Platzhalter, Millimeter, freie Fläche) zuerst.
+    Methods,
+}
+
+/// Umfang der Ansagen für Screenreader beim Platzieren.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnounceDetail {
+    /// Seite und Lage in mm.
+    #[default]
+    Short,
+    /// zusätzlich Lage in Worten, Ziel und Überdeckung.
+    Detailed,
+}
+
+/// Schrittweite der Pfeiltasten beim Verschieben des Signaturblocks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KeyboardStep {
+    /// 15 pt wie PDF-Over (`SIGNATURE_KEYBOARD_POSITIONING_OFFSET`).
+    #[default]
+    Standard,
+    /// 1 mm.
+    Mm1,
+    /// 5 mm.
+    Mm5,
+    /// 10 mm.
+    Mm10,
+}
+
+impl KeyboardStep {
+    /// Schrittweite in pt; `None` = Standard (15 pt).
+    pub fn pt(self) -> Option<f32> {
+        let mm = match self {
+            KeyboardStep::Standard => return None,
+            KeyboardStep::Mm1 => 1.0,
+            KeyboardStep::Mm5 => 5.0,
+            KeyboardStep::Mm10 => 10.0,
+        };
+        Some(mm * 72.0 / 25.4)
+    }
+}
+
+/// Barrierefreiheit (PIDA-Ergänzung, docs/analyse/06). „Barrierefreie Bedienung“ (`mode`) stellt die übrigen
+/// Werte gemeinsam ein (das macht die Oberfläche); jeder bleibt einzeln änderbar. Funktionen werden dadurch
+/// nicht freigeschaltet – alle Wege der Platzierung gibt es immer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct AccessibilitySettings {
+    /// „Barrierefreie Bedienung“: Platzierung oben im Inspektor.
+    pub mode: bool,
+    /// Womit die Platzierung beginnt.
+    pub start: PlacementStart,
+    /// Umfang der Ansagen.
+    pub announce: AnnounceDetail,
+    /// Lage erst nach dem Verschieben ansagen (nicht bei jedem Tastendruck).
+    pub announce_after_move: bool,
+    /// Schrittweite der Pfeiltasten (Umschalt: 1 pt, Strg/⌘: 50 pt bleiben).
+    pub keyboard_step: KeyboardStep,
+    /// Vor dem Signieren die Platzierung als Text zur Prüfung zeigen.
+    pub check_before_sign: bool,
+}
+
 /// Gesamte Einstellungen.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -450,6 +520,8 @@ pub struct Settings {
     pub proxy: ProxySettings,
     /// Zertifikats-Cache.
     pub certificate_cache: CertificateCacheSettings,
+    /// Barrierefreiheit.
+    pub accessibility: AccessibilitySettings,
     /// Unbekannte Tabellen/Keys (bleiben beim Speichern erhalten). Schlüssel = TOML-Pfad in
     /// Punktschreibweise (`future`, `signature.future_key`, `general."a b"`).
     #[serde(flatten)]
@@ -469,6 +541,7 @@ impl Default for Settings {
             output: OutputSettings::default(),
             proxy: ProxySettings::default(),
             certificate_cache: CertificateCacheSettings::default(),
+            accessibility: AccessibilitySettings::default(),
             unknown: BTreeMap::new(),
         }
     }

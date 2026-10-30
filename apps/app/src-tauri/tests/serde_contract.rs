@@ -53,6 +53,7 @@ fn view(step: StepView, bar: MainBarView) -> ViewState {
         main_bar: bar,
         settings: None,
         language: Lang::De,
+        accessibility: Some(pida_config::AccessibilitySettings::default()),
         notices: Vec::new(),
         migration: None,
         done: Vec::new(),
@@ -1476,7 +1477,7 @@ fn typescript_events_deserialize_into_ui_event() {
 
 /// Anzahl der `UiEvent`-Varianten in den TypeScript-Typen (die TS-Beispiele müssen jede abdecken);
 /// ohne das veraltete `acknowledge_privacy` (`#[ts(skip)]`, ADR 0003).
-const UI_EVENT_VARIANTS: usize = 70;
+const UI_EVENT_VARIANTS: usize = 71;
 
 /// Das veraltete `acknowledge_privacy` (früherer Datenschutzdialog) wird weiter gelesen – ältere Aufrufer
 /// scheitern nicht –, steht aber nicht mehr in den TypeScript-Typen (ADR 0003).

@@ -715,6 +715,50 @@ export type CertificateCacheSettings = {
 enabled: boolean, };
 
 /**
+ * Spiegel von `pida_config::PlacementStart`.
+ */
+export type PlacementStart = "preview" | "methods";
+
+/**
+ * Spiegel von `pida_config::AnnounceDetail`.
+ */
+export type AnnounceDetail = "short" | "detailed";
+
+/**
+ * Spiegel von `pida_config::KeyboardStep`.
+ */
+export type KeyboardStep = "standard" | "mm1" | "mm5" | "mm10";
+
+/**
+ * Spiegel von `pida_config::AccessibilitySettings`.
+ */
+export type AccessibilitySettings = { 
+/**
+ * „Barrierefreie Bedienung“
+ */
+mode: boolean, 
+/**
+ * Womit die Platzierung beginnt
+ */
+start: PlacementStart, 
+/**
+ * Umfang der Ansagen
+ */
+announce: AnnounceDetail, 
+/**
+ * erst nach dem Verschieben ansagen
+ */
+announce_after_move: boolean, 
+/**
+ * Schrittweite der Pfeiltasten
+ */
+keyboard_step: KeyboardStep, 
+/**
+ * vor dem Signieren prüfen
+ */
+check_before_sign: boolean, };
+
+/**
  * Spiegel von `pida_config::Settings`. Unbekannte Einträge (`Settings::unknown`, `flatten`) stehen
  * auf oberster Ebene und gehen beim Speichern unverändert zurück.
  */
@@ -758,7 +802,11 @@ proxy: ProxySettings,
 /**
  * Zertifikats-Cache
  */
-certificate_cache: CertificateCacheSettings, } & ({ [key in string]: unknown });
+certificate_cache: CertificateCacheSettings, 
+/**
+ * Barrierefreiheit
+ */
+accessibility: AccessibilitySettings, } & ({ [key in string]: unknown });
 
 /**
  * Hinweis ohne Rückfrage (i18n-ID mit Parametern), z. B. `error-PositioningNotPossible`,
@@ -1344,6 +1392,11 @@ settings: SettingsView | null,
  */
 language: Lang, 
 /**
+ * Einstellungen › Barrierefreiheit (für Kopfzeile, Inspektor und Ansagen, auch ohne Einstellungsansicht).
+ * Additiv, in TypeScript optional; der Kern liefert es immer.
+ */
+accessibility?: AccessibilitySettings | null, 
+/**
  * Hinweise ohne Rückfrage (älteste zuerst)
  */
 notices: Array<NoticeView>, 
@@ -1650,7 +1703,11 @@ revision: number, } | { "type": "set_ui_language",
 /**
  * Sprache (`None` = System)
  */
-language: Lang | null, } | { "type": "update_first_run", 
+language: Lang | null, } | { "type": "set_accessibility", 
+/**
+ * neue Werte
+ */
+accessibility: AccessibilitySettings, } | { "type": "update_first_run", 
 /**
  * Standard-Signiermittel (`None` = „Jedes Mal fragen“)
  */
